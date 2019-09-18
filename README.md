@@ -28,7 +28,7 @@ The AirQo project aims to measure and quantify the scale of air pollution in and
 
 
 ## Contributing
-We invite you to help us build this platform. Please look up the [contributing guide] (https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines) for details.
+We invite you to help us build this platform. Please look up the [contributing guide](https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines) for details.
 
 
 ## Community
