@@ -1,32 +1,32 @@
-# AirQo-api
+## AirQo-api
 This repo contains API definitions for the AirQo platform
 
 
-# What Is AirQo?
+## What Is AirQo?
 The AirQo project aims to measure and quantify the scale of air pollution in and around Kampala City through the design, development and deployment of a network of low-cost air quality sensing devices mounted on either static or mobile objects.
 
 
-# Features
+## Features
 
 
-# Installation
+## Installation
 
 
-# Documentation
+## Documentation
 
 
-# Usage
+## Usage
 
 
-# Supported Platforms
+## Supported Platforms
 
 
-# Contributing
+## Contributing
 We invite you to help us in the building of this platform. 
 
 
-# Community
+## Community
 
 
-# Issues
+## Issues
 Before reporting a problem, please check how to file an issue guide.
