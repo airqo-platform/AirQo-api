@@ -7,7 +7,12 @@ The AirQo project aims to measure and quantify the scale of air pollution in and
 
 
 ## Features
-
+- Multi-protocol connectivity (HTTP and MQTT)
+- Device management
+- Access control
+- Message persistence (MongoDB and PostgresSQL)
+- Container-based deployment using [Docker][docker] and [Kubernetes][kubernetes]
+- Microservices architecture, high-quality code and test coverage
 
 ## Installation
 
