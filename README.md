@@ -35,4 +35,4 @@ We invite you to help us build this platform. Please look up the [contributing g
 
 
 ## Issues
-Before reporting a problem, please check how to file an issue guide.
+Before reporting a problem, please check how to file an [issue guide](https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines).
