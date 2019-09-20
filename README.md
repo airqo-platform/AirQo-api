@@ -7,6 +7,10 @@ The AirQo project aims to measure and quantify the scale of air pollution in and
 
 ## System Architecture
 
+**AirQo platform** is composed of many microservices written in different languages that talk to each other using Istio.
+
+[![Architecture of
+microservices](./docs/img/architecture-diagram.png)](./docs/img/architecture-diagram.png)
 
 
 ## Features
