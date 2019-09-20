@@ -17,13 +17,7 @@ The AirQo project aims to measure and quantify the scale of air pollution in and
 - Container-based deployment using [Docker](https://www.docker.com/) and [Kubernetes](https://kubernetes.io/)
 - Microservices architecture, high-quality code and test coverage
 
-## Installation
-
-
-## Documentation
-
-
-## Usage
+## Installation and Usage
 
 
 ## Supported Platforms
@@ -31,10 +25,6 @@ The AirQo project aims to measure and quantify the scale of air pollution in and
 
 ## Contributing
 We invite you to help us build this platform. Please look up the [contributing guide](https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines) for details.
-
-
-## Community
-
 
 ## Issues
 Before reporting a problem, please check out the [issue guide](https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines).
