@@ -1,0 +1,11 @@
+{
+  "name": "auth-service-api",
+  "version": "1.0.0",
+  "description": "auth api",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "martin",
+  "license": "ISC"
+}
