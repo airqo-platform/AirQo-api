@@ -14,17 +14,17 @@ microservices](./docs/img/architecture-diagram.png)](./docs/img/architecture-dia
 
 The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki/System-Architecture) uses a mono repo for faster shipping. Each service has its own database. Consistency across these databases is maintained using an event driven approach. There is also an API gateway (Nginx) which clients use to access ther rest of the services. The state of the miscroservices is monitored using PM2. Deployment pattern is one service per container using Docker.
 
-| Service                                                 | Language      | Description                                                                                                                       |
-| ----------------------------------------------------    | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [analytics-service](./src/analytics-service)            | NodeJS        | This is the one to be used for all analytics work                                                           |
-| [app-enable-service](./src/app-enable-service)          | NodeJS        | To enable any application that consumes the services of this platform.                        |
-| [auth-service](./src/auth-service)                      | Node.js       | Authentication services for this endpoint |
-| [data-mgt-service](./src/data-mgt-service)              | Django/Python | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness                                    |
-| [device-registry-service](./src/device-registry-service)| NodeJS        | Carry out the management of the devices                                 |
-| [incetives-service](./src/incetives-service)            | NodeJS        | The payment service to incetivise various stakeholders                                                                                 |
-| [ml-service](./src/ml-service)                          | NodeJS        | The machine learning models for predictions and forecasts                            |
-| [monitoring-service](./src/monitoring-service)          | NodeJS        | Monitoring the health of all the microservices                                                                  |
-| [noitification-service](./src/notification-service)     | NodeJS        | Takes care of all the notification needs of the application.                                                                                   |
+| Service                                                           | Language      | Description                                                                                                                       |
+| ----------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [analytics-service](./src/analytics-service)                      | NodeJS        | This is the one to be used for all analytics work                                                           |
+| [app-enable-service](./src/app-enable-service)                    | NodeJS        | To enable any application that consumes the services of this platform.                                                           |
+| [auth-service](./src/auth-service)                                | Node.js       | Authentication services for this endpoint                                                                                  |
+| [data-mgt-service](./src/data-mgt-service)                        | Django/Python | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness                                                                            |
+| [device-registry-service](./src/device-registry-service) .        | NodeJS        | Carry out the management of the devices                                                                                            |
+| [incetives-service](./src/incetives-service)                      | NodeJS        | The payment service to incetivise various stakeholders                                                                        |
+| [ml-service](./src/ml-service)                                    | NodeJS        | The machine learning models for predictions and forecasts                                                                   |
+| [monitoring-service](./src/monitoring-service)                    | NodeJS        | Monitoring the health of all the microservices                                                                               |
+| [noitification-service](./src/notification-service)               | NodeJS        | Takes care of all the notification needs of the application.                                                                         |
                                            
 
 ## Features
