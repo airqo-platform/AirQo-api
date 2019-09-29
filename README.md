@@ -16,7 +16,6 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 
 | Service                                                           | Language      | Description                                                                                                                       |
 | ----------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-
 | [analytics-service](./src/analytics-service)                      | NodeJS        | This is the one to be used for all analytics work                                                                            |
 | [app-enable-service](./src/app-enable-service)                    | NodeJS        | To enable any application that consumes the services of this platform.                                                            |
 | [auth-service](./src/auth-service)                                | Node.js       | Authentication services for this endpoint                                                                                  |
