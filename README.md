@@ -38,8 +38,9 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 
 ## Installation and Usage
 
+1. **Running locally with “Docker for Desktop”** You will build and deploy microservices images to a single-node Kubernetes cluster running on your development machine.
 
-## Supported Platforms
+2. **Running on Google Compute Engine (GCE)”** You will build, upload and deploy the container images to a Kubernetes cluster on Google Cloud Engine.
 
 
 ## Contributing
