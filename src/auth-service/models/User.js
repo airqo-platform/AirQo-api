@@ -1,4 +1,4 @@
-const DataAccess = require("../DataAccess");
+const DataAccess = require("./DataAccess");
 
 const Model = function () {
 
