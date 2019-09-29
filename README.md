@@ -25,7 +25,7 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 | [ml-service](./src/ml-service)             | NodeJS            | The machine learning models for predictions and forecasts                            |
 | [monitoring-service](./src/monitoring-service) | NodeJS        | Monitoring the health of all the microservices                                                                  |
 | [noitification-service](./src/notification-service)     | NodeJS          | Takes care of all the notification needs of the application.                                                                                   |
-                                           |
+                                           
 
 ## Features
 - Multi-protocol connectivity (HTTP and MQTT)
