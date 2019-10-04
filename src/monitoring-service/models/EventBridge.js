@@ -77,7 +77,7 @@ EventEngine.prototype.SendAlert = function (service) {
     return new Promise(function (fulfill, reject) {
 
         var post_data = {
-            message: service.name + "-" + service.address + ":" + service.port + "is down.";
+            message: service.name + "-" + service.address + ":" + service.port + "is down."
         }
 
         var post_options = {
