@@ -2,7 +2,7 @@
 
 [![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/)
 
-https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master
+[![Build Status](https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master)
 
 
 ## What is AirQo?
