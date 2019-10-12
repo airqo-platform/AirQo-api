@@ -2,6 +2,8 @@
 
 [![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/)
 
+https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master
+
 
 ## What is AirQo?
 The AirQo project aims to measure and quantify the scale of air pollution in and around Kampala City through the design, development and deployment of a network of low-cost air quality sensing devices mounted on either static or mobile objects.
