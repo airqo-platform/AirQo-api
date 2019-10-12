@@ -1,5 +1,4 @@
 ## AirQo-api
-This repo contains API definitions for the AirQo platform
 
 [![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/)
 
