@@ -1,0 +1,11 @@
+language: node_js
+node_js:
+  - 11
+install:
+  - npm install -g codecov
+script:
+  - instabull cover ./node_modules/mocha/bin/_mocha --reporter lcovonly -- -R spec 
+  -  codecov
+ after_success: npm run coverage
+ env:
+  - CODECOV_TOKEN="c978a00a-d27e-482c-9bb0-b5ac6997293d"
