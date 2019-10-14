@@ -1,5 +1,6 @@
 ## AirQo-api
-This repo contains API definitions for the AirQo platform
+
+[![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/) [![Build Status](https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master)](https://travis-ci.com/airqo-platform/AirQo-api) [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/master/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)[![Codacy Badge](https://api.codacy.com/project/badge/Grade/e6e0c200907b455cadee042f1277a44e)](https://www.codacy.com/manual/bbaalmart/AirQo-api?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=airqo-platform/AirQo-api&amp;utm_campaign=Badge_Grade)
 
 
 ## What is AirQo?
@@ -16,13 +17,13 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 
 | Service                                                           | Language      | Description                                                                                                                       |
 | ----------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| [analytics-service](./src/analytics-service)                      | Node.js        | This is the one to be used for all analytics work                                                                            |
+| [analytics-service](./src/analytics-service)                      | Flask/Python & MongoDB        | This is the one to be used for all analytics work                                                                            |
 | [app-enable-service](./src/app-enable-service)                    | Node.js        | To enable any application that consumes the services of this platform.                                                            |
 | [auth-service](./src/auth-service)                                | Node.js       | Authentication services for this endpoint                                                                                  |
-| [data-mgt-service](./src/data-mgt-service)                        | Django/Python | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness                                                                            |
+| [data-mgt-service](./src/data-mgt-service)                        | Flask/Python & MongoDB | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness                                                                            |
 | [device-registry-service](./src/device-registry) .        | Node.js        | Carry out the management of the devices                                                                                           |
 | [incetives-service](./src/incetives-service)                      | Node.js        | The payment service to incetivise various stakeholders                                                                      |
-| [ml-service](./src/ml-service)                                    | Node.js        | The machine learning models for predictions and forecasts                                                                 |
+| [ml-service](./src/ml-service)                                    | Flask/Python & MongoDB        | The machine learning models for predictions and forecasts                                                                 |
 | [monitoring-service](./src/monitoring-service)                    | Node.js        | Monitoring the health of all the microservices                                                                             |
 | [noitification-service](./src/notification-service)               | Node.js        | Takes care of all the notification needs of the application.                                                                       |
                                            
