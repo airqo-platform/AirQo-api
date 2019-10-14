@@ -1,6 +1,6 @@
 ## AirQo-api
 
-[![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/) [![Build Status](https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master)](https://travis-ci.com/airqo-platform/AirQo-api) [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/master/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)
+[![BCH compliance](https://bettercodehub.com/edge/badge/airqo-platform/AirQo-api?branch=master)](https://bettercodehub.com/) [![Build Status](https://travis-ci.com/airqo-platform/AirQo-api.svg?branch=master)](https://travis-ci.com/airqo-platform/AirQo-api) [![codecov](https://codecov.io/gh/airqo-platform/AirQo-api/branch/master/graph/badge.svg)](https://codecov.io/gh/airqo-platform/AirQo-api)[![Codacy Badge](https://api.codacy.com/project/badge/Grade/e6e0c200907b455cadee042f1277a44e)](https://www.codacy.com/manual/bbaalmart/AirQo-api?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=airqo-platform/AirQo-api&amp;utm_campaign=Badge_Grade)
 
 
 ## What is AirQo?
