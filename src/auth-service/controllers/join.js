@@ -1,4 +1,4 @@
-const Users = require('../models/Users');
+const Users = require('../models/User');
 
 const join = {
     //get JSON data of users...
@@ -19,7 +19,19 @@ const join = {
     },
 
     register: (req, res) => {
-        res.send('registering');
+        try {
+            const user = new Users(req.body);
+            user.save((error, savedData) => {
+                if (error) {
+                    return res.status(500).json(error);
+                } else {
+                    return res.status(201).json(savedData);
+                }
+            })
+
+        } catch (e) {
+            return res.status(500).json(e);
+        }
     },
 
     login: (req, res) => {
