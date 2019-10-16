@@ -1,7 +1,9 @@
+const constants = require('./constants');
+
 const DataAccess = function () {
-    this.mongoose = require('mongoose');
+    const mongoose = require('mongoose');
     this.db = mongoose.connection;
-    this.dbURI = 'mongodb://localhost/airqo-auth';
+    this.dbURI = constants.MONGO_URL;
 };
 
 DataAccess.prototype.GetEntities = function (dbName, collectionName, query) {
@@ -12,8 +14,6 @@ DataAccess.prototype.GetEntities = function (dbName, collectionName, query) {
     }
 
     return new Promise(function (fulfill, reject) {
-
-        //connect to db
         that.mongoose.connect(that.dbURI)
             .then(function (db) {
                 let database = db.db(dbName);
@@ -31,15 +31,6 @@ DataAccess.prototype.GetEntities = function (dbName, collectionName, query) {
             ).catch(function (err) {
                 reject(err);
             })
-
-
-        //in case there is an error
-
-
-        //after a disconnection
-
-
-        // in case nodeJS stops
 
     });
 }

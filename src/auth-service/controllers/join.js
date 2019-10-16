@@ -34,8 +34,9 @@ const join = {
         }
     },
 
-    login: (req, res) => {
-        res.send('login');
+    login: (req, res, next) => {
+        res.status(200).json(req.user);
+        return next();
     },
 
     token: (req, res) => {

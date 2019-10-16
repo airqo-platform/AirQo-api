@@ -18,8 +18,12 @@
         "helmet": "^3.21.1",
         "jade": "~1.11.0",
         "joi": "^14.3.1",
+        "jsonwebtoken": "^8.5.1",
         "mongoose": "^5.7.1",
         "morgan": "~1.9.0",
+        "passport": "^0.4.0",
+        "passport-jwt": "^4.0.0",
+        "passport-local": "^1.0.0",
         "serve-favicon": "~2.4.5",
         "validator": "^11.1.0"
     },
