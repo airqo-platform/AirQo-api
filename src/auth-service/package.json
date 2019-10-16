@@ -1,17 +1,33 @@
 {
-  "name": "auth-service",
-  "version": "0.0.0",
-  "private": true,
-  "scripts": {
-    "start": "node ./bin/www"
-  },
-  "dependencies": {
-    "body-parser": "~1.18.2",
-    "cookie-parser": "~1.4.3",
-    "debug": "~2.6.9",
-    "express": "~4.15.5",
-    "jade": "~1.11.0",
-    "morgan": "~1.9.0",
-    "serve-favicon": "~2.4.5"
-  }
+    "name": "auth-service",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "NODE_ENV=development nodemon ./bin/www",
+        "prod": "NODE_ENV=production nodemon ./bin/www",
+        "test": "NODE_ENV=test nodemon ./bin/www"
+    },
+    "dependencies": {
+        "bcrypt": "^3.0.6",
+        "body-parser": "~1.18.2",
+        "compression": "^1.7.4",
+        "cookie-parser": "~1.4.3",
+        "debug": "~2.6.9",
+        "express": "^4.17.1",
+        "express-validation": "^1.0.3",
+        "helmet": "^3.21.1",
+        "jade": "~1.11.0",
+        "joi": "^14.3.1",
+        "jsonwebtoken": "^8.5.1",
+        "mongoose": "^5.7.1",
+        "morgan": "~1.9.0",
+        "passport": "^0.4.0",
+        "passport-jwt": "^4.0.0",
+        "passport-local": "^1.0.0",
+        "serve-favicon": "~2.4.5",
+        "validator": "^11.1.0"
+    },
+    "devDependencies": {
+        "nodemon": "^1.19.3"
+    }
 }

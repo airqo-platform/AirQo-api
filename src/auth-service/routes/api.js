@@ -1,6 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const join = require('../controllers/join');
+const joinController = require('../controllers/join');
+const validate = require('express-validation');
+const userValidation = require('../utils/validations');
+const { authLocal, authJWT } = require('../services/auth');
 
 //the middleware function
 const middleware = (req, res, next) => {
@@ -11,21 +14,15 @@ const middleware = (req, res, next) => {
 }
 router.use(middleware);
 
-/* JOIN AirQo platform */
-//get all the users
-router.get('/users', join.list);
+router.get('/users', authJWT, joinController.listAll);
 
-//create a user
-router.post('/register', join.register);
+router.get('/usersOne', authJWT, joinController.listOne);
 
-//sign in
-router.post('/signin', join.login);
+router.post('/register', validate(userValidation.register), joinController.register);
 
-//create a token
-router.post('/secret', join.token);
+router.post('/login', authLocal, joinController.login);
 
-//update the user's details
-router.put('/user/update', join.update);
+router.put('/user/update', authJWT, joinController.update);
 
 
 module.exports = router;
