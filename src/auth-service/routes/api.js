@@ -22,7 +22,5 @@ router.post('/register', validate(userValidation.register), joinController.regis
 
 router.post('/login', authLocal, joinController.login);
 
-router.patch('/:id', authJWT, joinController.update);
-
 
 module.exports = router;
