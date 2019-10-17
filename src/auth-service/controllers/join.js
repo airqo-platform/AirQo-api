@@ -1,20 +1,25 @@
 const Users = require('../models/User');
+const HTTPStatus = require('http-status');
 
 const join = {
-    //get JSON data of users...
-    listAll: (req, res) => {
-        Users.GetUsers().then(function (docs) {
-            res.send(docs);
-        }).catch(function (err) {
-            res.send(err);
-        });
+    listAll: async (req, res) => {
+        try {
+            const users = await Users.find();
+            return res.status(HTTPStatus.OK).json(users);
+        }
+        catch (e) {
+            return res.status(HTTPStatus.BAD_REQUEST).json(e);
+        }
     },
 
-    listOne: (req, res) => {
-        let id = req.body.id;
-        Users.getUser(id).then(function (docs) {
-            res.send(docs);
-        }).catch(function (err) { res.send(err) });
+    listOne: async (req, res) => {
+        try {
+            const user = await Users.findById(req.params.id);
+            return res.status(HTTPStatus.OK).json(user);
+        }
+        catch (e) {
+            return res.status(HTTPStatus.BAD_REQUEST).json(e);
+        }
 
     },
 
@@ -35,17 +40,9 @@ const join = {
     },
 
     login: (req, res, next) => {
-        res.status(200).json(req.user);
+        res.status(200).json(req.user.toAuthJSON());
         return next();
     },
-
-    token: (req, res) => {
-        res.send('token');
-    },
-
-    update: (req, res) => {
-        res.send('update');
-    }
 }
 
 module.exports = join;
