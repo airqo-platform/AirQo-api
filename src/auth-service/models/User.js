@@ -1,4 +1,4 @@
-const DataAccess = require("../config/das");
+//const DataAccess = require("../config/das");
 const mongoose = require('mongoose');
 const validator = require('validator');
 const { passwordReg } = require('../utils/validations');
@@ -78,11 +78,17 @@ UserSchema.methods = {
             constants.JWT_SECRET,
         );
     },
-    toJSON() {
+    toAuthJSON() {
         return {
             _id: this._id,
             userName: this.userName,
             token: `JWT ${this.createToken()}`,
+        };
+    },
+    toJSON() {
+        return {
+            _id: this._id,
+            userName: this.userName,
         };
     },
 };
@@ -99,10 +105,7 @@ module.exports = user;
 
 
 
-
-
-
-
+// shall consider this when implementing the Bridge Design Pattern
 // const Model = function () {
 
 // }
