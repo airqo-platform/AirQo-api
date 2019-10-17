@@ -1,9 +1,10 @@
-const DataAccess = require("../config/das");
+//const DataAccess = require("../config/das");
 const mongoose = require('mongoose');
 const validator = require('validator');
 const { passwordReg } = require('../utils/validations');
 const bcrypt = require('bcrypt');
 const saltRounds = 10;
+const jwt = require('jsonwebtoken');
 const constants = require('../config/constants');
 
 const UserSchema = new mongoose.Schema({
@@ -77,13 +78,19 @@ UserSchema.methods = {
             constants.JWT_SECRET,
         );
     },
-    // toJSON() {
-    //     return {
-    //         _id: this._id,
-    //         userName: this.userName,
-    //         token: `JWT ${this.createToken()}`,
-    //     };
-    // },
+    toAuthJSON() {
+        return {
+            _id: this._id,
+            userName: this.userName,
+            token: `JWT ${this.createToken()}`,
+        };
+    },
+    toJSON() {
+        return {
+            _id: this._id,
+            userName: this.userName,
+        };
+    },
 };
 
 const user = mongoose.model("user", UserSchema);
@@ -98,10 +105,7 @@ module.exports = user;
 
 
 
-
-
-
-
+// shall consider this when implementing the Bridge Design Pattern
 // const Model = function () {
 
 // }

@@ -14,15 +14,13 @@ const middleware = (req, res, next) => {
 }
 router.use(middleware);
 
-router.get('/users', authJWT, joinController.listAll);
+router.get('/', authJWT, joinController.listAll);
 
-router.get('/usersOne', authJWT, joinController.listOne);
+router.get('/:id', authJWT, joinController.listOne);
 
 router.post('/register', validate(userValidation.register), joinController.register);
 
 router.post('/login', authLocal, joinController.login);
-
-router.put('/user/update', authJWT, joinController.update);
 
 
 module.exports = router;
