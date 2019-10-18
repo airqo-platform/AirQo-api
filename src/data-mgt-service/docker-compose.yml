@@ -9,7 +9,7 @@ services:
   environment:
    - ENV=development
    - PORT=4000
-   - DB=mongodb://mongodb:27017/ml
+   - DB=mongodb://mongodb:27017/data-mgt
  mongodb:
   image: mongo:latest
   container_name: "mongodb"
