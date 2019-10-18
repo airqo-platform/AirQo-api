@@ -12,7 +12,7 @@ services:
    - DB=mongodb://mongodb:27017/data-mgt
  mongodb:
   image: mongo:latest
-  container_name: "mongodb"
+  container_name: "data-mgt"
   environment:
    - MONGO_DATA_DIR=/usr/data/db
    - MONGO_LOG_DIR=/dev/null
