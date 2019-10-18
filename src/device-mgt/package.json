@@ -1,0 +1,25 @@
+{
+    "name": "device-mgt",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "NODE_ENV=development nodemon ./bin/www",
+        "prod": "NODE_ENV=production nodemon ./bin/www",
+        "test": "NODE_ENV=test nodemon ./bin/www"
+    },
+    "dependencies": {
+        "body-parser": "~1.18.2",
+        "compression": "^1.7.4",
+        "cookie-parser": "~1.4.3",
+        "debug": "~2.6.9",
+        "express": "^4.17.1",
+        "helmet": "^3.21.1",
+        "jade": "~1.11.0",
+        "mongoose": "^5.7.5",
+        "morgan": "^1.9.1",
+        "nodemon": "^1.19.4",
+        "passport": "^0.4.0",
+        "passport-jwt": "^4.0.0",
+        "serve-favicon": "~2.4.5"
+    }
+}
