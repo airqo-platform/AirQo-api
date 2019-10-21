@@ -8,12 +8,9 @@ middlewareConfig(router)
 
 router.get('/:id/sensors', managerController.listAll);
 router.post('/:id/sensors', managerController.addSensor)
+router.post('/:id/sensors/:sensor_id/value', managerController.addValue);
 router.get('/:id/sensors/:sensor_id', managerController.listOne);
 router.delete('/:id/sensors/:sensor_id', managerController.delete);
-router.put('/:id/sensors/:sensor_id/name', managerController.updateName);
-router.put('/:id/sensors/:sensor_id/unit', managerController.updateUnit);
-router.put('/:id/sensors/:sensor_id/calib', managerController.calibrate);
-router.post('/:id/sensors/:sensor_id/value', managerController.addValue);
-router.put('/:id/sensors/:sensor_id/description', managerController.updateDescription);
+router.put('/:id/sensors/:sensor_id/name', managerController.updateSensor);
 
 module.exports = router;
