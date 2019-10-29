@@ -14,12 +14,12 @@
         "debug": "~2.6.9",
         "express": "^4.17.1",
         "helmet": "^3.21.1",
+        "http-status": "^1.4.0",
         "jade": "~1.11.0",
-        "mongoose": "^5.7.5",
+        "mongoose": "^5.7.6",
+        "mongoose-unique-validator": "^2.0.3",
         "morgan": "^1.9.1",
         "nodemon": "^1.19.4",
-        "passport": "^0.4.0",
-        "passport-jwt": "^4.0.0",
         "serve-favicon": "~2.4.5"
     }
 }
