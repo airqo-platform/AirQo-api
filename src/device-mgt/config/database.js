@@ -4,7 +4,7 @@ const constants = require('./constants');
 mongoose.Promise = global.Promise;
 
 try {
-    mongoose.connect(constants.MONGO_URL)
+    mongoose.connect(constants.MONGO_URL);
 }
 catch (e) {
     mongoose.createConnection(constants.MONGO_URL);
