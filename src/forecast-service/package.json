@@ -1,0 +1,23 @@
+{
+    "name": "forecast-service",
+    "version": "0.0.0",
+    "private": true,
+    "scripts": {
+        "dev": "NODE_ENV=development nodemon ./bin/www",
+        "prod": "NODE_ENV=production nodemon ./bin/www",
+        "test": "NODE_ENV=test nodemon ./bin/www"
+    },
+    "dependencies": {
+        "body-parser": "~1.18.2",
+        "cookie-parser": "~1.4.3",
+        "compression": "^1.7.4",
+        "debug": "~2.6.9",
+        "express": "~4.15.5",
+        "morgan": "~1.9.0",
+        "helmet": "^3.21.1",
+        "mongoose": "^5.7.6",
+        "mongoose-unique-validator": "^2.0.3",
+        "nodemon": "^1.19.4",
+        "http-status": "^1.4.0"
+    }
+}
