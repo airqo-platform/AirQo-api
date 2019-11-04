@@ -6,5 +6,7 @@ const middlewareConfig = require('../config/router.middleware');
 middlewareConfig(router);
 
 router.post('/', forecastController.forecast);
+router.post('/channels', forecastController.channels)
+router.post('/feeds', forecastController.feeds);
 
 module.exports = router;

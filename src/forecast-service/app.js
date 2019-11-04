@@ -2,11 +2,12 @@
 var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
+const dotenv = require('dotenv');
 require('./config/database');
 const middlewareConfig = require('./config/app.middleware');
 
 var api = require('./routes/api');
-
+dotenv.config();
 var app = express();
 
 middlewareConfig(app)
