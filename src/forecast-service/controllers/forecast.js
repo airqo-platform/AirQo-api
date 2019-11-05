@@ -4,6 +4,7 @@ const fetch = require('node-fetch');
 const getData = require('../utils/get-data');
 const request = require('request');
 const Channels = require('../models/Channel');
+const Feed = require('../models/Feed');
 
 const headers = {
     "Content-Type": "application/json",
