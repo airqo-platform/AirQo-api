@@ -29,41 +29,11 @@ const forecast = {
 
     channels: (req, res) => {
 
-        var headers = {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-        };
 
-        var dataString = {
-        };
-
-        jsonData = JSON.stringify(dataString);
-
-        var options = {
-            url: `https://api.thingspeak.com/channels.json?api_key=${process.env.THINGSPEAK_API}`,
-            method: 'GET',
-            headers: headers,
-        };
-
-        function callback(error, response, body) {
-            if (error) {
-                throw error;
-            } else {
-                let resp = {};
-                console.log(body);
-                console.log(response);
-                resp.success = true;
-                resp.message = "Payment Initited"
-                res.status(200).send(resp);
-            }
-        }
-        request(options, callback);
     },
 
     feeds: (req, res) => {
-        //get the feed of a channel.
-        fetch(url, { method: 'GET', headers: headers })
-            .then((res))
+
 
     }
 }
