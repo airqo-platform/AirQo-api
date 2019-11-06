@@ -7,7 +7,7 @@ const testConfig = {
     JWT_SECRET: 'thisisasecret'
 }
 const prodConfig = {
-    MONGO_URL: 'mongodb://localhost/airqo-auth-prod',
+    MONGO_URL: process.env.MLAB_URI,
     JWT_SECRET: 'thisisasecret'
 }
 const defaultConfig = {

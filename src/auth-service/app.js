@@ -1,6 +1,9 @@
+require('@google-cloud/debug-agent').start();
 var express = require('express');
 var path = require('path');
 var logger = require('morgan');
+const dotenv = require('dotenv');
+dotenv.config();
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var mongoose = require("mongoose");
