@@ -24,6 +24,7 @@ const join = {
     },
 
     register: (req, res) => {
+        console.log(process.env.MLAB_URI);
         try {
             const user = new Users(req.body);
             user.save((error, savedData) => {
