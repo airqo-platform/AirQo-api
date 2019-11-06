@@ -1,4 +1,4 @@
-const { Schema } = require('mongoose');
+const { Schema, model } = require('mongoose');
 
 const feedSchema = new Schema({
     channel_id: { type: Number },
@@ -14,6 +14,6 @@ const feedSchema = new Schema({
     field8: { type: String }
 });
 
-const feed = mongoose.model("feed", feedSchema);
+const feed = model("feed", feedSchema);
 
 module.exports = feed;

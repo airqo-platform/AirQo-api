@@ -1,4 +1,5 @@
-const { Schema } = require('mongoose');
+const { Schema, model } = require('mongoose');
+const ObjectId = Schema.Types.ObjectId;
 
 const channelSchema = new Schema({
     channel: {
@@ -27,9 +28,9 @@ const channelSchema = new Schema({
             whiteflag: { type: Boolean }
         }],
     },
-    feeds: [{ type: ObjectID, ref: 'feed' }]
+    feeds: [{ type: ObjectId, ref: 'feed' }]
 });
 
-const channel = mongoose.model("channel", channelSchema);
+const channel = model("channel", channelSchema);
 
 module.exports = channel;

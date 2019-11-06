@@ -7,7 +7,7 @@ const testConfig = {
     JWT_SECRET: 'thisisasecret'
 };
 const prodConfig = {
-    MONGO_URL: 'mongodb://localhost/forecast-prod',
+    MONGO_URL: `mongodb://${process.env.MLAB_USERNAME}:${process.env.MLAB_PASSWORD}@ds245532.mlab.com:45532/airqo-forecast`,
     JWT_SECRET: 'thisisasecret'
 };
 const defaultConfig = {

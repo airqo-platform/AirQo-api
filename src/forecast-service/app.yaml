@@ -1,2 +1,6 @@
-runtime: nodejs
-env: flex
+runtime: nodejs10
+service: forecast
+env_variables:
+  TS_API_KEY: "JQZOU97VDLX7OTDH"
+  MLAB_USERNAME: "bal"
+  MLAB_PASSWORD: "kanye1"

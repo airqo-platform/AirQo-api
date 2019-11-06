@@ -2,11 +2,10 @@ const express = require('express');
 const router = express.Router();
 const forecastController = require('../controllers/forecast');
 const middlewareConfig = require('../config/router.middleware');
-
 middlewareConfig(router);
 
 router.post('/', forecastController.forecast);
-router.post('/channels', forecastController.channels)
-router.post('/feeds', forecastController.feeds);
+router.get('/channels', forecastController.storeChannels);
+router.get('/feeds/:id', forecastController.storeFeeds);
 
 module.exports = router;

@@ -2,7 +2,9 @@
     "name": "forecast-service",
     "version": "0.0.0",
     "private": true,
+    "main": "./bin/www",
     "scripts": {
+        "start": "node ./bin/www",
         "dev": "NODE_ENV=development nodemon ./bin/www",
         "prod": "NODE_ENV=production nodemon ./bin/www",
         "test": "NODE_ENV=test nodemon ./bin/www"
