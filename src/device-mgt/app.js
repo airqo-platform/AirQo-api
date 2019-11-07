@@ -1,5 +1,7 @@
 var express = require('express');
 var path = require('path');
+const dotenv = require('dotenv');
+dotenv.config();
 var cookieParser = require('cookie-parser');
 require('./config/database');
 const middlewareConfig = require('./config/app.middleware');
