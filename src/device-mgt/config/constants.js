@@ -7,7 +7,7 @@ const testConfig = {
     JWT_SECRET: 'thisisasecret'
 };
 const prodConfig = {
-    MONGO_URL: 'mongodb://localhost/sensor-registry-prod',
+    MONGO_URL: `mongodb://${process.env.MLAB_USERNAME}:${process.env.MLAB_PASSWORD}@ds227674.mlab.com:27674/airqo-device-mgt`,
     JWT_SECRET: 'thisisasecret'
 };
 const defaultConfig = {
