@@ -26,7 +26,7 @@ const deviceSchema = new mongoose.Schema({
         trim: true,
     },
     owner: {
-        type: String,
+        type: ObjectId,
         require: [true, 'owner is required']
     },
     description: {
@@ -65,6 +65,9 @@ const deviceSchema = new mongoose.Schema({
             trim: true,
         },
     },
+    sensors: [{
+        type: ObjectId, ref: 'sensor'
+    }],
 }, {
     timestamps: true
 });
@@ -85,7 +88,8 @@ deviceSchema.methods = {
             height: this.height,
             description: this.description,
             mobile: this.mobile,
-            distanceToRoad: this.distanceToRoad
+            distanceToRoad: this.distanceToRoad,
+            sensors: this.sensors
 
         }
     }
