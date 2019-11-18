@@ -1,0 +1,17 @@
+<<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>Airqo Forecast</title>
+  </head>
+  <body>
+    <h1>welcome</h1>
+    <form class="" action="{{ url_for('predict')}}" method="POST">
+      <label for="">channel</label>
+      <input type="text" name="channel" value="">
+      <label for="">date and time</label>
+      <input type="text" name="date_time" value="">
+      <button type="submit" name="button">Predict</button>
+    </form>
+  </body>
+</html>
