@@ -29,10 +29,23 @@ _logger = logging.getLogger(__name__)
 
 hourly_data = pd.read_csv(model_config.DATASET_DIR / model_config.TRAINING_DATA_FILE, parse_dates=['time'])
 
+def get_channel_with_coordinates(latitude, longitude) -> int:
+    channel_id = 0
+    ### return channel with the specified latitude and longitude
+    channel_id = hourly_data.loc[hourly_data.latitude == latitude and hourly_data.longitude][0]
+    return channel_id
+
+def get_closest_channel(latitude, longitude) -> int:
+    '''gets and returns the channel with the minimum distance 
+     from the location with the specified latitude and longitude'''
+
+
+
 
 def make_prediction(enter_chan, enter_time) -> dict:
     """Make a prediction using the saved best configurations."""
     #validated_data = validate_inputs(input_data=data)
+
     enter_time_split = enter_time.split("/")
     enter_time_tuple = tuple([int(i) for i in enter_time_split])
     endings = (0,0,0,0,0,)
