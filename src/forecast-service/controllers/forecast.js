@@ -54,7 +54,7 @@ const forecast = {
             let feed = await json.feeds.filter((obj) => {
                 return obj.entry_id === entry;
             });
-            res.status(200).send(feed);
+            res.status(200).json(feed[0]);
         }
         catch (e) {
             res.status(501).send(e.message);
