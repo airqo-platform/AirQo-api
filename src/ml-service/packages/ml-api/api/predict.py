@@ -16,6 +16,8 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.graphics.tsaplots import plot_acf
 from statsmodels.graphics.tsaplots import plot_pacf
 
+import warnings
+
 import datetime
 import time 
 
@@ -26,7 +28,7 @@ import logging
 
 _logger = logging.getLogger(__name__)
 
-
+warnings.filterwarnings("ignore")
 hourly_data = pd.read_csv(model_config.DATASET_DIR / model_config.TRAINING_DATA_FILE, parse_dates=['time'])
 
 def get_channel_with_coordinates(latitude, longitude) -> int:
@@ -34,11 +36,6 @@ def get_channel_with_coordinates(latitude, longitude) -> int:
     ### return channel with the specified latitude and longitude
     channel_id = hourly_data.loc[hourly_data.latitude == latitude and hourly_data.longitude][0]
     return channel_id
-
-def get_closest_channel(latitude, longitude) -> int:
-    '''gets and returns the channel with the minimum distance 
-     from the location with the specified latitude and longitude'''
-
 
 
 

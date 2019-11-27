@@ -11,14 +11,15 @@ TRAINING_DATA_FILE = 'hourly_data_AUG_19.csv'
 BEST_CONFIG_DICTX = {'aq_22': [(2, 0, 24), (1, 0, 1, 24), 'c'] , 'aq_23': [(2, 0, 24), (0, 0, 1, 24), 'c'], 'aq_24': [(5, 0, 24), (0, 0, 0, 24), 'c'] }
 
 CHANNEL_ID_MAPPING_CONFIG_DICT = {
-'672528': 'aq_04',
- '675801': 'aq_05',
- '675805':'aq_06',
- '675851': 'aq_07',
- '675991': 'aq_08',
- '676000': 'aq_09',
- '689508': 'aq_10',
- '689511': 'aq_11',
+ '672528': 'aq_04',
+ '675740': 'aq_05',
+ '675801': 'aq_06',
+ '675805':'aq_07',
+ '675851': 'aq_08',
+ '675991': 'aq_09',
+ '676000': 'aq_10',
+ '689508': 'aq_11',
+ '689511': 'aq_12',
  '689516': 'aq_13',
  '689518': 'aq_14',
  '689520': 'aq_15',
@@ -28,7 +29,7 @@ CHANNEL_ID_MAPPING_CONFIG_DICT = {
  '689532': 'aq_19',
  '689749': 'aq_20',
  '689750': 'aq_21',
- '689752': 'aq_21',
+ '689752': 'aq_22',
  '689753': 'aq_23',
  '689756': 'aq_24',
  '689759': 'aq_25',
@@ -52,6 +53,53 @@ CHANNEL_ID_MAPPING_CONFIG_DICT = {
  '782720': 'aq_47',
  '782721': 'aq_48',
  '782722': 'aq_49'}
+
+CHANNEL_ID_COORDINATES_CONFIG_DICTx = {
+'672528': {'latitude':-0.2654, 'longitude':30.1069},
+ '675801': {'latitude':0.5498, 'longitude':31.3969},
+ '675805':{'latitude':0.6936, 'longitude':34.1817 }
+ }
+
+#{'latitude':'', 'longitude':''}
+CHANNEL_ID_COORDINATES_CONFIG_DICT = {
+ '672528': {'latitude':-0.2654, 'longitude':30.1069},
+ '675740': {'latitude':0.5498, 'longitude':31.3969}, 
+ '675801': {'latitude':0.6936, 'longitude':34.1817},
+ '675805': {'latitude':0.6740 , 'longitude':29.9940},
+ '675851': {'latitude':-0.3189, 'longitude':31.7601},
+ '675991': {'latitude':0.1779, 'longitude':30.0835},
+ '676000': {'latitude':0.6568, 'longitude':30.268},
+ '689516': {'latitude':1.0763, 'longitude':34.1607},
+ '689518': {'latitude':0.4658, 'longitude':34.0952},
+ '689520': {'latitude':1.3339, 'longitude':34.3722},
+ '689522': {'latitude':0.2017, 'longitude':33.8172},
+ '689525': {'latitude':1.011292, 'longitude':34.3310},
+ '689530': {'latitude':1.0839, 'longitude':34.2336},
+ '689749': {'latitude':1.7153, 'longitude':33.6201},
+ '689750': {'latitude':0.9263, 'longitude':34.3620},
+ '689752': {'latitude':0.5679, 'longitude':33.7514},
+ '689753': {'latitude':0.4308, 'longitude':33.2104},
+ '689756': {'latitude':0.6155, 'longitude':33.4804},
+ '689759': {'latitude':0.7772, 'longitude':33.6235},
+ '689761': {'latitude':0.3138, 'longitude':32.5899},
+ '689766': {'latitude':-1.2830, 'longitude':29.7015},
+ '718028': {'latitude':0.3072, 'longitude':32.6205},
+ '718029': {'latitude':0.0580, 'longitude':32.4603},
+ '718030': {'latitude':0.3461, 'longitude':32.6483},
+ '730014': {'latitude':0.2344, 'longitude':32.5530},
+ '730015': {'latitude':0.6499, 'longitude':33.1716},
+ '730016': {'latitude':0.3576, 'longitude':32.5844},
+ '730019': {'latitude':0.3610, 'longitude':32.7527},
+ '737276': {'latitude':0.2979, 'longitude':32.5550},
+ '737278': {'latitude':0.4004, 'longitude':32.0420},
+ '755609': {'latitude':-1.2438, 'longitude':29.9896},
+ '755612': {'latitude':0.2890, 'longitude':32.5896},
+ '755614': {'latitude':0.3411, 'longitude':32.60207},
+ '782718': {'latitude':0.3439, 'longitude':32.5532},
+ '782719': {'latitude':0.2986, 'longitude':32.6148},
+ '782720': {'latitude':0.3517, 'longitude':32.5912},
+ '782721': {'latitude':0.2336, 'longitude':32.5635},
+ '782722': {'latitude':0.2836, 'longitude':32.6004}}
 
 
 BEST_CONFIG_DICT = {'aq_04': [(2, 0, 25), (1, 0, 1, 24), 'c'],

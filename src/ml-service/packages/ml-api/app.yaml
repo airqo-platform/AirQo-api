@@ -1,6 +1,6 @@
 runtime: python
 env: flex
-entrypoint: gunicorn -b :$PORT run:application --timeout 180
+entrypoint: gunicorn -b :$PORT run:application --timeout 280
 service: ml-service
 runtime_config:
   python_version: 3
