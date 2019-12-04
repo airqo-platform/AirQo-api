@@ -153,5 +153,5 @@ def new_forecast(enter_chan, enter_time):
 #def validate_inputs(input_data)
 
 if __name__ == '__main__':
-    make_prediction("aq_24","2019/07/10/")
+    make_prediction("aq_24","2019/07/10/10")
 

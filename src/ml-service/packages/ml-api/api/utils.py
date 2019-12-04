@@ -2,6 +2,30 @@ from google.cloud import bigquery
 from geopy import distance
 from api import model_config
 
+def get_all_coordinates():
+    client = bigquery.Client()
+
+    query = """
+        SELECT id, latitude, longitude
+        FROM `airqo-250220.StaticThingSpeak.Channel`
+        WHERE latitude != 0.0 OR longitude != 0.0
+    """
+    
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+
+    query_job = client.query(
+        query,job_config=job_config)
+
+    results = query_job.result()
+    coordinates = []
+
+    if results.total_rows >=1:
+        for row in results:
+            coordinates.append({'channel_id':row.id, 'latitude':row.latitude, 'longitude':row.longitude})
+    return coordinates
+
+
 def get_channel_id(latitude:str, longitude:str) -> int:
     lat= latitude
     lon = longitude
@@ -14,10 +38,10 @@ def get_channel_id(latitude:str, longitude:str) -> int:
     client = bigquery.Client()
 
     query = """
-        SELECT channel_id
-        FROM `airqo-250220.thingspeak.feeds1_pms`
-        WHERE field5 = {0}
-        AND field6 = {1}
+        SELECT id
+        FROM `airqo-250220.StaticThingSpeak.Channel`
+        WHERE latitude = {0}
+        AND longitude = {1}
         LIMIT 1
     """
     query = query.format(value1, value2)
@@ -33,7 +57,7 @@ def get_channel_id(latitude:str, longitude:str) -> int:
     results = query_job.result()
     if results.total_rows >=1:
         for row in results:
-            channel_id = row.channel_id
+            channel_id = row.id
             #print(row.channel_id)
     else:
         channel_id =0
@@ -72,7 +96,9 @@ if __name__ == '__main__':
     #channel_id = get_channel_id("0.693610","34.181519")
     #print(channel_id)
 
-    get_closest_channel(0.540184, 31.439622)
+    #get_closest_channel(0.540184, 31.439622)
+
+    #get_all_coordinates()
     
     
 

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from api.predict import make_prediction
-from api.utils import get_channel_id, checkKey, get_closest_channel
+from api.utils import get_channel_id, checkKey, get_closest_channel, get_all_coordinates
 from api import model_config
 from api.validation import validate_inputs
 
@@ -11,6 +11,14 @@ _logger = get_logger(logger_name=__name__)
 
 ml_app = Blueprint('ml_app', __name__)
 
+@ml_app.route('/api/v1/coordinates', methods=['GET'])
+def get_coordinates():
+    if request.method == 'GET':
+        all_coordinates = get_all_coordinates()
+        _logger.info(all_coordinates)
+        return jsonify({'coordinates': all_coordinates})
+       
+        
 
 @ml_app.route('/health', methods=['GET'])
 def health():
@@ -31,7 +39,6 @@ def predict():
         if not errors:        
             entered_latitude = json_data["latitude"]
             enter_longitude  = json_data["longitude"]
-            #enter_channel = json_data["channel"]
             enter_time = json_data["selected_datetime"]
 
             channel_id_with_specified_coordinates = get_channel_id(entered_latitude,enter_longitude)
