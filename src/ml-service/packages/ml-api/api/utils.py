@@ -1,13 +1,25 @@
 from google.cloud import bigquery
 from geopy import distance
-from api import model_config
+#from api import model_config
+import model_config
+import json
+
+def load_json_data(full_file_path):
+    data = None
+    with open(full_file_path, 'r') as fp:
+        data = json.load(fp)
+    return data
+
+def save_json_data(file_name, data_to_save):
+     with open(file_name, 'w') as fp:
+        json.dump(data_to_save, fp) #obtained_best_config_dict
 
 def get_all_coordinates():
     client = bigquery.Client()
 
     query = """
-        SELECT id, latitude, longitude
-        FROM `airqo-250220.StaticThingSpeak.Channel`
+        SELECT channel_id, latitude, longitude
+        FROM `airqo-250220.thingspeak.channel`
         WHERE latitude != 0.0 OR longitude != 0.0
     """
     
@@ -22,7 +34,7 @@ def get_all_coordinates():
 
     if results.total_rows >=1:
         for row in results:
-            coordinates.append({'channel_id':row.id, 'latitude':row.latitude, 'longitude':row.longitude})
+            coordinates.append({'channel_id':row.channel_id, 'latitude':row.latitude, 'longitude':row.longitude})
     return coordinates
 
 
@@ -32,14 +44,13 @@ def get_channel_id(latitude:str, longitude:str) -> int:
 
     channel_id = 0
     
-    value1 = "'"+lat+"'"
-    value2 = "'"+lon +"'"
-
+    value1 = lat
+    value2 = lon 
     client = bigquery.Client()
 
     query = """
-        SELECT id
-        FROM `airqo-250220.StaticThingSpeak.Channel`
+        SELECT channel_id
+        FROM `airqo-250220.thingspeak.channel`
         WHERE latitude = {0}
         AND longitude = {1}
         LIMIT 1
@@ -57,7 +68,7 @@ def get_channel_id(latitude:str, longitude:str) -> int:
     results = query_job.result()
     if results.total_rows >=1:
         for row in results:
-            channel_id = row.id
+            channel_id = row.channel_id
             #print(row.channel_id)
     else:
         channel_id =0
@@ -99,6 +110,11 @@ if __name__ == '__main__':
     #get_closest_channel(0.540184, 31.439622)
 
     #get_all_coordinates()
+    best_config = load_json_data(model_config.BEST_CONFIG_FROM_AVERAGES_MODEL)
+    print(type(best_config))
+    print(best_config)
+    
+    
     
     
 

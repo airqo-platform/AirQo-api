@@ -3,7 +3,8 @@ import pathlib
 
 PACKAGE_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATASET_DIR = PACKAGE_ROOT / 'datasets'
-
+BEST_CONFIG_DIR = PACKAGE_ROOT / 'trained_models'
+BEST_CONFIG_FROM_AVERAGES_MODEL = BEST_CONFIG_DIR / 'best_config_dict.json'
 # data
 #TESTING_DATA_FILE = 'test.csv'
 TRAINING_DATA_FILE = 'hourly_data_AUG_19.csv'
@@ -144,6 +145,7 @@ BEST_CONFIG_DICT = {'aq_04': [(2, 0, 25), (1, 0, 1, 24), 'c'],
  'aq_49': [(2, 0, 9), (1, 0, 1, 24), 'c']}
 
 
-
-
+if __name__ == '__main__':
+	print(BEST_CONFIG_DIR)
+	print(BEST_CONFIG_FROM_AVERAGES_MODEL)
  

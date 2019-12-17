@@ -24,5 +24,3 @@ gunicorn==19.7.1
 
 #google cloud services
 google-cloud-bigquery==1.22.0
-
-

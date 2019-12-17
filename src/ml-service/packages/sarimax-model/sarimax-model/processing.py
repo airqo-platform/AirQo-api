@@ -2,7 +2,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+#import seaborn as sns
 
 from math import sqrt
 from numpy import split
@@ -26,10 +26,18 @@ import time
 import psutil
 import ast
 
+import json
 
+import datamanagement 
+
+
+# Creating a list of channels to iterate through
+static_channel_list = datamanagement.get_all_static_channels()
+data = datamanagement.query_data()
 #TODO: READ DATA FROM BIGQUERY....
-hourly_data = pd.read_csv('datasets\hourly_data_AUG_19.csv', parse_dates=['time'])
+hourly_data = datamanagement.calculate_hourly_averages(data)
 
+print(hourly_data.head())
 
 def full_days_only(d):
     ###  Interpolating gaps within the data and presenting in necessary format ####
@@ -37,6 +45,7 @@ def full_days_only(d):
     d = d.interpolate(method='time');
     # drop any remaining nans from the start
     d =  d.dropna().reset_index();
+    print(d)
     # Setting first complete day and last complete day to assist with training quality
     first_full_day = pd.to_datetime(d.loc[d.time.dt.hour == 0.00, 'time'][:1].values[0], utc=True)
     last_full_day = pd.to_datetime(d.loc[d.time.dt.hour == 23.00, 'time'][-1:].values[0], utc=True)  
@@ -54,9 +63,6 @@ def out_of_sample(d, oos_size):
     return df, oos
 
 
-# Creating a list of channels to iterate through
-chanlist = hourly_data.channel.unique().tolist()
-
 
 def plot_acf_pcf(df, lags):
     # plots specifying number of lags to include
@@ -70,15 +76,6 @@ def plot_acf_pcf(df, lags):
     # show plot
     #print(chan)
     plt.show()
-
-
-for chan in chanlist:
-    d = hourly_data.loc[hourly_data.channel == chan, ['time','pm_2_5']]
-#     print(d)
-    df = full_days_only(d)
-#     print('Channel: ', chan)
-    # USE THIS IF WANT TO GENERATE AUTOCORRELATION GRAPHS
-#     plot_acf_pcf(df, 24)
 
 
 def split_dataset(data):
@@ -268,55 +265,100 @@ def score_model(model_func,train, test, cfg, debug=False):
     return (key, result)
 
 
-# In[22]:
-
-
 def train_channels_in_range_inclusive(a, b):
 # Generating a dataframe for each channel
     best_config_dict = {}
+    #empty channels
+    empty_channels = []
 #     for chan in chanlist[lower_limit:(upper_limit+1)]:
-    for chan in chanlist[a:b+1]:
+    for chan in static_channel_list[a:b+1]:
     #     # selecting only rows relating to the given channel
-        d = hourly_data.loc[hourly_data.channel == chan]
-    #    # removing partial days at start and end of sample
-        df = full_days_only(d)
-        # set size of out of sample test data
-        oos_size = 24
-        df, oos = out_of_sample(df, oos_size)
-        # Generating train and test
-        train, test, final_test = split_dataset(df)[0:3]
-    
-        # define the names and functions for the models we wish to evaluate
-        models = dict()
-        models['sarima'] = sarima_forecast
+        d = hourly_data.loc[hourly_data.channel_id == chan]
 
-        print('channel', chan)
-        # model configs
-        n_test = 24
-        cfg_list = sarima_configs()
-        # print(cfg_list)
-        # grid search
-    #     count=0
-        scores = grid_search(sarima_forecast, train, test, cfg_list)
-#     print('channel: '+str(chan) +' done')
-        # list top 3 configs
-        for cfg, error in scores[:5]:
-            print(cfg, error)
-    #     print('SCORES',scores)    
-        # best_config = scores[:1]
-        best_config = ast.literal_eval(scores[:1][0][0])
-        print('best config', best_config)
-        ## For calculating out of sample score
-#         best_oos_yhat = sarima_forecast(df, best_config)
-#         oos_rmse = measure_rmse(final_test, best_oos_yhat)
-#         print('Out of sample rmse: ', oos_rmse)
-        # Add best config to the current best_config_dict
-        best_config_dict[chan] = best_config
-        print(best_config_dict)
+        ##check to ensure that dataframe is not empty
+        if d.empty:
+        	empty_channels.append(chan)
+        else:
+	        # removing partial days at start and end of sample
+	        df = full_days_only(d)
+	        # set size of out of sample test data
+	        oos_size = 24
+	        df, oos = out_of_sample(df, oos_size)
+	        # Generating train and test
+	        train, test, final_test = split_dataset(df)[0:3]
+	    
+	        # define the names and functions for the models we wish to evaluate
+	        models = dict()
+	        models['sarima'] = sarima_forecast
+
+	        print('channel', chan)
+	        # model configs
+	        n_test = 24
+	        cfg_list = sarima_configs()
+	        # print(cfg_list)
+	        # grid search
+	    #     count=0
+	        scores = grid_search(sarima_forecast, train, test, cfg_list)
+	#     print('channel: '+str(chan) +' done')
+	        # list top 3 configs
+	        for cfg, error in scores[:5]:
+	            print(cfg, error)
+	    #     print('SCORES',scores)    
+	        # best_config = scores[:1]
+	        best_config = ast.literal_eval(scores[:1][0][0])
+	        print('best config', best_config)
+	        ## For calculating out of sample score
+	#         best_oos_yhat = sarima_forecast(df, best_config)
+	#         oos_rmse = measure_rmse(final_test, best_oos_yhat)
+	#         print('Out of sample rmse: ', oos_rmse)
+	        # Add best config to the current best_config_dict
+	        best_config_dict[chan] = best_config
+	        print(best_config_dict)
     return best_config, best_config_dict
 
+#for chan in static_channel_list:
+    #d = hourly_data.loc[hourly_data.channel_id == chan, ['time','pm2_5']]
+#     print(d)
+    #df = full_days_only(d)
+#     print('Channel: ', chan)
+    # USE THIS IF WANT TO GENERATE AUTOCORRELATION GRAPHS
+#     plot_acf_pcf(df, 24)
 
 
-    if __name__ == '__main__':
-    	train_channels_in_range_inclusive(0,2)
-    	best_config_dict
+if __name__ == '__main__':
+    print("richard starts")
+    static_channel_list = datamanagement.get_all_static_channels()
+    print("richard ends")
+    data = datamanagement.query_data() 
+    hourly_data = datamanagement.calculate_hourly_averages(data)
+    #print("richard starts")
+    #print(hourly_data.head())
+    #print("richard starts ending")
+
+    '''
+    empty_channels = []
+    for chan in static_channel_list:
+    	d = hourly_data.loc[hourly_data.channel_id == chan, ['time','pm2_5']]
+    	if d.empty:
+    		empty_channels.append(chan)
+    		print('channel {0} is empty'.format(chan))
+    	else:
+    		print(d)
+
+    		d.to_csv(str(chan)+"dat.csv")
+    		df = full_days_only(d)
+    		df.to_csv("df"+str(chan)+"df.csv")
+
+    	print(empty_channels)
+    	#df = full_days_only(d)
+#     print('Channel: ', chan)
+	'''
+
+    last_channel_best_config, obtained_best_config_dict = train_channels_in_range_inclusive(0,len(static_channel_list))
+
+    with open('best_config_dict.json', 'w') as fp:
+    	json.dump(obtained_best_config_dict, fp)
+
+
+
+   
