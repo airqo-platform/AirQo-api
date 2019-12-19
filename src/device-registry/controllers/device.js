@@ -4,6 +4,17 @@ const iot = require('@google-cloud/iot');
 const client = new iot.v1.DeviceManagerClient();
 const device_registry = 'projects/airqo-250220/locations/europe-west1/registries/device-registry';
 const uuidv1 = require('uuid/v1');
+const mqtt = require('mqtt');
+const projectId = 'airqo-250220';
+const region = `europe-west1`;
+const registryId = `device-registry`;
+const algorithm = `RS256`;
+// const privateKeyFile = `./rsa_private.pem`;
+const mqttBridgeHostname = `mqtt.googleapis.com`;
+const mqttBridgePort = 8883;
+const messageType = `events`;
+const numMessages = 5;
+
 
 const device = {
 
