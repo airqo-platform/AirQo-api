@@ -1,5 +1,7 @@
 var express = require('express');
 var path = require('path');
+const dotenv = require('dotenv');
+dotenv.config();
 var cookieParser = require('cookie-parser');
 require('./config/database');
 const middlewareConfig = require('./config/app.middleware');
@@ -8,7 +10,7 @@ var api = require('./routes/api');
 
 var app = express();
 
-middlewareConfig(app)
+middlewareConfig(app);
 
 // uncomment after placing your favicon in /public
 //app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
