@@ -1,78 +1,129 @@
-const iot = require('@google-cloud/iot');
-const device_registry = 'projects/airqo-250220/locations/europe-west1/registries/device-registry';
-const uuidv1 = require('uuid/v1');
+'use strict';
+// [START iot_mqtt_include]
 const mqtt = require('mqtt');
-const projectId = 'airqo-250220';
-const region = `europe-west1`;
-const registryId = `device-registry`;
-const algorithm = `RS256`;
-const privateKeyFile = `./rsa_private.pem`;
 const mqttBridgeHostname = `mqtt.googleapis.com`;
-const mqttBridgePort = 8883;
 const messageType = `events`;
-const numMessages = 5;
-const tokenExpMins = 360;
+const fs = require('fs');
+const jwt = require('jsonwebtoken');
+const mqtt = require('mqtt');
+const constants = require('./constants');
+// [END iot_mqtt_include]
 
-const client = {
-    config: (deviceId) => {
-        const mqttClientId = `projects/${projectId}/locations/${region}/registries/${registryId}/devices/${deviceId}`;
-        const connectionArgs = {
-            host: mqttBridgeHostname,
-            port: mqttBridgePort,
-            clientId: mqttClientId,
-            username: 'unused',
-            password: createJwt(projectId, privateKeyFile, algorithm),
-            protocol: 'mqtts',
-            secureProtocol: 'TLSv1_2_method',
-        };
+/**
+ * The main purpose of this file is to configure the MQTT client to authenticate the device.
+ */
 
-        //creation of a client and connecting the Google MQTT bridge
-        const iatTime = parseInt(Date.now() / 1000);
-        const client = mqtt.connect(connectionArgs);
+const createJwt = (projectId, privateKeyFile, algorithm) => {
+    const token = {
+        iat: parseInt(Date.now() / 1000),
+        exp: parseInt(Date.now() / 1000) + 20 * 60, // 20 minutes...
+        aud: projectId
+    };
+    const privateKey = fs.readFileSync(privateKeyFile);
+    return jwt.sign(token, privateKey, algorithm);
+}
 
-        // MQTT topic - different
-        const mqttTopic = `/devices/${deviceId}/${messageType}`;
+const connect = (deviceId) => {
+    const mqttClientId = `projects/${projectId}/locations/${region}/registries/${registryId}/devices/${deviceId}`;
+    const connectionArgs = {
+        host: mqttBridgeHostname,
+        port: mqttBridgePort,
+        clientId: mqttClientId,
+        username: 'unused',
+        password: createJwt(projectId, privateKeyFile, algorithm),
+        protocol: 'mqtts',
+        secureProtocol: 'TLSv1_2_method',
+    };
 
-        //receive updates to config topic
-        client.subscribe(`/devices/${deviceId}/config`, { qos: 1 });
+    //creation of a client and connecting the Google MQTT bridge
+    const iatTime = parseInt(Date.now() / 1000);
+    const client = mqtt.connect(connectionArgs);
 
-        //to receive all commands
-        client.subscribe(`/devices/${deviceId}/commands/#`, { qos: 0 });
+    // MQTT topic - different
+    const mqttTopic = `/devices/${deviceId}/${messageType}`;
 
-        client.on('connect', success => {
-            console.log('connect');
-            if (!success) {
-                console.log('Client not connected...');
-            } else if (!publishChainInProgress) {
-                publishAsync(mqttTopic, client, iatTime, 1, numMessages, connectionArgs);
-            }
-        });
+    //receive updates to config topic
+    client.subscribe(`/devices/${deviceId}/config`, { qos: 1 });
 
-        client.on('close', () => {
-            console.log('close');
-            shouldBackoff = true;
-        });
+    //to receive all commands
+    client.subscribe(`/devices/${deviceId}/commands/#`, { qos: 0 });
 
-        client.on('error', err => {
-            console.log('error', err);
-        });
+    client.on('connect', success => {
+        console.log('connect');
+        if (!success) {
+            console.log('Client not connected...');
+        } else if (!publishChainInProgress) {
+            publishAsync(mqttTopic, client, iatTime, 1, numMessages, connectionArgs);
+        }
+    });
 
-        client.on('message', (topic, message) => {
-            let messageStr = 'Message received: ';
-            if (topic === `/devices/${deviceId}/config`) {
-                messageStr = 'Config message received: ';
-            } else if (topic.startsWith(`/devices/${deviceId}/commands`)) {
-                messageStr = 'Command message received: ';
-            }
+    client.on('close', () => {
+        console.log('close');
+        shouldBackoff = true;
+    });
 
-            messageStr += Buffer.from(message, 'base64').toString('ascii');
-            console.log(messageStr);
-        });
-    },
+    client.on('error', err => {
+        console.log('error', err);
+    });
 
-    update: () => {
+    client.on('message', (topic, message) => {
+        let messageStr = 'Message received: ';
+        if (topic === `/devices/${deviceId}/config`) {
+            messageStr = 'Config message received: ';
+        } else if (topic.startsWith(`/devices/${deviceId}/commands`)) {
+            messageStr = 'Command message received: ';
+        }
 
+        messageStr += Buffer.from(message, 'base64').toString('ascii');
+        console.log(messageStr);
+    });
+}
+const updateConfigs = async (req, res) => {
+    const deviceId = req.params.id;
+    const data = 'test data';
+    const parentName = `projects/${projectId}/locations/${region}`;
+    const registryName = `${parentName}/registries/${registryId}`;
+    const binaryData = Buffer.from(data).toString('base64');
+
+    const request = {
+        name: `${registryName}/devices/${deviceId}`,
+        versionToUpdate: version,
+        binaryData: binaryData
+    };
+
+    try {
+        const {
+            data,
+        } = await client.projects.locations.registries.devices.modifyCloudToDeviceConfig(request);
+        console.log('Success:', data);
+        res.status(200).send(data);
+    }
+    catch (err) {
+        console.log('Could not update config: ', deviceId);
+        console.log('Message:', err);
+        res.status(400).send(err);
     }
 }
 
-module.exports = client;
+const reviewConfigs = async (req, res) => {
+    const deviceId = req.params.id;
+    const parentName = `projects/${projectId}/locations/${region}`;
+    const registryName = `${parentName}/registries/${registryId}`;
+    const request = {
+        name: `${registryName}/devices/${deviceId}`,
+    };
+
+    try {
+        const { data, } = await client.projects.locations.registries.devices.configVersions.list(request);
+        console.log('Configs', data);
+        res.status(200).send(data);
+    }
+    catch (error) {
+        console.log('Could not find device', deviceId);
+        console.log(error);
+        res.status(400).send(error);
+    }
+}
+
+
+module.exports = { connect: connect, updateConfigs: updateConfigs, reviewConfigs: reviewConfigs };

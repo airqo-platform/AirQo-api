@@ -1,40 +1,82 @@
-const iot = require('@google-cloud/iot');
-const device_registry = 'projects/airqo-250220/locations/europe-west1/registries/device-registry';
-const uuidv1 = require('uuid/v1');
 const mqtt = require('mqtt');
-const projectId = 'airqo-250220';
-const region = `europe-west1`;
-const registryId = `device-registry`;
-const algorithm = `RS256`;
-const privateKeyFile = `./rsa_private.pem`;
-const mqttBridgeHostname = `mqtt.googleapis.com`;
-const mqttBridgePort = 8883;
-const messageType = `events`;
-const numMessages = 5;
-const tokenExpMins = 360;
+const fs = require('fs');
 const mqtt_bridge = require('../utils/mqtt-bridge');
+const constants = require('../config/constants');
+// const privateKeyFile = fs.readFileSync('./rsa_private.pem', 'utf8');
+const privateKeyFile = "";
 
 const bridge = {
-
     publish: (req, res) => {
-        const deviceId = req.params.id;
-        // MQTT topic
-        const mqttTopic = `/devices/${deviceId}/${messageType}`;
+        const deviceId = req.body.id;
+        const messageType = req.body.type;
+
+        //identifying the device
+        const mqttClientId = `projects/${process.env.PROJECT_ID}/locations/
+        ${process.env.REGION}/registries/${process.env.REGISTRY_ID}/devices/${deviceId}`;
+
+        const connectionArgs = {
+            host: constants.MQTT_BRIDGE_HOST_NAME,
+            port: constants.MQTT_BRIDGE_PORT,
+            clientId: mqttClientId,
+            username: 'unused',
+            password: mqtt_bridge.createJwt(process.env.PROJECT_ID, privateKeyFile, constants.ALGORITHM),
+            protocol: 'mqtts',
+            secureProtocol: 'TLSv1_2_method'
+        };
+
+        //creating a client
         const iatTime = parseInt(Date.now() / 1000);
-        const connectionArgs = {};
-        client = mqtt.connect(connectionArgs);
-        mqtt_bridge.publishAsync(
-            mqttTopic,
-            client,
-            iatTime,
-            messagesSent,
-            numMessages,
-            connectionArgs);
+        const client = mqtt.connect(connectionArgs);
+
+        //making subscriptions
+        //config updates
+        client.subscribe(`/devices/${deviceId}/config/`, { qos: 1 });
+        //command updates
+        client.subscribe(`/devices/${deviceId}/commands/#`, { qos: 0 });
+
+        // MQTT topic [state or events]
+        const mqttTopic = `/devices/${deviceId}/${messageType}`;
+
+        client.on('connect', success => {
+            console.log('connect');
+            if (!success) {
+                console.log('client not connected')
+            }
+            else if (!publishChainInProgress) {
+                mqtt_bridge.publishAsync(
+                    mqttTopic,
+                    client,
+                    iatTime,
+                    1,
+                    constants.NUM_MESSAGES,
+                    connectionArgs);
+                res.send("Data has been published").status(200);
+            }
+        });
+
+        client.on('close', () => {
+            console.log('close');
+            shouldBackoff = true;
+        });
+
+        client.on('message', (topic, message) => {
+            let messageStr = 'Message received: ';
+            if (topic === `/devices/${deviceId}/config`) {
+                messageStr = 'Config message received: ';
+            }
+            else if (topic.startsWith(`/devices/${deviceId}/commands`)) {
+                messageStr = 'Command message received: ';
+            }
+
+            messageStr += Buffer.from(message, 'base64').toString('ascii');
+            console.log(messageStr);
+        });
+
     },
 
-    updateConfigs: (req, res) => {
-        const deviceId = req.params.id;
-        const data = 'test data';
+    updateConfigs: async (req, res) => {
+        const deviceId = req.body.id;
+        const data = req.body.data;
         const parentName = `projects/${projectId}/locations/${region}`;
         const registryName = `${parentName}/registries/${registryId}`;
         const binaryData = Buffer.from(data).toString('base64');
@@ -59,10 +101,10 @@ const bridge = {
         }
     },
 
-    reviewConfigs: (req, res) => {
-        const deviceId = req.params.id;
-        const parentName = `projects/${projectId}/locations/${region}`;
-        const registryName = `${parentName}/registries/${registryId}`;
+    reviewConfigs: async (req, res) => {
+        const deviceId = req.body.id;
+        const parentName = `projects/${process.env.PROJECT_ID}/locations/${process.env.REGION}`;
+        const registryName = `${parentName}/registries/${process.env.REGISTRY_ID}`;
         const request = {
             name: `${registryName}/devices/${deviceId}`,
         };
@@ -78,7 +120,6 @@ const bridge = {
             res.status(400).send(error);
         }
     }
-
 }
 
 module.exports = bridge;
