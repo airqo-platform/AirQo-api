@@ -9,9 +9,9 @@ PACKAGE_ROOT = pathlib.Path(__file__).resolve().parent.parent
 FORMATTER = logging.Formatter(
     "%(asctime)s — %(name)s — %(levelname)s —"
     "%(funcName)s:%(lineno)d — %(message)s")
-LOG_DIR = PACKAGE_ROOT / 'logs'
-LOG_DIR.mkdir(exist_ok=True)
-LOG_FILE = LOG_DIR / 'ml_api.log'
+#LOG_DIR = PACKAGE_ROOT / 'logs'
+#LOG_DIR.mkdir(exist_ok=True)
+#LOG_FILE = LOG_DIR / 'ml_api.log'
 
 
 def get_console_handler():
@@ -47,12 +47,12 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = 'sample-code-local-environment'
-    SERVER_PORT = 5000
+    #SERVER_PORT = 5000
 
 
 class ProductionConfig(Config):
     DEBUG = False
-    SERVER_PORT = os.environ.get('PORT', 5000)
+    #SERVER_PORT = os.environ.get('PORT', 5000)
 
 
 class DevelopmentConfig(Config):
@@ -62,5 +62,9 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+
+
+if __name__ == '__main__':
+    print('package root', PACKAGE_ROOT)
 
 

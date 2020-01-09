@@ -23,26 +23,27 @@ import time
 
 import psutil
 import ast
-#from api import model_config
-import model_config
+from api import model_config
+#import model_config
 import logging
-import utils
-import processing 
-#import forecast_hours
-import datamanagement
+from api import utils
+from api import processing 
+from api import datamanagement
 
 _logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore")
 #hourly_data = pd.read_csv(model_config.DATASET_DIR / model_config.TRAINING_DATA_FILE, parse_dates=['time'])
 
-static_channel_list = datamanagement.get_all_static_channels()
-data = datamanagement.query_data()
-hourly_data = datamanagement.calculate_hourly_averages(data)
+#static_channel_list = datamanagement.get_all_static_channels()
+#data = datamanagement.query_data()
+#hourly_data = datamanagement.calculate_hourly_averages(data)
 
 def get_channel_with_coordinates(latitude, longitude) -> int:
     channel_id = 0
     ### return channel with the specified latitude and longitude
+    data = datamanagement.query_data()
+    hourly_data = datamanagement.calculate_hourly_averages(data)
     channel_id = hourly_data.loc[hourly_data.latitude == latitude and hourly_data.longitude][0]
     return channel_id
 
@@ -62,16 +63,19 @@ def make_prediction_using_averages(enter_chan, enter_time):
     start_pred = (pd.to_datetime(start_pred_time))
     # generating list of hours based on start time
     fcst_hours, start_hour = processing.forecast_hours(start_pred_time)
-    print("entered_chane", enter_chan)
+    print("entered_channel", enter_chan)
     print("type of entered channel", type(enter_chan))
     # select all data relating to a particular channel
-
-    print(hourly_data.head())
-    hourly_data.to_csv("hourly_data.csv")
-    print(hourly_data.dtypes)
-    all_channel_data = hourly_data.loc[hourly_data.channel_id == int(enter_chan)]
-    print(all_channel_data.head())
-    all_channel_data.to_csv("all_channel_data.csv")
+    selected_channel_id = int(enter_chan)
+    data = datamanagement.get_channel_data(selected_channel_id)
+    hourly_data = datamanagement.calculate_hourly_averages(data)
+    #print(hourly_data.head())
+    #hourly_data.to_csv("hourly_data.csv")
+    #print(hourly_data.dtypes)
+    #all_channel_data = hourly_data.loc[hourly_data.channel_id == int(enter_chan)]
+    all_channel_data = hourly_data
+    #print(all_channel_data.head())
+    #all_channel_data.to_csv("all_channel_data.csv")
     if all_channel_data.empty:
         results = {'predictions':0}
         return results
@@ -86,10 +90,23 @@ def make_prediction_using_averages(enter_chan, enter_time):
         start_base_time = str(start_pred - datetime.timedelta(best_number_of_days_back)) +'+3:00'
         start_pred = str(start_pred) +'+3:00'
         print((start_base_time))
+        print('start_base_time', start_base_time)
         print((start_pred))
+        print('start_pred type', type(start_pred))
 
+        print("all channel clean data", all_channel_data_clean)
+
+        print(type(all_channel_data_clean))
+        #all_channel_data_clean.to_csv('all_channel_data_cleaned.csv')
+
+        
         # select final range of data to be used in forecast
         data_to_use = all_channel_data_clean.loc[start_base_time:start_pred].values
+
+
+
+        print("data to use", data_to_use)
+
         # select the best configuration to us
         config_to_use = ast.literal_eval(current_best_config[0])
         print(config_to_use)
@@ -105,6 +122,7 @@ def make_prediction_using_averages(enter_chan, enter_time):
         'prediction_lower_ci':lower_ci}
         
         _logger.info(f'Predictions: {results}')
+        #save these in database
         utils.save_json_data('results.json', results)
         return  results
 
@@ -123,6 +141,8 @@ def make_prediction(enter_chan, enter_time) -> dict:
 
     start_pred = (pd.to_datetime(start_pred_time))
 
+    data = datamanagement.query_data()
+    hourly_data = datamanagement.calculate_hourly_averages(data)
     # select all data relating to a particular channel
     all_channel_data = hourly_data.loc[hourly_data.channel_id == enter_chan]
 
@@ -149,9 +169,13 @@ def make_prediction(enter_chan, enter_time) -> dict:
 # interpolating, removing nans and dropping columns
 def fill_gaps_and_set_datetime(d):
     # Interpolating gaps within the data
+    #d['time'] = pd.to_datetime(d['time'])
+    d.time = pd.to_datetime(d.time)
+    print('datatypes',d.dtypes)
     d = d.set_index('time')
     d = d.drop('channel_id', axis=1)
     d_cleaned = d.interpolate(method='time');
+
     return d_cleaned
 
 # sarima forecast
@@ -181,11 +205,13 @@ def sarima_forecast(history, config):
 
 
 # convert windows of weekly multivariate data into a series of total power
-def to_series(data):
+def to_seriesx(data):
     # extract just the total power from each week
     series = [day for day in data]
+    print("series:", series)
     # flatten into a single series
     series = array(series).flatten()
+    print(series)
     return series
 
 def new_forecast(enter_chan, enter_time):
@@ -194,6 +220,8 @@ def new_forecast(enter_chan, enter_time):
     # converting the start prediction time to datetime
     start_pred = (pd.to_datetime(start_pred_time))
 
+    data = datamanagement.query_data()
+    hourly_data = datamanagement.calculate_hourly_averages(data)
     # select all data relating to a particular channel
     all_channel_data = hourly_data.loc[hourly_data.channel_id == enter_chan]
 
@@ -205,8 +233,8 @@ def new_forecast(enter_chan, enter_time):
     ####TODO #######
     start_base_time = str(start_pred - datetime.timedelta(84)) +'+3:00'
     start_pred = str(start_pred) +'+3:00'
-    print((start_base_time))
-    print((start_pred))
+    print("start time",(start_base_time))
+    print("starting prediction", (start_pred))
     # select final range of data to be used in forecast
     data_to_use = all_channel_data_clean.loc[start_base_time:(start_pred)].values
 
@@ -221,7 +249,7 @@ def simple_forecast_ci(history, configs):
     list_of_upper_ci_of_hourly_values = []
     days, hours = configs
     # convert to a single list of values
-    series = to_series(history)
+    series = to_seriesx(history)
     
     # for each hour in 24 calcute the mean value for that hour on each days for which data is available
     for hour in (np.arange(1, (hours+1))):
@@ -229,6 +257,7 @@ def simple_forecast_ci(history, configs):
         list_of_hourly_values = []
         for day in (np.arange(0, (days))):
             hours_to_count = -(hour+ day*24)
+            print(hours_to_count)
             hourly_values = series[hours_to_count]
             list_of_hours_to_count.append(hours_to_count)
             list_of_hourly_values.append(hourly_values)

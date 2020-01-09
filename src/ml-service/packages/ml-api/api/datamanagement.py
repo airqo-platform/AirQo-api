@@ -12,7 +12,6 @@ def calculate_hourly_averages(df:pd.DataFrame):
     return hourly_data 
 
 
-
 def get_all_static_channels():
     client = bigquery.Client()
 
@@ -41,10 +40,12 @@ def query_data():
     client = bigquery.Client()
     sql = """SELECT created_at as time,channel_id,pm2_5
         FROM `airqo-250220.thingspeak.clean_feeds_pms` 
-        WHERE DATE(created_at) >= DATE_SUB(current_date, INTERVAL 1 MONTH)"""
+        WHERE DATE(created_at) >= DATE_SUB(current_date, INTERVAL 3 MONTH)"""
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
      
-    df = client.query(sql).to_dataframe()
-    #df.set_index('created_at',inplace=True)
+    df = client.query(sql,job_config=job_config).to_dataframe()
     df['time'] =  pd.to_datetime(df['time'])
     df['time'] = df['time'].dt.tz_localize('Africa/Kampala')
     time_indexed_data = df.set_index('time')
@@ -52,9 +53,89 @@ def query_data():
 #print(query_data())
 
 
+def get_channel_data(channel_id:int):
+    client = bigquery.Client()
+    sql_query = """
+            SELECT created_at as time,channel_id,pm2_5
+            FROM `airqo-250220.thingspeak.clean_feeds_pms` 
+            WHERE channel_id = {0}
+        """
+    sql_query = sql_query.format(channel_id)
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql_query, job_config=job_config).to_dataframe()
+    df['time'] =  pd.to_datetime(df['time'])
+    df['time'] = df['time'].dt.tz_localize('Africa/Kampala')
+    time_indexed_data = df.set_index('time')
+    return time_indexed_data    
+
+def get_channel_id(latitude:str, longitude:str) -> int:
+    lat= latitude
+    lon = longitude
+
+    channel_id = 0
+    
+    value1 = lat
+    value2 = lon 
+    client = bigquery.Client()
+
+    query = """
+        SELECT channel_id
+        FROM `airqo-250220.thingspeak.channel`
+        WHERE latitude = {0}
+        AND longitude = {1}
+        LIMIT 1
+    """
+    query = query.format(value1, value2)
+    print(query)
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+
+    query_job = client.query(
+        query,job_config=job_config,
+    )  # API request - starts the query
+     
+    results = query_job.result()
+    if results.total_rows >=1:
+        for row in results:
+            channel_id = row.channel_id
+            #print(row.channel_id)
+    else:
+        channel_id =0
+
+    return channel_id
+
+
+def get_all_coordinates():
+    client = bigquery.Client()
+
+    query = """
+        SELECT channel_id, latitude, longitude
+        FROM `airqo-250220.thingspeak.channel`
+        WHERE latitude != 0.0 OR longitude != 0.0
+    """
+    
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+
+    query_job = client.query(
+        query,job_config=job_config)
+
+    results = query_job.result()
+    coordinates = []
+
+    if results.total_rows >=1:
+        for row in results:
+            coordinates.append({'channel_id':row.channel_id, 'latitude':row.latitude, 'longitude':row.longitude})
+    return coordinates
+
 
 
 if __name__ == '__main__':
+    '''
     print('dm')
     #static_channels = get_all_static_channels()
     #print(static_channels)
@@ -63,3 +144,4 @@ if __name__ == '__main__':
     #data = calculate_hourly_averages(df)
     # print(data)
     # data.to_csv("dat.csv")
+    '''

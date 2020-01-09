@@ -1,20 +1,21 @@
 from flask import Blueprint, request, jsonify
 from api.predict import make_prediction, make_prediction_using_averages
-from api.utils import get_channel_id, checkKey, get_closest_channel, get_all_coordinates
-from api import model_config
+from api.utils import checkKey, get_closest_channel
 from api.validation import validate_inputs
+import logging
+from api import datamanagement as dm
 
-from api.config import get_logger
 
-_logger = get_logger(logger_name=__name__)
+#from api.config import get_logger
 
+_logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
 
 @ml_app.route('/api/v1/coordinates', methods=['GET'])
 def get_coordinates():
     if request.method == 'GET':
-        all_coordinates = get_all_coordinates()
+        all_coordinates = dm.get_all_coordinates()
         _logger.info(all_coordinates)
         return jsonify({'coordinates': all_coordinates})
        
@@ -41,7 +42,7 @@ def predict():
             enter_longitude  = json_data["longitude"]
             enter_time = json_data["selected_datetime"]
 
-            channel_id_with_specified_coordinates = get_channel_id(entered_latitude,enter_longitude)
+            channel_id_with_specified_coordinates = dm.get_channel_id(entered_latitude,enter_longitude)
             print("channel id :", channel_id_with_specified_coordinates)
             if channel_id_with_specified_coordinates == 0:
                 channel_id_with_specified_coordinates = get_closest_channel(entered_latitude,enter_longitude)
@@ -112,7 +113,7 @@ def predict_avgs():
             enter_longitude  = json_data["longitude"]
             enter_time = json_data["selected_datetime"]
 
-            channel_id_with_specified_coordinates = get_channel_id(entered_latitude,enter_longitude)
+            channel_id_with_specified_coordinates = dm.get_channel_id(entered_latitude,enter_longitude)
             print("channel id :", channel_id_with_specified_coordinates)
             if channel_id_with_specified_coordinates == 0:
                 channel_id_with_specified_coordinates = get_closest_channel(entered_latitude,enter_longitude)

@@ -23,18 +23,17 @@ import psutil
 import ast
 import scipy.stats
 
-
-
 import json
 
-import datamanagement 
+from api import datamanagement 
 
 
 # Creating a list of channels to iterate through
-static_channel_list = datamanagement.get_all_static_channels()
-data = datamanagement.query_data()
+#static_channel_list = datamanagement.get_all_static_channels()
+
 #TODO: READ DATA FROM BIGQUERY....
-hourly_data = datamanagement.calculate_hourly_averages(data)
+#data = datamanagement.query_data()
+#hourly_data = datamanagement.calculate_hourly_averages(data)
 #hourly_data = pd.read_csv('dataxww.csv', parse_dates=['time'])
 
 #print(hourly_data.head())
@@ -296,6 +295,9 @@ def train_channels_in_range_inclusive(a, b):
     best_config_dict = {}
     #empty channels
     empty_channels = []
+    static_channel_list = datamanagement.get_all_static_channels()
+    data = datamanagement.query_data()
+    hourly_data = datamanagement.calculate_hourly_averages(data)
 #     for chan in chanlist[lower_limit:(upper_limit+1)]:
     for chan in static_channel_list[a:b+1]:
     #     # selecting only rows relating to the given channel
@@ -384,6 +386,9 @@ def train_channels_in_range_inclusive_for_averages_model(a, b):
 # Generating a dataframe for each channel
     best_config_dict = {}
     empty_channels = []
+    static_channel_list = datamanagement.get_all_static_channels()
+    data = datamanagement.query_data()
+    hourly_data = datamanagement.calculate_hourly_averages(data)
 #     for chan in chanlist[lower_limit:(upper_limit+1)]:
     for chan in static_channel_list[a:b+1]:
     #     # selecting only rows relating to the given channel
