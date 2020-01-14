@@ -1,0 +1,6 @@
+runtime: nodejs10
+service: incentives
+env_variables:
+  TS_API_KEY: "JQZOU97VDLX7OTDH"
+  MLAB_USERNAME: "bala"
+  MLAB_PASSWORD: "kanye1"
