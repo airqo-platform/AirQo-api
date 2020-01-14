@@ -27,9 +27,9 @@ const bridge = {
     },
 
     updateConfigs: (req, res) => {
-        const data = req.body.data;
+        // const data = req.body.data;
         const deviceId = req.body.id;
-        const data = http_client.updateConfig(data, deviceId);
+        const data = http_client.updateConfig(req.body.data, deviceId);
         res.send(data).status(200);
     },
 
