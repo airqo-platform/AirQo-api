@@ -4,7 +4,8 @@ const constants = require('./constants');
 mongoose.Promise = global.Promise;
 
 try {
-    mongoose.connect(constants.MONGO_URL)
+    console.log("the value for MONGO URL is: " + constants.MONGO_URL);
+    mongoose.connect(constants.MONGO_URL, { useNewUrlParser: true });
 }
 catch (e) {
     mongoose.createConnection(constants.MONGO_URL);

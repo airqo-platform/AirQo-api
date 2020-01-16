@@ -27,7 +27,7 @@ const testConfig = {
     MAXIMUM_BACKOFF_TIME: 32
 };
 const prodConfig = {
-    MONGO_URL: `mongodb://${process.env.MLAB_USERNAME}:${process.env.MLAB_PASSWORD}@ds129183.mlab.com:29183/airqo-device-registry`,
+    MONGO_URL: process.env.MLAB_URI,
     JWT_SECRET: 'thisisasecret',
     REGION: 'europe-west1',
     MQTT_BRIDGE_HOST_NAME: 'mqtt.googleapis.com',

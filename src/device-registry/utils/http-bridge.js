@@ -1,4 +1,4 @@
-const privateKeyFile = require('../controllers/rsa_private.pem');
+//const privateKeyFile = require('../controllers/rsa_private.pem');
 const fs = require('fs');
 const jwt = require('jsonwebtoken');
 const constants = require('../config/constants');

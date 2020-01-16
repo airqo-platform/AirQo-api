@@ -15,28 +15,28 @@ const bridge = {
     },
 
     getConfigs: (req, res) => {
-        const version = req.body.version; // v1
-        const deviceId = req.body.id;
-        try {
-            const data = http_client.getConfig(version, deviceId);
-            res.status(200).send(data);
-        }
-        catch (error) {
-            res.status(500).send(error);
-        }
+        // const version = req.body.version; // v1
+        // const deviceId = req.body.id;
+        // try {
+        //     const data = http_client.getConfig(version, deviceId);
+        //     res.status(200).send(data);
+        // }
+        // catch (error) {
+        //     res.status(500).send(error);
+        // }
     },
 
     updateConfigs: (req, res) => {
-        // const data = req.body.data;
-        const deviceId = req.body.id;
-        const data = http_client.updateConfig(req.body.data, deviceId);
-        res.send(data).status(200);
+        // // const data = req.body.data;
+        // const deviceId = req.body.id;
+        // const data = http_client.updateConfig(req.body.data, deviceId);
+        // res.send(data).status(200);
     },
 
     reviewConfigs: (req, res) => {
-        const deviceId = req.body.id;
-        data = http_client.reviewConfig(deviceId);
-        res.send(data).status(200);
+        // const deviceId = req.body.id;
+        // data = http_client.reviewConfig(deviceId);
+        // res.send(data).status(200);
     }
 
 }

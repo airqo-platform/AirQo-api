@@ -26,13 +26,13 @@ router.put('/:id', authJWT, validate(deviceValidation.updateDevice), deviceContr
 router.put('/:name/gcp', deviceController.updateDeviceGcp);
 
 //configuration of devices
-router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
-router.get('/http/config/gcp', httpBridge.reviewConfigs);
-router.put('/mqtt/config/gcp', mqttBridge.updateConfigs);
-router.put('/http/config/gcp', httpBridge.updateConfigs);
+// router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
+// router.get('/http/config/gcp', httpBridge.reviewConfigs);
+// router.put('/mqtt/config/gcp', mqttBridge.updateConfigs);
+// router.put('/http/config/gcp', httpBridge.updateConfigs);
 
 //publish telemetry
-router.push('/mqtt/publish/gcp', mqttBridge.publish);
-router.push('/http/publish/gcp', httpBridge.publish);
+// router.push('/mqtt/publish/gcp', mqttBridge.publish);
+// router.push('/http/publish/gcp', httpBridge.publish);
 
 module.exports = router;
