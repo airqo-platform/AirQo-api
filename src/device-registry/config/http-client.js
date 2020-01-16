@@ -4,7 +4,7 @@
  */
 const constants = require('../config/constants');
 const bridge = require('../utils/http-bridge');
-const privateKeyFile = require('../controllers/rsa_private.pem');
+//const privateKeyFile = require('../controllers/rsa_private.pem');
 const request = require('retry-request', { request: require('request') });
 const parentName = `projects/${process.env.PROJECT_ID}/locations/${process.env.REGION}`;
 
