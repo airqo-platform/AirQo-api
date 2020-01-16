@@ -1,6 +1,2 @@
 runtime: nodejs10
 service: device-registry
-env_variables:
-  TS_API_KEY: "JQZOU97VDLX7OTDH"
-  MLAB_USERNAME: "bal"
-  MLAB_PASSWORD: "kanye1"

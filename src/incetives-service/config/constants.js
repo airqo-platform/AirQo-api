@@ -9,7 +9,7 @@ const testConfig = {
     MOMO_URL_DISBURSEMENTS: "https://sandbox.momodeveloper.mtn.com/disbursement"
 };
 const prodConfig = {
-    MONGO_URL: `mongodb://${process.env.MLAB_USER}:${process.env.MLAB_PASSWORD}@ds021356.mlab.com:21356/airqo-incentives`,
+    MONGO_URL: process.env.MLAB_URI,
     JWT_SECRET: 'thisisasecret',
     MOMO_URL_DISBURSEMENTS: "https://sandbox.momodeveloper.mtn.com/disbursement"
 };
