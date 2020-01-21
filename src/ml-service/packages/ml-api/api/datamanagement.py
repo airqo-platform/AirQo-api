@@ -4,6 +4,109 @@ from datetime import datetime,timedelta
 import pandas as pd
 
 
+def save_predictions(best_model_configurations):
+    client = bigquery.Client()
+    dataset_ref = client.dataset('thingspeak','airqo-250220')
+    table_ref = dataset_ref.table('model_prediction')
+    table = client.get_table(table_ref)
+
+    rows_to_insert = best_model_configurations
+    errors = client.insert_rows(table, rows_to_insert)
+    if errors == []:
+        return 'Records saved successfully.'
+    else:
+        return errors
+        #print('Error during inserting to BigQuery')
+        #for i in errors:
+            #print(errors[i])
+
+def get_channel_best_configurations(channel_id:int):
+    client = bigquery.Client()
+    sql_query = """
+            SELECT channel_id, number_of_days_to_use, considered_hours
+            FROM `airqo-250220.thingspeak.model_configuration` 
+            WHERE channel_id ={0} ORDER BY created_at DESC LIMIT 1
+        """
+    sql_query = sql_query.format(channel_id)
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+
+    query_job = client.query(sql_query, job_config=job_config)
+    results = query_job.result()
+    best_model_configurations = []
+
+    if results.total_rows >=1:
+        for row in results:
+            best_model_configurations.append({"channel_id":row.channel_id,
+             "number_of_days_to_use":row.number_of_days_to_use, "considered_hours": row.considered_hours})
+    return best_model_configurations
+
+def save_configurations(best_model_configurations):
+    client = bigquery.Client()
+    dataset_ref = client.dataset('thingspeak','airqo-250220')
+    table_ref = dataset_ref.table('model_configuration')
+    table = client.get_table(table_ref)
+
+    rows_to_insert = best_model_configurations
+    errors = client.insert_rows(table, rows_to_insert)
+    if errors == []:
+        return 'Records saved successfully.'
+    else:
+        return errors
+        #print('Error during inserting to BigQuery')
+        #for i in errors:
+            #print(errors[i])
+
+
+def query_data():
+    client = bigquery.Client()
+    sql = """SELECT created_at as time,channel_id,pm2_5
+        FROM `airqo-250220.thingspeak.clean_feeds_pms` """
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql,job_config=job_config).to_dataframe()
+    df['time'] =  pd.to_datetime(df['time'])
+    df['time'] = df['time'].dt.tz_localize('Africa/Kampala')
+    time_indexed_data = df.set_index('time')
+    return time_indexed_data    
+    
+
+def query_datax():
+    client = bigquery.Client()
+    sql = """SELECT created_at as time,channel_id,pm2_5
+        FROM `airqo-250220.thingspeak.clean_feeds_pms` 
+        WHERE DATE(created_at) >= DATE_SUB(current_date, INTERVAL 2 MONTH)"""
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql,job_config=job_config).to_dataframe()
+    df['time'] =  pd.to_datetime(df['time'])
+    df['time'] = df['time'].dt.tz_localize('Africa/Kampala')
+    time_indexed_data = df.set_index('time')
+    return time_indexed_data    
+
+def get_channel_hourly_data(channel_id:int):
+    client = bigquery.Client()
+    sql_query = """
+            SELECT  DATETIME_TRUNC(created_at, HOUR) time, channel_id, ROUND(AVG(pm2_5),2) AS avg_pm2_5
+            FROM `airqo-250220.thingspeak.clean_feeds_pms` 
+            WHERE channel_id = {0} GROUP BY channel_id, time ORDER BY time 
+        """
+    sql_query = sql_query.format(channel_id)
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql_query, job_config=job_config).to_dataframe()
+    df['time'] =  pd.to_datetime(df['time'])
+    df['time'] = df['time'].dt.tz_localize('Africa/Kampala')
+    time_indexed_data = df.set_index('time')
+    return time_indexed_data 
+
 def calculate_hourly_averages(df:pd.DataFrame):
     df.pm2_5 = pd.to_numeric(df['pm2_5'], errors='coerce')
     data_grp_hourly = df.groupby(['channel_id']).resample('H').mean().round(2)
@@ -32,15 +135,15 @@ def get_all_static_channels():
 
     if results.total_rows >=1:
         for row in results:
-            static_channels.append({"channe_id":row.channel_id,
+            static_channels.append({"channel_id":row.channel_id,
              "latitude":row.latitude, "longitude":row.longitude})
     return static_channels
 
-def query_data():
+def get_all_channels_hourly_data():
     client = bigquery.Client()
-    sql = """SELECT created_at as time,channel_id,pm2_5
-        FROM `airqo-250220.thingspeak.clean_feeds_pms` 
-        WHERE DATE(created_at) >= DATE_SUB(current_date, INTERVAL 3 MONTH)"""
+    sql = """SELECT channel_id, DATETIME_TRUNC(created_at, HOUR) time, ROUND(AVG(pm2_5),2) AS pm2_5  
+             FROM `airqo-250220.thingspeak.clean_feeds_pms` 
+             GROUP BY channel_id, time ORDER BY channel_id, time"""
 
     job_config = bigquery.QueryJobConfig()
     job_config.use_legacy_sql = False
@@ -50,7 +153,6 @@ def query_data():
     df['time'] = df['time'].dt.tz_localize('Africa/Kampala')
     time_indexed_data = df.set_index('time')
     return time_indexed_data	
-#print(query_data())
 
 
 def get_channel_data(channel_id:int):
@@ -135,7 +237,7 @@ def get_all_coordinates():
 
 
 if __name__ == '__main__':
-    '''
+ 
     print('dm')
     #static_channels = get_all_static_channels()
     #print(static_channels)
@@ -144,4 +246,6 @@ if __name__ == '__main__':
     #data = calculate_hourly_averages(df)
     # print(data)
     # data.to_csv("dat.csv")
-    '''
+    #save_configurations()
+    best_config =  get_channel_best_configurations(870142)
+    print(best_config)

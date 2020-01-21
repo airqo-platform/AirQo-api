@@ -12,6 +12,19 @@ _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
 
+
+@ml_app.route('/api/v1/train', methods=['GET'])
+def train_averages_model():
+    if request.method == 'GET':
+        static_channel_list = datamanagement.get_all_static_channels()
+        last_channel_best_config, obtained_best_config_dict, best_model_configurations = train_channels_in_range_inclusive_for_averages_model(0,len(static_channel_list))
+        result = datamanagement.save_configurations(best_model_configurations)
+        if result == 'Records saved successfully.':
+            return jsonify({'saved':'successfully'})
+        else:
+            return jsonify({'errors': result} )
+
+
 @ml_app.route('/api/v1/coordinates', methods=['GET'])
 def get_coordinates():
     if request.method == 'GET':
@@ -20,7 +33,6 @@ def get_coordinates():
         return jsonify({'coordinates': all_coordinates})
        
         
-
 @ml_app.route('/health', methods=['GET'])
 def health():
     if request.method == 'GET':
@@ -49,7 +61,6 @@ def predict():
                 print("channel id closest", channel_id_with_specified_coordinates)
                 print("type of data", type(channel_id_with_specified_coordinates))
 
-            #enter_chan = checkKey(model_config.CHANNEL_ID_MAPPING_CONFIG_DICT, channel_id_with_specified_coordinates)
             enter_chan = channel_id_with_specified_coordinates
             print("enter channel:", enter_chan)
             print(enter_chan)
@@ -71,29 +82,6 @@ def predict():
         else:
             _logger.info(f'errors: {errors}')
 
-            return jsonify({'inputs': json_data,
-                        'errors': errors
-                        })
-
-
-
-@ml_app.route('/api/v1/predict/v2/', methods=['POST'])
-def predictx():
-    if request.method == 'POST':
-        json_data = request.get_json()
-        if not json_data:
-               return {'message': 'No input data provided'}, 400
-        _logger.info(f'Inputs: {json_data}')
-        #print(json_data)
-        input_data, errors = validate_inputs(input_data=json_data)
-        print(input_data)
-        print(errors)
-        print(type(errors))
-        if not errors:
-            ## continue with executing prediction api
-            return jsonify({'inputs': input_data})
-        else:
-            print("passed data has errors.")
             return jsonify({'inputs': json_data,
                         'errors': errors
                         })

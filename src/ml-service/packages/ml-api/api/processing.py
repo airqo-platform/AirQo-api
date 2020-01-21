@@ -16,7 +16,7 @@ from joblib import delayed
 from warnings import catch_warnings
 from warnings import filterwarnings
 
-import datetime
+import datetime as dt
 import time 
 
 import psutil
@@ -26,17 +26,7 @@ import scipy.stats
 import json
 
 from api import datamanagement 
-
-
-# Creating a list of channels to iterate through
-#static_channel_list = datamanagement.get_all_static_channels()
-
-#TODO: READ DATA FROM BIGQUERY....
-#data = datamanagement.query_data()
-#hourly_data = datamanagement.calculate_hourly_averages(data)
-#hourly_data = pd.read_csv('dataxww.csv', parse_dates=['time'])
-
-#print(hourly_data.head())
+#import datamanagement 
 
 # Generates possible configurations based on nominated number of cycles eg 24 or 168
 # loop through number of hours in the dataframe
@@ -55,20 +45,30 @@ def full_days_only(d):
     # drop any remaining nans from the start
     d =  d.dropna().reset_index();
     print(d)
-    # Setting first complete day and last complete day to assist with training quality
-    first_full_day = pd.to_datetime(d.loc[d.time.dt.hour == 0.00, 'time'][:1].values[0], utc=True)
-    last_full_day = pd.to_datetime(d.loc[d.time.dt.hour == 23.00, 'time'][-1:].values[0], utc=True)  
-    # Then correct Kampala values are applied
-    d_whole_days = d.loc[(d.time >= first_full_day) & (d.time <= last_full_day)]
-    d_whole_days = d_whole_days.set_index('time')
-    #print(d_whole_days)
-    return d_whole_days
+    print("full days dtypes:", d.dtypes)
+
+    #print(d.loc[d.time.dt.hour == 0.00, 'time'])
+    #Setting first complete day and last complete day to assist with training quality
+   
+    start_of_day = d.loc[d.time.dt.hour == 0.00, 'time'][:1]
+    end_of_day =   d.loc[d.time.dt.hour == 23.00, 'time'][-1:]
+
+    if start_of_day.empty == False and end_of_day.empty == False:        
+        first_full_day = pd.to_datetime(d.loc[d.time.dt.hour == 0.00, 'time'][:1].values[0], utc=True) 
+        last_full_day = pd.to_datetime(d.loc[d.time.dt.hour == 23.00, 'time'][-1:].values[0], utc=True)  
+        # Then correct location values are applied
+        d_whole_days = d.loc[(d.time >= first_full_day) & (d.time <= last_full_day)]
+        d_whole_days = d_whole_days.set_index('time')
+        return d_whole_days
+    else:
+        #returns an empty dataframe
+        return pd.DataFrame()
 
 
 # THis should be unecessary but every time i take it out it causes issues
 def out_of_sample(d, oos_size):
-    df = d.iloc[:-oos_size, 1]
-    oos = d.iloc[-oos_size:, 1]
+    df = d.iloc[:-oos_size, 0] #0 means first column in dataframe.
+    oos = d.iloc[-oos_size:, 0]
     return df, oos
 
 def plot_acf_pcf(df, lags):
@@ -90,9 +90,13 @@ def split_dataset(data):
     train, test = data[0:-192], data[-192:-24]
     final_test = data[-24:]
     # restructure into windows of weekly data
-    train = array(split(train, (len(train)/24)))
-    test = array(split(test, (len(test)/24)))
-#     print(train, test, final_test)
+    print("length of train",len(train))
+    print("length of test", len(test))
+
+    if(len(train)>0):
+        train = array(split(train, (len(train)/24)))
+    if(len(test)> 0):
+        test = array(split(test, (len(test)/24)))
     return train, test, final_test
 
 
@@ -349,7 +353,6 @@ def train_channels_in_range_inclusive(a, b):
 def simple_forecast(history, configs):
     list_of_mean_hourly_values = []
     days, hours = configs
-#     print('days', days)
     series = to_series(history)
     for hour in (np.arange(1, (hours+1))):
         list_of_hours_to_count = []
@@ -386,76 +389,103 @@ def train_channels_in_range_inclusive_for_averages_model(a, b):
 # Generating a dataframe for each channel
     best_config_dict = {}
     empty_channels = []
+    best_model_configurations = [] #list to contain best configurations to be saved in db (bigquery)
     static_channel_list = datamanagement.get_all_static_channels()
+
     data = datamanagement.query_data()
     hourly_data = datamanagement.calculate_hourly_averages(data)
+    #hourly_data = datamanagement.get_all_channels_hourly_data()
 #     for chan in chanlist[lower_limit:(upper_limit+1)]:
     for chan in static_channel_list[a:b+1]:
     #     # selecting only rows relating to the given channel
-        d = hourly_data.loc[hourly_data.channel_id == chan.channel_id]
+        d = hourly_data.loc[hourly_data.channel_id == chan.get('channel_id'), ['time','pm2_5']]
     #    # removing partial days at start and end of sample - data still in hours
         if d.empty:
-            empty_channels.append(chan.channel_id)
+            empty_channels.append(chan.get('channel_id'))
         else:
             df = full_days_only(d)
     #         print('length df', len(df))
             # set size of out of sample test data
-            oos_size = 24
-            df, oos = out_of_sample(df, oos_size)
-    #         print('length df2', len(df))
-            # Generating train and test from the full dataset minues the final 24 hours
-            days_train, days_test, final_test = split_dataset(df)[0:3]
-            # define the names and functions for the models we wish to evaluate
-            models = dict()
-            models['simple'] = simple_forecast
+            if df.empty == False:
+                oos_size = 24
+                if df.size > oos_size:
+                    print('length df before out_of sample {0} and columns {1}', len(df), list(df.columns))
+                    df, oos = out_of_sample(df, oos_size)
+                    print('length df2', len(df))
+                    # Generating train and test from the full dataset minues the final 24 hours
+                    days_train, days_test, final_test = split_dataset(df)#[0:3]
+                    # define the names and functions for the models we wish to evaluate
+                    models = dict()
+                    models['simple'] = simple_forecast
 
-            print('channel', chan.channel_id)
-            # model configs
-            n_test = 24
-            cfg_list = simple_configs(df)
-            scores = grid_search(simple_forecast, days_train, days_test, cfg_list)
-    #         print('scores', scores)
-            for cfg, error in scores[:3]:
-                print(cfg, error)    
-            best_config = (scores[0])
-            best_config_dict[chan.channel_id] = best_config
+                    print('channel', chan.get('channel_id'))
+                    # model configs
+                    
+                    cfg_list = simple_configs(df)
+                    scores = grid_search(simple_forecast, days_train, days_test, cfg_list)
+            #         print('scores', scores)
+                    if(len(scores)>0):
+                        for cfg, error in scores[:3]:
+                            print(cfg, error)    
+                        best_config = (scores[0])
+                        best_config_dict[chan.get('channel_id')] = best_config
+                                               
+                        model_name  =  'simple_average_prediction'
+                        channel_id =    chan.get('channel_id')
+                        number_of_days_to_use  = ast.literal_eval(best_config[0])[0]   
+                        recorded_rmse   =  best_config[1]
+                        created_at   = dt.datetime.now()
+                        considered_hours=  ast.literal_eval(best_config[0])[1] 
+                        
+                        best_config_tuple = (model_name, channel_id, number_of_days_to_use, recorded_rmse, created_at, considered_hours)
+                        best_model_configurations.append(best_config_tuple)
+                        
 
-    return best_config, best_config_dict
+    return best_config, best_config_dict, best_model_configurations
 
 
 if __name__ == '__main__':
+    
     print("richard starts")
     static_channel_list = datamanagement.get_all_static_channels()
+
+    #print(static_channel_list)
+    '''
     print("richard ends")
-    data = datamanagement.query_data() 
+    #data = datamanagement.query_data() 
     hourly_data = datamanagement.calculate_hourly_averages(data)
+    hourly_data = datamanagement.get_all_channels_hourly_data()
     #print("richard starts")
-    #print(hourly_data.head())
+    print(hourly_data.head())
     #print("richard starts ending")
 
-    '''
+   
     empty_channels = []
     for chan in static_channel_list:
-    	d = hourly_data.loc[hourly_data.channel_id == chan, ['time','pm2_5']]
+    	d = hourly_data.loc[hourly_data.channel_id == chan.get('channel_id'), ['time','channel_id','pm2_5']]
     	if d.empty:
     		empty_channels.append(chan)
     		print('channel {0} is empty'.format(chan))
     	else:
     		print(d)
-
-    		d.to_csv(str(chan)+"dat.csv")
+            
+    		d.to_csv(str(chan.get('channel_id'))+"dat.csv")
     		df = full_days_only(d)
-    		df.to_csv("df"+str(chan)+"df.csv")
-
+    		df.to_csv("df"+str(chan.get('channel_id'))+"df.csv")
     	print(empty_channels)
-    	#df = full_days_only(d)
-#     print('Channel: ', chan)
-	'''
-    last_channel_best_config, obtained_best_config_dict = train_channels_in_range_inclusive_for_averages_model(0,len(static_channel_list))
-    #last_channel_best_config, obtained_best_config_dict = train_channels_in_range_inclusive(0,len(static_channel_list))
+    	df = full_days_only(d)
+        #print('Channel: ', chan)
+	
+   '''
 
+    last_channel_best_config, obtained_best_config_dict, best_model_configurations = train_channels_in_range_inclusive_for_averages_model(0,len(static_channel_list))
+    #last_channel_best_config, obtained_best_config_dict = train_channels_in_range_inclusive(0,len(static_channel_list))
+    print(best_model_configurations)
+    print(type(best_model_configurations))
+    datamanagement.save_configurations(best_model_configurations)
     with open('best_config_dict.json', 'w') as fp:
     	json.dump(obtained_best_config_dict, fp)
+ 
 
 
 
