@@ -48,7 +48,7 @@ def get_channel_with_coordinates(latitude, longitude) -> int:
     return channel_id
 
 # Generating forecast based on channel and time entered
-def make_prediction_using_averages(enter_chan, enter_time):
+def make_prediction_using_averages(enter_chan, enter_time,entered_latitude,entered_longitude):
 
     enter_time_split = enter_time.split("/")
     enter_time_tuple = tuple([int(i) for i in enter_time_split])
@@ -60,18 +60,20 @@ def make_prediction_using_averages(enter_chan, enter_time):
     #current_best_config = utils.load_json_data(model_config.BEST_CONFIG_FROM_AVERAGES_MODEL).get(str(enter_chan))
     #get config from db(bq) instead of json files
     current_best_config = datamanagement.get_channel_best_configurations(enter_chan)
-    print("current best config", current_best_config)
-    print(start_pred_time)
+    #print("current best config", current_best_config)
+    #print(start_pred_time)
     # converting the start prediction time to datetime
     start_pred = (pd.to_datetime(start_pred_time))
     # generating list of hours based on start time
     fcst_hours, start_hour = processing.forecast_hours(start_pred_time)
-    print("entered_channel", enter_chan)
-    print("type of entered channel", type(enter_chan))
+    #print("entered_channel", enter_chan)
+    #print("type of entered channel", type(enter_chan))
     # select all data relating to a particular channel
     selected_channel_id = int(enter_chan)
     #hourly_data = datamanagement.get_channel_hourly_data(selected_channel_id)
-    data = datamanagement.get_channel_data(selected_channel_id)
+    #data = datamanagement.get_channel_data(selected_channel_id) 
+    data = datamanagement.get_channel_data_raw(selected_channel_id) 
+    
     hourly_data = datamanagement.calculate_hourly_averages(data)
     #print(hourly_data.head())
     #hourly_data.to_csv("hourly_data.csv")
@@ -98,19 +100,19 @@ def make_prediction_using_averages(enter_chan, enter_time):
         else:
             best_number_of_days_back = int(current_best_config[0].get('number_of_days_to_use'))
             considered_hours = int(current_best_config[0].get('considered_hours'))
-            print('considered hours', considered_hours)
+            #print('considered hours', considered_hours)
             #config_to_use = [best_number_of_days_back, considered_hours]
 
         start_base_time = str(start_pred - datetime.timedelta(best_number_of_days_back)) +'+3:00'
         start_pred = str(start_pred) +'+3:00'
-        print((start_base_time))
-        print('start_base_time', start_base_time)
-        print((start_pred))
-        print('start_pred type', type(start_pred))
+        #print((start_base_time))
+        #print('start_base_time', start_base_time)
+        #print((start_pred))
+        #print('start_pred type', type(start_pred))
 
-        print("all channel clean data", all_channel_data_clean)
+        #print("all channel clean data", all_channel_data_clean)
 
-        print(type(all_channel_data_clean))
+        #print(type(all_channel_data_clean))
         #all_channel_data_clean.to_csv('all_channel_data_cleaned.csv')
 
         
@@ -118,7 +120,7 @@ def make_prediction_using_averages(enter_chan, enter_time):
         data_to_use = all_channel_data_clean.loc[start_base_time:start_pred].values
 
 
-        print("data to use", data_to_use)
+        #print("data to use", data_to_use)
 
         # select the best configuration to us
 
@@ -129,14 +131,49 @@ def make_prediction_using_averages(enter_chan, enter_time):
         #'predictions':yhat_24.tolist(), 'prediction_upper_ci':upper_ci.tolist(), 
         #'prediction_lower_ci':lower_ci.tolist()}
 
+        
+        
+
+        
+        model_predictions = []
+        model_name  =  'simple_average_prediction'
+        channel_id =  selected_channel_id   
+        location_name =  ""   
+        location_latitude = entered_latitude
+        location_longitude = entered_longitude
+        prediction_start_datetime= pd.to_datetime(start_pred) 
+        print(prediction_start_datetime)
+        type(prediction_start_datetime)
+        created_at = datetime.datetime.now() 
+        result_modified= [];
+
+        for i in range(0, len(yhat_24)):
+            hour_to_add = i+1
+            prediction_value = yhat_24[i]             
+            prediction_datetime = pd.to_datetime(prediction_start_datetime + datetime.timedelta(hours=hour_to_add)) 
+            print(prediction_datetime)
+            print(type(prediction_datetime))
+
+            lower_confidence_interval_value=  lower_ci[i] 
+            upper_confidence_interval_value = upper_ci[i]
+            resultx = {'prediction_time':prediction_datetime, 'prediction_value':prediction_value, 'lower_ci':lower_confidence_interval_value,'upper_ci':upper_confidence_interval_value}
+            result_modified.append(resultx)
+        
+        model_predictions_tuple = (model_name,channel_id, location_name, location_latitude, location_longitude, prediction_value, prediction_start_datetime, prediction_datetime, created_at, lower_confidence_interval_value,upper_confidence_interval_value)
+        model_predictions.append(model_predictions_tuple)  
+        print(model_predictions)
+
+        
+        
         results ={'prediction_start_time':start_pred, 'prediction_hours': fcst_hours,
         'predictions':yhat_24, 'prediction_upper_ci':upper_ci, 
         'prediction_lower_ci':lower_ci}
-        
+        formated_results = {'predictions':result_modified}
+        #datamanagement.save_predictions(model_predictions)
         _logger.info(f'Predictions: {results}')
         #save these in database
         #utils.save_json_data('results.json', results)
-        return  results
+        return  results, formated_results
 
 
 def make_prediction(enter_chan, enter_time) -> dict:

@@ -4,6 +4,7 @@ from api.config import DevelopmentConfig, ProductionConfig
 
 application = create_app(config_object=ProductionConfig)
 
+
 try:
   import googleclouddebugger
   googleclouddebugger.enable()

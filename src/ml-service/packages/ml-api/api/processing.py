@@ -447,7 +447,7 @@ def train_channels_in_range_inclusive_for_averages_model(a, b):
 if __name__ == '__main__':
     
     print("richard starts")
-    static_channel_list = datamanagement.get_all_static_channels()
+    #static_channel_list = datamanagement.get_all_static_channels()
 
     #print(static_channel_list)
     '''
@@ -478,13 +478,13 @@ if __name__ == '__main__':
 	
    '''
 
-    last_channel_best_config, obtained_best_config_dict, best_model_configurations = train_channels_in_range_inclusive_for_averages_model(0,len(static_channel_list))
+    #last_channel_best_config, obtained_best_config_dict, best_model_configurations = train_channels_in_range_inclusive_for_averages_model(0,len(static_channel_list))
     #last_channel_best_config, obtained_best_config_dict = train_channels_in_range_inclusive(0,len(static_channel_list))
-    print(best_model_configurations)
-    print(type(best_model_configurations))
-    datamanagement.save_configurations(best_model_configurations)
-    with open('best_config_dict.json', 'w') as fp:
-    	json.dump(obtained_best_config_dict, fp)
+    #print(best_model_configurations)
+    #print(type(best_model_configurations))
+    #datamanagement.save_configurations(best_model_configurations)
+    #with open('best_config_dict.json', 'w') as fp:
+    	#json.dump(obtained_best_config_dict, fp)
  
 
 

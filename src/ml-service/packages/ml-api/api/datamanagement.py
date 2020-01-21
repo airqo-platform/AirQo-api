@@ -4,13 +4,36 @@ from datetime import datetime,timedelta
 import pandas as pd
 
 
-def save_predictions(best_model_configurations):
+def get_channel_data_raw(channel_id:int):
+    channel_id = str(channel_id)
+    client = bigquery.Client()
+    sql_query = """
+            SELECT created_at as time,channel_id,field1 as pm2_5
+            FROM `airqo-250220.thingspeak.raw_feeds_pms` 
+            WHERE channel_id = {0}
+        """
+    xx = "'"+ channel_id + "'"
+    sql_query = sql_query.format(xx)
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql_query, job_config=job_config).to_dataframe()
+    df['time'] =  pd.to_datetime(df['time'])
+    df['time'] = df['time'].dt.tz_convert('Africa/Kampala')
+    df['pm2_5'] = pd.to_numeric(df['pm2_5'],errors='coerce')
+    df['channel_id'] = pd.to_numeric(df['channel_id'],errors='coerce')
+    time_indexed_data = df.set_index('time')
+    return time_indexed_data 
+
+
+def save_predictions(predictions):
     client = bigquery.Client()
     dataset_ref = client.dataset('thingspeak','airqo-250220')
-    table_ref = dataset_ref.table('model_prediction')
+    table_ref = dataset_ref.table('model_predictions')
     table = client.get_table(table_ref)
 
-    rows_to_insert = best_model_configurations
+    rows_to_insert = predictions
     errors = client.insert_rows(table, rows_to_insert)
     if errors == []:
         return 'Records saved successfully.'
@@ -191,7 +214,7 @@ def get_channel_id(latitude:str, longitude:str) -> int:
         LIMIT 1
     """
     query = query.format(value1, value2)
-    print(query)
+    #print(query)
 
     job_config = bigquery.QueryJobConfig()
     job_config.use_legacy_sql = False
@@ -247,5 +270,5 @@ if __name__ == '__main__':
     # print(data)
     # data.to_csv("dat.csv")
     #save_configurations()
-    best_config =  get_channel_best_configurations(870142)
-    print(best_config)
+    #best_config =  get_channel_best_configurations(870142)
+    #print(best_config)

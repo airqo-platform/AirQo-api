@@ -1,6 +1,8 @@
 runtime: python
 env: flex
-entrypoint: gunicorn -t 180 -b :$PORT run:application
-service: ml-service
+entrypoint: gunicorn -t 280 -b :$PORT run:application
+service: dl-service
 runtime_config:
   python_version: 3.7
+resources:
+  memory_gb: 5

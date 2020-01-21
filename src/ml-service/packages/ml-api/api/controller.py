@@ -111,7 +111,7 @@ def predict_avgs():
             enter_chan = channel_id_with_specified_coordinates
 
             if enter_chan != "Channel Id Not available":       
-                result = make_prediction_using_averages(enter_chan, enter_time)
+                result, formatted_results = make_prediction_using_averages(enter_chan, enter_time,entered_latitude,enter_longitude)
                 _logger.info(f'Outputs: {result}')
 
                 predictions = result.get('predictions')
@@ -120,11 +120,7 @@ def predict_avgs():
                 prediction_hours = result.get('prediction_hours')
                 lower_confidence_intervals = result.get('prediction_lower_ci')
 
-                return jsonify({'predictions': predictions,
-                                'upper_confidence_intervals': upper_confidence_intervals,
-                                'lower_confidence_intervals': lower_confidence_intervals,
-                                'prediction_hours': prediction_hours,
-                                'prediction_start_time':start_time})
+                return jsonify({'formatted_results': formatted_results})
             else:
                  return jsonify({'errors': 'channel not found.'
                         })
