@@ -7,9 +7,7 @@ fields.Field.default_error_messages["required"] = "You missed something!"
 class SpatialTemporalSchema(Schema):
     latitude = fields.Float(required=True, error_messages={"required": "latitude missing."}, validate=validate.Range(min=-90, max=90))
     longitude = fields.Float(required=True,error_messages={"required": "longitude missing."}, validate=validate.Range(min=-180, max=180))
-    #selected_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
-    ##TODO: ensure validation is for datetime instead of str
-    selected_datetime = fields.Str(required=True, error_messages={"required": "datetime missing."})
+    selected_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
 		
 
 def _filter_error_rows(errors: dict,

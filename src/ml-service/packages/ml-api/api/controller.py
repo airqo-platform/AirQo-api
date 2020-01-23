@@ -4,6 +4,7 @@ from api.utils import checkKey, get_closest_channel
 from api.validation import validate_inputs
 import logging
 from api import datamanagement as dm
+import datetime as dt
 
 
 #from api.config import get_logger
@@ -11,7 +12,6 @@ from api import datamanagement as dm
 _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
-
 
 @ml_app.route('/api/v1/train', methods=['GET'])
 def train_averages_model():
@@ -98,20 +98,21 @@ def predict_avgs():
 
         if not errors:        
             entered_latitude = json_data["latitude"]
-            enter_longitude  = json_data["longitude"]
+            entered_longitude  = json_data["longitude"]
             enter_time = json_data["selected_datetime"]
 
-            channel_id_with_specified_coordinates = dm.get_channel_id(entered_latitude,enter_longitude)
+            channel_id_with_specified_coordinates = dm.get_channel_id(entered_latitude,entered_longitude)
             print("channel id :", channel_id_with_specified_coordinates)
             if channel_id_with_specified_coordinates == 0:
-                channel_id_with_specified_coordinates = get_closest_channel(entered_latitude,enter_longitude)
+                channel_id_with_specified_coordinates = get_closest_channel(entered_latitude,entered_longitude)
                 print("channel id closest", channel_id_with_specified_coordinates)
                 print("type of data", type(channel_id_with_specified_coordinates))
 
-            enter_chan = channel_id_with_specified_coordinates
+            entered_chan = channel_id_with_specified_coordinates
+            entered_time = dt.datetime.strptime(enter_time,"%Y-%m-%d %H:%M")
 
-            if enter_chan != "Channel Id Not available":       
-                result, formatted_results = make_prediction_using_averages(enter_chan, enter_time,entered_latitude,enter_longitude)
+            if entered_chan != "Channel Id Not available":       
+                result, formatted_results = make_prediction_using_averages(entered_chan, entered_time, entered_latitude,entered_longitude)
                 _logger.info(f'Outputs: {result}')
 
                 predictions = result.get('predictions')

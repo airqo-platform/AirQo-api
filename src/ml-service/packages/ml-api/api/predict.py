@@ -33,11 +33,7 @@ from api import datamanagement
 _logger = logging.getLogger(__name__)
 
 warnings.filterwarnings("ignore")
-#hourly_data = pd.read_csv(model_config.DATASET_DIR / model_config.TRAINING_DATA_FILE, parse_dates=['time'])
 
-#static_channel_list = datamanagement.get_all_static_channels()
-#data = datamanagement.query_data()
-#hourly_data = datamanagement.calculate_hourly_averages(data)
 
 def get_channel_with_coordinates(latitude, longitude) -> int:
     channel_id = 0
@@ -48,81 +44,40 @@ def get_channel_with_coordinates(latitude, longitude) -> int:
     return channel_id
 
 # Generating forecast based on channel and time entered
-def make_prediction_using_averages(enter_chan, enter_time,entered_latitude,entered_longitude):
+def make_prediction_using_averages(entered_chan, entered_time,entered_latitude,entered_longitude):
 
-    enter_time_split = enter_time.split("/")
-    enter_time_tuple = tuple([int(i) for i in enter_time_split])
-    endings = (0,0,0,0,0,)
-    start_time = (enter_time_tuple + endings)
-    start_pred_time = datetime.datetime.fromtimestamp(time.mktime(start_time))
+    start_pred_time = entered_time
+    current_best_config = datamanagement.get_channel_best_configurations(entered_chan)
     
-    # best configuration for the channel identified
-    #current_best_config = utils.load_json_data(model_config.BEST_CONFIG_FROM_AVERAGES_MODEL).get(str(enter_chan))
-    #get config from db(bq) instead of json files
-    current_best_config = datamanagement.get_channel_best_configurations(enter_chan)
-    #print("current best config", current_best_config)
-    #print(start_pred_time)
-    # converting the start prediction time to datetime
     start_pred = (pd.to_datetime(start_pred_time))
     # generating list of hours based on start time
     fcst_hours, start_hour = processing.forecast_hours(start_pred_time)
-    #print("entered_channel", enter_chan)
-    #print("type of entered channel", type(enter_chan))
-    # select all data relating to a particular channel
-    selected_channel_id = int(enter_chan)
+    selected_channel_id = int(entered_chan)
     #hourly_data = datamanagement.get_channel_hourly_data(selected_channel_id)
     #data = datamanagement.get_channel_data(selected_channel_id) 
     data = datamanagement.get_channel_data_raw(selected_channel_id) 
     
     hourly_data = datamanagement.calculate_hourly_averages(data)
-    #print(hourly_data.head())
-    #hourly_data.to_csv("hourly_data.csv")
-    #print(hourly_data.dtypes)
-    #all_channel_data = hourly_data.loc[hourly_data.channel_id == int(enter_chan)]
     all_channel_data = hourly_data
-    #print(all_channel_data.head())
-    #all_channel_data.to_csv("all_channel_data.csv")
     if all_channel_data.empty:
         results = {'predictions':0}
         return results
     else:
-        # clean the channel data, fill gaps and set datetime as index
         all_channel_data_clean = fill_gaps_and_set_datetime(all_channel_data)
-        #all_channel_data_clean = all_channel_data #need to fill in nan if not used averages from sql
-
-        # TO DO
-        # THis will need to be changed to max number of whole days
-        # set start time as being 8 weeks before start of forecast
-        #best_number_of_days_back = ast.literal_eval(current_best_config[0])[0]
+        
         if not current_best_config:
-            best_number_of_days_back = ast.literal_eval(current_best_config[0])[0] #incase db query didn't yield best configurations
+            best_number_of_days_back = ast.literal_eval(current_best_config[0])[0] 
             config_to_use = ast.literal_eval(current_best_config[0])
         else:
             best_number_of_days_back = int(current_best_config[0].get('number_of_days_to_use'))
             considered_hours = int(current_best_config[0].get('considered_hours'))
-            #print('considered hours', considered_hours)
-            #config_to_use = [best_number_of_days_back, considered_hours]
-
+            
         start_base_time = str(start_pred - datetime.timedelta(best_number_of_days_back)) +'+3:00'
         start_pred = str(start_pred) +'+3:00'
-        #print((start_base_time))
-        #print('start_base_time', start_base_time)
-        #print((start_pred))
-        #print('start_pred type', type(start_pred))
-
-        #print("all channel clean data", all_channel_data_clean)
-
-        #print(type(all_channel_data_clean))
-        #all_channel_data_clean.to_csv('all_channel_data_cleaned.csv')
-
+        
         
         # select final range of data to be used in forecast
         data_to_use = all_channel_data_clean.loc[start_base_time:start_pred].values
-
-
-        #print("data to use", data_to_use)
-
-        # select the best configuration to us
 
         # generating mean, lower ci, upper ci
         yhat_24, lower_ci, upper_ci = simple_forecast_ci(data_to_use, best_number_of_days_back, considered_hours)
@@ -130,9 +85,6 @@ def make_prediction_using_averages(enter_chan, enter_time,entered_latitude,enter
         #results ={'prediction_start_time':start_pred, 'prediction_hours': fcst_hours,
         #'predictions':yhat_24.tolist(), 'prediction_upper_ci':upper_ci.tolist(), 
         #'prediction_lower_ci':lower_ci.tolist()}
-
-        
-        
 
         
         model_predictions = []
@@ -254,8 +206,7 @@ def sarima_forecast(history, config):
 
 
 # convert windows of weekly multivariate data into a series of total power
-def to_seriesx(data):
-    # extract just the total power from each week
+def to_series(data):
     series = [day for day in data]
     print("series:", series)
     # flatten into a single series
@@ -272,7 +223,7 @@ def simple_forecast_ci(history, configs, considered_hours):
     days = configs
     hours = considered_hours
     # convert to a single list of values
-    series = to_seriesx(history)
+    series = to_series(history)
     
     # for each hour in 24 calcute the mean value for that hour on each days for which data is available
     for hour in (np.arange(1, (hours+1))):

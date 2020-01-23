@@ -302,7 +302,6 @@ def train_channels_in_range_inclusive(a, b):
     static_channel_list = datamanagement.get_all_static_channels()
     data = datamanagement.query_data()
     hourly_data = datamanagement.calculate_hourly_averages(data)
-#     for chan in chanlist[lower_limit:(upper_limit+1)]:
     for chan in static_channel_list[a:b+1]:
     #     # selecting only rows relating to the given channel
         d = hourly_data.loc[hourly_data.channel_id == chan.channel_id]
@@ -353,6 +352,7 @@ def train_channels_in_range_inclusive(a, b):
 def simple_forecast(history, configs):
     list_of_mean_hourly_values = []
     days, hours = configs
+    print(days)
     series = to_series(history)
     for hour in (np.arange(1, (hours+1))):
         list_of_hours_to_count = []
@@ -395,7 +395,6 @@ def train_channels_in_range_inclusive_for_averages_model(a, b):
     data = datamanagement.query_data()
     hourly_data = datamanagement.calculate_hourly_averages(data)
     #hourly_data = datamanagement.get_all_channels_hourly_data()
-#     for chan in chanlist[lower_limit:(upper_limit+1)]:
     for chan in static_channel_list[a:b+1]:
     #     # selecting only rows relating to the given channel
         d = hourly_data.loc[hourly_data.channel_id == chan.get('channel_id'), ['time','pm2_5']]
