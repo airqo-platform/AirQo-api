@@ -40,7 +40,7 @@ def health():
         _logger.info('health status OK')
         return 'ok'
 
-@ml_app.route('/api/v1/predict/', methods=['POST'])
+@ml_app.route('/api/v1/predict/sarimax', methods=['POST'])
 def predict():
     if request.method == 'POST':
         json_data = request.get_json()
@@ -89,7 +89,7 @@ def predict():
 
 
 
-@ml_app.route('/api/v1/predict/avg', methods=['POST'])
+@ml_app.route('/api/v1/predict/', methods=['POST'])
 def predict_avgs():
     if request.method == 'POST':
         json_data = request.get_json()
