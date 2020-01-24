@@ -13,6 +13,7 @@ _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
 
+
 @ml_app.route('/api/v1/train', methods=['GET'])
 def train_averages_model():
     if request.method == 'GET':
@@ -50,8 +51,8 @@ def predict():
         input_data, errors = validate_inputs(input_data=json_data)
 
         if not errors:        
-            entered_latitude = json_data["latitude"]
-            enter_longitude  = json_data["longitude"]
+            entered_latitude = float(json_data["latitude"])
+            enter_longitude  = float(json_data["longitude"])
             enter_time = json_data["selected_datetime"]
 
             channel_id_with_specified_coordinates = dm.get_channel_id(entered_latitude,enter_longitude)
@@ -87,6 +88,7 @@ def predict():
                         })
 
 
+
 @ml_app.route('/api/v1/predict/avg', methods=['POST'])
 def predict_avgs():
     if request.method == 'POST':
@@ -111,15 +113,11 @@ def predict_avgs():
             entered_chan = channel_id_with_specified_coordinates
             entered_time = dt.datetime.strptime(enter_time,"%Y-%m-%d %H:%M")
 
-            if entered_chan != "Channel Id Not available":       
-                result, formatted_results = make_prediction_using_averages(entered_chan, entered_time, entered_latitude,entered_longitude)
-                _logger.info(f'Outputs: {result}')
+            print('type of latitude:', type(entered_latitude))
 
-                predictions = result.get('predictions')
-                upper_confidence_intervals = result.get('prediction_upper_ci')
-                start_time = result.get('prediction_start_time')
-                prediction_hours = result.get('prediction_hours')
-                lower_confidence_intervals = result.get('prediction_lower_ci')
+            if entered_chan != "Channel Id Not available":
+                formatted_results = make_prediction_using_averages(entered_chan, entered_time, 
+                    entered_latitude,entered_longitude)              
 
                 return jsonify({'formatted_results': formatted_results})
             else:
@@ -128,9 +126,7 @@ def predict_avgs():
         else:
             _logger.info(f'errors: {errors}')
 
-            return jsonify({'inputs': json_data,
-                        'errors': errors
-                        })
+            return jsonify({'inputs': json_data,'errors': errors })
        
         
         

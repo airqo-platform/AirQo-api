@@ -255,8 +255,10 @@ def forecast_hours(start_pred_time):
         fcst_hours.append(str((start_hour +hr+1)%24))
     return fcst_hours, start_hour
 
-# Calculating mean and confidence interval
 def mean_confidence_interval(data, confidence=0.95):
+    '''
+        calculating mean and confidence interval
+    '''
     a = 1.0 * np.array(data)
     n = len(a)
     m, se = np.mean(a), scipy.stats.sem(a)
@@ -266,10 +268,10 @@ def mean_confidence_interval(data, confidence=0.95):
     upper_ci = m+h
     return mean, lower_ci, upper_ci
 
-
-# score a model, return None on failure
 def score_model(model_func,train, test, cfg, debug=False):
-#     print('score_model')
+    '''
+        score a model, return None on failure
+    '''
     result = None
     # convert config to a key
     key = str(cfg)

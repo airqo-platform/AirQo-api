@@ -4,8 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 from math import sqrt
-from numpy import split
-from numpy import array
+from numpy import split, array
 from pandas import read_csv
 from sklearn.metrics import mean_squared_error
 from multiprocessing import cpu_count
@@ -24,7 +23,6 @@ import time
 import psutil
 import ast
 from api import model_config
-#import model_config
 import logging
 from api import utils
 from api import processing 
@@ -35,6 +33,25 @@ _logger = logging.getLogger(__name__)
 warnings.filterwarnings("ignore")
 
 
+def make_24hr_predictions_for_specified_locations(entered_time):
+    """
+        makes the 24 hour predictions for all the locations specified.
+        returns the 24 hour predictions.
+    """
+    all_channel_predictions=[]
+    specified_locations = dm.get_all_static_channels()
+
+    if specified_locations:
+        for i in range(0, len(specified_locations)):
+            channel_id = specified_locations[i].get('channel_id')
+            latitude = specified_locations[i].get('latitude')
+            longitude = specified_locations[i].get('longitude')
+            results = make_prediction_using_averages(channel_id, entered_time, latitude, longitude)
+            all_channel_predictions.append({'channel id': channel_id, 'latitude': latitude, 
+                'longitude':longitude, 'predictions':results})
+    return all_channel_predictions
+
+
 def get_channel_with_coordinates(latitude, longitude) -> int:
     channel_id = 0
     ### return channel with the specified latitude and longitude
@@ -43,8 +60,11 @@ def get_channel_with_coordinates(latitude, longitude) -> int:
     channel_id = hourly_data.loc[hourly_data.latitude == latitude and hourly_data.longitude][0]
     return channel_id
 
-# Generating forecast based on channel and time entered
-def make_prediction_using_averages(entered_chan, entered_time,entered_latitude,entered_longitude):
+def make_prediction_using_averages(entered_chan, entered_time, entered_latitude, entered_longitude):
+    """
+        Generating predictions based on channel and time entered
+        saves the predictions in database and returns the predictions
+    """
 
     start_pred_time = entered_time
     current_best_config = datamanagement.get_channel_best_configurations(entered_chan)
@@ -81,21 +101,14 @@ def make_prediction_using_averages(entered_chan, entered_time,entered_latitude,e
 
         # generating mean, lower ci, upper ci
         yhat_24, lower_ci, upper_ci = simple_forecast_ci(data_to_use, best_number_of_days_back, considered_hours)
-
-        #results ={'prediction_start_time':start_pred, 'prediction_hours': fcst_hours,
-        #'predictions':yhat_24.tolist(), 'prediction_upper_ci':upper_ci.tolist(), 
-        #'prediction_lower_ci':lower_ci.tolist()}
-
         
         model_predictions = []
         model_name  =  'simple_average_prediction'
         channel_id =  selected_channel_id   
-        location_name =  ""   
-        location_latitude = entered_latitude
-        location_longitude = entered_longitude
+        location_name =  " "   
+        location_latitude = float(entered_latitude)
+        location_longitude = float(entered_longitude)
         prediction_start_datetime= pd.to_datetime(start_pred) 
-        print(prediction_start_datetime)
-        type(prediction_start_datetime)
         created_at = datetime.datetime.now() 
         result_modified= [];
 
@@ -108,24 +121,22 @@ def make_prediction_using_averages(entered_chan, entered_time,entered_latitude,e
 
             lower_confidence_interval_value=  lower_ci[i] 
             upper_confidence_interval_value = upper_ci[i]
-            resultx = {'prediction_time':prediction_datetime, 'prediction_value':prediction_value, 'lower_ci':lower_confidence_interval_value,'upper_ci':upper_confidence_interval_value}
+            resultx = {'prediction_time':prediction_datetime, 'prediction_value':prediction_value,
+             'lower_ci':lower_confidence_interval_value,'upper_ci':upper_confidence_interval_value}
             result_modified.append(resultx)
         
-        model_predictions_tuple = (model_name,channel_id, location_name, location_latitude, location_longitude, prediction_value, prediction_start_datetime, prediction_datetime, created_at, lower_confidence_interval_value,upper_confidence_interval_value)
-        model_predictions.append(model_predictions_tuple)  
-        print(model_predictions)
-
-        
+            model_predictions_tuple = (model_name, channel_id, location_name, location_latitude, location_longitude, 
+            prediction_value, prediction_start_datetime, prediction_datetime, lower_confidence_interval_value, 
+            upper_confidence_interval_value, created_at)
+            model_predictions.append(model_predictions_tuple)          
         
         results ={'prediction_start_time':start_pred, 'prediction_hours': fcst_hours,
-        'predictions':yhat_24, 'prediction_upper_ci':upper_ci, 
-        'prediction_lower_ci':lower_ci}
+        'predictions':yhat_24, 'prediction_upper_ci':upper_ci,'prediction_lower_ci':lower_ci}
+
         formated_results = {'predictions':result_modified}
-        #datamanagement.save_predictions(model_predictions)
+        datamanagement.save_predictions(model_predictions)
         _logger.info(f'Predictions: {results}')
-        #save these in database
-        #utils.save_json_data('results.json', results)
-        return  results, formated_results
+        return formated_results
 
 
 def make_prediction(enter_chan, enter_time) -> dict:
@@ -138,7 +149,8 @@ def make_prediction(enter_chan, enter_time) -> dict:
     start_time = (enter_time_tuple + endings)
     start_pred_time = datetime.datetime.fromtimestamp(time.mktime(start_time))
     
-    current_best_config = model_config.BEST_CONFIG_DICT.get(str(enter_chan))
+    #TODO: replace with code that reads from db
+    #current_best_config = model_config.BEST_CONFIG_DICT.get(str(enter_chan))
 
     start_pred = (pd.to_datetime(start_pred_time))
 
@@ -167,8 +179,11 @@ def make_prediction(enter_chan, enter_time) -> dict:
 
     return results
 
-# interpolating, removing nans and dropping columns
+
 def fill_gaps_and_set_datetime(d):
+    """
+         interpolating, removing nans and dropping columns
+    """
     # Interpolating gaps within the data
     #d['time'] = pd.to_datetime(d['time'])
     d.time = pd.to_datetime(d.time)
@@ -205,18 +220,20 @@ def sarima_forecast(history, config):
     return yhat, yhat_ci
 
 
-# convert windows of weekly multivariate data into a series of total power
 def to_series(data):
+    """
+    convert windows of weekly multivariate data into a series of total power.
+    flatten into a single series
+    """
     series = [day for day in data]
-    print("series:", series)
-    # flatten into a single series
     series = array(series).flatten()
-    print(series)
     return series
 
 
-# rerunning the simple forecast function but taking into account confidence intervals
 def simple_forecast_ci(history, configs, considered_hours):
+    """
+        simple forecast function but taking into account confidence intervals
+    """
     list_of_mean_hourly_values = []
     list_of_lower_ci_of_hourly_values = []
     list_of_upper_ci_of_hourly_values = []
@@ -231,11 +248,10 @@ def simple_forecast_ci(history, configs, considered_hours):
         list_of_hourly_values = []
         for day in (np.arange(0, (days))):
             hours_to_count = -(hour+ day*24)
-            print(hours_to_count)
             hourly_values = series[hours_to_count]
             list_of_hours_to_count.append(hours_to_count)
             list_of_hourly_values.append(hourly_values)
-        # take the mean and confidence
+        
         mean_of_hourly_values, lower_ci_of_hourly_values, upper_ci_of_hourly_values = processing.mean_confidence_interval(list_of_hourly_values, confidence=0.95)
 
         
@@ -243,19 +259,16 @@ def simple_forecast_ci(history, configs, considered_hours):
         list_of_lower_ci_of_hourly_values.append(lower_ci_of_hourly_values)
         list_of_upper_ci_of_hourly_values.append(upper_ci_of_hourly_values)
 
-    forecast = list_of_mean_hourly_values[::-1]
-    lower_ci_forecast = list_of_lower_ci_of_hourly_values[::-1]
-    upper_ci_forecast = list_of_upper_ci_of_hourly_values[::-1]
+    forecast = np.around(list_of_mean_hourly_values[::-1], decimals=2)
+    lower_ci_forecast = np.around(list_of_lower_ci_of_hourly_values[::-1], decimals=2)
+    upper_ci_forecast = np.around(list_of_upper_ci_of_hourly_values[::-1], decimals=2)
 
     return forecast, lower_ci_forecast, upper_ci_forecast
 
 
-
-
-#def validate_inputs(input_data)
-
 if __name__ == '__main__':
     #make_prediction("aq_24","2019/07/10/10")
     #load_json_data(model_config.BEST_CONFIG_FROM_AVERAGES_MODEL)
-    make_prediction_using_averages(782721, '2019/12/10/09')
+    entered_time = datetime.datetime.now()
+    #all_channel_predictions =  make_24hr_predictions_for_specified_locations(entered_time)
 

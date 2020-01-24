@@ -158,8 +158,7 @@ def get_all_static_channels():
 
     if results.total_rows >=1:
         for row in results:
-            static_channels.append({"channel_id":row.channel_id,
-             "latitude":row.latitude, "longitude":row.longitude})
+            static_channels.append({"channel_id":row.channel_id,"latitude":row.latitude, "longitude":row.longitude})
     return static_channels
 
 def get_all_channels_hourly_data():
@@ -214,14 +213,14 @@ def get_channel_id(latitude:str, longitude:str) -> int:
         LIMIT 1
     """
     query = query.format(value1, value2)
-    #print(query)
+   
 
     job_config = bigquery.QueryJobConfig()
     job_config.use_legacy_sql = False
 
     query_job = client.query(
         query,job_config=job_config,
-    )  # API request - starts the query
+    )  
      
     results = query_job.result()
     if results.total_rows >=1:

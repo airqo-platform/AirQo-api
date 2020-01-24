@@ -10,10 +10,10 @@ class SpatialTemporalSchema(Schema):
     selected_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
 		
 
-def _filter_error_rows(errors: dict,
-                       validated_input: t.List[dict]
-                       ) -> t.List[dict]:
-    """Remove input data rows with errors."""
+def _filter_error_rows(errors: dict,validated_input: t.List[dict]) -> t.List[dict]:
+    """
+        Remove input data rows with errors.
+    """
 
     indexes = errors.keys()
     # delete them in reverse order so that you
@@ -43,3 +43,10 @@ def validate_inputs(input_data):
 
     return validated_input, errors
 
+if __name__ == '__main__':
+    input_data = {
+    "selected_datetime":"2020-01-24 00:00",
+    "latitude":"0.4018972",
+    "longitude":"32.0104067" }
+    validated_input_data, errors = validate_inputs(input_data)
+    print(validated_input_data)
