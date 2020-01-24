@@ -12,7 +12,7 @@ async function asyncForEach(array, callback) {
 
 const forecast = {
 
-    forecast: (req, res) => {
+    prediction: (req, res) => {
         let payload = req.body;
         let forecast = {
             "PM2.5": 132,

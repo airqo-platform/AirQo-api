@@ -16,7 +16,7 @@ middlewareConfig(app)
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use('/api/v1/forecast', api);
+app.use('/api/v1/data', api);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
