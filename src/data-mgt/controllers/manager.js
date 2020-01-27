@@ -10,7 +10,7 @@ async function asyncForEach(array, callback) {
     }
 }
 
-const forecast = {
+const data = {
 
     prediction: (req, res) => {
         let payload = req.body;
@@ -59,7 +59,22 @@ const forecast = {
         catch (e) {
             res.status(501).send(e.message);
         }
+    },
+
+    weatherForecasts: async (req, res) => {
+
+        const lat = req.params.lat;
+        const lon = req.params.lon;
+
+
+
+        try {
+
+        }
+        catch (error) {
+
+        }
     }
 }
 
-module.exports = forecast;
+module.exports = data;
