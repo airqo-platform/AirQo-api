@@ -116,9 +116,7 @@ def make_prediction_using_averages(entered_chan, entered_time, entered_latitude,
             hour_to_add = i+1
             prediction_value = yhat_24[i]             
             prediction_datetime = pd.to_datetime(prediction_start_datetime + datetime.timedelta(hours=hour_to_add)) 
-            print(prediction_datetime)
-            print(type(prediction_datetime))
-
+           
             lower_confidence_interval_value=  lower_ci[i] 
             upper_confidence_interval_value = upper_ci[i]
             resultx = {'prediction_time':prediction_datetime, 'prediction_value':prediction_value,

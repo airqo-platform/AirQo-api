@@ -93,8 +93,10 @@ def split_dataset(data):
 def to_series(data):
     # extract just the total power from each week
     series = [day for day in data]
+    print(series)
     # flatten into a single series
     series = array(series).flatten()
+    print(series)
     return series
 
 

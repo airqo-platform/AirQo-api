@@ -3,6 +3,19 @@ import datetime as dt
 from datetime import datetime,timedelta
 import pandas as pd
 
+def save_weather_forecasts(weather_forecasts):
+    client = bigquery.Client()
+    dataset_ref = client.dataset('thingspeak','airqo-250220')
+    table_ref = dataset_ref.table('met_office_weather_forecast')
+    table = client.get_table(table_ref)
+
+    rows_to_insert = weather_forecasts
+    errors = client.insert_rows(table, rows_to_insert)
+    if errors == []:
+        return 'Records saved successfully.'
+    else:
+        return errors
+
 
 def get_channel_data_raw(channel_id:int):
     channel_id = str(channel_id)

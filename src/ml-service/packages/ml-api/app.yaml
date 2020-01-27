@@ -1,7 +1,7 @@
 runtime: python
 env: flex
 entrypoint: gunicorn -t 280 -b :$PORT run:application
-service: dl-service
+service: ml-service
 runtime_config:
   python_version: 3.7
 resources:

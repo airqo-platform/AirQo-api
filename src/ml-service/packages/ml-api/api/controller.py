@@ -121,12 +121,10 @@ def predict_avgs():
 
                 return jsonify({'formatted_results': formatted_results})
             else:
-                 return jsonify({'errors': 'channel not found.'
-                        })
+                 return jsonify({'errors': 'location predictions are not available currently.'}), 404
         else:
             _logger.info(f'errors: {errors}')
-
-            return jsonify({'inputs': json_data,'errors': errors })
+            return jsonify({'inputs': json_data,'errors': errors }), 400
        
         
         
