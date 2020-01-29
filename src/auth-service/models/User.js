@@ -48,6 +48,21 @@ const UserSchema = new mongoose.Schema({
             message: '{VALUE} is not a valid password!',
         },
     },
+    interest: {
+        type: String
+    },
+    organization: {
+        name: { type: String },
+        role: { type: String }
+    },
+    priviledge: {
+        type: String,
+        required: true
+    },
+    accountStatus: {
+        type: String,
+        default: 'active'
+    }
 });
 
 UserSchema.pre('save', function (next) {
@@ -96,12 +111,6 @@ UserSchema.methods = {
 const user = mongoose.model("user", UserSchema);
 
 module.exports = user;
-
-
-
-
-
-
 
 
 
