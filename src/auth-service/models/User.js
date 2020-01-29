@@ -55,7 +55,7 @@ const UserSchema = new mongoose.Schema({
         name: { type: String, default: "none" },
         role: { type: String, default: "none" }
     },
-    priviledge: {
+    privilege: {
         type: String,
         required: true
     },
