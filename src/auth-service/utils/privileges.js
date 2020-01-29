@@ -53,7 +53,7 @@ const privileges = {
                 response.message = "internal server error";
                 res.status(500).send(response);
             } else {
-                if (userDetails.privilege === "policy") {
+                if (userDetails.privilege === "research") {
                     next();
                 } else {
                     let response = {};
@@ -74,7 +74,7 @@ const privileges = {
                 response.message = "internal server error";
                 res.status(500).send(response);
             } else {
-                if (userDetails.privilege === "policy") {
+                if (userDetails.privilege === "public") {
                     next();
                 } else {
                     let response = {};
@@ -96,7 +96,7 @@ const privileges = {
                 response.message = "internal server error";
                 res.status(500).send(response);
             } else {
-                if (userDetails.privilege === "policy") {
+                if (userDetails.privilege === "admin") {
                     next();
                 } else {
                     let response = {};
