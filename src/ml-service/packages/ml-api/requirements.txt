@@ -24,4 +24,4 @@ gunicorn==20.0.4
 
 #google cloud services
 google-cloud-bigquery==1.22.0
-google-python-cloud-debugger
+#google-python-cloud-debugger==2.14

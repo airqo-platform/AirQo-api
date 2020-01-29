@@ -9,14 +9,6 @@ MET_API_URL= "https://api-metoffice.apiconnect.ibmcloud.com/metoffice/production
 MET_API_CLIENT_ID= "edaf40c5-4d6c-4cf1-ba93-e435f5ed6ab4"
 MET_API_CLIENT_SECRET ="bN5aN6vK2cR8pJ8uI7xM3bB6fK1aK6hW6nJ1tM2uF4uM2eE8eC"
 
-def hello_pubsub(event, context):
-    """Triggered from a message on a Cloud Pub/Sub topic.
-    Args:
-         event (dict): Event payload.
-         context (google.cloud.functions.Context): Metadata for the event.
-    """
-    pubsub_message = base64.b64decode(event['data']).decode('utf-8')
-    print(pubsub_message)
     
 def get_all_static_channels():
     client = bigquery.Client()
