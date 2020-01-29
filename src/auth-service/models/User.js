@@ -49,11 +49,11 @@ const UserSchema = new mongoose.Schema({
         },
     },
     interest: {
-        type: String
+        type: String, default: "none"
     },
     organization: {
-        name: { type: String },
-        role: { type: String }
+        name: { type: String, default: "none" },
+        role: { type: String, default: "none" }
     },
     priviledge: {
         type: String,
