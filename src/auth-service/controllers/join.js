@@ -1,10 +1,10 @@
-const Users = require('../models/User');
+const User = require('../models/User');
 const HTTPStatus = require('http-status');
 
 const join = {
     listAll: async (req, res) => {
         try {
-            const users = await Users.find();
+            const users = await User.find();
             return res.status(HTTPStatus.OK).json(users);
         }
         catch (e) {
@@ -14,19 +14,18 @@ const join = {
 
     listOne: async (req, res) => {
         try {
-            const user = await Users.findById(req.params.id);
+            const user = await User.findById(req.params.id);
             return res.status(HTTPStatus.OK).json(user);
         }
         catch (e) {
             return res.status(HTTPStatus.BAD_REQUEST).json(e);
         }
-
     },
 
     register: (req, res) => {
         console.log(process.env.MLAB_URI);
         try {
-            const user = new Users(req.body);
+            const user = new User(req.body);
             user.save((error, savedData) => {
                 if (error) {
                     return res.status(500).json(error);
