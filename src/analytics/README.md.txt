@@ -18,9 +18,8 @@ Install dependencies using the requirements.txt
 	-pip install -r requirements.txt
 
 set environment variables
-	-navigate to  ml-api directory
  windows
- - set FLASK_APP=run.py
+ - set FLASK_APP=app.py
  - set FLASK_ENV=development
 
 Run the Flask App
