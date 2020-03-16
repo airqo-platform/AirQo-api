@@ -10,7 +10,7 @@
         "test": "NODE_ENV=test nodemon ./bin/www"
     },
     "dependencies": {
-        "@google-cloud/debug-agent": "^4.0.4",
+        "@google-cloud/debug-agent": "^4.2.2",
         "bcrypt": "^3.0.6",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",

@@ -1,0 +1,38 @@
+apiVersion: apps/v1 # for versions before 1.9.0 use apps/v1beta2 
+kind: Deployment 
+metadata: 
+  name: airqo-auth-service
+  namespace: staging 
+spec: 
+  selector: 
+    matchLabels: 
+      app: auth-service
+  replicas: 3 # tells deployment to run 2 pods matching the template 
+  template: 
+    metadata: 
+      labels: 
+        app: auth-service 
+    spec: 
+      containers: 
+      - name: airqo-auth-service
+        image: us.gcr.io/airqo-auth-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3000
+          name: airqo-auth-service
+
+---
+kind: Service 
+apiVersion: v1 
+metadata: 
+  name: airqo-auth-service
+  namespace: staging 
+spec: 
+  selector: 
+    app: auth-service 
+  ports: 
+  - protocol: TCP 
+    port: 3000 
+    targetPort: 3000 
+    nodePort: 30001
+  type: NodePort

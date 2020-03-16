@@ -1,0 +1,49 @@
+pipeline {
+    agent any
+    environment {
+        PROJECT_ID = 'airqo-250220'
+        LOCATION = 'us-central1-a'
+        CREDENTIALS_ID = 'airqo-250220'
+        CLUSTER_NAME_PROD = 'airqo-k8s-zonalcluster'
+        /*CLUSTER_NAME_TEST = 'CLUSTER-NAME-2'*/          
+    }
+    stages {
+        stage("Checkout code") {
+            steps {
+                checkout scm
+            }
+        }
+        stage("Build image") {
+            steps {
+                script {
+                    app = docker.build("us.gcr.io/airqo-datamgt-service:${env.BUILD_ID}", "src/auth-service")
+                }
+            }
+        }
+        stage("Push image") {
+            steps {
+                script {
+                    docker.withRegistry("https://us.gcr.io", "gcr:${CREDENTIALS_ID}") {
+                            app.push("latest")
+                            app.push("${env.BUILD_ID}")
+                    }
+                }
+            }
+        }       
+        stage('Deploy to GKE test cluster') {
+            steps{
+                sh("sed -i 's/airqo-auth-service:latest/airqo-datamgt-service:${env.BUILD_ID}/g' ./k8s/auth-service-deploy.yaml")
+                //step([$class: 'KubernetesEngineBuilder', projectId: env.PROJECT_ID, clusterName: env.CLUSTER_NAME_TEST, location: env.LOCATION, manifestPattern: 'devops/microservice-2/deployment.prod.yaml', credentialsId: env.CREDENTIALS_ID, verifyDeployments: true])
+                withKubeConfig([credentialsId:'airqo-k8s-secret', contextName:'gke_airqo-250220_us-central1-a_airqo-k8s-zonalcluster']){
+                    sh 'kubectl --namespace=staging apply -f k8s/datamgt-service-deploy.yaml'
+                }
+            }
+        }
+        /*stage('Deploy to GKE production cluster') {
+            steps{
+                input message:"Proceed with final deployment?"
+                step([$class: 'KubernetesEngineBuilder', projectId: env.PROJECT_ID, clusterName: env.CLUSTER_NAME_PROD, location: env.LOCATION, manifestPattern: 'deployment.yaml', credentialsId: env.CREDENTIALS_ID, verifyDeployments: true])
+            }
+        }*/   
+    }    
+}

@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "airqo-250220",
+  "private_key_id": "e81fbe8411d49d4717b85b850e3ad36986cdb814",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCuh/6Tfic+B94s\nVTEeu5kutbxUtni+ADOODB9BJrOfdrqpRwsfnEohn24orX6MMmviBLsMvu+cWWHQ\nz7HIvwddTrB4nwfAHcDQYL2J4RLFo3wjt7k+ZrUbnrfWxtL8dltbxUaVgVGjtdBZ\n91wIZwSGk1rSpsNS1kRqDHqtg34nGc8h8RAUUhh6wy9JPMcPYzm3WvPl2+7d6AWx\nXHXCLbaCyaWRpv8uxosELibwqXgywluT2W2JglPt0oROcicdxLCkt/srIfEh6fog\nhD8XAPCKv0lETYrCn+FOY2p/6D+FYlywW8/8v+B8MvYFkqQFcSLxHAgMFbKWneZN\nnhFyUr7BAgMBAAECggEANcXwycC0logWC9Kzr6RdLecQf4k46lFlkP5rIsep0Bfk\nqwMYikS9El7ssdvCga+HTbvnZaXubV2cpZlYTWGOA1GbTY6x9J82KP2laDXQctRM\nCzUv/ennIvtj6OiZWO+edkfx115gqO/7obx0vqH+4vfDo+N9iqg5q/LsWUmKNMFb\n+UUDmlakuqWUrDVl5vfxGN3oGQldshmWz+BChQJF9pO7292xEtiMIL7S8O9xSLq4\nz3TqWNQ3oAP1hU/fVKAtsFnvXK8yabaKTAC5fH1Ihktc6WdVVvnM5JGHx4J9Ozt2\n80GsesX8H3DXJHcHXNEfY+althMqIxi9bvSWF+qRgQKBgQDqqrF7dL+yW4NLnm0v\nqqFNN4l568VRMxbGxbjA7zwa2YB//EHUUHij7wFie6Wb6XF2XJ1P8TrEd/DFEYT4\nctTzPwfoISZdowW/V16UQnU35upeCWRpp/Fcy3GjaO+FNRL7wXS+aT9EaqjlTJNk\nMpgy58uJPekEbuNY4cdomBmoCwKBgQC+ZcpfFBUMPfPUBl9jGopxW4UxEJYf9MQm\ndUloFDOZUVPd+08YZuetjr9iE52YOicWlS82Kym8PLu+Tx1nAPPEfYcaDg7bzRRB\nPqlzsI4Xh5X+cNDNjOYM2WEwqU0N6vnzNMcFczeyuB6sPktfN4693juuuFtVbeEW\nc7ligcVX4wKBgHhV9dNwKAlHQknZwPXrkvGs5BOgYrvj7e8aX0aYp4LBPFLlQcCl\nT2gJXPVqoJ8WE7f1gDoJYvBy7QWxmTVqdWcTUHOp5CmqOn1HSVnPxppXEKIOQO6p\nT20danW4jvMJJ2Xwa3RlNitYYqnLHd4Iz+Fy2f3TwJUkY/MlPIOXU7jHAoGAXdK9\nSeMUiCbTS60kPirrA/dMiCQbRn4QVr8/QCmMT8YS5PWdQXIcQptwVf1CkKw/bNJx\nJGlatKbdAWftHkAK383X0JAS5F+H1qrxR9A+BPxMfsjLLC99geFxElCrZute5mkg\nld/0F37BprE/5Rj0nz2u/Wddoph17eFy/kbin28CgYEA3LR0Ur7G2vBqDQKm54LM\nDRE7kQ14eyBQ3lFg+QfLAKw1lM9tCB5GsdXf3IEd0osvaLg+FUHfHZl8M4EmXp+N\nw3390aW89Gf+LJNgNcyVe+6bxoQMk8oyMILkjwJ3vrgaZnxwt6Fiz1aWYGJ4Avfq\nZrXoIa4JlXyCvyl4qHNOLgM=\n-----END PRIVATE KEY-----\n",
+  "client_email": "backend-app-service-account@airqo-250220.iam.gserviceaccount.com",
+  "client_id": "103883171764408646649",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/backend-app-service-account%40airqo-250220.iam.gserviceaccount.com"
+}
