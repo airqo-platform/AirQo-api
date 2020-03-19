@@ -1,0 +1,200 @@
+###########################################################
+# Start deployment of authentication service microservice
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-auth-service
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: auth-service
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: airqo-auth-service
+          image: us.gcr.io/airqo-250220/airqo-auth-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: airqo-auth-service
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-auth-service
+  namespace: staging
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30001
+  type: NodePort
+
+##################################################################
+# Start data management microserive deployment and provisioning
+##################################################################
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: airqo-datamgtservice
+  namespace: staging
+  labels:
+    app: airqo-datamgtservice
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: airqo-datamgtservice
+    spec:
+      containers:
+        - name: airqo-datamgtservice
+          image: us.gcr.io/airqo-250220/airqo-datamgt-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airqo-datamgtservice-svc
+  namespace: staging
+spec:
+  selector:
+    app: airqo-datamgtservice
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30002
+  type: NodePort
+
+###########################################################
+# Start ML microserive deployment and provisioning
+##########################################################
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: airqo-mlservice
+  namespace: staging
+  labels:
+    app: airqo-mlservice
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: airqo-mlservice
+    spec:
+      containers:
+        - name: airqo-mlservice
+          image: us.gcr.io/airqo-250220/airqo-mlservice:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airqo-mlservice-svc
+  namespace: staging
+spec:
+  selector:
+    app: airqo-mlservice
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 30003
+  type: NodePort
+###################################################################
+# Start analytics backend microserive deployment and provisioning
+###################################################################
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: airqo-analytics-backend
+  namespace: staging
+  labels:
+    app: airqo-analytics-backend
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: airqo-analytics-backend
+    spec:
+      containers:
+        - name: airqo-analytics-backend
+          image: us.gcr.io/airqo-250220/airqo-analytics-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airqo-analytics-backend-svc
+  namespace: staging
+spec:
+  selector:
+    app: airqo-analytics-backend
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 30004
+  type: NodePort
+
+####################################################################
+# Start analytics frontend microserive deployment and provisioning
+####################################################################
+---
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: airqo-analytics-frontend
+  namespace: staging
+  labels:
+    app: airqo-analytics-frontend
+spec:
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: airqo-analytics-frontend
+    spec:
+      containers:
+        - name: airqo-analytics-frontend
+          image: us.gcr.io/airqo-250220/airqo-analytics-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: airqo-analyics-frontend-svc
+  namespace: staging
+spec:
+  selector:
+    app: airqo-analytics-frontend
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30005
+  type: NodePort
