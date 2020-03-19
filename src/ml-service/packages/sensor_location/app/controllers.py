@@ -45,7 +45,6 @@ def connect_mongo(db_name):
     Connects to local MongoDB
     '''
     client = MongoClient("mongodb://localhost:27017/")
-    print('Connected successfully!')
     db = client[db_name]
     return db
 
@@ -68,9 +67,8 @@ def mongo2df(db_name, collection_name):
     Retrieves data from mongodb to a dataframe
     '''
     db = connect_mongo(db_name)
-    print (db[collection_name].count_documents({}))
     
-    df = pd.DataFrame(list(db.collection_name.find()))
+    df = pd.DataFrame(list(db[collection_name].find()))
     return df
 
 def df2mongo(df, db_name, collection_name):
@@ -84,7 +82,7 @@ def df2mongo(df, db_name, collection_name):
 
 def read_mongo(db_name, collection_name, query={}, no_id=True):
     """ 
-    Read from Mongo and Store into DataFrame 
+    Read from Mongo and store into DataFrame 
     """
     
     db = connect_mongo(db_name)
