@@ -1,9 +1,6 @@
 from flask import Flask
-from methods import random
-import controllers 
 from flask_pymongo import PyMongo
-import os
-from pymongo import MongoClient
+from modules import locate_model, locate_controller 
  
 app = Flask(__name__)
 
@@ -21,9 +18,9 @@ def place_sensors():
     #subcounty = 'nakawa'
     #sensor_number = 30
 
-    data = controllers.mongo2df('airqo_ml_db', 'geocensus')    
-    data = controllers.process_data(data)
-    parishes = random(data, 20)
+    data = locate_model.mongo2df('airqo_ml_db', 'geocensus')    
+    data = locate_controller.process_data(data)
+    parishes = locate_controller.random(data, 20)
     return parishes
 
 @app.route('/map', methods = ['GET', 'POST'])
