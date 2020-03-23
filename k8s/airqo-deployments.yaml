@@ -47,19 +47,19 @@ spec:
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: airqo-datamgtservice
+  name: airqo-datamgt-service
   namespace: staging
   labels:
-    app: airqo-datamgtservice
+    app: airqo-datamgt-service
 spec:
   replicas: 3
   template:
     metadata:
       labels:
-        app: airqo-datamgtservice
+        app: airqo-datamgt-service
     spec:
       containers:
-        - name: airqo-datamgtservice
+        - name: airqo-datamgt-service
           image: us.gcr.io/airqo-250220/airqo-datamgt-service:latest
           imagePullPolicy: Always
           ports:
@@ -68,11 +68,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: airqo-datamgtservice-svc
+  name: airqo-datamgt-service-svc
   namespace: staging
 spec:
   selector:
-    app: airqo-datamgtservice
+    app: airqo-datamgt-service
   ports:
     - protocol: TCP
       port: 3000
@@ -87,20 +87,20 @@ spec:
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: airqo-mlservice
+  name: airqo-ml-service
   namespace: staging
   labels:
-    app: airqo-mlservice
+    app: airqo-ml-service
 spec:
   replicas: 3
   template:
     metadata:
       labels:
-        app: airqo-mlservice
+        app: airqo-ml-service
     spec:
       containers:
         - name: airqo-mlservice
-          image: us.gcr.io/airqo-250220/airqo-mlservice:latest
+          image: us.gcr.io/airqo-250220/airqo-ml-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
@@ -108,11 +108,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: airqo-mlservice-svc
+  name: airqo-ml-service-svc
   namespace: staging
 spec:
   selector:
-    app: airqo-mlservice
+    app: airqo-ml-service
   ports:
     - protocol: TCP
       port: 5000
