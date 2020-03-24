@@ -62,7 +62,7 @@ class ClarityApi():
     def save_clarity_device_daily_measurements(self,average,code,startTime, limit ):
         """
          saves the daily measurements for the specified clarity device to airqo_analytics mongodb
-         https://clarity-data-api.clarity.io/v1/measurements?startTime=2019-09-27T13:00:00Z&code=ANQ16PZJ&average=day&limit=20000
+        
         """
         headers = {'x-api-key': Config.CLARITY_API_KEY}
         api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+startTime+"&code="+code+"&average="+average+"&limit="+str(limit)
@@ -78,7 +78,7 @@ if __name__ == '__main__':
     clarity_object = ClarityApi()
     clarity_object.save_clarity_devices()
 
-                
+               
            
     
   
