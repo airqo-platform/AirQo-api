@@ -27,6 +27,20 @@ def get_and_save_device_measurements():
             clarity_api.save_clarity_device_daily_measurements(average,code,startTime, limit)
             return jsonify({'response':'device daily measurements saved'}),200
 
+@analytics_app.route('/api/v1/device/measurements/raw', methods =['GET'])
+def get_and_save_raw_measurements():
+    device_code = request.args.get('code')
+    clarity_api = ClarityApi()
+    clarity_api.save_clarity_raw_device_measurements(device_code)
+    return jsonify({'response': 'all raw measurements saved'}), 200
+
+@analytics_app.route('/api/v1/device/measurements/raw/update', methods =['GET'])
+def update_raw_measurements():
+    device_code = request.args.get('code')
+    clarity_api = ClarityApi()
+    clarity_api.update_clarity_data(device_code)
+    return jsonify({'response': 'all new raw measurements saved'}), 200
+
 @analytics_app.route('/api/v1/save_devices', methods=['GET'])
 def get_and_save_devices():
     if request.method == 'GET':
