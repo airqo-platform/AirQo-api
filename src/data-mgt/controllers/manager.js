@@ -61,20 +61,17 @@ const data = {
         }
     },
 
-    weatherForecasts: async (req, res) => {
-
-        const lat = req.params.lat;
-        const lon = req.params.lon;
-
-
-
+    hourly: async (req, res) => {
         try {
-
+            const api_url = `https://us-central1-airqo-250220.cloudfunctions.net/get_hourly_channel_data?channel_id=${req.params.ch_id}`;
+            let fetch_response = await fetch(api_url);
+            let json = await fetch_response.json();
+            res.status(200).send(json);
         }
         catch (error) {
-
+            res.status(501).send(error.message);
         }
-    }
+    },
 }
 
 module.exports = data;
