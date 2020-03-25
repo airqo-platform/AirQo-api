@@ -12,6 +12,29 @@ class ClarityApi():
     def __init__(self):
         """Initialises the class"""
 
+    def get_last_time_from_device_hourly_measurements(self, device_code):
+        """
+        Gets the time of the latest record inserted in hourly device measurements
+        """           
+        query = {'deviceCode': device_code}
+        last_record = list(mongo.db.device_hourly_measurements.find(query).sort([('time', -1)]).limit(1))
+        last_time = last_record[0]['time']
+        return last_time
+
+    """
+    def update_device_hourly_measurements(self, device_code):
+        '''
+        Gets new data for a specific device and inserts into MongoDB
+        '''
+        last_time = self.get_last_time_from_device_hourly_measurements(device_code)
+        endtime = self.date_to_str(datetime.now())
+
+        headers = {'x-api-key': Config.CLARITY_API_KEY}
+        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+last_time+ '&endTime='+endtime+"&code="+code+"&average="+average+"&limit="+str(limit)
+        results = requests.get(api_url, headers=headers)
+        device_measurements = results.json()       
+      
+    """
        
     def get_all_devices(self):
         """
@@ -30,7 +53,8 @@ class ClarityApi():
             """
             parameters = {
             "code":code,         
-        }
+            }
+            return parameters #TODO: be updated.
     
     def save_clarity_devices(self):
         """
@@ -46,7 +70,7 @@ class ClarityApi():
                 print('[!] Inserting - ', devices[i])
                 mongo.db.devices.insert(devices[i])
 
-    def save_clarity_device_measurements(self,average,code,startTime, limit ):
+    def save_clarity_device_hourly_measurements(self,average,code,startTime, limit ):
         """
          saves the measurements for the specified clarity device to airqo_analytics mongodb
          https://clarity-data-api.clarity.io/v1/measurements?startTime=2019-09-27T13:00:00Z&code=ANQ16PZJ&average=hour&limit=20000
@@ -58,7 +82,7 @@ class ClarityApi():
         if results.status_code  == 200: 
             for i in range(0, len(results.json())):              
                 #print('[!] Inserting - ', device_measurements[i])
-                mongo.db.device_measurements.insert(device_measurements[i])
+                mongo.db.device_hourly_measurements.insert(device_measurements[i])
 
     def save_clarity_device_daily_measurements(self,average,code,startTime, limit ):
         """
@@ -90,30 +114,30 @@ class ClarityApi():
         
             while len(json_results) != 0:#should stop when no result is returned
                 endtime_string = results_list[-1]['time'] #getting the datetime of the last returned row
-                endtime_date = str_to_date(endtime_string)
+                endtime_date = self.str_to_date(endtime_string)
                 next_start_time = endtime_date - timedelta(seconds=1)
-                api_url = base_url+'endTime='+date_to_str(next_start_time)+'&code='+device_code
+                api_url = base_url+'endTime='+self.date_to_str(next_start_time)+'&code='+device_code
                 results = requests.get(api_url, headers=headers)
                 json_results = results.json()
                 if len(json_results)==0:
                     print ('Download Ended')
                 else:
                     results_list.extend(json_results)
-        insert_data_mongo(results_list)
+        self.insert_data_mongo(results_list)
 
-    def str_to_date(st):
+    def str_to_date(self, st):
         """
         Converts a string to datetime
         """
         return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
 
-    def date_to_str(date):
+    def date_to_str(self,date):
         """
         Converts datetime to string
         """
-       return datetime.strftime(date,'%Y-%m-%dT%H:%M:%S.%fZ')
-    
-    def insert_data_mongo(data):
+        return datetime.strftime(date,'%Y-%m-%dT%H:%M:%S.%fZ')
+
+    def insert_data_mongo(self,data):
         """
         Inserts list of json objects into MongoDB
         """
@@ -122,7 +146,7 @@ class ClarityApi():
         for i in data:
             db['device_raw_measurements'].insert_one(i)
 
-    def get_last_time(device_code):
+    def get_last_time(self,device_code):
         """
         Gets the time of the latest record in the MongoDB
         """
@@ -134,13 +158,13 @@ class ClarityApi():
         last_time = last_record[0]['time']
         return last_time
 
-    def update_clarity_data(device_code):
+    def update_clarity_data(self,device_code):
         '''
         Gets new data for a specific device and inserts into MongoDB
         '''
         base_url = 'https://clarity-data-api.clarity.io/v1/measurements?'
-        last_time = get_last_time(device_code)
-        endtime = date_to_str(datetime.now())
+        last_time = self.get_last_time(device_code)
+        endtime = self.date_to_str(datetime.now())
         results_list = []
         api_url = base_url+'startTime='+last_time+ '&endTime='+endtime+'&code='+device_code
         headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy', 'Accept-Encoding': 'gzip'}
@@ -154,14 +178,14 @@ class ClarityApi():
                 results_list.extend(json_results)
                 while len(json_results) != 0:#should stop when no result is returned
                     endtime_string = results_list[-1]['time'] #getting the datetime of the last returned row
-                    endtime_date = str_to_date(endtime_string)
+                    endtime_date = self.str_to_date(endtime_string)
                     next_endtime = endtime_date - timedelta(seconds=1)
                     api_url = base_url+'startTime='+last_time+ '&endTime='+next_endtime+'&code='+device_code
                     results = requests.get(api_url, headers=headers)
                     json_results = results.json()
                     if results.status_code==200:
                         results_list.extend(json_results)
-        insert_data_mongo(results_list)
+        self.insert_data_mongo(results_list)
 
 
 

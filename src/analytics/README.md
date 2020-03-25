@@ -1,4 +1,6 @@
 fetch branch from github.
+  - git fetch origin <branch-name>
+  - git checkout <branch-name>
 
 create local python environment
   windows

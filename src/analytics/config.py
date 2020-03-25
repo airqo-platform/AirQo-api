@@ -18,7 +18,7 @@ class Config:
 class ProductionConfig(Config):
     DEBUG = False
     #SERVER_PORT = os.environ.get('PORT', 5000)
-    #MONGO_URI = "mongodb://localhost:27017/airqo_analytics" #change to production db
+    MONGO_URI = MONGO_URI = "mongodb+srv://sserurich:dKZcVkS5PCSpmobo@cluster0-99jha.gcp.mongodb.net/airqo_analytics" #change to production db
 
 
 class DevelopmentConfig(Config):
@@ -29,7 +29,8 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
-    MONGO_URI = "mongodb://localhost:27017/airqo_analytics" ## change to testing db
+    MONGO_URI = "mongodb+srv://sserurich:dKZcVkS5PCSpmobo@cluster0-99jha.gcp.mongodb.net/airqo_analytics"
+    
 
 app_config = {"development": DevelopmentConfig, "testing": TestingConfig, "production": ProductionConfig}
 
