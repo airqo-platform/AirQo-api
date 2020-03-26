@@ -8,7 +8,7 @@ const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 
-const UserSchema = new mongoose.Schema({
+const ColabSchema = new mongoose.Schema({
   email: {
     type: String,
     unique: true,
@@ -48,32 +48,17 @@ const UserSchema = new mongoose.Schema({
       },
       message: "{VALUE} is not a valid password!"
     }
-  },
-  interest: { type: String, default: "none" },
-  org_name: { type: String },
-  privilege: { type: String, required: true },
-  accountStatus: { type: String, default: "false" },
-  hasAccess: { type: Boolean, default: false },
-  collaborators: [{ type: ObjectId, ref: "colab" }],
-  publisher: { type: Boolean, default: false },
-  duration: { type: Date, default: Date.now },
-  bus_nature: { type: String, default: "none" },
-  org_department: { type: String, default: "none" },
-  uni_faculty: { type: String, default: "none" },
-  uni_course_yr: { type: String, default: 0 },
-  pref_locations: [{ type: ObjectId, ref: "loc" }],
-  country: { type: String, default: "Uganda" },
-  job_title: { type: String, default: "none" }
+  }
 });
 
-UserSchema.pre("save", function(next) {
+ColabSchema.pre("save", function(next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
   }
   return next();
 });
 
-UserSchema.methods = {
+ColabSchema.methods = {
   _hashPassword(password) {
     // bcrypt.hash(password, saltRounds).then(function (hash) {
     //     return hash;
@@ -109,22 +94,6 @@ UserSchema.methods = {
   }
 };
 
-const user = mongoose.model("user", UserSchema);
+const colab = mongoose.model("colab", ColabSchema);
 
-module.exports = user;
-
-// shall consider this when implementing the Bridge Design Pattern
-// const Model = function () {
-
-// }
-
-// Model.prototype.GetUsers = function () {
-//     return new Promise(function (fulfill, reject) {
-//         DataAccess.GetEntities("auth_service", "users")
-//             .then(function (docs) {
-//                 fulfill(docs);
-//             }).catch(function (err) {
-//                 reject(err);
-//             });
-//     });
-// };
+module.exports = colab;
