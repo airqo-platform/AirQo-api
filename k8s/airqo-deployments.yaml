@@ -99,8 +99,8 @@ spec:
         app: airqo-ml-service
     spec:
       containers:
-        - name: airqo-mlservice
-          image: us.gcr.io/airqo-250220/airqo-mlservice:latest
+        - name: airqo-ml-service
+          image: us.gcr.io/airqo-250220/airqo-ml-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
