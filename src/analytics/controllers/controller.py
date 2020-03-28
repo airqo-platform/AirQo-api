@@ -41,6 +41,15 @@ def update_raw_measurements():
     clarity_api.update_clarity_data(device_code)
     return jsonify({'response': 'all new raw measurements saved'}), 200
 
+@analytics_app.route('/api/v1/device/graph', methods = ['GET'])
+def get_filtered_data():
+    device_code = request.args.get('device_code')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    frequency = request.args.get('frequency')
+    pollutant = request.arg.get('pollutant')
+    return clarity_api.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
+
 @analytics_app.route('/api/v1/save_devices', methods=['GET'])
 def get_and_save_devices():
     if request.method == 'GET':
