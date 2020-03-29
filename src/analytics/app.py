@@ -8,6 +8,7 @@ from flask_pymongo import PyMongo
 
 
 
+
 _logger = logging.getLogger(__name__)
 
 mongo = PyMongo()
