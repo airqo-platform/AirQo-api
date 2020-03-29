@@ -5,6 +5,8 @@ import logging
 from os.path import join, dirname
 from dotenv import load_dotenv
 from flask_pymongo import PyMongo
+from flask_cors import CORS
+
 
 
 
@@ -22,6 +24,8 @@ def create_app(*, config_object) -> Flask:
     flask_app.config.from_object(app_config[config_object])
     flask_app.config["MONGO_URI"] =  os.getenv("MONGO_URI")
     
+    #allow cross domain requests
+    CORS(flask_app)
     #register the app with the db.
     mongo.init_app(flask_app)
     

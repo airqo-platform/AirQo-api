@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import logging
-from app import mongo
-from models.monitoring_site import MonitoringSite
+import app
+from models import monitoring_site
 from bson import json_util, ObjectId
 import json
 
@@ -12,7 +12,7 @@ monitoring_site_bp = Blueprint('monitoring_site', __name__)
 
 @monitoring_site_bp.route('/api/v1/monitoringsites/', methods=['GET'])
 def get_organisation_monitoring_site():
-    ms = MonitoringSite()
+    ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':
         org_name= request.args.get('organisation_name')
         if org_name:
@@ -22,6 +22,6 @@ def get_organisation_monitoring_site():
                 monitoring_sites.append(site)
 
             results = json.loads(json_util.dumps(monitoring_sites))
-            return jsonify({"airquality monitoring sites":results})
+            return jsonify({"airquality_monitoring_sites":results})
         else:
             return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
