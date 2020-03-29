@@ -6,6 +6,10 @@ from helpers.clarity_api import ClarityApi
 from bson import json_util, ObjectId
 import json
 from datetime import datetime,timedelta
+<<<<<<< HEAD
+=======
+import helpers.mongo_helpers
+>>>>>>> e6d691d491c709e32a3d6352d9d654b9202a4813
 
 _logger = logging.getLogger(__name__)
 
@@ -59,17 +63,28 @@ def get_and_save_device_measurements():
 
 @analytics_app.route('/api/v1/device/measurements/raw', methods =['GET'])
 def get_and_save_raw_measurements():
-    device_code = request.args.get('code')
+    devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
-    clarity_api.save_clarity_raw_device_measurements(device_code)
+    for code in devices_codes:
+        clarity_api.save_clarity_raw_device_measurements(code)
     return jsonify({'response': 'all raw measurements saved'}), 200
 
 @analytics_app.route('/api/v1/device/measurements/raw/update', methods =['GET'])
 def update_raw_measurements():
-    device_code = request.args.get('code')
+    devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
-    clarity_api.update_clarity_data(device_code)
+    for code in device_codes:
+        clarity_api.update_clarity_data(code)
     return jsonify({'response': 'all new raw measurements saved'}), 200
+
+@analytics_app.route('/api/v1/device/graph', methods = ['GET'])
+def get_filtered_data():
+    device_code = request.args.get('device_code')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    frequency = request.args.get('frequency')
+    pollutant = request.arg.get('pollutant')
+    return mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
 
 @analytics_app.route('/api/v1/save_devices', methods=['GET'])
 def get_and_save_devices():
