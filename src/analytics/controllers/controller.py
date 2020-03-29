@@ -6,10 +6,7 @@ from helpers.clarity_api import ClarityApi
 from bson import json_util, ObjectId
 import json
 from datetime import datetime,timedelta
-<<<<<<< HEAD
-=======
 import helpers.mongo_helpers
->>>>>>> e6d691d491c709e32a3d6352d9d654b9202a4813
 
 _logger = logging.getLogger(__name__)
 
