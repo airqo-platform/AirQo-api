@@ -29,7 +29,7 @@ class ClarityApi():
         Gets new data for a specific device and inserts into MongoDB
         '''
         last_time = self.get_last_time_from_device_hourly_measurements(device_code)
-        endtime = self.date_to_str(datetime.now())
+        endtime = helpers.date_to_str(datetime.now())
 
         headers = {'x-api-key': Config.CLARITY_API_KEY}
         api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+last_time+ '&endTime='+endtime+"&code="+code+"&average="+average+"&limit="+str(limit)
@@ -118,11 +118,11 @@ class ClarityApi():
                 i['time'] = helpers.str_to_date(i['time'])
             results_list.extend(json_results)
         
-            while len(json_results) != 0:#should stop when no result is returned
-                endtime_string = results_list[-1]['time'] #getting the datetime of the last returned row
-                endtime_date = self.str_to_date(endtime_string)
+            while len(json_results) != 0:
+                endtime_string = results_list[-1]['time']
+                endtime_date = helpers.str_to_date(endtime_string)
                 next_start_time = endtime_date - timedelta(seconds=1)
-                api_url = base_url+'endTime='+self.date_to_str(next_start_time)+'&code='+device_code
+                api_url = base_url+'endTime='+helpers.date_to_str(next_start_time)+'&code='+device_code
                 results = requests.get(api_url, headers=headers)
                 json_results = results.json()
                 if len(json_results)==0:
@@ -131,71 +131,45 @@ class ClarityApi():
                     for i in json_results:
                         i['time'] = helpers.str_to_date(i['time'])
                     results_list.extend(json_results)
-        self.insert_data_mongo(results_list)
+        mongo_helpers.insert_data_mongo(results_list)
 
-    def str_to_date(self, st):
-        """
-        Converts a string to datetime
-        """
-        return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
 
-    def date_to_str(self,date):
-        """
-        Gets new raw data for a specific device and inserts into MongoDB
-        """
-        return datetime.strftime(date,'%Y-%m-%dT%H:%M:%S.%fZ')
-
-    def insert_data_mongo(self,data):
-        """
-        Inserts list of json objects into MongoDB
-        """
-        client = MongoClient('mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority')
-        db=client['airqo_analytics']
-        for i in data:
-            db['device_raw_measurements'].insert_one(i)
-
-    def get_last_time(self,device_code):
-        """
-        Gets the time of the latest record in the MongoDB
-        """
-        client = MongoClient("mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority")  
-        db=client['airqo_analytics']
+    def update_clarity_data(self, device_code):
+    """
+    Gets new data for a specific device and inserts into MongoDB
+    """
+    last_time = mongo_helpers.get_last_time(device_code)
+    endtime = helpers.date_to_str(datetime.now())
+    results_list = []
+    api_url = base_url+'startTime='+date_to_str(last_time)+ '&endTime='+endtime+'&code='+device_code
+    headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy',
+              'Accept-Encoding': 'gzip'}
+    results = requests.get(api_url, headers=headers)
+    json_results = results.json()
     
-        query = {'deviceCode': device_code}
-        last_record = list(db.device_raw_measurements.find(query).sort([('time', -1)]).limit(1))
-        last_time = last_record[0]['time']
-        return last_time
-
-    def update_clarity_data(self,device_code):
-        '''
-        Gets new data for a specific device and inserts into MongoDB
-        '''
-        base_url = 'https://clarity-data-api.clarity.io/v1/measurements?'
-        last_time = self.get_last_time(device_code)
-        endtime = self.date_to_str(datetime.now())
-        results_list = []
-        api_url = base_url+'startTime='+helpers.date_to_str(last_time)+ '&endTime='+endtime+'&code='+device_code
-        headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy', 'Accept-Encoding': 'gzip'}
-        results = requests.get(api_url, headers=headers)
-        json_results = results.json()
+    for i in json_results:
+        i['time'] = helpers.str_to_date(i['time'])
     
-        if results.status_code  == 200: 
-            if len(json_results)<500:
-                results_list.extend(json_results)
+    if len(json_results) ==0:
+        return 'No new data found'
+    elif len(json_results)<500:
+        results_list.extend(json_results)
+    else:
+        results_list.extend(json_results)
+        while len(json_results) != 0:
+            endtime_date = results_list[-1]['time'] 
+            endtime_string = helpers.date_to_str(endtime)
+            next_endtime = endtime_date - timedelta(seconds=1)
+            api_url = base_url+'startTime='+last_time+ '&endTime='+next_endtime+'&code='+device_code
+            results = requests.get(api_url, headers=headers)
+            json_results = results.json()
+            if len(json_results)==0:
+                pass
             else:
+                for i in json_results:
+                    i['time'] = helpers.str_to_date(i['time'])
                 results_list.extend(json_results)
-                while len(json_results) != 0:#should stop when no result is returned
-                    endtime_string = results_list[-1]['time'] #getting the datetime of the last returned row
-                    endtime_date = self.str_to_date(endtime_string)
-                    next_endtime = endtime_date - timedelta(seconds=1)
-                    api_url = base_url+'startTime='+last_time+ '&endTime='+next_endtime+'&code='+device_code
-                    results = requests.get(api_url, headers=headers)
-                    json_results = results.json()
-                    if results.status_code==200:
-                        results_list.extend(json_results)
-        self.insert_data_mongo(results_list)
-
-
+    mongo_helpers.insert_data_mongo(results_list)
 
 
 if __name__ == '__main__':
