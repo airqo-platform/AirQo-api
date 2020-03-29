@@ -10,6 +10,7 @@ from flask_cors import CORS
 
 
 
+
 _logger = logging.getLogger(__name__)
 
 mongo = PyMongo()
