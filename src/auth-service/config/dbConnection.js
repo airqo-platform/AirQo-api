@@ -1,9 +1,16 @@
-import mongoose from "mongoose";
-import config from "./constants";
+const mongoose = require("mongoose");
+const config = require("./constants");
 
 const URI = config.MONGO_URI;
 const db = mongoose.connection;
-mongoose.connect(URI);
+
+const options = {
+  useCreateIndex: true,
+  useNewUrlParser: true,
+  useFindAndModify: false
+};
+
+mongoose.connect(URI, options);
 
 // When successfully connected
 db.on("connected", () => {

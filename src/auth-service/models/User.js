@@ -8,6 +8,16 @@ const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 
+function oneMonthFromNow() {
+  var d = new Date();
+  var targetMonth = d.getMonth() + 1;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== targetMonth % 12) {
+    d.setDate(0); // last day of previous month
+  }
+  return d;
+}
+
 const UserSchema = new mongoose.Schema({
   email: {
     type: String,
@@ -20,6 +30,10 @@ const UserSchema = new mongoose.Schema({
       },
       message: "{VALUE} is not a valid email!"
     }
+  },
+  emailConfirmed: {
+    type: Boolean,
+    default: false
   },
   firstName: {
     type: String,
@@ -50,13 +64,13 @@ const UserSchema = new mongoose.Schema({
     }
   },
   interest: { type: String, default: "none" },
-  org_name: { type: String },
+  org_name: { type: String, default: "none" },
   privilege: { type: String, required: true },
   accountStatus: { type: String, default: "false" },
   hasAccess: { type: Boolean, default: false },
   collaborators: [{ type: ObjectId, ref: "colab" }],
   publisher: { type: Boolean, default: false },
-  duration: { type: Date, default: Date.now },
+  duration: { type: Date, default: oneMonthFromNow },
   bus_nature: { type: String, default: "none" },
   org_department: { type: String, default: "none" },
   uni_faculty: { type: String, default: "none" },

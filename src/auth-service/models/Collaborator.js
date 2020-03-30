@@ -48,7 +48,8 @@ const ColabSchema = new mongoose.Schema({
       },
       message: "{VALUE} is not a valid password!"
     }
-  }
+  },
+  admin: { type: ObjectId, ref: "user" }
 });
 
 ColabSchema.pre("save", function(next) {
