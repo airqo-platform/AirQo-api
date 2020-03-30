@@ -1,14 +1,17 @@
 const devConfig = {
   MONGO_URI: "mongodb://localhost/airqo-auth-dev",
-  JWT_SECRET: process.env.JWT_SECRET
+  JWT_SECRET: process.env.JWT_SECRET,
+  CLIENT_ORIGIN: ""
 };
 const testConfig = {
   MONGO_URI: "mongodb://localhost/airqo-auth-test",
-  JWT_SECRET: process.env.JWT_SECRET
+  JWT_SECRET: process.env.JWT_SECRET,
+  CLIENT_ORIGIN: ""
 };
 const prodConfig = {
   MONGO_URI: process.env.ATLAS_URI,
-  JWT_SECRET: process.env.JWT_SECRET
+  JWT_SECRET: process.env.JWT_SECRET,
+  CLIENT_ORIGIN: ""
 };
 const defaultConfig = {
   PORT: process.env.PORT || 3000
