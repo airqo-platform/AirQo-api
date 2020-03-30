@@ -6,13 +6,22 @@ from helpers.clarity_api import ClarityApi
 from bson import json_util, ObjectId
 import json
 from datetime import datetime,timedelta
-import helpers.mongo_helpers
+from helpers import mongo_helpers
+from helpers import helpers 
 
 _logger = logging.getLogger(__name__)
 
 analytics_app = Blueprint('analytics_app', __name__)
 
 
+@analytics_app.route('/api/v1/device/measurements/daily/save', methods =['GET'])
+def get_and_save_daily_measurements():
+    devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
+    clarity_api = ClarityApi()
+    average='day'
+    for code in devices_codes:
+        clarity_api.save_clarity_device_daily_measurements_v2(average, code['code'] )
+    return jsonify({'response': 'all daily measurements saved'}), 200
 
 @analytics_app.route('/api/v1/device/codes', methods =['GET'])
 def get_device_codes():
@@ -21,7 +30,7 @@ def get_device_codes():
     devices_codes_list=[]
     for device_code in devices_codes[0:2]:        
         last_time = clarity_api.get_last_time_from_device_hourly_measurements(device_code['code']) 
-        start_time = clarity_api.date_to_str(clarity_api.str_to_date(last_time) + timedelta(hours=1)) 
+        start_time = helpers.date_to_str(helpers.str_to_date(last_time) + timedelta(hours=1)) 
         devices_codes_list.append({"code":device_code['code'],"start time":start_time, "last time": last_time})
     return jsonify({'device codes':devices_codes_list }), 200
 
@@ -37,7 +46,7 @@ def update_device_hourly_measurements():
     for device_code in devices_codes[0:2]:
         code= device_code['code']
         last_time = clarity_api.get_last_time_from_device_hourly_measurements(code) 
-        start_time = clarity_api.date_to_str(clarity_api.str_to_date(last_time) + timedelta(hours=1))    
+        start_time = helpers.date_to_str(helpers.str_to_date(last_time) + timedelta(hours=1))    
         clarity_api.save_clarity_device_hourly_measurements(average,code,start_time, limit)
     return jsonify({'response': 'all new hourly measurements saved'}), 200  
         
@@ -70,7 +79,7 @@ def get_and_save_raw_measurements():
 def update_raw_measurements():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
-    for code in device_codes:
+    for code in devices_codes:
         clarity_api.update_clarity_data(code)
     return jsonify({'response': 'all new raw measurements saved'}), 200
 

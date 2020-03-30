@@ -1,5 +1,12 @@
-import helpers
+from helpers import helpers 
 from pymongo import MongoClient
+from app import mongo
+from datetime import datetime
+
+
+def save_daily_measurements(data):
+    for i  in data:
+        mongo.db.device_daily_measurements.insert(i)
 
 def insert_data_mongo(data):
     """

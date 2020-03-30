@@ -11,7 +11,7 @@ class Config:
     SECRET_KEY = 'sample-code-local-environment'
     #SERVER_PORT = 5000
 
-    CLARITY_API_BASE_URL= "https://clarity-data-api.clarity.io/v1/"
+    CLARITY_API_BASE_URL= "https://clarity-data-api.clarity.io/v1/" 
     CLARITY_API_KEY= "qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy"
 
 
