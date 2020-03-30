@@ -1,10 +1,13 @@
-# This is where the routes for the forecasts are defined.
+# This is where the routes for the predictions are defined.
 
 import os
 from flask import request, jsonify, Flask
 from flask_cors import CORS
 from app import app, mongo
 import logger
+import predict_controller from ..controllers
+
+
 
 ROOT_PATH = os.environ.get('ROOT_PATH')
 LOG = logger.get_root_logger(
@@ -12,8 +15,12 @@ LOG = logger.get_root_logger(
 )
 
 
-@app.route('/forecast', methods=['GET', 'POST'])
+@app.route('/predict', methods=['GET', 'POST'])
 def forecast():
-    return 'hello ml-service'
+    return 'hello predict'
+
+@app.route('/route 2', methods=['GET', 'POST'])
+def forecast():
+    return 'hello route 2'
 
 # define the endpoints for getting forecast,
