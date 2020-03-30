@@ -1,59 +1,41 @@
 import pandas as pd
 from pymongo import MongoClient
-from flask import jsonify
 import json
 
-def connect_mongo(db_name):
+def connect_mongo():
     '''
     Connects to local MongoDB
     '''
-    client = MongoClient("mongodb://localhost:27017/")
-    db = client[db_name]
+    client = MongoClient('mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority')
+    db = client['locate']
     return db
 
-#Function that imports csv files into a Mongo database
-def csv2mongo(csv_path, db_name, collection_name):
+def csv2mongo(csv_path):
     '''
-    Imports csv file into a Mongo database
+    Imports csv file into a geo_census collection in MongoDB
     '''
-    db = connect_mongo(db_name)
+    db = connect_mongo()
     data=pd.read_csv(csv_path)
     payload=json.loads(data.to_json(orient='records'))
 
     for i in payload:
-        db[collection_name].insert_one(i)
-    
-    #db.collection_name.insert_many(payload)
+        db['geo_census'].insert_one(i)
 
-def mongo2df(db_name, collection_name):
-    ''' 
-    Retrieves data from mongodb to a dataframe
+def get_parishes(district, subcounty=None):
     '''
-    db = connect_mongo(db_name)
-    
-    df = pd.DataFrame(list(db[collection_name].find()))
-    return df
-
-def df2mongo(df, db_name, collection_name):
+    Gets all the parishes in a given district and/or subcounty
     '''
-    imports data from dataframe to MongoDB
-    '''
-    db = connect_mongo(db_name)
+    if subcounty == None:
+        query = {'d': district}
+    else:
+        query = {'d':district, 's':subcounty}
     
-    records = json.loads(df.T.to_json()).values()
-    db.collection_name.insert_many(records)
-
-def read_mongo(db_name, collection_name, query={}, no_id=True):
-    """ 
-    Read from Mongo and store into DataFrame 
-    """
+    projection = { '_id': 0}
     
-    db = connect_mongo(db_name)
-    cursor = db.collection_name.find(query)  
-    df =  pd.DataFrame(list(cursor))
-    if no_id:
-        del df['_id']
-    return df
+    db = connect_mongo()
+    records = db.geo_census.find(query, projection)
+    
+    return list(records)
 
 
     
