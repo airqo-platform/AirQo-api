@@ -5,8 +5,8 @@ const constants = require("../config/constants");
 const mailOptions = {
   from: process.env.MAIL_USER,
   to: "martin@airqo.net",
-  subject: "Welcome to AirQo",
-  text: "Congratulations!! Your AirQo account has been successfully created."
+  subject: "Join AirQo Analytics",
+  text: "Please review this new request"
 };
 
 const credentials = {
@@ -39,7 +39,7 @@ const sendEmail = async (to, content) => {
   try {
     const contacts = {
       from: process.env.MAIL_USER,
-      to: to
+      to
     };
     const email = Object.assign({}, content, contacts);
     await transporter.sendMail(email);
@@ -57,4 +57,4 @@ transporter.sendMail(mailOptions, (e, r) => {
   transporter.close();
 });
 
-module.exports = {};
+module.exports = sendEmail;

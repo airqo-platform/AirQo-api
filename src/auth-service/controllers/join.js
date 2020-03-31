@@ -58,9 +58,13 @@ const join = {
           return res.status(500).json(error);
         } else {
           //sending the confirmation email to the user
-          sendEmail(email, templates.confirm(savedData._id));
+          sendEmail(email, templates.confirm(savedData._id))
+            .then(() => {
+              res.json({ msg: msgs.confirm });
+            })
+            .catch(err => console.log(err));
           // return res.status(201).json(savedData);
-          return res.status(201).json({ msg: msgs.confirm });
+          // return res.status(201).json({ msg: msgs.confirm });
         }
       });
     } catch (e) {
@@ -120,8 +124,11 @@ const join = {
     let updateDetails = req.body;
     User.findOneAndUpdate(query, updateDetails, (error, response) => {
       if (error) {
+        return res.status(HTTPStatus.BAD_GATEWAY).json(e);
       } else if (response) {
+        return res.status(HTTPStatus.OK).json(response);
       } else {
+        return res.status(HTTPStatus.BAD_REQUEST);
       }
     });
   },
