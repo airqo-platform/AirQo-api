@@ -1,0 +1,27 @@
+from flask import Blueprint, request, jsonify
+import logging
+import app
+from models import monitoring_site
+from bson import json_util, ObjectId
+import json
+
+_logger = logging.getLogger(__name__)
+
+dashboard_bp = Blueprint('dashboard', __name__)
+
+
+@dashboard_bp.route('/api/v1/monitoringsites/', methods=['GET'])
+def get_organisation_monitoring_site():
+    ms = monitoring_site.MonitoringSite()
+    if request.method == 'GET':
+        org_name= request.args.get('organisation_name')
+        if org_name:
+            monitoring_sites=[]
+            organisation_monitoring_sites_cursor = ms.get_all_organisation_monitoring_sites(org_name)
+            for site in organisation_monitoring_sites_cursor:
+                monitoring_sites.append(site)
+
+            results = json.loads(json_util.dumps(monitoring_sites))
+            return jsonify({"airquality_monitoring_sites":results})
+        else:
+            return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
