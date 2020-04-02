@@ -1,12 +1,13 @@
 const User = require("../models/User");
 const Collaborator = require("../models/Collaborator");
 const HTTPStatus = require("http-status");
-const transport = require("../services/mailer");
 const constants = require("../config/constants");
 const privileges = require("../utils/privileges");
-const sendEmail = require("../services/mailer");
+const transporter = require("../services/mailer");
 const templates = require("../utils/email.templates");
 const msgs = require("../utils/email.msgs");
+const crypto = require("crypto");
+const nodemailer = require("nodemailer");
 
 const join = {
   listAll: async (req, res) => {
@@ -39,6 +40,56 @@ const join = {
     });
   },
 
+  forgotPassword: async (req, res) => {
+    try {
+      if (req.params.email === "") {
+        res.status(400).send("email required");
+      }
+      console.error(req.body.email);
+      User.findOne({
+        where: {
+          email: req.params.email
+        }
+      }).then(user => {
+        if (user === null) {
+          console.error("email is not recognized");
+          res.status(403).send("email not in db");
+        } else {
+          //if the user does exist, we generate a token and attach it to this account
+          // time limit is also set for this.
+          const token = crypto.randomBytes(20).toString("hex");
+          user.update({
+            resetPasswordToken: token,
+            resetPasswordExpires: Date.now() + 3600000
+          });
+
+          //create mail options - who sends what and to whom?
+          const mailOptions = {
+            from: `info@airqo.net`,
+            to: `${user.email}`,
+            subject: `Link To Reset Password`,
+            text: `${msgs.recovery_email(token)}`
+          };
+          //we shall review other third party libraries for making emails....^^
+
+          console.log("sending mail");
+
+          //deliver the message object using sendMail
+          transporter.sendMail(mailOptions, (err, response) => {
+            if (err) {
+              console.error("there was an error: ", err);
+            } else {
+              console.log("here is the res: ", response);
+              res.status(200).json("recovery email sent");
+            }
+          });
+        }
+      });
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json(e);
+    }
+  },
+
   register: (req, res) => {
     const {
       email,
@@ -58,11 +109,28 @@ const join = {
           return res.status(500).json(error);
         } else {
           //sending the confirmation email to the user
-          sendEmail(email, templates.confirm(savedData._id))
-            .then(() => {
-              res.json({ msg: msgs.confirm });
-            })
-            .catch(err => console.log(err));
+
+          const mailOptions = {
+            from: `info@airqo.net`,
+            to: `${user.email}`,
+            subject: `AirQo Analytics JOIN request`,
+            text: `${msgs.join_request}`
+          };
+
+          transporter.sendMail(mailOptions, (err, response) => {
+            if (err) {
+              console.error("there was an error: ", err);
+            } else {
+              console.log("here is the res: ", response);
+              res.status(200).json({ msg: msgs.confirm });
+            }
+          });
+
+          // sendEmail(email, templates.confirm(savedData._id))
+          //   .then(() => {
+          //     res.json({ msg: msgs.confirm });
+          //   })
+          //   .catch(err => console.log(err));
           // return res.status(201).json(savedData);
           // return res.status(201).json({ msg: msgs.confirm });
         }
@@ -188,6 +256,43 @@ const join = {
     } catch (e) {
       return res.status(HTTPStatus.BAD_GATEWAY).json(e);
     }
+  },
+  resetPassword: (req, res, next) => {
+    User.findOne({
+      where: {
+        resetPassword: req.query.resetPasswordToken,
+        resetPasswordExpires: {
+          $gt: Date.now()
+        }
+      }
+    }).then(
+      res.status(200).send({
+        username: user.userName,
+        message: "passworkd reset link a-ok"
+      })
+    );
+  },
+
+  updatePasswordViaEmail: (req, res, next) => {
+    User.findOne({
+      where: {
+        username: req.body.username
+      }
+    }).then(user => {
+      if (user !== null) {
+        console.log("user exists in db");
+        user.update({
+          password: req.body.password,
+          resetPasswordToken: null,
+          resetPasswordExpires: null
+        });
+        console.log("password updated");
+        res.status(200).send({ message: "password updated" });
+      } else {
+        console.log("no user exists in db to update");
+        res.status(404).json({ message: "no user exists in dnb to update" });
+      }
+    });
   }
 };
 
