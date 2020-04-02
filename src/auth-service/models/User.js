@@ -77,10 +77,19 @@ const UserSchema = new mongoose.Schema({
   uni_course_yr: { type: String, default: 0 },
   pref_locations: [{ type: ObjectId, ref: "loc" }],
   country: { type: String, default: "Uganda" },
-  job_title: { type: String, default: "none" }
+  job_title: { type: String, default: "none" },
+  resetPasswordToken: { type: String },
+  resetPasswordExpires: { type: Date }
 });
 
 UserSchema.pre("save", function(next) {
+  if (this.isModified("password")) {
+    this.password = this._hashPassword(this.password);
+  }
+  return next();
+});
+
+UserSchema.pre("update", function(next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
   }
