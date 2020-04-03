@@ -1,8 +1,11 @@
 from helpers import helpers 
 from pymongo import MongoClient
-from app import mongo
+from app import mongo, MONGO_URI
 from datetime import datetime
+import os
 
+
+MONGO_URI =  os.getenv("MONGO_URI")
 
 def save_device_daily_historical_averages(data):
     """
@@ -75,7 +78,7 @@ def insert_data_mongo(data):
     """
     Inserts raw clarity data into MongoDB
     """
-    client = MongoClient('mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority')
+    client = MongoClient(MONGO_URI)
     db=client['airqo_analytics']
     for i in data:
         db['device_raw_measurements'].insert_one(i)
@@ -84,7 +87,7 @@ def get_last_time(device_code):
     """
     Gets the time of the latest record in the MongoDB
     """
-    client = MongoClient("mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority")  
+    client = MongoClient(MONGO_URI)  
     db=client['airqo_analytics']
     
     query = {'deviceCode': device_code}
@@ -112,7 +115,7 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         else:
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
                                  
-        client = MongoClient("mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority")  
+        client = MongoClient(MONGO_URI)  
         db=client['airqo_analytics']
                                  
         if frequency =='hourly':
