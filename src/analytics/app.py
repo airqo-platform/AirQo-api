@@ -9,22 +9,18 @@ from flask_cors import CORS
 
 
 
-
-
 _logger = logging.getLogger(__name__)
 
 mongo = PyMongo()
+MONGO_URI = ''
 
 def create_app(*, config_object) -> Flask:
     """Create a flask app instance."""
     
-    dotenv_path = join(dirname(__file__), '.env')
-    load_dotenv(dotenv_path)
-
     flask_app = Flask(__name__)
-    flask_app.config.from_object(app_config[config_object])
-    flask_app.config["MONGO_URI"] =  os.getenv("MONGO_URI")
-    
+    flask_app.config.from_object(app_config[config_object]) 
+    #flask_app.config["MONGO_URI"] =  
+    MONGO_URI = flask_app.config["MONGO_URI"]
     #allow cross domain requests
     CORS(flask_app)
     #register the app with the db.
