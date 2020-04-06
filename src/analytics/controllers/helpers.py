@@ -131,11 +131,6 @@ def get_devices():
         devices, status_code =  clarity_api.get_all_devices()
         return jsonify(devices),status_code
 
-@analytics_app.route('/api/v1/locations', methods=['GET'])
-def get_locations():
-    if request.method == 'GET':
-        all_locations = ['Kampala','Mukono']
-        return jsonify({'locations': all_locations})
        
         
 @analytics_app.route('/health', methods=['GET'])
