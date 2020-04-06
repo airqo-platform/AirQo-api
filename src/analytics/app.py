@@ -28,12 +28,13 @@ def create_app(*, config_object) -> Flask:
     
     #import blueprints
     from controllers.monitoring_site import monitoring_site_bp
-    from controllers.controller import analytics_app
+    from controllers.helpers import analytics_app
+    from controllers.dashboard import dashboard_bp
 
 
     flask_app.register_blueprint(analytics_app)
     flask_app.register_blueprint(monitoring_site_bp)
-    
+    flask_app.register_blueprint(dashboard_bp)
 
     return flask_app
    
