@@ -8,6 +8,8 @@ const templates = require("../utils/email.templates");
 const msgs = require("../utils/email.msgs");
 const crypto = require("crypto");
 const nodemailer = require("nodemailer");
+const validateRegisterInput = require("../utils/validations.register");
+const validateLoginInput = require("../utils/validations.login");
 
 const join = {
   listAll: async (req, res) => {
@@ -32,7 +34,7 @@ const join = {
     User.findById(id).exec((err, user) => {
       if (err || !user) {
         return res.status(400).json({
-          error: "No user found with these credentials!"
+          error: "No user found with these credentials!",
         });
       }
       req.profile = user;
@@ -47,10 +49,8 @@ const join = {
       }
       console.error(req.body.email);
       User.findOne({
-        where: {
-          email: req.params.email
-        }
-      }).then(user => {
+        email: req.params.email,
+      }).then((user) => {
         if (user === null) {
           console.error("email is not recognized");
           res.status(403).send("email not in db");
@@ -60,7 +60,7 @@ const join = {
           const token = crypto.randomBytes(20).toString("hex");
           user.update({
             resetPasswordToken: token,
-            resetPasswordExpires: Date.now() + 3600000
+            resetPasswordExpires: Date.now() + 3600000,
           });
 
           //create mail options - who sends what and to whom?
@@ -68,7 +68,7 @@ const join = {
             from: `info@airqo.net`,
             to: `${user.email}`,
             subject: `Link To Reset Password`,
-            text: `${msgs.recovery_email(token)}`
+            text: `${msgs.recovery_email(token)}`,
           };
           //we shall review other third party libraries for making emails....^^
 
@@ -97,42 +97,53 @@ const join = {
       lastName,
       userName,
       password,
-      privilege
+      privilege,
     } = req.body;
 
     console.log(process.env.ATLAS_URI);
 
+    const { errors, isValid } = validateRegisterInput(req.body);
+
     try {
-      const user = new User(req.body);
-      user.save((error, savedData) => {
-        if (error) {
-          return res.status(500).json(error);
+      if (!isValid) {
+        return res.status(400).json(errors);
+      }
+      User.findOne({ email: req.body.email }).then((user) => {
+        if (user) {
+          return res.status(400).json({ email: "Email already exists" });
         } else {
-          //sending the confirmation email to the user
-
-          const mailOptions = {
-            from: `info@airqo.net`,
-            to: `${user.email}`,
-            subject: `AirQo Analytics JOIN request`,
-            text: `${msgs.join_request}`
-          };
-
-          transporter.sendMail(mailOptions, (err, response) => {
-            if (err) {
-              console.error("there was an error: ", err);
+          const user = new User(req.body);
+          user.save((error, savedData) => {
+            if (error) {
+              return res.status(500).json(error);
             } else {
-              console.log("here is the res: ", response);
-              res.status(200).json({ msg: msgs.confirm });
+              //sending the confirmation email to the user
+
+              const mailOptions = {
+                from: `info@airqo.net`,
+                to: `${user.email}`,
+                subject: `AirQo Platform JOIN request`,
+                text: `${msgs.join_request}`,
+              };
+
+              transporter.sendMail(mailOptions, (err, response) => {
+                if (err) {
+                  console.error("there was an error: ", err);
+                } else {
+                  console.log("here is the res: ", response);
+                  res.status(200).json({ msg: msgs.confirm });
+                }
+              });
+
+              // sendEmail(email, templates.confirm(savedData._id))
+              //   .then(() => {
+              //     res.json({ msg: msgs.confirm });
+              //   })
+              //   .catch(err => console.log(err));
+              // return res.status(201).json(savedData);
+              // return res.status(201).json({ msg: msgs.confirm });
             }
           });
-
-          // sendEmail(email, templates.confirm(savedData._id))
-          //   .then(() => {
-          //     res.json({ msg: msgs.confirm });
-          //   })
-          //   .catch(err => console.log(err));
-          // return res.status(201).json(savedData);
-          // return res.status(201).json({ msg: msgs.confirm });
         }
       });
     } catch (e) {
@@ -144,7 +155,7 @@ const join = {
   confirmEmail: async (req, res) => {
     const { id } = req.params;
     User.findById(id)
-      .then(user => {
+      .then((user) => {
         //when the user does not exist in the DB
         if (!user) {
           res.json({ msg: msgs.couldNotFind });
@@ -153,18 +164,23 @@ const join = {
         else if (user && !user.emailConfirmed) {
           User.findByIdAndUpdate(id, { confirmed: true })
             .then(() => res.json({ msg: msgs.confirmed }))
-            .catch(err => console.log(err));
+            .catch((err) => console.log(err));
         }
         //when the user has already confirmed their email address
         else {
           res.json({ msg: msgs.alreadyConfirmed });
         }
       })
-      .catch(err => console.log(err));
+      .catch((err) => console.log(err));
   },
 
   loginUser: (req, res, next) => {
     console.log("we have reached loginUser....");
+    const { errors, isValid } = validateLoginInput(req.body);
+
+    if (!isValid) {
+      return res.status(400).json(errors);
+    }
     res.status(200).json(req.user.toAuthJSON());
     return next();
   },
@@ -259,41 +275,37 @@ const join = {
   },
   resetPassword: (req, res, next) => {
     User.findOne({
-      where: {
-        resetPassword: req.query.resetPasswordToken,
-        resetPasswordExpires: {
-          $gt: Date.now()
-        }
-      }
+      resetPassword: req.query.resetPasswordToken,
+      resetPasswordExpires: {
+        $gt: Date.now(),
+      },
     }).then(
       res.status(200).send({
         username: user.userName,
-        message: "passworkd reset link a-ok"
+        message: "passworkd reset link a-ok",
       })
     );
   },
 
   updatePasswordViaEmail: (req, res, next) => {
     User.findOne({
-      where: {
-        username: req.body.username
-      }
-    }).then(user => {
+      username: req.body.username,
+    }).then((user) => {
       if (user !== null) {
         console.log("user exists in db");
         user.update({
           password: req.body.password,
           resetPasswordToken: null,
-          resetPasswordExpires: null
+          resetPasswordExpires: null,
         });
         console.log("password updated");
         res.status(200).send({ message: "password updated" });
       } else {
         console.log("no user exists in db to update");
-        res.status(404).json({ message: "no user exists in dnb to update" });
+        res.status(404).json({ message: "no user exists in db to update" });
       }
     });
-  }
+  },
 };
 
 module.exports = join;
