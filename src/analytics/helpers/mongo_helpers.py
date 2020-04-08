@@ -124,3 +124,46 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
             records = db.device_daily_measurements.find(query, projection)
     
         return list(records)
+
+def get_piechart_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'PM 2.5'):
+    '''
+    returns the data to generate a pie chart given specific parameters
+    '''
+    records = get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+    
+    good_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >0.0 and 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] <=12.0)
+
+    moderate_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >12.0 and 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] <=35.4)
+
+    UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >35.4 and 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] <=55.4)
+
+    unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >55.4 and 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] <=150.4)
+
+    v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >150.4 and 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] <=250.4)
+
+    hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >250.4 and 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] <=500.4)
+
+    unknowns_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] <0.0 or 
+    records[i]['characteristics']['pm2_5ConcMass']['value'] > 500.4)
+    
+    tasks = [good_sum, moderate_sum, UH4SG_sum, unhealthy_sum, v_unhealthy_sum, hazardous_sum, unknowns_sum]
+
+    #labels = 'Good', 'Moderate', 'UH4SG', 'Unhealthy', 'Very Unhealthy', 'Hazardous', 'Other'
+
+    #records = []
+    #for i in range(len(tasks)):
+        #mydict = dict()
+        #mydict['y'] = tasks[i]
+        #mydict['label']= labels[i]
+        #myjson= json.dumps(mydict)
+       # records.append(mydict)
+    
+    #return tasks, labels
+    #return records
+    return tasks

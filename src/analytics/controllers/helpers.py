@@ -107,6 +107,16 @@ def get_filtered_data():
     pollutant = request.arg.get('pollutant')
     return mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
 
+
+@analytics_app.route('/api/v1/device/pie', methods = ['GET'])
+def get_piechart_data():
+    device_code = request.args.get('device_code')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+    frequency = request.args.get('frequency')
+    pollutant = request.arg.get('pollutant')
+    return mongo_helpers.get_piechart_data(device_code, start_date, end_date, frequency, pollutant)
+
 @analytics_app.route('/api/v1/save_devices', methods=['GET'])
 def get_and_save_devices():
     if request.method == 'GET':
@@ -131,7 +141,6 @@ def get_devices():
         devices, status_code =  clarity_api.get_all_devices()
         return jsonify(devices),status_code
 
-       
         
 @analytics_app.route('/health', methods=['GET'])
 def health():
