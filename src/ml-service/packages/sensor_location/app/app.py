@@ -5,7 +5,7 @@ from modules import locate_model, locate_helper
 app = Flask(__name__)
 
 # add mongo url to flask config, so that flask_pymongo can use it to make connection
-#app.config["MONGO_URI"] = "mongodb://localhost:27017/airqo_ml_db"
+app.config["MONGO_URI"] = "mongodb://localhost:27017/geocensus_db"
 mongo = PyMongo(app)
 
 @app.route('/', methods=['GET', 'POST'])

@@ -29,13 +29,12 @@ def process_data(data):
     data['coord_z'] = np.sin(data['lat'])
     return data
 
-def silhouette(data):
+def silhouette(X):
     '''
     determines the optimal number of clusters using silhouette score
     '''
     silhouette_avgs = {}
-    data
-    n_clusters = [x for x in range(2, data.shape[0]-1)]
+    n_clusters = [x for x in range(2, X.shape[0]-1)]
     for n in n_clusters:
 
         clusterer = KMeans(n_clusters=n, random_state=10)
