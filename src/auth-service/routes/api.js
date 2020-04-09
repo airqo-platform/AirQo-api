@@ -39,8 +39,9 @@ router.put("/:id", authJWT, joinController.updateUser);
 router.post("/logout/:id", authJWT, joinController.logout);
 router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
-router.get("/reset", joinController.resetPassword);
-router.post("/forgotPassword/:email", joinController.forgotPassword);
+router.get("/reset/:resetPasswordToken", joinController.resetPassword);
+router.post("/forgotPassword/:email", authJWT, joinController.forgotPassword);
+router.get("/findUser", joinController.findUser);
 
 //collaborators
 router.post(

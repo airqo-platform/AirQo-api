@@ -28,28 +28,28 @@ const UserSchema = new mongoose.Schema({
       validator(email) {
         return validator.isEmail(email);
       },
-      message: "{VALUE} is not a valid email!"
-    }
+      message: "{VALUE} is not a valid email!",
+    },
   },
   emailConfirmed: {
     type: Boolean,
-    default: false
+    default: false,
   },
   firstName: {
     type: String,
     required: [true, "FirstName is required!"],
-    trim: true
+    trim: true,
   },
   lastName: {
     type: String,
     required: [true, "LastName is required"],
-    trim: true
+    trim: true,
   },
   userName: {
     type: String,
     required: [true, "UserName is required!"],
     trim: true,
-    unique: true
+    unique: true,
   },
   password: {
     type: String,
@@ -60,12 +60,12 @@ const UserSchema = new mongoose.Schema({
       validator(password) {
         return passwordReg.test(password);
       },
-      message: "{VALUE} is not a valid password!"
-    }
+      message: "{VALUE} is not a valid password!",
+    },
   },
   interest: { type: String, default: "none" },
   org_name: { type: String, default: "none" },
-  privilege: { type: String, required: true },
+  privilege: { type: String, default: "admin" },
   accountStatus: { type: String, default: "false" },
   hasAccess: { type: Boolean, default: false },
   collaborators: [{ type: ObjectId, ref: "colab" }],
@@ -79,17 +79,17 @@ const UserSchema = new mongoose.Schema({
   country: { type: String, default: "Uganda" },
   job_title: { type: String, default: "none" },
   resetPasswordToken: { type: String },
-  resetPasswordExpires: { type: Date }
+  resetPasswordExpires: { type: Date },
 });
 
-UserSchema.pre("save", function(next) {
+UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
   }
   return next();
 });
 
-UserSchema.pre("update", function(next) {
+UserSchema.pre("update", function (next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
   }
@@ -112,7 +112,7 @@ UserSchema.methods = {
   createToken() {
     return jwt.sign(
       {
-        _id: this._id
+        _id: this._id,
       },
       constants.JWT_SECRET
     );
@@ -121,15 +121,15 @@ UserSchema.methods = {
     return {
       _id: this._id,
       userName: this.userName,
-      token: `JWT ${this.createToken()}`
+      token: `JWT ${this.createToken()}`,
     };
   },
   toJSON() {
     return {
       _id: this._id,
-      userName: this.userName
+      userName: this.userName,
     };
-  }
+  },
 };
 
 const user = mongoose.model("user", UserSchema);
