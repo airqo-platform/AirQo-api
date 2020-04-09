@@ -17,9 +17,9 @@ module.exports = function validateRegisterInput(data) {
   }
 
   //privilege checks
-  if (Validator.isEmpty(data.privilege)) {
-    errors.privilege = "privilege field is required";
-  }
+  // if (Validator.isEmpty(data.privilege)) {
+  //   errors.privilege = "privilege field is required";
+  // }
 
   //userName checks
   if (Validator.isEmpty(data.userName)) {
