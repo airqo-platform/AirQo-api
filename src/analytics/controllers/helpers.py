@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 import logging
 import datetime as dt
 from app import mongo
@@ -8,10 +8,14 @@ import json
 from datetime import datetime,timedelta
 from helpers import mongo_helpers
 from helpers import helpers 
+from flask_cors import CORS, cross_origin
 
 _logger = logging.getLogger(__name__)
 
 analytics_app = Blueprint('analytics_app', __name__)
+
+#cors = CORS(analytics_app)
+#analytics_app.config['CORS_HEADERS'] = 'Content-Type'
 
 
 
@@ -98,24 +102,59 @@ def update_raw_measurements():
         clarity_api.update_clarity_data(code)
     return jsonify({'response': 'all new raw measurements saved'}), 200
 
-@analytics_app.route('/api/v1/device/graph', methods = ['GET'])
+@analytics_app.route('/api/v1/device/graph', methods=['GET','POST'])
+@cross_origin()
 def get_filtered_data():
-    device_code = request.args.get('device_code')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    frequency = request.args.get('frequency')
-    pollutant = request.arg.get('pollutant')
-    return mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
+    if request.method=='POST' or request.method=='GET':
+        #device_code = request.args.get('device_code')
+        device_code = 'AY2J2Q7Z'
+        #start_date = request.args.get('start_date')
+        start_date = '2020-01-01T00:00:00Z'
+        #end_date = request.args.get('end_date')
+        end_date = '2020-01-02T00:00:00Z'
+        frequency = request.args.get('frequency')
+        #frequency = 'daily'
+        #pollutant = 'PM 2.5'
+        pollutant = request.args.get('pollutant')
+        records = mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
+        if len(records)==0:
+            return jsonify({'response': 'No records'}), 200
+        else:
+            #return Response(json.dumps(records), mimetype='application/json')
+            return jsonify(records)
+    else:
+        return jsonify({'response': 'Didn\'t get parameters'}), 200
+    
+    #response.headers.add("Access-Control-Allow-Origin", "*")
+    #response.headers.add("Access-Control-Allow-Origin", "*")
 
 
-@analytics_app.route('/api/v1/device/pie', methods = ['GET'])
+@analytics_app.route('/api/v1/device/pie', methods = ['POST'])
+@cross_origin()
 def get_piechart_data():
-    device_code = request.args.get('device_code')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    frequency = request.args.get('frequency')
-    pollutant = request.arg.get('pollutant')
-    return mongo_helpers.get_piechart_data(device_code, start_date, end_date, frequency, pollutant)
+    if request.method=='POST':
+        #device_code = request.args.get('device_code')
+        device_code = 'AY2J2Q7Z'
+        #start_date = request.args.get('start_date')
+        start_date = '2020-01-01T00:00:00Z'
+        #end_date = request.args.get('end_date')
+        end_date = '2020-01-02T00:00:00Z'
+        frequency = request.args.get('frequency')
+        #frequency = 'daily'
+        #pollutant = 'PM 2.5'
+        pollutant = request.args.get('pollutant')
+        records = mongo_helpers.get_piechart_data(device_code, start_date, end_date, frequency, pollutant)
+        if len(records)==0:
+            response = jsonify({'response': 'No records'}), 200
+        else:
+            #return Response(json.dumps(records), mimetype='application/json')
+            response = jsonify(records)
+    else:
+        response = jsonify({"response': 'Didn't get parameters"}), 200
+    
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
+
 
 @analytics_app.route('/api/v1/save_devices', methods=['GET'])
 def get_and_save_devices():

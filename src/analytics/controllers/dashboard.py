@@ -6,6 +6,7 @@ from bson import json_util, ObjectId
 import json
 from helpers import mongo_helpers
 from helpers import helpers 
+from flask_cors import CORS, cross_origin
 
 _logger = logging.getLogger(__name__)
 
@@ -47,14 +48,33 @@ def get_all_device_past_28_days_measurements():
         return jsonify({"error msg": "invalid request."})
 
 
-@dashboard_bp.route('/api/v1/device/graph', methods = ['GET'])
+'''@dashboard_bp.route('/api/v1/device/graph', methods=['POST'])
+@cross_origin()
 def get_filtered_data():
-    device_code = request.args.get('device_code')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    frequency = request.args.get('frequency')
-    pollutant = request.arg.get('pollutant')
-    return mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
+    if request.method=='POST':
+        #device_code = request.args.get('device_code')
+        device_code = 'AY2J2Q7Z'
+        #start_date = request.args.get('start_date')
+        start_date = '2020-01-01T00:00:00Z'
+        #end_date = request.args.get('end_date')
+        end_date = '2020-01-02T00:00:00Z'
+        frequency = request.args.get('frequency')
+        #frequency = 'daily'
+        #pollutant = 'PM 2.5'
+        pollutant = request.args.get('pollutant')
+        records = mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
+        if len(records)==0:
+            response = jsonify({'response': 'No records'}), 200
+        else:
+            #return Response(json.dumps(records), mimetype='application/json')
+            response = jsonify(records)
+    else:
+        response = jsonify({"response': 'Didn't get parameters"}), 200
+    
+    #response.headers.add("Access-Control-Allow-Origin", "*")
+    #response.headers.add("Access-Control-Allow-Origin", "*")
+    return response
+    '''
 
 
 
@@ -69,8 +89,9 @@ def get_divisions():
     return jsonify({"divisions":results}), 200
 
 
-@dashboard_bp.route('/health', methods=['GET'])
+'''@dashboard_bp.route('/health', methods=['GET'])
 def health():
     if request.method == 'GET':
         _logger.info('health status OK')
         return 'ok'
+        '''

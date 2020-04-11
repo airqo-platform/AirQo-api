@@ -23,6 +23,7 @@ def create_app(*, config_object) -> Flask:
     MONGO_URI = flask_app.config["MONGO_URI"]
     #allow cross domain requests
     CORS(flask_app)
+    flask_app.config['CORS_HEADERS'] = 'Content-Type'
     #register the app with the db.
     mongo.init_app(flask_app)
     

@@ -102,11 +102,12 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         if start_date == None:
             start = helpers.str_to_date_find('2019-06-01T00:00:00Z')
         else:
-            start = helpers.str_to_date(start_date)
+            start = helpers.str_to_date_find(start_date)
         if end_date == None:
             end = datetime.now()
         else:
-            end = helpers.str_to_date(end_date)
+            end = helpers.str_to_date_find(end_date)
+        
 
         query = { 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }
                                  
@@ -115,13 +116,24 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         else:
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
                                  
-        client = MongoClient(MONGO_URI)  
-        db=client['airqo_analytics']
+        #client = MongoClient(MONGO_URI)
+        #client = MongoClient("mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority")  
+        #db=client['airqo_analytics']
+        
+
+        client = MongoClient("mongodb://localhost:27017/")  
+        db=client['kcca_db']
+        
+        records = db.clarity_data.find(query, projection)
+        #records = db.device_raw_measurements.find(query, projection)
                                  
-        if frequency =='hourly':
-            records = db.device_hourly_measurements.find(query, projection)
-        else:
-            records = db.device_daily_measurements.find(query, projection)
+        #if frequency =='hourly':
+            #records = db.device_hourly_measurements.find(query, projection)
+            #records = db.clarity_data.find(query, projection)
+    
+        #else:
+            #records = db.device_daily_measurements.find(query, projection)
+            #records = db.clarity_data.find(query, projection)
     
         return list(records)
 
