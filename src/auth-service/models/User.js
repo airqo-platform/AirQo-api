@@ -113,6 +113,8 @@ UserSchema.methods = {
     return jwt.sign(
       {
         _id: this._id,
+        firstName: this.firstName,
+        lastName: this.lastName,
       },
       constants.JWT_SECRET
     );
