@@ -5,6 +5,7 @@ from app import mongo
 from helpers.clarity_api import ClarityApi
 from bson import json_util, ObjectId
 import json
+import sys
 from datetime import datetime,timedelta
 from helpers import mongo_helpers
 from helpers import helpers 
@@ -105,56 +106,49 @@ def update_raw_measurements():
 @analytics_app.route('/api/v1/device/graph', methods=['GET','POST'])
 @cross_origin()
 def get_filtered_data():
-    if request.method=='POST' or request.method=='GET':
-        #device_code = request.args.get('device_code')
-        device_code = 'AY2J2Q7Z'
-        #start_date = request.args.get('start_date')
-        start_date = '2020-01-01T00:00:00Z'
-        #end_date = request.args.get('end_date')
-        end_date = '2020-01-02T00:00:00Z'
-        frequency = request.args.get('frequency')
-        #frequency = 'daily'
-        #pollutant = 'PM 2.5'
-        pollutant = request.args.get('pollutant')
-        records = mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
-        if len(records)==0:
-            return jsonify({'response': 'No records'}), 200
-        else:
-            #return Response(json.dumps(records), mimetype='application/json')
-            return jsonify(records)
-    else:
-        return jsonify({'response': 'Didn\'t get parameters'}), 200
-    
-    #response.headers.add("Access-Control-Allow-Origin", "*")
-    #response.headers.add("Access-Control-Allow-Origin", "*")
-
-
-@analytics_app.route('/api/v1/device/pie', methods = ['POST'])
-@cross_origin()
-def get_piechart_data():
     if request.method=='POST':
+        print('Method is post', file=sys.stderr)
         #device_code = request.args.get('device_code')
         device_code = 'AY2J2Q7Z'
-        #start_date = request.args.get('start_date')
-        start_date = '2020-01-01T00:00:00Z'
-        #end_date = request.args.get('end_date')
-        end_date = '2020-01-02T00:00:00Z'
+        print('device code:', device_code, file=sys.stderr)
+        #req_data = request.get_json()
+        #my_start_date = req_data['start_date']
+        start_date = request.args.get('start_date')
+        print('start date:', start_date, file=sys.stderr)
+        start_time = request.args.get('start_time')
+        print('start time:', start_time, file=sys.stderr)
+        #start_date = '2020-01-01T00:00:00Z'
+        end_date = request.args.get('end_date')
+        print('end date:', end_date, file=sys.stderr)
+        end_time = request.args.get('end_time')
+        #end_date = '2020-01-02T00:00:00Z'
         frequency = request.args.get('frequency')
+        print('frequency:', frequency, file=sys.stderr)
+        chart_type = request.args.get('chart_type')
+        print('chart type:', chart_type, file=sys.stderr)
         #frequency = 'daily'
         #pollutant = 'PM 2.5'
         pollutant = request.args.get('pollutant')
-        records = mongo_helpers.get_piechart_data(device_code, start_date, end_date, frequency, pollutant)
-        if len(records)==0:
-            response = jsonify({'response': 'No records'}), 200
+        start = helpers.generate_datetime(start_date, start_time)
+        end = helpers.generate_datetime(end_date, end_time)
+        if chart_type=='pie chart' or chart_type=='bar graph' or chart_type =='line graph':
+            records = mongo_helpers.get_piechart_data(device_code, start, end, frequency, pollutant)
+            return jsonify(records)
         else:
+            return jsonify({'response': 'Request not understood'}), 200
+        #else:
+         #   records = mongo_helpers.get_filtered_data(device_code, start, end, frequency, pollutant )
+          #  print('bar graph coming through', file=sys.stderr)
+        #if len(records)==0:
+         #   return jsonify({'response': 'No records'}), 200
+        #else:
             #return Response(json.dumps(records), mimetype='application/json')
-            response = jsonify(records)
+         #   return jsonify(records)
     else:
-        response = jsonify({"response': 'Didn't get parameters"}), 200
+        return jsonify({'response': 'No request made'}), 200
     
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    return response
-
+    #response.headers.add("Access-Control-Allow-Origin", "*")
+    #response.headers.add("Access-Control-Allow-Origin", "*")
 
 @analytics_app.route('/api/v1/save_devices', methods=['GET'])
 def get_and_save_devices():

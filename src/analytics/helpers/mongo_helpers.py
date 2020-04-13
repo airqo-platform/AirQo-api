@@ -108,10 +108,9 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         else:
             end = helpers.str_to_date_find(end_date)
         
-
         query = { 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }
                                  
-        if pollutant == 'PM 10':
+        if pollutant == 'pm10':
             projection = { '_id': 0, 'time': 1, 'characteristics.pm10ConcMass.value':1 }
         else:
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }

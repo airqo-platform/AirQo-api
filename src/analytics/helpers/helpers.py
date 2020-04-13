@@ -18,3 +18,12 @@ def str_to_date_find(st):
     """
     return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
 
+def generate_datetime(date, time):
+    if date == None:
+        return None
+    else:
+        if time==None:
+            time ="00:00"
+        date_time = date+"T"+time+":00Z"
+        return date_time
+
