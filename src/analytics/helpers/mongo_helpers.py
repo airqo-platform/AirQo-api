@@ -115,12 +115,12 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         else:
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
                                  
-        client = MongoClient(MONGO_URI)  
-        db=client['airqo_analytics']
+        #client = MongoClient(MONGO_URI)  
+        #db=client['airqo_analytics']
                                  
         if frequency =='hourly':
-            records = db.device_hourly_measurements.find(query, projection)
+            records = mongo.db.device_hourly_measurements.find(query, projection)
         else:
-            records = db.device_daily_measurements.find(query, projection)
+            records = mongo.db.device_daily_measurements.find(query, projection)
     
         return list(records)
