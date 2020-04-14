@@ -29,8 +29,16 @@ class Dashboard():
         Returns:
             A list of the monitoring sites associated with the specified organisation name.
         """
-        results = list(app.mongo.db.monitoring_site.find({"Organisation":organisation_name}))
-        return results
+        results_x =[]
+        results = list(app.mongo.db.monitoring_site.find({"Organisation":organisation_name},
+        {"DeviceCode": 1, "Parish":1, "LocationCode":1,"Division":1,"LatestHourlyMeasurement":1, "_id": 0}))
+        for result in results:
+            obj = {"DeviceCode": result['DeviceCode'], 
+                    'Parish': result['Parish'],
+                    'Division': result['Division'],
+                    'Last_Hour_PM25_Value': result['LatestHourlyMeasurement'][-1]['last_hour_pm25_value']}
+            results_x.append(obj)
+        return results_x
 
 
         
