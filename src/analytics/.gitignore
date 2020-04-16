@@ -1,4 +1,4 @@
 .env
-env/
+analytics2_env/
 .vscode
 __pycache__/
