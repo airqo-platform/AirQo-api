@@ -30,9 +30,14 @@ router.post("/logout", joinController.logout);
 router.get("/", authJWT, joinController.listAll);
 router.get("/:id", authJWT, joinController.listOne);
 router.post(
-  "/register",
+  "/registerUser",
   validate(userValidation.register),
-  joinController.register
+  joinController.registerUser
+);
+router.post(
+  "/registerCandidate",
+  validate(userValidation.register),
+  joinController.registerCandidate
 );
 router.delete("/:id", authJWT, joinController.deleteUser);
 router.put("/:id", authJWT, joinController.updateUser);
@@ -40,8 +45,10 @@ router.post("/logout/:id", authJWT, joinController.logout);
 router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
 router.get("/reset/:resetPasswordToken", joinController.resetPassword);
-router.post("/forgotPassword/:email", authJWT, joinController.forgotPassword);
+router.post("/forgotPassword", joinController.forgotPassword);
 router.get("/findUser", joinController.findUser);
+router.post("/accept/:id", joinController.activateUser);
+router.post("/deny/:id", joinController.deactivateUser);
 
 //collaborators
 router.post(
