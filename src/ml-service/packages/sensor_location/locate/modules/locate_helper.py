@@ -4,6 +4,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 from pandas.io.json import json_normalize
+import json
 
 
 def json_to_df(json_list):
@@ -70,6 +71,18 @@ def kmeans_algorithm(data, sensor_number=None):
     kmeans_samples = kmeans_samples[['properties.district', 'properties.subcounty', 'properties.parish', 
                                      'geometry.coordinates']]
     
-    return kmeans_samples.to_json(orient = 'records')
+    return json.loads(kmeans_samples.to_json(orient = 'records'))
+
+
+def get_data(data):
+ """
+ This function deserializes an JSON object.
+
+:param data: JSON data
+ :type data: str
+ """
+ json_data = json.loads(data)
+ print("Deserialized data: {}".format(data))
+ return json_data
 
 
