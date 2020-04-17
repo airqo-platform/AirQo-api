@@ -95,7 +95,7 @@ def get_last_time(device_code):
     last_time = last_record[0]['time']
     return last_time
 
-def get_filtered_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'PM 2.5'):
+def get_filtered_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'pm2_5'):
         """
         returns the data of a certain device with specified parameters
         """
