@@ -1,13 +1,5 @@
-// Using DataStore from GCP
-// const { instances } = require("gstore-node");
-// const gstoreDefaultInstance = instances.get("default");
-// const gstoreWithCache = instances.get("cache-on");
-// const gstoreStaging = instances.get("staging");
-// const Schema = gstoreDefaultInstance.Schema;
-
 //const DataAccess = require("../config/das");
 const mongoose = require("mongoose");
-const Schema = mongoose.Schema;
 const validator = require("validator");
 const { passwordReg } = require("../utils/validations");
 const bcrypt = require("bcrypt");
@@ -26,7 +18,7 @@ function oneMonthFromNow() {
   return d;
 }
 
-const UserSchema = new Schema({
+const CandidateSchema = new mongoose.Schema({
   email: {
     type: String,
     unique: true,
@@ -53,24 +45,6 @@ const UserSchema = new Schema({
     required: [true, "LastName is required"],
     trim: true,
   },
-  userName: {
-    type: String,
-    required: [true, "UserName is required!"],
-    trim: true,
-    unique: true,
-  },
-  password: {
-    type: String,
-    required: [true, "Password is required!"],
-    trim: true,
-    minlength: [6, "Password is required"],
-    validate: {
-      validator(password) {
-        return passwordReg.test(password);
-      },
-      message: "{VALUE} is not a valid password!",
-    },
-  },
   interest: { type: String, default: "none" },
   org_name: { type: String, default: "none" },
   privilege: { type: String, default: "admin" },
@@ -90,39 +64,21 @@ const UserSchema = new Schema({
   resetPasswordExpires: { type: Date },
 });
 
-UserSchema.pre("save", function (next) {
+CandidateSchema.pre("save", function (next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
   }
   return next();
 });
 
-UserSchema.pre("findOneAndUpdate", function () {
-  const update = this.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
-      }
-    }
-  }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
-});
-
-UserSchema.pre("update", function (next) {
+CandidateSchema.pre("update", function (next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
   }
   return next();
 });
 
-UserSchema.methods = {
+CandidateSchema.methods = {
   _hashPassword(password) {
     // bcrypt.hash(password, saltRounds).then(function (hash) {
     //     return hash;
@@ -150,21 +106,20 @@ UserSchema.methods = {
       _id: this._id,
       userName: this.userName,
       token: `JWT ${this.createToken()}`,
-      email: this.email,
     };
   },
   toJSON() {
     return {
       _id: this._id,
-      userName: this.userName,
-      email: this.email,
+      firstName: this.firstName,
+      lastName: this.lastName,
     };
   },
 };
 
-const user = mongoose.model("user", UserSchema);
+const candidate = mongoose.model("candidate", CandidateSchema);
 
-module.exports = user;
+module.exports = candidate;
 
 // shall consider this when implementing the Bridge Design Pattern
 // const Model = function () {
