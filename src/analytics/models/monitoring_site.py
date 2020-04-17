@@ -18,12 +18,48 @@ class MonitoringSite():
 
     def __init__(self):
         """ initialize """ 
+
+    def get_location_devices_code(self, organisation_name, location_name):
+        """
+        Gets all the devices associated to the specified location name(parish name) for a particular organisation.
+
+        Args:
+            organisation_name: the name of the organisation whose monitoring site locations are to be returned. 
+            location_name: the name of the location i.e. parish whose devices are to be returned.
+        Returns:
+            A list of the devices (device codes) associated with the specified organisation name and location name.
+            
+        """
+        devices =[]
+        query = {"$and":[{"Organisation":organisation_name},{"Parish":location_name}]}
+        results = list(app.mongo.db.monitoring_site.find(query,
+        {"DeviceCode": 1, "Parish":1, "LocationCode":1,"Division":1, "_id": 1} ))
+        for result in results:
+            obj = { "DeviceCode": result['DeviceCode'], 
+                    'Parish': result['Parish'],
+                    'Division': result['Division'],
+                    'LocationCode':  result['LocationCode'],                    
+                    '_id':str(result['_id'])}
+            devices.append(obj) 
+
+        return devices
                 
     def get_monitoring_site(self, ):
         """
-        gets the monitoring site with the specified id
+        Gets the monitoring site with the specified id
         """
     def get_monitoring_site_locations(self, organisation_name):
+        """
+        Gets the locations(parish names) of all the monitoring site for a particular organisation.
+
+        Args:
+            organisation_name: the name of the organisation whose monitoring site locations are to be returned. 
+            location_name: the name of the location i.e. parish whose devices are to be returned.
+
+        Returns:
+            A list of the monitoring site locations (parishes) associated with the specified organisation name.
+            
+        """
         results_x =[]
         results = list(app.mongo.db.monitoring_site.find({"Organisation":organisation_name},
         {"DeviceCode": 1, "Parish":1, "LocationCode":1,"Division":1,"LatestHourlyMeasurement":1, "_id": 1} ))

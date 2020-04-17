@@ -11,6 +11,57 @@ _logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+
+@dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
+def generate_customised_chart_data():
+    ms = monitoring_site.MonitoringSite()
+    if request.method == 'POST':
+        json_data = request.get_json()
+        if not json_data:
+               return {'message': 'No input data provided'}, 400      
+        
+        #input_data, errors = validate_inputs(input_data=json_data) //add server side validation
+        #if not errors:       
+
+        locations = json_data["locations"]
+        #device_code = 'ANQ16PZJ'
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
+        frequency = json_data["frequency"]
+        pollutant = json_data["pollutant"]
+        chart_type = json_data["chartType"]
+        organisation_name= json_data["organisation_name"]
+        custom_chat_data = []
+
+        locations_devices =[]
+        for location in locations:
+            devices = ms.get_location_devices_code( organisation_name, location['label'])
+            for device in devices:
+                device_code=device['DeviceCode']
+                division = device['Division']
+                parish = device['Parish']
+                location_code= device['LocationCode']
+                #device_id = device['_id']
+                results = json.loads(json_util.dumps(
+                    mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )))
+
+                custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+                 'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+                 'location_code':location_code, 'chart_data':results })
+                
+
+            locations_devices.append(devices)
+             
+            
+                   
+
+
+            #get location based data i.e get location devices.
+        return jsonify({'results':custom_chat_data})
+        
+        #else:            
+            #return jsonify({'inputs': json_data,'errors': errors})
+
 @dashboard_bp.route('/api/v1/device/custom/chart/ANQ16PZJ', methods = ['GET'])
 def get_hourly_custom_chart_data():
     device_code = 'ANQ16PZJ'

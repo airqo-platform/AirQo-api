@@ -112,6 +112,8 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
                                  
         if pollutant == 'PM 10':
             projection = { '_id': 0, 'time': 1, 'characteristics.pm10ConcMass.value':1 }
+        elif pollutant == 'NO2':
+            projection = { '_id': 0, 'time': 1, 'characteristics.no2Conc.value':1 }        
         else:
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
                                  
