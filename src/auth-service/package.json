@@ -10,6 +10,7 @@
         "test": "NODE_ENV=test nodemon ./bin/www"
     },
     "dependencies": {
+        "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
         "bcrypt": "^3.0.6",
         "body-parser": "~1.18.2",
@@ -23,6 +24,7 @@
         "express-jwt": "^5.3.1",
         "express-session": "^1.17.0",
         "express-validation": "^1.0.3",
+        "gstore-node": "^7.2.4",
         "helmet": "^3.21.1",
         "http-status": "^1.4.0",
         "is-empty": "^1.2.0",
