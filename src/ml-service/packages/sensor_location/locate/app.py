@@ -2,11 +2,12 @@ from flask import Flask, jsonify, request
 from flask_pymongo import PyMongo
 from modules import locate_model, locate_helper 
 #from flask_cors import CORS, crossorigin
+import os
  
 app = Flask(__name__)
 
 # add mongo url to flask config, so that flask_pymongo can use it to make connection
-app.config["MONGO_URI"] = "mongodb://localhost:27017/geocensus_db"
+app.config["MONGO_URI"] = os.getenv('MONGO_URI')
 mongo = PyMongo(app)
 
 @app.route('/', methods=['GET', 'POST'])
@@ -14,10 +15,9 @@ def main():
     return 'ok'
 
 @app.route('/api/v1/parishes', methods=['GET', 'POST'])
-#@crossorigin
 def place_sensors():
     '''
-    returns recommended parishes based on user input
+    returns recommended parishes based on user input (district/subcounty)
     '''
     district = 'WAKISO'
     subcounty = None
@@ -33,10 +33,9 @@ def place_sensors():
         return jsonify(recommended_parishes)
 
 @app.route('/api/v1/map/parishes', methods = ['GET', 'POST'])
-#@crossorigin
 def place_sensors_map():
     '''
-    Returns parishes recommended by the model given the geographical polygon
+    Returns parishes recommended by the model given the polygon
     '''
     if request.method == 'POST':
         json_data = request.get_json()
@@ -44,6 +43,7 @@ def place_sensors_map():
            return {'message': 'No input data provided'}, 400
         else:
             sensor_number = json_data["sensor_number"]
+            #sensor_number = 5
             polygon = json_data["polygon"]
             #polygon = [[[ 32.506, 0.314], [32.577, 0.389], [32.609, 0.392], [32.641, 0.362], [32.582, 0.266], [32.506, 0.314]]]
             if polygon==None:
