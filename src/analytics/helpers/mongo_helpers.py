@@ -95,25 +95,28 @@ def get_last_time(device_code):
     last_time = last_record[0]['time']
     return last_time
 
-def get_filtered_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'pm2_5'):
+def get_filtered_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'PM 2.5'):
         """
         returns the data of a certain device with specified parameters
         """
         if start_date == None:
             start = helpers.str_to_date_find('2019-06-01T00:00:00Z')
         else:
-            start = helpers.str_to_date_find(start_date)
+            start = helpers.str_to_date(start_date)
         if end_date == None:
             end = datetime.now()
         else:
-            end = helpers.str_to_date_find(end_date)
+            end = helpers.str_to_date(end_date)
         
         query = { 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }
                                  
-        if pollutant == 'pm10':
+        if pollutant == 'PM 10':
             projection = { '_id': 0, 'time': 1, 'characteristics.pm10ConcMass.value':1 }
-        else:
+        elif pollutant == 'PM 2.5':
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
+        else:
+            projection = { '_id': 0, 'time': 1, 'characteristics.no2Conc.value':1 }
+
                                  
         #client = MongoClient(MONGO_URI)
         #client = MongoClient("mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority")  
@@ -128,12 +131,10 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
                                  
         #if frequency =='hourly':
             #records = db.device_hourly_measurements.find(query, projection)
-            #records = db.clarity_data.find(query, projection)
-    
-        #else:
+        #elif frequency=='daily
             #records = db.device_daily_measurements.find(query, projection)
-            #records = db.clarity_data.find(query, projection)
-    
+        #else:
+            #records = db.device_monthly_measurements.find(query, projection)
         return list(records)
 
 def get_piechart_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'PM 2.5'):

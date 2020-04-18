@@ -29,7 +29,7 @@ def create_app(*, config_object) -> Flask:
     
     #import blueprints
     from controllers.monitoring_site import monitoring_site_bp
-    from controllers.helpers import analytics_app
+    from controllers.graph import analytics_app
     from controllers.dashboard import dashboard_bp
 
 

@@ -29,6 +29,20 @@ def get_organisation_monitoring_site():
         else:
             return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
 
+@dashboard_bp.route('/api/v1/dashboard/monitoringsites/locations', methods=['GET'])
+def get_organisation_monitoring_site_locations():
+    ms = monitoring_site.MonitoringSite()
+    if request.method == 'GET':
+        org_name= request.args.get('organisation_name')
+        if org_name:
+            monitoring_sites_locations=[]
+            organisation_monitoring_sites_cursor = ms.get_monitoring_site_locations(org_name)
+            for site in organisation_monitoring_sites_cursor:
+                monitoring_sites_locations.append(site)
+            results = json.loads(json_util.dumps(monitoring_sites_locations))
+            return jsonify({"airquality_monitoring_sites":results})
+        else:
+            return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
 
 
 @dashboard_bp.route('/api/v1/dashboard/historical/daily/devices', methods=['GET'])
