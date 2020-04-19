@@ -108,21 +108,25 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         else:
             end = helpers.str_to_date(end_date)
 
-        query = { 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }
+        query = {'$match':{ 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }}
                                  
-        if pollutant == 'PM 10':
-            projection = { '_id': 0, 'time': 1, 'characteristics.pm10ConcMass.value':1 }
-        elif pollutant == 'NO2':
-            projection = { '_id': 0, 'time': 1, 'characteristics.no2Conc.value':1 }        
-        else:
-            projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
-                                 
-        #client = MongoClient(MONGO_URI)  
-        #db=client['airqo_analytics']
-                                 
+        if pollutant == 'PM 10':            
+            projection = { '$project': { '_id': 0, 
+            'time': {'$dateToString':{ 'format': '%Y-%m-%dT%H:%M:%S%z', 'date': '$time', 'timezone':'Africa/Kampala'}}, 
+                'pollutant_value': {'$round':['$characteristics.pm10ConcMass.value',2]} }}
+        elif pollutant == 'NO2':           
+            projection = { '$project': { '_id': 0, 
+            'time': {'$dateToString':{ 'format': '%Y-%m-%dT%H:%M:%S%z', 'date': '$time', 'timezone':'Africa/Kampala'}}, 
+                'pollutant_value': {'$round':['$characteristics.no2Conc.value',2]} }}       
+        else:            
+            projection = { '$project': { '_id': 0, 
+            'time': {'$dateToString':{ 'format': '%Y-%m-%dT%H:%M:%S%z', 'date': '$time', 'timezone':'Africa/Kampala'}}, 
+                'pollutant_value': {'$round':['$characteristics.pm2_5ConcMass.value',2]} }} 
+                                
+                                         
         if frequency =='hourly':
-            records = mongo.db.device_hourly_measurements.find(query, projection)
+            records = mongo.db.device_hourly_measurements.aggregate([query, projection])            
         else:
-            records = mongo.db.device_daily_measurements.find(query, projection)
+            records = mongo.db.device_daily_measurements.aggregate([query, projection])
     
         return list(records)

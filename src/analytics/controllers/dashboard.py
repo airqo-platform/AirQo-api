@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 import app
-from models import monitoring_site
+from models import monitoring_site, graph
 from bson import json_util, ObjectId
 import json
 from helpers import mongo_helpers
@@ -12,9 +12,44 @@ _logger = logging.getLogger(__name__)
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
+@dashboard_bp.route('/api/v1/dashboard/customisedchart/random', methods = ['GET'])
+def get_random_location_hourly_customised_chart_data():
+    ms = monitoring_site.MonitoringSite()
+    gr = graph.Graph()
+    device_code = 'ANQ16PZJ'
+    start_date = '2020-04-12T07:00:00.000000Z'
+    end_date = '2020-04-14T07:00:00.000000Z'
+    frequency = 'hourly'
+    pollutant = 'PM 2.5'
+    chart_type = 'line'
+    organisation_name= 'KCCA'
+    parish = 'Nakawa'
+    location_code ='KCCA_NKWA_AQ01'
+    division = 'Nakawa'
+
+    custom_chat_data = []
+    
+    values =[]
+    labels =[]    
+    device_results={}
+    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+    if filtered_data:
+        for data in filtered_data: 
+            values.append(data['pollutant_value'])
+            labels.append(data['time'])
+        device_results= {'pollutant_values':values, 'labels':labels}         
+                                                   
+                               
+        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+            'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+            'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
+
+    return jsonify({'results':custom_chat_data})
+
 @dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
 def generate_customised_chart_data():
     ms = monitoring_site.MonitoringSite()
+    gr = graph.Graph()
     if request.method == 'POST':
         json_data = request.get_json()
         if not json_data:
@@ -23,8 +58,7 @@ def generate_customised_chart_data():
         #input_data, errors = validate_inputs(input_data=json_data) //add server side validation
         #if not errors:       
 
-        locations = json_data["locations"]
-        #device_code = 'ANQ16PZJ'
+        locations = json_data["locations"]        
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
@@ -42,21 +76,24 @@ def generate_customised_chart_data():
                 parish = device['Parish']
                 location_code= device['LocationCode']
                 #device_id = device['_id']
-                results = json.loads(json_util.dumps(
-                    mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )))
+                values =[]
+                labels =[]    
+                device_results={}
+                filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+                if filtered_data:
+                    for data in filtered_data: 
+                        values.append(data['pollutant_value'])
+                        labels.append(data['time'])
+                    device_results= {'pollutant_values':values, 'labels':labels}           
+                                                   
+                               
 
                 custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
                  'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                 'location_code':location_code, 'chart_data':results })
-                
+                 'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
 
-            locations_devices.append(devices)
-             
+            locations_devices.append(devices)        
             
-                   
-
-
-            #get location based data i.e get location devices.
         return jsonify({'results':custom_chat_data})
         
         #else:            

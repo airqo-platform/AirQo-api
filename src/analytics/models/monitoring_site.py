@@ -4,11 +4,7 @@ from helpers import mongo_helpers
 from helpers import helpers
 
 class MonitoringSite():
-    """The summary line for a class docstring should fit on one line.
-
-    If the class has public attributes, they may be documented here
-    in an ``Attributes`` section and follow the same formatting as a
-    function's ``Args`` section.
+    """The class contains functionality for retrieving data related to monitoring sites.
 
     Attributes:
         attr1 (str): Description of `attr1`.
@@ -44,10 +40,12 @@ class MonitoringSite():
 
         return devices
                 
-    def get_monitoring_site(self, ):
+    def get_monitoring_site(self, id ):
         """
         Gets the monitoring site with the specified id
         """
+        pass
+
     def get_monitoring_site_locations(self, organisation_name):
         """
         Gets the locations(parish names) of all the monitoring site for a particular organisation.
@@ -149,8 +147,7 @@ class MonitoringSite():
         Returns:
             A list of the daily measurements for the past 28 days.
         """       
-        results = list(app.mongo.db.device_daily_historical_averages.find({},{ "_id": 0}))
-        #results = list(app.mongo.db..find({"deviceCode":device_code}))
+        results = list(app.mongo.db.device_daily_historical_averages.find({},{ "_id": 0}))        
         return results
 
         
