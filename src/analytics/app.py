@@ -12,7 +12,7 @@ from flask_cors import CORS
 _logger = logging.getLogger(__name__)
 
 mongo = PyMongo()
-MONGO_URI = ''
+MONGO_URI = os.getenv("MONGO_URI")
 
 def create_app(*, config_object) -> Flask:
     """Create a flask app instance."""

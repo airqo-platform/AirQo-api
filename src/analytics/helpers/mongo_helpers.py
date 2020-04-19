@@ -3,9 +3,10 @@ from pymongo import MongoClient
 from app import mongo, MONGO_URI
 from datetime import datetime
 import os
+import sys
 
 
-MONGO_URI =  os.getenv("MONGO_URI")
+#MONGO_URI =  os.getenv("MONGO_URI")
 
 def save_device_daily_historical_averages(data):
     """
@@ -99,6 +100,10 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         """
         returns the data of a certain device with specified parameters
         """
+
+        client = MongoClient(MONGO_URI)
+        db = client ['airqo_analytics']
+
         if start_date == None:
             start = helpers.str_to_date_find('2019-06-01T00:00:00Z')
         else:
@@ -112,70 +117,137 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
                                  
         if pollutant == 'PM 10':
             projection = { '_id': 0, 'time': 1, 'characteristics.pm10ConcMass.value':1 }
-        elif pollutant == 'PM 2.5':
-            projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
-        else:
+            if frequency =='hourly':
+                records = list(db.device_hourly_measurements.find(query, projection))
+            elif frequency=='daily':
+                records = list(db.device_daily_measurements.find(query, projection))
+            else:
+                records = list(db.device_raw_measurements.find(query, projection))
+            for i in range(len(records)):
+                if records[i]['characteristics']['pm10ConcMass']['value'] >0 and records[i]['characteristics']['pm10ConcMass']['value'] <=54:
+                    records[i]['backgroundColor'] = 'green'
+                elif records[i]['characteristics']['pm10ConcMass']['value'] >54 and records[i]['characteristics']['pm10ConcMass']['value'] <=154:
+                    records[i]['backgroundColor'] = 'yellow'
+                elif records[i]['characteristics']['pm10ConcMass']['value'] > 154 and records[i]['characteristics']['pm10ConcMass']['value'] <= 254:
+                    records[i]['backgroundColor'] = 'orange'
+                elif records[i]['characteristics']['pm10ConcMass']['value'] > 254 and records[i]['characteristics']['pm10ConcMass']['value'] <= 354:
+                    records[i]['backgroundColor'] = 'red'
+                elif records[i]['characteristics']['pm10ConcMass']['value'] > 354 and records[i]['characteristics']['pm10ConcMass']['value'] <= 424:
+                    records[i]['backgroundColor'] = 'purple'
+                elif records[i]['characteristics']['pm10ConcMass']['value'] > 424 and records[i]['characteristics']['pm10ConcMass']['value'] <=604:
+                    records[i]['backgroundColor'] = 'maroon'
+                else:
+                    records[i]['backgroundColor'] = 'gray'
+            return records
+        elif pollutant == 'NO2':
             projection = { '_id': 0, 'time': 1, 'characteristics.no2Conc.value':1 }
+            if frequency =='hourly':
+                records = list(db.device_hourly_measurements.find(query, projection))
+            elif frequency=='daily':
+                records = list(db.device_daily_measurements.find(query, projection))
+            else:
+                records = list(db.device_raw_measurements.find(query, projection))
+            for i in range(len(records)):
+                if records[i]['characteristics']['no2Conc']['value'] >0.0 and records[i]['characteristics']['no2Conc']['value'] <=53:
+                    records[i]['backgroundColor'] = 'green'
+                elif records[i]['characteristics']['no2Conc']['value'] > 53 and records[i]['characteristics']['no2Conc']['value'] <=100:
+                    records[i]['backgroundColor'] = 'yellow'
+                elif records[i]['characteristics']['no2Conc']['value'] > 100 and records[i]['characteristics']['no2Conc']['value'] <= 360:
+                    records[i]['backgroundColor'] = 'orange'
+                elif records[i]['characteristics']['no2Conc']['value'] > 360 and records[i]['characteristics']['no2Conc']['value'] <= 649:
+                    records[i]['backgroundColor'] = 'red'
+                elif records[i]['characteristics']['no2Conc']['value'] > 649 and records[i]['characteristics']['no2Conc']['value'] <= 1249:
+                    records[i]['backgroundColor'] = 'purple'
+                elif records[i]['characteristics']['no2Conc']['value'] > 1249 and records[i]['characteristics']['no2Conc']['value'] <=2049:
+                    records[i]['backgroundColor'] = 'maroon'
+                else:
+                    records[i]['backgroundColor'] = 'gray'
+            return records
+        else:
+            projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
+            if frequency =='hourly':
+                records = list(db.device_hourly_measurements.find(query, projection))
+            elif frequency=='daily':
+                records = list(db.device_daily_measurements.find(query, projection))
+            else:
+                records = list(db.device_raw_measurements.find(query, projection))
+            for i in range(len(records)):
+                if records[i]['characteristics']['pm2_5ConcMass']['value'] >0.0 and records[i]['characteristics']['pm2_5ConcMass']['value'] <=12.0:
+                    records[i]['backgroundColor'] = 'green'
+                elif records[i]['characteristics']['pm2_5ConcMass']['value'] >12.0 and records[i]['characteristics']['pm2_5ConcMass']['value'] <=35.4:
+                    records[i]['backgroundColor'] = 'yellow'
+                elif records[i]['characteristics']['pm2_5ConcMass']['value'] > 35.4 and records[i]['characteristics']['pm2_5ConcMass']['value'] <= 55.4:
+                    records[i]['backgroundColor'] = 'orange'
+                elif records[i]['characteristics']['pm2_5ConcMass']['value'] > 55.4 and records[i]['characteristics']['pm2_5ConcMass']['value'] <= 150.4:
+                    records[i]['backgroundColor'] = 'red'
+                elif records[i]['characteristics']['pm2_5ConcMass']['value'] > 150.4 and records[i]['characteristics']['pm2_5ConcMass']['value'] <= 250.4:
+                    records[i]['backgroundColor'] = 'purple'
+                elif records[i]['characteristics']['pm2_5ConcMass']['value'] > 250.4 and records[i]['characteristics']['pm2_5ConcMass']['value'] <=500.4:
+                    records[i]['backgroundColor'] = 'maroon'
+                else:
+                    records[i]['backgroundColor'] = 'gray'
+            return records      
 
-                                 
-        #client = MongoClient(MONGO_URI)
-        #client = MongoClient("mongodb+srv://lillian:fosho@cluster0-99jha.gcp.mongodb.net/test?retryWrites=true&w=majority")  
-        #db=client['airqo_analytics']
         
-
-        client = MongoClient("mongodb://localhost:27017/")  
-        db=client['kcca_db']
-        
-        records = db.clarity_data.find(query, projection)
-        #records = db.device_raw_measurements.find(query, projection)
-                                 
-        #if frequency =='hourly':
-            #records = db.device_hourly_measurements.find(query, projection)
-        #elif frequency=='daily
-            #records = db.device_daily_measurements.find(query, projection)
-        #else:
-            #records = db.device_monthly_measurements.find(query, projection)
-        return list(records)
-
 def get_piechart_data(device_code, start_date = None, end_date=None, frequency = 'daily', pollutant = 'PM 2.5'):
     '''
     returns the data to generate a pie chart given specific parameters
     '''
     records = get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+    if records:
+        if pollutant == 'PM 2.5':
+            #records = get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+            good_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >0.0 and 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] <=12.0)
+            moderate_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >12.0 and 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] <=35.4)
+            UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >35.4 and 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] <=55.4)
+            unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >55.4 and 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] <=150.4)
+            v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >150.4 and 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] <=250.4)
+            hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >250.4 and 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] <=500.4)
+            unknowns_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] <0.0 or 
+            records[i]['characteristics']['pm2_5ConcMass']['value'] > 500.4)
+
+        elif pollutant =='PM 10':
+            #records = get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+            good_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >0.0 and 
+            records[i]['characteristics']['pm10ConcMass']['value'] <=54)
+            moderate_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >54 and 
+            records[i]['characteristics']['pm10ConcMass']['value'] <=154)
+            UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >154 and 
+            records[i]['characteristics']['pm10ConcMass']['value'] <=254)
+            unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >254 and 
+            records[i]['characteristics']['pm10ConcMass']['value'] <=354)
+            v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >354 and 
+            records[i]['characteristics']['pm10ConcMass']['value'] <=424)
+            hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >424 and 
+            records[i]['characteristics']['pm10ConcMass']['value'] <=604)
+            unknowns_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] <0.0 or 
+            records[i]['characteristics']['pm10ConcMass']['value'] > 604)
+
+        else:
+            records = get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+            good_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >0 and 
+            records[i]['characteristics']['no2Conc']['value'] <=53)
+            moderate_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >53 and 
+            records[i]['characteristics']['no2Conc']['value'] <=100)
+            UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >100 and 
+            records[i]['characteristics']['no2Conc']['value'] <=360)
+            unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >360 and 
+            records[i]['characteristics']['no2Conc']['value'] <=649)
+            v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >649 and 
+            records[i]['characteristics']['no2Conc']['value'] <=1249)
+            hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >1249 and 
+            records[i]['characteristics']['no2Conc']['value'] <=2049)
+            unknowns_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] <0.0 or 
+            records[i]['characteristics']['no2Conc']['value'] > 2049)
+        
+        tasks = [good_sum, moderate_sum, UH4SG_sum, unhealthy_sum, v_unhealthy_sum, hazardous_sum, unknowns_sum]
     
-    good_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >0.0 and 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] <=12.0)
-
-    moderate_sum = sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >12.0 and 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] <=35.4)
-
-    UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >35.4 and 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] <=55.4)
-
-    unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >55.4 and 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] <=150.4)
-
-    v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >150.4 and 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] <=250.4)
-
-    hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >250.4 and 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] <=500.4)
-
-    unknowns_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] <0.0 or 
-    records[i]['characteristics']['pm2_5ConcMass']['value'] > 500.4)
-    
-    tasks = [good_sum, moderate_sum, UH4SG_sum, unhealthy_sum, v_unhealthy_sum, hazardous_sum, unknowns_sum]
-
-    #labels = 'Good', 'Moderate', 'UH4SG', 'Unhealthy', 'Very Unhealthy', 'Hazardous', 'Other'
-
-    #records = []
-    #for i in range(len(tasks)):
-        #mydict = dict()
-        #mydict['y'] = tasks[i]
-        #mydict['label']= labels[i]
-        #myjson= json.dumps(mydict)
-       # records.append(mydict)
-    
-    #return tasks, labels
-    #return records
+    else:
+        tasks = []
     return tasks

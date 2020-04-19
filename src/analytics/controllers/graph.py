@@ -15,11 +15,6 @@ _logger = logging.getLogger(__name__)
 
 analytics_app = Blueprint('analytics_app', __name__)
 
-#cors = CORS(analytics_app)
-#analytics_app.config['CORS_HEADERS'] = 'Content-Type'
-
-
-
 @analytics_app.route('/api/v1/device/codes', methods =['GET'])
 def get_device_codes():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
@@ -107,15 +102,14 @@ def update_raw_measurements():
 @cross_origin()
 def get_filtered_data():
     if request.method=='POST':
-        print ('POST REQUEST MADE:', file=sys.stderr)
         json_data = request.get_json()
         if not json_data:
             print ('JSON DATA IS EMPTY:', file=sys.stderr)
             return jsonify({'response': 'No input data found'}), 200
         else:
-            print('POST REQUEST MADE!', file=sys.stderr)
             #device_code =json_data["location"]
             device_code = "ALS2LCWY"
+            #device_code = json_data["deviceCode"]
             print('device code:',device_code, file=sys.stderr)
             start_date =json_data["startDate"]
             print('start date:',start_date, file=sys.stderr)
