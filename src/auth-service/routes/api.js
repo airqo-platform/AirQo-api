@@ -34,11 +34,7 @@ router.post(
   validate(userValidation.register),
   joinController.registerUser
 );
-router.post(
-  "/registerCandidate",
-  validate(userValidation.register),
-  joinController.registerCandidate
-);
+router.post("/registerCandidate", joinController.registerCandidate);
 router.delete("/:id", authJWT, joinController.deleteUser);
 router.put("/:id", authJWT, joinController.updateUser);
 router.post("/logout/:id", authJWT, joinController.logout);

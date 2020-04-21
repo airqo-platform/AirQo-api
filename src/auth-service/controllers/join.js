@@ -147,16 +147,6 @@ const join = {
   },
 
   registerUser: (req, res) => {
-    //hitting the register endpoint....
-    const {
-      email,
-      firstName,
-      lastName,
-      userName,
-      password,
-      privilege,
-    } = req.body;
-
     console.log(process.env.ATLAS_URI);
 
     const { errors, isValid } = validateRegisterInput(req.body);
@@ -203,33 +193,37 @@ const join = {
   },
 
   registerCandidate: (req, res) => {
-    //hitting the register endpoint....
-    const {
-      email,
-      firstName,
-      lastName,
-      userName,
-      password,
-      privilege,
-    } = req.body;
-
-    console.log(process.env.ATLAS_URI);
-
+    //console.log(process.env.ATLAS_URI);
     const { errors, isValid } = validateCandidateInput(req.body);
 
     if (!isValid) {
       return res.status(400).json(errors);
     }
-
+    console.log("past the error phase...");
     Candidate.findOne({ email: req.body.email }).then((user) => {
+      console.log("finding one....");
       if (user) {
         return res.status(400).json({ email: "Email already exists" });
       } else {
+        const {
+          firstName,
+          lastName,
+          email,
+          jobTitle,
+          company,
+          phoneNumber,
+          country,
+          desc,
+        } = req.body;
         const user = new Candidate({
-          firstName: req.body.firstName,
-          lastName: req.body.lastName,
-          email: req.body.email,
-          privilege: req.body.privilege,
+          firstName: firstName,
+          lastName: lastName,
+          email: email,
+          jobTitle: jobTitle,
+          company: company,
+          phoneNumber: phoneNumber,
+          country: country,
+          desc: desc,
         });
         user.save((error, savedData) => {
           if (error) {
@@ -238,7 +232,7 @@ const join = {
             //sending the confirmation email to the user
             const mailOptions = {
               from: `info@airqo.net`,
-              to: `${user.email}`,
+              to: `${email}`,
               subject: "AirQo Platform JOIN request",
               text: msgs.joinRequest,
             };
