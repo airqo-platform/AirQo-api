@@ -71,8 +71,26 @@ def get_parishes_map(polygon):
         records = db.geometry_polygon.find(query, projection)
         return list(records)
 
-
+def get_parish_for_point(point):
+    '''
+    Gets the parish in which the given coordinates belong
+    '''
+    query = {
+        'geometry': {
+            '$geoIntersects': {
+                '$geometry': {
+                    'type': 'Point' ,
+                    'coordinates': point
+                }
+            }
+        }
+    }
     
+    projection = { '_id': 0 }
+    db = connect_mongo()
+    records = db.geometry_polygon.find(query, projection)
+    return list(records)
+
 
     
     

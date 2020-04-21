@@ -57,6 +57,28 @@ def place_sensors_map():
                 all_parishes_df = locate_helper.process_data(all_parishes_df)
                 recommended_parishes = locate_helper.kmeans_algorithm(all_parishes_df, sensor_number)
                 return jsonify(recommended_parishes)
-    
+
+@app.route('/api/v1/map/parishes/trial', methods = ['POST'])
+def place_sensors_map_trial():
+    '''
+    Returns parishes recommended by the model given the polygon and must-have coordinates
+    '''
+    if request.method == 'POST':
+        json_data = request.get_json()
+        if not json_data:
+            return {'message': 'No input data provided'}, 400
+        else:
+            sensor_number = json_data["sensor_number"]
+            polygon = json_data["polygon"]
+            must_have_coordinates = json_data["must_have_coordinates"]
+
+            return jsonify(locate_helper.recommend_locations(sensor_number, must_have_coordinates, polygon))
+ 
+            #sensor_number = 5
+            #must_have_coordinates = [[32.59644375916393, 0.3529332145446762], [32.61814535019111, 0.3466625846873538], 
+             #            [32.61260713509556, 0.3258361619681596]]
+            #polygon = [[[ 32.506, 0.314], [32.577, 0.389], [32.609, 0.392], [32.641, 0.362], [32.582, 0.266], [32.506, 0.314]]]
+            
+           
 if __name__ == "__main__":
    app.run()
