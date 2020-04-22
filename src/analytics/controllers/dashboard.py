@@ -26,8 +26,9 @@ def get_random_location_hourly_customised_chart_data():
     parish = 'Nakawa'
     location_code ='KCCA_NKWA_AQ01'
     division = 'Nakawa'
-
     custom_chat_data = []
+    datasets = []
+    colors =['green', 'blue', 'red','orange']
     
     values =[]
     labels =[]    
@@ -37,14 +38,17 @@ def get_random_location_hourly_customised_chart_data():
         for data in filtered_data: 
             values.append(data['pollutant_value'])
             labels.append(data['time'])
-        device_results= {'pollutant_values':values, 'labels':labels}         
+        device_results= {'pollutant_values':values, 'labels':labels}
+        color = colors.pop() 
+        dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
+        datasets.append(dataset)          
                                                    
                                
         custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
             'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
             'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
 
-    return jsonify({'results':custom_chat_data})
+    return jsonify({'results':custom_chat_data, 'datasets':datasets})
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
 def generate_customised_chart_data():
@@ -66,8 +70,9 @@ def generate_customised_chart_data():
         chart_type = json_data["chartType"]
         organisation_name= json_data["organisation_name"]
         custom_chat_data = []
-
+        datasets = [] #displaying multiple locations
         locations_devices =[]
+        colors =['green', 'blue', 'red','orange']
         for location in locations:
             devices = ms.get_location_devices_code( organisation_name, location['label'])
             for device in devices:
@@ -78,23 +83,26 @@ def generate_customised_chart_data():
                 #device_id = device['_id']
                 values =[]
                 labels =[]    
-                device_results={}
+                device_results={}               
+               
                 filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
                 if filtered_data:
                     for data in filtered_data: 
                         values.append(data['pollutant_value'])
                         labels.append(data['time'])
-                    device_results= {'pollutant_values':values, 'labels':labels}           
+                    device_results= {'pollutant_values':values, 'labels':labels}
+                    color = colors.pop() 
+                    dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
+                    datasets.append(dataset)      
                                                    
-                               
-
+                
                 custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
                  'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                 'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
+                 'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets})
 
             locations_devices.append(devices)        
             
-        return jsonify({'results':custom_chat_data})
+        return jsonify({'results':custom_chat_data, 'datasets':datasets})
         
         #else:            
             #return jsonify({'inputs': json_data,'errors': errors})
