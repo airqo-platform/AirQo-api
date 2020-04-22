@@ -2,9 +2,12 @@ from flask import Flask, jsonify, request
 from flask_pymongo import PyMongo
 from modules import locate_model, locate_helper 
 #from flask_cors import CORS, crossorigin
+from flask_cors import CORS
 import os
+import sys
  
 app = Flask(__name__)
+CORS(app)
 
 # add mongo url to flask config, so that flask_pymongo can use it to make connection
 app.config["MONGO_URI"] = os.getenv('MONGO_URI')
@@ -38,13 +41,17 @@ def place_sensors_map():
     Returns parishes recommended by the model given the polygon
     '''
     if request.method == 'POST':
+        #print('Yay, a post request!', file=sys.stderr)
         json_data = request.get_json()
         if not json_data:
            return {'message': 'No input data provided'}, 400
         else:
-            sensor_number = json_data["sensor_number"]
-            #sensor_number = 5
-            polygon = json_data["polygon"]
+            #print('JSON data available!', file=sys.stderr)
+            #sensor_number = json_data["sensor_number"]
+            print('Hello world!', file=sys.stderr)
+            sensor_number = 10
+            polygon = json_data["geometry"]["coordinates"]
+            print(polygon, file=sys.stderr)
             #polygon = [[[ 32.506, 0.314], [32.577, 0.389], [32.609, 0.392], [32.641, 0.362], [32.582, 0.266], [32.506, 0.314]]]
             if polygon==None:
                 return jsonify({'response': 'Please draw a polygon'}), 200
@@ -56,6 +63,10 @@ def place_sensors_map():
                 all_parishes_df = locate_helper.json_to_df(all_parishes)
                 all_parishes_df = locate_helper.process_data(all_parishes_df)
                 recommended_parishes = locate_helper.kmeans_algorithm(all_parishes_df, sensor_number)
+                for parish in recommended_parishes:
+                    parish['fill_color'] = 'red'
+                    parish['color'] = 'blue'
+                   
                 return jsonify(recommended_parishes)
 
 @app.route('/api/v1/map/parishes/trial', methods = ['POST'])

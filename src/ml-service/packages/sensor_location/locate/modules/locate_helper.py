@@ -135,6 +135,8 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
             all_parishes_df = json_to_df(all_parishes)
             all_parishes_df = process_data(all_parishes_df)
             recommended_parishes = kmeans_algorithm(all_parishes_df, sensor_number)
+            for parish in recommended_parishes:
+                parish['color'] = 'red'
             return jsonify(recommended_parishes)
     else:
         all_parishes = locate_model.get_parishes_map(polygon)
@@ -175,7 +177,7 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
         
         final_parishes = recommended_parishes+known_must_have_parishes+unknown_must_have_parishes
         #return count, final_parishes
-        return final_parishes
+        return jsonify(final_parishes)
     
 
 
