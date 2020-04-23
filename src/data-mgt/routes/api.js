@@ -8,5 +8,6 @@ router.post('/', manager.prediction);
 router.get('/channels', manager.storeChannels);
 router.get('/feeds/:ch_id', manager.storeFeeds);
 router.get('/feeds/recent/:ch_id', manager.getLastEntry);
+router.get('/feeds/hourly/:ch_id', manager.hourly);
 
 module.exports = router;

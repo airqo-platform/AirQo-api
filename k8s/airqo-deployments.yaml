@@ -61,6 +61,7 @@ spec:
       containers:
         - name: airqo-data-mgt-service
           image: us.gcr.io/airqo-250220/airqo-data-mgt-service:latest
+
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -73,6 +74,7 @@ metadata:
 spec:
   selector:
     app: airqo-data-mgt-service
+
   ports:
     - protocol: TCP
       port: 3000
@@ -101,6 +103,7 @@ spec:
       containers:
         - name: airqo-ml-service
           image: us.gcr.io/airqo-250220/airqo-ml-service:latest
+
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
