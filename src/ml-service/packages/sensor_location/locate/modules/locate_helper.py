@@ -7,7 +7,7 @@ from pandas.io.json import json_normalize
 import json
 from flask import jsonify
 from shapely.geometry import shape, Point
-#import locate_model
+import sys
 from modules import locate_model
 from collections.abc import MutableMapping
 
@@ -73,8 +73,8 @@ def kmeans_algorithm(data, sensor_number=None):
     
     kmeans_samples = data_copy.sample(frac=1).reset_index(drop=True)
     kmeans_samples= kmeans_samples.drop_duplicates('cluster', keep = 'last')
-    kmeans_samples = kmeans_samples[['properties.district', 'properties.subcounty', 'properties.parish', 
-                                     'geometry.coordinates']]
+    kmeans_samples = kmeans_samples[['properties.district', 'properties.subcounty', 'properties.parish',  'properties.lat', 
+    'properties.long', 'geometry.coordinates']]
     
     return json.loads(kmeans_samples.to_json(orient = 'records'))
 
@@ -129,7 +129,7 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
         return jsonify({'response': 'Please draw a polygon'}), 200
     elif must_have_coordinates==None:
         all_parishes = locate_model.get_parishes_map(polygon)
-        if len(all_parishes)<2:
+        if all_parishes == 'Invalid polygon' or len(all_parishes)<2:
             return jsonify({'response': 'Invalid polygon'}), 200
         else:
             all_parishes_df = json_to_df(all_parishes)
@@ -155,29 +155,37 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
                 count+=1
         must_have_parishes = known_must_have_parishes+unknown_must_have_parishes
         difference_parishes = [parish for parish in all_parishes if parish not in must_have_parishes]
+        print('length of difference_parishes: %d'%(len(difference_parishes)), file=sys.stderr)
         difference_parishes_df = json_to_df(difference_parishes)
         difference_parishes_df = process_data(difference_parishes_df)
-        recommended_parishes = kmeans_algorithm(difference_parishes_df, sensor_number-len(must_have_parishes))
+        new_sensor_number = sensor_number-len(must_have_parishes)
+        try:
+            recommended_parishes = kmeans_algorithm(difference_parishes_df, new_sensor_number)
     
-        keys_to_delete = ['type','region', 'county', 'long', 'lat', 'centroid', 'km2', 'population', 'households', 'population_density', 
-        'household_density', 'charcoal_per_km2', 'firewood_per_km2', 'cowdung_per_km2', 'grass_per_km2', 'wasteburning_per_km2', 
-        'kitch_outsidebuilt_per_km2', 'kitch_makeshift_per_km2', 'kitch_openspace_per_km2', 'type']
+            keys_to_delete = ['type','region', 'county', 'centroid', 'km2', 'population', 'households', 'population_density', 
+            'household_density', 'charcoal_per_km2', 'firewood_per_km2', 'cowdung_per_km2', 'grass_per_km2', 'wasteburning_per_km2', 
+            'kitch_outsidebuilt_per_km2', 'kitch_makeshift_per_km2', 'kitch_openspace_per_km2', 'type']
             
-        for parish in recommended_parishes:
-            parish['color'] = 'red'
-            parish['type'] = 'recommended'
-        for i in range(len(known_must_have_parishes)):
-            known_must_have_parishes[i]['color'] = 'blue'
-            known_must_have_parishes[i]['type'] = 'inside_polygon'
-            known_must_have_parishes[i] = delete_keys_from_dict(known_must_have_parishes[i], keys_to_delete)
-        for i in range(len(unknown_must_have_parishes)):
-            unknown_must_have_parishes[i]['color'] = 'blue'
-            unknown_must_have_parishes[i]['type'] = 'outside_polygon'
-            unknown_must_have_parishes[i] = delete_keys_from_dict(unknown_must_have_parishes[i], keys_to_delete)
+            for parish in recommended_parishes:
+                parish['color'] = 'blue'
+                parish['fill_color'] = 'red'
+                parish['type'] = 'RECOMMENDED'
+            for i in range(len(known_must_have_parishes)):
+                known_must_have_parishes[i]['color'] = 'green'
+                known_must_have_parishes[i]['fill_color'] = 'blue'
+                known_must_have_parishes[i] = delete_keys_from_dict(known_must_have_parishes[i], keys_to_delete)
+                known_must_have_parishes[i]['type'] = 'INSIDE POLYGON'
+            for i in range(len(unknown_must_have_parishes)):
+               unknown_must_have_parishes[i]['color'] = 'red'
+               unknown_must_have_parishes[i]['fill_color'] = 'purple'
+               unknown_must_have_parishes[i] = delete_keys_from_dict(unknown_must_have_parishes[i], keys_to_delete)
+               unknown_must_have_parishes[i]['type'] = 'OUTSIDE POLYGON'
         
-        final_parishes = recommended_parishes+known_must_have_parishes+unknown_must_have_parishes
-        #return count, final_parishes
-        return jsonify(final_parishes)
+            final_parishes = recommended_parishes+known_must_have_parishes+unknown_must_have_parishes
+            return jsonify(final_parishes)
+        except:
+            return {'message': 'An exception occured due to invalid input. Please try again'}, 200
+
     
 
 

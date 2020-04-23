@@ -54,22 +54,25 @@ def get_parishes_map(polygon):
     if polygon == None:
         return 'Please select a polygon'
     else:
-        query = {
-            'geometry': {
-                '$geoWithin': {
-                    '$geometry': {
-                        'type': 'Polygon' ,
-                        'coordinates': polygon
+        try:
+            query = {
+                'geometry': {
+                    '$geoWithin': {
+                        '$geometry': {
+                            'type': 'Polygon' ,
+                            'coordinates': polygon
                     }
                 }
             }
         }
+            
+            projection = { '_id': 0}
     
-        projection = { '_id': 0}
-    
-        db = connect_mongo()
-        records = db.geometry_polygon.find(query, projection)
-        return list(records)
+            db = connect_mongo()
+            records = db.geometry_polygon.find(query, projection)
+            return list(records)
+        except:
+            return 'Invalid polygon'
 
 def get_parish_for_point(point):
     '''
