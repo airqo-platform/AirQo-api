@@ -47,20 +47,20 @@ spec:
 apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
-  name: airqo-datamgt-service
+  name: airqo-data-mgt-service
   namespace: staging
   labels:
-    app: airqo-datamgt-service
+    app: airqo-data-mgt-service
 spec:
   replicas: 3
   template:
     metadata:
       labels:
-        app: airqo-datamgt-service
+        app: airqo-data-mgt-service
     spec:
       containers:
-        - name: airqo-datamgt-service
-          image: us.gcr.io/airqo-250220/airqo-datamgt-service:latest
+        - name: airqo-data-mgt-service
+          image: us.gcr.io/airqo-250220/airqo-data-mgt-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
@@ -68,11 +68,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: airqo-datamgt-service-svc
+  name: airqo-data-mgt-service-svc
   namespace: staging
 spec:
   selector:
-    app: airqo-datamgt-service
+    app: airqo-data-mgt-service
   ports:
     - protocol: TCP
       port: 3000
