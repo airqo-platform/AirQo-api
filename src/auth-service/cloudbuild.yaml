@@ -1,0 +1,28 @@
+steps:
+    - name: node:10.15.1
+      entrypoint: npm
+      args: ["install"]
+    - name: node:10.15.1
+      entrypoint: npm
+      args: ["run", "create-env"]
+      env:
+        - 'MY_SECRET_KEY=${_MY_SECRET_KEY}'
+        - 'MLAB_URI=${_MLAB_URI}'
+        - 'JWT_SECRET=${_JWT_SECRET}'
+        - 'ATLAS_USERNAME=${_ATLAS_USERNAME}'
+        - 'ATLAS_PASSWORD=${_ATLAS_PASSWORD}'
+        - 'ATLAS_URI=${_ATLAS_URI}'
+        - 'SESSION_SECRET=${_SESSION_SECRET}'
+        - 'MAIL_USER=${_MAIL_USER}'
+        - 'MAIL_PASS=${_MAIL_PASS}'
+    - name: "gcr.io/cloud-builders/gcloud"
+      args: ["app", "deploy"]
+    timeout: "1600s"
+
+    
+
+
+
+
+
+
