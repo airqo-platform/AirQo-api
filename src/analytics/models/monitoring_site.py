@@ -1,7 +1,6 @@
 import app 
 from datetime import datetime,timedelta
-from helpers import mongo_helpers
-from helpers import helpers
+from helpers import mongo_helpers, helpers
 
 class MonitoringSite():
     """The class contains functionality for retrieving data related to monitoring sites.
@@ -11,7 +10,7 @@ class MonitoringSite():
         attr2 (:obj:`int`, optional): Description of `attr2`.
 
     """
-
+    
     def __init__(self):
         """ initialize """ 
 
@@ -76,10 +75,40 @@ class MonitoringSite():
     def get_all_organisation_monitoring_sites(self, organisation_name):
         """
         Gets all the monitoring sites for the specified organisation. 
-
+​
         Args:
             organisation_name: the name of the organisation whose monitoring sites are to be returned. 
+​
+        Returns:
+            A list of the monitoring sites associated with the specified organisation name.
+        """
+        results_x =[]
+        results = list(app.mongo.db.monitoring_site.find({"Organisation":organisation_name} ))
+        #,{"DeviceCode": 1, "Parish":1, "LocationCode":1,"Division":1,"LatestHourlyMeasurement":1, "_id": 1}))
+        #print(results)
+        for result in results:
+            if 'LatestHourlyMeasurement' in result:
+                w = result['LatestHourlyMeasurement']
+                last_hour_pm25_value = round(w[-1]['last_hour_pm25_value'],2)
+            else:
+                last_hour_pm25_value=0
+            obj = {"DeviceCode": result['DeviceCode'], 
+                    'Parish': result['Parish'],
+                    'Division': result['Division'],
+                    'Last_Hour_PM25_Value': last_hour_pm25_value,
+                    'Latitude':result['Latitude'],
+                    'Longitude': result['Longitude'],
+                    '_id':str(result['_id'])}
+            results_x.append(obj)
+        return results_x
 
+    def get_all_organisation_monitoring_sitesx(self, organisation_name):
+        """
+        Gets all the monitoring sites for the specified organisation. 
+​
+        Args:
+            organisation_name: the name of the organisation whose monitoring sites are to be returned. 
+​
         Returns:
             A list of the monitoring sites associated with the specified organisation name.
         """
@@ -104,20 +133,6 @@ class MonitoringSite():
             results_x.append(obj)            
 
         return results_x
-
-
-    def get_all_organisation_monitoring_sitesx(self, organisation_name):
-        """
-        Gets all the monitoring sites for the specified organisation. 
-
-        Args:
-            organisation_name: the name of the organisation whose monitoring sites are to be returned. 
-
-        Returns:
-            A list of the monitoring sites associated with the specified organisation name.
-        """
-        results = list(app.mongo.db.monitoring_site.find({"Organisation":organisation_name}))
-        return results
 
 
     def get_device_past_28_days_measurements(self, device_code):

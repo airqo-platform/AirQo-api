@@ -23,6 +23,7 @@ def create_app(*, config_object) -> Flask:
     MONGO_URI = flask_app.config["MONGO_URI"]
     #allow cross domain requests
     CORS(flask_app)
+    flask_app.config['CORS_HEADERS'] = 'Content-Type'
     #register the app with the db.
     mongo.init_app(flask_app)
     
@@ -30,11 +31,14 @@ def create_app(*, config_object) -> Flask:
     from controllers.monitoring_site import monitoring_site_bp
     from controllers.helpers import analytics_app
     from controllers.dashboard import dashboard_bp
+    from controllers.graph import graph_bp   
 
 
     flask_app.register_blueprint(analytics_app)
     flask_app.register_blueprint(monitoring_site_bp)
     flask_app.register_blueprint(dashboard_bp)
+    flask_app.register_blueprint(graph_bp)
+
 
     return flask_app
    

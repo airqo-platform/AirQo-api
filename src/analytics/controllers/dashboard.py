@@ -173,7 +173,7 @@ def get_all_device_past_28_days_measurements():
         return jsonify({"error msg": "invalid request."})
 
 
-@dashboard_bp.route('/api/v1/device/graph', methods = ['GET'])
+@dashboard_bp.route('/api/v1/device/graph_s', methods = ['GET'])
 def get_filtered_data():
     device_code = request.args.get('device_code')
     start_date = request.args.get('start_date')
