@@ -37,7 +37,7 @@ class Graph():
             time_indexed_data = df.set_index(datetime_field)
             resampled_average_concentrations  = time_indexed_data.resample(frequency).mean().round(decimal_places)        
             resampled_timeseries = [{'pollutant_value':row.pollutant_value,
-                'time':datetime.strftime(index,'%Y-%m-%dT%H:%M:%S%z')}
+                'time':datetime.strftime(index,'%b,%Y')}
                 for index, row in resampled_average_concentrations.iterrows() ] 
             return resampled_timeseries
 
