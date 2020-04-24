@@ -45,19 +45,14 @@ def place_sensors_map_trial():
         if not json_data:
             return {'message': 'No input data provided'}, 400
         else:
-            #sensor_number = json_data["sensor_number"]
-            sensor_number = 10
+            sensor_number = json_data["sensor_number"]
+            #sensor_number = 10
             polygon = json_data["geometry"]["coordinates"]
-            #must_have_coordinates = json_data["must_have_coordinates"]
-            must_have_coordinates = [[32.59644375916393, 0.3529332145446762], [32.61814535019111, 0.3466625846873538], 
-            [32.61260713509556, 0.3258361619681596], [30.22042048778645, -0.6377219364867135]]
+            must_have_coordinates = json_data["must_have_coordinates"]
+            #must_have_coordinates = [[32.59644375916393, 0.3529332145446762], [32.61814535019111, 0.3466625846873538], 
+            #[32.61260713509556, 0.3258361619681596], [30.22042048778645, -0.6377219364867135]]
 
             return locate_helper.recommend_locations(sensor_number, must_have_coordinates, polygon)
- 
-            #sensor_number = 5
-            #must_have_coordinates = [[32.59644375916393, 0.3529332145446762], [32.61814535019111, 0.3466625846873538], 
-             #            [32.61260713509556, 0.3258361619681596]]
-            #polygon = [[[ 32.506, 0.314], [32.577, 0.389], [32.609, 0.392], [32.641, 0.362], [32.582, 0.266], [32.506, 0.314]]]
             
            
 if __name__ == "__main__":
