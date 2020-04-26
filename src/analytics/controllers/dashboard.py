@@ -11,6 +11,58 @@ _logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+@dashboard_bp.route('/api/v1/data/download', methods = ['POST'])
+def download_customised_data():
+    ms = monitoring_site.MonitoringSite()
+    gr = graph.Graph()
+    if request.method == 'POST':
+        json_data = request.get_json()
+        if not json_data:
+               return {'message': 'No input data provided'}, 400      
+        
+        #input_data, errors = validate_inputs(input_data=json_data) //add server side validation
+        #if not errors:       
+
+        locations = json_data["locations"]        
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
+        frequency = json_data["frequency"]
+        pollutant = json_data["pollutant"]
+        file_type = json_data["fileType"]
+        degree_of_cleanness = json_data["degreeOfClean"]
+        organisation_name= json_data["organisation_name"]
+        custom_chat_data = []
+        datasets = [] #displaying multiple locations
+        locations_devices =[]        
+        for location in locations:
+            devices = ms.get_location_devices_code( organisation_name, location['label'])
+            for device in devices:
+                device_code=device['DeviceCode']
+                division = device['Division']
+                parish = device['Parish']
+                location_code= device['LocationCode']                
+                values =[]
+                labels =[]    
+                device_results={}               
+               
+                filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+                if filtered_data:
+                    for data in filtered_data: 
+                        values.append(data['pollutant_value'])
+                        labels.append(data['time'])
+                    device_results= {'pollutant_values':values, 'labels':labels}                    
+                    dataset = {'data':values, 'label':parish + ' '+ pollutant,'fill':False} 
+                    datasets.append(dataset)      
+                                                   
+                
+                custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+                 'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+                 'location_code':location_code, 'chart_type':file_type,'chart_data':device_results, 'datasets':datasets})
+
+            locations_devices.append(devices)        
+            
+        return jsonify({'results':custom_chat_data, 'datasets':datasets})
+        
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random', methods = ['GET'])
 def get_random_location_hourly_customised_chart_data():
