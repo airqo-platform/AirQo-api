@@ -63,8 +63,7 @@ def get_parishes_map(polygon):
                             'coordinates': polygon
                     }
                 }
-            }
-        }
+            }}
             
             projection = { '_id': 0}
     
