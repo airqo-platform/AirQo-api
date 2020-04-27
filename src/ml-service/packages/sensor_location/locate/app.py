@@ -55,6 +55,44 @@ def place_sensors_map_trial():
             [32.61260713509556, 0.3258361619681596], [30.22042048778645, -0.6377219364867135]]
 
             return locate_helper.recommend_locations(sensor_number, must_have_coordinates, polygon)
+
+
+@app.route('/api/v1/map/savelocatemap', methods=['GET', 'POST'])
+def save_locate_map():
+    '''
+    Saves planning space
+    '''
+    if request.content_type != JSON_MIME_TYPE:
+        error = json.dumps({'error': 'Invalid Content Type'})
+        return jsonify(error, 400)
+
+    data = request.json
+    if not all([data.get('user_id'), data.get('space_name'), data.get('plan')]):
+        error = json.dumps({'error': 'Missing field/s (title, author_id)'})
+        return jsonify(error, 400)
+
+    user_id = data['user_id']
+    space_name = data['space_name']
+    plan = data['plan']
+
+    locate_model.locate_map(user_id, space_name, plan)
+
+    return jsonify({"message": "Locate Plannig Space Saved Successfully", "status": 200})
+
+# get saved locate space by the current user
+@app.route('/api/v1/map/getlocatemap/<user_id>')
+def get_locate_map(user_id):
+    '''
+    Get saved planning space for the user
+    '''
+    documents = locate_model.get_locate_map(user_id)
+    response = []
+    for document in documents:
+        document['_id'] = str(document['_id'])
+        response.append(document)
+    #response.headers['Access-Control-Allow-Origin'] = '*'
+    data = jsonify(response)
+    return data
             
            
 if __name__ == "__main__":
