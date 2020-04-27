@@ -1,12 +1,12 @@
 from flask import Blueprint, request, jsonify
 import logging
 import app
-from models import monitoring_site
+from models import monitoring_site, graph
 from bson import json_util, ObjectId
 import json
 import numpy as np
 from helpers import mongo_helpers, helpers
-from datetime import datetime
+from datetime import datetime, timedelta
 
 _logger = logging.getLogger(__name__)
 
@@ -33,17 +33,21 @@ def get_organisation_monitoring_site():
 @monitoring_site_bp.route('/api/v1/monitoringsite/historical/daily', methods=['GET'])
 def get_device_past_28_days_measurements():
     ms = monitoring_site.MonitoringSite()
+    gr = graph.Graph()
     if request.method == 'GET':
         device_code= request.args.get('device_code')
         if device_code:
             historical_results =[]
             records = [] 
-            pm25_daily_values = []          
-            monitoring_site_measurements_cursor = ms.get_device_past_28_days_measurements(device_code)
+            pm25_daily_values = []
+            endtime = helpers.date_to_str(datetime.now())
+            starttime = helpers.date_to_str(datetime.now() - timedelta(days=28))        
+            monitoring_site_measurements_cursor = gr.get_filtered_data(device_code,starttime, endtime,'daily','PM 2.5')          
+            #monitoring_site_measurements_cursor = ms.get_device_past_28_days_measurements(device_code)
             for site in monitoring_site_measurements_cursor:
-                record = {'pm2_5_value':site["characteristics"]['pm2_5ConcMass']['value'], 'time':site["time"]}
+                record = {'pm2_5_value':int(site['pollutant_value']), 'time':site["time"]}
                 records.append(record)
-                pm25_daily_values.append(site["characteristics"]['pm2_5ConcMass']['value'])
+                pm25_daily_values.append(int(site['pollutant_value']))
                 historical_results.append(site)
             return jsonify({"historical_measurements":historical_results, "records":records, "pm25_values":pm25_daily_values})
         else:
@@ -52,9 +56,10 @@ def get_device_past_28_days_measurements():
 
 @monitoring_site_bp.route('/api/v1/monitoringsite/historical/daily/calculate', methods =['GET'])
 def calculate_average_daily_measurements_for_last_28_days():
-    ms = monitoring_site.MonitoringSite()     
+    ms = monitoring_site.MonitoringSite() 
+    gr = graph.Graph()    
     monitoring_sites =  list(app.mongo.db.monitoring_site.find({},{"DeviceCode": 1, "Parish":1, "LocationCode":1,"Division":1, "_id": 0}))
-    average='day'
+    
     devices_historical_records=[]
     for monitoring_site_device in monitoring_sites:
         print(monitoring_site_device)
@@ -70,11 +75,14 @@ def calculate_average_daily_measurements_for_last_28_days():
             location_code = monitoring_site_device['LocationCode']
             created_at =   helpers.str_to_date(helpers.date_to_str(datetime.now()))
 
-            monitoring_site_measurements_cursor = ms.get_device_past_28_days_measurements(code)
+            endtime = helpers.date_to_str(datetime.now())
+            starttime = helpers.date_to_str(datetime.now() - timedelta(days=28))        
+            monitoring_site_measurements_cursor = gr.get_filtered_data(code,starttime, endtime,'daily','PM 2.5')
+            #monitoring_site_measurements_cursor = ms.get_device_past_28_days_measurements(code)
             for site in monitoring_site_measurements_cursor:
-                record = {'pm2_5_value':site["characteristics"]['pm2_5ConcMass']['value'], 'time':site["time"]}
+                record = {'pm2_5_value':int(site['pollutant_value']), 'time':site["time"]}
                 records.append(record)
-                pm25_daily_values.append(site["characteristics"]['pm2_5ConcMass']['value'])
+                pm25_daily_values.append(int(site['pollutant_value']))
                 historical_results.append(site)
 
             if len(pm25_daily_values)>0:
@@ -97,7 +105,7 @@ def get_all_device_past_28_days_measurements():
         labels = []
         monitoring_site_measurements_cursor = ms.get_all_devices_past_28_days_measurements()
         for site in monitoring_site_measurements_cursor: 
-            values.append(round(site["average_pm25"],2))
+            values.append(int(site["average_pm25"]))
             labels.append(site["Parish"])             
             results.append(site)
         return jsonify({"results":{"average_pm25_values":values, "labels":labels}})

@@ -216,6 +216,8 @@ def get_all_device_past_28_days_measurements():
         values =[]
         labels = []
         monitoring_site_measurements_cursor = ms.get_all_devices_past_28_days_measurements()
+        print( monitoring_site_measurements_cursor)
+        print(len(monitoring_site_measurements_cursor))
         for site in monitoring_site_measurements_cursor: 
             values.append(site["average_pm25"])
             labels.append(site["deviceCode"]["code"])             
@@ -223,17 +225,6 @@ def get_all_device_past_28_days_measurements():
         return jsonify({"results":{"average_pm25_values":values, "labels":labels}})
     else:
         return jsonify({"error msg": "invalid request."})
-
-
-@dashboard_bp.route('/api/v1/device/graph_s', methods = ['GET'])
-def get_filtered_data():
-    device_code = request.args.get('device_code')
-    start_date = request.args.get('start_date')
-    end_date = request.args.get('end_date')
-    frequency = request.args.get('frequency')
-    pollutant = request.arg.get('pollutant')
-    return mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
-
 
 
 @dashboard_bp.route('/api/v1/dashboard/divisions', methods=['GET'])

@@ -89,7 +89,7 @@ class MonitoringSite():
         for result in results:
             if 'LatestHourlyMeasurement' in result:
                 w = result['LatestHourlyMeasurement']
-                last_hour_pm25_value = round(w[-1]['last_hour_pm25_value'],2)
+                last_hour_pm25_value = int(w[-1]['last_hour_pm25_value'])
             else:
                 last_hour_pm25_value=0
             obj = {"DeviceCode": result['DeviceCode'], 
@@ -162,7 +162,12 @@ class MonitoringSite():
         Returns:
             A list of the daily measurements for the past 28 days.
         """       
-        results = list(app.mongo.db.device_daily_historical_averages.find({},{ "_id": 0}))        
+        created_at = helpers.str_to_date(helpers.date_to_str(datetime.now().date()))
+        print(created_at)
+        query = {'$match':{ 'created_at': {'$gte': created_at} }}
+        projection = { '$project': { '_id': 0 }}
+        results = list(app.mongo.db.device_daily_historical_averages.aggregate([query, projection]) )
+        #results = list(app.mongo.db.device_daily_historical_averages.find({},{ "_id": 0}))        
         return results
 
         
