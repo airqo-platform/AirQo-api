@@ -170,4 +170,25 @@ class MonitoringSite():
         #results = list(app.mongo.db.device_daily_historical_averages.find({},{ "_id": 0}))        
         return results
 
+    def update_all_monitoring_sites_latest_hourly_measurements(self):
+        """
+        inserts latest hourly measurements to all the monitoring site records.
+        """
+        results = list(app.mongo.db.monitoring_site.find({"Organisation":'KCCA'} ))
+        for i  in results:
+            key = {'_id': i['_id']} 
+            query = {'deviceCode': i['DeviceCode']}
+            print(i['DeviceCode'])
+            last_record = list(app.mongo.db.device_hourly_measurements.find(query).sort([('time', -1)]).limit(1))
+            if len(last_record)>0:
+                obj = {
+                    'last_hour': last_record[0]['time'], 
+                    'last_hour_pm25_value': int(last_record[0]['characteristics']['pm2_5ConcMass']['value'])
+                }            
+                app.mongo.db.monitoring_site.update_one(
+                    key,
+                    { "$push": {"LatestHourlyMeasurement": obj }
+                    })     
+        
+
         

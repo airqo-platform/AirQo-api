@@ -6,8 +6,8 @@ from pymongo import MongoClient
 import requests
 
 
-MONGO_URIX = "mongodb+srv://sserurich:dKZcVkS5PCSpmobo@cluster0-99jha.gcp.mongodb.net/airqo_analytics"
-MONGO_URI = "mongodb://localhost:27017/airqo_analytics"
+MONGO_URI = "mongodb+srv://sserurich:dKZcVkS5PCSpmobo@cluster0-99jha.gcp.mongodb.net/airqo_analytics"
+MONGO_URIx = "mongodb://localhost:27017/airqo_analytics"
 client = MongoClient(MONGO_URI)
 db=client['airqo_analytics']
 
@@ -109,8 +109,28 @@ def update_hourly_measurements(data):
         key = {'_id': i['_id']}        
         db.device_hourly_measurements.replace_one(key,i, upsert=True)
 
-
+def update_all_monitoring_sites_latest_hourly_measurements():
+    """
+     inserts latest hourly measurements to all the monitoring site records.
+    """
+    results = list(db.monitoring_site.find({"Organisation":'KCCA'} ))
+    for i  in results:
+        key = {'_id': i['_id']} 
+        query = {'deviceCode': i['DeviceCode']}
+        print(i['DeviceCode'])
+        last_record = list(db.device_hourly_measurements.find(query).sort([('time', -1)]).limit(1))
+        if len(last_record)>0:
+            obj = {
+                 'last_hour': last_record[0]['time'], 
+                'last_hour_pm25_value': int(last_record[0]['characteristics']['pm2_5ConcMass']['value'])
+            }            
+            db.monitoring_site.update_one(
+                key,
+                { "$push": {"LatestHourlyMeasurement": obj }
+                })     
+        
 
 
 if __name__ == '__main__':
-    update_device_hourly_measurements()
+    update_all_monitoring_sites_latest_hourly_measurements()
+    #update_device_hourly_measurements()
