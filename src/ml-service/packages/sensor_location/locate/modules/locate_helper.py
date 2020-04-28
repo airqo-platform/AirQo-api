@@ -136,7 +136,9 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
             all_parishes_df = process_data(all_parishes_df)
             recommended_parishes = kmeans_algorithm(all_parishes_df, sensor_number)
             for parish in recommended_parishes:
-                parish['color'] = 'red'
+                parish['color'] = 'blue'
+                parish['type'] = 'RECOMMENDED'
+                parish['fill_color'] = 'blue'
             return jsonify(recommended_parishes)
     else:
         all_parishes = locate_model.get_parishes_map(polygon)
@@ -155,7 +157,6 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
                 count+=1
         must_have_parishes = known_must_have_parishes+unknown_must_have_parishes
         difference_parishes = [parish for parish in all_parishes if parish not in must_have_parishes]
-        print('length of difference_parishes: %d'%(len(difference_parishes)), file=sys.stderr)
         difference_parishes_df = json_to_df(difference_parishes)
         difference_parishes_df = process_data(difference_parishes_df)
         new_sensor_number = sensor_number-len(must_have_parishes)
@@ -168,16 +169,16 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
             
             for parish in recommended_parishes:
                 parish['color'] = 'blue'
-                parish['fill_color'] = 'red'
+                parish['fill_color'] = 'blue'
                 parish['type'] = 'RECOMMENDED'
             for i in range(len(known_must_have_parishes)):
-                known_must_have_parishes[i]['color'] = 'green'
-                known_must_have_parishes[i]['fill_color'] = 'blue'
+                known_must_have_parishes[i]['color'] = 'orange'
+                known_must_have_parishes[i]['fill_color'] = 'orange'
                 known_must_have_parishes[i] = delete_keys_from_dict(known_must_have_parishes[i], keys_to_delete)
                 known_must_have_parishes[i]['type'] = 'INSIDE POLYGON'
             for i in range(len(unknown_must_have_parishes)):
                unknown_must_have_parishes[i]['color'] = 'red'
-               unknown_must_have_parishes[i]['fill_color'] = 'purple'
+               unknown_must_have_parishes[i]['fill_color'] = 'red'
                unknown_must_have_parishes[i] = delete_keys_from_dict(unknown_must_have_parishes[i], keys_to_delete)
                unknown_must_have_parishes[i]['type'] = 'OUTSIDE POLYGON'
         
@@ -185,6 +186,7 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
             return jsonify(final_parishes)
         except:
             return {'message': 'An exception occured due to invalid input. Please try again'}, 200
+            
 
     
 

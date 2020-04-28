@@ -5,6 +5,7 @@ from modules import locate_model, locate_helper
 from flask_cors import CORS
 import os
 import sys
+import ast
  
 app = Flask(__name__)
 CORS(app)
@@ -36,7 +37,7 @@ def place_sensors():
         return jsonify(recommended_parishes)
 
 @app.route('/api/v1/map/parishes', methods = ['POST'])
-def place_sensors_map_trial():
+def place_sensors_map():
     '''
     Returns parishes recommended by the model given the polygon and must-have coordinates
     '''
@@ -45,16 +46,26 @@ def place_sensors_map_trial():
         if not json_data:
             return {'message': 'No input data provided'}, 400
         else:
-            #sensor_number = json_data["sensor_number"]
-            sensor_number = 10
-            polygon = json_data["geometry"]["coordinates"]
-            #polygon = json_data["polygon"]
-            #must_have_coordinates = None
-            #must_have_coordinates = json_data["must_have_coordinates"]
-            must_have_coordinates = [[32.59644375916393, 0.3529332145446762], [32.61814535019111, 0.3466625846873538], 
-            [32.61260713509556, 0.3258361619681596], [30.22042048778645, -0.6377219364867135]]
+            sensor_number = int(json_data["sensor_number"])
 
-            return locate_helper.recommend_locations(sensor_number, must_have_coordinates, polygon)
+            polygon = json_data["polygon"]
+            if polygon == {}:
+                return {'message': 'Please draw a polygon'}, 200
+            geometry = polygon["geometry"]["coordinates"]
+
+            must_have_coordinates = json_data["must_have_coordinates"]
+            if must_have_coordinates== "":
+                must_have_coordinates=None
+                return locate_helper.recommend_locations(sensor_number, must_have_coordinates, geometry)
+            else:
+                try:
+                    must_have_coordinates = ast.literal_eval(must_have_coordinates) 
+                except:
+                    return {'message': 'Coordinates must be in the form [[long, lat], [long, lat]]'}, 200
+                if all(isinstance(x, list) for x in must_have_coordinates):
+                    return locate_helper.recommend_locations(sensor_number, must_have_coordinates, geometry)
+                else:
+                    return {'message': 'Coordinates must be in the form [[longitude, latitude]]'}, 200
 
 
 @app.route('/api/v1/map/savelocatemap', methods=['GET', 'POST'])
