@@ -1,5 +1,11 @@
 from datetime import datetime
 
+def date_to_formated_str(date):
+    """
+    Converts datetime to a string
+    """
+    return datetime.strftime(date,'%Y-%m-%d %H:%M')
+
 def str_to_date(st):
     """
     Converts a string to datetime

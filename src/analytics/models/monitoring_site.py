@@ -90,14 +90,18 @@ class MonitoringSite():
             if 'LatestHourlyMeasurement' in result:
                 w = result['LatestHourlyMeasurement']
                 last_hour_pm25_value = int(w[-1]['last_hour_pm25_value'])
+                last_hour = helpers.date_to_formated_str(w[-1]['last_hour'])
             else:
                 last_hour_pm25_value=0
+                last_hour=''
             obj = {"DeviceCode": result['DeviceCode'], 
                     'Parish': result['Parish'],
                     'Division': result['Division'],
                     'Last_Hour_PM25_Value': last_hour_pm25_value,
                     'Latitude':result['Latitude'],
                     'Longitude': result['Longitude'],
+                    'LocationCode':result['LocationCode'],
+                    'LastHour':last_hour,
                     '_id':str(result['_id'])}
             results_x.append(obj)
         return results_x

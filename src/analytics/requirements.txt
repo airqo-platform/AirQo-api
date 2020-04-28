@@ -8,3 +8,4 @@ pandas==1.0.3
 dnspython==1.16.0 #python -m pip install pymongo[srv]
 Flask-Cors==3.0.8
 numpy
+gunicorn==20.0.4
