@@ -95,7 +95,7 @@ def save_locate_map():
     space_name = data['space_name']
     plan = data['plan']
 
-    locate_model.locate_map(user_id, space_name, plan)
+    locate_model.save_locate_map(user_id, space_name, plan)
 
     return jsonify({"message": "Locate Plannig Space Saved Successfully", "status": 200})
 
@@ -110,12 +110,11 @@ def get_locate_map(user_id):
     for document in documents:
         document['_id'] = str(document['_id'])
         response.append(document)
-    #response.headers['Access-Control-Allow-Origin'] = '*'
     data = jsonify(response)
     return data
 
 # Update previously saved planning space
-@app.route('/api/v1/map/updatelocatemap/<space_name>', method=['GET', 'POST'])
+@app.route('/api/v1/map/updatelocatemap/<space_name>', methods=['GET', 'POST'])
 def update_locate_map(space_name):
     '''
     updates a previously saved planning space
@@ -124,15 +123,29 @@ def update_locate_map(space_name):
     @return: null
 
     '''
+    pass
 
 # Delete previously saved planning space
-@app.route('/api/v1/map/deletelocatemap/<space_name>', method=['GET', 'POST'])
+@app.route('/api/v1/map/deletelocatemap/<space_name>', methods=['GET', 'POST', 'DELETE', 'PUT'])
 def delete_locate_map(space_name):
     '''
     deletes a previously saved planning space
     @param: space_name
     @return: null
     '''
+    if request.method == 'DELETE':
+        if space_name is not None:
+            db_response = locate_model.delete_locate_map(space_name)
+            if db_response.deleted_count == 1:
+                response = {'ok': True,
+                            'message': 'planning space deleted successfully'}
+            else:
+                response = {'ok': True, 'message': 'no record found'}
+            return jsonify(response), 200
+        else:
+            return jsonify({'ok': False, 'message': 'Bad request parameters!'}), 400
+    else:
+        return jsonify({'ok': False, 'message': 'Invalid request method'}), 400
 
 
 if __name__ == "__main__":
