@@ -1,4 +1,5 @@
 click==7.1.1
+dnspthon==1.16.0
 Flask==1.1.2
 Flask-Cors==3.0.8
 Flask-PyMongo==2.3.0
@@ -14,6 +15,7 @@ python-dotenv==0.12.0
 pytz==2019.3
 scikit-learn==0.22.2.post1
 scipy==1.4.1
+Shapely==1.7.0
 six==1.14.0
 sklearn==0.0
 Werkzeug==1.0.1

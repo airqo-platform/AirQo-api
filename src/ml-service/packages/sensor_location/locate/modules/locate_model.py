@@ -28,7 +28,21 @@ def csv2mongo(csv_path, collection):
 
     for i in payload:
         db[collection].insert_one(i)
-       
+
+def locate_map(user_id, space_name, plan):
+    db = connect_mongo()
+    db.locatemap.insert({
+        "user_id": user_id,
+        "space_name": space_name,
+        "plan": plan
+    })
+
+
+def get_locate_map(user_id):
+    db = connect_mongo()
+    documents = db.locatemap.find({'user_id': user_id})
+    return documents
+
 
 def get_parishes(district, subcounty=None):
     '''
@@ -54,25 +68,45 @@ def get_parishes_map(polygon):
     if polygon == None:
         return 'Please select a polygon'
     else:
-        query = {
-            'geometry': {
-                '$geoWithin': {
-                    '$geometry': {
-                        'type': 'Polygon' ,
-                        'coordinates': polygon
+        try:
+            query = {
+                'geometry': {
+                    '$geoWithin': {
+                        '$geometry': {
+                            'type': 'Polygon' ,
+                            'coordinates': polygon
                     }
+                }
+            }}
+            
+            projection = { '_id': 0}
+    
+            db = connect_mongo()
+            records = db.geometry_polygon.find(query, projection)
+            return list(records)
+        except:
+            return 'Invalid polygon'
+
+def get_parish_for_point(point):
+    '''
+    Gets the parish in which the given coordinates belong
+    '''
+    query = {
+        'geometry': {
+            '$geoIntersects': {
+                '$geometry': {
+                    'type': 'Point' ,
+                    'coordinates': point
                 }
             }
         }
+    }
     
-        projection = { '_id': 0}
-    
-        db = connect_mongo()
-        records = db.geometry_polygon.find(query, projection)
-        return list(records)
+    projection = { '_id': 0 }
+    db = connect_mongo()
+    records = db.geometry_polygon.find(query, projection)
+    return list(records)
 
-
-    
 
     
     

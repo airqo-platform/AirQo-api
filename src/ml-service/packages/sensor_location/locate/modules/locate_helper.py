@@ -5,6 +5,11 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_samples, silhouette_score
 from pandas.io.json import json_normalize
 import json
+from flask import jsonify
+from shapely.geometry import shape, Point
+import sys
+from modules import locate_model
+from collections.abc import MutableMapping
 
 
 def json_to_df(json_list):
@@ -68,8 +73,8 @@ def kmeans_algorithm(data, sensor_number=None):
     
     kmeans_samples = data_copy.sample(frac=1).reset_index(drop=True)
     kmeans_samples= kmeans_samples.drop_duplicates('cluster', keep = 'last')
-    kmeans_samples = kmeans_samples[['properties.district', 'properties.subcounty', 'properties.parish', 
-                                     'geometry.coordinates']]
+    kmeans_samples = kmeans_samples[['properties.district', 'properties.subcounty', 'properties.parish',  'properties.lat', 
+    'properties.long', 'geometry.coordinates']]
     
     return json.loads(kmeans_samples.to_json(orient = 'records'))
 
@@ -84,5 +89,103 @@ def get_data(data):
  json_data = json.loads(data)
  print("Deserialized data: {}".format(data))
  return json_data
+
+def point_exists_in_polygon(point, polygon):
+    '''
+    checks whether a given point exists in a defined polygon
+    '''
+    
+    geo_point = Point(point[0], point[1])
+    geo_polygon = {
+        'coordinates': polygon, 
+        'type': "Polygon"
+    }
+    geo_polygon = shape(geo_polygon)
+    if geo_polygon.contains(geo_point):
+        return True
+    else:
+        return False
+
+def delete_keys_from_dict(dictionary, keys):
+    '''
+    deletes certain keys and their values from a dictionary
+    '''
+    keys_set = set(keys) 
+
+    modified_dict = {}
+    for key, value in dictionary.items():
+        if key not in keys_set:
+            if isinstance(value, MutableMapping):
+                modified_dict[key] = delete_keys_from_dict(value, keys_set)
+            else:
+                modified_dict[key] = value  
+    return modified_dict
+
+def recommend_locations(sensor_number, must_have_coordinates, polygon):
+    '''
+    recommends parishes in which to place sensors
+    '''
+    if polygon==None:
+        return jsonify({'response': 'Please draw a polygon'}), 200
+    elif must_have_coordinates==None:
+        all_parishes = locate_model.get_parishes_map(polygon)
+        if all_parishes == 'Invalid polygon' or len(all_parishes)<2:
+            return jsonify({'response': 'Invalid polygon'}), 200
+        else:
+            all_parishes_df = json_to_df(all_parishes)
+            all_parishes_df = process_data(all_parishes_df)
+            recommended_parishes = kmeans_algorithm(all_parishes_df, sensor_number)
+            for parish in recommended_parishes:
+                parish['color'] = 'red'
+            return jsonify(recommended_parishes)
+    else:
+        all_parishes = locate_model.get_parishes_map(polygon)
+        count = 0 #number of coordinates that don't exist in polygon and aren't in database
+        known_must_have_parishes = []#coordinates that in the polygon and database
+        unknown_must_have_parishes = [] #for coordinates that are in database but aren't in polygondon't belong to any parish in the database
+        
+        for coordinates in must_have_coordinates:
+            exists = point_exists_in_polygon(coordinates, polygon)
+            parish= locate_model.get_parish_for_point(coordinates)
+            if parish and exists:
+                known_must_have_parishes.append(parish[0])
+            elif parish:
+                unknown_must_have_parishes.append(parish[0])
+            else:
+                count+=1
+        must_have_parishes = known_must_have_parishes+unknown_must_have_parishes
+        difference_parishes = [parish for parish in all_parishes if parish not in must_have_parishes]
+        print('length of difference_parishes: %d'%(len(difference_parishes)), file=sys.stderr)
+        difference_parishes_df = json_to_df(difference_parishes)
+        difference_parishes_df = process_data(difference_parishes_df)
+        new_sensor_number = sensor_number-len(must_have_parishes)
+        try:
+            recommended_parishes = kmeans_algorithm(difference_parishes_df, new_sensor_number)
+    
+            keys_to_delete = ['type','region', 'county', 'centroid', 'km2', 'population', 'households', 'population_density', 
+            'household_density', 'charcoal_per_km2', 'firewood_per_km2', 'cowdung_per_km2', 'grass_per_km2', 'wasteburning_per_km2', 
+            'kitch_outsidebuilt_per_km2', 'kitch_makeshift_per_km2', 'kitch_openspace_per_km2', 'type']
+            
+            for parish in recommended_parishes:
+                parish['color'] = 'blue'
+                parish['fill_color'] = 'red'
+                parish['type'] = 'RECOMMENDED'
+            for i in range(len(known_must_have_parishes)):
+                known_must_have_parishes[i]['color'] = 'green'
+                known_must_have_parishes[i]['fill_color'] = 'blue'
+                known_must_have_parishes[i] = delete_keys_from_dict(known_must_have_parishes[i], keys_to_delete)
+                known_must_have_parishes[i]['type'] = 'INSIDE POLYGON'
+            for i in range(len(unknown_must_have_parishes)):
+               unknown_must_have_parishes[i]['color'] = 'red'
+               unknown_must_have_parishes[i]['fill_color'] = 'purple'
+               unknown_must_have_parishes[i] = delete_keys_from_dict(unknown_must_have_parishes[i], keys_to_delete)
+               unknown_must_have_parishes[i]['type'] = 'OUTSIDE POLYGON'
+        
+            final_parishes = recommended_parishes+known_must_have_parishes+unknown_must_have_parishes
+            return jsonify(final_parishes)
+        except:
+            return {'message': 'An exception occured due to invalid input. Please try again'}, 200
+
+    
 
 
