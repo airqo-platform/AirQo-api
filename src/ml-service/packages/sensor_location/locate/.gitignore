@@ -3,3 +3,6 @@ __pycache__/
 .env
 locate_env/
 .pytest_cache
+app_copy.py
+env
+
