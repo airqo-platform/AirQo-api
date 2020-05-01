@@ -12,8 +12,9 @@ module.exports = {
       "If you did not request this, please ignore this email and your password will remain unchanged.\n"
     );
   },
-  join_request:
-    "Your request to join the AirQo analytics platform has been received. We shall get back to you as soon as possible. \n\n" +
+  joinRequest:
+    "Your request to join the AirQo platform has been received. We shall get back to you as soon as possible. \n\n" +
     "Please click the following link to learn more about AirQo. \n" +
     `https://airqo.net/`,
+  welcome: "Welcome to AirQo",
 };

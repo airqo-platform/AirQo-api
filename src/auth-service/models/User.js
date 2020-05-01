@@ -1,5 +1,13 @@
+// Using DataStore from GCP
+// const { instances } = require("gstore-node");
+// const gstoreDefaultInstance = instances.get("default");
+// const gstoreWithCache = instances.get("cache-on");
+// const gstoreStaging = instances.get("staging");
+// const Schema = gstoreDefaultInstance.Schema;
+
 //const DataAccess = require("../config/das");
 const mongoose = require("mongoose");
+const Schema = mongoose.Schema;
 const validator = require("validator");
 const { passwordReg } = require("../utils/validations");
 const bcrypt = require("bcrypt");
@@ -18,7 +26,7 @@ function oneMonthFromNow() {
   return d;
 }
 
-const UserSchema = new mongoose.Schema({
+const UserSchema = new Schema({
   email: {
     type: String,
     unique: true,
@@ -89,6 +97,24 @@ UserSchema.pre("save", function (next) {
   return next();
 });
 
+UserSchema.pre("findOneAndUpdate", function () {
+  const update = this.getUpdate();
+  if (update.__v != null) {
+    delete update.__v;
+  }
+  const keys = ["$set", "$setOnInsert"];
+  for (const key of keys) {
+    if (update[key] != null && update[key].__v != null) {
+      delete update[key].__v;
+      if (Object.keys(update[key]).length === 0) {
+        delete update[key];
+      }
+    }
+  }
+  update.$inc = update.$inc || {};
+  update.$inc.__v = 1;
+});
+
 UserSchema.pre("update", function (next) {
   if (this.isModified("password")) {
     this.password = this._hashPassword(this.password);
@@ -124,12 +150,14 @@ UserSchema.methods = {
       _id: this._id,
       userName: this.userName,
       token: `JWT ${this.createToken()}`,
+      email: this.email,
     };
   },
   toJSON() {
     return {
       _id: this._id,
       userName: this.userName,
+      email: this.email,
     };
   },
 };
