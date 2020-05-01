@@ -99,7 +99,7 @@ def save_locate_map():
 
     return jsonify({"message": "Locate Plannig Space Saved Successfully", "status": 200})
 
-# get saved locate space by the current user
+# get previously saved planning space by the current user
 @app.route('/api/v1/map/getlocatemap/<user_id>')
 def get_locate_map(user_id):
     '''
@@ -113,6 +113,26 @@ def get_locate_map(user_id):
     #response.headers['Access-Control-Allow-Origin'] = '*'
     data = jsonify(response)
     return data
+
+# Update previously saved planning space
+@app.route('/api/v1/map/updatelocatemap/<space_name>', method=['GET', 'POST'])
+def update_locate_map(space_name):
+    '''
+    updates a previously saved planning space
+
+    @param: space_name
+    @return: null
+
+    '''
+
+# Delete previously saved planning space
+@app.route('/api/v1/map/deletelocatemap/<space_name>', method=['GET', 'POST'])
+def delete_locate_map(space_name):
+    '''
+    deletes a previously saved planning space
+    @param: space_name
+    @return: null
+    '''
 
 
 if __name__ == "__main__":
