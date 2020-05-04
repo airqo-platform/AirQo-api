@@ -6,6 +6,7 @@ from flask_cors import CORS
 import os
 import sys
 import ast
+import json
  
 app = Flask(__name__)
 CORS(app)
@@ -73,7 +74,7 @@ def save_locate_map():
     '''
     Saves planning space
     '''
-    if request.content_type != JSON_MIME_TYPE:
+    if request.content_type != 'application/json':
         error = json.dumps({'error': 'Invalid Content Type'})
         return jsonify(error, 400)
 
