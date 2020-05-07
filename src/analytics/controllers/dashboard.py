@@ -238,6 +238,16 @@ def get_divisions():
     results = json.loads(json_util.dumps(divisions))
     return jsonify({"divisions":results}), 200
 
+@dashboard_bp.route('/api/v1/dashboard/exceedances', methods=['POST'])
+def get_exceedances():
+    if request.method == 'POST':
+        json_data = request.get_json()
+        if not json_data:
+            return {'message': 'No input data provided'}, 400           
+        pollutant = json_data["pollutant"]  
+        standard = json_data["standard"]
+        exceedances_data = mongo_helpers.get_exceedances(pollutant, standard)
+        return jsonify(exceedances_data)
 
 @dashboard_bp.route('/health', methods=['GET'])
 def health():

@@ -1,10 +1,23 @@
 from helpers import helpers 
 from pymongo import MongoClient
 from app import mongo, MONGO_URI
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import sys
 
+code_locations_dict = {'Luzira':'A9WLJS5F', 'Kawala':'AR2RHV97', 'Nakulabye':'AMBD741S', 'Namirembe':'ARBL6HVZ', 
+'Kiswa':'APYZC5J7', 'Civic Centre':'A95X5F9T', 'Ggaba':'AKSLS0FP', 'Kazo Angola':'AW66FF7V', 'Kisugu':'APZ80RTM', 
+'Kisenyi II':'AY2J2Q7Z', 'Kyebando':'ALS2LCWY', 'Placeholder1':'AQKNSLBV', 'Mutundwe':'AZB4PFV4', 'Bwaise II':'ANQ16PZJ', 
+'Naguru I':'AGPZ1C42', 'Nakawa':'ADPYGHD0', 'Kamwokya II':'AJCK5L86', 'Wandegeya':'A743BPWK', 'Nsambya Central':'AX9RGBN0', 
+'Komamboga':'AB6051M4', 'Kisenyi II':'AT6NJNZR', 'Nakasero II':'ARSWTW30', 'Placeholder3':'ANYRC92F', 'Kibuye I':'A0WN66FH', 
+'Kyanja':'ACMVQ44H'}
+
+MONGO_URI =os.getenv('MONGO_URI')
+
+def connect_mongo():
+    client = MongoClient(MONGO_URI)  
+    db=client['airqo_analytics']
+    return db
 
 
 def save_device_daily_historical_averages(data):
@@ -97,8 +110,8 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         """
         returns the data of a certain device with specified parameters
         """
-
         
+        db = connect_mongo()
         if start_date == None:
             start = helpers.str_to_date_find('2019-06-01T00:00:00Z')
         else:
@@ -113,11 +126,11 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         if pollutant == 'PM 10':
             projection = { '_id': 0, 'time': 1, 'characteristics.pm10ConcMass.value':1 }
             if frequency =='hourly':
-                records = list(mongo.db.device_hourly_measurements.find(query, projection))
+                records = list(db.device_hourly_measurements.find(query, projection))
             elif frequency=='daily':
-                records = list(mongo.db.device_daily_measurements.find(query, projection))
+                records = list(db.device_daily_measurements.find(query, projection))
             else:
-                records = list(mongo.db.device_raw_measurements.find(query, projection))
+                records = list(db.device_raw_measurements.find(query, projection))
             for i in range(len(records)):
                 if records[i]['characteristics']['pm10ConcMass']['value'] >0 and records[i]['characteristics']['pm10ConcMass']['value'] <=54:
                     records[i]['backgroundColor'] = 'green'
@@ -137,11 +150,11 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         elif pollutant == 'NO2':
             projection = { '_id': 0, 'time': 1, 'characteristics.no2Conc.value':1 }
             if frequency =='hourly':
-                records = list(mongo.db.device_hourly_measurements.find(query, projection))
+                records = list(db.device_hourly_measurements.find(query, projection))
             elif frequency=='daily':
-                records = list(mongo.db.device_daily_measurements.find(query, projection))
+                records = list(db.device_daily_measurements.find(query, projection))
             else:
-                records = list(mongo.db.device_raw_measurements.find(query, projection))
+                records = list(db.device_raw_measurements.find(query, projection))
             for i in range(len(records)):
                 if records[i]['characteristics']['no2Conc']['value'] >0.0 and records[i]['characteristics']['no2Conc']['value'] <=53:
                     records[i]['backgroundColor'] = 'green'
@@ -161,11 +174,11 @@ def get_filtered_data(device_code, start_date = None, end_date=None, frequency =
         else:
             projection = { '_id': 0, 'time': 1, 'characteristics.pm2_5ConcMass.value':1 }
             if frequency =='hourly':
-                records = list(mongo.db.device_hourly_measurements.find(query, projection))
+                records = list(db.device_hourly_measurements.find(query, projection))
             elif frequency=='daily':
-                records = list(mongo.db.device_daily_measurements.find(query, projection))
+                records = list(db.device_daily_measurements.find(query, projection))
             else:
-                records = list(mongo.db.device_raw_measurements.find(query, projection))
+                records = list(db.device_raw_measurements.find(query, projection))
             for i in range(len(records)):
                 if records[i]['characteristics']['pm2_5ConcMass']['value'] >0.0 and records[i]['characteristics']['pm2_5ConcMass']['value'] <=12.0:
                     records[i]['backgroundColor'] = 'green'
@@ -246,3 +259,89 @@ def get_piechart_data(device_code, start_date = None, end_date=None, frequency =
     else:
         tasks = []
     return tasks
+
+def get_exceedances(pollutant='PM 2.5', standard='WHO', frequency = 'daily'):
+    '''
+    Generates data for exceedances chart
+    '''
+    exceedances_list = []
+    for location in code_locations_dict.keys():
+        exceedances_dict = {}
+        if standard == 'AQI':
+            exceedances = get_AQI_exceedances(location, pollutant, frequency)   
+            exceedances_dict['location'] = location
+            exceedances_dict['UH4SG'] = exceedances[0]
+            exceedances_dict['Unhealthy']= exceedances[1]
+            exceedances_dict['VeryUnhealthy']= exceedances[2]
+            exceedances_dict['Hazardous'] = exceedances[3]
+            exceedances_list.append(exceedances_dict)
+        else:
+            exceedances = get_WHO_exceedances(location, pollutant, frequency)
+            exceedances_dict['location'] = location
+            exceedances_dict['exceedances']= exceedances
+            exceedances_list.append(exceedances_dict)
+    return exceedances_list
+
+def get_WHO_exceedances(location, pollutant='PM 2.5', frequency='daily'):
+    '''
+    Returns exceedances based on the WHO limit
+    '''
+    device_code = code_locations_dict[location]
+    end_date = datetime.now()
+    start_date = end_date-timedelta(days=29)
+    
+    records = get_filtered_data(device_code, helpers.date_to_str(start_date), helpers.date_to_str(end_date), frequency, pollutant)
+    
+    if pollutant == 'NO2':
+        exceedance_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] > 40)
+        
+    elif pollutant == 'PM 10':
+        exceedance_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >50)
+
+    else:
+        exceedance_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >25.0)
+    return exceedance_sum
+    
+def get_AQI_exceedances(location, pollutant='PM 2.5', frequency='daily'):
+    '''
+    Returns exceedances based on the AQI index
+    '''
+    device_code = code_locations_dict[location]
+    end_date = datetime.now()
+    start_date = end_date-timedelta(days=29)
+    
+    records = get_filtered_data(device_code, helpers.date_to_str(start_date), helpers.date_to_str(end_date), frequency, pollutant)
+    
+    if pollutant == 'NO2':
+        UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >100 and 
+        records[i]['characteristics']['no2Conc']['value'] <=360)
+        unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >360 and 
+        records[i]['characteristics']['no2Conc']['value'] <=649)
+        v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >649 and 
+        records[i]['characteristics']['no2Conc']['value'] <=1249)
+        hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['no2Conc']['value'] >1249 and 
+        records[i]['characteristics']['no2Conc']['value'] <=2049)
+        
+    elif pollutant == 'PM 10':
+        UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >154 and 
+        records[i]['characteristics']['pm10ConcMass']['value'] <=254)
+        unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >254 and 
+        records[i]['characteristics']['pm10ConcMass']['value'] <=354)
+        v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >354 and 
+        records[i]['characteristics']['pm10ConcMass']['value'] <=424)
+        hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm10ConcMass']['value'] >424 and 
+        records[i]['characteristics']['pm10ConcMass']['value'] <=604)
+    else:
+        UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >35.4 and 
+        records[i]['characteristics']['pm2_5ConcMass']['value'] <=55.4)
+        unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >55.4 and 
+        records[i]['characteristics']['pm2_5ConcMass']['value'] <=150.4)
+        v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >150.4 and 
+        records[i]['characteristics']['pm2_5ConcMass']['value'] <=250.4)
+        hazardous_sum =sum(1 for i in range(len(records)) if records[i]['characteristics']['pm2_5ConcMass']['value'] >250.4 and 
+        records[i]['characteristics']['pm2_5ConcMass']['value'] <=500.4)
+        
+    #exceedances = {'UHSG':UH4SG_sum, 'Unhealthy':unhealthy_sum, 'Very Unhealthy':v_unhealthy_sum, 'Hazardous':hazardous_sum}
+    exceedances = [UH4SG_sum, unhealthy_sum, v_unhealthy_sum, hazardous_sum]
+    return exceedances
+    
