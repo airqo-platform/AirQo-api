@@ -14,10 +14,17 @@ code_locations_dict = {'Luzira':'A9WLJS5F', 'Kawala':'AR2RHV97', 'Nakulabye':'AM
 
 MONGO_URI =os.getenv('MONGO_URI')
 
+
 def connect_mongo():
     client = MongoClient(MONGO_URI)  
     db=client['airqo_analytics']
     return db
+
+def get_locations():
+    return list(code_locations_dict.keys())
+
+def get_device_code(location):
+    return code_locations_dict[location]
 
 
 def save_device_daily_historical_averages(data):

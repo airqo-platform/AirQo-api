@@ -249,6 +249,11 @@ def get_exceedances():
         exceedances_data = mongo_helpers.get_exceedances(pollutant, standard)
         return jsonify(exceedances_data)
 
+@dashboard_bp.route('/api/v1/dashboard/exceedance_locations', methods=['GET'])
+def get_exceedance_locations():
+    return jsonify(mongo_helpers.get_locations())
+
+
 @dashboard_bp.route('/health', methods=['GET'])
 def health():
     if request.method == 'GET':

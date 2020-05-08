@@ -24,8 +24,9 @@ def get_filtered_data():
             print ('JSON DATA IS EMPTY:', file=sys.stderr)
             return jsonify({'response': 'No input data found'}), 200
         else:
-            #device_code =json_data["location"]
-            device_code = "ALS2LCWY"
+            location =json_data["location"]
+            device_code = mongo_helpers.get_device_code(location)
+            #device_code = "ALS2LCWY"
             #device_code = json_data["deviceCode"]
             print('device code:',device_code, file=sys.stderr)
             start_date =json_data["startDate"]
