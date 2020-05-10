@@ -24,21 +24,24 @@ def get_filtered_data():
             print ('JSON DATA IS EMPTY:', file=sys.stderr)
             return jsonify({'response': 'No input data found'}), 200
         else:
+            organisation = json_data["organisation_name"]
             location =json_data["location"]
-            device_code = mongo_helpers.get_device_code(location)
+            print('location:',location, file=sys.stderr)
+            #location = locations[0]
+            device_code = mongo_helpers.get_device_code(organisation, location)
             #device_code = "ALS2LCWY"
             #device_code = json_data["deviceCode"]
             print('device code:',device_code, file=sys.stderr)
             start_date =json_data["startDate"]
             print('start date:',start_date, file=sys.stderr)
             end_date =json_data["endDate"]
-            print(end_date, file=sys.stderr)
+            print('end_date: ',end_date, file=sys.stderr)
             chart_type =json_data["chartType"]
             print('chart type:',chart_type, file=sys.stderr)
             frequency =json_data["frequency"]
-            print(frequency, file=sys.stderr)
+            print('frequency: ',frequency, file=sys.stderr)
             pollutant =json_data["pollutant"]
-            print(pollutant, file=sys.stderr)
+            print('pollutant: ',pollutant, file=sys.stderr)
 
             if chart_type==None:
                 chart_type='bar'

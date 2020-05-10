@@ -23,8 +23,18 @@ def connect_mongo():
 def get_locations():
     return list(code_locations_dict.keys())
 
-def get_device_code(location):
-    return code_locations_dict[location]
+#def get_device_code(location):
+ #   return code_locations_dict[location]
+
+def get_device_code(organisation, location):
+    '''
+    Returns the device code of a given location
+    '''
+    db = connect_mongo()
+    query = {"$and":[{"Organisation":organisation},{"Parish":location}]}
+    projection = {"DeviceCode": 1, "_id": 0}
+    results = list(db.monitoring_site.find(query, projection))
+    return results[0]['DeviceCode']
 
 
 def save_device_daily_historical_averages(data):
