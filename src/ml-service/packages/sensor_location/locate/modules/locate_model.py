@@ -4,7 +4,7 @@ import pymongo
 import json
 import os
 
-MONGO_URI = os.getenv('MONGO_URI_DEV')
+MONGO_URI = os.getenv('MONGO_URI')
 
 
 def connect_mongo():

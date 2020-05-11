@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # add mongo url to flask config, so that flask_pymongo can use it to make connection
-app.config["MONGO_URI"] = os.getenv('MONGO_URI_DEV')
+app.config["MONGO_URI"] = os.getenv('MONGO_URI')
 mongo = PyMongo(app)
 
 # data formate
@@ -88,8 +88,8 @@ def save_locate_map():
             {"message": "Invalid Content Type", "success": False})
         return jsonify(error, 400)
 
-    data = request.json
     # check that all fields are supplied
+    data = request.json
     if not all([data.get('user_id'), data.get('space_name'), data.get('plan')]):
         error = json.dumps(
             {"message": "Missing field/s (user_id, space_name or plan)", "success": False})
@@ -101,6 +101,7 @@ def save_locate_map():
             {"message": "Invalid user_id. string required!", "success": False})
         return jsonify(error, 400)
 
+    # if all checks have passed, save planning space
     user_id = data['user_id']
     space_name = data['space_name']
     plan = data['plan']
