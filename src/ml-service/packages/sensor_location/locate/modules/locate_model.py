@@ -50,8 +50,11 @@ def get_locate_map(user_id):
 
 
 # update previously saved planning space
-def update_locate_map(space_name):
-    pass
+def update_locate_map(space_name, updated_plan):
+    db = connect_mongo()
+    response = db.locate_map.update_one(
+        {"space_name": space_name}, {'$set': {'plan': updated_plan}})
+    return response
 
 
 # delete previously saved planning space

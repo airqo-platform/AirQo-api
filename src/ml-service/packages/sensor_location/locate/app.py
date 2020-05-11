@@ -132,13 +132,35 @@ def update_locate_map(space_name):
     updates a previously saved planning space
 
     @param: space_name
-    @return: null
-
+    @return: message: <MESSAGE> , status: <BOOLEAN>
     '''
-    pass
+
+    try:
+        # Get the value which needs to be updated
+        try:
+            json_data = request.get_json()
+            update_plan = json_data.get('plan')
+        except:
+            # Bad request as the request body is not available
+            return jsonify({"message": "bad request! request body required.", "success": False}), 400
+
+        # Updating the planning space
+        records_updated = locate_model.update_locate_map(
+            space_name, update_plan)
+
+        # Check if resource is updated
+        if records_updated.modified_count > 0:
+            # Prepare the response as resource is updated successfully
+            return jsonify({"message": "planning space '" + space_name + "' updated successfully", "success": True}), 200
+        else:
+            # Bad request as the resource is not available to update
+            return jsonify({"message": "planning not updated. please make sure the plan name / request body is correct", "success": False}), 404
+    except:
+        # Error while trying to update the resource
+        return jsonify({"message": "error occured while trying to update planning space", "success": False}), 500
 
 # Delete previously saved planning space
-@app.route('/api/v1/map/deletelocatemap/<space_name>', methods=['GET', 'POST', 'DELETE', 'PUT'])
+@app.route('/api/v1/map/deletelocatemap/<space_name>', methods=['DELETE'])
 def delete_locate_map(space_name):
     '''
     deletes a previously saved planning space
@@ -153,7 +175,7 @@ def delete_locate_map(space_name):
                     "message": "planning space deleted successfully", "success": True}
             else:
                 response = {
-                    "message": "Planning space name not found. Please enter a correct planning space name", "Success": False}
+                    "message": "planning space name not found. Please enter a correct planning space name", "Success": False}
             return jsonify(response), 200
         else:
             return jsonify({"message": "Bad request parameters!", "success": False}), 400
