@@ -83,12 +83,14 @@ def save_locate_map():
     Saves planning space
     '''
     if request.content_type != 'application/json':
-        error = json.dumps({'error': 'Invalid Content Type'})
+        error = json.dumps(
+            {"message": "Invalid Content Type", "success": False})
         return jsonify(error, 400)
 
     data = request.json
     if not all([data.get('user_id'), data.get('space_name'), data.get('plan')]):
-        error = json.dumps({'error': 'Missing field/s (title, author_id)'})
+        error = json.dumps(
+            {"message": "Missing field/s (user_id, space_name or plan)", "success": False})
         return jsonify(error, 400)
 
     user_id = data['user_id']
@@ -97,7 +99,7 @@ def save_locate_map():
 
     locate_model.save_locate_map(user_id, space_name, plan)
 
-    return jsonify({"message": "Locate Plannig Space Saved Successfully", "status": 200})
+    return jsonify({"message": "Locate Plannig Space Saved Successfully", "success": True}), 200
 
 # get previously saved planning space by the current user
 @app.route('/api/v1/map/getlocatemap/<user_id>')
@@ -137,15 +139,16 @@ def delete_locate_map(space_name):
         if space_name is not None:
             db_response = locate_model.delete_locate_map(space_name)
             if db_response.deleted_count == 1:
-                response = {'ok': True,
-                            'message': 'planning space deleted successfully'}
+                response = {
+                    "message": "planning space deleted successfully", "success": True}
             else:
-                response = {'ok': True, 'message': 'no record found'}
+                response = {
+                    "message": "Planning space name not found. Please enter a correct planning space name", "Success": False}
             return jsonify(response), 200
         else:
-            return jsonify({'ok': False, 'message': 'Bad request parameters!'}), 400
+            return jsonify({"message": "Bad request parameters!", "success": False}), 400
     else:
-        return jsonify({'ok': False, 'message': 'Invalid request method'}), 400
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
 if __name__ == "__main__":
