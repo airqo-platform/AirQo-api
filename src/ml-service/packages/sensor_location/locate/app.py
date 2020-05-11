@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # add mongo url to flask config, so that flask_pymongo can use it to make connection
-app.config["MONGO_URI"] = os.getenv('MONGO_URI')
+app.config["MONGO_URI"] = os.getenv('MONGO_URI_DEV')
 mongo = PyMongo(app)
 
 # data formate
@@ -82,15 +82,23 @@ def save_locate_map():
     '''
     Saves planning space
     '''
+    # make sure content type is of type 'json'
     if request.content_type != 'application/json':
         error = json.dumps(
             {"message": "Invalid Content Type", "success": False})
         return jsonify(error, 400)
 
     data = request.json
+    # check that all fields are supplied
     if not all([data.get('user_id'), data.get('space_name'), data.get('plan')]):
         error = json.dumps(
             {"message": "Missing field/s (user_id, space_name or plan)", "success": False})
+        return jsonify(error, 400)
+
+    # make user_id is of type string
+    if type(data.get('user_id')) is not str:
+        error = json.dumps(
+            {"message": "Invalid user_id. string required!", "success": False})
         return jsonify(error, 400)
 
     user_id = data['user_id']
@@ -99,7 +107,8 @@ def save_locate_map():
 
     locate_model.save_locate_map(user_id, space_name, plan)
 
-    return jsonify({"message": "Locate Plannig Space Saved Successfully", "success": True}), 200
+    return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
+
 
 # get previously saved planning space by the current user
 @app.route('/api/v1/map/getlocatemap/<user_id>')

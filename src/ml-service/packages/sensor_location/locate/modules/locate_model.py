@@ -4,7 +4,7 @@ import pymongo
 import json
 import os
 
-MONGO_URI = os.getenv('MONGO_URI')
+MONGO_URI = os.getenv('MONGO_URI_DEV')
 
 
 def connect_mongo():
@@ -45,7 +45,7 @@ def save_locate_map(user_id, space_name, plan):
 # Retrieve previously saved planning space
 def get_locate_map(user_id):
     db = connect_mongo()
-    documents = db.locate_map.find({"user_id": user_id})
+    documents = db.locate_map.find({"user_id": str(user_id)})
     return documents
 
 
