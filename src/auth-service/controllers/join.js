@@ -14,6 +14,7 @@ const validateLoginInput = require("../utils/validations.login");
 const validateForgotPwdInput = require("../utils/validations.forgot");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validateCandidateInput = require("../utils/validations.candidate");
+const register = require("../utils/register");
 
 const join = {
     listAll: async(req, res) => {
@@ -47,36 +48,6 @@ const join = {
                 });
             }
         });
-    },
-    activateUser: async(req, res) => {
-        try {
-            const user = await User.findByIdAndUpdate({ _id: req.params.id }, { hasAccess: true },
-                (err, result) => {
-                    if (err) {
-                        return res.status(500).json(err);
-                    } else {
-                        return res.status(200).json(result);
-                    }
-                }
-            );
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_REQUEST).json(e);
-        }
-    },
-    deactivateUser: async(req, res) => {
-        try {
-            const user = await User.findByIdAndUpdate({ _id: req.params.id }, { hasAccess: false },
-                (err, result) => {
-                    if (err) {
-                        return res.status(500).json(err);
-                    } else {
-                        return res.status(200).json(result);
-                    }
-                }
-            );
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_REQUEST).json(e);
-        }
     },
 
     findUser: (req, res, next) => {
@@ -159,6 +130,8 @@ const join = {
 
     registerUser: (req, res) => {
         console.log(process.env.ATLAS_URI);
+        console.log("the elements we need:")
+        console.dir(req.body);
 
         const { errors, isValid } = validateRegisterInput(req.body);
 
@@ -167,110 +140,63 @@ const join = {
                 .status(400)
                 .json({ success: false, errors, message: "validation error" });
         }
-        console.log("the values coming in: ")
+
+        const mailOptions = {
+            from: `info@airqo.net`,
+            to: `${req.body.email}`,
+            subject: "Welcome to AirQo",
+            text: msgs.welcome,
+        };
+
+        //this is where I call the register function
+        console.log("the values we are sending")
         console.dir(req.body)
-        User.findOne({ email: req.body.email }).then((user) => {
-            if (user) {
-                return res
-                    .status(400)
-                    .json({ success: false, email: "Email already exists" });
-            } else {
-                const user = new User({
-                    firstName: req.body.firstName,
-                    lastName: req.body.lastName,
-                    email: req.body.email,
-                    userName: req.body.userName,
-                    password: req.body.password,
-                });
-                user.save((error, savedData) => {
-                    if (error) {
-                        return console.log(error);
-                    } else {
-                        //sending the confirmation email to the user
-                        const mailOptions = {
-                            from: `info@airqo.net`,
-                            to: `${user.email}`,
-                            subject: "Welcome to AirQo",
-                            text: msgs.welcome,
-                        };
+        register(req, res, mailOptions, req.body, User);
 
-                        transporter.sendMail(mailOptions, (err, response) => {
-                            if (err) {
-                                console.error("there was an error: ", err);
-                            } else {
-                                console.log("here is the res: ", response);
-                                res.status(200).json({
-                                    savedData,
-                                    success: true,
-                                    message: "user added successfully",
-                                });
-                            }
-                        });
-                    }
-                });
-            }
-        });
+        // console.log("the values coming in: ")
+        // console.dir(req.body)
+        // User.findOne({ email: req.body.email }).then((user) => {
+        //     if (user) {
+        //         return res
+        //             .status(400)
+        //             .json({ success: false, email: "Email already exists" });
+        //     } else {
+        //         const user = new User({
+        //             firstName: req.body.firstName,
+        //             lastName: req.body.lastName,
+        //             email: req.body.email,
+        //             userName: req.body.userName,
+        //             password: req.body.password,
+        //         });
+        //         user.save((error, savedData) => {
+        //             if (error) {
+        //                 return console.log(error);
+        //             } else {
+        //                 //sending the confirmation email to the user
+        //                 const mailOptions = {
+        //                     from: `info@airqo.net`,
+        //                     to: `${user.email}`,
+        //                     subject: "Welcome to AirQo",
+        //                     text: msgs.welcome,
+        //                 };
+
+        //                 transporter.sendMail(mailOptions, (err, response) => {
+        //                     if (err) {
+        //                         console.error("there was an error: ", err);
+        //                     } else {
+        //                         console.log("here is the res: ", response);
+        //                         res.status(200).json({
+        //                             savedData,
+        //                             success: true,
+        //                             message: "user added successfully",
+        //                         });
+        //                     }
+        //                 });
+        //             }
+        //         });
+        //     }
+        // });
     },
-
-    registerCandidate: (req, res) => {
-        //console.log(process.env.ATLAS_URI);
-        const { errors, isValid } = validateCandidateInput(req.body);
-
-        if (!isValid) {
-            return res.status(400).json(errors);
-        }
-        console.log("past the error phase...");
-        Candidate.findOne({ email: req.body.email }).then((user) => {
-            console.log("finding one....");
-            if (user) {
-                return res.status(400).json({ email: "Email already exists" });
-            } else {
-                const {
-                    firstName,
-                    lastName,
-                    email,
-                    jobTitle,
-                    company,
-                    phoneNumber,
-                    country,
-                    desc,
-                } = req.body;
-                const user = new Candidate({
-                    firstName: firstName,
-                    lastName: lastName,
-                    email: email,
-                    jobTitle: jobTitle,
-                    company: company,
-                    phoneNumber: phoneNumber,
-                    country: country,
-                    desc: desc,
-                });
-                user.save((error, savedData) => {
-                    if (error) {
-                        return console.log(error);
-                    } else {
-                        //sending the confirmation email to the user
-                        const mailOptions = {
-                            from: `info@airqo.net`,
-                            to: `${email}`,
-                            subject: "AirQo Platform JOIN request",
-                            text: msgs.joinRequest,
-                        };
-
-                        transporter.sendMail(mailOptions, (err, response) => {
-                            if (err) {
-                                console.error("there was an error: ", err);
-                            } else {
-                                console.log("here is the res: ", response);
-                                res.status(200).json(savedData);
-                            }
-                        });
-                    }
-                });
-            }
-        });
-    },
-
     //invoked when the user visits the confirmation url on the client
     confirmEmail: async(req, res) => {
         const { id } = req.params;
@@ -296,6 +222,8 @@ const join = {
 
     loginUser: (req, res, next) => {
         console.log("we have reached loginUser....");
+        console.log("the body:");
+        console.dir(req.body);
         const { errors, isValid } = validateLoginInput(req.body);
 
         if (!isValid) {
@@ -303,11 +231,6 @@ const join = {
         }
 
         res.status(200).json(req.user.toAuthJSON());
-        return next();
-    },
-
-    loginCollaborator: (req, res, next) => {
-        res.status(200).json(req.colab.toAuthJSON());
         return next();
     },
 
@@ -330,7 +253,6 @@ const join = {
         });
     },
 
-    //
     updateUser: (req, res, next) => {
         User.findByIdAndUpdate(req.body.id, req.body, (err, user) => {
             if (err) {
@@ -342,63 +264,6 @@ const join = {
                 res.status(400).json({ success: true, message: "user does not exist in the db" })
             }
         })
-    },
-
-    updateCollaborator: (req, res, next) => {
-        let query = { _id: req.params.id };
-        let updateDetails = req.body;
-        Collaborator.findOneAndUpdate(query, updateDetails, (error, response) => {
-            if (error) {
-                return res.status(HTTPStatus.BAD_GATEWAY).json(e);
-            } else if (response) {
-                return res.status(HTTPStatus.OK).json(response);
-            } else {
-                return res.status(HTTPStatus.BAD_REQUEST);
-            }
-        });
-    },
-    addCollaborator: async(req, res, next) => {
-        try {
-            //get the ID of the one requesting:
-            let id = req.params.id;
-            let colab = new Collaborator(req.body);
-            await colab.save((error, savedData) => {
-                if (error) {
-                    return res.status(500).json(error);
-                } else {
-                    return res.status(201).json(savedData);
-                }
-            });
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_REQUEST).json(e);
-        }
-    },
-
-    deleteCollaborator: (req, res, next) => {
-        try {
-            let query = { _id: req.params.id };
-            Collaborator.findOneAndDelete(query, (error, response) => {
-                if (error) {
-                    return res
-                        .status(400)
-                        .json({ error: errorHandler.getErrorMessage(err) });
-                } else {
-                    res.status(200).send("user deleted");
-                }
-            });
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_REQUEST).json(e);
-        }
-    },
-
-    logout: async(req, res) => {
-        try {
-            await req.logout();
-            req.session = null;
-            return res.status(HTTPStatus.OK).send("successfully logged out");
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json(e);
-        }
     },
     resetPassword: (req, res, next) => {
         console.log("inside the reset password function...");
