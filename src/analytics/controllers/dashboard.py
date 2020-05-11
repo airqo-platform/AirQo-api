@@ -139,25 +139,43 @@ def generate_customised_chart_data():
                 location_code= device['LocationCode']
                 #device_id = device['_id']
                 values =[]
-                labels =[]    
+                labels =[] 
+                background_colors= []   
                 device_results={}               
-               
-                filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
-                if filtered_data:
-                    for data in filtered_data: 
-                        values.append(data['pollutant_value'])
-                        labels.append(data['time'])
-                    device_results= {'pollutant_values':values, 'labels':labels}
-                    color = colors.pop() 
-                    dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
-                    datasets.append(dataset)      
-                                                   
-                
-                custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
-                 'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                 'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
+                if chart_type == 'pie':
+                    filtered_data = gr.get_piechart_data(device_code, start_date, end_date, frequency, pollutant)
+                    if filtered_data:
+                        for data in filtered_data: 
+                            values.append(data['category_count'])
+                            labels.append(data['category_name'])
+                            background_colors.append(helpers.assign_color_to_pollutant_category(data['category_name']))  
+                        device_results= {'pollutant_values':values, 'labels':labels}
+                        color = colors.pop() 
+                        dataset = {'data':values, 'label':parish + ' '+ pollutant,'backgroundColor':background_colors} 
+                        datasets.append(dataset)
 
-            locations_devices.append(devices)                     
+                        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+                        'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+                        'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title})    
+                    
+                    #return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
+                else:                    
+                    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+                    if filtered_data:
+                        for data in filtered_data: 
+                            values.append(data['pollutant_value'])
+                            labels.append(data['time'])
+                        device_results= {'pollutant_values':values, 'labels':labels}
+                        color = colors.pop() 
+                        dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
+                        datasets.append(dataset)      
+                                                    
+                    
+                    custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+                    'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+                    'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
+
+                locations_devices.append(devices)                     
             
         return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
         

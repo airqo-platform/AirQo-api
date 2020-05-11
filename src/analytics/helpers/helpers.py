@@ -62,3 +62,23 @@ def set_pm25_category_background(pm25_conc_value):
         category_color = '#808080'
 
     return category_color
+
+def assign_color_to_pollutant_category(pollutant_category):
+    category_color = ""    
+    if pollutant_category == 'Good':
+        category_color = '#45e50d'
+    elif pollutant_category =='Moderate':
+        category_color = '#f8fe28'
+    elif pollutant_category =='UH4SG':
+        category_color = '#ee8310'
+    elif pollutant_category =='Unhealthy':
+        category_color = '#fe0000'
+    elif pollutant_category =='Very Unhealthy':
+        category_color = '#8639c0'
+    elif pollutant_category =='Hazardous':
+        category_color = '#81202e'
+    else:
+        category_color = '#808080'
+
+    return category_color
+

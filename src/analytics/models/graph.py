@@ -15,6 +15,67 @@ class Graph():
 
     def __init__(self):
         """ initialize """ 
+
+    def get_piechart_data(self, device_code, start_date, end_date, frequency, pollutant ):
+        '''
+        returns the data to generate a pie chart given specific parameters
+        '''
+        records = self.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+        if records:
+            if pollutant == 'PM 2.5':               
+                good_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >0.0 and records[i]['pollutant_value'] <=12.0)
+                moderate_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >12.0 and 
+                records[i]['pollutant_value'] <=35.4)
+                UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >35.4 and 
+                records[i]['pollutant_value'] <=55.4)
+                unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >55.4 and 
+                records[i]['pollutant_value'] <=150.4)
+                v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >150.4 and 
+                records[i]['pollutant_value'] <=250.4)
+                hazardous_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >250.4 and 
+                records[i]['pollutant_value'] <=500.4)
+                unknowns_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] <0.0 or 
+                records[i]['pollutant_value'] > 500.4)
+
+            elif pollutant =='PM 10':                
+                good_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >0.0 and 
+                records[i]['pollutant_value'] <=54)
+                moderate_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >54 and 
+                records[i]['pollutant_value'] <=154)
+                UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >154 and 
+                records[i]['pollutant_value'] <=254)
+                unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >254 and 
+                records[i]['pollutant_value'] <=354)
+                v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >354 and 
+                records[i]['pollutant_value'] <=424)
+                hazardous_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >424 and 
+                records[i]['pollutant_value'] <=604)
+                unknowns_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] <0.0 or 
+                records[i]['pollutant_value'] > 604)
+            else:
+                records = self.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+                good_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >0 and records[i]['pollutant_value'] <=53)
+                moderate_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >53 and 
+                records[i]['pollutant_value'] <=100)
+                UH4SG_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >100 and 
+                records[i]['pollutant_value'] <=360)
+                unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >360 and 
+                records[i]['pollutant_value'] <=649)
+                v_unhealthy_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >649 and 
+                records[i]['pollutant_value'] <=1249)
+                hazardous_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] >1249 and 
+                records[i]['pollutant_value'] <=2049)
+                unknowns_sum =sum(1 for i in range(len(records)) if records[i]['pollutant_value'] <0.0 or 
+                records[i]['pollutant_value'] > 2049)
+            
+            tasks = [{'category_name':'Good','category_count':good_sum},
+                {'category_name':'Moderate','category_count': moderate_sum}, {'category_name':'UH4SG','category_count':UH4SG_sum},
+                {'category_name':'Unhealthy','category_count': unhealthy_sum},{'category_name':'Very Unhealthy','category_count': v_unhealthy_sum}, 
+                {'category_name':'Hazardous','category_count':hazardous_sum}, {'category_name':'Other','category_count':unknowns_sum}]
+        else:
+            tasks = []
+        return tasks
+        
                 
     def resample_timeseries_data(self, data, frequency, datetime_field, decimal_places):
         """
