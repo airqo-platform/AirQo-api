@@ -72,7 +72,6 @@ const UserSchema = new Schema({
         },
     },
     interest: { type: String, default: "none" },
-    org_name: { type: String, default: "none" },
     privilege: { type: String, default: "admin" },
     accountStatus: { type: String, default: "false" },
     hasAccess: { type: Boolean, default: false },
@@ -85,9 +84,24 @@ const UserSchema = new Schema({
     uni_course_yr: { type: String, default: 0 },
     pref_locations: [{ type: ObjectId, ref: "loc" }],
     country: { type: String, default: "Uganda" },
-    job_title: { type: String, default: "none" },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
+    role: {
+        job_title: { type: String, default: "none" },
+        org_name: { type: String, default: "none" }
+    },
+    graph_defaults: {
+        pollutant: { type: String, default: "none" },
+        endDate: { type: Date, default: Date.now },
+        startDate: { type: Date, default: Date.now },
+        startTime: { type: Number, default: 0 },
+        endTime: { type: Number, default: 0 }
+    },
+    product: {
+        analytics: { type: Boolean, default: false },
+        locate: { type: Boolean, default: false },
+        admin: { type: Boolean, default: false }
+    }
 });
 
 UserSchema.pre("save", function(next) {
@@ -159,7 +173,8 @@ UserSchema.methods = {
             email: this.email,
             firstName: this.firstName,
             lastName: this.lastName,
-            userName: this.userName
+            userName: this.userName,
+            graph_defaults: this.graph_defaults
         };
     },
 };
