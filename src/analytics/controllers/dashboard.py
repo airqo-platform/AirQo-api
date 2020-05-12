@@ -64,6 +64,49 @@ def download_customised_data():
         return jsonify({'results':custom_chat_data, 'datasets':datasets})
         
 
+
+@dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods = ['GET'])
+def get_random_location_hourly_customised_chart_data_2():
+    ms = monitoring_site.MonitoringSite()
+    gr = graph.Graph()
+    device_code = 'A743BPWK'
+    start_date = '2020-04-09T07:00:00.000000Z'
+    end_date = '2020-05-12T07:00:00.000000Z'
+    frequency = 'monthly'
+    pollutant = 'PM 2.5'
+    chart_type = 'pie'
+    organisation_name= 'KCCA'
+    parish = ' Wandegeya'
+    location_code ='KCCA_KWPE_AQ05'
+    division = 'Kawempe'
+    custom_chat_data = []
+    datasets = []
+    colors =['green', 'blue', 'red','orange']
+    custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
+    locations_names = parish
+    custom_chart_title = custom_chart_title +  locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
+    values =[]
+    labels =[]    
+    device_results={}
+    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+    if filtered_data:
+        for data in filtered_data: 
+            values.append(data['pollutant_value'])
+            labels.append(data['time'])
+        device_results= {'pollutant_values':values, 'labels':labels}
+        color = colors.pop() 
+        dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
+        datasets.append(dataset)          
+                                                   
+                               
+        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+            'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+            'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
+
+    return jsonify({'results':custom_chat_data, 'datasets':datasets,'custom_chart_title':custom_chart_title})
+
+
+
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random', methods = ['GET'])
 def get_random_location_hourly_customised_chart_data():
     ms = monitoring_site.MonitoringSite()
