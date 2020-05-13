@@ -11,6 +11,7 @@
     "create-env": "printenv > .env"
   },
   "dependencies": {
+    "@google-cloud/bigtable": "^2.3.2",
     "@google-cloud/datastore": "^5.1.0",
     "@google-cloud/debug-agent": "^4.0.4",
     "bcrypt": "^3.0.6",
