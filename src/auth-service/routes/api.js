@@ -8,21 +8,21 @@ const privileges = require("../utils/privileges");
 
 //the middleware function
 const middleware = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    );
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+    next();
 };
 router.use(middleware);
 
 router.post("/loginUser", authUserLocal, joinController.loginUser);
 router.post(
-  "/loginCollaborator",
-  authColabLocal,
-  joinController.loginCollaborator
+    "/loginCollaborator",
+    authColabLocal,
+    joinController.loginCollaborator
 );
 router.post("/logout", joinController.logout);
 
@@ -30,9 +30,9 @@ router.post("/logout", joinController.logout);
 router.get("/", authJWT, joinController.listAll);
 router.get("/:id", authJWT, joinController.listOne);
 router.post(
-  "/registerUser",
-  validate(userValidation.register),
-  joinController.registerUser
+    "/registerUser",
+    validate(userValidation.register),
+    joinController.registerUser
 );
 router.post("/registerCandidate", joinController.registerCandidate);
 router.delete("/:id", authJWT, joinController.deleteUser);
@@ -48,25 +48,30 @@ router.post("/deny/:id", joinController.deactivateUser);
 
 //collaborators
 router.post(
-  "/register/collab",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.addCollaborator
+    "/register/collab",
+    authJWT,
+    privileges.isColabAdmin,
+    joinController.addCollaborator
 );
 router.put(
-  "/update/collab/:id",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.updateCollaborator
+    "/update/collab/:id",
+    authJWT,
+    privileges.isColabAdmin,
+    joinController.updateCollaborator
 );
 router.delete(
-  "/delete/collab/:id",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.deleteCollaborator
+    "/delete/collab/:id",
+    authJWT,
+    privileges.isColabAdmin,
+    joinController.deleteCollaborator
 );
 
 //params
 router.param("userId", joinController.findUserById);
+
+/************************testing out Cloud BigTable ***************************************/
+router.post("/createTest", joinController.createTest);
+router.get("/getOneTest", joinController.getOneTest);
+router.get("/getAllTest", joinController.getAllTest);
 
 module.exports = router;
