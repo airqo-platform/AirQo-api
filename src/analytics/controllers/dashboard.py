@@ -61,7 +61,7 @@ def download_customised_data():
 
             locations_devices.append(devices)        
             
-        return jsonify({'results':custom_chat_data, 'datasets':datasets})
+        return jsonify({'results':custom_chat_data})
         
 
 
@@ -307,14 +307,15 @@ def get_divisions():
 
 @dashboard_bp.route('/api/v1/dashboard/exceedances', methods=['POST'])
 def get_exceedances():
+    gr = graph.Graph()
     if request.method == 'POST':
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400           
         pollutant = json_data["pollutant"]  
         standard = json_data["standard"]
-        exceedances_data = mongo_helpers.get_exceedances(pollutant, standard)
-        return jsonify(exceedances_data)
+        exceedances_data = gr.get_all_devices_past_28_days_exceedences(pollutant, standard)
+        return jsonify(exceedances_data[0]['exceedences'])
 
 @dashboard_bp.route('/api/v1/dashboard/exceedance_locations', methods=['GET'])
 def get_exceedance_locations():

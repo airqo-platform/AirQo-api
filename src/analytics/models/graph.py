@@ -16,6 +16,24 @@ class Graph():
     def __init__(self):
         """ initialize """ 
 
+    def get_all_devices_past_28_days_exceedences(self, pollutant='PM 2.5', standard='AQI'):
+        """
+        Gets all the exceedences for all the locations in the past 28 days from current day. 
+
+        Args:
+            pollutant: the pollutant whose exceedences are to be returned. 
+            standard: the standard to use to get the exceedences.
+
+        Returns:
+            A list of the number of daily exceedences for the specified pollutant and standard in the past 28 days.
+        """       
+        created_at = helpers.str_to_date(helpers.date_to_str(datetime.now().date()))
+        #print(created_at)        
+        query = {'$match':{ 'created_at': {'$gte': created_at}, 'pollutant':pollutant, 'standard':standard }}
+        projection = { '$project': { '_id': 0 }}
+        results = list(app.mongo.db.device_daily_exceedences.aggregate([query, projection]) )       
+        return results
+
     def get_piechart_data(self, device_code, start_date, end_date, frequency, pollutant ):
         '''
         returns the data to generate a pie chart given specific parameters

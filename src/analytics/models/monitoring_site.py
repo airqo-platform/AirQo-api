@@ -170,8 +170,7 @@ class MonitoringSite():
         print(created_at)
         query = {'$match':{ 'created_at': {'$gte': created_at} }}
         projection = { '$project': { '_id': 0 }}
-        results = list(app.mongo.db.device_daily_historical_averages.aggregate([query, projection]) )
-        #results = list(app.mongo.db.device_daily_historical_averages.find({},{ "_id": 0}))        
+        results = list(app.mongo.db.device_daily_historical_averages.aggregate([query, projection]) )       
         return results
 
     def update_all_monitoring_sites_latest_hourly_measurements(self):
