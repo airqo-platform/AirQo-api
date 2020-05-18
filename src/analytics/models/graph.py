@@ -148,6 +148,7 @@ class Graph():
             end = helpers.str_to_date(end_date)
 
         query = {'$match':{ 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }}
+        sort_order= { '$sort' : { 'time' : 1  }}
                                  
         if pollutant == 'PM 10':            
             projection = { '$project': { '_id': 0, 
@@ -164,12 +165,12 @@ class Graph():
                                 
                                          
         if frequency =='hourly':
-            records = app.mongo.db.device_hourly_measurements.aggregate([query, projection])            
+            records = app.mongo.db.device_hourly_measurements.aggregate([query, projection,sort_order])            
         elif frequency == 'monthly':
-            results = list(app.mongo.db.device_daily_measurements.aggregate([query, projection]))
+            results = list(app.mongo.db.device_daily_measurements.aggregate([query, projection,sort_order]))
             records = self.resample_timeseries_data(results, 'M', 'time', 2)
         else:
-            records = app.mongo.db.device_daily_measurements.aggregate([query, projection])
+            records = app.mongo.db.device_daily_measurements.aggregate([query, projection,sort_order])
 
     
         return list(records)

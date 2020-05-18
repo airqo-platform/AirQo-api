@@ -20,7 +20,7 @@ def function_to_execute(event, context):
     """
     action = base64.b64decode(event['data']).decode('utf-8')
 
-    if (action == "calculate_average_daily_measurements_for_the_last_28_days"):
+    if (action == "calculate_exceedances_for_last_28_days"):
         calculate_exceedances_for_last_28_days()
          
 

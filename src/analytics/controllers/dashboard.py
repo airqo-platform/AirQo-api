@@ -81,7 +81,7 @@ def get_random_location_hourly_customised_chart_data_2():
     division = 'Kawempe'
     custom_chat_data = []
     datasets = []
-    colors =['green', 'blue', 'red','orange']
+    colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5'] #blue,cyan, olive,
     custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
     locations_names = parish
     custom_chart_title = custom_chart_title +  locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
@@ -123,7 +123,7 @@ def get_random_location_hourly_customised_chart_data():
     division = 'Nakawa'
     custom_chat_data = []
     datasets = []
-    colors =['green', 'blue', 'red','orange']
+    colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
     custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
     locations_names = parish
     custom_chart_title = custom_chart_title +  locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
@@ -169,7 +169,7 @@ def generate_customised_chart_data():
         custom_chat_data = []
         datasets = [] #displaying multiple locations
         locations_devices =[]
-        colors =['green', 'blue', 'red','orange']
+        colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
         custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
         locations_names = ','.join([str(location['label']) for location in locations])        
         custom_chart_title = custom_chart_title +  locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
