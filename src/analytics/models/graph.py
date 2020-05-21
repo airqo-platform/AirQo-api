@@ -149,18 +149,25 @@ class Graph():
 
         query = {'$match':{ 'deviceCode': device_code, 'time': {'$lte': end, '$gte': start} }}
         sort_order= { '$sort' : { 'time' : 1  }}
+
+        time_format = '%Y-%m-%dT%H:%M:%S%z'
+
+        if frequency == 'daily':
+            time_format = '%Y-%m-%d'
+        elif frequency == 'hourly':
+            time_format = '%Y-%m-%d %H:%M'
                                  
         if pollutant == 'PM 10':            
             projection = { '$project': { '_id': 0, 
-            'time': {'$dateToString':{ 'format': '%Y-%m-%dT%H:%M:%S%z', 'date': '$time', 'timezone':'Africa/Kampala'}}, 
+            'time': {'$dateToString':{ 'format': time_format, 'date': '$time', 'timezone':'Africa/Kampala'}}, 
                 'pollutant_value': {'$round':['$characteristics.pm10ConcMass.value',2]} }}
         elif pollutant == 'NO2':           
             projection = { '$project': { '_id': 0, 
-            'time': {'$dateToString':{ 'format': '%Y-%m-%dT%H:%M:%S%z', 'date': '$time', 'timezone':'Africa/Kampala'}}, 
+            'time': {'$dateToString':{ 'format': time_format, 'date': '$time', 'timezone':'Africa/Kampala'}}, 
                 'pollutant_value': {'$round':['$characteristics.no2Conc.value',2]} }}       
         else:            
             projection = { '$project': { '_id': 0, 
-            'time': {'$dateToString':{ 'format': '%Y-%m-%dT%H:%M:%S%z', 'date': '$time', 'timezone':'Africa/Kampala'}}, 
+            'time': {'$dateToString':{ 'format': time_format, 'date': '$time', 'timezone':'Africa/Kampala'}}, 
                 'pollutant_value': {'$round':['$characteristics.pm2_5ConcMass.value',2]} }} 
                                 
                                          
