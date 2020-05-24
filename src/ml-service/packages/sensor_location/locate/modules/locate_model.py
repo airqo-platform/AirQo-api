@@ -3,8 +3,14 @@ from pymongo import MongoClient
 import pymongo
 import json
 import os
+# adding dotenv package
+from dotenv import load_dotenv
+from pathlib import Path  # python3 only
+from config import app_config
 
-MONGO_URI = os.getenv('MONGO_URI')
+_config = app_config['production']
+MONGO_URI = _config.MONGO_URI
+# MONGO_URI = os.getenv("MONGO_URI")
 
 
 def connect_mongo():

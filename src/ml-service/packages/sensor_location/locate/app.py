@@ -12,7 +12,7 @@ app = Flask(__name__)
 CORS(app)
 
 # add mongo url to flask config, so that flask_pymongo can use it to make connection
-app.config["MONGO_URI"] = os.getenv('MONGO_URI')
+app.config["MONGO_URI"] = locate_model.MONGO_URI
 mongo = PyMongo(app)
 
 # data formate
@@ -184,4 +184,4 @@ def delete_locate_map(space_name):
 
 
 if __name__ == "__main__":
-    app.run()
+    app.run(debug=True)
