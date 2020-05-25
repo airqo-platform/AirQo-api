@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 import app
-from models import monitoring_site, graph
+from models import monitoring_site, graph,dashboard
 from bson import json_util, ObjectId
 import json
 from helpers import mongo_helpers
@@ -10,6 +10,25 @@ from helpers import helpers
 _logger = logging.getLogger(__name__)
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+@dashboard_bp.route('/api/v1/dashboard/locations/pm25categorycount', methods=['GET'])
+def get_pm25categorycount_for_locations():
+    ms = monitoring_site.MonitoringSite()
+    d = dashboard.Dashboard()
+    if request.method == 'GET':
+        org_name= request.args.get('organisation_name')
+        if org_name:
+                               
+            #organisation_monitoring_sites_cursor = ms.get_all_organisation_monitoring_sites(org_name)         
+            #results =  d.get_pm25_category_count(organisation_monitoring_sites_cursor)
+            results =  d.get_pm25_category_location_count_for_the_lasthour(org_name)
+            if results:
+                return jsonify(results[0]['pm25_categories'])
+            else:
+                return jsonify([])
+        else:
+            return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
+
 
 @dashboard_bp.route('/api/v1/data/download', methods = ['POST'])
 def download_customised_data():
@@ -158,7 +177,7 @@ def generate_customised_chart_data():
         
         #input_data, errors = validate_inputs(input_data=json_data) //add server side validation
         #if not errors:       
-
+    
         locations = json_data["locations"]        
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
@@ -211,12 +230,16 @@ def generate_customised_chart_data():
                         device_results= {'pollutant_values':values, 'labels':labels}
                         color = colors.pop() 
                         dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
-                        datasets.append(dataset)      
-                                                    
+                        datasets.append(dataset) 
+                    measurement_units = '(µg/m3)' 
+                    if pollutant == 'NO2':
+                        measurement_units = ' Concentration'    
+                    chart_label = pollutant + measurement_units                              
                     
                     custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
                     'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                    'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
+                    'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 
+                    'datasets':datasets, 'custom_chart_title':custom_chart_title, 'chart_label':chart_label})
 
                 locations_devices.append(devices)                     
             
