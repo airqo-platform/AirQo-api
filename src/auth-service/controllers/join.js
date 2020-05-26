@@ -13,6 +13,7 @@ const validateRegisterInput = require("../utils/validations.register");
 const validateLoginInput = require("../utils/validations.login");
 const validateForgotPwdInput = require("../utils/validations.forgot");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
+const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const validateCandidateInput = require("../utils/validations.candidate");
 const register = require("../utils/register");
 
@@ -130,7 +131,7 @@ const join = {
 
     registerUser: (req, res) => {
         console.log(process.env.ATLAS_URI);
-        console.log("the elements we need:")
+        console.log("the elements we need:");
         console.dir(req.body);
 
         const { errors, isValid } = validateRegisterInput(req.body);
@@ -149,8 +150,8 @@ const join = {
         };
 
         //this is where I call the register function
-        console.log("the values we are sending")
-        console.dir(req.body)
+        console.log("the values we are sending");
+        console.dir(req.body);
         register(req, res, mailOptions, req.body, User);
 
         // console.log("the values coming in: ")
@@ -249,22 +250,22 @@ const join = {
                     message: user.userName + " deleted successfully",
                 });
             }
-
         });
     },
 
     updateUser: (req, res, next) => {
         User.findByIdAndUpdate(req.body.id, req.body, (err, user) => {
             if (err) {
-                res.json({ 'success': false, 'message': 'Some Error', 'error': err });
+                res.json({ success: false, message: "Some Error", error: err });
             } else if (user) {
                 console.log(user);
-                res.json({ 'success': true, 'message': 'Updated successfully', user });
+                res.json({ success: true, message: "Updated successfully", user });
             } else {
-                res.status(400).json({ success: true, message: "user does not exist in the db" })
+                res.json({ success: false, message: "user does not exist in the db" });
             }
-        })
+        });
     },
+
     resetPassword: (req, res, next) => {
         console.log("inside the reset password function...");
         console.log(`${req.params.resetPasswordToken}`);
@@ -322,20 +323,26 @@ const join = {
     },
 
     updatePassword: (req, res) => {
-        //updating the routes with tim
-        User.findByIdAndUpdate({ _id: req.body.id },
-            req.body,
-            (err, result) => {
-                if (err) {
-                    res.status(500).json({ message: "server error", err, success: false });
-                } else if (results) {
-                    res.status(200).json({ message: "password updated", success: true, result });
-                } else {
-                    res.status(400).json({ message: "user does not exist in the database", success: false })
-                }
+        const { errors, isValid } = validatePasswordUpdate(req.body);
+        if (!isValid) {
+            return res.status(400).json(errors);
+        }
+
+        User.findByIdAndUpdate({ _id: req.body.id }, req.body, (err, result) => {
+            if (err) {
+                res.status(500).json({ message: "server error", err, success: false });
+            } else if (result) {
+                res
+                    .status(200)
+                    .json({ message: "password updated", success: true, result });
+            } else {
+                res.status(400).json({
+                    message: "user does not exist in the database",
+                    success: false,
+                });
             }
-        )
-    }
+        });
+    },
 };
 
 module.exports = join;
