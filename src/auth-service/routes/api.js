@@ -26,7 +26,7 @@ const checkAuth = () => {
     } else if (privileges.isUser) {
         return authUserLocal;
     }
-}
+};
 
 //************************* users ***************************************************
 router.post("/loginUser", authUserLocal, joinController.loginUser);
@@ -40,18 +40,20 @@ router.get("/reset/:resetPasswordToken", joinController.resetPassword);
 router.post("/forgotPassword", joinController.forgotPassword);
 router.get("/findUser", joinController.findUser);
 router.put("/", joinController.updateUser);
+router.delete("/:id", joinController.deleteUser);
 
 //************************ collaborators *******************************************
-router.post("/registerCollab", authJWT, privileges.isColabAdmin, collaborateController.addCollaborator);
-router.put("/updateCollab/:id", authJWT, privileges.isColabAdmin, collaborateController.updateCollaborator);
-router.delete("/deleteCollab/:id", authJWT, privileges.isColabAdmin, collaborateController.deleteCollaborator);
-router.get("/collaborators", authJWT, privileges.isColabAdmin, collaborateController.listAll);
+router.post("/collaborators/add/:id", collaborateController.addCollaborator);
+router.get("/collaborators/:id", collaborateController.listAll);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
 router.post("/registerCandidate", candidateController.registerCandidate);
 router.post("/activateCandidate/:id", candidateController.activateCandidate);
-router.post("/deactivateCandidate/:id", candidateController.deactivateCandidate);
+router.post(
+    "/deactivateCandidate/:id",
+    candidateController.deactivateCandidate
+);
 router.get("/getOneCandidate/:id", candidateController.findCandidateById);
 router.get("/getCandidates", candidateController.getAllCandidates);
 
