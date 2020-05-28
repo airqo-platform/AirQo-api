@@ -3,8 +3,14 @@ from pymongo import MongoClient
 import pymongo
 import json
 import os
+# adding dotenv package
+from dotenv import load_dotenv
+from pathlib import Path  # python3 only
+from config import app_config
 
-MONGO_URI = os.getenv('MONGO_URI')
+_config = app_config['production']
+MONGO_URI = _config.MONGO_URI
+# MONGO_URI = os.getenv("MONGO_URI")
 
 
 def connect_mongo():
@@ -45,13 +51,16 @@ def save_locate_map(user_id, space_name, plan):
 # Retrieve previously saved planning space
 def get_locate_map(user_id):
     db = connect_mongo()
-    documents = db.locate_map.find({"user_id": user_id})
+    documents = db.locate_map.find({"user_id": str(user_id)})
     return documents
 
 
 # update previously saved planning space
-def update_locate_map(space_name):
-    pass
+def update_locate_map(space_name, updated_plan):
+    db = connect_mongo()
+    response = db.locate_map.update_one(
+        {"space_name": space_name}, {'$set': {'plan': updated_plan}})
+    return response
 
 
 # delete previously saved planning space
