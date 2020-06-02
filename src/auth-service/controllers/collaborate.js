@@ -14,99 +14,86 @@ const validateLoginInput = require("../utils/validations.login");
 const validateForgotPwdInput = require("../utils/validations.forgot");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validateCandidateInput = require("../utils/validations.candidate");
+const register = require("../utils/register");
 
 const collaborate = {
+    addCollaborator: async(req, res, next) => {
+        const data = {
+            privilege: "",
+            password: "",
+            userName: "",
+            firstName: "",
+            lastName: "",
+            admin: {},
+            email: "",
+            organization: "",
+            org_name: "",
+            privilege: "",
+        };
 
-    listAll: async(req, res) => {
-        try {
-            const users = await Collaborator.find();
+        const { errors, isValid } = validateRegisterInput(data);
+
+        if (!isValid) {
             return res
-                .status(HTTPStatus.OK)
-                .json({ success: true, message: "Users fetched successfully", users });
-        } catch (e) {
-            return res
-                .status(HTTPStatus.BAD_REQUEST)
-                .json({ success: false, message: "Some Error" });
+                .status(400)
+                .json({ success: false, errors, message: "validation error" });
         }
-    },
 
-    findCollaborator: (req, res, next) => {
-        if (req.user.userName === req.query.userName) {
-            Collaborator.findOne({
-                userName: req.query.userName,
-            }).then((userInfo) => {
-                if (userInfo != null) {
-                    console.log("user found in db from findUsers");
-                    res.status(200).json(userInfo);
-                } else {
-                    console.error("no user exists in db with that username");
-                    res.status(401).send("no user exists in db with that username");
-                }
-            });
-        } else {
-            console.error("jwt id and username do not match");
-            res.status(403).send("username and jwt token do not match");
-        }
-    },
+        User.find(data.admin).exec((err, user) => {
+            if (err) {
+                return res.json({ success: false, message: "Some Error" });
+            }
+            if (user.length) {
+                /*****
+                 * User.save(new user)
+                 * On Success: update the current user's collaborator array.
+                 */
 
-    findCollaboratorById: (req, res, next, id) => {
-        Collaborator.findById(id).exec((err, user) => {
-            if (err || !user) {
-                return res.status(400).json({
-                    error: "No user found with these credentials!",
+                return res.json({
+                    success: true,
+                    message: "User fetched by id successfully",
+                    user,
+                });
+            } else {
+                return res.json({
+                    success: false,
+                    message: "User with the given id not found",
+                    user,
                 });
             }
-            req.profile = user;
-            next();
         });
+        /****
+         * get the ID of the user
+         * get new user details
+         *
+         * update that user using the collaborators
+         * collaborators.push(newUser);
+         *
+         * On success:
+         * res.status(200).json(newUser);
+         *
+         * On failure:
+         * res.status(500).push(failure message);
+         *
+         */
     },
 
-    updateCollaborator: (req, res, next) => {
-        let query = { _id: req.params.id };
-        let updateDetails = req.body;
-        Collaborator.findOneAndUpdate(query, updateDetails, (error, response) => {
-            if (error) {
-                return res.status(HTTPStatus.BAD_GATEWAY).json(e);
-            } else if (response) {
-                return res.status(HTTPStatus.OK).json(response);
-            } else {
-                return res.status(HTTPStatus.BAD_REQUEST);
-            }
+    listAll: async(req, res) => {
+        /******
+         * get the ID of the user (Admin) requesting
+         * Afterwards, the collaborators items
+         *
+         * On success:
+         * status(200).json(collaboratorDetails);
+         *
+         * On failure:
+         * status(500).json("failure message");
+         */
+
+        res.json({
+            success: success,
+            message: "This endpoint is currently not in use",
         });
-    },
-
-    addCollaborator: async(req, res, next) => {
-        try {
-            //get the ID of the one requesting:
-            let id = req.params.id;
-            let colab = new Collaborator(req.body);
-            await colab.save((error, savedData) => {
-                if (error) {
-                    return res.status(500).json(error);
-                } else {
-                    return res.status(201).json(savedData);
-                }
-            });
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_REQUEST).json(e);
-        }
-    },
-
-    deleteCollaborator: (req, res, next) => {
-        try {
-            let query = { _id: req.params.id };
-            Collaborator.findOneAndDelete(query, (error, response) => {
-                if (error) {
-                    return res
-                        .status(400)
-                        .json({ error: errorHandler.getErrorMessage(err) });
-                } else {
-                    res.status(200).send("user deleted");
-                }
-            });
-        } catch (e) {
-            return res.status(HTTPStatus.BAD_REQUEST).json(e);
-        }
     },
 };
 
