@@ -42,7 +42,6 @@ def register_location():
             road_status = json_data["roadStatus"]
             landuse = json_data["landuse"]
             country = "Uganda"
-            print(country, file=sys.stderr)
             region, district, county, subcounty, parish = helper.get_location_details(longitude, latitude)
             location_name = helper.get_location_name(parish.capitalize(), district.capitalize())
             altitude = helper.get_altitude(latitude,longitude)
@@ -50,11 +49,6 @@ def register_location():
             landform_270 = helper.get_landform270(latitude, longitude)
             aspect = None
             closest_road_type, closest_distance, closest_residential_distance= helper.distance_to_closest_road(latitude, longitude)
-            print(latitude,file=sys.stderr)
-            print(longitude, file=sys.stderr)
-            print(closest_road_type, file=sys.stderr)
-            print(closest_distance, file=sys.stderr)
-            print(closest_residential_distance, file=sys.stderr)
             closest_motorway_distance = helper.distance_to_closest_motorway(latitude, longitude)
             print(closest_motorway_distance, file=sys.stderr)
             nearest_city_distance = helper.distance_to_nearest_city(latitude, longitude)
@@ -74,6 +68,50 @@ def get_all_locations():
     Gets data for all the locations in the database
     '''
     return jsonify(helper.all_locations())
+
+@location_blueprint.route('/api/v1/location_registry', methods =['GET'])
+def get_location_details():
+    '''
+    Gets data for all the locations in the database
+    '''
+    if request.method == 'GET':
+        loc_ref= request.args.get('loc_ref')
+        return helper.get_location(loc_ref)
+
+@location_blueprint.route('/api/v1/location_registry/edit', methods =['GET'])
+def edit_location():
+    '''
+    Returns detaild of location to edit
+    '''
+    if request.method == 'GET':
+        loc_ref = request.args.get('loc_ref')
+        return jsonify(helper.get_location_details_to_edit(loc_ref))
+
+@location_blueprint.route('/api/v1/location_registry/update', methods =['POST'])
+def update_location():
+    '''
+    Updates an edited location's details
+    '''
+    if request.method == 'POST':   
+        json_data = request.get_json()
+        if not json_data:
+            return {'message': 'No input data provided'}, 400
+        else:
+            loc_ref = json_data["locationReference"]
+            power = json_data["power"]
+            internet = json_data["internet"]
+            height = json_data["height"]
+            road_intensity = json_data["roadIntensity"]
+            installation_type = json_data["installationType"]
+            road_status = json_data["roadStatus"]
+            landuse = json_data["landuse"]
+            try:
+                helper.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, landuse)
+                return {'message': 'Location has been successfully updated'}, 200
+            except:
+                return {'message': 'An error occured. Please re-enter new values'}, 400
+            
+
 
 
 

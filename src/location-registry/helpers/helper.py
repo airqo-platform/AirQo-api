@@ -241,3 +241,44 @@ def all_locations():
               'district':1, 'county':1, 'subcounty':1, 'parish':1}
     records = list(db.locations.find(query, projection))
     return records
+
+def get_location(loc_ref):
+    '''
+    Gets all the data in the database for a specific location
+    '''
+    db = connect_mongo()
+    query = {'loc_ref':loc_ref}
+    projection = {'_id':0}
+    records = list(db.locations.find(query, projection))
+    return records[0]
+
+def get_location_details_to_edit(loc_ref):
+    '''
+    Gets all the data in the database for a specific location
+    '''
+    db = connect_mongo()
+    query = {'loc_ref':loc_ref}
+    projection = {'_id':0, 'loc_ref':1, 'host':1, 'mobility':1, 'latitude':1, 'longitude':1, 'internet':1, 'power':1,
+    'height_above_ground':1, 'road_intensity':1, 'installation_type':1, 'road_status':1, 'landuse':1}
+    records = list(db.locations.find(query, projection))
+    return records[0]
+    
+
+def save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, landuse):    
+    '''
+    Saves updated location details to database'''
+    db=connect_mongo()
+    db.locations.update_one(
+       { 'loc_ref': loc_ref },
+       { '$set':
+          {
+            'power': power,
+            'internet': internet,
+            'height_above_ground':height,
+            'road_intensity': road_intensity,
+            'installation_type': installation_type,
+            'road_status': road_status,
+            'landuse':landuse
+          }
+       }
+    )
