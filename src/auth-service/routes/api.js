@@ -1,7 +1,6 @@
 const express = require("express");
 const router = express.Router();
 const joinController = require("../controllers/join");
-const collaborateController = require("../controllers/collaborate");
 const candidateController = require("../controllers/candidate");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
@@ -39,23 +38,15 @@ router.put("/updatePassword", joinController.updatePassword);
 router.get("/reset/:resetPasswordToken", joinController.resetPassword);
 router.post("/forgotPassword", joinController.forgotPassword);
 router.get("/findUser", joinController.findUser);
-router.put("/", joinController.updateUser);
+router.put("/:id", joinController.updateUser);
 router.delete("/:id", joinController.deleteUser);
-
-//************************ collaborators *******************************************
-router.post("/collaborators/add/:id", collaborateController.addCollaborator);
-router.get("/collaborators/:id", collaborateController.listAll);
+router.post("/defaults/:id", joinController.updateUserDefaults);
+router.get("/defaults/:id", joinController.getDefaults);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
-router.post("/registerCandidate", candidateController.registerCandidate);
-router.post("/activateCandidate/:id", candidateController.activateCandidate);
-router.post(
-    "/deactivateCandidate/:id",
-    candidateController.deactivateCandidate
-);
-router.get("/getOneCandidate/:id", candidateController.findCandidateById);
-router.get("/getCandidates", candidateController.getAllCandidates);
+router.post("/register/candidate", candidateController.registerCandidate);
+router.get("/candidates", candidateController.getAllCandidates);
 
 //params
 router.param("userId", joinController.findUserById);

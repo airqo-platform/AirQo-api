@@ -6,7 +6,7 @@
 // const Schema = gstoreDefaultInstance.Schema;
 
 //const DataAccess = require("../config/das");
-const mongoose = require("mongoose");
+const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
 const { passwordReg } = require("../utils/validations");
@@ -75,7 +75,6 @@ const UserSchema = new Schema({
     privilege: { type: String, default: "admin" },
     accountStatus: { type: String, default: "false" },
     hasAccess: { type: Boolean, default: false },
-    collaborators: [{ type: ObjectId, ref: "colab" }],
     publisher: { type: Boolean, default: false },
     duration: { type: Date, default: oneMonthFromNow },
     bus_nature: { type: String, default: "none" },
@@ -91,17 +90,17 @@ const UserSchema = new Schema({
         job_title: { type: String, default: "none" },
         org_name: { type: String, default: "none" },
     },
-    graph_defaults: {
-        pollutant: { type: String, default: "none" },
-        endDate: { type: Date, default: Date.now },
-        startDate: { type: Date, default: Date.now },
-        startTime: { type: Number, default: 0 },
-        endTime: { type: Number, default: 0 },
-    },
+    graph_defaults: [{ type: ObjectId, ref: "defaults" }],
     product: {
         analytics: { type: Boolean, default: false },
         locate: { type: Boolean, default: false },
         admin: { type: Boolean, default: false },
+    },
+    notifications: {
+        email: { type: Boolean, default: false },
+        push: { type: Boolean, default: false },
+        text: { type: Boolean, default: false },
+        phone: { type: Boolean, default: false },
     },
 });
 
@@ -113,7 +112,8 @@ UserSchema.pre("save", function(next) {
 });
 
 UserSchema.pre("findOneAndUpdate", function() {
-    const update = this.getUpdate();
+    let that = this;
+    const update = that.getUpdate();
     if (update.__v != null) {
         delete update.__v;
     }
@@ -155,6 +155,10 @@ UserSchema.methods = {
                 _id: this._id,
                 firstName: this.firstName,
                 lastName: this.lastName,
+                email: this.email,
+                graph_defaults: this.graph_defaults,
+                pref_locations: this.pref_locations,
+                privilege: this.privilege,
             },
             constants.JWT_SECRET
         );
@@ -174,9 +178,10 @@ UserSchema.methods = {
             email: this.email,
             firstName: this.firstName,
             lastName: this.lastName,
-            userName: this.userName,
             graph_defaults: this.graph_defaults,
-            collaborators: this.collaborators,
+            pref_locations: this.pref_locations,
+            privilege: this.privilege,
+            phoneNumber: this.phoneNumber,
         };
     },
 };
