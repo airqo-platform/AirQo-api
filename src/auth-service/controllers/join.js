@@ -1,6 +1,6 @@
 const User = require("../models/User");
-const Candidate = require("../models/Candidate");
-const Collaborator = require("../models/Collaborator");
+const Location = require("../models/Location");
+const Defaults = require("../models/Defaults");
 const HTTPStatus = require("http-status");
 const constants = require("../config/constants");
 const privileges = require("../utils/privileges");
@@ -8,22 +8,23 @@ const transporter = require("../services/mailer");
 const templates = require("../utils/email.templates");
 const msgs = require("../utils/email.msgs");
 const crypto = require("crypto");
-const nodemailer = require("nodemailer");
 const validateRegisterInput = require("../utils/validations.register");
 const validateLoginInput = require("../utils/validations.login");
 const validateForgotPwdInput = require("../utils/validations.forgot");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
-const validateCandidateInput = require("../utils/validations.candidate");
 const register = require("../utils/register");
+var generatorPassword = require("generate-password");
 
 const join = {
     listAll: async(req, res) => {
         try {
-            const users = await User.find();
-            return res
-                .status(HTTPStatus.OK)
-                .json({ success: true, message: "Users fetched successfully", users });
+            const users = await User.find(req.query);
+            return res.status(HTTPStatus.OK).json({
+                success: true,
+                message: "Users fetched successfully",
+                users,
+            });
         } catch (e) {
             return res
                 .status(HTTPStatus.BAD_REQUEST)
@@ -130,7 +131,6 @@ const join = {
     },
 
     registerUser: (req, res) => {
-        console.log(process.env.ATLAS_URI);
         console.log("the elements we need:");
         console.dir(req.body);
 
@@ -141,62 +141,29 @@ const join = {
                 .status(400)
                 .json({ success: false, errors, message: "validation error" });
         }
+        /**** generate the password */
+        var password = generatorPassword.generate({
+            length: 6,
+            numbers: true,
+            uppercase: true,
+            lowercase: true,
+        });
 
         const mailOptions = {
             from: `info@airqo.net`,
             to: `${req.body.email}`,
             subject: "Welcome to AirQo",
-            text: msgs.welcome,
+            text: `${msgs.welcome(req.body.firstName, req.body.lastName, password)}`,
         };
 
-        //this is where I call the register function
+        /**** I will consider this for the confirmation process ******/
+        // let userData = req.body;
+        // userData.password = password;
+
         console.log("the values we are sending");
         console.dir(req.body);
+
         register(req, res, mailOptions, req.body, User);
-
-        // console.log("the values coming in: ")
-        // console.dir(req.body)
-        // User.findOne({ email: req.body.email }).then((user) => {
-        //     if (user) {
-        //         return res
-        //             .status(400)
-        //             .json({ success: false, email: "Email already exists" });
-        //     } else {
-        //         const user = new User({
-        //             firstName: req.body.firstName,
-        //             lastName: req.body.lastName,
-        //             email: req.body.email,
-        //             userName: req.body.userName,
-        //             password: req.body.password,
-        //         });
-        //         user.save((error, savedData) => {
-        //             if (error) {
-        //                 return console.log(error);
-        //             } else {
-        //                 //sending the confirmation email to the user
-        //                 const mailOptions = {
-        //                     from: `info@airqo.net`,
-        //                     to: `${user.email}`,
-        //                     subject: "Welcome to AirQo",
-        //                     text: msgs.welcome,
-        //                 };
-
-        //                 transporter.sendMail(mailOptions, (err, response) => {
-        //                     if (err) {
-        //                         console.error("there was an error: ", err);
-        //                     } else {
-        //                         console.log("here is the res: ", response);
-        //                         res.status(200).json({
-        //                             savedData,
-        //                             success: true,
-        //                             message: "user added successfully",
-        //                         });
-        //                     }
-        //                 });
-        //             }
-        //         });
-        //     }
-        // });
     },
     //invoked when the user visits the confirmation url on the client
     confirmEmail: async(req, res) => {
@@ -254,14 +221,127 @@ const join = {
     },
 
     updateUser: (req, res, next) => {
-        User.findByIdAndUpdate(req.body.id, req.body, (err, user) => {
-            if (err) {
-                res.json({ success: false, message: "Some Error", error: err });
-            } else if (user) {
-                console.log(user);
-                res.json({ success: true, message: "Updated successfully", user });
-            } else {
-                res.json({ success: false, message: "user does not exist in the db" });
+        User.findByIdAndUpdate(
+            req.params.id,
+            req.body, { new: true },
+            (err, user) => {
+                if (err) {
+                    res.json({ success: false, message: "Some Error", error: err });
+                } else if (user) {
+                    console.log(user);
+                    res.json({ success: true, message: "Updated successfully", user });
+                } else {
+                    res.json({
+                        success: false,
+                        message: "user does not exist in the db",
+                    });
+                }
+            }
+        );
+    },
+
+    updateUserDefaults: (req, res, next) => {
+        let response = {};
+        User.find({ _id: req.params.id }, (error, user) => {
+            if (error) {
+                response.success = false;
+                response.message = "Internal Server Error";
+                res.status(500).json(response);
+            } else if (user.length) {
+                let defaults = new Defaults(req.body);
+                defaults.user = user[0]._id;
+                defaults.save((error, savedDefault) => {
+                    if (error) {
+                        response.success = false;
+                        response.message = error.errors;
+                        res.status(500).json(response);
+                    } else {
+                        User.findByIdAndUpdate(
+                            req.params.id, { $push: { graph_defaults: savedDefault._id.valueOf() } }, { new: true },
+                            (err, updatedUser) => {
+                                if (err) {
+                                    response.success = false;
+                                    response.message = "Internal Server Error";
+                                    res.status(500).json(response);
+                                } else {
+                                    res.status(200).json({
+                                        message: "Sucessfully added the default values to the user",
+                                        success: true,
+                                        updatedUser,
+                                    });
+                                }
+                            }
+                        );
+                    }
+                });
+            }
+        });
+    },
+    getDefaults: async(req, res) => {
+        // try {
+        //     const users = await User.find(req.query);
+        //     return res.status(HTTPStatus.OK).json({
+        //         success: true,
+        //         message: "Users fetched successfully",
+        //         users,
+        //     });
+        // } catch (e) {
+        //     return res
+        //         .status(HTTPStatus.BAD_REQUEST)
+        //         .json({ success: false, message: "Some Error" });
+        // }
+
+        try {
+            console.log("the query");
+            console.log(req.query);
+            const prefs = await Defaults.find({ user: req.params.id });
+            return res.status(HTTPStatus.OK).json({
+                success: true,
+                message: " defaults fetched successfully",
+                prefs,
+            });
+        } catch (e) {
+            return res
+                .status(HTTPStatus.BAD_REQUEST)
+                .json({ success: false, message: "Some Error" });
+        }
+    },
+    updateLocations: (req, res) => {
+        console.log("the user ID");
+        console.log(req.params.id);
+        let response = {};
+        User.find({ _id: req.params.id }, (error, user) => {
+            if (error) {
+                response.success = false;
+                response.message = "Internal Server Error";
+                res.status(500).json(response);
+            } else if (user.length) {
+                let location = new Location(req.body);
+                location.user = user[0]._id;
+                location.save((error, savedLocation) => {
+                    if (error) {
+                        response.success = false;
+                        response.message = "Internal Server Error";
+                        res.status(500).json(response);
+                    } else {
+                        User.findByIdAndUpdate(
+                            req.params.id, { $push: { pref_locations: savedLocation._id } }, { new: true },
+                            (err, updatedUser) => {
+                                if (err) {
+                                    response.success = false;
+                                    response.message = "Internal Server Error";
+                                    res.status(500).json(response);
+                                } else {
+                                    res.status(200).json({
+                                        message: "Sucessfully added the locations to the user",
+                                        success: true,
+                                        updatedUser,
+                                    });
+                                }
+                            }
+                        );
+                    }
+                });
             }
         });
     },

@@ -1,4 +1,3 @@
-//const DataAccess = require("../config/das");
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
@@ -26,11 +25,16 @@ const CandidateSchema = new mongoose.Schema({
         required: [true, "LastName is required"],
         trim: true,
     },
-    desc: { type: String, default: "none" },
-    company: { type: String, default: "none" },
-    country: { type: String, default: "Uganda" },
-    jobTitle: { type: String, default: "none" },
-    phoneNumber: { type: Number },
+    description: { type: String, required: [true, "description is required"] },
+    country: { type: String, required: [true, "country is required"] },
+    organization: { type: String, required: [true, "organization is required"] },
+    jobTitle: { type: String, required: [true, "jobTitle is required"] },
+    phoneNumber: {
+        type: Number,
+        unique: true,
+        required: [true, "phoneNumber is required"],
+        trim: true,
+    },
 });
 
 CandidateSchema.methods = {

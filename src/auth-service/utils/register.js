@@ -1,9 +1,8 @@
 const transporter = require("../services/mailer");
 
 function register(req, res, mailOptions, body, entity) {
-    console.log(process.env.ATLAS_URI);
-    console.log("the values coming in: ")
-    console.dir(body)
+    console.log("the values coming in: ");
+    console.dir(body);
     entity.findOne({ email: body.email }).then((user) => {
         if (user) {
             return res

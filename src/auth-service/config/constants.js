@@ -13,7 +13,6 @@ const testConfig = {
 const prodConfig = {
     // MONGO_URI: process.env.ATLAS_URI,
     MONGO_URI: process.env.MONGO_GCE_URI,
-    MONGO_GCE_URI: process.env.MONGO_GCE_URI,
     JWT_SECRET: process.env.JWT_SECRET,
     CLIENT_ORIGIN: "https://airqo.net/",
     BCRYPT_SALT_ROUNDS: 12,

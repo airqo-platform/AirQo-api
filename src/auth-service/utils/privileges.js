@@ -1,5 +1,4 @@
 const User = require("../models/User");
-const Colaborator = require("../models/Collaborator");
 
 const privileges = {
     //checking to see if the user is normal....ideally an admin should be able to do all that normal user can also do hence...
@@ -213,29 +212,10 @@ const privileges = {
         });
     },
 
-    isColabAdmin: (req, res, next) => {
-        let user_id = req.params.id;
-        Colaborator.findById(user_id, (error, userDetails) => {
-            if (error) {
-                let response = {};
-                response.success = false;
-                response.message = "internal server error";
-                res.status(500).send(response);
-            } else {
-                if (userDetails.admin === user_id) {
-                    next();
-                } else {
-                    let response = {};
-                    response.success = false;
-                    response.message = "unauthorized operation";
-                    res.status(401).send(response);
-                }
-            }
-        });
-    },
+    isCollaborator: (req, res, next) => {},
 
     isUser: (req, res, next) => {
-        User.findOne({ userName: req.body.userName }, )
+        User.findOne({ userName: req.body.userName })
             .then((userInfo) => {
                 if (userInfo != null) {
                     next();
@@ -246,16 +226,16 @@ const privileges = {
                     res.status(401).send(response);
                 }
             })
-            .catch(error => {
+            .catch((error) => {
                 let response = {};
                 response.success = false;
                 response.message = "internal server error";
                 res.status(500).send(response);
-            })
+            });
     },
 
     isCollab: (req, res, next) => {
-        Colaborator.findOne({ userName: req.body.userName }, )
+        Colaborator.findOne({ userName: req.body.userName })
             .then((userInfo) => {
                 if (userInfo != null) {
                     next();
@@ -266,13 +246,13 @@ const privileges = {
                     res.status(401).send(response);
                 }
             })
-            .catch(error => {
+            .catch((error) => {
                 let response = {};
                 response.success = false;
                 response.message = "internal server error";
                 res.status(500).send(response);
-            })
-    }
+            });
+    },
 };
 
 module.exports = privileges;
