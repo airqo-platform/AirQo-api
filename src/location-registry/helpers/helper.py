@@ -74,7 +74,7 @@ def get_location_details(lon, lat):
     county = records[0]['properties']['county']
     subcounty = records[0]['properties']['subcounty']
     parish = records[0]['properties']['parish']
-    return region, district.lower(), county.lower(), subcounty.lower(), parish.lower()
+    return region.capitalize(), district.capitalize(), county.capitalize(), subcounty.capitalize(), parish.capitalize()
 
 def get_location_name(parish, district):
     '''
@@ -89,7 +89,8 @@ def get_altitude(lat,lon):
     url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={0},{1}&key={2}'.format(lat,lon, API_KEY)
     
     response = requests.get(url).json()
-    return response['results'][0]['elevation']
+    altitude = response['results'][0]['elevation']
+    return round(altitude, 2)
 
 def get_landform90(lat, lon):
     '''
@@ -137,7 +138,7 @@ def distance_to_closest_road(lat, lon):
         roads_with_distances = [(road, utm_point.distance(road[0])) for road in roads]
         roads_with_distances = sorted(roads_with_distances, key=lambda x: x[1])
         closest_road = roads_with_distances[0]
-        closest_distance = closest_road[1]
+        closest_distance = round(closest_road[1], 2)
         closest_road_type = closest_road[0][3]
         
         residential_gdf =  gdf[gdf['highway'] == 'residential']
@@ -148,7 +149,7 @@ def distance_to_closest_road(lat, lon):
             residential_roads_with_distances = [(road, utm_point.distance(road[0])) for road in residential_roads]
             residential_roads_with_distances = sorted(residential_roads_with_distances, key=lambda x: x[1])
             closest_residential_road = residential_roads_with_distances[0]
-            closest_residential_distance = closest_residential_road[1]
+            closest_residential_distance = round(closest_residential_road[1], 2)
     except:
         closest_road_type=None
         closest_distance=None
@@ -179,7 +180,7 @@ def distance_to_closest_motorway(lat, lon):
             roads_with_distances = [(road, utm_point.distance(road[0])) for road in roads]
             roads_with_distances = sorted(roads_with_distances, key=lambda x: x[1])
             closest_road = roads_with_distances[0]
-            closest_distance = closest_road[1]
+            closest_distance = round(closest_road[1], 2)
     except:
         closest_distance = None
     return closest_distance
@@ -208,7 +209,8 @@ def distance_to_nearest_city(lat,lon):
             element['distance'] = element_distance         
             
         element_list = sorted([x for x in data['elements']], key=lambda x: x['distance'])
-        return element_list[0]['distance']*1000
+        city_distance = element_list[0]['distance']*1000
+        return round(city_distance,2)
     else:
         return None
 

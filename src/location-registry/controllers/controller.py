@@ -42,17 +42,20 @@ def register_location():
             road_status = json_data["roadStatus"]
             landuse = json_data["landuse"]
             country = "Uganda"
-            region, district, county, subcounty, parish = helper.get_location_details(longitude, latitude)
-            location_name = helper.get_location_name(parish.capitalize(), district.capitalize())
-            altitude = helper.get_altitude(latitude,longitude)
-            landform_90 = helper.get_landform90(latitude, longitude)
-            landform_270 = helper.get_landform270(latitude, longitude)
-            aspect = None
-            closest_road_type, closest_distance, closest_residential_distance= helper.distance_to_closest_road(latitude, longitude)
-            closest_motorway_distance = helper.distance_to_closest_motorway(latitude, longitude)
-            print(closest_motorway_distance, file=sys.stderr)
-            nearest_city_distance = helper.distance_to_nearest_city(latitude, longitude)
-            print(nearest_city_distance, file=sys.stderr)
+            try:
+                region, district, county, subcounty, parish = helper.get_location_details(longitude, latitude)
+                location_name = helper.get_location_name(parish.capitalize(), district.capitalize())
+                altitude = helper.get_altitude(latitude,longitude)
+                landform_90 = helper.get_landform90(latitude, longitude)
+                landform_270 = helper.get_landform270(latitude, longitude)
+                aspect = None
+                closest_road_type, closest_distance, closest_residential_distance= helper.distance_to_closest_road(latitude, longitude)
+                closest_motorway_distance = helper.distance_to_closest_motorway(latitude, longitude)
+                nearest_city_distance = helper.distance_to_nearest_city(latitude, longitude)
+            except:
+                region, district, county, subcounty, parish, location_name = "", "", "", "", "", ""
+                altitude, landform_90, landform_270, aspect, closest_distance= None, None, None, None, None
+                closest_residential_distance, closest_motorway_distance, nearest_city_distance = None, None, None
             try:
                 helper.register_location(loc_ref, host_name, mobility, longitude, latitude, internet, power, height, road_intensity, 
                 installation_type, road_status, landuse, location_name, country, region, district, county, subcounty, parish, altitude, 
