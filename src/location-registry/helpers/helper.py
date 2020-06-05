@@ -107,14 +107,19 @@ def get_landform90(lat, lon):
     #return constant_dict[land_value]
     return land_value
 
+
+
 def get_landform270(lat, lon):
     '''
-    Returns the topography score of a location over a 270m range
+    Returns the topography score  and aspect of a location over a 270m range
     '''
     image = ee.Image("CSP/ERGo/1_0/Global/ALOS_mTPI") 
     point = ee.Geometry.Point(lon, lat)
-    data = image.select('AVE').reduceRegion(ee.Reducer.first(), point, 1).get('AVE')
-    return data.getInfo()
+    landform_data = image.select('AVE').reduceRegion(ee.Reducer.first(), point, 1).get('AVE')
+
+    aspect = ee.Terrain.aspect(image)
+    aspect_data = aspect.select('aspect').reduceRegion(ee.Reducer.first(), point, 1).get('aspect')
+    return landform_data.getInfo(), aspect_data.getInfo()
 
 def distance_to_closest_road(lat, lon):
     '''

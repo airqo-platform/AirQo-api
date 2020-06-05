@@ -47,8 +47,7 @@ def register_location():
                 location_name = helper.get_location_name(parish.capitalize(), district.capitalize())
                 altitude = helper.get_altitude(latitude,longitude)
                 landform_90 = helper.get_landform90(latitude, longitude)
-                landform_270 = helper.get_landform270(latitude, longitude)
-                aspect = None
+                landform_270, aspect  = helper.get_landform270(latitude, longitude)
                 closest_road_type, closest_distance, closest_residential_distance= helper.distance_to_closest_road(latitude, longitude)
                 closest_motorway_distance = helper.distance_to_closest_motorway(latitude, longitude)
                 nearest_city_distance = helper.distance_to_nearest_city(latitude, longitude)
