@@ -25,7 +25,7 @@ def connect_mongo():
         print("Could not connect to MongoDB: %s" % e)
 
     #db = client['locate']
-    db = client['geocensus_db']
+    db = client['airqo_netmanager']
     return db
 
 
@@ -34,7 +34,7 @@ def get_location_ref():
     Generates location reference
     '''
     db = connect_mongo()
-    last_document = list(db.locations.find({}).sort([('_id', -1)]).limit(1))
+    last_document = list(db.location_registry.find({}).sort([('_id', -1)]).limit(1))
     #last_document = list(db.collection.find({}).limit(1).sort([('$natural',-1)])
     if len(last_document)==0:
         loc_ref =1
@@ -68,7 +68,7 @@ def get_location_details(lon, lat):
         'properties.parish':1
     }
     db = connect_mongo()
-    records = list(db.geometry_polygon.find(query, projection))
+    records = list(db.locate.find(query, projection))
     region = records[0]['properties']['region']
     district = records[0]['properties']['district']
     county = records[0]['properties']['county']
@@ -119,7 +119,7 @@ def get_landform270(lat, lon):
 
     aspect = ee.Terrain.aspect(image)
     aspect_data = aspect.select('aspect').reduceRegion(ee.Reducer.first(), point, 1).get('aspect')
-    return landform_data.getInfo(), aspect_data.getInfo()
+    return landform_data.getInfo(), round(aspect_data.getInfo(), 2)
 
 def distance_to_closest_road(lat, lon):
     '''
@@ -220,7 +220,7 @@ def distance_to_nearest_city(lat,lon):
         return None
 
 def register_location(loc_ref, host_name, mobility=None, longitude=None, latitude=None, internet=None, power=None,
-                     height=None, road_intensity=None, installation_type=None, road_status=None, landuse=None,
+                     height=None, road_intensity=None, installation_type=None, road_status=None, local_activities=None,
                      loc_name=None, country=None, region=None, district=None, county=None, subcounty=None,
                      parish=None, altitude=None, aspect=None, landform_90=None, landform_270=None, distance_from_nearest_road=None,
                      distance_from_motorway=None, distance_from_residential=None, distance_from_city=None):
@@ -229,14 +229,14 @@ def register_location(loc_ref, host_name, mobility=None, longitude=None, latitud
     '''
     location_dict = {'loc_ref':loc_ref, 'host':host_name,'mobility':mobility,'latitude':latitude, 'longitude':longitude,
     'internet':internet, 'power':power, 'height_above_ground':height,'road_intensity':road_intensity, 
-    'installation_type':installation_type, 'road_status':road_status, 'landuse':landuse, 'location_name':loc_name, 'country':country, 
+    'installation_type':installation_type, 'road_status':road_status, 'local_activities':local_activities, 'location_name':loc_name, 'country':country, 
     'region':region, 'district':district, 'county':county, 'subcounty':subcounty, 'parish':parish, 'altitude':altitude, 'aspect':aspect,
     'landform_90':landform_90, 'landform_270':landform_270, 'distance_from_nearest_road':distance_from_nearest_road, 
     'distance_from_motorway':distance_from_motorway, 'distance_from_residential':distance_from_residential, 
     'distance_from_city': distance_from_city}
 
     db = connect_mongo()
-    db.locations.insert_one(location_dict)
+    db.location_registry.insert_one(location_dict)
 
 def all_locations():
     '''
@@ -246,7 +246,7 @@ def all_locations():
     query = {}
     projection = {'_id': 0, 'loc_ref':1, 'location_name':1, 'host':1, 'latitude':1, 'longitude':1, 'country':1, 'region':1,
               'district':1, 'county':1, 'subcounty':1, 'parish':1}
-    records = list(db.locations.find(query, projection))
+    records = list(db.location_registry.find(query, projection))
     return records
 
 def get_location(loc_ref):
@@ -256,7 +256,7 @@ def get_location(loc_ref):
     db = connect_mongo()
     query = {'loc_ref':loc_ref}
     projection = {'_id':0}
-    records = list(db.locations.find(query, projection))
+    records = list(db.location_registry.find(query, projection))
     return records[0]
 
 def get_location_details_to_edit(loc_ref):
@@ -266,26 +266,73 @@ def get_location_details_to_edit(loc_ref):
     db = connect_mongo()
     query = {'loc_ref':loc_ref}
     projection = {'_id':0, 'loc_ref':1, 'host':1, 'mobility':1, 'latitude':1, 'longitude':1, 'internet':1, 'power':1,
-    'height_above_ground':1, 'road_intensity':1, 'installation_type':1, 'road_status':1, 'landuse':1}
-    records = list(db.locations.find(query, projection))
+    'height_above_ground':1, 'road_intensity':1, 'installation_type':1, 'road_status':1, 'local_activities':1}
+    records = list(db.location_registry.find(query, projection))
     return records[0]
     
 
-def save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, landuse):    
+#def save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, local_activities):    
+ #   '''
+  #  Saves updated location details to database'''
+  #  db=connect_mongo()
+  #  db.location_registry.update_one(
+  #     { 'loc_ref': loc_ref },
+   #    { '$set':
+    #      {
+    #        'power': power,
+    #        'internet': internet,
+    #        'height_above_ground':height,
+    #        'road_intensity': road_intensity,
+    #        'installation_type': installation_type,
+    #        'road_status': road_status,
+    #        'local_activities':local_activities
+    #      }
+    #   }
+    #)
+
+def save_edited_location(loc_ref, host_name, internet=None, power=None, height=None, road_intensity=None, installation_type=None, 
+                     road_status=None, local_activities=None, loc_name=None, region=None, district=None, county=None, 
+                     subcounty=None, parish=None, altitude=None, aspect=None, landform_90=None, landform_270=None, 
+                     distance_from_nearest_road=None, distance_from_motorway=None, distance_from_residential=None, 
+                     distance_from_city=None):
     '''
-    Saves updated location details to database'''
-    db=connect_mongo()
-    db.locations.update_one(
-       { 'loc_ref': loc_ref },
-       { '$set':
-          {
+    Saves updated location details to database
+    '''
+    db = connect_mongo()
+    db.location_registry.update_one(
+        { 'loc_ref': loc_ref },
+        { '$set':
+        {
             'power': power,
+            'host': host_name,
             'internet': internet,
             'height_above_ground':height,
             'road_intensity': road_intensity,
             'installation_type': installation_type,
             'road_status': road_status,
-            'landuse':landuse
+            'local_activities':local_activities,
+            'location_name':loc_name, 
+            #'country':country, 
+            'region':region, 
+            'district':district, 
+            'county':county, 
+            'subcounty':subcounty, 
+            'parish':parish, 
+            'altitude':altitude, 
+            'aspect':aspect,
+            'landform_90':landform_90, 
+            'landform_270':landform_270, 
+            'distance_from_nearest_road':distance_from_nearest_road, 
+            'distance_from_motorway':distance_from_motorway, 
+            'distance_from_residential':distance_from_residential,
+            'distance_from_city': distance_from_city
+            
           }
        }
     )
+
+
+    
+
+    
+   
