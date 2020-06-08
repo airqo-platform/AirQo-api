@@ -15,6 +15,7 @@ const saltRounds = 10;
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { tenantModel } = require("../config/multiTenant");
 
 function oneMonthFromNow() {
     var d = new Date();
@@ -83,7 +84,7 @@ const UserSchema = new Schema({
     uni_course_yr: { type: String, default: 0 },
     pref_locations: [{ type: ObjectId, ref: "loc" }],
     country: { type: String, default: "Uganda" },
-    phoneNumber: { type: Number, default: 0 },
+    phoneNumber: { type: Number, default: 0, unique: true },
     resetPasswordToken: { type: String },
     resetPasswordExpires: { type: Date },
     role: {
@@ -189,6 +190,8 @@ UserSchema.methods = {
 const user = mongoose.model("user", UserSchema);
 
 module.exports = user;
+
+// module.exports = tenantModel("user", UserSchema);
 
 // shall consider this when implementing the Bridge Design Pattern
 // const Model = function () {

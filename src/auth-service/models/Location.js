@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { tenantModel } = require("../config/multiTenant");
 
 const LocSchema = new mongoose.Schema({
     county: { type: String, default: "none" },
@@ -27,3 +28,4 @@ LocSchema.methods = {
 const loc = mongoose.model("loc", LocSchema);
 
 module.exports = loc;
+// module.exports = tenantModel("loc", LocSchema);
