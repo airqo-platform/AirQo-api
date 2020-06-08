@@ -244,7 +244,7 @@ def all_locations():
     '''
     db = connect_mongo()
     query = {}
-    projection = {'_id': 0, 'loc_ref':1, 'location_name':1, 'host':1, 'latitude':1, 'longitude':1, 'country':1, 'region':1,
+    projection = {'_id': 0, 'loc_ref':1, 'location_name':1, 'mobility':1, 'latitude':1, 'longitude':1, 'country':1, 'region':1,
               'district':1, 'county':1, 'subcounty':1, 'parish':1}
     records = list(db.location_registry.find(query, projection))
     return records
@@ -271,24 +271,25 @@ def get_location_details_to_edit(loc_ref):
     return records[0]
     
 
-#def save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, local_activities):    
- #   '''
-  #  Saves updated location details to database'''
-  #  db=connect_mongo()
-  #  db.location_registry.update_one(
-  #     { 'loc_ref': loc_ref },
-   #    { '$set':
-    #      {
-    #        'power': power,
-    #        'internet': internet,
-    #        'height_above_ground':height,
-    #        'road_intensity': road_intensity,
-    #        'installation_type': installation_type,
-    #        'road_status': road_status,
-    #        'local_activities':local_activities
-    #      }
-    #   }
-    #)
+def save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, local_activities):    
+    '''
+    Saves updated location details to database
+    '''
+    db=connect_mongo()
+    db.location_registry.update_one(
+       { 'loc_ref': loc_ref },
+       { '$set':
+          {
+            'power': power,
+            'internet': internet,
+            'height_above_ground':height,
+            'road_intensity': road_intensity,
+            'installation_type': installation_type,
+            'road_status': road_status,
+            'local_activities':local_activities
+          }
+       }
+    )
 
 def save_edited_location(loc_ref, host_name, internet=None, power=None, height=None, road_intensity=None, installation_type=None, 
                      road_status=None, local_activities=None, loc_name=None, region=None, district=None, county=None, 

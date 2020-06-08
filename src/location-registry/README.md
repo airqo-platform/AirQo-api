@@ -1,11 +1,8 @@
 fetch branch from github.
 
-create local python environment
-  windows
-	python -m venv [local_env_name e.g env]
-	
-   linux/mac
-	python3 -m venv [local_env_name e.g env]
+create anaconda environment
+ conda config --prepend channels conda-forge
+ conda create -n registry_env --strict-channel-priority osmnx
 
 activate the environment
 	windows
