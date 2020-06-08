@@ -46,7 +46,7 @@ router.get("/defaults/:id", joinController.getDefaults);
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
 router.post("/register/candidate", candidateController.registerCandidate);
-router.get("/candidates", candidateController.getAllCandidates);
+router.get("/candidates/fetch", candidateController.getAllCandidates);
 
 //params
 router.param("userId", joinController.findUserById);

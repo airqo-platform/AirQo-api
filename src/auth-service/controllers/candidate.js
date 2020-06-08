@@ -26,16 +26,18 @@ const candidate = {
         register(req, res, mailOptions, req.body, Candidate);
     },
 
-    getAllCandidates: (req, res) => {
+    getAllCandidates: async(req, res) => {
         try {
-            const users = Candidate.find(req.query);
-            return res
-                .status(HTTPStatus.OK)
-                .json({ success: true, message: "Users fetched successfully", users });
+            const users = await Candidate.find(req.query);
+            return res.status(HTTPStatus.OK).json({
+                success: true,
+                message: "Candidates fetched successfully",
+                users,
+            });
         } catch (e) {
             return res
                 .status(HTTPStatus.BAD_REQUEST)
-                .json({ success: false, message: "Some ih sfwef Error" });
+                .json({ success: false, message: "Some Error" });
         }
     },
 };

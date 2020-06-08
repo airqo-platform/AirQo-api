@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const { tenantModel } = require("../config/multiTenant");
 
 const CandidateSchema = new mongoose.Schema({
     email: {
@@ -44,6 +45,11 @@ CandidateSchema.methods = {
             firstName: this.firstName,
             lastName: this.lastName,
             email: this.email,
+            description: this.description,
+            country: this.country,
+            organization: this.organization,
+            jobTitle: this.jobTitle,
+            phoneNumber: this.phoneNumber,
         };
     },
 };
@@ -51,3 +57,4 @@ CandidateSchema.methods = {
 const candidate = mongoose.model("candidate", CandidateSchema);
 
 module.exports = candidate;
+// module.exports = tenantModel("candidate", CandidateSchema);
