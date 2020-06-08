@@ -284,18 +284,65 @@ def get_organisation_monitoring_site():
     ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':
         org_name= request.args.get('organisation_name')
+        pm25_category = request.args.get('pm25_category')
         if org_name:
             monitoring_sites=[]
             organisation_monitoring_sites_cursor = ms.get_all_organisation_monitoring_sites(org_name)
             for site in organisation_monitoring_sites_cursor:
                 monitoring_sites.append(site)
-
             results = json.loads(json_util.dumps(monitoring_sites))
+            if pm25_category:
+                results = categorise_locations(results, pm25_category)
+
             return jsonify({"airquality_monitoring_sites":results})
         else:
             return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
 
 
+def categorise_locations(records, pm25_category):
+    locations_with_good_pm25_levels=[]
+    locations_with_moderate_pm25_levels=[]
+    locations_with_UH4SG_pm25_levels=[]
+    locations_with_unhealthy_pm25_levels=[]
+    locations_with_very_unhealthy_pm25_levels=[]
+    locations_with_hazardous_pm25_levels=[]
+    locations_with_uncategorised_pm25_levels=[]
+    locations_with_all_pm25_levels=[]
+
+    for i in range(len(records)):        
+        if records[i]['Last_Hour_PM25_Value'] >0.0 and records[i]['Last_Hour_PM25_Value'] <=12.0:
+            locations_with_good_pm25_levels.append(records[i])
+        elif records[i]['Last_Hour_PM25_Value'] >12.0 and records[i]['Last_Hour_PM25_Value'] <=35.4:
+            locations_with_moderate_pm25_levels.append(records[i])
+        elif records[i]['Last_Hour_PM25_Value'] > 35.4 and records[i]['Last_Hour_PM25_Value'] <= 55.4:
+           locations_with_UH4SG_pm25_levels.append(records[i])
+        elif records[i]['Last_Hour_PM25_Value'] > 55.4 and records[i]['Last_Hour_PM25_Value'] <= 150.4:
+            locations_with_unhealthy_pm25_levels.append(records[i])
+        elif records[i]['Last_Hour_PM25_Value'] > 150.4 and records[i]['Last_Hour_PM25_Value'] <= 250.4:
+            locations_with_very_unhealthy_pm25_levels.append(records[i])
+        elif records[i]['Last_Hour_PM25_Value'] > 250.4 and records[i]['Last_Hour_PM25_Value'] <=500.4:
+            locations_with_hazardous_pm25_levels.append(records[i])
+        else:
+            locations_with_uncategorised_pm25_levels.append(records[i]) 
+
+    if pm25_category == 'Good':
+        return locations_with_good_pm25_levels
+    elif pm25_category == 'Moderate':
+        return locations_with_moderate_pm25_levels
+    elif pm25_category == 'UHFSG':
+        return locations_with_UH4SG_pm25_levels
+    elif pm25_category == 'Unhealthy':
+        return locations_with_unhealthy_pm25_levels
+    elif pm25_category == 'VeryUnhealthy':
+        return locations_with_very_unhealthy_pm25_levels
+    elif pm25_category == 'Hazardous':
+        return locations_with_hazardous_pm25_levels
+    elif pm25_category =='All':
+        return records
+    else :
+        return locations_with_uncategorised_pm25_levels
+
+        
 
 @dashboard_bp.route('/api/v1/dashboard/historical/daily/devices', methods=['GET'])
 def get_all_device_past_28_days_measurements():
