@@ -1,6 +1,6 @@
-import app
+#import app
 from datetime import datetime, timedelta
-from helpers import db_helpers
+#from helpers import db_helpers
 import requests
 
 class DeviceStatus():
