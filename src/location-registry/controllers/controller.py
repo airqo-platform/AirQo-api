@@ -89,7 +89,7 @@ def get_all_locations():
 @location_blueprint.route('/api/v1/location_registry', methods =['GET'])
 def get_location_details():
     '''
-    Gets data for all the locations in the database
+    Gets data for a particular location
     '''
     if request.method == 'GET':
         loc_ref= request.args.get('loc_ref')
@@ -98,7 +98,7 @@ def get_location_details():
 @location_blueprint.route('/api/v1/location_registry/edit', methods =['GET'])
 def edit_location():
     '''
-    Returns detaild of location to edit
+    Returns details of location to edit
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
