@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const joinController = require("../controllers/join");
+const candidateController = require("../controllers/candidate");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
 const { authUserLocal, authColabLocal, authJWT } = require("../services/auth");
@@ -8,63 +9,44 @@ const privileges = require("../utils/privileges");
 
 //the middleware function
 const middleware = (req, res, next) => {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-  );
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  next();
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header(
+        "Access-Control-Allow-Headers",
+        "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+    );
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+    next();
 };
 router.use(middleware);
 
-router.post("/loginUser", authUserLocal, joinController.loginUser);
-router.post(
-  "/loginCollaborator",
-  authColabLocal,
-  joinController.loginCollaborator
-);
-router.post("/logout", joinController.logout);
+const checkAuth = () => {
+    if (privileges.isCollab) {
+        return authColabLocal;
+    } else if (privileges.isUser) {
+        return authUserLocal;
+    }
+};
 
-//admin users
-router.get("/", authJWT, joinController.listAll);
-router.get("/:id", authJWT, joinController.listOne);
-router.post(
-  "/registerUser",
-  validate(userValidation.register),
-  joinController.registerUser
-);
-router.post("/registerCandidate", joinController.registerCandidate);
-router.delete("/:id", authJWT, joinController.deleteUser);
-router.put("/:id", authJWT, joinController.updateUser);
-router.post("/logout/:id", authJWT, joinController.logout);
+//************************* users ***************************************************
+router.post("/loginUser", authUserLocal, joinController.loginUser);
+router.get("/", joinController.listAll);
+router.get("/:id", joinController.listOne);
+router.post("/registerUser", joinController.registerUser);
 router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
+router.put("/updatePassword", joinController.updatePassword);
 router.get("/reset/:resetPasswordToken", joinController.resetPassword);
 router.post("/forgotPassword", joinController.forgotPassword);
 router.get("/findUser", joinController.findUser);
-router.post("/accept/:id", joinController.activateUser);
-router.post("/deny/:id", joinController.deactivateUser);
+router.put("/", joinController.updateUser);
+router.delete("/:id", joinController.deleteUser);
+router.put("/defaults/:id", joinController.updateUserDefaults);
+router.get("/defaults/:id", joinController.getDefaults);
 
-//collaborators
-router.post(
-  "/register/collab",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.addCollaborator
-);
-router.put(
-  "/update/collab/:id",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.updateCollaborator
-);
-router.delete(
-  "/delete/collab/:id",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.deleteCollaborator
-);
+//************************ candidates ***********************************************
+//could this be the one where we just load people with inactive status?
+router.post("/register/candidate", candidateController.registerCandidate);
+router.get("/candidates/fetch", candidateController.getAllCandidates);
 
 //params
 router.param("userId", joinController.findUserById);
