@@ -6,7 +6,7 @@ const { tenantModel } = require("../config/multiTenant");
 const DefaultsSchema = new mongoose.Schema({
     pollutant: { type: String, trim: true, required: true },
     frequency: { type: String, default: "none", required: true },
-    start_date: { type: String, default: "none", required: " true" },
+    start_date: { type: String, default: "none", required: true },
     end_date: { type: String, default: "none", required: true },
     user: { type: ObjectId, ref: "user", required: true },
 });
@@ -16,10 +16,10 @@ DefaultsSchema.plugin(uniqueValidator);
 DefaultsSchema.index({
     pollutant: 1,
     frequency: 1,
-    user: 1
+    user: 1,
 }, {
     unique: true,
-})
+});
 
 DefaultsSchema.methods = {
     toJSON() {
@@ -29,7 +29,7 @@ DefaultsSchema.methods = {
             frequency: this.frequency,
             start_date: this.start_date,
             end_date: this.end_date,
-            user: this.user
+            user: this.user,
         };
     },
 };

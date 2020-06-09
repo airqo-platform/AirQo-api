@@ -245,33 +245,35 @@ const join = {
         User.find({ _id: req.params.id }, (error, user) => {
             if (error) {
                 response.success = false;
-                response.message = "Internal Server Error";
+                response.message = "Unable to find the user";
                 res.status(500).json(response);
             } else if (user.length) {
                 let defaults = new Defaults(req.body);
+                console.log("the user is here:");
+                console.dir(user);
+                console.log("the type of the user is: " + typeof user);
                 defaults.user = user[0]._id;
                 defaults.save((error, savedDefault) => {
                     if (error) {
                         response.success = false;
-                        response.message = error.errors;
+                        response.message = "Unable to save the default value";
+                        response.error = error;
                         res.status(500).json(response);
                     } else {
-                        User.findByIdAndUpdate(
-                            req.params.id, { $push: { graph_defaults: savedDefault._id.valueOf() } }, { new: true },
-                            (err, updatedUser) => {
-                                if (err) {
-                                    response.success = false;
-                                    response.message = "Internal Server Error";
-                                    res.status(500).json(response);
-                                } else {
-                                    res.status(200).json({
-                                        message: "Sucessfully added the default values to the user",
-                                        success: true,
-                                        updatedUser,
-                                    });
-                                }
+                        response.success = true;
+                        response.message = "successfully saved the defaults";
+                        res.status(200).json(response);
+                        console.log("the user object:");
+                        console.dir(user[0]);
+                        user[0].graph_defaults.push(savedDefault._id.valueOf());
+
+                        user[0].save((error) => {
+                            if (error) {
+                                console.log(error);
+                            } else {
+                                console.log("user updates");
                             }
-                        );
+                        });
                     }
                 });
             }
