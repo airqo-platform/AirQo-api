@@ -112,24 +112,31 @@ UserSchema.pre("save", function(next) {
     return next();
 });
 
-UserSchema.pre("findOneAndUpdate", function() {
-    let that = this;
-    const update = that.getUpdate();
-    if (update.__v != null) {
-        delete update.__v;
+UserSchema.pre("findOneAndUpdate", function(next) {
+    if (this.isModified("password")) {
+        this.password = this._hashPassword(this.password);
     }
-    const keys = ["$set", "$setOnInsert"];
-    for (const key of keys) {
-        if (update[key] != null && update[key].__v != null) {
-            delete update[key].__v;
-            if (Object.keys(update[key]).length === 0) {
-                delete update[key];
-            }
-        }
-    }
-    update.$inc = update.$inc || {};
-    update.$inc.__v = 1;
+    return next();
 });
+
+// UserSchema.pre("findOneAndUpdate", function() {
+//     let that = this;
+//     const update = that.getUpdate();
+//     if (update.__v != null) {
+//         delete update.__v;
+//     }
+//     const keys = ["$set", "$setOnInsert"];
+//     for (const key of keys) {
+//         if (update[key] != null && update[key].__v != null) {
+//             delete update[key].__v;
+//             if (Object.keys(update[key]).length === 0) {
+//                 delete update[key];
+//             }
+//         }
+//     }
+//     update.$inc = update.$inc || {};
+//     update.$inc.__v = 1;
+// });
 
 UserSchema.pre("update", function(next) {
     if (this.isModified("password")) {

@@ -38,9 +38,9 @@ router.put("/updatePassword", joinController.updatePassword);
 router.get("/reset/:resetPasswordToken", joinController.resetPassword);
 router.post("/forgotPassword", joinController.forgotPassword);
 router.get("/findUser", joinController.findUser);
-router.put("/:id", joinController.updateUser);
+router.put("/", joinController.updateUser);
 router.delete("/:id", joinController.deleteUser);
-router.post("/defaults/:id", joinController.updateUserDefaults);
+router.put("/defaults/:id", joinController.updateUserDefaults);
 router.get("/defaults/:id", joinController.getDefaults);
 
 //************************ candidates ***********************************************

@@ -277,20 +277,8 @@ const join = {
             }
         });
     },
-    getDefaults: async(req, res) => {
-        // try {
-        //     const users = await User.find(req.query);
-        //     return res.status(HTTPStatus.OK).json({
-        //         success: true,
-        //         message: "Users fetched successfully",
-        //         users,
-        //     });
-        // } catch (e) {
-        //     return res
-        //         .status(HTTPStatus.BAD_REQUEST)
-        //         .json({ success: false, message: "Some Error" });
-        // }
 
+    getDefaults: async(req, res) => {
         try {
             console.log("the query");
             console.log(req.query);

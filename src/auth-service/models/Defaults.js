@@ -4,26 +4,32 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { tenantModel } = require("../config/multiTenant");
 
 const DefaultsSchema = new mongoose.Schema({
-    pollutant: { type: String, trim: true, unique: true },
-    endDate: { type: Date, default: Date.now },
-    startDate: { type: Date, default: Date.now },
-    startTime: { type: Number, default: 0 },
-    endTime: { type: Number, default: 0 },
-    user: { type: ObjectId, ref: "user" },
+    pollutant: { type: String, trim: true, required: true },
+    frequency: { type: String, default: "none", required: true },
+    start_date: { type: String, default: "none", required: " true" },
+    end_date: { type: String, default: "none", required: true },
+    user: { type: ObjectId, ref: "user", required: true },
 });
 
 DefaultsSchema.plugin(uniqueValidator);
+
+DefaultsSchema.index({
+    pollutant: 1,
+    frequency: 1,
+    user: 1
+}, {
+    unique: true,
+})
 
 DefaultsSchema.methods = {
     toJSON() {
         return {
             _id: this._id,
             pollutant: this.pollutant,
-            startDate: this.startDate,
-            endDate: this.endDate,
-            startTime: this.startTime,
-            endTime: this.endTime,
-            location: this.location,
+            frequency: this.frequency,
+            start_date: this.start_date,
+            end_date: this.end_date,
+            user: this.user
         };
     },
 };
