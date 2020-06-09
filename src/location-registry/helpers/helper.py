@@ -275,6 +275,7 @@ def save_edited_location(loc_ref, power, internet, height, road_intensity, insta
     '''
     Saves updated location details to database
     '''
+
     db=connect_mongo()
     db.location_registry.update_one(
        { 'loc_ref': loc_ref },
@@ -291,46 +292,9 @@ def save_edited_location(loc_ref, power, internet, height, road_intensity, insta
        }
     )
 
-def save_edited_location(loc_ref, host_name, internet=None, power=None, height=None, road_intensity=None, installation_type=None, 
-                     road_status=None, local_activities=None, loc_name=None, region=None, district=None, county=None, 
-                     subcounty=None, parish=None, altitude=None, aspect=None, landform_90=None, landform_270=None, 
-                     distance_from_nearest_road=None, distance_from_motorway=None, distance_from_residential=None, 
-                     distance_from_city=None):
-    '''
-    Saves updated location details to database
-    '''
-    db = connect_mongo()
-    db.location_registry.update_one(
-        { 'loc_ref': loc_ref },
-        { '$set':
-        {
-            'power': power,
-            'host': host_name,
-            'internet': internet,
-            'height_above_ground':height,
-            'road_intensity': road_intensity,
-            'installation_type': installation_type,
-            'road_status': road_status,
-            'local_activities':local_activities,
-            'location_name':loc_name, 
-            #'country':country, 
-            'region':region, 
-            'district':district, 
-            'county':county, 
-            'subcounty':subcounty, 
-            'parish':parish, 
-            'altitude':altitude, 
-            'aspect':aspect,
-            'landform_90':landform_90, 
-            'landform_270':landform_270, 
-            'distance_from_nearest_road':distance_from_nearest_road, 
-            'distance_from_motorway':distance_from_motorway, 
-            'distance_from_residential':distance_from_residential,
-            'distance_from_city': distance_from_city
-            
-          }
-       }
-    )
+
+
+
 
 
     
