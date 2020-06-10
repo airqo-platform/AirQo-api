@@ -28,9 +28,50 @@ class DeviceStatus():
         print(api_url)
         response = requests.get(api_url)  
         results = response.json()
+        count =0
+        count_of_online_devices =0
+        online_devices=[]
+        offline_devices=[]
+        count_of_offline_devices =0
         for channel in results:
             print(channel['id'])
-        return response.json(), response.status_code  
+            latest_device_status_request_api_url = '{0}{1}{2}'.format(BASE_API_URL,'feeds/recent/', channel['id'] )
+            latest_device_status_response = requests.get(latest_device_status_request_api_url)
+            if latest_device_status_response.status_code == 200:
+                print(latest_device_status_response.json())
+                result = latest_device_status_response.json()
+                count += 1
+                current_datetime=   datetime.now()
+                date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+                date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
+                print(date_time_difference_in_hours)
+                if date_time_difference_in_hours >5: #3hours for timezone difference
+                    count_of_offline_devices += 1
+                    offline_devices.append(result)
+                else : 
+                    count_of_online_devices +=1
+                    online_devices.append(result)
+
+        print(count)
+        print(count_of_online_devices)
+        print(count_of_offline_devices)
+
+        online_devices_percentage = int((count_of_online_devices/count)* 100)
+        offline_devices_percentage = int((count_of_offline_devices/count)* 100)
+        print('online device percentage is : {}%'.format(online_devices_percentage))
+        print('offline device percentage is: {}%'.format(offline_devices_percentage))
+
+        device_status_results =[]
+    
+             
+        #return response.json(), response.status_code  
+
+            
+def str_to_date_find(st):
+    """
+    Converts a string of different format to datetime
+    """
+    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
 
 if __name__ == "__main__":
     dx = DeviceStatus()
