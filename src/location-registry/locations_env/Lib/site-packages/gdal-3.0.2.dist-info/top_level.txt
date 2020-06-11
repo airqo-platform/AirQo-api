@@ -1,6 +1,0 @@
-gdal
-gdalconst
-gdalnumeric
-ogr
-osgeo
-osr

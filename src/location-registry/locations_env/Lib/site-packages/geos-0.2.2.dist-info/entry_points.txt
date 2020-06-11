@@ -1,3 +1,0 @@
-[console_scripts]
-geos = geos.scripts.runserver:run_app
-

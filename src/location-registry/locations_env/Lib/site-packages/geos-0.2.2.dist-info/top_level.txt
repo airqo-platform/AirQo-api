@@ -1,2 +1,0 @@
-geos
-pykml_geos
