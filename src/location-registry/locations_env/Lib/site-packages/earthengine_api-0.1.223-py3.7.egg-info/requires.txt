@@ -1,0 +1,8 @@
+future
+google-cloud-storage
+google-api-python-client
+google-auth>=1.4.1
+google-auth-httplib2>=0.0.3
+httplib2<1dev,>=0.9.2
+httplib2shim
+six

@@ -268,7 +268,14 @@ def get_location_details_to_edit(loc_ref):
     projection = {'_id':0, 'loc_ref':1, 'host':1, 'mobility':1, 'latitude':1, 'longitude':1, 'internet':1, 'power':1,
     'height_above_ground':1, 'road_intensity':1, 'installation_type':1, 'road_status':1, 'local_activities':1}
     records = list(db.location_registry.find(query, projection))
-    return records[0]
+    try:
+        revised_activities = []
+        for activity in records[0]['local_activities']:
+            revised_activities.append({'value':activity, 'label':activity})
+        records[0]['local_activities'] = revised_activities
+        return records[0]
+    except:
+        return records[0]
     
 
 def save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, local_activities):    

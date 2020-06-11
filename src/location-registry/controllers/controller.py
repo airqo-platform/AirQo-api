@@ -14,8 +14,7 @@ def generate_ref():
     '''
     Generates a reference id for a new location
     '''
-    return helper.get_location_ref()
-    #return 'ok'  
+    return helper.get_location_ref() 
     
 
 @location_blueprint.route('/api/v1/location_registry/register', methods =['POST'])
@@ -39,13 +38,17 @@ def register_location():
             road_intensity = json_data["roadIntensity"]
             installation_type = json_data["installationType"]
             road_status = json_data["roadStatus"]
-            local_activities = json_data["localActivities"]
+            #local_activities = json_data["localActivities"]
+            local_activities = []
+            for i in json_data["localActivities"]:
+                local_activities.append(i["value"])
             country = "Uganda"
             try:
                 region, district, county, subcounty, parish = helper.get_location_details(longitude, latitude)
                 location_name = helper.get_location_name(parish.capitalize(), district.capitalize())
             except:
                 region, district, county, subcounty, parish, location_name = None, None, None, None, None, None
+
             try:
                 altitude = helper.get_altitude(latitude,longitude)
             except:
@@ -70,6 +73,7 @@ def register_location():
                 nearest_city_distance = helper.distance_to_nearest_city(latitude, longitude)
             except:
                 nearest_city_distance = None, None, None
+            
             try:
                 helper.register_location(loc_ref, host_name, mobility, longitude, latitude, internet, power, height, road_intensity, 
                 installation_type, road_status, local_activities, location_name, country, region, district, county, subcounty, parish, altitude, 
@@ -122,7 +126,10 @@ def update_location():
             road_intensity = json_data["roadIntensity"]
             installation_type = json_data["installationType"]
             road_status = json_data["roadStatus"]
-            local_activities = json_data["localActivities"]
+            #local_activities = json_data["localActivities"]
+            local_activities = []
+            for i in json_data["localActivities"]:
+                local_activities.append(i["value"])
 
             try:
                 helper.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, 

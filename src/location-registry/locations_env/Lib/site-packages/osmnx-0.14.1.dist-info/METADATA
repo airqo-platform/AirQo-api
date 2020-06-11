@@ -1,0 +1,62 @@
+Metadata-Version: 2.1
+Name: osmnx
+Version: 0.14.1
+Summary: Retrieve, model, analyze, and visualize OpenStreetMap street networks and other spatial data
+Home-page: https://github.com/gboeing/osmnx
+Author: Geoff Boeing
+Author-email: boeing@usc.edu
+License: MIT
+Platform: any
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Operating System :: OS Independent
+Classifier: Intended Audience :: Science/Research
+Classifier: Topic :: Scientific/Engineering :: GIS
+Classifier: Topic :: Scientific/Engineering :: Visualization
+Classifier: Topic :: Scientific/Engineering :: Physics
+Classifier: Topic :: Scientific/Engineering :: Mathematics
+Classifier: Topic :: Scientific/Engineering :: Information Analysis
+Classifier: Programming Language :: Python
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.6
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Requires-Python: >=3.6
+Requires-Dist: descartes (>=1.1)
+Requires-Dist: geopandas (>=0.7)
+Requires-Dist: matplotlib (>=3.2)
+Requires-Dist: networkx (>=2.4)
+Requires-Dist: numpy (>=1.18)
+Requires-Dist: pandas (>=1.0)
+Requires-Dist: pyproj (>=2.6)
+Requires-Dist: requests (>=2.23)
+Requires-Dist: Rtree (>=0.9)
+Requires-Dist: Shapely (>=1.7)
+Provides-Extra: balltree
+Requires-Dist: scikit-learn (>=0.23) ; extra == 'balltree'
+Provides-Extra: folium
+Requires-Dist: folium (>=0.11) ; extra == 'folium'
+Provides-Extra: kdtree
+Requires-Dist: scipy (>=1.4) ; extra == 'kdtree'
+
+
+**OSMnx** is a Python package that lets you download spatial geometries and
+model, project, visualize, and analyze real-world street networks from
+OpenStreetMap's APIs. Users can download and model walkable, drivable, or
+bikeable urban networks with a single line of Python code, and then easily
+analyze and visualize them. You can just as easily download and work with
+amenities/points of interest, building footprints, elevation data, street
+bearings/orientations, speed/travel time, and network routing.
+
+Citation info: Boeing, G. 2017. "`OSMnx: New Methods for Acquiring,
+Constructing, Analyzing, and Visualizing Complex Street Networks`_."
+*Computers, Environment and Urban Systems* 65, 126-139.
+doi:10.1016/j.compenvurbsys.2017.05.004
+
+See the examples and demos on `GitHub`_ or read more about `OSMnx`_.
+
+.. _GitHub: https://github.com/gboeing/osmnx
+.. _OSMnx: http://geoffboeing.com/2016/11/osmnx-python-street-networks/
+.. _OSMnx\: New Methods for Acquiring, Constructing, Analyzing, and Visualizing Complex Street Networks: http://geoffboeing.com/publications/osmnx-complex-street-networks/
+
+
