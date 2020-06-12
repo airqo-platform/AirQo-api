@@ -32,12 +32,11 @@ const data = {
                 return res.status(200).json(resultJSON);
             } else {
                 // Key does not exist in Redis store
-                // Fetch directly from Wikipedia API
                 return axios
                     .get(api_url_channels)
                     .then((response) => {
                         const responseJSON = response.data;
-                        // Save the Wikipedia API response in Redis store
+                        // Save the API response in Redis store
                         redis.setex(
                             `channels:${query}`,
                             3600,
@@ -53,11 +52,6 @@ const data = {
                     });
             }
         });
-
-        // const api_url_channels = `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`;
-        // let fetch_response = await fetch(api_url_channels);
-        // let json = await fetch_response.json();
-        // res.status(200).send(json);
     },
     storeFeeds: async(req, res) => {
         const api_url = `https://api.thingspeak.com/channels/${req.params.ch_id}/feeds.json`;
