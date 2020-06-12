@@ -92,6 +92,109 @@ const data = {
     storeAlerts: async(req, res) => {
         try {} catch (error) {}
     },
+
+    getChannelLastEntryAge: async(req, res) => {
+        try {
+            const query = req.query.query.trim();
+            const url = `https://api.thingspeak.com/channels/${req.query.channel}/feeds/last_data_age.json`;
+            return redis.get(`channelLastEntryAge:${query}`, (err, result) => {
+                // If that key exist in Redis store
+                if (result) {
+                    const resultJSON = JSON.parse(result);
+                    return res.status(200).json(resultJSON);
+                } else {
+                    // Key does not exist in Redis store
+                    return axios
+                        .get(url)
+                        .then((response) => {
+                            const responseJSON = response.data;
+                            // Save the API response in Redis store
+                            redis.setex(
+                                `channelLastEntryAge:${query}`,
+                                3600,
+                                JSON.stringify({ source: "Redis Cache", ...responseJSON })
+                            );
+                            // Send JSON response to redis
+                            return res.status(200).json({
+                                source: "channel last entry age API",
+                                ...responseJSON,
+                            });
+                        })
+                        .catch((err) => {
+                            return res.json(err);
+                        });
+                }
+            });
+        } catch (e) {
+            res.status(500).json(e);
+        }
+    },
+
+    getLastFieldEntryAge: async(req, res) => {
+        try {
+            const query = req.query.query.trim();
+            const url = `https://api.thingspeak.com/channels/${req.query.channel}/fields/${req.query.field}/last_data_age.json`;
+            return redis.get(`channelLastEntryAge:${query}`, (err, result) => {
+                // If that key exist in Redis store
+                if (result) {
+                    const resultJSON = JSON.parse(result);
+                    return res.status(200).json(resultJSON);
+                } else {
+                    // Key does not exist in Redis store
+                    return axios
+                        .get(url)
+                        .then((response) => {
+                            const responseJSON = response.data;
+                            // Save the API response in Redis store
+                            redis.setex(
+                                `channelLastEntryAge:${query}`,
+                                3600,
+                                JSON.stringify({ source: "Redis Cache", ...responseJSON })
+                            );
+                            // Send JSON response to redis
+                            return res.status(200).json({
+                                source: "channel last entry age API",
+                                ...responseJSON,
+                            });
+                        })
+                        .catch((err) => {
+                            return res.json(err);
+                        });
+                }
+            });
+        } catch (e) {
+            res.status(500).json(e);
+        }
+    },
+
+    createDevice: async(req, res) => {
+        try {
+            const url = `https://api.thingspeak.com/channels.json`;
+            return axios
+                .post(url)
+                .then((response) => {
+                    const responseJSON = response.data;
+                    return res.status(200).json({
+                        success: true,
+                        message: "device created",
+                        ...responseJSON,
+                    });
+                })
+                .catch((err) => {
+                    return res.json(err);
+                });
+        } catch (e) {
+            res.status(500).json(e);
+        }
+    },
+
+    clearDevice: () => {},
+
+    deleteChannel: () => {},
+
+    getChannelCount: async(req, res) => {
+        try {} catch (e) {}
+    },
 };
 
 module.exports = data;
