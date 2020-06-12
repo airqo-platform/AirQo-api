@@ -167,32 +167,44 @@ const data = {
         }
     },
 
-    createDevice: async(req, res) => {
+    getDeviceCount: async(req, res) => {
         try {
-            const url = `https://api.thingspeak.com/channels.json`;
-            return axios
-                .post(url)
-                .then((response) => {
-                    const responseJSON = response.data;
-                    return res.status(200).json({
-                        success: true,
-                        message: "device created",
-                        ...responseJSON,
-                    });
-                })
-                .catch((err) => {
-                    return res.json(err);
-                });
+            const query = req.query.query.trim();
+            const api_url_channels = `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`;
+
+            return redis.get(`channels:${query}`, (err, result) => {
+                // If that key exist in Redis store
+                if (result) {
+                    const resultJSON = JSON.parse(result);
+                    return res.status(200).json(resultJSON);
+                } else {
+                    // Key does not exist in Redis store
+                    return axios
+                        .get(api_url_channels)
+                        .then((response) => {
+                            const responseJSON = response.data;
+                            /***lets get the count */
+                            let count = Object.keys(responseJSON).length;
+                            // Save the API response in Redis store
+                            redis.setex(
+                                `channels:${query}`,
+                                3600,
+                                JSON.stringify({ source: "Redis Cache", count })
+                            );
+                            // Send JSON response to redis
+                            return res.status(200).json({ source: "Channels API", count });
+                        })
+                        .catch((err) => {
+                            return res.json(err);
+                        });
+                }
+            });
         } catch (e) {
             res.status(500).json(e);
         }
     },
 
-    clearDevice: () => {},
-
-    deleteChannel: () => {},
-
-    getChannelCount: async(req, res) => {
+    checkMaintenance: async(req, res) => {
         try {} catch (e) {}
     },
 };

@@ -10,5 +10,6 @@ router.get("/feeds/recent/:ch_id", manager.getLastEntry);
 router.get("/feeds/hourly/:ch_id", manager.hourly);
 router.get("/channels/age/", manager.getChannelLastEntryAge);
 router.get("/channels/fields/age", manager.getLastFieldEntryAge);
+router.get("/channels/count", manager.getDeviceCount);
 
 module.exports = router;
