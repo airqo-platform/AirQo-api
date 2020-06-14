@@ -91,7 +91,6 @@ const UserSchema = new Schema({
         job_title: { type: String, default: "none" },
         org_name: { type: String, default: "none" },
     },
-    graph_defaults: [{ type: ObjectId, ref: "defaults" }],
     product: {
         analytics: { type: Boolean, default: false },
         locate: { type: Boolean, default: false },

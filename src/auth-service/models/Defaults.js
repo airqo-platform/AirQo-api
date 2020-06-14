@@ -4,18 +4,49 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { tenantModel } = require("../config/multiTenant");
 
 const DefaultsSchema = new mongoose.Schema({
-    pollutant: { type: String, trim: true, required: true },
-    frequency: { type: String, default: "none", required: true },
-    start_date: { type: String, default: "none", required: true },
-    end_date: { type: String, default: "none", required: true },
-    user: { type: ObjectId, ref: "user", required: true },
+    pollutant: {
+        type: String,
+        trim: true,
+        required: [true, "pollutant is required!"],
+        default: "none",
+    },
+    frequency: {
+        type: String,
+        default: "none",
+        required: [true, "frequency is required!"],
+    },
+    startDate: {
+        type: String,
+        default: "none",
+        required: [true, "startDate is required!"],
+    },
+    endDate: {
+        type: String,
+        default: "none",
+        required: [true, "endDate is required!"],
+    },
+    user: {
+        type: ObjectId,
+        required: [true, "user is required!"],
+        unique: false,
+    },
+    chartType: {
+        type: String,
+        default: "none",
+        required: [true, "chartTyoe is required!"],
+    },
+    chartTitle: {
+        type: String,
+        default: "none",
+        required: [true, "chartTitle is required!"],
+        unique: false,
+    },
 });
 
 DefaultsSchema.plugin(uniqueValidator);
 
 DefaultsSchema.index({
-    pollutant: 1,
-    frequency: 1,
+    chartTitle: 1,
     user: 1,
 }, {
     unique: true,
@@ -27,9 +58,11 @@ DefaultsSchema.methods = {
             _id: this._id,
             pollutant: this.pollutant,
             frequency: this.frequency,
-            start_date: this.start_date,
-            end_date: this.end_date,
+            startDate: this.startDate,
+            endDate: this.endDate,
             user: this.user,
+            chartType: this.chartType,
+            chartTitle: this.chartTitle,
         };
     },
 };

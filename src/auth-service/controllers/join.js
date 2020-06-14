@@ -240,39 +240,33 @@ const join = {
         );
     },
 
-    updateUserDefaults: (req, res, next) => {
-        let response = {};
-        User.find({ _id: req.params.id }, (error, user) => {
-            if (error) {
-                response.success = false;
-                response.message = "Unable to find the user";
-                res.status(500).json(response);
-            } else if (user.length) {
-                let defaults = new Defaults(req.body);
-                console.log("the user is here:");
-                console.dir(user);
-                console.log("the type of the user is: " + typeof user);
-                defaults.user = user[0]._id;
-                defaults.save((error, savedDefault) => {
-                    if (error) {
-                        response.success = false;
-                        response.message = "Unable to save the default value";
-                        response.error = error;
-                        res.status(500).json(response);
-                    } else {
-                        response.success = true;
-                        response.message = "successfully saved the defaults";
-                        res.status(200).json(response);
-                        console.log("the user object:");
-                        console.dir(user[0]);
-                        user[0].graph_defaults.push(savedDefault._id.valueOf());
+    updateUserDefaults: async(req, res, next) => {
+        let query = { user: req.params.id, chartTitle: req.body.chartTitle },
+            update = req.body,
+            options = { upsert: true, new: true };
+        console.log("when I have just joined the platform");
 
-                        user[0].save((error) => {
-                            if (error) {
-                                console.log(error);
-                            } else {
-                                console.log("user updates");
-                            }
+        await Defaults.findOneAndUpdate(query, update, options, (error, result) => {
+            if (!error) {
+                //if the document does not exist
+                if (!result) {
+                    result = new Defaults();
+                }
+                //save the document
+                result.save(function(error, saved) {
+                    if (!error) {
+                        console.log("when there is no error");
+                        res.status(200).json({
+                            success: true,
+                            message: "saved the user default",
+                            saved,
+                        });
+                    } else {
+                        console.log("when there is an error");
+                        res.status(500).json({
+                            success: false,
+                            message: "unable to save defaults",
+                            error,
                         });
                     }
                 });
@@ -284,11 +278,11 @@ const join = {
         try {
             console.log("the query");
             console.log(req.query);
-            const prefs = await Defaults.find({ user: req.params.id });
+            const defaults = await Defaults.find({ user: req.params.id });
             return res.status(HTTPStatus.OK).json({
                 success: true,
                 message: " defaults fetched successfully",
-                prefs,
+                defaults,
             });
         } catch (e) {
             return res
