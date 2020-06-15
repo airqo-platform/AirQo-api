@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 #from helpers import db_helpers
 import requests
+import maths
 
 class DeviceStatus():
     """The class contains functionality for retrieving device status .
@@ -56,8 +57,8 @@ class DeviceStatus():
         print(count_of_online_devices)
         print(count_of_offline_devices)
 
-        online_devices_percentage = int((count_of_online_devices/count)* 100)
-        offline_devices_percentage = int((count_of_offline_devices/count)* 100)
+        online_devices_percentage = math.ceil((count_of_online_devices/count)* 100)
+        offline_devices_percentage = math.ceil((count_of_offline_devices/count)* 100)
         print('online device percentage is : {}%'.format(online_devices_percentage))
         print('offline device percentage is: {}%'.format(offline_devices_percentage))
 
