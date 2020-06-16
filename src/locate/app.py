@@ -3,11 +3,7 @@ import logging
 import os, sys
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-import models
-import controllers
-#from controllers import controller
 from controllers.locate import locate_blueprint
-#from models.sample import locate_blueprint
 
 _logger = logging.getLogger(__name__)
 app = Flask(__name__)
