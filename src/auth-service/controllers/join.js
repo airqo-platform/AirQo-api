@@ -352,7 +352,7 @@ const join = {
                 } else if (result) {
                     res.status(200).send({
                         userName: result.userName,
-                        message: "passworkd reset link a-ok",
+                        message: "password reset link a-ok",
                     });
                 } else {
                     res
