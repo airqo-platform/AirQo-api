@@ -6,3 +6,4 @@ lib-cov
 *.pid
 npm-debug.log
 .env
+*.rdb
