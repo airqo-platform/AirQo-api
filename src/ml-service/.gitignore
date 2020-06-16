@@ -7,6 +7,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+packages/sensor_location/
 
 
 # pycharm
