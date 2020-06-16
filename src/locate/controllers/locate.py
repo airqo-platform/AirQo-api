@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify
 from helpers import helper
 import sys
+import ast
+import json
 from models.parishes import Parish
 from models.map import Map
 
@@ -21,29 +23,25 @@ def place_sensors_map():
     '''
     if request.method == 'POST':
         json_data = request.get_json()
-        print('Post request', file=sys.stderr)
         if not json_data:
             return {'message': 'No input data provided'}, 400
         else:
             sensor_number = int(json_data["sensor_number"])
-            print(sensor_number, file=sys.stderr)
 
             polygon = json_data["polygon"]
             if polygon == {}:
                 return {'message': 'Please draw a polygon'}, 200
             geometry = polygon["geometry"]["coordinates"]
-            print(geometry, file=sys.stderr)
 
             must_have_coordinates = json_data["must_have_coordinates"]
-            print(must_have_coordinates, file=sys.stderr)
             if must_have_coordinates == "":
                 must_have_coordinates = None
                 return helper.recommend_locations(sensor_number, must_have_coordinates, geometry)
             else:
                 try:
-                    must_have_coordinates = ast.literal_eval(
-                        must_have_coordinates)
+                    must_have_coordinates = ast.literal_eval(must_have_coordinates)
                 except:
+                    print('EXCEPTION')
                     return {'message': 'Coordinates must be in the form [[long, lat], [long, lat]]'}, 200
                 if all(isinstance(x, list) for x in must_have_coordinates):
                     return helper.recommend_locations(sensor_number, must_have_coordinates, geometry)

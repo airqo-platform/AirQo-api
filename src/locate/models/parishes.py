@@ -33,21 +33,18 @@ class Parish():
                             '$geometry': {
                                 'type': 'Polygon',
                                 'coordinates': polygon
-                            }
-                        }
-                    }
-                }
+                                }
+                                }
+                                }
+                                }
                 projection = {'_id': 0}
 
                 client = MongoClient(MONGO_URI)
-                print(MONGO_URI, file=sys.stderr)
                 db = client['airqo_netmanager']
-                print('succeeded', file=sys.stderr)
                 records = db.locate.find(query, projection)
-                print(len(list_records), file=sys.stderr)
-                return list(records)
+                records_list = list(records)
+                return records_list
             except:
-                print('Exception!', file=sys.stderr)
                 return 'Invalid polygon'
 
     def get_parish_for_point(self, point):
@@ -68,8 +65,8 @@ class Parish():
         client = MongoClient(MONGO_URI)
         db = client['airqo_netmanager']
         records = db.locate.find(query, projection)
-        return list(records)
-
+        records_list = list(records)
+        return records_list
     
 
     
