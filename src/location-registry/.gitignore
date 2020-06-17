@@ -2,4 +2,4 @@
 __pycache__/
 .env
 env2/
-locations_env/
+env/
