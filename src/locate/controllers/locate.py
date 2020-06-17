@@ -5,18 +5,22 @@ import ast
 import json
 from models.parishes import Parish
 from models.map import Map
+from flask_caching import Cache
 
 locate_blueprint = Blueprint('locate_blueprint', __name__)
+cache = Cache(config={'CACHE_TYPE':'simple'})
 
 locate_map = Map()
 
 
 @locate_blueprint.route('/')
+@cache.cached(timeout=300)
 def index():
     return 'OK'
 
 
 @locate_blueprint.route('/api/v1/map/parishes', methods=['POST'])
+@cache.cached(timeout=300)
 def place_sensors_map():
     '''
     Returns parishes recommended by the model given the polygon and must-have coordinates
@@ -50,6 +54,7 @@ def place_sensors_map():
 
 
 @locate_blueprint.route('/api/v1/map/savelocatemap', methods=['GET', 'POST'])
+@cache.cached(timeout=300)
 def save_locate_map():
     '''
     Saves planning space
@@ -83,8 +88,8 @@ def save_locate_map():
     return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
 
 
-# get previously saved planning space by the current user
 @locate_blueprint.route('/api/v1/map/getlocatemap/<user_id>')
+@cache.cached(timeout=300)
 def get_locate_map(user_id):
     '''
     Get saved planning space for the user
@@ -97,8 +102,9 @@ def get_locate_map(user_id):
     data = jsonify(response)
     return data
 
-# Update previously saved planning space
+
 @locate_blueprint.route('/api/v1/map/updatelocatemap/<space_name>', methods=['GET', 'POST'])
+@cache.cached(timeout=300)
 def update_locate_map(space_name):
     '''
     updates a previously saved planning space
@@ -131,8 +137,8 @@ def update_locate_map(space_name):
         # Error while trying to update the resource
         return jsonify({"message": "error occured while trying to update planning space", "success": False}), 500
 
-# Delete previously saved planning space
 @locate_blueprint.route('/api/v1/map/deletelocatemap/<space_name>', methods=['DELETE'])
+@cache.cached(timeout=300)
 def delete_locate_map(space_name):
     '''
     deletes a previously saved planning space
