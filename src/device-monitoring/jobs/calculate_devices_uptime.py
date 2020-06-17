@@ -48,7 +48,9 @@ def date_to_formated_str(date):
     """
     return datetime.strftime(date,'%Y-%m-%d %H:%M')
 
-
+def get_all_devices():
+    results = db.device_status_summary.find({},{'_id':0})
+    return results
 
 def get_device_channel_status():
         BASE_API_URL='https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/'
