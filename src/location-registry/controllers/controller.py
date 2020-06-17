@@ -1,15 +1,19 @@
 from flask import Blueprint, request, jsonify
 from helpers import helper
 import sys
+from flask_caching import Cache
 
 location_blueprint = Blueprint('location_blueprint', __name__)
+cache = Cache(config={'CACHE_TYPE': 'simple',  "CACHE_DEFAULT_TIMEOUT": 300})
 
 
 @location_blueprint.route('/')
+@cache.cached(timeout=300)
 def index():
     return 'OK'
 
 @location_blueprint.route('/api/v1/location_registry/create_id', methods = ['GET'])
+@cache.cached(timeout=300)
 def generate_ref():
     '''
     Generates a reference id for a new location
@@ -18,6 +22,7 @@ def generate_ref():
     
 
 @location_blueprint.route('/api/v1/location_registry/register', methods =['POST'])
+@cache.cached(timeout=300)
 def register_location():
     '''
     Saves a new location into a database
@@ -84,6 +89,7 @@ def register_location():
                 return {'message': 'An error occured. Please try again'}, 200
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods =['GET'])
+@cache.cached(timeout=300)
 def get_all_locations():
     '''
     Gets data for all the locations in the database
@@ -91,6 +97,7 @@ def get_all_locations():
     return jsonify(helper.all_locations())
 
 @location_blueprint.route('/api/v1/location_registry/location', methods =['GET'])
+@cache.cached(timeout=300)
 def get_location_details():
     '''
     Gets data for a particular location
@@ -100,6 +107,7 @@ def get_location_details():
         return helper.get_location(loc_ref)
 
 @location_blueprint.route('/api/v1/location_registry/edit', methods =['GET'])
+@cache.cached(timeout=300)
 def edit_location():
     '''
     Returns details of location to edit
@@ -109,6 +117,7 @@ def edit_location():
         return jsonify(helper.get_location_details_to_edit(loc_ref))
 
 @location_blueprint.route('/api/v1/location_registry/update', methods =['POST'])
+@cache.cached(timeout=300)
 def update_location():
     '''
     Updates an edited location's details
