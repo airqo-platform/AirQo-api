@@ -4,6 +4,7 @@ import os, sys
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.locate import locate_blueprint
+from dotenv import load_dotenv
 
 _logger = logging.getLogger(__name__)
 app = Flask(__name__)
