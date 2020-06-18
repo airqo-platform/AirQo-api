@@ -1,6 +1,7 @@
 from flask import Flask
 import logging
 import os
+from dotenv import load_dotenv
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.controller import location_blueprint, cache

@@ -1,6 +1,7 @@
 import pandas as pd
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import os
 
 MONGO_URI = os.getenv('MONGO_URI')
 #_config.MONGO_URI
@@ -11,20 +12,6 @@ class Location():
         ''' 
         initialize 
         ''' 
-
-    def connect_mongo():
-        '''
-        Connects to MongoDB
-        '''
-        try:
-            client = MongoClient(MONGO_URI)
-        except pymongo.errors.ConnectionFailure as e:
-            print("Could not connect to MongoDB: %s" % e)
-
-        #db = client['locate']
-        db = client['airqo_netmanager']
-        return db
-
     
     def register_location(self, loc_ref, host_name, mobility=None, longitude=None, latitude=None, internet=None, power=None,
                      height=None, road_intensity=None, installation_type=None, road_status=None, local_activities=None,
@@ -42,7 +29,8 @@ class Location():
         'distance_from_motorway':distance_from_motorway, 'distance_from_residential':distance_from_residential, 
         'distance_from_city': distance_from_city}
 
-        db = connect_mongo()
+        client = MongoClient(MONGO_URI)
+        db = client['airqo_netmanager']
         db.location_registry.insert_one(location_dict)
 
 
@@ -50,7 +38,8 @@ class Location():
         '''
         Gets specific fields of all locations to be displayed
         '''
-        db = connect_mongo()
+        client = MongoClient(MONGO_URI)
+        db = client['airqo_netmanager']
         query = {}
         projection = {'_id': 0, 'loc_ref':1, 'location_name':1, 'mobility':1, 'latitude':1, 'longitude':1, 'country':1, 'region':1,
                   'district':1, 'county':1, 'subcounty':1, 'parish':1}
@@ -61,7 +50,8 @@ class Location():
         '''
         Gets all the data in the database for a specific location
         '''
-        db = connect_mongo()
+        client = MongoClient(MONGO_URI)
+        db = client['airqo_netmanager']
         query = {'loc_ref':loc_ref}
         projection = {'_id':0}
         records = list(db.location_registry.find(query, projection))
@@ -71,7 +61,8 @@ class Location():
         '''
         Gets all the data in the database for a specific location
         '''
-        db = connect_mongo()
+        client = MongoClient(MONGO_URI)
+        db = client['airqo_netmanager']
         query = {'loc_ref':loc_ref}
         projection = {'_id':0, 'loc_ref':1, 'host':1, 'mobility':1, 'latitude':1, 'longitude':1, 'internet':1, 'power':1,
         'height_above_ground':1, 'road_intensity':1, 'installation_type':1, 'road_status':1, 'local_activities':1}
@@ -90,7 +81,8 @@ class Location():
         Saves updated location details to database
         '''
 
-        db=connect_mongo()
+        client = MongoClient(MONGO_URI)
+        db = client['airqo_netmanager']
         db.location_registry.update_one(
            { 'loc_ref': loc_ref },
            { '$set':
