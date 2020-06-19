@@ -31,7 +31,8 @@ class DeviceStatus():
             the count of devices that were offline and online and the devices info.
         """       
         created_at = utils.str_to_date(utils.date_to_str(datetime.now().replace(microsecond=0, second=0, minute=0)-timedelta(hours=4)))
-        #print(created_at)        
+        #print(created_at) 
+        time_format = '%Y-%m-%dT%H:%M:%S%z'      
         query = {'$match':{ 'created_at': {'$gte': created_at} }}
         projection = { '$project': { '_id': 0, 'created_at': {'$dateToString':{ 'format': time_format, 'date': '$time', 'timezone':'Africa/Kampala'}}, }}
         sort_order= { '$sort' : { '_id' : -1  }}
