@@ -25,6 +25,7 @@ def index():
     return 'OK'
 
 @location_blueprint.route('/api/v1/location_registry/create_id', methods = ['GET'])
+@cache.cached(timeout=5)
 def generate_ref():
     '''
     Generates a reference id for a new location
@@ -33,7 +34,7 @@ def generate_ref():
     
 
 @location_blueprint.route('/api/v1/location_registry/register', methods =['POST'])
-@cache.cached(timeout=60)
+#@cache.cached(timeout=60)
 def register_location():
     '''
     Saves a new location into a database
@@ -116,7 +117,7 @@ def register_location():
                 return {'message': 'An error occured. Please try again'}, 200
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods =['GET'])
-@cache.cached(timeout=300)
+@cache.cached(timeout=50)
 def get_all_locations():
     '''
     Gets data for all the locations in the database
@@ -124,7 +125,7 @@ def get_all_locations():
     return jsonify(location.all_locations())
 
 @location_blueprint.route('/api/v1/location_registry/location', methods =['GET'])
-@cache.cached(timeout=60)
+@cache.cached(timeout=30)
 def get_location_details():
     '''
     Gets data for a particular location
@@ -134,7 +135,7 @@ def get_location_details():
         return location.get_location(loc_ref)
 
 @location_blueprint.route('/api/v1/location_registry/edit', methods =['GET'])
-@cache.cached(timeout=60)
+@cache.cached(timeout=50)
 def edit_location():
     '''
     Returns details of location to edit
@@ -144,7 +145,7 @@ def edit_location():
         return jsonify(location.get_location_details_to_edit(loc_ref))
 
 @location_blueprint.route('/api/v1/location_registry/update', methods =['POST'])
-@cache.cached(timeout=60)
+#@cache.cached(timeout=60)
 def update_location():
     '''
     Updates an edited location's details
