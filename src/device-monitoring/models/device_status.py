@@ -46,8 +46,6 @@ class DeviceStatus():
         return results
         
     
-             
-        #return response.json(), response.status_code  
 
 
     def get_all_devices(self):
@@ -71,7 +69,7 @@ class DeviceStatus():
                 field2 as s1_pm10, field3 as s2_pm2_5, field4 s2_pm10, 
                 FROM `airqo-250220.thingspeak.raw_feeds_pms` 
                 WHERE channel_id = {0}  
-            """ #new_data_pms - needs to be transformed 
+            """  
         xx = "'"+ channel_id + "'"
         sql_query = sql_query.format(xx)
 
