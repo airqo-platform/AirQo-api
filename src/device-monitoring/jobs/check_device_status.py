@@ -48,7 +48,9 @@ def date_to_formated_str(date):
     """
     return datetime.strftime(date,'%Y-%m-%d %H:%M')
 
-
+def get_all_devices():
+    results = list(db.device_status_summary.find({},{'_id':0}))
+    return results
 
 def get_device_channel_status():
         BASE_API_URL='https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/'
@@ -56,16 +58,16 @@ def get_device_channel_status():
         #https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/feeds/recent/672528
         api_url = '{0}{1}'.format(BASE_API_URL,'channels')
         print(api_url)
-        response = requests.get(api_url)  
-        results = response.json()
+        #response = requests.get(api_url)  
+        results = get_all_devices()
         count =0
         count_of_online_devices =0
         online_devices=[]
         offline_devices=[]
         count_of_offline_devices =0
         for channel in results:
-            print(channel['id'])
-            latest_device_status_request_api_url = '{0}{1}{2}'.format(BASE_API_URL,'feeds/recent/', channel['id'] )
+            print(channel['chan_id'])
+            latest_device_status_request_api_url = '{0}{1}{2}'.format(BASE_API_URL,'feeds/recent/', channel['chan_id'] )
             latest_device_status_response = requests.get(latest_device_status_request_api_url)
             if latest_device_status_response.status_code == 200:
                 print(latest_device_status_response.json())
@@ -75,19 +77,19 @@ def get_device_channel_status():
                 date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
                 date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
                 print(date_time_difference_in_hours)
-                if date_time_difference_in_hours >5: #3hours for timezone difference
+                if date_time_difference_in_hours >1: #3hours for timezone difference
                     count_of_offline_devices += 1
-                    offline_devices.append(result)
+                    offline_devices.append(channel)
                 else : 
                     count_of_online_devices +=1
-                    online_devices.append(result)
+                    online_devices.append(channel)
 
         print(count)
         print(count_of_online_devices)
         print(count_of_offline_devices)
 
-        online_devices_percentage = math.ceil((count_of_online_devices/count)* 100)
-        offline_devices_percentage = math.ceil((count_of_offline_devices/count)* 100)
+        online_devices_percentage = math.floor((count_of_online_devices/count)* 100)
+        offline_devices_percentage = math.floor((count_of_offline_devices/count)* 100)
         print('online device percentage is : {}%'.format(online_devices_percentage))
         print('offline device percentage is: {}%'.format(offline_devices_percentage))
 

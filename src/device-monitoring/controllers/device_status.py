@@ -45,8 +45,8 @@ def get_all_devices_latest_status():
              'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':result['created_at']}
         else:
             response = {"message": "Device status data not available", "success":False }
-        #for document in documents:            
-            #response_.append(document)
+        for document in documents:            
+            response_.append(document)
         data = jsonify({'data':response, 'all_data':response_})
         return data, 201
     else:
