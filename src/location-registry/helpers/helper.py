@@ -61,19 +61,19 @@ def get_location_details(lon, lat):
     
     projection = {
         '_id': 0, 
-        'properties.region':1, 
-        'properties.district':1, 
-        'properties.county':1,
-        'properties.subcounty':1,
-        'properties.parish':1
+        'properties.Region':1, 
+        'properties.District':1, 
+        'properties.County':1,
+        'properties.Subcounty':1,
+        'properties.Parish':1
     }
     db = connect_mongo()
-    records = list(db.locate.find(query, projection))
-    region = records[0]['properties']['region']
-    district = records[0]['properties']['district']
-    county = records[0]['properties']['county']
-    subcounty = records[0]['properties']['subcounty']
-    parish = records[0]['properties']['parish']
+    records = list(db.locate_map.find(query, projection))
+    region = records[0]['properties']['Region']
+    district = records[0]['properties']['District']
+    county = records[0]['properties']['County']
+    subcounty = records[0]['properties']['Subcounty']
+    parish = records[0]['properties']['Parish']
     return region.capitalize(), district.capitalize(), county.capitalize(), subcounty.capitalize(), parish.capitalize()
 
 def get_location_name(parish, district):
