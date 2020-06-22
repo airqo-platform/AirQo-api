@@ -12,8 +12,12 @@ from geopy.distance import distance
 MONGO_URI = os.getenv("MONGO_URI")
 API_KEY = os.getenv("API_KEY")
 OVERPASS_URL = os.getenv("OVERPASS_URL")
+SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT") #+
 
-ee.Initialize()
+credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, 'private_key.json') #+
+
+ee.Initialize(credentials)
+#ee.Initialize()
 
 def connect_mongo():
     '''

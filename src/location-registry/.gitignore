@@ -3,3 +3,4 @@ __pycache__/
 .env
 env2/
 env/
+private_key.json
