@@ -1,29 +1,44 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const deviceController = require('../controllers/device');
-const { authJWT } = require('../services/auth');
-const middlewareConfig = require('../config/router.middleware');
-const deviceValidation = require('../utils/validations');
-const validate = require('express-validation');
-const mqttBridge = require('../controllers/mqtt-bridge');
-const httpBridge = require('../controllers/http-bridge');
+const deviceController = require("../controllers/device");
+const { authJWT } = require("../services/auth");
+const middlewareConfig = require("../config/router.middleware");
+const deviceValidation = require("../utils/validations");
+const validate = require("express-validation");
+const mqttBridge = require("../controllers/mqtt-bridge");
+const httpBridge = require("../controllers/http-bridge");
 
 middlewareConfig(router);
 
-router.get('/', deviceController.listAll);
-router.get('/gcp', deviceController.listAllGcp);
+router.get("/", deviceController.listAll);
+router.get("/gcp", deviceController.listAllGcp);
 
-router.post('/', validate(deviceValidation.createDevice), deviceController.createOne);
-router.post('/gcp/', deviceController.createOneGcp);
+router.post(
+  "/",
+  validate(deviceValidation.createDevice),
+  deviceController.createOne
+);
+router.post("/gcp/", deviceController.createOneGcp);
 
-router.get('/:id', deviceController.listOne);
-router.get('/:name/gcp', deviceController.listOneGcp);
+router.get("/:id", deviceController.listOne);
+router.get("/:name/gcp", deviceController.listOneGcp);
 
-router.delete('/:id', authJWT, deviceController.delete);
-router.delete('/:name/gcp', deviceController.deleteGcp);
+router.delete("/:id", authJWT, deviceController.delete);
+router.delete("/:name/gcp", deviceController.deleteGcp);
 
-router.put('/:id', authJWT, validate(deviceValidation.updateDevice), deviceController.updateDevice);
-router.put('/:name/gcp', deviceController.updateDeviceGcp);
+router.put(
+  "/:id",
+  authJWT,
+  validate(deviceValidation.updateDevice),
+  deviceController.updateDevice
+);
+router.put("/:name/gcp", deviceController.updateDeviceGcp);
+
+/*** creation of Things   *********/
+router.post("/ts", deviceController.createThing);
+router.delete("/ts/delete", deviceController.deleteThing);
+router.delete("/ts/clear", deviceController.clearThing);
+router.put("/ts/update", deviceController.updateThingSettings);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
