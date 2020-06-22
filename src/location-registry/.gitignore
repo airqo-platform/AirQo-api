@@ -1,7 +1,6 @@
 .vscode
 __pycache__/
 .env
-env2/
 env/
 private_key.json
 registry_env/
