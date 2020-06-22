@@ -4,6 +4,8 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 import os
 import sys
+from dotenv import load_dotenv
+load_dotenv()
 
 MONGO_URI = os.getenv('MONGO_URI')
 
