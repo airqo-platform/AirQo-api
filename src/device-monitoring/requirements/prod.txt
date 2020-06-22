@@ -20,7 +20,3 @@ six==1.15.0
 wcwidth==0.2.3
 Werkzeug==1.0.1
 zipp==3.1.0
-requests==2.23.0
-google-cloud-bigquery==1.22.0
-numpy==1.18.5
-pandas==1.0.5
