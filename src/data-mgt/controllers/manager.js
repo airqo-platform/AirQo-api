@@ -5,6 +5,7 @@ const Channels = require("../models/Channel");
 const Feed = require("../models/Feed");
 const axios = require("axios");
 const redis = require("../config/redis");
+const MaintenanceLog = require("../models/MaintenanceLogs");
 
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
@@ -17,8 +18,6 @@ const data = {
     /*** we can check the entry age of this field
      * and then be able to send alerts accordingly
      */
-    let lat = req.body.lat;
-    let lon = req.body.lon;
   },
 
   storeChannels: async (req, res) => {
@@ -209,6 +208,44 @@ const data = {
     try {
     } catch (e) {}
   },
+
+  getMaintenanceLogs: async (req, res) => {
+    try {
+      const logs = await MaintenanceLog.find(req.query);
+      return res.status(HTTPStatus.OK).json({
+        success: true,
+        message: "Logs fetched successfully",
+        logs,
+      });
+    } catch (e) {
+      return res
+        .status(HTTPStatus.BAD_REQUEST)
+        .json({ success: false, message: "Some Error" });
+    }
+  },
+
+  addMaintenanceLog: async (req, res) => {
+    const log = new MaintenanceLog(req.body);
+    log.save((error, savedLog) => {
+      if (error) {
+        return console.log(error);
+      } else {
+        res.status(200).json({
+          savedLog,
+          success: true,
+          message: "log added successfully",
+        });
+      }
+    });
+  },
+
+  getOutOfRange: () => {},
+
+  getIncorrectValues: () => {},
+
+  getThingsOff: () => {},
+
+  getDueMaintenance: () => {},
 };
 
 module.exports = data;

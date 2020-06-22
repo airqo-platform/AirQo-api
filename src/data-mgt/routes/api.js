@@ -12,4 +12,8 @@ router.get("/channels/age/", manager.getChannelLastEntryAge);
 router.get("/channels/fields/age", manager.getLastFieldEntryAge);
 router.get("/channels/count", manager.getDeviceCount);
 
+/************** get maintenance logs ************************************/
+router.get("/channels/maintenance", manager.getMaintenanceLogs);
+router.post("/channels/maintenance/add", manager.addMaintenanceLog);
+
 module.exports = router;
