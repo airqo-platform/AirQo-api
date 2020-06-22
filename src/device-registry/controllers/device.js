@@ -228,9 +228,10 @@ const device = {
       .catch(function(error) {
         console.log(error);
         res.status(500).json({
-          message: "unable to update the device settings",
+          message:
+            "unable to update the device settings, device does not exist on platform",
           success: false,
-          error,
+          // error,
         });
       });
   },
