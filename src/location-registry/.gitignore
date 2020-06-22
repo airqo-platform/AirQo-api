@@ -4,3 +4,4 @@ __pycache__/
 env2/
 env/
 private_key.json
+registry_env/
