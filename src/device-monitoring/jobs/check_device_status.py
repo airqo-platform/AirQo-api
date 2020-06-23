@@ -6,6 +6,7 @@ from datetime import datetime,timedelta
 from pymongo import MongoClient
 import requests
 import math
+import os
 
 
 MONGO_URI = os.getenv("MONGO_URI") 
