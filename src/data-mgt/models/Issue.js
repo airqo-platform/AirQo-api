@@ -10,7 +10,7 @@ issueSchema.methods = {
     return {
       _id: this._id,
       unit: this.unit,
-      issue: this.activity,
+      issue: this.issue,
     };
   },
 };
