@@ -3,7 +3,8 @@ FROM gcr.io/google-appengine/python
 RUN apt-get update && apt-get install -y \
   binutils \
   gdal-bin \
-  python-gdal
+  python-gdal \
+  libspatialindex-dev
 
 
 # Create a virtualenv for dependencies. This isolates these packages from
@@ -25,4 +26,8 @@ ADD . /app
 
 # Run a WSGI server to serve the application. gunicorn must be declared as
 # a dependency in requirements.txt.
+# CMD gunicorn -t 280 -b :$PORT app:app
+# EXPOSE 4000
+
 CMD gunicorn -t 280 -b :$PORT app:app
+# CMD ["flask", "run", "--host=0.0.0.0"]
