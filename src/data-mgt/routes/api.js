@@ -16,4 +16,8 @@ router.get("/channels/count", manager.getDeviceCount);
 router.get("/channels/maintenance", manager.getMaintenanceLogs);
 router.post("/channels/maintenance/add", manager.addMaintenanceLog);
 
+/************** issue Logs ****************************************/
+router.get("/channels/issues", manager.getIssues);
+router.post("/channels/issues/add", manager.addIssue);
+
 module.exports = router;
