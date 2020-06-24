@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.controller import location_blueprint, cache
-
+load_dotenv()
 
 _logger = logging.getLogger(__name__)
 app = Flask(__name__)
@@ -18,5 +18,3 @@ app.register_blueprint(location_blueprint)
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-

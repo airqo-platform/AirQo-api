@@ -8,15 +8,15 @@ from models.location import Location
 location_blueprint = Blueprint('location_blueprint', __name__)
 location = Location()
 
-cache = Cache(config={
-    'CACHE_TYPE': 'redis',
-    'CACHE_KEY_PREFIX': 'fcache',
-    'CACHE_REDIS_HOST': 'localhost',
-    'CACHE_REDIS_PORT': '6379',
-    'CACHE_REDIS_URL': 'redis://localhost:6379'
-    })
+# cache = Cache(config={
+#     'CACHE_TYPE': 'redis',
+#     'CACHE_KEY_PREFIX': 'fcache',
+#     'CACHE_REDIS_HOST': '35.224.67.244:6379',
+#     'CACHE_REDIS_PORT': '6379',
+#     'CACHE_REDIS_URL': 'redis://35.224.67.244:6379:6379'
+# })
 
-#cache = Cache(config={'CACHE_TYPE': 'simple'})
+cache = Cache(config={'CACHE_TYPE': 'simple'})
 
 
 @location_blueprint.route('/')
@@ -24,22 +24,23 @@ cache = Cache(config={
 def index():
     return 'OK'
 
-@location_blueprint.route('/api/v1/location_registry/create_id', methods = ['GET'])
+
+@location_blueprint.route('/api/v1/location_registry/create_id', methods=['GET'])
 @cache.cached(timeout=5)
 def generate_ref():
     '''
     Generates a reference id for a new location
     '''
-    return helper.get_location_ref() 
-    
+    return helper.get_location_ref()
 
-@location_blueprint.route('/api/v1/location_registry/register', methods =['POST'])
-#@cache.cached(timeout=60)
+
+@location_blueprint.route('/api/v1/location_registry/register', methods=['POST'])
+# @cache.cached(timeout=60)
 def register_location():
     '''
     Saves a new location into a database
     '''
-    if request.method == 'POST':   
+    if request.method == 'POST':
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
@@ -47,7 +48,7 @@ def register_location():
             loc_ref = json_data["locationReference"]
             host_name = json_data["hostName"]
             mobility = json_data["mobility"]
-        
+
             if mobility == 'Mobile':
                 latitude = None
                 longitude = None
@@ -65,15 +66,17 @@ def register_location():
             for i in json_data["localActivities"]:
                 local_activities.append(i["value"])
             country = "Uganda"
-            
-            if mobility =='Static':
+
+            if mobility == 'Static':
                 try:
-                    region, district, county, subcounty, parish = helper.get_location_details(longitude, latitude)
-                    location_name = helper.get_location_name(parish.capitalize(), district.capitalize())
+                    region, district, county, subcounty, parish = helper.get_location_details(
+                        longitude, latitude)
+                    location_name = helper.get_location_name(
+                        parish.capitalize(), district.capitalize())
                 except:
                     region, district, county, subcounty, parish, location_name = None, None, None, None, None, None
                 try:
-                    altitude = helper.get_altitude(latitude,longitude)
+                    altitude = helper.get_altitude(latitude, longitude)
                 except:
                     altitude = None
                 try:
@@ -81,22 +84,26 @@ def register_location():
                 except:
                     landform_90 = None
                 try:
-                    landform_270, aspect  = helper.get_landform270(latitude, longitude)
+                    landform_270, aspect = helper.get_landform270(
+                        latitude, longitude)
                 except:
                     landform_270, aspect = None, None
                 try:
-                    closest_road_type, closest_distance, closest_residential_distance= helper.distance_to_closest_road(latitude, longitude)
+                    closest_road_type, closest_distance, closest_residential_distance = helper.distance_to_closest_road(
+                        latitude, longitude)
                 except:
                     closest_road_type, closest_distance, closest_residential_distance = None, None, None
                 try:
-                    closest_motorway_distance = helper.distance_to_closest_motorway(latitude, longitude)
+                    closest_motorway_distance = helper.distance_to_closest_motorway(
+                        latitude, longitude)
                 except:
                     closest_motorway_distance = None
                 try:
-                    nearest_city_distance = helper.distance_to_nearest_city(latitude, longitude)
+                    nearest_city_distance = helper.distance_to_nearest_city(
+                        latitude, longitude)
                 except:
                     #nearest_city_distance = None, None, None
-                    nearest_city_ditance =None
+                    nearest_city_ditance = None
             else:
                 region, district, county, subcounty, parish, location_name = None, None, None, None, None, None
                 altitude = None
@@ -105,18 +112,19 @@ def register_location():
                 closest_road_type, closest_distance, closest_residential_distance = None, None, None
                 closest_motorway_distance = None
                 nearest_city_distance = None
-            
+
             try:
-                location.register_location(loc_ref, host_name, mobility, longitude, latitude, internet, power, height, road_intensity, 
-                installation_type, road_status, local_activities, location_name, country, region, district, county, subcounty, parish, altitude, 
-                aspect, landform_90, landform_270, closest_distance, closest_motorway_distance, closest_residential_distance, 
-                nearest_city_distance)
+                location.register_location(loc_ref, host_name, mobility, longitude, latitude, internet, power, height, road_intensity,
+                                           installation_type, road_status, local_activities, location_name, country, region, district, county, subcounty, parish, altitude,
+                                           aspect, landform_90, landform_270, closest_distance, closest_motorway_distance, closest_residential_distance,
+                                           nearest_city_distance)
                 cache.clear()
                 return {'message': 'Location registered succesfully'}, 200
             except:
                 return {'message': 'An error occured. Please try again'}, 200
 
-@location_blueprint.route('/api/v1/location_registry/locations', methods =['GET'])
+
+@location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
 @cache.cached(timeout=300)
 def get_all_locations():
     '''
@@ -124,17 +132,19 @@ def get_all_locations():
     '''
     return jsonify(location.all_locations())
 
-@location_blueprint.route('/api/v1/location_registry/location', methods =['GET'])
+
+@location_blueprint.route('/api/v1/location_registry/location', methods=['GET'])
 @cache.cached(timeout=60)
 def get_location_details():
     '''
     Gets data for a particular location
     '''
     if request.method == 'GET':
-        loc_ref= request.args.get('loc_ref')
+        loc_ref = request.args.get('loc_ref')
         return location.get_location(loc_ref)
 
-@location_blueprint.route('/api/v1/location_registry/edit', methods =['GET'])
+
+@location_blueprint.route('/api/v1/location_registry/edit', methods=['GET'])
 @cache.cached(timeout=60)
 def edit_location():
     '''
@@ -144,14 +154,15 @@ def edit_location():
         loc_ref = request.args.get('loc_ref')
         return jsonify(location.get_location_details_to_edit(loc_ref))
 
-@location_blueprint.route('/api/v1/location_registry/update', methods =['POST'])
-#@cache.cached(timeout=60)
+
+@location_blueprint.route('/api/v1/location_registry/update', methods=['POST'])
+# @cache.cached(timeout=60)
 def update_location():
     '''
     Updates an edited location's details
     '''
-    
-    if request.method == 'POST':   
+
+    if request.method == 'POST':
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
@@ -169,12 +180,9 @@ def update_location():
                 local_activities.append(i["value"])
 
             try:
-                location.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status, 
-                local_activities)
+                location.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status,
+                                              local_activities)
                 cache.clear()
                 return {'message': 'Location has been successfully updated'}, 200
             except:
                 return {'message': 'An error occured. Please try again'}, 200
-    
-
-    
