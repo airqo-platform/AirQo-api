@@ -1,8 +1,8 @@
 const { Schema, model } = require("mongoose");
 
 function threeMonthsFromNow() {
-  var d = new Date();
-  var targetMonth = d.getMonth() + 3;
+  var d = this.date;
+  var targetMonth = d.getMonth() + 2;
   d.setMonth(targetMonth);
   if (d.getMonth() !== targetMonth % 12) {
     d.setDate(0); // last day of previous month
@@ -15,6 +15,7 @@ const maintenanceSchema = new Schema({
   activity: { type: String },
   period: { String: String },
   nextMaintenance: { type: Date, default: threeMonthsFromNow },
+  date: { type: Date, required: true },
 });
 
 maintenanceSchema.methods = {
@@ -24,6 +25,7 @@ maintenanceSchema.methods = {
       unit: this.unit,
       activity: this.activity,
       nextMaintenance: this.nextMaintenance,
+      date: this.date,
     };
   },
 };
