@@ -61,7 +61,6 @@ def get_all_devices():
 def get_raw_channel_data(channel_id:int, hours=24):
     channel_id = str(channel_id)
     client = bigquery.Client()
-    #client = bigquery.Client.from_service_account_json("E:\Work\Sserurich\gaussian_processes\airqo-250220-642e046f4223.json")
     sql_query = """ 
            
             SELECT SAFE_CAST(TIMESTAMP(created_at) as DATETIME) as time, channel_id,field1 as s1_pm2_5,
@@ -153,11 +152,9 @@ def compute_uptime_for_all_devices():
             specified_hours = no_of_days * 24 #TODO: NEED TO WORK OUT NUMBER OF DAYS SINCE DEVICE WAS INSTALLED.
         
         print('specified hours\t' + str(specified_hours))
-        for device in results:
-            #168 hrs 7 days, 24hrs, 28days, all-time, 12 months
+        for device in results:           
             channel_id = device['chan_id']
-            #specified_hours = 168
-            
+                        
             valid_hourly_records_with_out_null_values_count, total_hourly_records_count = get_raw_channel_data(channel_id, specified_hours)
             print('valid records count' + str(valid_hourly_records_with_out_null_values_count))
             device_uptime_in_percentage, device_downtime_in_percentage =  calculate_device_uptime(specified_hours, valid_hourly_records_with_out_null_values_count)
