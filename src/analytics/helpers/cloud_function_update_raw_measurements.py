@@ -7,6 +7,8 @@ from pymongo import MongoClient
 import requests
 import os
 
+CLARITY_API_BASE_URL= os.getenv("CLARITY_API_BASE_URL")
+CLARITY_API_KEY= os.getenv("CLARITY_API_KEY")
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db=client['airqo_analytics']
@@ -64,12 +66,13 @@ def update_clarity_data(device_code):
         """
         Gets new data for a specific device and inserts into MongoDB
         """
-        base_url = 'https://clarity-data-api.clarity.io/v1/measurements?'
+        
+        base_url = CLARITY_API_BASE_URL +"measurements?"       
         last_time = get_last_time(device_code)
         endtime = date_to_str(datetime.now())
         results_list = []
         api_url = base_url+'startTime='+date_to_str(last_time)+ '&endTime='+endtime+'&code='+device_code
-        headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy','Accept-Encoding': 'gzip'}
+        headers = {'x-api-key': CLARITY_API_KEY,'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)
         json_results = results.json()
     
