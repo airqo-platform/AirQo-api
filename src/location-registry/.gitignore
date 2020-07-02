@@ -4,3 +4,5 @@ __pycache__/
 env/
 private_key.json
 registry_env/
+../analytics/.gitignore
+../auth-service/package-lock.json
