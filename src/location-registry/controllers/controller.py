@@ -121,7 +121,7 @@ def register_location():
                 cache.clear()
                 return {'message': 'Location registered succesfully'}, 200
             except:
-                return {'message': 'An error occured. Please try again'}, 200
+                return {'message': 'An error occured. Please try again'}, 400
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
@@ -186,4 +186,4 @@ def update_location():
                 cache.clear()
                 return {'message': 'Location has been successfully updated'}, 200
             except:
-                return {'message': 'An error occured. Please try again'}, 200
+                return {'message': 'An error occured. Please try again'}, 400
