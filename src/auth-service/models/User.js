@@ -91,7 +91,6 @@ const UserSchema = new Schema({
         job_title: { type: String, default: "none" },
         org_name: { type: String, default: "none" },
     },
-    graph_defaults: [{ type: ObjectId, ref: "defaults" }],
     product: {
         analytics: { type: Boolean, default: false },
         locate: { type: Boolean, default: false },
@@ -112,31 +111,31 @@ UserSchema.pre("save", function(next) {
     return next();
 });
 
-UserSchema.pre("findOneAndUpdate", function(next) {
-    if (this.isModified("password")) {
-        this.password = this._hashPassword(this.password);
-    }
-    return next();
-});
-
-// UserSchema.pre("findOneAndUpdate", function() {
-//     let that = this;
-//     const update = that.getUpdate();
-//     if (update.__v != null) {
-//         delete update.__v;
+// UserSchema.pre("findOneAndUpdate", function(next) {
+//     if (this.isModified("password")) {
+//         this.password = this._hashPassword(this.password);
 //     }
-//     const keys = ["$set", "$setOnInsert"];
-//     for (const key of keys) {
-//         if (update[key] != null && update[key].__v != null) {
-//             delete update[key].__v;
-//             if (Object.keys(update[key]).length === 0) {
-//                 delete update[key];
-//             }
-//         }
-//     }
-//     update.$inc = update.$inc || {};
-//     update.$inc.__v = 1;
+//     return next();
 // });
+
+UserSchema.pre("findOneAndUpdate", function() {
+    let that = this;
+    const update = that.getUpdate();
+    if (update.__v != null) {
+        delete update.__v;
+    }
+    const keys = ["$set", "$setOnInsert"];
+    for (const key of keys) {
+        if (update[key] != null && update[key].__v != null) {
+            delete update[key].__v;
+            if (Object.keys(update[key]).length === 0) {
+                delete update[key];
+            }
+        }
+    }
+    update.$inc = update.$inc || {};
+    update.$inc.__v = 1;
+});
 
 UserSchema.pre("update", function(next) {
     if (this.isModified("password")) {
@@ -164,7 +163,6 @@ UserSchema.methods = {
                 firstName: this.firstName,
                 lastName: this.lastName,
                 email: this.email,
-                graph_defaults: this.graph_defaults,
                 pref_locations: this.pref_locations,
                 privilege: this.privilege,
             },
