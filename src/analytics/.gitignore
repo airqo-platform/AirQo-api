@@ -9,6 +9,5 @@ helpers/cloud_function_update_daily_measurements.py
 helpers/cloud_function_update_hourly_measurements.py
 helpers/cloud_function_update_raw_measurements.py
 env/
-../auth-service/.vscode/
-../ml-service/packages/sensor_location/app/locate_env/
+.DS_Store
 
