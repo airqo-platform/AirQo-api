@@ -5,8 +5,9 @@ import json
 from datetime import datetime,timedelta
 from pymongo import MongoClient
 import requests
+import os
 
-MONGO_URI = "mongodb://airqo:airqo-250220@35.224.67.244:27017/airqo_analytics"
+MONGO_URI = os.getenv("MONGO_URI") 
 client = MongoClient(MONGO_URI)
 db=client['airqo_analytics']
 
