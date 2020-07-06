@@ -95,11 +95,7 @@ class Dashboard():
         Returns:
             A list of the number of daily exceedences for the specified pollutant and standard in the past 28 days.
         """       
-        created_at = helpers.str_to_date(helpers.date_to_str(datetime.now().replace(microsecond=0, second=0, minute=0)-timedelta(hours=1)))
-        #print(created_at)        
-        query = {'$match':{ 'created_at': {'$gte': created_at}, 'Organisation':organisation_name }}
-        projection = { '$project': { '_id': 0 }}
-        results = list(app.mongo.db.pm25_location_categorycount.aggregate([query, projection]) )       
+        results = list(app.mongo.db.pm25_location_categorycount.find().sort([('$natural',-1)]).limit(1))        
         return results
 
         

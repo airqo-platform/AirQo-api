@@ -104,13 +104,11 @@ def get_network_uptime():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_all_devices_latest_status()
-        response_ = []
-        if documents:
-            result = documents[0]
-            response = result['offline_devices']
+        result = model.get_network_uptime_analysis_results()       
+        if result:            
+            response = result
         else:
-            response = {"message": "Offline devices data not available", "success":False }
+            response = {"message": "Uptime data not available", "success":False }
         data = jsonify(response)
         return data, 201
     else:

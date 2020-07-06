@@ -9,9 +9,11 @@ import math
 from google.cloud import bigquery
 import pandas as pd
 import numpy as np
+import os
 
-MONGO_URI = "mongodb://admin:airqo-250220-master@35.224.67.244:27017"
 
+MONGO_URI = os.getenv("MONGO_URI") 
+print(MONGO_URI)
 client = MongoClient(MONGO_URI)
 db=client['airqo_devicemonitor']
 
@@ -59,7 +61,6 @@ def get_all_devices():
 def get_raw_channel_data(channel_id:int, hours=24):
     channel_id = str(channel_id)
     client = bigquery.Client()
-    #client = bigquery.Client.from_service_account_json("E:\Work\Sserurich\gaussian_processes\airqo-250220-642e046f4223.json")
     sql_query = """ 
            
             SELECT SAFE_CAST(TIMESTAMP(created_at) as DATETIME) as time, channel_id,field1 as s1_pm2_5,
@@ -149,15 +150,15 @@ def compute_uptime_for_all_devices():
         elif time_period['label']=='all_time':
             no_of_days = 365
             specified_hours = no_of_days * 24 #TODO: NEED TO WORK OUT NUMBER OF DAYS SINCE DEVICE WAS INSTALLED.
-        print(specified_hours)
-        for device in results:
-            #168 hrs 7 days, 24hrs, 28days, all-time, 12 months
+        
+        print('specified hours\t' + str(specified_hours))
+        for device in results:           
             channel_id = device['chan_id']
-            #specified_hours = 168
-            
+                        
             valid_hourly_records_with_out_null_values_count, total_hourly_records_count = get_raw_channel_data(channel_id, specified_hours)
+            print('valid records count' + str(valid_hourly_records_with_out_null_values_count))
             device_uptime_in_percentage, device_downtime_in_percentage =  calculate_device_uptime(specified_hours, valid_hourly_records_with_out_null_values_count)
-            #print('device-uptime \t' + str(device_uptime_in_percentage) + '\n downtime \t' + str(device_downtime_in_percentage))
+            print('device-uptime \t' + str(device_uptime_in_percentage) + '\n downtime \t' + str(device_downtime_in_percentage))
 
             created_at =   str_to_date(date_to_str(datetime.now()))
 
@@ -168,7 +169,7 @@ def compute_uptime_for_all_devices():
             device_uptime_records.append(device_uptime_record)
         
 
-        average_uptime_for_entire_network_in_percentage_for_selected_timeperiod = np.mean(all_devices_uptime_series)
+        average_uptime_for_entire_network_in_percentage_for_selected_timeperiod = round(np.mean(all_devices_uptime_series),2)
         created_at =   str_to_date(date_to_str(datetime.now()))
 
         print('average uptime for entire network in percentage is : {}%'.format(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
@@ -210,7 +211,6 @@ def compute_uptime_for_all_devices():
             average_uptime_for_entire_network_in_percentage_for_all_time = entire_network_uptime_record
 
 
-
     all_network_device_uptime_records =[]
 
     entire_network_uptime_record_for_all_periods = {"average_uptime_for_entire_network_for_twentyfour_hours":average_uptime_for_entire_network_in_percentage_for_twentyfour_hours, 
@@ -228,7 +228,6 @@ def compute_uptime_for_all_devices():
 
     save_network_uptime_analysis_results(all_network_device_uptime_records)       
        
-
 
 def save_network_uptime_analysis_results(data):
     """

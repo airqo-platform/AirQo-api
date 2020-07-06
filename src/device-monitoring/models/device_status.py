@@ -59,10 +59,31 @@ class DeviceStatus():
         return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
 
   
-    def get_network_uptime_analysis_results(self, specified_hours):
+    def get_network_uptime_analysis_results(self):
         "gets the latest network uptime for the specified hours"
         db = db_helpers.connect_mongo()
-        results = db.network_uptime_analysis_results.find({},{ '_id': 0}).sort([('$natural',-1)]).limit(1)
+        results = list(db.network_uptime_analysis_results.find({},{ '_id': 0}).sort([('$natural',-1)]).limit(1))
+        
+        result = results[0]
+        
+        values = [round(result['average_uptime_for_entire_network_for_twentyfour_hours']['average_uptime_for_entire_network_in_percentage'],2),
+                round(result['average_uptime_for_entire_network_for_seven_days']['average_uptime_for_entire_network_in_percentage'],2),
+                round(result['average_uptime_for_entire_network_for_twenty_eight_days']['average_uptime_for_entire_network_in_percentage'],2),
+                round(result['average_uptime_for_entire_network_for_twelve_months']['average_uptime_for_entire_network_in_percentage'],2)]
+
+        labels = ['24 hours', '7 days', '28 days', '12 months']
+            
+        '''
+         obj = {"twentyfour_hours_uptime": result['average_uptime_for_entire_network_for_twentyfour_hours']['average_uptime_for_entire_network_in_percentage'], 
+                    'seven_days_uptime': result['average_uptime_for_entire_network_for_seven_days']['average_uptime_for_entire_network_in_percentage'],
+                    'twenty_eight_days_uptime': result['average_uptime_for_entire_network_for_twenty_eight_days']['average_uptime_for_entire_network_in_percentage'],
+                    'twelve_months_uptime': result['average_uptime_for_entire_network_for_twelve_months']['average_uptime_for_entire_network_in_percentage'],
+                    "created_at":created_at}
+                    }
+        '''
+
+        uptime_result = {'uptime_values':values, 'uptime_labels':labels, 'created_at':result['created_at']}
+        return uptime_result
     
 if __name__ == "__main__":
     dx = DeviceStatus()

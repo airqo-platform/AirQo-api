@@ -6,9 +6,10 @@ from datetime import datetime,timedelta
 from pymongo import MongoClient
 import requests
 import math
+import os
 
-MONGO_URI = "mongodb://admin:airqo-250220-master@35.224.67.244:27017"
 
+MONGO_URI = os.getenv("MONGO_URI") 
 client = MongoClient(MONGO_URI)
 db=client['airqo_devicemonitor']
 
@@ -54,11 +55,9 @@ def get_all_devices():
 
 def get_device_channel_status():
         BASE_API_URL='https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/'
-        #https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/channels
-        #https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/feeds/recent/672528
+        
         api_url = '{0}{1}'.format(BASE_API_URL,'channels')
-        print(api_url)
-        #response = requests.get(api_url)  
+        print(api_url)         
         results = get_all_devices()
         count =0
         count_of_online_devices =0
@@ -77,7 +76,7 @@ def get_device_channel_status():
                 date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
                 date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
                 print(date_time_difference_in_hours)
-                if date_time_difference_in_hours >1: #3hours for timezone difference
+                if date_time_difference_in_hours >1: 
                     count_of_offline_devices += 1
                     offline_devices.append(channel)
                 else : 
