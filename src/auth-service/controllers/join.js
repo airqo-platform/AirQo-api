@@ -82,15 +82,15 @@ const join = {
         });
     },
 
-    forgotPassword: (req, res) => {
+    forgotPassword: async(req, res) => {
         console.log("the email who forgot is  " + req.body.email);
 
-        const { errors, isValid } = validateForgotPwdInput(req.body.email);
-        if (!isValid) {
-            return res.status(400).json(errors);
-        }
+        // const { errors, isValid } = validateForgotPwdInput(req.body.email);
+        // if (!isValid) {
+        //     return res.status(400).json(errors);
+        // }
         console.log("reaching forgotPassword");
-        console.log("the email is here:" + req.body.email);
+        console.log("the email is here: " + req.body.email);
 
         const token = crypto.randomBytes(20).toString("hex");
 
@@ -99,7 +99,7 @@ const join = {
             resetPasswordToken: token,
             resetPasswordExpires: Date.now() + 3600000,
         };
-        User.findOneAndUpdate(query, updateDetails, (error, response) => {
+        await User.findOneAndUpdate(query, updateDetails, (error, response) => {
             if (error) {
                 return res.status(400).json({ email: "Email does not exist" });
             } else if (response) {
@@ -153,7 +153,12 @@ const join = {
             from: `info@airqo.net`,
             to: `${req.body.email}`,
             subject: "Welcome to AirQo",
-            text: `${msgs.welcome(req.body.firstName, req.body.lastName, password)}`,
+            text: `${msgs.welcome(
+        req.body.firstName,
+        req.body.lastName,
+        req.body.password,
+        req.body.userName
+      )}`,
         };
 
         /**** I will consider this for the confirmation process ******/
@@ -240,39 +245,33 @@ const join = {
         );
     },
 
-    updateUserDefaults: (req, res, next) => {
-        let response = {};
-        User.find({ _id: req.params.id }, (error, user) => {
-            if (error) {
-                response.success = false;
-                response.message = "Unable to find the user";
-                res.status(500).json(response);
-            } else if (user.length) {
-                let defaults = new Defaults(req.body);
-                console.log("the user is here:");
-                console.dir(user);
-                console.log("the type of the user is: " + typeof user);
-                defaults.user = user[0]._id;
-                defaults.save((error, savedDefault) => {
-                    if (error) {
-                        response.success = false;
-                        response.message = "Unable to save the default value";
-                        response.error = error;
-                        res.status(500).json(response);
-                    } else {
-                        response.success = true;
-                        response.message = "successfully saved the defaults";
-                        res.status(200).json(response);
-                        console.log("the user object:");
-                        console.dir(user[0]);
-                        user[0].graph_defaults.push(savedDefault._id.valueOf());
+    updateUserDefaults: async(req, res, next) => {
+        let query = { user: req.params.id, chartTitle: req.body.chartTitle },
+            update = req.body,
+            options = { upsert: true, new: true };
+        console.log("when I have just joined the platform");
 
-                        user[0].save((error) => {
-                            if (error) {
-                                console.log(error);
-                            } else {
-                                console.log("user updates");
-                            }
+        await Defaults.findOneAndUpdate(query, update, options, (error, result) => {
+            if (!error) {
+                //if the document does not exist
+                if (!result) {
+                    result = new Defaults();
+                }
+                //save the document
+                result.save(function(error, saved) {
+                    if (!error) {
+                        console.log("when there is no error");
+                        res.status(200).json({
+                            success: true,
+                            message: "saved the user default",
+                            saved,
+                        });
+                    } else {
+                        console.log("when there is an error");
+                        res.status(500).json({
+                            success: false,
+                            message: "unable to save defaults",
+                            error,
                         });
                     }
                 });
@@ -284,11 +283,11 @@ const join = {
         try {
             console.log("the query");
             console.log(req.query);
-            const prefs = await Defaults.find({ user: req.params.id });
+            const defaults = await Defaults.find({ user: req.params.id });
             return res.status(HTTPStatus.OK).json({
                 success: true,
                 message: " defaults fetched successfully",
-                prefs,
+                defaults,
             });
         } catch (e) {
             return res
@@ -336,33 +335,35 @@ const join = {
         });
     },
 
-    resetPassword: (req, res, next) => {
+    resetPassword: async(req, res, next) => {
         console.log("inside the reset password function...");
-        console.log(`${req.params.resetPasswordToken}`);
-        User.findOne({
-            resetPasswordToken: req.params.resetPasswordToken,
-            resetPasswordExpires: {
-                $gt: Date.now(),
+        console.log(`${req.query.resetPasswordToken}`);
+        await User.findOne({
+                resetPasswordToken: req.query.resetPasswordToken,
+                resetPasswordExpires: {
+                    $gt: Date.now(),
+                },
             },
-        }).then((user) => {
-            console.log("this is the user " + ` ${user}`);
-            if (user == null) {
-                res.status(403).send("password reset link is invalid or has expired");
-            } else {
-                res.status(200).send({
-                    userName: user.userName,
-                    message: "passworkd reset link a-ok",
-                });
+            (err, result) => {
+                if (err) {
+                    res
+                        .status(403)
+                        .json({ message: "password reset link is invalid or has expired" });
+                } else if (result) {
+                    res.status(200).send({
+                        userName: result.userName,
+                        message: "password reset link a-ok",
+                    });
+                } else {
+                    res
+                        .status(403)
+                        .json({ message: "password reset link is invalid or has expired" });
+                }
             }
-        });
+        );
     },
 
     updatePasswordViaEmail: (req, res, next) => {
-        const { errors, isValid } = validatePwdUpdateInput(req.body);
-        if (!isValid) {
-            return res.status(400).json(errors);
-        }
-
         const { userName, password } = req.body;
 
         User.findOne({
@@ -372,22 +373,27 @@ const join = {
                 $gt: Date.now(),
             },
         }).then((user) => {
-            if (user == null) {
+            if (user === null) {
                 console.log("password reset link is invalid or has expired");
                 res
                     .status(403)
                     .json({ msg: "password reset link is invalid or has expired" });
-            } else if (user != null) {
-                user.update({
-                    password: password,
-                    resetPasswordToken: null,
-                    resetPasswordExpires: null,
+            } else if (user !== null) {
+                user.resetPasswordToken = null;
+                user.resetPasswordExpires = null;
+                user.password = password;
+                user.save((error, saved) => {
+                    if (error) {
+                        console.log("no user exists in db to update");
+                        res.status(401).json({ message: "no user exists in db to update" });
+                    } else if (saved) {
+                        console.log("password updated");
+                        res.status(200).json({ message: "password updated" });
+                    }
                 });
-                console.log("password updated");
-                res.status(200).json({ msg: "password updated" });
             } else {
                 console.log("no user exists in db to update");
-                res.status(401).json({ msg: "no user exists in db to update" });
+                res.status(401).json({ message: "no user exists in db to update" });
             }
         });
     },

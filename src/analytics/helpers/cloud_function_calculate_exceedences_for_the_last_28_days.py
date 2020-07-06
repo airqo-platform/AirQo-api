@@ -7,8 +7,9 @@ from pymongo import MongoClient
 import requests
 import numpy as np
 import pandas as pd
+import os
 
-MONGO_URI = "mongodb+srv://sserurich:dKZcVkS5PCSpmobo@cluster0-99jha.gcp.mongodb.net/airqo_analytics"
+MONGO_URI = os.getenv("MONGO_URI") 
 client = MongoClient(MONGO_URI)
 db=client['airqo_analytics']
 

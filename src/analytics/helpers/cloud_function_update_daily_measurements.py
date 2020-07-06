@@ -4,10 +4,12 @@ import json
 from datetime import datetime,timedelta
 from pymongo import MongoClient
 import requests
+import os
 
 
-MONGO_URIX = "mongodb+srv://sserurich:dKZcVkS5PCSpmobo@cluster0-99jha.gcp.mongodb.net/airqo_analytics"
-MONGO_URI = "mongodb://localhost:27017/airqo_analytics"
+MONGO_URI = os.getenv("MONGO_URI") 
+CLARITY_API_BASE_URL= os.getenv("CLARITY_API_BASE_URL")
+CLARITY_API_KEY= os.getenv("CLARITY_API_KEY")
 client = MongoClient(MONGO_URI)
 db=client['airqo_analytics']
 
@@ -48,9 +50,9 @@ def update_device_daily_measurements_core(device_code, average):
         last_time = date_to_str(get_last_time_from_device_daily_measurements(device_code))
         endtime = date_to_str(datetime.now())
 
-        headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy', 'Accept-Encoding': 'gzip'}
-        base_url = "https://clarity-data-api.clarity.io/v1/measurements?"
-        api_url=  "https://clarity-data-api.clarity.io/v1/measurements?startTime="+last_time +  '&endTime='+endtime+"&code="+device_code+"&average="+average
+        headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
+        base_url = CLARITY_API_BASE_URL +"/measurements?"
+        api_url=  CLARITY_API_BASE_URL +"/measurements?startTime="+last_time +  '&endTime='+endtime+"&code="+device_code+"&average="+average
         results = requests.get(api_url, headers=headers)
 
         results_list = []
