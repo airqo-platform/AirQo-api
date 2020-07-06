@@ -122,7 +122,15 @@ const device = {
       description:
         `product name: ${req.body.product_name}` +
         ", " +
-        `device manufacturer: ${req.body.device_manufacturer}`,
+        `device manufacturer: ${req.body.device_manufacturer}` +
+        ", " +
+        `owner: ${req.body.owner}` +
+        ", " +
+        `public_flag: ${req.body.visibility}` +
+        ", " +
+        `ISP: ${req.body.ISP}` +
+        ", " +
+        `phoneNumber:${req.body.phoneNumber}`,
     };
 
     await axios
@@ -137,11 +145,13 @@ const device = {
           output,
         });
       })
-      .catch((error) => {
-        res.status(500).json({
+      .catch((e) => {
+        let errors = e.message;
+        res.status(400).json({
           success: false,
-          message: "unable to create the device",
-          error,
+          message:
+            "unable to create the device, please crosscheck the validity of all your input values",
+          errors,
         });
       });
   },
