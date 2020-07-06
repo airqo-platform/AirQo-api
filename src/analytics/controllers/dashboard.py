@@ -131,27 +131,28 @@ def download_customised_data():
                 for pollutant in pollutants:
                     filtered_data = gr.get_filtered_data(
                         device_code, start_date, end_date, frequency, pollutant['value'])
-                    print(filtered_data, pollutant['value'])
+                    #print(filtered_data, pollutant['value'])
 
-                # check filtered data
-        #         if filtered_data:
-        #             for data in filtered_data:
-        #                 values.append(data['pollutant_value'])
-        #                 labels.append(data['time'])
-        #             device_results = {
-        #                 'pollutant_values': values, 'labels': labels}
-        #             dataset = {'data': values, 'label': parish +
-        #                        ' ' + pollutant, 'fill': False}
-        #             datasets.append(dataset)
+                    # check filtered data
+                    if filtered_data:
+                        for data in filtered_data:
+                            values.append(data['pollutant_value'])
+                            labels.append(data['time'])
+                        device_results = {
+                            'pollutant_values': values, 'labels': labels}
+                        dataset = {'data': values, 'label': parish +
+                                   ' ' + pollutant['value'], 'fill': False}
+                        datasets.append(dataset)
+                # print(datasets)
 
-        #         custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
-        #                                  'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
-        #                                  'location_code': location_code, 'chart_type': file_type, 'chart_data': device_results, 'datasets': datasets})
+                custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
+                                         'parish': parish, 'frequency': frequency, 'pollutant': pollutant['value'],
+                                         'location_code': location_code, 'chart_type': file_type, 'chart_data': device_results, 'datasets': datasets})
+    # print(custom_chat_data)
+    locations_devices.append(devices)
 
-        #     locations_devices.append(devices)
-
-        # return jsonify({'results': custom_chat_data})
-    return jsonify({'testing': True})
+    return jsonify({'results': custom_chat_data})
+    # return jsonify({'testing': True})
 
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods=['GET'])
