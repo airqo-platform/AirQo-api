@@ -7,5 +7,6 @@ route = {
     'all_devices_latest_status': base_url + '/status/latest',
     'devices': base_url + '/devices',
     'latest_offline_devices': base + '/monitor/devices/offline',
+    'latest_online_devices': base + '/monitor/devices/online',
     'network_uptime': base+ '/monitor/network/uptime'
 }
