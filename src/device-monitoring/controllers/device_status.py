@@ -96,6 +96,24 @@ def get_all_latest_offline_devices():
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+@device_status_bp.route(api.route['latest_online_devices'], methods=['GET'])
+def get_all_latest_online_devices():
+    '''
+    Get all latest online devices latest status
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        documents = model.get_all_devices_latest_status()
+        if documents:
+            result = documents[0]
+            response = result['online_devices']
+        else:
+            response = {"message": "Online devices data not available", "success":False }
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
 
 @device_status_bp.route(api.route['network_uptime'], methods=['GET'])
 def get_network_uptime():
@@ -113,3 +131,5 @@ def get_network_uptime():
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
+
+    
