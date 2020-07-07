@@ -82,7 +82,7 @@ class DeviceStatus():
                     }
         '''
 
-        uptime_result = {'uptime_values':values, 'uptime_labels':labels, 'created_at':result['created_at']}
+        uptime_result = {'uptime_values':values, 'uptime_labels':labels, 'created_at':utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         return uptime_result
     
 if __name__ == "__main__":

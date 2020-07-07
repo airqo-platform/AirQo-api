@@ -11,3 +11,10 @@ def date_to_str(date):
     Converts datetime to a string
     """
     return datetime.strftime(date,'%Y-%m-%dT%H:%M:%S.%fZ')
+
+def convert_GMT_time_to_EAT_local_time(gmt_datetime):
+    """
+     converts a datetime object in GMT to East African Local Time.
+    """
+    return datetime.strftime(gmt_datetime + timedelta(hours=3), '%Y-%m-%d %H:%M')
+
