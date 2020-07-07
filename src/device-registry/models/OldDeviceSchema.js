@@ -2,32 +2,20 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 
-const thingSchema = new mongoose.Schema(
+const deviceSchema = new mongoose.Schema(
   {
-    id: {
-      type: Number,
-      required: true,
+    location: {
+      longitude: {
+        type: String,
+        required: [true, "Longitude is required!"],
+        trim: true,
+      },
+      latitude: {
+        type: String,
+        required: [true, "Latitude is required!"],
+        trim: true,
+      },
     },
-    latitude: {
-      type: Number,
-      required: true,
-    },
-    longitude: {
-      type: Number,
-      required: true,
-    },
-    license: {
-      type: String,
-    },
-
-    writeKey: {
-      type: String,
-    },
-
-    readKey: {
-      type: String,
-    },
-
     name: {
       type: String,
       required: [true, "Device name is required!"],
@@ -38,12 +26,6 @@ const thingSchema = new mongoose.Schema(
       type: Boolean,
       require: [true, "visibility is required"],
       trim: true,
-    },
-    createdAt: {
-      type: Date,
-    },
-    elevation: {
-      type: Number,
     },
     owner: {
       type: ObjectId,
@@ -70,31 +52,47 @@ const thingSchema = new mongoose.Schema(
       require: [true, "distance next to road is required"],
     },
     mountType: {
-      type: String,
-      default: false,
-      trim: true,
+      motorbike: {
+        type: Boolean,
+        default: false,
+        trim: true,
+      },
+      wall: {
+        type: Boolean,
+        default: false,
+        trim: true,
+      },
+      pole: {
+        type: Boolean,
+        default: false,
+        trim: true,
+      },
     },
+    sensors: [
+      {
+        type: ObjectId,
+        ref: "sensor",
+      },
+    ],
   },
   {
     timestamps: true,
   }
 );
 
-thingSchema.plugin(uniqueValidator, {
+deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-thingSchema.methods = {
+deviceSchema.methods = {
   toJSON() {
     return {
-      id: this.id,
+      _id: this._id,
       name: this.name,
-      latitude: this.latitude,
-      longitude: this.longitude,
+      location: this.location,
       mountType: this.mountType,
       createdAt: this.createdAt,
       owner: this.owner,
-      elevation: this.elevation,
       height: this.height,
       description: this.description,
       mobile: this.mobile,
@@ -105,7 +103,7 @@ thingSchema.methods = {
 };
 
 // I will add the check for the user after setting up the communications between services
-thingSchema.statics = {
+deviceSchema.statics = {
   createDevice(args) {
     return this.create({
       ...args,
@@ -120,6 +118,6 @@ thingSchema.statics = {
   },
 };
 
-const thing = mongoose.model("thing", thingSchema);
+const device = mongoose.model("device", deviceSchema);
 
-module.exports = thing;
+module.exports = device;
