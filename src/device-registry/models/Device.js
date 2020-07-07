@@ -30,7 +30,7 @@ const deviceSchema = new mongoose.Schema(
       unique: true,
     },
     visibility: {
-      type: Boolean,
+      type: String,
       require: [true, "visibility is required"],
       trim: true,
     },
@@ -41,7 +41,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: ObjectId,
+      type: String,
       require: [true, "owner is required"],
     },
     description: {
