@@ -150,5 +150,16 @@ def get_online_offline_status():
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+def categorise_devices(device, current_status):
+    online_devices=[]
+    offline_devices=[]
 
-
+    for i in range(len(devices)):        
+        if devices[i]['online_devices']==True:
+            online_devices.append(devices[i])
+        else:
+            offline_devices.append(devices[i])
+    if current_status == 'online':
+        return online_devices
+    else:
+        return offline_devices
