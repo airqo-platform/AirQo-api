@@ -102,60 +102,47 @@ const device = {
     //connect the device to Cloud IoT core using MQTT bridge
   },
 
-  /**************************** start of using ThingSpeak **************************** */
-
-  /********************************* create and delete Thing ****************************** */
+  /********************************* create Thing ****************************** */
   createThing: async (req, res) => {
     const baseUrl = `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`;
-    // the request
-    // {
-    //     "name": "56789",
-    //     "latitude": "27.2038",
-    //     "longitude": "77.5011",
-    //     "public_flag": "true",
-    //     "device_manufacturer": "kika",
-    //     "product_name":"gen 4"
-    //   }
     let bodyPrep = {
       ...req.body,
       ...constants.DEVICE_CREATION,
-      description:
-        `product name: ${req.body.product_name}` +
-        ", " +
-        `device manufacturer: ${req.body.device_manufacturer}` +
-        ", " +
-        `owner: ${req.body.owner}` +
-        ", " +
-        `public_flag: ${req.body.visibility}` +
-        ", " +
-        `ISP: ${req.body.ISP}` +
-        ", " +
-        `phoneNumber:${req.body.phoneNumber}`,
     };
-
-    await axios
-      .post(baseUrl, bodyPrep)
-      .then((response) => {
-        console.log("the response...");
-        console.dir(response.data);
-        let output = response.data;
-        res.status(200).json({
-          success: true,
-          message: "successfully created the device",
-          output,
+    try {
+      console.log("creating one device....");
+      const device = await Device.createDevice(req.body);
+      await axios
+        .post(baseUrl, bodyPrep)
+        .then((response) => {
+          console.log("the response...");
+          console.dir(response.data);
+          let output = response.data;
+          return res.status(HTTPStatus.CREATED).json({
+            success: true,
+            message: "successfully created the device",
+            device,
+          });
+        })
+        .catch((e) => {
+          let errors = e.message;
+          res.status(400).json({
+            success: false,
+            message:
+              "unable to create the device, please crosscheck the validity of all your input values",
+            errors,
+          });
         });
-      })
-      .catch((e) => {
-        let errors = e.message;
-        res.status(400).json({
-          success: false,
-          message:
-            "unable to create the device, please crosscheck the validity of all your input values",
-          errors,
-        });
+    } catch (e) {
+      return res.status(400).json({
+        success: false,
+        message: "unable to save the device",
+        error: e,
       });
+    }
   },
 
+  /********************************* delete Thing ****************************** */
   deleteThing: async (req, res) => {
     const url = `https://api.thingspeak.com/channels/${req.query.device}.json?api_key=${process.env.TS_API_KEY}`;
     await axios
@@ -177,6 +164,8 @@ const device = {
         });
       });
   },
+
+  /********************************* clear Thing ****************************** */
 
   clearThing: async (req, res) => {
     const url = `https://api.thingspeak.com/channels/${req.query.device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
