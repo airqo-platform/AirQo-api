@@ -10,5 +10,5 @@ MONGO_URI = os.getenv('MONGO_URI')
 
 def connect_mongo():
     client = MongoClient(MONGO_URI)
-    db = client['airqo_devicemonitor']
+    db = client['airqo_netmanager']
     return db

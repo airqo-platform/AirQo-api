@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import logging
 import app
 import json
-from helpers import db_helpers
+from helpers import db_helpers, utils
 from models import device_status
 from routes import api
 from flask_cors import CORS
@@ -42,7 +42,7 @@ def get_all_devices_latest_status():
         if documents:
             result = documents[0]
             response = {'online_devices_percentage':result['online_devices_percentage'],
-             'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':result['created_at']}
+             'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         else:
             response = {"message": "Device status data not available", "success":False }
         for document in documents:            

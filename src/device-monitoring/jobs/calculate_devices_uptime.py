@@ -15,7 +15,7 @@ import os
 MONGO_URI = os.getenv("MONGO_URI") 
 print(MONGO_URI)
 client = MongoClient(MONGO_URI)
-db=client['airqo_devicemonitor']
+db=client['airqo_netmanager']
 
 def function_to_execute(event, context):
     """Triggered from a message on a Cloud Pub/Sub topic.

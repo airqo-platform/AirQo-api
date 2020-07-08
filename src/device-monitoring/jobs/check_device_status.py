@@ -9,9 +9,9 @@ import math
 import os
 
 
-MONGO_URI = os.getenv("MONGO_URI") 
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db=client['airqo_devicemonitor']
+db=client['airqo_netmanager']
 
 def function_to_execute(event, context):
     """Triggered from a message on a Cloud Pub/Sub topic.
@@ -24,6 +24,17 @@ def function_to_execute(event, context):
     if (action == "check_device_status"):
         get_device_channel_status()
          
+def convert_seconds_to_days_hours_minutes_seconds(seconds_to_convert): 
+    day = seconds_to_convert// (24 * 3600)  
+    seconds_to_convert = seconds_to_convert % (24 * 3600) 
+    hour = seconds_to_convert // 3600  
+    seconds_to_convert %= 3600
+    minutes = seconds_to_convert // 60  
+    seconds_to_convert %= 60
+    seconds = seconds_to_convert    
+    result = str(int(day)) + " days " + str(int(hour))+ " hours " + str(int(minutes)) + " minutes " + str(int(seconds)) + " seconds"
+    return result 
+  
 
 def str_to_date(st):
     """
@@ -50,7 +61,7 @@ def date_to_formated_str(date):
     return datetime.strftime(date,'%Y-%m-%d %H:%M')
 
 def get_all_devices():
-    results = list(db.device_status_summary.find({},{'_id':0}))
+    results = list(db.devices.find({},{'_id':0}))
     return results
 
 def get_device_channel_status():
@@ -65,8 +76,8 @@ def get_device_channel_status():
         offline_devices=[]
         count_of_offline_devices =0
         for channel in results:
-            print(channel['chan_id'])
-            latest_device_status_request_api_url = '{0}{1}{2}'.format(BASE_API_URL,'feeds/recent/', channel['chan_id'] )
+            print(channel['channelID'])
+            latest_device_status_request_api_url = '{0}{1}{2}'.format(BASE_API_URL,'feeds/recent/', channel['channelID'] )
             latest_device_status_response = requests.get(latest_device_status_request_api_url)
             if latest_device_status_response.status_code == 200:
                 print(latest_device_status_response.json())
@@ -75,9 +86,14 @@ def get_device_channel_status():
                 current_datetime=   datetime.now()
                 date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
                 date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
+                date_time_difference_in_seconds = date_time_difference.total_seconds()
                 print(date_time_difference_in_hours)
-                if date_time_difference_in_hours >1: 
+                if date_time_difference_in_hours >24: 
                     count_of_offline_devices += 1
+                    time_offline = convert_seconds_to_days_hours_minutes_seconds(date_time_difference_in_seconds)
+                    time_offline_in_hours = date_time_difference_in_hours
+                    channel['time_offline'] = time_offline
+                    channel['time_offline_in_hours'] = time_offline_in_hours
                     offline_devices.append(channel)
                 else : 
                     count_of_online_devices +=1
@@ -103,7 +119,7 @@ def get_device_channel_status():
 
         print(device_status_results)
 
-        save_hourly_device_status_check_results(device_status_results)       
+        #save_hourly_device_status_check_results(device_status_results)       
         #return response.json(), response.status_code 
 
 
