@@ -119,8 +119,8 @@ def get_device_channel_status():
 
         print(device_status_results)
 
-        #save_hourly_device_status_check_results(device_status_results)       
-        #return response.json(), response.status_code 
+        save_hourly_device_status_check_results(device_status_results)       
+        
 
 
 
