@@ -1,14 +1,14 @@
 const devConfig = {
   MONGO_URL: "mongodb://localhost/data-mgt-dev",
-  JWT_SECRET: "thisisasecret",
+  JWT_SECRET: process.env.JWT_SECRET,
 };
 const testConfig = {
   MONGO_URL: "mongodb://localhost/data-mgt-test",
-  JWT_SECRET: "thisisasecret",
+  JWT_SECRET: process.env.JWT_SECRET,
 };
 const prodConfig = {
-  MONGO_URL: `mongodb://${process.env.MLAB_USERNAME}:${process.env.MLAB_PASSWORD}@ds215229.mlab.com:15229/data-manager`,
-  JWT_SECRET: "thisisasecret",
+  MONGO_URI: process.env.MONGO_GCE_URI,
+  JWT_SECRET: process.env.JWT_SECRET,
 };
 const defaultConfig = {
   PORT: process.env.PORT || 3000,

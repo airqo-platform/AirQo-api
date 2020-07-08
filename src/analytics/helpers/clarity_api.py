@@ -25,8 +25,8 @@ class ClarityApi():
         endtime = helpers.date_to_str(datetime.now())
 
         headers = {'x-api-key': Config.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
-        base_url = Config.CLARITY_API_BASE_URL + "/measurements?"
-        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+last_time+ '&endTime='+endtime+"&code="+device_code+"&average="+average
+        base_url = Config.CLARITY_API_BASE_URL + "measurements?"
+        api_url=  Config.CLARITY_API_BASE_URL + "measurements?startTime="+last_time+ '&endTime='+endtime+"&code="+device_code+"&average="+average
         results = requests.get(api_url, headers=headers)
         results_list = []
         
@@ -42,8 +42,7 @@ class ClarityApi():
         else:
             results_list.extend(json_results)
             while len(json_results) != 0:
-                endtime_date = results_list[-1]['time'] 
-                #endtime_string = helpers.date_to_str(endtime)
+                endtime_date = results_list[-1]['time']                
                 next_endtime = endtime_date - timedelta(seconds=1)
                 api_url = base_url+'startTime='+helpers.date_to_str(last_time)+ '&endTime='+helpers.date_to_str(next_endtime)+'&code='+device_code + "&average="+average
                 results = requests.get(api_url, headers=headers)
@@ -65,8 +64,8 @@ class ClarityApi():
         endtime = helpers.date_to_str(datetime.now())
 
         headers = {'x-api-key': Config.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
-        base_url = Config.CLARITY_API_BASE_URL + "/measurements?"
-        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+helpers.date_to_str(last_time + timedelta(hours=1))+ '&endTime='+endtime+"&code="+device_code+"&average="+average
+        base_url = Config.CLARITY_API_BASE_URL + "measurements?"
+        api_url=  Config.CLARITY_API_BASE_URL + "measurements?startTime="+helpers.date_to_str(last_time + timedelta(hours=1))+ '&endTime='+endtime+"&code="+device_code+"&average="+average
         results = requests.get(api_url, headers=headers)
         results_list = []
         
@@ -82,8 +81,7 @@ class ClarityApi():
         else:
             results_list.extend(json_results)
             while len(json_results) != 0:
-                endtime_date = results_list[-1]['time'] 
-                #endtime_string = helpers.date_to_str(endtime)
+                endtime_date = results_list[-1]['time']                
                 next_endtime = endtime_date - timedelta(seconds=1)
                 api_url = base_url+'startTime='+helpers.date_to_str(last_time)+ '&endTime='+helpers.date_to_str(next_endtime)+'&code='+device_code + "&average="+average
                 results = requests.get(api_url, headers=headers)
@@ -117,7 +115,7 @@ class ClarityApi():
             parameters = {
             "code":code,         
             }
-            return parameters #TODO: be updated.
+            return parameters
     
     def save_clarity_devices(self):
         """
@@ -128,18 +126,17 @@ class ClarityApi():
         results = requests.get(api_url, headers=headers)
         devices = results.json()
         if results.status_code  == 200: 
-            for i in range(0, len(results.json())):
-                #print(i)                
+            for i in range(0, len(results.json())):                                
                 print('[!] Inserting - ', devices[i])
                 mongo.db.devices.insert(devices[i])
 
     def save_clarity_device_hourly_measurements(self,average,code,startTime, limit ):
         """
          saves the measurements for the specified clarity device to airqo_analytics mongodb
-         https://clarity-data-api.clarity.io/v1/measurements?startTime=2019-09-27T13:00:00Z&code=ANQ16PZJ&average=hour&limit=20000
+        
         """
         headers = {'x-api-key': Config.CLARITY_API_KEY}
-        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+startTime+"&code="+code+"&average="+average+"&limit="+str(limit)
+        api_url=  Config.CLARITY_API_BASE_URL + "measurements?startTime="+startTime+"&code="+code+"&average="+average+"&limit="+str(limit)
         results = requests.get(api_url, headers=headers)
         device_measurements = results.json()
         if results.status_code  == 200: 
@@ -152,7 +149,7 @@ class ClarityApi():
         
         """
         headers = {'x-api-key': Config.CLARITY_API_KEY}
-        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?startTime="+startTime+"&code="+code+"&average="+average+"&limit="+str(limit)
+        api_url=  Config.CLARITY_API_BASE_URL + "measurements?startTime="+startTime+"&code="+code+"&average="+average+"&limit="+str(limit)
         results = requests.get(api_url, headers=headers)
         device_measurements = results.json()
         if results.status_code  == 200: 
@@ -166,9 +163,8 @@ class ClarityApi():
         """
         results_list = []
         headers = {'x-api-key': Config.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
-        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?code="+device_code+"&average="+average
-        #base_url = 'https://clarity-data-api.clarity.io/v1/measurements?'
-        #api_url=  base_url + "/measurements?code="+device_code+"&average="+average
+        api_url=  Config.CLARITY_API_BASE_URL + "measurements?code="+device_code+"&average="+average
+       
         results = requests.get(api_url, headers=headers)
         json_results = results.json()
 
@@ -205,9 +201,8 @@ class ClarityApi():
         """
         results_list = []
         headers = {'x-api-key': Config.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
-        api_url=  Config.CLARITY_API_BASE_URL + "/measurements?code="+device_code+"&average="+average
-        #base_url = 'https://clarity-data-api.clarity.io/v1/measurements?'
-        #api_url=  base_url + "/measurements?code="+device_code+"&average="+average
+        api_url=  Config.CLARITY_API_BASE_URL + "measurements?code="+device_code+"&average="+average
+       
         results = requests.get(api_url, headers=headers)
         json_results = results.json()
 
@@ -241,11 +236,11 @@ class ClarityApi():
         """
         gets all raw data for a device and saves it to MongoDB
         """
-        base_url = 'https://clarity-data-api.clarity.io/v1/measurements?'
+        base_url = Config.CLARITY_API_BASE_URL+'measurements?'
 
         results_list = []
         api_url = base_url + 'code=' + device_code
-        headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy', 'Accept-Encoding': 'gzip'}
+        headers = {'x-api-key': Config.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)
         json_results = results.json()
     
@@ -279,12 +274,12 @@ class ClarityApi():
         """
         Gets new data for a specific device and inserts into MongoDB
         """
-        base_url =  Config.CLARITY_API_BASE_URL + "/measurements?"
+        base_url =  Config.CLARITY_API_BASE_URL + "measurements?"
         last_time = mongo_helpers.get_last_time(device_code)
         endtime = helpers.date_to_str(datetime.now())
         results_list = []
         api_url = base_url+'startTime='+helpers.date_to_str(last_time)+ '&endTime='+endtime+'&code='+device_code
-        headers = {'x-api-key': 'qJ2INQDcuMhnTdnIi6ofYX5X4vl2YYG4k2VmwUOy',
+        headers = {'x-api-key': Config.CLARITY_API_KEY,
                 'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)
         json_results = results.json()
@@ -299,8 +294,7 @@ class ClarityApi():
         else:
             results_list.extend(json_results)
             while len(json_results) != 0:
-                endtime_date = results_list[-1]['time'] 
-                #endtime_string = helpers.date_to_str(endtime)
+                endtime_date = results_list[-1]['time']                
                 next_endtime = endtime_date - timedelta(seconds=1)
                 api_url = base_url+'startTime='+last_time+ '&endTime='+next_endtime+'&code='+device_code
                 results = requests.get(api_url, headers=headers)
