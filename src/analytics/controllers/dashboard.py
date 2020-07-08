@@ -161,7 +161,7 @@ def download_customised_data():
 
             datasets[location['label']] = data_to_download
     print(json.dumps(datasets, indent=1))
-    return jsonify(datasets)
+    return jsonify({'results': datasets})
 
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods=['GET'])
