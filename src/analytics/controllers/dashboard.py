@@ -88,7 +88,7 @@ def get_pm25categorycount_for_locations():
 #         return jsonify({'results': custom_chat_data})
 
 
-@dashboard_bp.route('/api/v1/data/download/v2', methods=['POST'])
+@dashboard_bp.route('/api/v1/data/download', methods=['POST'])
 def download_customised_data():
     # create an instance of the MonitoringSite class
     ms = monitoring_site.MonitoringSite()
@@ -100,9 +100,6 @@ def download_customised_data():
         if not json_data:
             return {'message': 'No input data provided'}, 400
 
-        # input_data, errors = validate_inputs(input_data=json_data) //add server side validation
-        # if not errors:
-
         locations = json_data["locations"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
@@ -113,11 +110,12 @@ def download_customised_data():
         degree_of_cleanness = json_data["degreeOfClean"]
         organisation_name = json_data["organisation_name"]
         custom_chat_data = []
-        datasets = []  # displaying multiple locations
+        datasets = {}  # displaying multiple locations
         locations_devices = []
         for location in locations:
             devices = ms.get_location_devices_code(
                 organisation_name, location['label'])
+            datasets[location['label']] = {}
             for device in devices:
                 device_code = device['DeviceCode']
                 division = device['Division']
@@ -125,34 +123,45 @@ def download_customised_data():
                 location_code = device['LocationCode']
                 values = []
                 labels = []
+                pollutant_list = []
                 device_results = {}
+                data_to_download = {}
+                channel_ref = []
 
+                # control how some of the data is accessed
+                flag = 0
                 # loop through pollutants selected by the user
                 for pollutant in pollutants:
                     filtered_data = gr.get_filtered_data(
                         device_code, start_date, end_date, frequency, pollutant['value'])
-                    #print(filtered_data, pollutant['value'])
 
-                    # check filtered data
+                    data_to_download[pollutant['value']] = []
                     if filtered_data:
                         for data in filtered_data:
                             values.append(data['pollutant_value'])
-                            labels.append(data['time'])
-                        device_results = {
-                            'pollutant_values': values, 'labels': labels}
-                        dataset = {'data': values, 'label': parish +
-                                   ' ' + pollutant['value'], 'fill': False}
-                        datasets.append(dataset)
-                # print(datasets)
+                            if flag == 0:
+                                labels.append(data['time'])
+                                channel_ref.append(device_code)
+                            pollutant_list.append(pollutant['value'])
+                            data_to_download[pollutant['value']].append(
+                                data['pollutant_value'])
+                    flag = 1
 
-                custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
-                                         'parish': parish, 'frequency': frequency, 'pollutant': pollutant['value'],
-                                         'location_code': location_code, 'chart_type': file_type, 'chart_data': device_results, 'datasets': datasets})
-    # print(custom_chat_data)
-    locations_devices.append(devices)
+                data_to_download['channel_ref'] = channel_ref
+                data_to_download['device_code'] = device_code
+                data_to_download['division'] = division
+                data_to_download['parish'] = parish
+                data_to_download['time'] = labels
+                data_to_download['location_code'] = location_code
+                data_to_download['start_date'] = start_date
+                data_to_download['end_date'] = end_date
+                data_to_download['frequency'] = frequency
+                data_to_download['file_type'] = file_type
+                data_to_download['owner'] = organisation_name
 
-    return jsonify({'results': custom_chat_data})
-    # return jsonify({'testing': True})
+            datasets[location['label']] = data_to_download
+    print(json.dumps(datasets, indent=1))
+    return jsonify(datasets)
 
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods=['GET'])
