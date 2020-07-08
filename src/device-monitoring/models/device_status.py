@@ -69,9 +69,10 @@ class DeviceStatus():
         values = [round(result['average_uptime_for_entire_network_for_twentyfour_hours']['average_uptime_for_entire_network_in_percentage'],2),
                 round(result['average_uptime_for_entire_network_for_seven_days']['average_uptime_for_entire_network_in_percentage'],2),
                 round(result['average_uptime_for_entire_network_for_twenty_eight_days']['average_uptime_for_entire_network_in_percentage'],2),
-                round(result['average_uptime_for_entire_network_for_twelve_months']['average_uptime_for_entire_network_in_percentage'],2)]
+                round(result['average_uptime_for_entire_network_for_twelve_months']['average_uptime_for_entire_network_in_percentage'],2),
+                round(result['average_uptime_for_entire_network_for_all_time']['average_uptime_for_entire_network_in_percentage'],2)]
 
-        labels = ['24 hours', '7 days', '28 days', '12 months']
+        labels = ['24 hours', '7 days', '28 days', '12 months', 'all time']
             
         '''
          obj = {"twentyfour_hours_uptime": result['average_uptime_for_entire_network_for_twentyfour_hours']['average_uptime_for_entire_network_in_percentage'], 
