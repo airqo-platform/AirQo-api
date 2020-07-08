@@ -29,6 +29,43 @@ def get_device_status():
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+# maintenance log
+@device_status_bp.route(api.route['device_maintenance_log'], methods=['GET'])
+def get_device_maintenance_log():
+    '''
+    Get device status
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        documents = model.get_device_maintenance_log()
+        response = []
+        for document in documents:
+            document['_id'] = str(document['_id'])
+            response.append(document)
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+# maintenance log
+@device_status_bp.route(api.route['device_power'], methods=['GET'])
+def get_device_power():
+    '''
+    Get device status
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        documents = model.get_device_power()
+        response = []
+        for document in documents:
+            document['_id'] = str(document['_id'])
+            response.append(document)
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
 
 @device_status_bp.route(api.route['all_devices_latest_status'], methods=['GET'])
 def get_all_devices_latest_status():
@@ -41,13 +78,14 @@ def get_all_devices_latest_status():
         response_ = []
         if documents:
             result = documents[0]
-            response = {'online_devices_percentage':result['online_devices_percentage'],
-             'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':result['created_at']}
+            response = {'online_devices_percentage': result['online_devices_percentage'],
+                        'offline_devices_percentage': result['offline_devices_percentage'], 'created_at': result['created_at']}
         else:
-            response = {"message": "Device status data not available", "success":False }
-        for document in documents:            
+            response = {
+                "message": "Device status data not available", "success": False}
+        for document in documents:
             response_.append(document)
-        data = jsonify({'data':response, 'all_data':response_})
+        data = jsonify({'data': response, 'all_data': response_})
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
@@ -70,7 +108,7 @@ def get_all_devices():
         else:
             response = {"message": "Device status not available", "success":False }
         '''
-        for document in documents:            
+        for document in documents:
             response.append(document)
         data = jsonify(response)
         return data, 201
@@ -90,7 +128,8 @@ def get_all_latest_offline_devices():
             result = documents[0]
             response = result['offline_devices']
         else:
-            response = {"message": "Offline devices data not available", "success":False }
+            response = {
+                "message": "Offline devices data not available", "success": False}
         data = jsonify(response)
         return data, 201
     else:
@@ -104,11 +143,12 @@ def get_network_uptime():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        result = model.get_network_uptime_analysis_results()       
-        if result:            
+        result = model.get_network_uptime_analysis_results()
+        if result:
             response = result
         else:
-            response = {"message": "Uptime data not available", "success":False }
+            response = {
+                "message": "Uptime data not available", "success": False}
         data = jsonify(response)
         return data, 201
     else:
