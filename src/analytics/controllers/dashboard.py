@@ -4,6 +4,7 @@ import app
 from models import monitoring_site, graph, dashboard
 from bson import json_util, ObjectId
 import json
+import pandas as pd
 from helpers import mongo_helpers
 from helpers import helpers
 
@@ -110,12 +111,13 @@ def download_customised_data():
         degree_of_cleanness = json_data["degreeOfClean"]
         organisation_name = json_data["organisation_name"]
         custom_chat_data = []
-        datasets = {}  # displaying multiple locations
+        # datasets = {}  # displaying multiple locations
+        datasets = []
         locations_devices = []
         for location in locations:
             devices = ms.get_location_devices_code(
                 organisation_name, location['label'])
-            datasets[location['label']] = {}
+            #datasets[location['label']] = {}
             for device in devices:
                 device_code = device['DeviceCode']
                 division = device['Division']
@@ -158,9 +160,25 @@ def download_customised_data():
                 data_to_download['frequency'] = frequency
                 data_to_download['file_type'] = file_type
                 data_to_download['owner'] = organisation_name
+                data_to_download['location'] = location['label']
 
-            datasets[location['label']] = data_to_download
-    print(json.dumps(datasets, indent=1))
+            #datasets[location['label']] = data_to_download
+            datasets.append(data_to_download)
+    # print(json.dumps(datasets, indent=1))
+    # json normalization to pandas datafrome
+    print(pd.json_normalize(datasets, 'PM 2.5', [
+          'owner', 'location', 'parish', 'division']))
+    #FIELDS = ["location", "PM 2.5", "start_date"]
+    #df = pd.json_normalize(datasets, max_level=1)
+    # print(df)
+
+    # buid a dataframe from data_to_download
+    # df_new = pd.DataFrame(columns=['PM 2.5', 'PM 10', 'channel_ref'])
+    # for item in datasets:
+    #     df_new[item] = datasets[item]
+
+    # print(df_new)
+    # print(df_new.to_json(orient='columns'))
     return jsonify({'results': datasets})
 
 
