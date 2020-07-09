@@ -113,3 +113,40 @@ def get_network_uptime():
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+@device_status_bp.route(api.route['best_performing_devices'], methods=['GET'])
+def get_best_performing_devices():
+    '''
+    Get best performing devices in terms of uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        result = model.get_device_rankings(sorting_order='desc')       
+        if result:            
+            response = result
+        else:
+            response = {"message": "besting perfoming devices data not available", "success":False }
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+
+@device_status_bp.route(api.route['worst_performing_devices'], methods=['GET'])
+def get_worst_performing_devices():
+    '''
+    Gets worst performing devices in terms of uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        result = model.get_device_rankings(sorting_order='asc')       
+        if result:            
+            response = result
+        else:
+            response = {"message": "worst perfoming devices data not available", "success":False }
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
