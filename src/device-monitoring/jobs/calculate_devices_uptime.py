@@ -12,10 +12,10 @@ import numpy as np
 import os
 
 
-MONGO_URI = os.getenv("MONGO_URI") 
+MONGO_URI = os.getenv("MONGO_URI")
 print(MONGO_URI)
 client = MongoClient(MONGO_URI)
-db=client['airqo_devicemonitor']
+db=client['airqo_netmanager']
 
 def function_to_execute(event, context):
     """Triggered from a message on a Cloud Pub/Sub topic.
@@ -54,9 +54,12 @@ def date_to_formated_str(date):
     return datetime.strftime(date,'%Y-%m-%d %H:%M')
 
 def get_all_devices():
-    results = db.device_status_summary.find({},{'_id':0})
+    results = db.devices.find( { 'status': { '$ne': 'Retired' } },{'_id':0})
     return results
 
+def compute_number_of_months_between_two_dates(start_date, end_date):
+    number_of_months = (end_date.year - start_date.year)* 12 + (end_date.month - start_date.month)
+    return number_of_months
 
 def get_raw_channel_data(channel_id:int, hours=24):
     channel_id = str(channel_id)
@@ -117,8 +120,8 @@ def calculate_device_uptime(expected_total_records_count, actual_valid_records_c
 
 def compute_uptime_for_all_devices():    
     
-    time_periods = [{'label':'twenty_four_hours', 'specified_hours':24},{'label':'seven_days', 'specified_hours':168},
-        {'label':'twenty_eight_days', 'specified_hours': 672}, {'label':'twelve_months', 'specified_hours': 0 }, {'label':'all_time', 'specified_hours': 0 }]
+    time_periods = [{'label':'twenty_four_hours', 'specified_hours':24, 'specifed_hours_mobile':12},{'label':'seven_days', 'specified_hours':168, 'specifed_hours_mobile':84},
+        {'label':'twenty_eight_days', 'specified_hours': 672, 'specifed_hours_mobile':336}, {'label':'twelve_months', 'specified_hours': 0, 'specifed_hours_mobile':0 }, {'label':'all_time', 'specified_hours': 0 ,'specifed_hours_mobile':0}]
     
     average_uptime_for_entire_network_in_percentage_for_twentyfour_hours = {}
     twentyfour_hours=0
@@ -149,12 +152,32 @@ def compute_uptime_for_all_devices():
 
         elif time_period['label']=='all_time':
             no_of_days = 365
-            specified_hours = no_of_days * 24 #TODO: NEED TO WORK OUT NUMBER OF DAYS SINCE DEVICE WAS INSTALLED.
+            specified_hours = no_of_days * 24
         
         print('specified hours\t' + str(specified_hours))
         for device in results:           
-            channel_id = device['chan_id']
-                        
+            channel_id = device['channelID']
+            mobililty = device['mobility']
+
+            if time_period['label']=='twelve_months':
+                device_registration_date = datetime.strptime(device['registrationDate'], '%Y-%m-%d')
+                end_date = datetime.now().date() 
+                start_date = device_registration_date.date()               
+                number_of_months = compute_number_of_months_between_two_dates(start_date, end_date)
+                if number_of_months < 12:
+                    delta = end_date - device_registration_date.date()
+                    no_of_days = delta.days
+                    specified_hours = no_of_days * 24
+
+            if time_period['label']=='all_time':
+                device_registration_date = datetime.strptime(device['registrationDate'], '%Y-%m-%d')
+                delta = datetime.now().date() - device_registration_date.date()
+                no_of_days = delta.days
+                specified_hours = no_of_days * 24
+
+            if mobililty == 'Mobile':
+                specified_hours = int(specified_hours/2) #divide the specified hours by 2.. for mobile devices, use 12 hours
+
             valid_hourly_records_with_out_null_values_count, total_hourly_records_count = get_raw_channel_data(channel_id, specified_hours)
             print('valid records count' + str(valid_hourly_records_with_out_null_values_count))
             device_uptime_in_percentage, device_downtime_in_percentage =  calculate_device_uptime(specified_hours, valid_hourly_records_with_out_null_values_count)
