@@ -1,13 +1,21 @@
 const { Schema, model } = require("mongoose");
+function threeMonthsFromNow() {
+  var d = new Date();
+  var targetMonth = d.getMonth() + 3;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== targetMonth % 12) {
+    d.setDate(0); // last day of previous month
+  }
+  return d;
+}
 
 const activitySchema = new Schema({
-  device: { type: String },
-  location: { type: String },
-  dateDeployed: { String: Date },
-  timeDeployed: { type: String },
-  dateRemoved: { type: Date },
-  timeRemoved: { type: String },
-  collocation: { type: String },
+  device: { type: String, trim: true, unique: true },
+  location: { type: String, trim: true },
+  date: { String: Date },
+  description: { type: String, trim: true },
+  activityType: { type: String, trim: true },
+  nextMaintenance: { type: Date, default: threeMonthsFromNow },
 });
 
 activitySchema.methods = {
@@ -16,12 +24,26 @@ activitySchema.methods = {
       _id: this._id,
       device: this.device,
       location: this.activity,
-      dateDeployed: this.date,
-      timeDeployed: this.nextMaintenance,
-      dateRemoved: this.dateRemoved,
-      timeRemoved: this.timeRemoved,
-      collocation: this.collocation,
+      date: this.date,
+      description: this.description,
+      activityType: this.activityType,
+      nextMaintenance: this.nextMaintenance,
     };
+  },
+};
+
+activitySchema.statics = {
+  createLocationActivity(args) {
+    return this.create({
+      ...args,
+    });
+  },
+
+  list({ skip = 0, limit = 5 } = {}) {
+    return this.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
   },
 };
 

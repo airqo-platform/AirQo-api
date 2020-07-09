@@ -49,7 +49,7 @@ const deviceSchema = new mongoose.Schema(
       required: [true, "Description is required!"],
       trim: true,
     },
-    mobile: {
+    mobility: {
       type: Boolean,
       trim: true,
       default: false,
@@ -79,6 +79,23 @@ const deviceSchema = new mongoose.Schema(
     product_name: {
       type: String,
     },
+    powerType: {
+      type: String,
+      default: "mains",
+    },
+    location_id: {
+      type: String,
+    },
+    host: {
+      name: String,
+      phone: Number,
+    },
+    isPrimaryInLocation: {
+      type: Boolean,
+    },
+    isUsedForCollocation: {
+      type: Boolean,
+    },
   },
   {
     timestamps: true,
@@ -104,6 +121,9 @@ deviceSchema.methods = {
       phoneNumber: this.phoneNumber,
       visibility: this.visibility,
       description: this.description,
+      isPrimaryInLocation: this.isPrimaryInLocation,
+      isUsedForCollocation: this.isUsedForCollocation,
+      host: this.host,
     };
   },
 };
