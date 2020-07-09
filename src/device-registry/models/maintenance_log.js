@@ -13,7 +13,7 @@ function threeMonthsFromNow() {
 const maintenanceSchema = new Schema({
   device: { type: String },
   activity: { type: String },
-  date: { String: String },
+  date: { String: Date },
   nextMaintenance: { type: Date, default: threeMonthsFromNow },
 });
 
