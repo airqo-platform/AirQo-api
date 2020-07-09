@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import logging
 import app
 import json
-from helpers import db_helpers
+from helpers import db_helpers, utils
 from models import device_status
 from routes import api
 from flask_cors import CORS
@@ -42,7 +42,7 @@ def get_all_devices_latest_status():
         if documents:
             result = documents[0]
             response = {'online_devices_percentage':result['online_devices_percentage'],
-             'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':result['created_at']}
+             'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         else:
             response = {"message": "Device status data not available", "success":False }
         for document in documents:            
@@ -109,6 +109,43 @@ def get_network_uptime():
             response = result
         else:
             response = {"message": "Uptime data not available", "success":False }
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+@device_status_bp.route(api.route['best_performing_devices'], methods=['GET'])
+def get_best_performing_devices():
+    '''
+    Get best performing devices in terms of uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        result = model.get_device_rankings(sorting_order='desc')       
+        if result:            
+            response = result
+        else:
+            response = {"message": "besting perfoming devices data not available", "success":False }
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+
+@device_status_bp.route(api.route['worst_performing_devices'], methods=['GET'])
+def get_worst_performing_devices():
+    '''
+    Gets worst performing devices in terms of uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        result = model.get_device_rankings(sorting_order='asc')       
+        if result:            
+            response = result
+        else:
+            response = {"message": "worst perfoming devices data not available", "success":False }
         data = jsonify(response)
         return data, 201
     else:
