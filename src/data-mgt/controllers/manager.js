@@ -6,6 +6,7 @@ const Feed = require("../models/Feed");
 const axios = require("axios");
 const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
+const Issue = require("../models/Issue");
 
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
@@ -234,6 +235,36 @@ const data = {
           savedLog,
           success: true,
           message: "log added successfully",
+        });
+      }
+    });
+  },
+
+  getIssues: async (req, res) => {
+    try {
+      const logs = await Issue.find(req.query);
+      return res.status(HTTPStatus.OK).json({
+        success: true,
+        message: "Issues fetched successfully",
+        logs,
+      });
+    } catch (e) {
+      return res
+        .status(HTTPStatus.BAD_REQUEST)
+        .json({ success: false, message: "Some Error" });
+    }
+  },
+
+  addIssue: async (req, res) => {
+    const log = new Issue(req.body);
+    log.save((error, savedIssue) => {
+      if (error) {
+        return console.log(error);
+      } else {
+        res.status(200).json({
+          savedIssue,
+          success: true,
+          message: "issue added successfully",
         });
       }
     });
