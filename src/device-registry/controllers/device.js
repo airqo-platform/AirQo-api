@@ -1,4 +1,7 @@
 const Device = require("../models/Device");
+const Maintenance = require("../models/maintenance_log");
+const LocationActivity = require("../models/location_activity");
+const Location = require("../models/Location");
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
 const client = new iot.v1.DeviceManagerClient();
@@ -139,6 +142,85 @@ const device = {
         message: "unable to save the device",
         error: e,
       });
+    }
+  },
+
+  deployDevice: async (req, res) => {
+    try {
+      const {
+        deviceName,
+        locationName,
+        height,
+        mountType,
+        powerType,
+        date,
+        latitude,
+        longitude,
+        isPrimaryInLocation,
+        isUserForCollocaton,
+      } = req.body;
+
+      const deviceBody = {
+        name: deviceName,
+        locationID: locationName,
+        height: height,
+        mountType: mountType,
+        powerType: powerType,
+        latitude: latitude,
+        longitude: longitude,
+        isPrimaryInLocation: isPrimaryInLocation,
+        isUserForCollocaton: isUserForCollocaton,
+      };
+
+      const locationActivityBody = {
+        location: locationName,
+        device: deviceName,
+        date: date,
+        description: "device deployed",
+        activityType: "deployment",
+      };
+
+      console.log("adding location activity...");
+      const newLocationActivity = await LocationActivity.createLocationActivity(
+        locationActivityBody
+      );
+      console.log("updating device...");
+      const deviceFilter = { name: deviceName };
+      await Device.findOneAndUpdate(
+        deviceFilter,
+        deviceBody,
+        {
+          new: true,
+        },
+        (error, deployedDevice) => {
+          if (error) {
+            return res
+              .status(HTTPStatus.BAD_GATEWAY)
+              .json({ message: "unable to deploy device", error });
+          } else {
+            return res
+              .status(HTTPStatus.OK)
+              .json({
+                message: "device successfully deployed",
+                deployedDevice,
+              });
+          }
+        }
+      );
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({ error: e });
+    }
+  },
+
+  fetchDeployments: async (req, res) => {
+    const limit = parseInt(req.query.limit, 0);
+    const skip = parseInt(req.query.skip, 0);
+
+    try {
+      const locationActivities = await LocationActivity.list({ limit, skip });
+      return res.status(HTTPStatus.OK).json(locationActivities);
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json(e);
     }
   },
 
