@@ -141,18 +141,26 @@ def get_location_details():
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
-        return location.get_location(loc_ref)
+        try:
+            details = location.get_location(loc_ref)
+            return details
+        except:
+            return {'message': 'An error occured. Please enter valid location reference'}, 400
 
 
 @location_blueprint.route('/api/v1/location_registry/edit', methods=['GET'])
-@cache.cached(timeout=0)
+@cache.cached(timeout=5)
 def edit_location():
     '''
     Returns details of location to edit
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
-        return jsonify(location.get_location_details_to_edit(loc_ref))
+        try: 
+            details = location.get_location_details_to_edit(loc_ref)
+            return jsonify(details)
+        except:
+            return {'message': 'An error occured. Please enter valid location reference'}, 400
 
 
 @location_blueprint.route('/api/v1/location_registry/update', methods=['POST'])
