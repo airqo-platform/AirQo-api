@@ -163,16 +163,16 @@ def compute_uptime_for_all_devices():
             if time_period['label']=='twelve_months':
                 device_registration_date = datetime.strptime(device['registrationDate'], '%Y-%m-%d')
                 end_date = datetime.now().date() 
-                start_date = device_registration_date                
+                start_date = device_registration_date.date()               
                 number_of_months = compute_number_of_months_between_two_dates(start_date, end_date)
                 if number_of_months < 12:
-                    delta = end_date - device_registration_date
+                    delta = end_date - device_registration_date.date()
                     no_of_days = delta.days
                     specified_hours = no_of_days * 24
 
             if time_period['label']=='all_time':
                 device_registration_date = datetime.strptime(device['registrationDate'], '%Y-%m-%d')
-                delta = datetime.now().date() - device_registration_date
+                delta = datetime.now().date() - device_registration_date.date()
                 no_of_days = delta.days
                 specified_hours = no_of_days * 24
 
