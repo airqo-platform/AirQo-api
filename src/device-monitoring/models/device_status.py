@@ -86,9 +86,11 @@ class DeviceStatus():
                         ['average_uptime_for_entire_network_in_percentage'], 2),
                   round(result['average_uptime_for_entire_network_for_twenty_eight_days']
                         ['average_uptime_for_entire_network_in_percentage'], 2),
-                  round(result['average_uptime_for_entire_network_for_twelve_months']['average_uptime_for_entire_network_in_percentage'], 2)]
+                  round(result['average_uptime_for_entire_network_for_twelve_months']
+                        ['average_uptime_for_entire_network_in_percentage'], 2),
+                  round(result['average_uptime_for_entire_network_for_all_time']['average_uptime_for_entire_network_in_percentage'], 2)]
 
-        labels = ['24 hours', '7 days', '28 days', '12 months']
+        labels = ['24 hours', '7 days', '28 days', '12 months', 'all time']
 
         '''
          obj = {"twentyfour_hours_uptime": result['average_uptime_for_entire_network_for_twentyfour_hours']['average_uptime_for_entire_network_in_percentage'],
@@ -99,9 +101,40 @@ class DeviceStatus():
                     }
         '''
 
-        uptime_result = {'uptime_values': values,
-                         'uptime_labels': labels, 'created_at': result['created_at']}
+        uptime_result = {'uptime_values': values, 'uptime_labels': labels,
+                         'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         return uptime_result
+
+    def get_device_rankings(self, sorting_order):
+        "gets the latest device rankings i.e best and worst performing devices interms of network uptime and downtime for the specified time period"
+        db = db_helpers.connect_mongo()
+        results = list(db.network_uptime_analysis_results.find(
+            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+
+        sort_order = True
+
+        result = results[0]
+        if sorting_order == 'asc':
+            sort_order = False
+
+        best_performing_devices_for_twentyfour_hours = sorted(
+            result['average_uptime_for_entire_network_for_twentyfour_hours']['device_uptime_records'], key=lambda i: i['device_uptime_in_percentage'], reverse=sort_order)
+        best_performing_devices_for_seven_days = sorted(
+            result['average_uptime_for_entire_network_for_seven_days']['device_uptime_records'], key=lambda i: i['device_uptime_in_percentage'], reverse=sort_order)
+        best_performing_devices_for_twenty_eight_days = sorted(
+            result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records'], key=lambda i: i['device_uptime_in_percentage'], reverse=sort_order)
+        best_performing_devices_for_twelve_months = sorted(
+            result['average_uptime_for_entire_network_for_twelve_months']['device_uptime_records'], key=lambda i: i['device_uptime_in_percentage'], reverse=sort_order)
+        best_performing_devices_for_all_time = sorted(
+            result['average_uptime_for_entire_network_for_all_time']['device_uptime_records'], key=lambda i: i['device_uptime_in_percentage'], reverse=sort_order)
+
+        ranking_results = {'24 hours': best_performing_devices_for_twentyfour_hours,
+                           '7 days': best_performing_devices_for_seven_days,
+                           '28 days': best_performing_devices_for_twenty_eight_days,
+                           '12 months': best_performing_devices_for_twelve_months,
+                           'all time': best_performing_devices_for_all_time}
+
+        return ranking_results
 
 
 if __name__ == "__main__":
