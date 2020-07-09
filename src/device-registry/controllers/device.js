@@ -160,18 +160,6 @@ const device = {
         isUserForCollocaton,
       } = req.body;
 
-      const deviceBody = {
-        name: deviceName,
-        locationID: locationName,
-        height: height,
-        mountType: mountType,
-        powerType: powerType,
-        latitude: latitude,
-        longitude: longitude,
-        isPrimaryInLocation: isPrimaryInLocation,
-        isUserForCollocaton: isUserForCollocaton,
-      };
-
       const locationActivityBody = {
         location: locationName,
         device: deviceName,
@@ -184,6 +172,20 @@ const device = {
       const newLocationActivity = await LocationActivity.createLocationActivity(
         locationActivityBody
       );
+
+      const deviceBody = {
+        name: deviceName,
+        locationID: locationName,
+        height: height,
+        mountType: mountType,
+        powerType: powerType,
+        latitude: latitude,
+        longitude: longitude,
+        isPrimaryInLocation: isPrimaryInLocation,
+        isUserForCollocaton: isUserForCollocaton,
+        nextMaintenance: newLocationActivity.nextMaintenance,
+      };
+
       console.log("updating device...");
       const deviceFilter = { name: deviceName };
       await Device.findOneAndUpdate(

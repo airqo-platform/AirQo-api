@@ -96,6 +96,9 @@ const deviceSchema = new mongoose.Schema(
     isUsedForCollocation: {
       type: Boolean,
     },
+    nextMaintenance: {
+      type: Date,
+    },
   },
   {
     timestamps: true,
@@ -123,7 +126,7 @@ deviceSchema.methods = {
       description: this.description,
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
-      host: this.host,
+      nextMaintenance: this.nextMaintenance,
     };
   },
 };
