@@ -197,13 +197,16 @@ const device = {
             return res
               .status(HTTPStatus.BAD_GATEWAY)
               .json({ message: "unable to deploy device", error });
+          } else if (deployedDevice) {
+            return res.status(HTTPStatus.OK).json({
+              message: "device successfully deployed",
+              deployedDevice,
+            });
           } else {
-            return res
-              .status(HTTPStatus.OK)
-              .json({
-                message: "device successfully deployed",
-                deployedDevice,
-              });
+            return res.status(HTTPStatus.BAD_REQUEST).json({
+              message:
+                "device does not exist, please first create the device you are trying to deploy ",
+            });
           }
         }
       );
