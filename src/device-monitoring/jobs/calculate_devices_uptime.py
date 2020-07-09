@@ -12,8 +12,7 @@ import numpy as np
 import os
 
 
-#MONGO_URI = os.getenv("MONGO_URI")
-MONGO_URI='mongodb://admin:airqo-250220-master@35.224.67.244:27017'
+MONGO_URI = os.getenv("MONGO_URI")
 print(MONGO_URI)
 client = MongoClient(MONGO_URI)
 db=client['airqo_netmanager']
