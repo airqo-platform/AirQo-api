@@ -2,27 +2,32 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 
-const deviceSchema = new mongoose.Schema(
+const thingSchema = new mongoose.Schema(
   {
+    id: {
+      type: Number,
+      required: true,
+    },
     latitude: {
       type: Number,
       required: true,
-      required: [true, "Device latitude is required!"],
     },
     longitude: {
       type: Number,
       required: true,
-      required: [true, "Device longitude is required!"],
     },
     license: {
       type: String,
     },
+
     writeKey: {
       type: String,
     },
+
     readKey: {
       type: String,
     },
+
     name: {
       type: String,
       required: [true, "Device name is required!"],
@@ -30,7 +35,7 @@ const deviceSchema = new mongoose.Schema(
       unique: true,
     },
     visibility: {
-      type: String,
+      type: Boolean,
       require: [true, "visibility is required"],
       trim: true,
     },
@@ -41,7 +46,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: String,
+      type: ObjectId,
       require: [true, "owner is required"],
     },
     description: {
@@ -49,55 +54,25 @@ const deviceSchema = new mongoose.Schema(
       required: [true, "Description is required!"],
       trim: true,
     },
-    mobility: {
+    mobile: {
       type: Boolean,
+      require: [true, "mobility is required"],
       trim: true,
-      default: false,
     },
     height: {
       type: Number,
       default: 0,
+      require: [true, "height above ground is required"],
     },
     distanceToRoad: {
       type: Number,
       default: 0,
+      require: [true, "distance next to road is required"],
     },
     mountType: {
       type: String,
-      default: "pole",
+      default: false,
       trim: true,
-    },
-    ISP: {
-      type: String,
-    },
-    phoneNumber: {
-      type: Number,
-    },
-    device_manufacturer: {
-      type: String,
-    },
-    product_name: {
-      type: String,
-    },
-    powerType: {
-      type: String,
-      default: "mains",
-    },
-    location_id: {
-      type: String,
-    },
-    host: {
-      name: String,
-      phone: Number,
-    },
-    isPrimaryInLocation: {
-      type: Boolean,
-    },
-    isUsedForCollocation: {
-      type: Boolean,
-    },
-    nextMaintenance: {
-      type: Date,
     },
   },
   {
@@ -105,34 +80,32 @@ const deviceSchema = new mongoose.Schema(
   }
 );
 
-deviceSchema.plugin(uniqueValidator, {
+thingSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-deviceSchema.methods = {
+thingSchema.methods = {
   toJSON() {
     return {
       id: this.id,
       name: this.name,
       latitude: this.latitude,
       longitude: this.longitude,
+      mountType: this.mountType,
       createdAt: this.createdAt,
       owner: this.owner,
-      device_manufacturer: this.device_manufacturer,
-      product_name: this.product_name,
-      ISP: this.ISP,
-      phoneNumber: this.phoneNumber,
-      visibility: this.visibility,
+      elevation: this.elevation,
+      height: this.height,
       description: this.description,
-      isPrimaryInLocation: this.isPrimaryInLocation,
-      isUsedForCollocation: this.isUsedForCollocation,
-      nextMaintenance: this.nextMaintenance,
+      mobile: this.mobile,
+      distanceToRoad: this.distanceToRoad,
+      sensors: this.sensors,
     };
   },
 };
 
 // I will add the check for the user after setting up the communications between services
-deviceSchema.statics = {
+thingSchema.statics = {
   createDevice(args) {
     return this.create({
       ...args,
@@ -147,6 +120,6 @@ deviceSchema.statics = {
   },
 };
 
-const device = mongoose.model("device", deviceSchema);
+const thing = mongoose.model("thing", thingSchema);
 
-module.exports = device;
+module.exports = thing;
