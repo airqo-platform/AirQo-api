@@ -9,22 +9,22 @@ const privileges = require("../utils/privileges");
 
 //the middleware function
 const middleware = (req, res, next) => {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header(
-        "Access-Control-Allow-Headers",
-        "Origin, X-Requested-With, Content-Type, Accept, Authorization"
-    );
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-    next();
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Origin, X-Requested-With, Content-Type, Accept, Authorization"
+  );
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
+  next();
 };
 router.use(middleware);
 
 const checkAuth = () => {
-    if (privileges.isCollab) {
-        return authColabLocal;
-    } else if (privileges.isUser) {
-        return authUserLocal;
-    }
+  if (privileges.isCollab) {
+    return authColabLocal;
+  } else if (privileges.isUser) {
+    return authUserLocal;
+  }
 };
 
 //************************* users ***************************************************
@@ -45,7 +45,7 @@ router.get("/defaults/:id", joinController.getDefaults);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
-router.post("/register/candidate", candidateController.registerCandidate);
+router.post("/register/new/candidate", candidateController.registerCandidate);
 router.get("/candidates/fetch", candidateController.getAllCandidates);
 
 //params
