@@ -7,7 +7,8 @@
         "start": "nodemon ./bin/www",
         "dev": "NODE_ENV=development nodemon ./bin/www",
         "prod": "NODE_ENV=production nodemon ./bin/www",
-        "test": "NODE_ENV=test nodemon ./bin/www"
+        "test": "NODE_ENV=testing nodemon ./bin/www",
+        "stage": "NODE_ENV=staging nodemon ./bin/www"
     },
     "dependencies": {
         "axios": "^0.19.2",
