@@ -21,8 +21,8 @@ def get_pm25categorycount_for_locations():
         org_name = request.args.get('organisation_name')
         if org_name:
 
-            #organisation_monitoring_sites_cursor = ms.get_all_organisation_monitoring_sites(org_name)
-            #results =  d.get_pm25_category_count(organisation_monitoring_sites_cursor)
+            # organisation_monitoring_sites_cursor = ms.get_all_organisation_monitoring_sites(org_name)
+            # results =  d.get_pm25_category_count(organisation_monitoring_sites_cursor)
             results = d.get_pm25_category_location_count_for_the_lasthour(
                 org_name)
             if results:
@@ -89,17 +89,24 @@ def get_pm25categorycount_for_locations():
 #         return jsonify({'results': custom_chat_data})
 
 
-@dashboard_bp.route('/api/v1/data/download', methods=['POST'])
+@dashboard_bp.route('/api/v1/data/download', methods=['POST', 'GET', 'PUT', 'DELETE', 'PATCH'])
 def download_customised_data():
     # create an instance of the MonitoringSite class
     ms = monitoring_site.MonitoringSite()
 
     # create an instance of the Graph class
     gr = graph.Graph()
-    if request.method == 'POST':
+    if request.method != 'POST':
+        return {'message': 'Method not allowed. The method is not allowed for the requested URL'}, 400
+    else:
         json_data = request.get_json()
+        download_type = request.args.get('type')
         if not json_data:
             return {'message': 'No input data provided'}, 400
+        if not download_type:
+            return {'message': 'Please specify the type of data you wish to download'}, 400
+        if download_type not in ['csv', 'json']:
+            return {'message': 'Invalid data type. Please specify csv or json'}, 400
 
         locations = json_data["locations"]
         start_date = json_data["startDate"]
@@ -117,7 +124,7 @@ def download_customised_data():
         for location in locations:
             devices = ms.get_location_devices_code(
                 organisation_name, location['label'])
-            #datasets[location['label']] = {}
+            # datasets[location['label']] = {}
             for device in devices:
                 device_code = device['DeviceCode']
                 division = device['Division']
@@ -162,24 +169,50 @@ def download_customised_data():
                 data_to_download['owner'] = organisation_name
                 data_to_download['location'] = location['label']
 
-            #datasets[location['label']] = data_to_download
+            # datasets[location['label']] = data_to_download
             datasets.append(data_to_download)
-    # print(json.dumps(datasets, indent=1))
-    # json normalization to pandas datafrome
-    print(pd.json_normalize(datasets, 'PM 2.5', [
-          'owner', 'location', 'parish', 'division']))
-    #FIELDS = ["location", "PM 2.5", "start_date"]
-    #df = pd.json_normalize(datasets, max_level=1)
-    # print(df)
 
-    # buid a dataframe from data_to_download
-    # df_new = pd.DataFrame(columns=['PM 2.5', 'PM 10', 'channel_ref'])
-    # for item in datasets:
-    #     df_new[item] = datasets[item]
+        # downloading json
+        if download_type == 'json':
+            return jsonify({'results': datasets})
 
-    # print(df_new)
-    # print(df_new.to_json(orient='columns'))
-    return jsonify({'results': datasets})
+        # downloading csv
+        if download_type == 'csv':
+            # print(json.dumps(datasets, indent=1))
+            # json normalization to pandas datafrome
+            tempp = pd.DataFrame()
+            for location in locations:
+                temp = pd.json_normalize(datasets, 'time', ['owner'])
+                tempp['datetime'] = temp[0]
+
+            for pollutant in pollutants:
+                temp = pd.json_normalize(datasets, pollutant['label'], [
+                    'owner', 'location', 'parish', 'division', 'frequency', 'location_code'])
+                tempp['owner'] = temp['owner']
+                tempp['location'] = temp['location']
+                tempp['location_code'] = temp['location_code']
+                tempp['parish'] = temp['parish']
+                tempp['division'] = temp['division']
+                tempp['frequency'] = temp['frequency']
+                tempp[pollutant['label']] = temp[0]
+            # FIELDS = ["location", "PM 2.5", "start_date"]
+            # df = pd.json_normalize(datasets, max_level=1)
+            # print(df)
+            for location in locations:
+                temp = pd.json_normalize(datasets, 'channel_ref', ['owner'])
+                tempp['channel_ref'] = temp[0]
+            print(tempp)
+
+            final_data = tempp.to_json(orient='records')
+            # buid a dataframe from data_to_download
+            # df_new = pd.DataFrame(columns=['PM 2.5', 'PM 10', 'channel_ref'])
+            # for item in datasets:
+            #     df_new[item] = datasets[item]
+
+            # print(df_new)
+            # print(df_new.to_json(orient='columns'))
+            # return jsonify({'results': datasets})
+            return final_data
 
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods=['GET'])
@@ -308,7 +341,7 @@ def generate_customised_chart_data():
                 division = device['Division']
                 parish = device['Parish']
                 location_code = device['LocationCode']
-                #device_id = device['_id']
+                # device_id = device['_id']
                 values = []
                 labels = []
                 background_colors = []
