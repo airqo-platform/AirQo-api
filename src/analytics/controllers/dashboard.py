@@ -145,7 +145,8 @@ def get_random_location_hourly_customised_chart_data():
     colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
     custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
     locations_names = parish
-    custom_chart_title = custom_chart_title +  locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
+    custom_chart_title = custom_chart_title +  locations_names  
+    custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
     values =[]
     labels =[]    
     device_results={}
@@ -164,7 +165,7 @@ def get_random_location_hourly_customised_chart_data():
             'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
             'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
 
-    return jsonify({'results':custom_chat_data, 'datasets':datasets,'custom_chart_title':custom_chart_title})
+    return jsonify({'results':custom_chat_data, 'datasets':datasets,'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
 def generate_customised_chart_data():
@@ -191,15 +192,15 @@ def generate_customised_chart_data():
         colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
         custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
         locations_names = ','.join([str(location['label']) for location in locations])        
-        custom_chart_title = custom_chart_title +  locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
+        custom_chart_title = custom_chart_title +  locations_names 
+        custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
         for location in locations:            
             devices = ms.get_location_devices_code( organisation_name, location['label'])
             for device in devices:
                 device_code=device['DeviceCode']
                 division = device['Division']
                 parish = device['Parish']
-                location_code= device['LocationCode']
-                #device_id = device['_id']
+                location_code= device['LocationCode']                
                 values =[]
                 labels =[] 
                 background_colors= []   
@@ -218,9 +219,9 @@ def generate_customised_chart_data():
 
                         custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
                         'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                        'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title})    
+                        'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})    
                     
-                    #return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
+                    
                 else:                    
                     filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
                     if filtered_data:
@@ -239,11 +240,11 @@ def generate_customised_chart_data():
                     custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
                     'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
                     'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 
-                    'datasets':datasets, 'custom_chart_title':custom_chart_title, 'chart_label':chart_label})
+                    'datasets':datasets, 'custom_chart_title':custom_chart_title, 'chart_label':chart_label,  'custom_chart_title_second_section':custom_chart_title_second_section})
 
                 locations_devices.append(devices)                     
             
-        return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
+        return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
         
         #else:            
             #return jsonify({'inputs': json_data,'errors': errors})
