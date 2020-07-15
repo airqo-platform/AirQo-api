@@ -57,8 +57,8 @@ def kmeans_algorithm(data, sensor_number=None):
         sensor_number = silhouette(data)
     
     X = data[['properties.lat', 'properties.long', 'properties.population_density', 'properties.household_density', 
-              'properties.charcoal_per_km2', 'properties.firewood_per_km2', 'properties.cowdung_per_km2', 
-              'properties.grass_per_km2', 'properties.wasteburning_per_km2', 'properties.kitch_outsidebuilt_per_km2',
+              'properties.charcoal_per_km2', 'properties.firewood_per_km2', 'properties.grass_per_km2', 
+              'properties.wasteburning_per_km2', 'properties.kitch_outsidebuilt_per_km2',
               'properties.kitch_makeshift_per_km2', 'properties.kitch_openspace_per_km2']]
     
     X_scaled = scaling(X)    
@@ -162,8 +162,8 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon):
             recommended_parishes = kmeans_algorithm(difference_parishes_df, new_sensor_number)
     
             keys_to_delete = ['type','region', 'county', 'centroid', 'km2', 'population', 'households', 'population_density', 
-            'household_density', 'charcoal_per_km2', 'firewood_per_km2', 'cowdung_per_km2', 'grass_per_km2', 'wasteburning_per_km2', 
-            'kitch_outsidebuilt_per_km2', 'kitch_makeshift_per_km2', 'kitch_openspace_per_km2', 'type']
+            'household_density', 'charcoal_per_km2', 'firewood_per_km2', 'grass_per_km2', 'wasteburning_per_km2', 
+            'kitch_outsidebuilt_per_km2', 'kitch_makeshift_per_km2', 'kitch_openspace_per_km2']
             
             for parish in recommended_parishes:
                 parish['color'] = 'blue'
