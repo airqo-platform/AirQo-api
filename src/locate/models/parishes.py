@@ -5,6 +5,7 @@ import os
 import sys
 from helpers import helper
 
+load_dotenv()
 MONGO_URI = os.getenv('MONGO_URI')
 
 class Parish():
