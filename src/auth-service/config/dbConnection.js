@@ -48,7 +48,7 @@ const connectToMongoDB = () => {
 
 const mongodb = connectToMongoDB();
 
-// creating a new mo(ngoDB connection by swithing tenant
+// creating a new mongoDB connection by swithing tenant
 const getTenantDB = (tenantId, modelName, schema) => {
   const dbName = `${constants.DB_NAME}+"_"+${tenantId}`;
   if (mongodb) {
