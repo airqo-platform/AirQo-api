@@ -1,24 +1,6 @@
 const mongoose = require("mongoose");
-// const { Gstore, instances } = require("gstore-node");
 const config = require("./constants");
-// const { Datastore } = require("@google-cloud/datastore");
-
-// const gstore1 = new Gstore();
-// const gstore2 = new Gstore({ cache: true });
-// const gstore3 = new Gstore();
-
-// const datastore1 = new Datastore({
-//   namespace: "default",
-//   projectId: "airqo-250220",
-// });
-// const datastore2 = new Datastore({
-//   namespace: "cache-on",
-//   projectId: "airqo-250220",
-// });ç
-// const datastore3 = new Datastore({
-//   namespace: "staging",
-//   projectId: "airqo-250220",
-// });
+// const log = require("./log");
 
 const URI = config.MONGO_URI;
 const db = mongoose.connection;
@@ -27,35 +9,37 @@ const options = {
   useCreateIndex: true,
   useNewUrlParser: true,
   useFindAndModify: false,
+  useUnifiedTopology: true,
+  autoIndex: true,
+  poolSize: 10,
+  bufferMaxEntries: 0,
+  connectTimeoutMS: 10000,
+  socketTimeoutMS: 30000,
 };
 
-mongoose.connect(URI, options);
-// gstore1.connect(datastore1);
-// gstore2.connect(datastore2);
-// gstore3.connect(datastore3);
+const connect = () => mongoose.createConnection(URI, options);
 
-//unique IDs to each instance
-// instances.set("default", gstore1);
-// instances.set("cache-on", gstore2);
-// instances.set("staging", gstore3);
+const connectToMongDB = () => {
+  const db = connect(URI);
+  db.on("open", () => {
+    console.log("Mongoose connection opened");
+  });
 
-// When successfully connected
-db.on("connected", () => {
-  console.log("Established Mongoose Default Connection");
-});
-
-// When connection throws an error
-db.on("error", (err) => {
-  console.log("Mongoose Default Connection Error : " + err);
-});
-
-db.on("disconnected", () => {});
-
-// //when nodejs stops
-process.on("unhandledRejection", (reason, p) => {
-  console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
-  db.close(() => {
-    console.log("mongoose is disconnected through the app");
+  db.on("error", (err) => {
+    console.log("Mongoose connnection error" + err);
     process.exit(0);
   });
-});
+
+  // //when nodejs stops
+  process.on("unhandledRejection", (reason, p) => {
+    console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
+    db.close(() => {
+      console.log("mongoose is disconnected through the app");
+      process.exit(0);
+    });
+  });
+
+  return db;
+};
+
+exports.mongodb = connectToMongDB();
