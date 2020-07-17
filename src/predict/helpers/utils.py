@@ -5,13 +5,14 @@ import pytz
 from datetime import datetime
 import pandas as pd
 from models import datamanagement as dm
+import os
 
 
 import requests
 
-MET_API_URL= "https://api-metoffice.apiconnect.ibmcloud.com/metoffice/production/v0/forecasts/point/hourly"
-MET_API_CLIENT_ID= "edaf40c5-4d6c-4cf1-ba93-e435f5ed6ab4"
-MET_API_CLIENT_SECRET ="bN5aN6vK2cR8pJ8uI7xM3bB6fK1aK6hW6nJ1tM2uF4uM2eE8eC"
+MET_API_URL= os.getenv("MET_API_UR"L)
+MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
+MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
 
 def get_hourly_met_forecasts():
     """
