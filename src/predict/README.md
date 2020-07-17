@@ -15,12 +15,12 @@ activate the environment
 	- source [local_env_name]/bin/activate
 
 Install dependencies using the requirements.txt
-	-pip install -r packages\ml-api\requirements.txt
+	-pip install -r requirements.txt
 
 
 set environment variables
 	-navigate to  ml-api directory
- widows
+ windows
  - set GOOGLE_APPLICATION_CREDENTIALS=[credentials-file.json]
  - set FLASK_APP=run.py
  - set FLASK_ENV=development
