@@ -8,7 +8,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
-
+production.env
 # pycharm
 .idea/
 

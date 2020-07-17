@@ -16,7 +16,7 @@ class ProductionConfig(Config):
     dotenv_path = os.path.join(os.path.dirname(__file__), 'production.env')
     load_dotenv(dotenv_path)
     DEBUG = False
-    MONGO_URI = os.getenv("MONGO_URI")
+    
 
 
 class DevelopmentConfig(Config):
@@ -25,7 +25,7 @@ class DevelopmentConfig(Config):
 
     DEVELOPMENT = True
     DEBUG = True
-    MONGO_URI = os.getenv("MONGO_URI")
+   
 
 
 class TestingConfig(Config):
@@ -33,7 +33,7 @@ class TestingConfig(Config):
     load_dotenv(dotenv_path)
 
     TESTING = True
-    MONGO_URI = os.getenv("MONGO_URI")
+    
 
 
 app_config = {"development": DevelopmentConfig,
