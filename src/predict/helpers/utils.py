@@ -10,7 +10,7 @@ import os
 
 import requests
 
-MET_API_URL= os.getenv("MET_API_UR"L)
+MET_API_URL= os.getenv("MET_API_UR")
 MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
 MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
 

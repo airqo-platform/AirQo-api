@@ -20,7 +20,6 @@ import warnings
 import datetime
 import time 
 
-import psutil
 import ast
 import logging
 from helpers import utils

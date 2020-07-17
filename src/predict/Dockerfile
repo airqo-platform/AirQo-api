@@ -1,9 +1,6 @@
 # Inherit from the Python Docker image
 FROM python:3.7-slim
 
-RUN apt-get update && apt-get install -y \
-  gcc \
-  python3-dev 
   
 # Copy the source code to app folder
 COPY . /app/

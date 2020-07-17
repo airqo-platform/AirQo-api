@@ -17,7 +17,6 @@ from warnings import filterwarnings
 import datetime as dt
 import time 
 
-import psutil
 import ast
 import scipy.stats
 from statsmodels.tsa.statespace.sarimax import SARIMAX

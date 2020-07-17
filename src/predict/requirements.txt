@@ -8,7 +8,7 @@ scikit-learn==0.21.3
 pandas==0.25.3
 statsmodels==0.10.1
 matplotlib==3.1.1
-psutil==5.6.5
+#psutil==5.6.5
 
 # packaging
 setuptools==41.6.0
