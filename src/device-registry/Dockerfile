@@ -20,4 +20,4 @@ COPY . .
 RUN chmod 777 /usr/src/app/bin/www
 
 EXPOSE 3000
-CMD [ "npm", "run","prod" ] 
+CMD [ "npm", "run","start" ] 
