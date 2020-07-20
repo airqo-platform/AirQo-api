@@ -99,6 +99,10 @@ const deviceSchema = new mongoose.Schema(
     nextMaintenance: {
       type: Date,
     },
+    channelID: {
+      type: Number,
+      required: [true, "Channel ID is required!"],
+    },
   },
   {
     timestamps: true,
@@ -127,6 +131,7 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
+      channelID: this.channelID,
     };
   },
 };
