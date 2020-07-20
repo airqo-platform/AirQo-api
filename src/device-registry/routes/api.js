@@ -7,6 +7,7 @@ const deviceValidation = require("../utils/validations");
 const validate = require("express-validation");
 const mqttBridge = require("../controllers/mqtt-bridge");
 const httpBridge = require("../controllers/http-bridge");
+const sensorController = require("../controllers/sense");
 
 middlewareConfig(router);
 
@@ -40,6 +41,7 @@ router.delete("/ts/delete", deviceController.deleteThing);
 router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
 router.post("/ts/deploy/device", deviceController.deployDevice);
+router.get("/get/sensors", sensorController.listAll);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
