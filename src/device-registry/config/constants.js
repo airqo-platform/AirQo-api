@@ -1,5 +1,6 @@
 const devConfig = {
-  MONGO_URL: "mongodb://localhost/airqo-device-registry-dev",
+  MONGO_URL: `mongodb://localhost/`,
+  DB_NAME: process.env.MONGO_DEV,
   JWT_SECRET: process.env.JWT_SECRET,
   REGION: "europe-west1",
   MQTT_BRIDGE_HOST_NAME: "mqtt.googleapis.com",
@@ -24,7 +25,8 @@ const devConfig = {
   },
 };
 const testConfig = {
-  MONGO_URL: "mongodb://localhost/airqo-device-registry-test",
+  MONGO_URL: `mongodb://localhost/`,
+  DB_NAME: process.env.MONGO_TEST,
   JWT_SECRET: process.env.JWT_SECRET,
   REGION: "europe-west1",
   MQTT_BRIDGE_HOST_NAME: "mqtt.googleapis.com",
@@ -71,6 +73,7 @@ const prodConfig = {
     field8: "SO3",
   },
   MONGO_URL: process.env.MONGO_GCE_URI,
+  DB_NAME: process.env.MONGO_PROD,
   JWT_SECRET: process.env.JWT_SECRET,
 };
 
@@ -96,7 +99,8 @@ const stageConfig = {
     field7: "NO2",
     field8: "SO3",
   },
-  MONGO_URL: process.env.MONGO_GCE_STAGE_URI,
+  MONGO_URL: process.env.MONGO_GCE_URI,
+  DB_NAME: process.env.MONGO_STAGE,
   JWT_SECRET: process.env.JWT_SECRET,
 };
 
