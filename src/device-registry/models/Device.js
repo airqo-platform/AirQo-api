@@ -58,10 +58,6 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    distanceToRoad: {
-      type: Number,
-      default: 0,
-    },
     mountType: {
       type: String,
       default: "pole",
