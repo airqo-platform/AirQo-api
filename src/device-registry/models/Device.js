@@ -81,6 +81,7 @@ const deviceSchema = new mongoose.Schema(
     },
     location_id: {
       type: String,
+      default: "none",
     },
     host: {
       name: String,
@@ -128,6 +129,9 @@ deviceSchema.methods = {
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
       channelID: this.channelID,
+      powerType: this.powerType,
+      mountType: this.mountType,
+      location_id: this.location_id,
     };
   },
 };
