@@ -1,0 +1,41 @@
+###########################################################
+# Start deployment of device-monitoring microservice - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-device-monitor
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-device-monitor
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: sta-device-monitor
+    spec:
+      containers:
+        - name: sta-dev-monitor
+          image: us.gcr.io/airqo-250220/airqo-stage-device-monitor:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+              name: sta-dev-monitor
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-device-monitor-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-device-monitor
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000
+      nodePort: 30006
+  type: NodePort

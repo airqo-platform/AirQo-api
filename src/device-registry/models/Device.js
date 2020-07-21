@@ -58,10 +58,6 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    distanceToRoad: {
-      type: Number,
-      default: 0,
-    },
     mountType: {
       type: String,
       default: "pole",
@@ -85,6 +81,7 @@ const deviceSchema = new mongoose.Schema(
     },
     location_id: {
       type: String,
+      default: "none",
     },
     host: {
       name: String,
@@ -98,6 +95,10 @@ const deviceSchema = new mongoose.Schema(
     },
     nextMaintenance: {
       type: Date,
+    },
+    channelID: {
+      type: Number,
+      required: [true, "Channel ID is required!"],
     },
   },
   {
@@ -127,6 +128,10 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
+      channelID: this.channelID,
+      powerType: this.powerType,
+      mountType: this.mountType,
+      location_id: this.location_id,
     };
   },
 };
