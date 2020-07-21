@@ -1,5 +1,5 @@
 ###########################################################
-# Start deployment of analytics api
+# Start deployment of prediction api
 ###########################################################
 apiVersion: apps/v1
 kind: Deployment
