@@ -77,7 +77,7 @@ const deviceSchema = new mongoose.Schema(
     powerType: {
       type: String,
     },
-    location_id: {
+    locationID: {
       type: String,
     },
     host: {
@@ -131,6 +131,22 @@ deviceSchema.methods = {
       location_id: this.location_id,
     };
   },
+
+  toUpdateJSON() {
+    return {
+      deviceName: this.deviceName,
+      locationID: this.locationName,
+      height: this.height,
+      mountType: this.mountType,
+      powerType: this.powerType,
+      date: this.date,
+      latitude: this.latitude,
+      longitude: this.longitude,
+      isPrimaryInLocation: this.isPrimaryInLocation,
+      isUserForCollocaton: this.isUsedForCollocation,
+      updatedAt: this.updatedAt,
+    };
+  },
 };
 
 // I will add the check for the user after setting up the communications between services
@@ -143,6 +159,13 @@ deviceSchema.statics = {
 
   list({ skip = 0, limit = 5 } = {}) {
     return this.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+  },
+
+  listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {
+    return this.find({ locationID: loc })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

@@ -104,7 +104,7 @@ locationSchema.methods = {
 
 // I will add the check for the user after setting up the communications between services
 locationSchema.statics = {
-  createDevice(args) {
+  createLocation(args) {
     return this.create({
       ...args,
     });
@@ -118,6 +118,6 @@ locationSchema.statics = {
   },
 };
 
-const location = mongoose.model("location", locationSchema);
+const location = mongoose.model("location_registry", locationSchema);
 
 module.exports = location;

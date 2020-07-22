@@ -36,6 +36,17 @@ const device = {
     }
   },
 
+  listAllByLocation: async (req, res) => {
+    const location = req.query.location;
+    console.log("location: " + location);
+    try {
+      let devices = await Device.find({ locationID: location }).exec();
+      return res.status(HTTPStatus.OK).json(devices);
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json(e);
+    }
+  },
+
   listAllGcp: (req, res) => {
     const formattedParent = client.registryPath(
       "airqo-250220",
@@ -163,8 +174,6 @@ const device = {
         mountType,
         powerType,
         date,
-        latitude,
-        longitude,
         isPrimaryInLocation,
         isUserForCollocaton,
       } = req.body;
@@ -188,43 +197,55 @@ const device = {
         height: height,
         mountType: mountType,
         powerType: powerType,
-        latitude: latitude,
-        longitude: longitude,
         isPrimaryInLocation: isPrimaryInLocation,
         isUserForCollocaton: isUserForCollocaton,
         nextMaintenance: newLocationActivity.nextMaintenance,
       };
-
-      console.log("updating device...");
+      let isDeployed = await Device.findOne({ locationID: "" }).exec();
       const deviceFilter = { name: deviceName };
-      await Device.findOneAndUpdate(
-        deviceFilter,
-        deviceBody,
-        {
-          new: true,
-        },
-        (error, deployedDevice) => {
-          if (error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: "unable to deploy device",
-              error,
-              success: false,
-            });
-          } else if (deployedDevice) {
-            return res.status(HTTPStatus.OK).json({
-              message: "device successfully deployed",
-              deployedDevice,
-              success: true,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              message:
-                "device does not exist, please first create the device you are trying to deploy ",
-              success: false,
-            });
+      if (isDeployed) {
+        await Device.findOneAndUpdate(
+          deviceFilter,
+          deviceBody,
+          {
+            new: true,
+          },
+          (error, deployedDevice) => {
+            if (error) {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                message: "unable to deploy device",
+                error,
+                success: false,
+              });
+            } else if (deployedDevice) {
+              let response = {};
+              response.mountType = deployedDevice.mountType;
+              response.powerType = deployedDevice.powerType;
+              response.height = deployedDevice.height;
+              response.updatedAt = deployedDevice.updatedAt;
+              response.locationID = deployedDevice.locationID;
+              response.isPrimaryInLocation = deployedDevice.isPrimaryInLocation;
+              response.isUsedForCollocaton = deployedDevice.isUsedForCollocaton;
+              return res.status(HTTPStatus.OK).json({
+                message: "device successfully deployed",
+                response,
+                success: true,
+              });
+            } else {
+              return res.status(HTTPStatus.BAD_REQUEST).json({
+                message:
+                  "device does not exist, please first create the device you are trying to deploy ",
+                success: false,
+              });
+            }
           }
-        }
-      );
+        );
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          message: "device was already deployed ",
+          success: false,
+        });
+      }
     } catch (e) {
       return res.status(HTTPStatus.BAD_GATEWAY).json({ error: e });
     }
