@@ -60,7 +60,6 @@ const deviceSchema = new mongoose.Schema(
     },
     mountType: {
       type: String,
-      default: "pole",
       trim: true,
     },
     ISP: {
@@ -77,7 +76,6 @@ const deviceSchema = new mongoose.Schema(
     },
     powerType: {
       type: String,
-      default: "mains",
     },
     location_id: {
       type: String,
