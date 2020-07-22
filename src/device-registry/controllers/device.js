@@ -37,10 +37,10 @@ const device = {
   },
 
   listAllByLocation: async (req, res) => {
-    const location = req.query.location;
+    const location = req.query.loc;
     console.log("location: " + location);
     try {
-      let devices = await Device.find({ locationID: location }).exec();
+      const devices = await Device.find({ locationID: location }).exec();
       return res.status(HTTPStatus.OK).json(devices);
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json(e);

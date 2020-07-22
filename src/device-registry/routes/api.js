@@ -42,7 +42,7 @@ router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
 router.post("/ts/deploy/device", deviceController.deployDevice);
 router.get("/get/sensors", sensorController.listAll);
-router.get("/get/loc", deviceController.listAllByLocation);
+router.get("/by/location", deviceController.listAllByLocation);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
