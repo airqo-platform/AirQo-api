@@ -81,7 +81,6 @@ const deviceSchema = new mongoose.Schema(
     },
     location_id: {
       type: String,
-      default: "none",
     },
     host: {
       name: String,
