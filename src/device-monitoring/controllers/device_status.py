@@ -207,7 +207,7 @@ def get_device_uptime(device_channel_id):
             response = result
         else:
             response = {
-                "message": "Uptime data not available", "success": False}
+                "message": "Uptime data not available for the specified device", "success": False}
         data = jsonify(response)
         return data, 201
     else:
