@@ -387,17 +387,6 @@ def generate_customised_chart_data():
         #else:            
             #return jsonify({'inputs': json_data,'errors': errors})
 
-@dashboard_bp.route('/api/v1/device/custom/chart/ANQ16PZJ', methods = ['GET'])
-def get_hourly_custom_chart_data():
-    device_code = 'ANQ16PZJ'
-    start_date = '2020-04-12T07:00:00.000000Z'
-    end_date = '2020-04-14T07:00:00.000000Z'
-    frequency = 'hourly'
-    pollutant = 'PM 2.5'
-    results = json.loads(json_util.dumps(mongo_helpers.get_filtered_data(
-        device_code, start_date, end_date, frequency, pollutant)))
-    return jsonify({"results": results})
-
 
 @dashboard_bp.route('/api/v1/dashboard/monitoringsites/locations', methods=['GET'])
 def get_organisation_monitoring_site_locations():
