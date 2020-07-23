@@ -25,7 +25,7 @@ const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 
 const logObject = (text, body) => {
-  console.log(text);
+  console.log(text + ":");
   console.dir(body);
 };
 
@@ -63,7 +63,7 @@ const isDeviceNotDeployed = (deviceName) => {
     logSingleText("....................");
     logSingleText("checking isDeviceNotDeployed....");
     // logObject("device is here:", device[0]._doc);
-    logObject("device is here:", device);
+    logObject("device is here", device);
     const isNotDeployed = isEmpty(device.locationID) ? true : false;
     logText("locationID", device.locationID);
     logText("isNotDeployed", isNotDeployed);
@@ -85,7 +85,7 @@ const isDeviceNotRecalled = (deviceName) => {
 
   logSingleText("....................");
   logSingleText("checking isDeviceNotRecalled....");
-  logObject("device is here:", device);
+  logObject("device is here", device);
   const isNotRecalled = device.isActive == true ? true : false;
   logText("isActive", device.isActive);
   logText("isNotRecalled", isNotRecalled);
@@ -140,6 +140,8 @@ const locationActivityRequestBodies = (req, res) => {
         nextMaintenance: threeMonthsFromNow(date),
         isActive: true,
       };
+      logObject("locationActivityBody", locationActivityBody);
+      logObject("deviceBody", deviceBody);
       return { locationActivityBody, deviceBody };
     }
 
@@ -163,6 +165,8 @@ const locationActivityRequestBodies = (req, res) => {
         nextMaintenance: "",
         isActive: false,
       };
+      logObject("locationActivityBody", locationActivityBody);
+      logObject("deviceBody", deviceBody);
       return { locationActivityBody, deviceBody };
     }
     //incorrect query parameter.......
