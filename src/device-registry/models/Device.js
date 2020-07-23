@@ -97,6 +97,9 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
       required: [true, "Channel ID is required!"],
     },
+    isActive: {
+      type: Boolean,
+    },
   },
   {
     timestamps: true,
@@ -128,7 +131,8 @@ deviceSchema.methods = {
       channelID: this.channelID,
       powerType: this.powerType,
       mountType: this.mountType,
-      location_id: this.location_id,
+      locationID: this.locationID,
+      isActive: this.isActive,
     };
   },
 

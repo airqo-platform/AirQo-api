@@ -22,6 +22,218 @@ const fetch = require("node-fetch");
 const request = require("request");
 const axios = require("axios");
 const constants = require("../config/constants");
+const isEmpty = require("is-empty");
+
+const logObject = (text, body) => {
+  console.log(text);
+  console.dir(body);
+};
+
+const logText = (text, body) => {
+  console.log(text);
+  console.log(body);
+};
+
+const doesDeviceExist = async (deviceName) => {
+  const device = await Device.find({ name: deviceName }).exec();
+  if (device) {
+    return true;
+  } else {
+    return false;
+  }
+};
+
+const isDeviceNotDeployed = (deviceName) => {
+  try {
+    let device = {};
+    Device.findOne({ name: deviceName }, (err, doc) => {
+      if (err) {
+        logText("error:", err);
+      }
+      if (doc.length) {
+        device = doc;
+      } else {
+        logText("error", "something aint right in device find");
+      }
+    });
+
+    logObject("checking isDeviceNotDeployed", {});
+    // logObject("device is here:", device[0]._doc);
+    logObject("device is here:", device);
+    const isNotDeployed = isEmpty(device.locationID) ? true : false;
+    logText("value of locationID ", device.locationID);
+    logText("isNotDeployed:", isNotDeployed);
+  } catch (e) {
+    logText("error", e);
+  }
+};
+
+const isDeviceNotRecalled = (deviceName) => {
+  let device = {};
+
+  Device.find({ name: deviceName }, (err, doc) => {
+    if (err) {
+      console.log(err);
+    } else {
+      device = doc;
+    }
+  });
+
+  logObject("checking isDeviceNotRecalled", {});
+  logObject("device is here:", device);
+  const isNotRecalled = device.isActive == true ? true : false;
+  logText("value of isActive ", device.isActive);
+  logText("isNotRecalled:", isNotRecalled);
+};
+
+function threeMonthsFromNow(date) {
+  d = new Date(date);
+  var targetMonth = d.getMonth() + 3;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== targetMonth % 12) {
+    d.setDate(0); // last day of previous month
+  }
+  return d;
+}
+
+const locationActivityRequestBodies = (req, res) => {
+  try {
+    const type = req.query.type;
+    console.log("the activity type: " + type);
+    let locationActivityBody = {};
+    let deviceBody = {};
+    const {
+      deviceName,
+      locationName,
+      height,
+      mountType,
+      powerType,
+      date,
+      isPrimaryInLocation,
+      isUserForCollocaton,
+    } = req.body;
+
+    //location and device body to be used for deploying....
+    if (type == "deploy") {
+      locationActivityBody = {
+        location: locationName,
+        device: deviceName,
+        date: date,
+        description: "device deployed",
+        activityType: "deployment",
+      };
+      deviceBody = {
+        name: deviceName,
+        locationID: locationName,
+        height: height,
+        mountType: mountType,
+        powerType: powerType,
+        isPrimaryInLocation: isPrimaryInLocation,
+        isUserForCollocaton: isUserForCollocaton,
+        nextMaintenance: threeMonthsFromNow(date),
+        isActive: true,
+      };
+      return { locationActivityBody, deviceBody };
+    }
+
+    //location and device body to be used for recalling....
+    else if (type == "recall") {
+      locationActivityBody = {
+        location: locationName,
+        device: deviceName,
+        date: date,
+        description: "device recalled",
+        activityType: "recallment",
+      };
+      deviceBody = {
+        name: deviceName,
+        locationID: "",
+        height: "",
+        mountType: "",
+        powerType: "",
+        isPrimaryInLocation: "",
+        isUserForCollocaton: "",
+        nextMaintenance: "",
+        isActive: false,
+      };
+      return { locationActivityBody, deviceBody };
+    }
+    //incorrect query parameter.......
+    else {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        message: "incorrect query parameter",
+        success: false,
+      });
+    }
+  } catch (e) {
+    console.log("error" + e);
+  }
+};
+
+const doLocationActivity = async (
+  res,
+  deviceBody,
+  activityBody,
+  deviceName,
+  type,
+  deviceExists,
+  isNotDeployed,
+  isNotRecalled
+) => {
+  const deviceFilter = { name: deviceName };
+
+  let check = "";
+  if (type == "deploy") {
+    check = isNotDeployed;
+  } else if (type == "recall") {
+    check = isNotRecalled;
+  } else {
+    check = false;
+  }
+
+  logText("type:", type);
+  logText("isNotDeployed", isNotDeployed);
+
+  if (check) {
+    //first update device body
+    await Device.findOneAndUpdate(
+      deviceFilter,
+      deviceBody,
+      {
+        new: true,
+      },
+      (error, updatedDevice) => {
+        if (error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            message: `unable to ${type} `,
+            error,
+            success: false,
+          });
+        } else if (updatedDevice) {
+          //then log the operation
+          const log = LocationActivity.createLocationActivity(activityBody);
+          log.then((log) => {
+            return res.status(HTTPStatus.OK).json({
+              message: `${type} successfully carried out`,
+              updatedDevice,
+              success: true,
+            });
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            message: `device does not exist, please first create the device you are trying to ${type} `,
+            success: false,
+          });
+        }
+      }
+    );
+  } else {
+    return res.status(HTTPStatus.BAD_REQUEST).json({
+      message: `The ${type} activity was already done for this device, please crosscheck `,
+      success: false,
+    });
+  }
+};
 
 const device = {
   listAll: async (req, res) => {
@@ -165,90 +377,27 @@ const device = {
     }
   },
 
-  deployDevice: async (req, res) => {
-    try {
-      const {
-        deviceName,
-        locationName,
-        height,
-        mountType,
-        powerType,
-        date,
-        isPrimaryInLocation,
-        isUserForCollocaton,
-      } = req.body;
+  locationActivity: async (req, res) => {
+    const { deviceName } = req.body;
+    const type = req.query.type;
+    const deviceExists = doesDeviceExist(deviceName);
+    const isNotDeployed = isDeviceNotDeployed(deviceName);
+    const isNotRecalled = isDeviceNotRecalled(deviceName);
+    const { locationActivityBody, deviceBody } = locationActivityRequestBodies(
+      req,
+      res
+    );
 
-      const locationActivityBody = {
-        location: locationName,
-        device: deviceName,
-        date: date,
-        description: "device deployed",
-        activityType: "deployment",
-      };
-
-      console.log("adding location activity...");
-      const newLocationActivity = await LocationActivity.createLocationActivity(
-        locationActivityBody
-      );
-
-      const deviceBody = {
-        name: deviceName,
-        locationID: locationName,
-        height: height,
-        mountType: mountType,
-        powerType: powerType,
-        isPrimaryInLocation: isPrimaryInLocation,
-        isUserForCollocaton: isUserForCollocaton,
-        nextMaintenance: newLocationActivity.nextMaintenance,
-      };
-      let isDeployed = await Device.findOne({ locationID: "" }).exec();
-      const deviceFilter = { name: deviceName };
-      if (isDeployed) {
-        await Device.findOneAndUpdate(
-          deviceFilter,
-          deviceBody,
-          {
-            new: true,
-          },
-          (error, deployedDevice) => {
-            if (error) {
-              return res.status(HTTPStatus.BAD_GATEWAY).json({
-                message: "unable to deploy device",
-                error,
-                success: false,
-              });
-            } else if (deployedDevice) {
-              let response = {};
-              response.mountType = deployedDevice.mountType;
-              response.powerType = deployedDevice.powerType;
-              response.height = deployedDevice.height;
-              response.updatedAt = deployedDevice.updatedAt;
-              response.locationID = deployedDevice.locationID;
-              response.isPrimaryInLocation = deployedDevice.isPrimaryInLocation;
-              response.isUsedForCollocaton = deployedDevice.isUsedForCollocaton;
-              return res.status(HTTPStatus.OK).json({
-                message: "device successfully deployed",
-                response,
-                success: true,
-              });
-            } else {
-              return res.status(HTTPStatus.BAD_REQUEST).json({
-                message:
-                  "device does not exist, please first create the device you are trying to deploy ",
-                success: false,
-              });
-            }
-          }
-        );
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          message: "device was already deployed ",
-          success: false,
-        });
-      }
-    } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({ error: e });
-    }
+    doLocationActivity(
+      res,
+      deviceBody,
+      locationActivityBody,
+      deviceName,
+      type,
+      deviceExists,
+      isNotDeployed,
+      isNotRecalled
+    );
   },
 
   fetchDeployments: async (req, res) => {
@@ -454,7 +603,7 @@ const device = {
     try {
       const device = await Device.findById(req.params.id);
 
-      if (!device.user.equals(req.user._id)) {
+      if (!device.device.equals(req.device._id)) {
         return res.sendStatus(HTTPStatus.UNAUTHORIZED);
       }
 
@@ -491,7 +640,7 @@ const device = {
   updateDevice: async (req, res) => {
     try {
       const device = await Device.findById(req.params.id);
-      if (!device.user.equals(req.user._id)) {
+      if (!device.device.equals(req.device._id)) {
         return res.sendStatus(HTTPStatus.UNAUTHORIZED);
       }
 

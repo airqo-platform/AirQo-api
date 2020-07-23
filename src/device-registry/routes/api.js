@@ -40,7 +40,7 @@ router.post("/ts", deviceController.createThing);
 router.delete("/ts/delete", deviceController.deleteThing);
 router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
-router.post("/ts/deploy/device", deviceController.deployDevice);
+router.post("/ts/activity", deviceController.locationActivity);
 router.get("/get/sensors", sensorController.listAll);
 router.get("/by/location", deviceController.listAllByLocation);
 
