@@ -1,0 +1,41 @@
+###########################################################
+# Start deployment of device registry api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-device-registry-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-device-reg-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: sta-device-reg-api
+    spec:
+      containers:
+        - name: sta-dev-reg-api
+          image: us.gcr.io/airqo-250220/airqo-stage-device-registry-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: sta-dev-reg-api
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-device-registry-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-device-reg-api
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 31002
+  type: NodePort
