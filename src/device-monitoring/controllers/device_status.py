@@ -209,3 +209,25 @@ def get_worst_performing_devices():
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
+
+@device_status_bp.route(api.route['device_uptime'], methods=['GET'])
+def get_device_uptime(device_channel_id):
+    '''
+    Get device uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        if type(device_channel_id) is not int:
+            return jsonify({"message": "Invalid device channel id. channel required!", "success": False}), 400
+
+        result = model.get_device_uptime_analysis_results(device_channel_id)
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "Uptime data not available for the specified device", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
