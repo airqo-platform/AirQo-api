@@ -280,31 +280,28 @@ def get_random_location_hourly_customised_chart_data():
     custom_chart_title = 'Mean ' + frequency.capitalize() + ' ' + \
         pollutant + '  for '
     locations_names = parish
-    custom_chart_title = custom_chart_title + locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(
-        start_date), frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date), frequency)
-    values = []
-    labels = []
-    device_results = {}
-    filtered_data = gr.get_filtered_data(
-        device_code, start_date, end_date, frequency, pollutant)
+    custom_chart_title = custom_chart_title +  locations_names  
+    custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
+    values =[]
+    labels =[]    
+    device_results={}
+    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
     if filtered_data:
         for data in filtered_data:
             values.append(data['pollutant_value'])
             labels.append(data['time'])
-        device_results = {'pollutant_values': values, 'labels': labels}
-        color = colors.pop()
-        dataset = {'data': values, 'label': parish + ' ' + pollutant,
-                   'borderColor': color, 'backgroundColor': color, 'fill': False}
-        datasets.append(dataset)
+        device_results= {'pollutant_values':values, 'labels':labels}
+        color = colors.pop() 
+        dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
+        datasets.append(dataset)          
+                                                                            
+        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+            'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+            'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
 
-        custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
-                                 'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
-                                 'location_code': location_code, 'chart_type': chart_type, 'chart_data': device_results})
+    return jsonify({'results':custom_chat_data, 'datasets':datasets,'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
 
-    return jsonify({'results': custom_chat_data, 'datasets': datasets, 'custom_chart_title': custom_chart_title})
-
-
-@dashboard_bp.route('/api/v1/dashboard/customisedchart', methods=['POST'])
+@dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
 def generate_customised_chart_data():
     ms = monitoring_site.MonitoringSite()
     gr = graph.Graph()
@@ -324,28 +321,24 @@ def generate_customised_chart_data():
         chart_type = json_data["chartType"]
         organisation_name = json_data["organisation_name"]
         custom_chat_data = []
-        datasets = []  # displaying multiple locations
-        locations_devices = []
-        colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']
-        custom_chart_title = 'Mean ' + frequency.capitalize() + ' ' + \
-            pollutant + '  for '
-        locations_names = ','.join([str(location['label'])
-                                    for location in locations])
-        custom_chart_title = custom_chart_title + locations_names + ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(
-            start_date), frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date), frequency)
-        for location in locations:
-            devices = ms.get_location_devices_code(
-                organisation_name, location['label'])
+        datasets = [] #displaying multiple locations
+        locations_devices =[]
+        colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
+        custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
+        locations_names = ','.join([str(location['label']) for location in locations])        
+        custom_chart_title = custom_chart_title +  locations_names 
+        custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
+        for location in locations:            
+            devices = ms.get_location_devices_code( organisation_name, location['label'])
             for device in devices:
                 device_code = device['DeviceCode']
                 division = device['Division']
                 parish = device['Parish']
-                location_code = device['LocationCode']
-                # device_id = device['_id']
-                values = []
-                labels = []
-                background_colors = []
-                device_results = {}
+                location_code= device['LocationCode']                
+                values =[]
+                labels =[] 
+                background_colors= []   
+                device_results={}               
                 if chart_type == 'pie':
                     filtered_data = gr.get_piechart_data(
                         device_code, start_date, end_date, frequency, pollutant)
@@ -361,15 +354,12 @@ def generate_customised_chart_data():
                         dataset = {'data': values, 'label': parish + ' ' +
                                    pollutant, 'backgroundColor': background_colors}
                         datasets.append(dataset)
-
-                        custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
-                                                 'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
-                                                 'location_code': location_code, 'chart_type': chart_type, 'chart_data': device_results, 'datasets': datasets, 'custom_chart_title': custom_chart_title})
-
-                    # return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title})
-                else:
-                    filtered_data = gr.get_filtered_data(
-                        device_code, start_date, end_date, frequency, pollutant)
+                        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+                        'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+                        'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})    
+                                        
+                else:                    
+                    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
                     if filtered_data:
                         for data in filtered_data:
                             values.append(data['pollutant_value'])
@@ -382,32 +372,20 @@ def generate_customised_chart_data():
                         datasets.append(dataset)
                     measurement_units = '(µg/m3)'
                     if pollutant == 'NO2':
-                        measurement_units = ' Concentration'
-                    chart_label = pollutant + measurement_units
+                        measurement_units = ' Concentration'    
+                    chart_label = pollutant + measurement_units                              
+                    
+                    custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
+                    'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
+                    'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 
+                    'datasets':datasets, 'custom_chart_title':custom_chart_title, 'chart_label':chart_label,  'custom_chart_title_second_section':custom_chart_title_second_section})
 
-                    custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
-                                             'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
-                                             'location_code': location_code, 'chart_type': chart_type, 'chart_data': device_results,
-                                             'datasets': datasets, 'custom_chart_title': custom_chart_title, 'chart_label': chart_label})
-
-                locations_devices.append(devices)
-
-        return jsonify({'results': custom_chat_data, 'datasets': datasets, 'custom_chart_title': custom_chart_title})
-
-        # else:
-        # return jsonify({'inputs': json_data,'errors': errors})
-
-
-@dashboard_bp.route('/api/v1/device/custom/chart/ANQ16PZJ', methods=['GET'])
-def get_hourly_custom_chart_data():
-    device_code = 'ANQ16PZJ'
-    start_date = '2020-04-12T07:00:00.000000Z'
-    end_date = '2020-04-14T07:00:00.000000Z'
-    frequency = 'hourly'
-    pollutant = 'PM 2.5'
-    results = json.loads(json_util.dumps(mongo_helpers.get_filtered_data(
-        device_code, start_date, end_date, frequency, pollutant)))
-    return jsonify({"results": results})
+                locations_devices.append(devices)                     
+            
+        return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
+        
+        #else:            
+            #return jsonify({'inputs': json_data,'errors': errors})
 
 
 @dashboard_bp.route('/api/v1/dashboard/monitoringsites/locations', methods=['GET'])

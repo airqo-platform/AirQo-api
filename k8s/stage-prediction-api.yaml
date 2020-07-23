@@ -1,0 +1,41 @@
+###########################################################
+# Start deployment of prediction api
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-prediction-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: prediction-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: prediction-api
+    spec:
+      containers:
+        - name: prediction-api
+          image: us.gcr.io/airqo-250220/airqo-prediction-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: prediction-api
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-prediction-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: prediction-api
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 31009
+  type: NodePort
