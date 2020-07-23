@@ -5,9 +5,11 @@
     "main": "./bin/www",
     "scripts": {
         "start": "./bin/www",
-        "dev": "NODE_ENV=development nodemon ./bin/www",
-        "prod": "NODE_ENV=production nodemon ./bin/www",
+        "dev-mac": "NODE_ENV=development nodemon ./bin/www",
+        "prod-mac": "NODE_ENV=production nodemon ./bin/www",
         "test": "NODE_ENV=test nodemon ./bin/www",
+        "dev-pc": "set NODE_ENV=development nodemon ./bin/www",
+        "prod-pc": "set NODE_ENV=production nodemon ./bin/www",
         "create-env": "printenv > .env"
     },
     "dependencies": {
