@@ -25,15 +25,15 @@ def get_device_status():
             document['_id'] = str(document['_id'])
             response.append(document)
         data = jsonify(response)
-        return data, 201
+        return data, 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 # maintenance log
-@device_status_bp.route(api.route['device_maintenance_log'], methods=['GET'])
+@device_status_bp.route(api.route['maintenance_logs'], methods=['GET'])
 def get_device_maintenance_log():
     '''
-    Get device status
+    Get device maintenance_logs
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
@@ -43,7 +43,25 @@ def get_device_maintenance_log():
             document['_id'] = str(document['_id'])
             response.append(document)
         data = jsonify(response)
-        return data, 201
+        return data, 200
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+# maintenance log
+@device_status_bp.route(api.route['device_name_maintenance_log'], methods=['GET'])
+def get_device_name_maintenance_log(device_name):
+    '''
+    Get device maintenance_logs
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        documents = model.get_device_name_maintenance_log(device_name)
+        response = []
+        for document in documents:
+            document['_id'] = str(document['_id'])
+            response.append(document)
+        data = jsonify(response)
+        return data, 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
@@ -62,7 +80,7 @@ def get_device_power():
             document['_id'] = str(document['_id'])
             response.append(document)
         data = jsonify(response)
-        return data, 201
+        return data, 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 

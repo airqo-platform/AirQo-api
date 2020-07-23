@@ -30,6 +30,12 @@ class DeviceStatus():
         documents = db.maintenance_log.find({})
         return documents
 
+     # get maintenance log for a given device name/id
+    def get_device_name_maintenance_log(self, device_name):
+        db = db_helpers.connect_mongo()
+        documents = db.maintenance_log.find({'device': device_name})
+        return documents
+
     # get devices status infromation
     def get_device_power(self):
         db = db_helpers.connect_mongo()
