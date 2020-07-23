@@ -162,9 +162,11 @@ class DeviceStatus():
         all_time_devices = result['average_uptime_for_entire_network_for_all_time']['device_uptime_records']
         device_all_time_uptime = [d['device_uptime_in_percentage']  for d in all_time_devices if d['device_channel_id']==device_channel_id]
        
-                
-        values = [round(device_twenty_four_hour_uptime[0],2), round(device_seven_days_uptime[0],2),
+        if device_twenty_four_hour_uptime and device_seven_days_uptime and twenty_eight_days_devices and twelve_months_devices and device_all_time_uptime: 
+                values = [round(device_twenty_four_hour_uptime[0],2), round(device_seven_days_uptime[0],2),
             round(device_twenty_eight_days_uptime[0],2), round(device_twelve_months_uptime[0],2), round(device_all_time_uptime[0],2)]
+        else:
+            values = []
         
         uptime_result = {'uptime_values': values, 'uptime_labels': labels,
                          'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
