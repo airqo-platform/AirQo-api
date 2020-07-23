@@ -46,49 +46,37 @@ const doesDeviceExist = async (deviceName) => {
   }
 };
 
-const isDeviceNotDeployed = (deviceName) => {
+const isDeviceNotDeployed = async (deviceName) => {
   try {
-    let device = {};
-    Device.findOne({ name: deviceName }, (err, doc) => {
-      if (err) {
-        logText("error", err);
-      }
-      if (doc.length) {
-        device = doc;
-      } else {
-        logText("error", "something aint right in device find");
-      }
-    });
+    // const query = Device.find({ name: deviceName });
+    // device = query.getFilter(); // `{ name: 'Jean-Luc Picard' }`
 
+    const device = await Device.find({ name: deviceName }).exec();
     logSingleText("....................");
     logSingleText("checking isDeviceNotDeployed....");
-    // logObject("device is here:", device[0]._doc);
-    logObject("device is here", device);
-    const isNotDeployed = isEmpty(device.locationID) ? true : false;
-    logText("locationID", device.locationID);
+    logObject("device is here", device[0]._doc);
+    const isNotDeployed = isEmpty(device[0]._doc.locationID) ? true : false;
+    logText("locationID", device[0]._doc.locationID);
     logText("isNotDeployed", isNotDeployed);
+    return isNotDeployed;
   } catch (e) {
     logText("error", e);
   }
 };
 
-const isDeviceNotRecalled = (deviceName) => {
-  let device = {};
-
-  Device.find({ name: deviceName }, (err, doc) => {
-    if (err) {
-      console.log(err);
-    } else {
-      device = doc;
-    }
-  });
-
-  logSingleText("....................");
-  logSingleText("checking isDeviceNotRecalled....");
-  logObject("device is here", device);
-  const isNotRecalled = device.isActive == true ? true : false;
-  logText("isActive", device.isActive);
-  logText("isNotRecalled", isNotRecalled);
+const isDeviceNotRecalled = async (deviceName) => {
+  try {
+    const device = await Device.find({ name: deviceName }).exec();
+    logSingleText("....................");
+    logSingleText("checking isDeviceNotRecalled....");
+    logObject("device is here", device[0]._doc);
+    const isNotRecalled = device[0]._doc.isActive == true ? true : false;
+    logText("isActive", device[0]._doc.isActive);
+    logText("isNotRecalled", isNotRecalled);
+    return isNotRecalled;
+  } catch (e) {
+    logText("error", e);
+  }
 };
 
 function threeMonthsFromNow(date) {
@@ -160,8 +148,8 @@ const locationActivityRequestBodies = (req, res) => {
         height: "",
         mountType: "",
         powerType: "",
-        isPrimaryInLocation: "",
-        isUserForCollocaton: "",
+        isPrimaryInLocation: false,
+        isUserForCollocaton: false,
         nextMaintenance: "",
         isActive: false,
       };
@@ -205,7 +193,13 @@ const doLocationActivity = async (
   logSingleText("....................");
   logSingleText("doLocationActivity...");
   logText("activityType", type);
+  logText("deviceExists", isNotDeployed);
   logText("isNotDeployed", isNotDeployed);
+  logText("isNotRecalled", isNotRecalled);
+  logObject("activityBody", activityBody);
+  logText("check", check);
+  logObject("deviceBody", deviceBody);
+
   logSingleText("....................");
 
   if (check) {
@@ -394,9 +388,9 @@ const device = {
   locationActivity: async (req, res) => {
     const { deviceName } = req.body;
     const type = req.query.type;
-    const deviceExists = doesDeviceExist(deviceName);
-    const isNotDeployed = isDeviceNotDeployed(deviceName);
-    const isNotRecalled = isDeviceNotRecalled(deviceName);
+    const deviceExists = await doesDeviceExist(deviceName);
+    const isNotDeployed = await isDeviceNotDeployed(deviceName);
+    const isNotRecalled = await isDeviceNotRecalled(deviceName);
     const { locationActivityBody, deviceBody } = locationActivityRequestBodies(
       req,
       res
