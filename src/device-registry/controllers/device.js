@@ -30,8 +30,11 @@ const logObject = (text, body) => {
 };
 
 const logText = (text, body) => {
+  console.log(text + ": " + body);
+};
+
+const logSingleText = (text) => {
   console.log(text);
-  console.log(body);
 };
 
 const doesDeviceExist = async (deviceName) => {
@@ -48,7 +51,7 @@ const isDeviceNotDeployed = (deviceName) => {
     let device = {};
     Device.findOne({ name: deviceName }, (err, doc) => {
       if (err) {
-        logText("error:", err);
+        logText("error", err);
       }
       if (doc.length) {
         device = doc;
@@ -57,12 +60,13 @@ const isDeviceNotDeployed = (deviceName) => {
       }
     });
 
-    logObject("checking isDeviceNotDeployed", {});
+    logSingleText("....................");
+    logSingleText("checking isDeviceNotDeployed....");
     // logObject("device is here:", device[0]._doc);
     logObject("device is here:", device);
     const isNotDeployed = isEmpty(device.locationID) ? true : false;
-    logText("value of locationID ", device.locationID);
-    logText("isNotDeployed:", isNotDeployed);
+    logText("locationID", device.locationID);
+    logText("isNotDeployed", isNotDeployed);
   } catch (e) {
     logText("error", e);
   }
@@ -79,11 +83,12 @@ const isDeviceNotRecalled = (deviceName) => {
     }
   });
 
-  logObject("checking isDeviceNotRecalled", {});
+  logSingleText("....................");
+  logSingleText("checking isDeviceNotRecalled....");
   logObject("device is here:", device);
   const isNotRecalled = device.isActive == true ? true : false;
-  logText("value of isActive ", device.isActive);
-  logText("isNotRecalled:", isNotRecalled);
+  logText("isActive", device.isActive);
+  logText("isNotRecalled", isNotRecalled);
 };
 
 function threeMonthsFromNow(date) {
@@ -99,7 +104,9 @@ function threeMonthsFromNow(date) {
 const locationActivityRequestBodies = (req, res) => {
   try {
     const type = req.query.type;
-    console.log("the activity type: " + type);
+    logSingleText("....................");
+    logSingleText("locationActivityRequestBodies...");
+    logText("activityType", type);
     let locationActivityBody = {};
     let deviceBody = {};
     const {
@@ -191,8 +198,11 @@ const doLocationActivity = async (
     check = false;
   }
 
-  logText("type:", type);
+  logSingleText("....................");
+  logSingleText("doLocationActivity...");
+  logText("activityType", type);
   logText("isNotDeployed", isNotDeployed);
+  logSingleText("....................");
 
   if (check) {
     //first update device body
@@ -250,7 +260,7 @@ const device = {
 
   listAllByLocation: async (req, res) => {
     const location = req.query.loc;
-    console.log("location: " + location);
+    logText("location ", location);
     try {
       const devices = await Device.find({ locationID: location }).exec();
       return res.status(HTTPStatus.OK).json(devices);
