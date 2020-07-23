@@ -59,8 +59,10 @@ def register_location():
                 except: 
                     latitude = None
                     longitude = None
-                
-            road_intensity = json_data["roadIntensity"]
+            try:
+                road_intensity = int(json_data["roadIntensity"])
+            except:
+                road_intensity = None    
             road_status = json_data["roadStatus"]
             description = json_data["description"]
             local_activities = []
@@ -113,7 +115,6 @@ def register_location():
                 closest_road_type, closest_distance, closest_residential_distance = None, None, None
                 closest_motorway_distance = None
                 nearest_city_distance = None
-
             try:
                 location.register_location(loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status, 
                 local_activities, location_name, country, region, district, county, subcounty, parish, altitude, aspect, landform_90, 
@@ -176,10 +177,10 @@ def update_location():
             return {'message': 'No input data provided'}, 400
         else:
             loc_ref = json_data["locationReference"]
-            #power = json_data["power"]
-            #internet = json_data["internet"]
-            #height = json_data["height"]
-            road_intensity = json_data["roadIntensity"]
+            try:
+                road_intensity = int(json_data["roadIntensity"])
+            except: 
+                road_intensity = None
             description = json_data["description"]
             road_status = json_data["roadStatus"]
             #local_activities = json_data["localActivities"]

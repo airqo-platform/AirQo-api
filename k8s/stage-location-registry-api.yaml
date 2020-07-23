@@ -1,0 +1,41 @@
+###########################################################
+# Start deployment of location registry microservice - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-location-registry-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-location-registry-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: sta-location-registry-api
+    spec:
+      containers:
+        - name: sta-loc-reg
+          image: us.gcr.io/airqo-250220/airqo-stage-location-registry-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: sta-loc-reg
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-location-registry-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-location-registry-api
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 31005
+  type: NodePort

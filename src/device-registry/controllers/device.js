@@ -113,18 +113,27 @@ const device = {
       ...constants.DEVICE_CREATION,
     };
     try {
-      console.log("creating one device....");
-      const device = await Device.createDevice(req.body);
       await axios
         .post(baseUrl, bodyPrep)
         .then((response) => {
           console.log("the response...");
           console.dir(response.data);
-          let output = response.data;
-          return res.status(HTTPStatus.CREATED).json({
-            success: true,
-            message: "successfully created the device",
-            device,
+          let channelID = response.data.id;
+          let deviceBody = {
+            ...req.body,
+            channelID: channelID,
+          };
+
+          console.log("creating one device....");
+          const device = Device.createDevice(deviceBody);
+          device.then((device) => {
+            console.log("the device...");
+            console.dir(device);
+            return res.status(HTTPStatus.CREATED).json({
+              success: true,
+              message: "successfully created the device",
+              device,
+            });
           });
         })
         .catch((e) => {

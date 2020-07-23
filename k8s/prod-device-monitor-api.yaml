@@ -1,0 +1,41 @@
+###########################################################
+# Start deployment of device-monitoring microservice
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-device-monitor-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: device-monitor-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: device-monitor-api
+    spec:
+      containers:
+        - name: dev-monitor-api
+          image: us.gcr.io/airqo-250220/airqo-device-monitor-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4000
+              name: dev-monitor-api
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-device-monitor-api-svc
+  namespace: production
+spec:
+  selector:
+    app: device-monitor-api
+  ports:
+    - protocol: TCP
+      port: 4000
+      targetPort: 4000
+      nodePort: 30006
+  type: NodePort
