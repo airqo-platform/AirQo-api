@@ -20,15 +20,17 @@ The [AirQo system architecture](https://github.com/airqo-platform/AirQo-api/wiki
 | [analytics](./src/analytics-service)                      | Flask/Python & MongoDB        | This is the one to be used for all analytics work                                                                 |
 | [app-enable](./src/app-enable-service)                    | Node.js        | To enable any application that consumes the services of this platform.                                                           |
 | [auth-service](./src/auth-service)                                | Node.js       | Authentication services for this endpoint                                                                                         |
-| [data-mgt](./src/data-mgt-service)                        | Flask/Python & MongoDB | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness                                                                            |
-| [device-registry](./src/device-registry) .        | Node.js        | Carry out the management of the devices                                                                                                   |
+| [data-mgt](./src/data-mgt)                        | Node.js & MongoDB | A fully-managed service for transforming/processing and enriching data in stream (real time) and batch (historical) modes with equal reliability and expressiveness                                                                            |
+| [device-registry](./src/device-registry) .        | Node.js        | Carry out the management of the devices.                                                                                                    |
 | [incetives](./src/incetives-service)                      | Node.js        | The payment service to incetivise various stakeholders                                                                           |
-| [predict](./src/ml-service)                                    | Flask/Python & MongoDB        | microservice to handle predictions or forecasts of air quality                                                       |
-| [monitoring-service](./src/monitoring-service)                    | Node.js        | Monitoring the health of all the microservices                                                                                   |
+| [predict](./src/predict)                                    | Flask/Python & MongoDB        | microservice to handle predictions or forecasts of air quality                                                       |
+| [service-monitoring](./src/service-monitoring)                    | Node.js        | Monitoring the health of all the microservices                                                                                   |
 | [noitifications](./src/notifications)                      | Node.js        | Takes care of all the notification needs of the application.  
 | [device-monitoring](./src/device-monitoring)                      |  Flask/Python & MongoDB        | Monitoring the status of all devices on the network.
 | [locate](./src/locate)                                            |  Flask/Python & MongoDB    | microservice that consumes the model which recommend locations for placing devices |
 | [calibrate](./src/locate)                                            |  Flask/Python & MongoDB    | microservice that consumes the model which recommend locations for placing devices |
+| [location-registry](./src/location-registry)                         |  Flask/Python & MongoDB    | microservice that handles the registration of locations in the network |
+
 
 
                                 
