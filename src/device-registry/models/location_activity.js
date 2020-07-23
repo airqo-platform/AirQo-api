@@ -11,7 +11,7 @@ function threeMonthsFromNow() {
 
 const activitySchema = new Schema(
   {
-    device: { type: String, trim: true, unique: true },
+    device: { type: String, trim: true },
     location: { type: String, trim: true },
     date: { String: Date },
     description: { type: String, trim: true },
