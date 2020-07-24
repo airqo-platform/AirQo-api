@@ -61,8 +61,13 @@ def date_to_formated_str(date):
     return datetime.strftime(date,'%Y-%m-%d %H:%M')
 
 def get_all_devices():
-    results = list(db.devices.find({},{'_id':0}))
-    return results
+    results = list(db.devices.find({"locationID":{ '$ne': '' } },{'_id':0}))
+    active_devices = []
+    for device in results:
+        print(device['name'])
+        if(device['status'] != 'Retired'):
+            active_devices.append(device)
+    return active_devices
 
 def get_device_channel_status():
         BASE_API_URL='https://data-manager-dot-airqo-250220.appspot.com/api/v1/data/'
@@ -84,20 +89,21 @@ def get_device_channel_status():
                 result = latest_device_status_response.json()
                 count += 1
                 current_datetime=   datetime.now()
-                date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
-                date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
-                date_time_difference_in_seconds = date_time_difference.total_seconds()
-                print(date_time_difference_in_hours)
-                if date_time_difference_in_hours >24: 
-                    count_of_offline_devices += 1
-                    time_offline = convert_seconds_to_days_hours_minutes_seconds(date_time_difference_in_seconds)
-                    time_offline_in_hours = date_time_difference_in_hours
-                    channel['time_offline'] = time_offline
-                    channel['time_offline_in_hours'] = time_offline_in_hours
-                    offline_devices.append(channel)
-                else : 
-                    count_of_online_devices +=1
-                    online_devices.append(channel)
+                if 'feed' in result:
+                    date_time_difference = current_datetime - datetime.strptime(result['feed']['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+                    date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
+                    date_time_difference_in_seconds = date_time_difference.total_seconds()
+                    print(date_time_difference_in_hours)
+                    if date_time_difference_in_hours >24: 
+                        count_of_offline_devices += 1
+                        time_offline = convert_seconds_to_days_hours_minutes_seconds(date_time_difference_in_seconds)
+                        time_offline_in_hours = date_time_difference_in_hours
+                        channel['time_offline'] = time_offline
+                        channel['time_offline_in_hours'] = time_offline_in_hours
+                        offline_devices.append(channel)
+                    else : 
+                        count_of_online_devices +=1
+                        online_devices.append(channel)
 
         print(count)
         print(count_of_online_devices)
