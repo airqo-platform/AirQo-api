@@ -217,8 +217,8 @@ def get_device_uptime(device_channel_id):
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        if type(device_channel_id) is not int:
-            return jsonify({"message": "Invalid device channel id. channel required!", "success": False}), 400
+        if type(device_channel_id) is not str:
+            device_channel_id = str(device_channel_id)           
 
         result = model.get_device_uptime_analysis_results(device_channel_id)
         if result:
