@@ -15,6 +15,8 @@ const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
 var generatorPassword = require("generate-password");
+const getModelByTenant = require("../config/dbConnection");
+const log = require("../utils/log");
 
 const { codes, log, execute, throwError } = require("../config");
 const { getModelByTenant } = require("../utils/multitenancy");
@@ -23,10 +25,13 @@ const join = {
   addUserByTenant: async (req, res) => {
     const { body, tenantId } = req;
     const User = getModelByTenant(tenantId, "user", UserSchema);
-    const { err, response } = await execute(User.create(body));
+    const { err, response } = await User.createUser(body);
     if (err || !response) {
-      log.error(`User creation failed userDao.js ${err.message}`);
-      throwError(500, codes.userAddFailed);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "User creation failed userDao.js",
+        error: err.message,
+      });
     }
     log.info(`User created with response: ${response}`);
     return response;

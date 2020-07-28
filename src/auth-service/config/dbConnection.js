@@ -1,10 +1,11 @@
 const mongoose = require("mongoose");
 const config = require("./constants");
 constants = require("./constants");
-// const log = require("./log");
+const log = require("../utils/log");
 
 const URI = config.MONGO_URI;
 
+//the DB connection options....
 const options = {
   useCreateIndex: true,
   useNewUrlParser: true,
@@ -26,7 +27,7 @@ const connectToMongoDB = () => {
     { userNewUrlParser: true }
   );
   db.on("open", () => {
-    console.log("Mongoose connection opened");
+    console.log(`Mongoose connection opened + ${URI}`);
   });
 
   db.on("error", (err) => {
@@ -48,7 +49,7 @@ const connectToMongoDB = () => {
 
 const mongodb = connectToMongoDB();
 
-// creating a new mongoDB connection by swithing tenant
+// creating a new mongoDB connection by switching tenant
 const getTenantDB = (tenantId, modelName, schema) => {
   const dbName = `${constants.DB_NAME}+"_"+${tenantId}`;
   if (mongodb) {
@@ -60,10 +61,10 @@ const getTenantDB = (tenantId, modelName, schema) => {
 };
 
 //return model as per tenant
-
 const getModelByTenant = (tenantId, modelName, schema) => {
+  log.logLongText("getModelByTenant tenantId", tenantId);
   const tenantDb = getTenantDB(tenantId, modelName, schema);
   return tenantDb.model(modelName);
 };
 
-modules.exports = { mongodb, getTenantDB };
+modules.exports = { mongodb, getTenantDB, getModelByTenant, connectToMongoDB };

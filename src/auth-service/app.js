@@ -8,7 +8,8 @@ var cookieParser = require("cookie-parser");
 var bodyParser = require("body-parser");
 
 var api = require("./routes/api");
-require("./config/dbConnection");
+const { connectToMongoDB } = require("./config/dbConnection");
+connectToMongoDB();
 
 // const {
 //     bindCurrentNamespace,

@@ -144,6 +144,14 @@ UserSchema.pre("update", function (next) {
   return next();
 });
 
+UserSchema.statics = {
+  createUser(args) {
+    return this.create({
+      ...args,
+    });
+  },
+};
+
 UserSchema.methods = {
   _hashPassword(password) {
     // bcrypt.hash(password, saltRounds).then(function (hash) {
