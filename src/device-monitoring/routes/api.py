@@ -12,6 +12,7 @@ route = {
     'latest_offline_devices': base + '/monitor/devices/offline',
     'network_uptime': base + '/monitor/network/uptime',
     'best_performing_devices': base + '/monitor/network/devices/bestperforming',
-    'worst_performing_devices': base + '/monitor/network/devices/worstperforming'
+    'worst_performing_devices': base + '/monitor/network/devices/worstperforming',
+    'device_uptime': base + '/monitor/device/uptime/<int:device_channel_id>'
 
 }

@@ -59,8 +59,13 @@ def date_to_formated_str(date):
 
 
 def get_all_devices():
-    results = db.devices.find({'status': {'$ne': 'Retired'}}, {'_id': 0})
-    return results
+    results = list(db.devices.find({"locationID":{ '$ne': '' } },{'_id':0}))
+    active_devices = []
+    for device in results:
+        print(device['name'])
+        if(device['status'] != 'Retired'):
+            active_devices.append(device)
+    return active_devices
 
 
 def compute_number_of_months_between_two_dates(start_date, end_date):
@@ -173,7 +178,7 @@ def compute_uptime_for_all_devices():
 
             if time_period['label'] == 'twelve_months':
                 device_registration_date = datetime.strptime(
-                    device['registrationDate'], '%Y-%m-%d')
+                    device['createdAt'], '%Y-%m-%d')
                 end_date = datetime.now().date()
                 start_date = device_registration_date.date()
                 number_of_months = compute_number_of_months_between_two_dates(
@@ -185,7 +190,7 @@ def compute_uptime_for_all_devices():
 
             if time_period['label'] == 'all_time':
                 device_registration_date = datetime.strptime(
-                    device['registrationDate'], '%Y-%m-%d')
+                    device['createdAt'], '%Y-%m-%d')
                 delta = datetime.now().date() - device_registration_date.date()
                 no_of_days = delta.days
                 specified_hours = no_of_days * 24
