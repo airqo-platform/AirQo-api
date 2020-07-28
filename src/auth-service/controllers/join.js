@@ -17,8 +17,7 @@ const register = require("../utils/register");
 var generatorPassword = require("generate-password");
 const getModelByTenant = require("../config/dbConnection");
 const log = require("../utils/log");
-
-const { codes, log, execute, throwError } = require("../config");
+// const { codes, log, execute, throwError } = require("../config");
 const { getModelByTenant } = require("../utils/multitenancy");
 
 const join = {
