@@ -1,9 +1,10 @@
 const mongoose = require("mongoose");
-const config = require("./constants");
-constants = require("./constants");
+const constants = require("./constants");
 const log = require("../utils/log");
-
-const URI = config.MONGO_URI;
+const URI = `mongodb://localhost/`;
+// const URI = constants.MONGO_URI;
+log.logLongText("environment", process.env.NODE_ENV);
+log.logLongText("the URI string", URI);
 
 //the DB connection options....
 const options = {
@@ -16,18 +17,15 @@ const options = {
   bufferMaxEntries: 0,
   connectTimeoutMS: 10000,
   socketTimeoutMS: 30000,
+  dbName: "airqo-auth-dev",
 };
 
 const connect = () => mongoose.createConnection(URI, options);
 
 const connectToMongoDB = () => {
-  const db = connect(
-    URI,
-    { dbName: constants.DB_NAME },
-    { userNewUrlParser: true }
-  );
+  const db = connect();
   db.on("open", () => {
-    console.log(`Mongoose connection opened + ${URI}`);
+    console.log(`Mongoose connection opened on: ${URI}`);
   });
 
   db.on("error", (err) => {
@@ -67,4 +65,4 @@ const getModelByTenant = (tenantId, modelName, schema) => {
   return tenantDb.model(modelName);
 };
 
-modules.exports = { mongodb, getTenantDB, getModelByTenant, connectToMongoDB };
+module.exports = { getTenantDB, getModelByTenant, connectToMongoDB };
