@@ -15,15 +15,14 @@ const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
 var generatorPassword = require("generate-password");
-const getModelByTenant = require("../config/dbConnection");
 const log = require("../utils/log");
-// const { codes, log, execute, throwError } = require("../config");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("../config/dbConnection");
 
 const join = {
   addUserByTenant: async (req, res) => {
-    const { body, tenantId } = req;
-    const User = getModelByTenant(tenantId, "user", UserSchema);
+    const { tenant } = req.query;
+    const { body } = req;
+    const User = getModelByTenant(tenant, "user", UserSchema);
     const { err, response } = await User.createUser(body);
     if (err || !response) {
       return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -45,9 +44,10 @@ const join = {
         users,
       });
     } catch (e) {
-      return res
-        .status(HTTPStatus.BAD_REQUEST)
-        .json({ success: false, message: "Some Error" });
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: "A bad request has been made, please crosscheck",
+      });
     }
   },
 
