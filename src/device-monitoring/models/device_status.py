@@ -30,6 +30,12 @@ class DeviceStatus():
         documents = db.maintenance_log.find({})
         return documents
 
+     # get maintenance log for a given device name/id
+    def get_device_name_maintenance_log(self, device_name):
+        db = db_helpers.connect_mongo()
+        documents = db.maintenance_log.find({'device': device_name})
+        return documents
+
     # get devices status infromation
     def get_device_power(self):
         db = db_helpers.connect_mongo()
@@ -136,6 +142,43 @@ class DeviceStatus():
 
         return ranking_results
 
+
+    def get_device_uptime_analysis_results(self, device_channel_id):
+        "gets the latest device uptime for the device with the specifided channel id"
+        db = db_helpers.connect_mongo()
+        results = list(db.network_uptime_analysis_results.find(
+            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+
+        result = results[0]
+
+        labels = ['24 hours', '7 days', '28 days', '12 months', 'all time']
+     
+        twenty_four_hour_devices = result['average_uptime_for_entire_network_for_twentyfour_hours']['device_uptime_records']
+        device_twenty_four_hour_uptime = [d['device_uptime_in_percentage']  for d in twenty_four_hour_devices if d['device_channel_id']==device_channel_id]
+
+        seven_days_devices = result['average_uptime_for_entire_network_for_seven_days']['device_uptime_records']
+        device_seven_days_uptime = [d['device_uptime_in_percentage']  for d in seven_days_devices if d['device_channel_id']==device_channel_id]
+
+        twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
+        device_twenty_eight_days_uptime = [d['device_uptime_in_percentage']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
+
+        twelve_months_devices = result['average_uptime_for_entire_network_for_twelve_months']['device_uptime_records']
+        device_twelve_months_uptime = [d['device_uptime_in_percentage']  for d in twelve_months_devices if d['device_channel_id']==device_channel_id]
+       
+        all_time_devices = result['average_uptime_for_entire_network_for_all_time']['device_uptime_records']
+        device_all_time_uptime = [d['device_uptime_in_percentage']  for d in all_time_devices if d['device_channel_id']==device_channel_id]
+       
+        if device_twenty_four_hour_uptime and device_seven_days_uptime and twenty_eight_days_devices and twelve_months_devices and device_all_time_uptime: 
+                values = [round(device_twenty_four_hour_uptime[0],2), round(device_seven_days_uptime[0],2),
+                    round(device_twenty_eight_days_uptime[0],2), round(device_twelve_months_uptime[0],2), round(device_all_time_uptime[0],2)]
+                uptime_result = {'uptime_values': values, 'uptime_labels': labels,
+                         'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+        else:
+            values = []        
+            uptime_result = {
+                "message": "Uptime data not available for the specified device", "success": False}
+        return uptime_result
+        
 
 if __name__ == "__main__":
     dx = DeviceStatus()
