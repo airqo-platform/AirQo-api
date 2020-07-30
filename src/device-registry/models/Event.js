@@ -4,24 +4,23 @@ const ObjectId = Schema.Types.ObjectId;
 
 const sensorSchema = new Schema(
   {
-    quantityKind: [
-      {
-        type: String,
-        required: [true, "The quantity kind is required"],
-        trim: true,
-      },
-    ],
-    name: {
+    deviceID: {
       type: String,
-      required: [true, "The name is required"],
+      required: [true, "The quantity kind is required"],
       trim: true,
     },
     sensorID: {
       type: String,
-      required: [true, "The sensorID is required"],
+      required: [true, "The quantity kind is required"],
       trim: true,
-      unique: true,
     },
+    nvalues: {
+      type: Number,
+    },
+    day: { type: Date, default: Date.now() },
+    first: {},
+    last: {},
+    values: { type: Array, default: [] },
   },
   {
     timestamps: true,
@@ -41,10 +40,11 @@ sensorSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      name: this.name,
-      sensorID: this.sensorID,
-      quantityKind: this.quantityKind,
       createdAt: this.createdAt,
+      deviceID: this.deviceID,
+      sensorID: this.sensorID,
+      nvalues: this.nvalues,
+      values: this.values,
     };
   },
 };
