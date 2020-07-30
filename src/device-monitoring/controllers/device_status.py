@@ -231,3 +231,25 @@ def get_device_uptime(device_channel_id):
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+@device_status_bp.route(api.route['online_offline'], methods=['GET'])
+def get_all_online_offline():
+    '''
+    Get all latest devices online_offline
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        documents = model.get_all_devices_latest_status()
+        if documents:
+            result = documents[0]
+            response = {'online_devices': result['online_devices'],
+                        'offline_devices': result['offline_devices']}
+            
+        else:
+            response = {
+                "message": "devices data not available", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+        
