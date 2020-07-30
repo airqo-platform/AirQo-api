@@ -46,6 +46,15 @@ const doesDeviceExist = async (deviceName) => {
   }
 };
 
+const doesLocationExist = async (locationName) => {
+  let location = await Location.find({ name: locationName }).exec();
+  if (location) {
+    return true;
+  } else {
+    return false;
+  }
+};
+
 const isDeviceNotDeployed = async (deviceName) => {
   try {
     // const query = Device.find({ name: deviceName });
@@ -117,17 +126,28 @@ const locationActivityRequestBodies = (req, res) => {
         description: "device deployed",
         activityType: "deployment",
       };
-      deviceBody = {
-        name: deviceName,
-        locationID: locationName,
-        height: height,
-        mountType: mountType,
-        powerType: powerType,
-        isPrimaryInLocation: isPrimaryInLocation,
-        isUserForCollocaton: isUserForCollocaton,
-        nextMaintenance: threeMonthsFromNow(date),
-        isActive: true,
-      };
+      //get the lat and long from the location details
+      if (doesLocationExist(locationName)) {
+        deviceBody = {
+          name: deviceName,
+          locationID: locationName,
+          height: height,
+          mountType: mountType,
+          powerType: powerType,
+          isPrimaryInLocation: isPrimaryInLocation,
+          isUserForCollocaton: isUserForCollocaton,
+          nextMaintenance: threeMonthsFromNow(date),
+          isActive: true,
+          latitude: location.latitude,
+          longitude: location.longitude,
+        };
+      }
+      {
+        res.status(500).json({
+          message: "the location does not exist",
+          success: false,
+        });
+      }
       logObject("locationActivityBody", locationActivityBody);
       logObject("deviceBody", deviceBody);
       return { locationActivityBody, deviceBody };
@@ -156,6 +176,22 @@ const locationActivityRequestBodies = (req, res) => {
       logObject("locationActivityBody", locationActivityBody);
       logObject("deviceBody", deviceBody);
       return { locationActivityBody, deviceBody };
+    } else if (type == "maintain") {
+      locationActivityBody = {
+        location: locationName,
+        device: deviceName,
+        date: date,
+        description: "device maintenance",
+        activityType: "maintenance",
+        nextMaintenance: threeMonthsFromNow(date),
+      };
+      deviceBody = {
+        name: deviceName,
+        nextMaintenance: threeMonthsFromNow(date),
+      };
+      logObject("locationActivityBody", locationActivityBody);
+      logObject("deviceBody", deviceBody);
+      return { locationActivityBody, deviceBody };
     }
     //incorrect query parameter.......
     else {
@@ -167,6 +203,116 @@ const locationActivityRequestBodies = (req, res) => {
   } catch (e) {
     console.log("error" + e);
   }
+};
+
+const updateThingBodies = (req, res) => {
+  let {
+    name,
+    latitude,
+    longitude,
+    description,
+    public_flag,
+    readKey,
+    writeKey,
+    mobility,
+    height,
+    mountType,
+    ISP,
+    phoneNumber,
+    device_manufacturer,
+    product_name,
+    powerType,
+    locationID,
+    host,
+    isPrimaryInLocation,
+    isUsedForCollocation,
+    nextMaintenance,
+    channelID,
+    isActive,
+    tags,
+    elevation,
+  } = req.body;
+
+  // name: name,
+  // latitude: latitude,
+  // longitude: longitude,
+  // description: description,
+  // visibility: public_flag,
+  // product_name: product_name,
+  // powerType: powerType,
+  // mountType: mountType,
+  // device_manufacturer: device_manufacturer,
+  // phoneNumber: phoneNumber,
+  // channelID: channelID,
+  // isPrimaryInLocation: isPrimaryInLocation,
+  // isUsedForCollocation: isUsedForCollocation,
+  // ISP: ISP,
+  // height: height,
+  // mobility: mobility,
+  // locationID: locationID,
+  let deviceBody = {};
+
+  if (name) {
+    deviceBody.name = name;
+  } else if (latitude) {
+    deviceBody.latitude = latitude;
+  } else if (longitude) {
+    deviceBody.longitude = longitude;
+  } else if (description) {
+    deviceBody.description = description;
+  } else if (public_flag) {
+    deviceBody.visibility = public_flag;
+  } else if (product_name) {
+    deviceBody.product_name = product_name;
+  } else if (powerType) {
+    deviceBody.powerType = powerType;
+  } else if (mountType) {
+    deviceBody.mountType = mountType;
+  } else if (device_manufacturer) {
+    deviceBody.device_manufacturer = device_manufacturer;
+  } else if (phoneNumber) {
+    deviceBody.phoneNumber = phoneNumber;
+  } else if (channelID) {
+    deviceBody.channelID = channelID;
+  } else if (isPrimaryInLocation) {
+    deviceBody.isPrimaryInLocation = isPrimaryInLocation;
+  } else if (isUsedForCollocation) {
+    deviceBody.isUsedForCollocation = isUsedForCollocation;
+  } else if (ISP) {
+    deviceBody.ISP = ISP;
+  } else if (height) {
+    deviceBody.height = height;
+  } else if (mobility) {
+    deviceBody.mobility = mobility;
+  } else if (locationID) {
+    deviceBody.locationID = locationID;
+  } else {
+    deviceBody;
+  }
+
+  // name: name,
+  // latitude: latitude,
+  // longitude: longitude,
+  // description: description,
+  // public_flag: public_flag,
+
+  let tsBody = {};
+
+  if (name) {
+    tsBody.name = name;
+  } else if (latitude) {
+    tsBody.latitude = latitude;
+  } else if (longitude) {
+    tsBody.longitude = longitude;
+  } else if (description) {
+    tsBody.description = description;
+  } else if (public_flag) {
+    tsBody.public_flag = public_flag;
+  } else {
+    tsBody;
+  }
+
+  return { deviceBody, tsBody };
 };
 
 const doLocationActivity = async (
@@ -344,38 +490,46 @@ const device = {
       ...constants.DEVICE_CREATION,
     };
     try {
-      await axios
-        .post(baseUrl, bodyPrep)
-        .then((response) => {
-          console.log("the response...");
-          console.dir(response.data);
-          let channelID = response.data.id;
-          let deviceBody = {
-            ...req.body,
-            channelID: channelID,
-          };
-
-          console.log("creating one device....");
-          const device = Device.createDevice(deviceBody);
-          device.then((device) => {
-            console.log("the device...");
-            console.dir(device);
-            return res.status(HTTPStatus.CREATED).json({
-              success: true,
-              message: "successfully created the device",
-              device,
+      //first check for availability of device and flag in case it already exists.
+      if (doesDeviceExist) {
+        await axios
+          .post(baseUrl, bodyPrep)
+          .then(async (response) => {
+            console.log("the response...");
+            console.dir(response.data);
+            let channelID = response.data.id;
+            let deviceBody = {
+              ...req.body,
+              channelID: channelID,
+            };
+            console.log("creating one device....");
+            const device = await Device.createDevice(deviceBody);
+            logObject("the creation response", device);
+            device.then((device) => {
+              console.log("the device...");
+              console.dir(device);
+              return res.status(HTTPStatus.CREATED).json({
+                success: true,
+                message: "successfully created the device",
+                device,
+              });
+            });
+          })
+          .catch((e) => {
+            let errors = e.message;
+            res.status(400).json({
+              success: false,
+              message:
+                "unable to create the device, please crosscheck the validity of all your input values",
+              errors,
             });
           });
-        })
-        .catch((e) => {
-          let errors = e.message;
-          res.status(400).json({
-            success: false,
-            message:
-              "unable to create the device, please crosscheck the validity of all your input values",
-            errors,
-          });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "device does not exist",
         });
+      }
     } catch (e) {
       return res.status(400).json({
         success: false,
@@ -422,25 +576,46 @@ const device = {
 
   /********************************* delete Thing ****************************** */
   deleteThing: async (req, res) => {
-    const url = `https://api.thingspeak.com/channels/${req.query.device}.json?api_key=${process.env.TS_API_KEY}`;
-    await axios
-      .delete(url)
-      .then(function(response) {
-        console.log(response.data);
-        let output = response.data;
-        res.status(200).json({
-          message: "successfully deleted the device",
-          success: true,
-          output,
-        });
-      })
-      .catch(function(error) {
-        console.log(error);
-        res.status(500).json({
-          message: "unable to delete the device, device does not exist",
-          success: false,
-        });
+    const { device } = req.query;
+    const url = `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    if (doesDeviceExist(device)) {
+      //find one and delete
+      Device.findOneAndDelete({ name: device }, async (error, doc) => {
+        if (err) {
+          res.status(500).json({
+            message: "unable to delete the device",
+            success: false,
+            err,
+          });
+        } else {
+          await axios
+            .delete(url)
+            .then(function(response) {
+              console.log(response.data);
+              let output = response.data;
+              res.status(200).json({
+                message: "successfully deleted the device",
+                success: true,
+                output,
+              });
+            })
+            .catch(function(error) {
+              console.log(error);
+              res.status(500).json({
+                message: "unable to delete the device, device does not exist",
+                success: false,
+              });
+            });
+        }
       });
+
+      //then delete from TS
+    } else {
+      res.status(500).json({
+        message: "unable to delete the device, device does not exist",
+        success: false,
+      });
+    }
   },
 
   /********************************* clear Thing ****************************** */
@@ -471,37 +646,49 @@ const device = {
   /********************************* Thing Settings ****************************** */
   updateThingSettings: async (req, res) => {
     const url = `https://api.thingspeak.com/channels/${req.query.device}.json?api_key=${process.env.TS_API_KEY}`;
-    // {
-    //     "name": "12345",
-    //     "latitude": "27.2038",
-    //     "longitude": "77.5011",
-    //     "description": "yala",
-    //     "public_flag": "true",
-    //   }
 
-    let bodyPrep = {
-      ...req.body,
-      name: req.body.name,
-      latitude: req.body.latitude,
-      longitude: req.body.longitude,
-      description:
-        `product_name: ${req.body.product_name}` +
-        ", " +
-        `device_manufacturer: ${req.body.device_manufacturer}`,
-      public_flag: req.body.public_flag,
-    };
+    let { tsBody, deviceBody } = updateThingBodies(req, res);
+    //get the channel ID of the device.
+    const deviceFilter = { name: req.query.device };
 
+    //update the device in TS
+    //on success update, then update the device details accordingly.
     await axios
-      .put(url, bodyPrep)
+      .put(url, tsBody)
       .then(function(response) {
         console.log(response.data);
         let output = response.data;
-        res.status(200).json({
-          message: "successfully updated the device settings",
-          success: true,
-          output,
-        });
       })
+      .then(
+        await Device.findOneAndUpdate(
+          deviceFilter,
+          deviceBody,
+          {
+            new: true,
+          },
+          (error, updatedDevice) => {
+            if (error) {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                message: "unable to update device",
+                error,
+                success: false,
+              });
+            } else if (updatedDevice) {
+              return res.status(HTTPStatus.OK).json({
+                message: "successfully updated the device settings",
+                updatedDevice,
+                success: true,
+              });
+            } else {
+              return res.status(HTTPStatus.BAD_REQUEST).json({
+                message:
+                  "device does not exist, please first create the device you are trying to update ",
+                success: false,
+              });
+            }
+          }
+        )
+      )
       .catch(function(error) {
         console.log(error);
         res.status(500).json({
