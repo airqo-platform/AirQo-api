@@ -241,8 +241,7 @@ def get_all_online_offline():
         documents = model.get_all_devices_latest_status()
         if documents:
             result = documents[0]
-            response = {'online_devices': result['online_devices'],
-                        'offline_devices': result['offline_devices']}
+            response = {'offline_devices': result['offline_devices'],'online_devices': result['online_devices']}
             
         else:
             response = {
