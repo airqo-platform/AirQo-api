@@ -242,16 +242,39 @@ def get_all_online_offline():
         if documents:
             result = documents[0]
             devices_without_coordinates =[]
-            online_devices_with_coordinates =[]
+            devices_with_coordinates =[]
             for device in result['online_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
-                    #devices_without_coordinates.append(device)
-                    online_devices_with_coordinates.append(device)
-                    print(device['channelID'])
+                    
+                    mapped_device = {
+                        'channelId':device['channelID'],
+                        'latitude': device['latitude'],
+                        'locationId': device['location_id'],
+                        'longitude': device['longitude'],
+                         'power': device['power'],
+                         'productName': device['product_name'],
+                         'phoneNumber': device['phoneNumber'],
+                         'isOnline': True
+                    }
+                    devices_with_coordinates.append(mapped_device)
 
-            response = {'online_devices': online_devices_with_coordinates,
-                        'offline_devices': result['offline_devices'],
-                        'devices_no_coordinates':devices_without_coordinates}
+            for device in result['offline_devices']:
+                if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                    
+                    mapped_device = {
+                        'channelId':device['channelID'],
+                        'latitude': device['latitude'],
+                        'locationId': device['location_id'],
+                        'longitude': device['longitude'],
+                         'power': device['power'],
+                         'productName': device['product_name'],
+                         'phoneNumber': device['phoneNumber'],
+                         'isOnline': False
+                    }
+                    devices_with_coordinates.append(mapped_device)                   
+                    
+
+            response = {'online_offline_devices': devices_with_coordinates}
             
         else:
             response = {
