@@ -241,7 +241,17 @@ def get_all_online_offline():
         documents = model.get_all_devices_latest_status()
         if documents:
             result = documents[0]
-            response = {'offline_devices': result['offline_devices'],'online_devices': result['online_devices']}
+            devices_without_coordinates =[]
+            online_devices_with_coordinates =[]
+            for device in result['online_devices']:
+                if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                    #devices_without_coordinates.append(device)
+                    online_devices_with_coordinates.append(device)
+                    print(device['channelID'])
+
+            response = {'online_devices': online_devices_with_coordinates,
+                        'offline_devices': result['offline_devices'],
+                        'devices_no_coordinates':devices_without_coordinates}
             
         else:
             response = {
