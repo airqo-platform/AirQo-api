@@ -8,8 +8,8 @@
         "dev-mac": "NODE_ENV=development nodemon ./bin/www",
         "prod-mac": "NODE_ENV=production node ./bin/www",
         "stage-mac": "NODE_ENV=staging node ./bin/www",
-        "dev-pc": "set NODE_ENV=development node ./bin/www",
-        "prod-pc": "set NODE_ENV=production node ./bin/www",
+        "dev-pc": "SET NODE_ENV=development&&nodemon ./bin/www",
+        "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
         "stage-pc": "set NODE_ENV=staging node ./bin/www",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'"
     },
