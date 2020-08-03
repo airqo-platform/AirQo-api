@@ -41,10 +41,10 @@ const prodConfig = {
     field3: "Sensor2 PM2.5",
     field4: "Sensor2 PM10",
     field5: "Humidity",
-    field5: "Battery Voltage",
-    field6: "Temperature",
-    field7: "NO2",
-    field8: "SO3",
+    field6: "Battery Voltage",
+    field7: "Temperature",
+    field8: "NO2",
+    field9: "SO3",
   },
   MONGO_URL: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
@@ -68,10 +68,10 @@ const stageConfig = {
     field3: "Sensor2 PM2.5",
     field4: "Sensor2 PM10",
     field5: "Humidity",
-    field5: "Battery Voltage",
-    field6: "Temperature",
-    field7: "NO2",
-    field8: "SO3",
+    field6: "Battery Voltage",
+    field7: "Temperature",
+    field8: "NO2",
+    field9: "SO3",
   },
   MONGO_URL: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
@@ -80,6 +80,22 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  DELETE_THING_URL: (device) => {
+    `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+  },
+  CLEAR_THING_URL: (device) => {
+    `https://api.thingspeak.com/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
+  },
+  UPDATE_THING: (device) => {
+    `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+  },
+  ADD_VALUE: (field, value, apiKey) => {
+    `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+  },
+  ADD_VALUES: (device) => {
+    `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
+  },
 };
 
 function envConfig(env) {
