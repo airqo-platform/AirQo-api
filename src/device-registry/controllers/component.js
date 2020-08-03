@@ -173,7 +173,6 @@ const component = {
         temp,
         no2,
         so3,
-        value,
       } = req.body;
 
       let fields = [
