@@ -26,19 +26,18 @@ const componentSchema = new Schema(
       trim: true,
     },
     deviceID: {
-      type: ObjectId,
+      type: String,
       required: [true, "the device is required"],
-      ref: "device",
     },
     calibration: {
       enabled: false,
-      value_max: {
-        sensor_value: { type: Number, default: 0 },
-        real_value: { type: Number, default: 0 },
+      valueMax: {
+        sensorValue: { type: Number, default: 0 },
+        realValue: { type: Number, default: 0 },
       },
-      value_min: {
-        sensor_value: { type: Number, default: 0 },
-        real_value: { type: Number, default: 0 },
+      valueMin: {
+        sensorValue: { type: Number, default: 0 },
+        realValue: { type: Number, default: 0 },
       },
     },
   },

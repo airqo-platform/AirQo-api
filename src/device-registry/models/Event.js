@@ -2,41 +2,47 @@ const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const ObjectId = Schema.Types.ObjectId;
 
-const sensorSchema = new Schema(
+const eventSchema = new Schema(
   {
     deviceID: {
       type: String,
-      required: [true, "The quantity kind is required"],
+      required: [true, "The deviceID is required"],
       trim: true,
     },
     sensorID: {
       type: String,
-      required: [true, "The quantity kind is required"],
+      required: [true, "The sensorID is required"],
       trim: true,
     },
     nvalues: {
       type: Number,
+      default: 50,
     },
     day: { type: Date, default: Date.now() },
     first: {},
     last: {},
-    values: { type: Array, default: [] },
+    values: [{ value: { type: Number }, timestamp: { type: String } }],
+    frequency: {
+      type: String,
+      required: [true, "The frequency is required"],
+      trim: true,
+    },
   },
   {
     timestamps: true,
   }
 );
 
-sensorSchema.pre("save", function() {
+eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
 });
 
-sensorSchema.plugin(uniqueValidator, {
+eventSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-sensorSchema.methods = {
+eventSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
@@ -49,11 +55,10 @@ sensorSchema.methods = {
   },
 };
 
-sensorSchema.statics = {
-  createSensor(args, device_id) {
+eventSchema.statics = {
+  createEvent(args) {
     return this.create({
       ...args,
-      device: device_id,
     });
   },
   list({ skip = 0, limit = 5 } = {}) {
@@ -64,6 +69,6 @@ sensorSchema.statics = {
   },
 };
 
-const sensor = model("sensor", sensorSchema);
+const event = model("event", eventSchema);
 
-module.exports = sensor;
+module.exports = event;
