@@ -231,3 +231,57 @@ def get_device_uptime(device_channel_id):
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+@device_status_bp.route(api.route['online_offline'], methods=['GET'])
+def get_all_online_offline():
+    '''
+    Get all latest devices online_offline
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        documents = model.get_all_devices_latest_status()
+        if documents:
+            result = documents[0]
+            devices_without_coordinates =[]
+            devices_with_coordinates =[]
+            for device in result['online_devices']:
+                if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                    
+                    mapped_device = {
+                        'channelId':device['channelID'],
+                        'latitude': device['latitude'],
+                        'locationId': device['location_id'],
+                        'longitude': device['longitude'],
+                         'power': device['power'],
+                         'productName': device['product_name'],
+                         'phoneNumber': device['phoneNumber'],
+                         'isOnline': True
+                    }
+                    devices_with_coordinates.append(mapped_device)
+
+            for device in result['offline_devices']:
+                if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                    
+                    mapped_device = {
+                        'channelId':device['channelID'],
+                        'latitude': device['latitude'],
+                        'locationId': device['location_id'],
+                        'longitude': device['longitude'],
+                         'power': device['power'],
+                         'productName': device['product_name'],
+                         'phoneNumber': device['phoneNumber'],
+                         'isOnline': False
+                    }
+                    devices_with_coordinates.append(mapped_device)                   
+                    
+
+            response = {'online_offline_devices': devices_with_coordinates}
+            
+        else:
+            response = {
+                "message": "devices data not available", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+        
