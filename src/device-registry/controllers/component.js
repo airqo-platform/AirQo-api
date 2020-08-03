@@ -160,7 +160,7 @@ const component = {
     }
   },
 
-  addValues: async (req, res) => {
+  addValue: async (req, res) => {
     try {
       let { d_id, c_id } = req.params;
       let {
@@ -188,10 +188,24 @@ const component = {
         ...(!isEmpty(so3) && "field9"),
       ];
 
+      let value = [
+        ...(!isEmpty(firstPM2_5) && firstPM2_5),
+        ...(!isEmpty(firstPM10) && firstPM10),
+        ...(!isEmpty(secondPM2_5) && secondPM2_5),
+        ...(!isEmpty(secondPM10) && secondPM10),
+        ...(!isEmpty(hum) && hum),
+        ...(!isEmpty(volt) && volt),
+        ...(!isEmpty(temp) && temp),
+        ...(!isEmpty(no2) && no2),
+        ...(!isEmpty(so3) && so3),
+      ];
+
       let { writeKey, readKey } = getApiKeys(d_id);
       if (d_id && c_id) {
-        const url = constants.ADD_VALUE(fields[0], value, writeKey);
+        const url = constants.ADD_VALUE(fields[0], value[0], writeKey);
         let eventBody = {
+          deviceID: d_id,
+          sensorID: c_id,
           $addToSet: { values: { $each: value } },
         };
         const event = await Event.createEvent(eventBody);
@@ -238,7 +252,7 @@ const component = {
     }
   },
 
-  addValue: async (req, res) => {
+  addValues: async (req, res) => {
     try {
       let { c_id, d_id } = req.params;
       let { values, timestamp } = req.body;
