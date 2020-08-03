@@ -42,6 +42,8 @@ router.put("/", joinController.updateUser);
 router.delete("/:id", joinController.deleteUser);
 router.put("/defaults/:id", joinController.updateUserDefaults);
 router.get("/defaults/:id", joinController.getDefaults);
+router.post("/confirmation", authUserLocal, joinController.confirmEmail);
+router.post("/resend", joinController.resendConfirmEmailToken);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
