@@ -133,9 +133,6 @@ const component = {
     try {
       logText("...........................................");
       let { device, comp } = req.query;
-      /***
-       * we need to first find the component
-       */
       if (component && device) {
         const component = await Component.find({
           name: comp,
@@ -186,36 +183,59 @@ const component = {
 
   updateComponent: async (req, res) => {
     try {
-      let { c_id, d_id } = req.params;
-      let componentFilter = { name: c_id };
-      await Component.findOneAndUpdate(
-        componentFilter,
-        req.body,
-        {
-          new: true,
-        },
-        (error, updatedComponent) => {
-          if (error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: "unable to update component",
-              error,
-              success: false,
-            });
-          } else if (updatedComponent) {
-            return res.status(HTTPStatus.OK).json({
-              message: "successfully updated the component settings",
-              updatedComponent,
-              success: true,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              message:
-                "component does not exist, please first create the component you are trying to update ",
-              success: false,
-            });
-          }
+      logText("...........................................");
+      let { device, comp } = req.query;
+      if (component && device) {
+        const component = await Component.find({
+          name: comp,
+          deviceID: device,
+        }).exec();
+        logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(component));
+
+        if (isEmpty(component)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: `component "${comp}" of device "${device}" does not exist in the platform`,
+          });
         }
-      );
+
+        let componentFilter = { name: comp };
+
+        await Component.findOneAndUpdate(
+          componentFilter,
+          req.body,
+          {
+            new: true,
+          },
+          (error, updatedComponent) => {
+            if (error) {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                message: "unable to update component",
+                error,
+                success: false,
+              });
+            } else if (updatedComponent) {
+              return res.status(HTTPStatus.OK).json({
+                message: "successfully updated the component settings",
+                updatedComponent,
+                success: true,
+              });
+            } else {
+              logObject("the updated component", updatedComponent);
+              return res.status(HTTPStatus.BAD_REQUEST).json({
+                message: "unable to update the component ",
+                success: false,
+              });
+            }
+          }
+        );
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "please crosscheck your query parameters, should contain both device & comp for this usecase",
+        });
+      }
     } catch (e) {
       return res
         .status(HTTPStatus.BAD_REQUEST)
