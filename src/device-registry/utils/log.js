@@ -3,12 +3,12 @@ const logObject = (text, body) => {
   console.dir(body);
 };
 
-const logText = (text, body) => {
+const logElement = (text, body) => {
   console.log(text + ": " + body);
 };
 
-const logSingleText = (text) => {
+const logText = (text) => {
   console.log(text);
 };
 
-module.exports = { logObject, logText, logSingleText };
+module.exports = { logObject, logText, logElement };

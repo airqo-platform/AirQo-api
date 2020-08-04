@@ -44,11 +44,11 @@ router.post("/ts/activity", deviceController.doActivity);
 router.get("/by/location", deviceController.listAllByLocation);
 
 /******************* components ************************* */
-router.get("/d_id/components", componentController.listAll);
-router.post("/d_id/components/", componentController.addComponent);
-router.get("/d_id/components/c_id", componentController.listOne);
-router.delete("/d_id/components/c_id", componentController.deleteComponent);
-router.put("/d_id/components/c_id", componentController.updateComponent);
+router.get("/:d_id/components/", componentController.listAll);
+router.post("/:d_id/components/", componentController.addComponent);
+router.get("/:d_id/components/:c_id", componentController.listOne);
+router.delete("/:d_id/components/:c_id", componentController.deleteComponent);
+router.put("/:d_id/components/:c_id", componentController.updateComponent);
 
 /******************* adding values******************************/
 router.post("/d_id/components/c_id/value", componentController.addValue);
