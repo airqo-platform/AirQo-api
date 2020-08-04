@@ -99,7 +99,7 @@ const component = {
       const deviceName = [];
       deviceName.push(device);
       const kind = [];
-      kind.push(measurement.quantityKind);
+      kind.push(measurement[0].quantityKind);
 
       let componentName = uniqueNamesGenerator({
         dictionaries: [deviceName, comp, kind],

@@ -10,18 +10,20 @@ const componentSchema = new Schema(
       trim: true,
       unique: true,
     },
-    measurement: {
-      quantityKind: {
-        type: String,
-        required: [true, "The quantity kind is required"],
-        trim: true,
+    measurement: [
+      {
+        quantityKind: {
+          type: String,
+          required: [true, "The quantity kind is required"],
+          trim: true,
+        },
+        measurementUnit: {
+          type: String,
+          required: [true, "The unit is required"],
+          trim: true,
+        },
       },
-      measurementUnit: {
-        type: String,
-        required: [true, "The unit is required"],
-        trim: true,
-      },
-    },
+    ],
     description: {
       type: String,
       required: [true, "description is required"],
