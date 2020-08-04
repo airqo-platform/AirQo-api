@@ -4,21 +4,23 @@ const ObjectId = Schema.Types.ObjectId;
 
 const componentSchema = new Schema(
   {
-    quantityKind: {
-      type: String,
-      required: [true, "The quantity kind is required"],
-      trim: true,
-    },
     name: {
       type: String,
       required: [true, "The name is required"],
       trim: true,
       unique: true,
     },
-    measurementUnit: {
-      type: String,
-      required: [true, "The unit is required"],
-      trim: true,
+    measurement: {
+      quantityKind: {
+        type: String,
+        required: [true, "The quantity kind is required"],
+        trim: true,
+      },
+      measurementUnit: {
+        type: String,
+        required: [true, "The unit is required"],
+        trim: true,
+      },
     },
     description: {
       type: String,
@@ -60,8 +62,7 @@ componentSchema.methods = {
     return {
       _id: this._id,
       name: this.name,
-      quantityKind: this.quantityKind,
-      measurementUnit: this.measurementUnit,
+      measurement: this.measurement,
       createdAt: this.createdAt,
       description: this.description,
       deviceID: this.device,
