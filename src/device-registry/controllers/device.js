@@ -23,7 +23,7 @@ const fetch = require("node-fetch");
 const request = require("request");
 const axios = require("axios");
 const constants = require("../config/constants");
-const { logObject, logText, logSingleText } = require("../utils/log");
+const { logObject, logElement, logText } = require("../utils/log");
 
 const doesDeviceExist = async (deviceName) => {
   const device = await Device.find({ name: deviceName }).exec();
@@ -38,7 +38,7 @@ const getChannelID = async (deviceName) => {
   logText("...................................");
   logText("getting channel ID...");
   const deviceDetails = await Device.find({ name: deviceName }).exec();
-  logSingleText("the channel ID", deviceDetails.channelID);
+  logElement("the channel ID", deviceDetails.channelID);
   return deviceDetails.channelID;
 };
 
@@ -46,8 +46,8 @@ const getApiKeys = async (deviceName) => {
   logText("...................................");
   logText("getting api keys...");
   const deviceDetails = await Device.find({ name: deviceName }).exec();
-  logSingleText("the write key", deviceDetails.writeKey);
-  logSingleText("the read key", deviceDetails.readKey);
+  logElement("the write key", deviceDetails.writeKey);
+  logElement("the read key", deviceDetails.readKey);
   const writeKey = deviceDetails.writeKey;
   const readKey = deviceDetails.readKey;
   return { writeKey, readKey };
@@ -88,8 +88,8 @@ const isDeviceNotDeployed = async (deviceName) => {
     // device = query.getFilter(); // `{ name: 'Jean-Luc Picard' }`
 
     const device = await Device.find({ name: deviceName }).exec();
-    logSingleText("....................");
-    logSingleText("checking isDeviceNotDeployed....");
+    logElement("....................");
+    logElement("checking isDeviceNotDeployed....");
     logObject("device is here", device[0]._doc);
     const isNotDeployed = isEmpty(device[0]._doc.locationID) ? true : false;
     logText("locationID", device[0]._doc.locationID);
@@ -103,8 +103,8 @@ const isDeviceNotDeployed = async (deviceName) => {
 const isDeviceNotRecalled = async (deviceName) => {
   try {
     const device = await Device.find({ name: deviceName }).exec();
-    logSingleText("....................");
-    logSingleText("checking isDeviceNotRecalled....");
+    logElement("....................");
+    logElement("checking isDeviceNotRecalled....");
     logObject("device is here", device[0]._doc);
     const isNotRecalled = device[0]._doc.isActive == true ? true : false;
     logText("isActive", device[0]._doc.isActive);
@@ -128,8 +128,8 @@ function threeMonthsFromNow(date) {
 const locationActivityRequestBodies = (req, res) => {
   try {
     const type = req.query.type;
-    logSingleText("....................");
-    logSingleText("locationActivityRequestBodies...");
+    logElement("....................");
+    logElement("locationActivityRequestBodies...");
     logText("activityType", type);
     let locationActivityBody = {};
     let deviceBody = {};
@@ -139,6 +139,9 @@ const locationActivityRequestBodies = (req, res) => {
       height,
       mountType,
       powerType,
+      description,
+      latitude,
+      longitude,
       date,
       tags,
       isPrimaryInLocation,
@@ -154,28 +157,46 @@ const locationActivityRequestBodies = (req, res) => {
         description: "device deployed",
         activityType: "deployment",
       };
-      if (doesLocationExist(locationName)) {
-        let { lat, lon } = getGpsCoordinates(locationName);
-        deviceBody = {
-          name: deviceName,
-          locationID: locationName,
-          height: height,
-          mountType: mountType,
-          powerType: powerType,
-          isPrimaryInLocation: isPrimaryInLocation,
-          isUserForCollocaton: isUserForCollocaton,
-          nextMaintenance: threeMonthsFromNow(date),
-          isActive: true,
-          latitude: lat,
-          longitude: lon,
-        };
-      }
-      {
-        res.status(500).json({
-          message: "the location does not exist",
-          success: false,
-        });
-      }
+
+      /**
+       * in case we decide to use the location ID to get the latitude and longitude
+       */
+      // if (doesLocationExist(locationName)) {
+      //   let { lat, lon } = getGpsCoordinates(locationName);
+      //   deviceBody = {
+      //     name: deviceName,
+      //     locationID: locationName,
+      //     height: height,
+      //     mountType: mountType,
+      //     powerType: powerType,
+      //     isPrimaryInLocation: isPrimaryInLocation,
+      //     isUserForCollocaton: isUserForCollocaton,
+      //     nextMaintenance: threeMonthsFromNow(date),
+      //     isActive: true,
+      //     latitude: lat,
+      //     longitude: lon,
+      //   };
+      // }
+      // {
+      //   res.status(500).json({
+      //     message: "the location does not exist",
+      //     success: false,
+      //   });
+      // }
+
+      deviceBody = {
+        name: deviceName,
+        locationID: locationName,
+        height: height,
+        mountType: mountType,
+        powerType: powerType,
+        isPrimaryInLocation: isPrimaryInLocation,
+        isUserForCollocaton: isUserForCollocaton,
+        nextMaintenance: threeMonthsFromNow(date),
+        isActive: true,
+        latitude: latitude,
+        longitude: longitude,
+      };
       logObject("locationActivityBody", locationActivityBody);
       logObject("deviceBody", deviceBody);
       return { locationActivityBody, deviceBody };
@@ -197,6 +218,8 @@ const locationActivityRequestBodies = (req, res) => {
         isPrimaryInLocation: false,
         isUserForCollocaton: false,
         nextMaintenance: "",
+        longitude: "",
+        latitude: "",
         isActive: false,
       };
       logObject("locationActivityBody", locationActivityBody);
@@ -204,19 +227,27 @@ const locationActivityRequestBodies = (req, res) => {
       return { locationActivityBody, deviceBody };
     } else if (type == "maintain") {
       /******** maintaining bodies */
+      logObject("the tags", tags);
       locationActivityBody = {
         location: locationName,
         device: deviceName,
         date: date,
-        description: "device maintenance",
+        description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
-        $addToSet: { tags: { $each: tags } },
+        // $addToSet: { tags: { $each: tags } },
+        tags: tags,
       };
-      deviceBody = {
-        name: deviceName,
-        nextMaintenance: threeMonthsFromNow(date),
-      };
+      if (description == "preventive") {
+        deviceBody = {
+          name: deviceName,
+          nextMaintenance: threeMonthsFromNow(date),
+        };
+      } else if (description == "corrective") {
+        deviceBody = {
+          name: deviceName,
+        };
+      }
       logObject("locationActivityBody", locationActivityBody);
       logObject("deviceBody", deviceBody);
       return { locationActivityBody, deviceBody };
@@ -356,8 +387,8 @@ const doLocationActivity = async (
     check = false;
   }
 
-  logSingleText("....................");
-  logSingleText("doLocationActivity...");
+  logElement("....................");
+  logElement("doLocationActivity...");
   logText("activityType", type);
   logText("deviceExists", isNotDeployed);
   logText("isNotDeployed", isNotDeployed);
@@ -366,7 +397,7 @@ const doLocationActivity = async (
   logText("check", check);
   logObject("deviceBody", deviceBody);
 
-  logSingleText("....................");
+  logElement("....................");
 
   if (check) {
     //first update device body
@@ -633,7 +664,7 @@ const device = {
               }
             })
             .catch(function(error) {
-              logSingleText("unable to delete device from TS", error);
+              logElement("unable to delete device from TS", error);
               res.status(500).json({
                 message: "unable to delete the device from TS",
                 success: false,
@@ -655,7 +686,7 @@ const device = {
         });
       }
     } catch (e) {
-      logSingleText("unable to carry out the entire deletion of device", e);
+      logElement("unable to carry out the entire deletion of device", e);
       logObject("unable to carry out the entire deletion of device", e);
     }
   },
@@ -736,7 +767,7 @@ const device = {
           .put(constants.UPDATE_THING(channelID), tsBody)
           .then(async (response) => {
             logText(`successfully updated device ${device} in TS`);
-            logSingleText("response from TS", response.data);
+            logElement("response from TS", response.data);
             const updatedDevice = await Device.findOneAndUpdate(
               deviceFilter,
               deviceBody,
@@ -775,7 +806,7 @@ const device = {
         });
       }
     } catch (e) {
-      logSingleText("unable to perform update operation", e);
+      logElement("unable to perform update operation", e);
       res.status(500).json({
         message: "unable to perform update operation",
         success: false,
