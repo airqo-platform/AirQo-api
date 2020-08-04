@@ -1,17 +1,21 @@
 const Component = require("../models/Component");
 const Device = require("../models/Device");
 const HTTPStatus = require("http-status");
-const { logObject, logText, logSingleText } = require("../utils/log");
+const { logObject, logText, logElement } = require("../utils/log");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const Event = require("../models/Event");
+const {
+  uniqueNamesGenerator,
+  NumberDictionary,
+} = require("unique-names-generator");
 
 const getApiKeys = async (deviceName) => {
   logText("...................................");
   logText("getting api keys...");
   const deviceDetails = await Device.find({ name: deviceName }).exec();
-  logSingleText("the write key", deviceDetails.writeKey);
-  logSingleText("the read key", deviceDetails.readKey);
+  logElement("the write key", deviceDetails.writeKey);
+  logElement("the read key", deviceDetails.readKey);
   const writeKey = deviceDetails.writeKey;
   const readKey = deviceDetails.readKey;
   return { writeKey, readKey };
@@ -21,10 +25,9 @@ const getArrayLength = async (array, model, event) => {};
 
 const component = {
   listAll: async (req, res) => {
-    const limit = parseInt(req.query.limit, 0);
-    const skip = parseInt(req.query.skip, 0);
-
     try {
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
       const components = await Component.list({ limit, skip });
       return res.status(HTTPStatus.OK).json(components);
     } catch (e) {
@@ -36,32 +39,38 @@ const component = {
     /**
      * need to map this component to the TS field
      */
-    let {
-      quantityKind,
-      name,
-      measurementUnit,
-      description,
-      calibration,
-    } = req.body;
-
-    let deviceBody = {
-      ...req.body,
-      deviceID: req.params.d_id,
-    };
-
-    /****
-     * ----calibrationBody
-     *   valueMax: {
-        sensorValue: 23,
-        realValue: 34,
-      },
-      valueMin: {
-        sensorValue: 10,
-        realValue: 11,
-      },
+    /***
+     * compares with last entry and
+     * updates the component name accordingly
      */
+    logText("................................");
+    logText("adding component....");
 
     try {
+      let { d_id } = req.params;
+      let { name, measurement, description } = req.body;
+      logObject("measurement", measurement);
+      logObject("description", description);
+
+      const comp = ["comp"];
+      const deviceName = [];
+      deviceName.push(d_id);
+      const kind = [];
+      kind.push(measurement.quantityKind);
+
+      let componentName = uniqueNamesGenerator({
+        dictionaries: [deviceName, comp, kind],
+        separator: "_",
+        length: 3,
+      });
+      logElement("component name", componentName);
+
+      let deviceBody = {
+        ...req.body,
+        deviceID: req.params.d_id,
+        name: componentName,
+      };
+
       const component = await Component.createComponent(deviceBody);
       return res.status(HTTPStatus.CREATED).json({
         success: true,
@@ -72,7 +81,7 @@ const component = {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
         message: "unable to create the component",
-        error: e,
+        error: e.message,
       });
     }
   },
@@ -80,25 +89,31 @@ const component = {
   listOne: async (req, res) => {
     try {
       const component = await Component.find({ name: req.params.c_id }).exec();
-      return res.status(HTTPStatus.OK).json({
-        success: true,
-        message: "successfully listed one component",
-        component,
-      });
+      if (component) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "successfully listed one component",
+          component,
+        });
+      } else if (!component) {
+        return res.status(HTTPStatus.OK).json({
+          success: false,
+          message: "unable to find that component",
+        });
+      }
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        message: "unable to list one component",
+        message: "unable to find that component",
         error: e,
       });
     }
   },
 
   deleteComponent: async (req, res) => {
-    let { c_id, d_id } = req.params;
-    let componentFilter = { name: c_id };
-
     try {
+      let { c_id, d_id } = req.params;
+      let componentFilter = { name: c_id };
       Component.findOneAndRemove(componentFilter, (err, removedComponent) => {
         if (err) {
           return res.status(HTTPStatus.OK).json({
@@ -122,8 +137,8 @@ const component = {
   },
 
   updateComponent: async (req, res) => {
-    let { c_id, d_id } = req.params;
     try {
+      let { c_id, d_id } = req.params;
       let componentFilter = { name: c_id };
       await Component.findOneAndUpdate(
         componentFilter,
