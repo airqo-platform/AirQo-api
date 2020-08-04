@@ -27,19 +27,29 @@ const { logObject, logElement, logText } = require("../utils/log");
 
 const doesDeviceExist = async (deviceName) => {
   const device = await Device.find({ name: deviceName }).exec();
-  if (device) {
+  if (!isEmpty(device)) {
     return true;
-  } else {
+  } else if (isEmpty(device)) {
     return false;
   }
 };
 
-const getChannelID = async (deviceName) => {
-  logText("...................................");
-  logText("getting channel ID...");
-  const deviceDetails = await Device.find({ name: deviceName }).exec();
-  logElement("the channel ID", deviceDetails.channelID);
-  return deviceDetails.channelID;
+const getChannelID = async (req, res, deviceName) => {
+  try {
+    logText("...................................");
+    logText("getting channel ID...");
+    const deviceDetails = await Device.find({ name: deviceName }).exec();
+    logObject("the device details", deviceDetails[0]._doc);
+    logElement("the channel ID", deviceDetails[0]._doc.channelID);
+    let channeID = deviceDetails[0]._doc.channelID;
+    return channeID;
+  } catch (e) {
+    return res.status(HTTPStatus.BAD_GATEWAY).json({
+      success: false,
+      message: "unable to get the corresponding TS ID",
+      error: e.message,
+    });
+  }
 };
 
 const getApiKeys = async (deviceName) => {
@@ -275,6 +285,7 @@ const updateThingBodies = (req, res) => {
     mobility,
     height,
     mountType,
+    visibility,
     ISP,
     phoneNumber,
     device_manufacturer,
@@ -300,7 +311,7 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(latitude) && { latitude: latitude }),
     ...(!isEmpty(longitude) && { longitude: longitude }),
     ...(!isEmpty(description) && { description: description }),
-    ...(!isEmpty(public_flag) && { visibility: public_flag }),
+    ...(!isEmpty(visibility) && { visibility: visibility }),
     ...(!isEmpty(product_name) && { product_name: product_name }),
     ...(!isEmpty(powerType) && { powerType: powerType }),
     ...(!isEmpty(mountType) && { mountType: mountType }),
@@ -323,13 +334,12 @@ const updateThingBodies = (req, res) => {
   };
 
   let tsBody = {
-    ...(!isEmpty(name) && { name: name }),
     ...(!isEmpty(elevation) && { elevation: elevation }),
     ...(!isEmpty(tags) && { tags: tags }),
     ...(!isEmpty(latitude) && { latitude: latitude }),
     ...(!isEmpty(longitude) && { longitude: longitude }),
     ...(!isEmpty(description) && { description: description }),
-    ...(!isEmpty(public_flag) && { public_flag: public_flag }),
+    ...(!isEmpty(visibility) && { public_flag: visibility }),
   };
 
   return { deviceBody, tsBody };
@@ -635,49 +645,41 @@ const device = {
     try {
       const { device } = req.query;
       if (doesDeviceExist(device)) {
-        const channelID = getChannelID(device);
-        if (channelID) {
-          logText("deleting device from TS.......");
-          await axios
-            .delete(constants.DELETE_THING_URL(deviceDetails.channelID))
-            .then(async (response) => {
-              logText("successfully deleted device from TS");
-              logObject("TS response data", response.data);
-              logText("deleting device from DB.......");
-              const deviceRemovedFromDB = await Device.findOneAndRemove({
-                name: device,
-              }).exec();
-              if (deviceRemovedFromDB) {
-                let deviceDeleted = response.data;
-                logText("successfully deleted device from DB");
-                res.status(200).json({
-                  message: "successfully deleted the device from DB",
-                  success: true,
-                  deviceDeleted,
-                });
-              } else if (!deviceRemovedFromDB) {
-                res.status(500).json({
-                  message: "unable to the device from DB",
-                  success: false,
-                  deviceDetails: device,
-                });
-              }
-            })
-            .catch(function(error) {
-              logElement("unable to delete device from TS", error);
-              res.status(500).json({
-                message: "unable to delete the device from TS",
-                success: false,
-                error,
+        const channelID = getChannelID(req, res, device);
+        logText("deleting device from TS.......");
+        await axios
+          .delete(constants.DELETE_THING_URL(channelID))
+          .then(async (response) => {
+            logText("successfully deleted device from TS");
+            logObject("TS response data", response.data);
+            logText("deleting device from DB.......");
+            const deviceRemovedFromDB = await Device.findOneAndRemove({
+              name: device,
+            }).exec();
+            if (deviceRemovedFromDB) {
+              let deviceDeleted = response.data;
+              logText("successfully deleted device from DB");
+              res.status(200).json({
+                message: "successfully deleted the device from DB",
+                success: true,
+                deviceDeleted,
               });
+            } else if (!deviceRemovedFromDB) {
+              res.status(500).json({
+                message: "unable to the device from DB",
+                success: false,
+                deviceDetails: device,
+              });
+            }
+          })
+          .catch(function(error) {
+            logElement("unable to delete device from TS", error);
+            res.status(500).json({
+              message: "unable to delete the device from TS",
+              success: false,
+              error,
             });
-        } else {
-          logText("device does not exist on TS");
-          res.status(500).json({
-            message: "device does not exist on TS",
-            success: false,
           });
-        }
       } else {
         logText("device does not exist in DB");
         res.status(500).json({
@@ -700,7 +702,7 @@ const device = {
         logText("...................................");
         logText("clearing the Thing....");
         //lets first get the channel ID
-        const channelID = getChannelID(device);
+        const channelID = getChannelID(req, res, device);
         if (channelID) {
           await axios
             .delete(CLEAR_THING_URL(deviceDetails.channelID))
@@ -757,14 +759,30 @@ const device = {
   updateThingSettings: async (req, res) => {
     try {
       const { device } = req.query;
-      if (doesDeviceExist(device)) {
-        let { tsBody, deviceBody } = updateThingBodies(req, res);
-        const channelID = getChannelID(device);
-        const deviceFilter = { name: device };
-        //update the device in TS
-        //on success update, then update the device details accordingly.
+      const channelID = await getChannelID(req, res, device);
+      logText(".............................................");
+      logText("updating the thing...");
+      const deviceFilter = { name: device };
+      if (!doesDeviceExist(device)) {
+        logText(`device ${device} does not exist in DB`);
+        res.status(500).json({
+          message: `device ${device} does not exist`,
+          success: false,
+        });
+      }
+      let { tsBody, deviceBody } = updateThingBodies(req, res);
+      logObject("TS body", tsBody);
+      logObject("device body", deviceBody);
+      const config = {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      };
+      //update the device in TS
+      //on success update, then update the device details accordingly.
+      if (!isEmpty(channelID)) {
         await axios
-          .put(constants.UPDATE_THING(channelID), tsBody)
+          .put(constants.UPDATE_THING(channelID), tsBody, config)
           .then(async (response) => {
             logText(`successfully updated device ${device} in TS`);
             logElement("response from TS", response.data);
@@ -791,17 +809,17 @@ const device = {
             }
           })
           .catch(function(error) {
-            logText("unable to update the device settings in TS", error);
+            logElement("unable to update the device settings in TS", error);
             res.status(500).json({
               message: "unable to update the device settings in TS",
               success: false,
-              error,
+              error: error.message,
             });
           });
-      } else {
-        logText(`device ${device} does not exist in DB`);
-        res.status(500).json({
-          message: `device ${device} does not exist`,
+      } else if (isEmpty(channelID)) {
+        logText("channel ID does not exist in TS");
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          message: `channel ID for device "${device}" does not exist in TS`,
           success: false,
         });
       }

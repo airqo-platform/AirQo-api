@@ -1,3 +1,5 @@
+const { logElement } = require("../utils/log");
+
 const devConfig = {
   MONGO_URL: `mongodb://localhost/`,
   DB_NAME: process.env.MONGO_DEV,
@@ -82,19 +84,19 @@ const defaultConfig = {
   PORT: process.env.PORT || 3000,
   CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
   DELETE_THING_URL: (device) => {
-    `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   CLEAR_THING_URL: (device) => {
-    `https://api.thingspeak.com/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
+    return `https://api.thingspeak.com/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
   },
   UPDATE_THING: (device) => {
-    `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   ADD_VALUE: (field, value, apiKey) => {
     `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
   },
   ADD_VALUES: (device) => {
-    `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
+    return `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
   },
 };
 
