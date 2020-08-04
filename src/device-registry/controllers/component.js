@@ -131,23 +131,52 @@ const component = {
 
   deleteComponent: async (req, res) => {
     try {
-      let { c_id, d_id } = req.params;
-      let componentFilter = { name: c_id };
-      Component.findOneAndRemove(componentFilter, (err, removedComponent) => {
-        if (err) {
-          return res.status(HTTPStatus.OK).json({
-            err,
+      logText("...........................................");
+      let { device, comp } = req.query;
+      /***
+       * we need to first find the component
+       */
+      if (component && device) {
+        const component = await Component.find({
+          name: comp,
+          deviceID: device,
+        }).exec();
+        logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(component));
+
+        if (isEmpty(component)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: "unable to delete component",
-          });
-        } else {
-          return res.status(HTTPStatus.OK).json({
-            removedComponent,
-            success: true,
-            message: " component successfully deleted",
+            message: `component "${comp}" of device "${device}" does not exist in the platform`,
           });
         }
-      });
+        let componentFilter = { name: comp };
+        if (!isEmpty(component)) {
+          Component.findOneAndRemove(
+            componentFilter,
+            (err, removedComponent) => {
+              if (err) {
+                return res.status(HTTPStatus.BAD_GATEWAY).json({
+                  err,
+                  success: false,
+                  message: "unable to delete component",
+                });
+              } else {
+                return res.status(HTTPStatus.OK).json({
+                  removedComponent,
+                  success: true,
+                  message: " component successfully deleted",
+                });
+              }
+            }
+          );
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "please crosscheck your query parameters, should contain both device & comp for this usecase",
+        });
+      }
     } catch (e) {
       return res
         .status(HTTPStatus.BAD_REQUEST)
