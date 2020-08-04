@@ -65,7 +65,8 @@ componentSchema.methods = {
       measurement: this.measurement,
       createdAt: this.createdAt,
       description: this.description,
-      deviceID: this.device,
+      deviceID: this.deviceID,
+      calibration: this.calibration,
     };
   },
 };
