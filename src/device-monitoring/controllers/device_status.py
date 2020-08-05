@@ -245,18 +245,21 @@ def get_all_online_offline():
             devices_with_coordinates =[]
             for device in result['online_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
-                    
-                    mapped_device = {
-                        'channelId':device['channelID'],
-                        'latitude': device['latitude'],
-                        'locationId': device['location_id'],
-                        'longitude': device['longitude'],
-                         'power': device['power'],
-                         'productName': device['product_name'],
-                         'phoneNumber': device['phoneNumber'],
-                         'isOnline': True
-                    }
-                    devices_with_coordinates.append(mapped_device)
+                    if "nextMaintenance" in device:
+                                        
+                        mapped_device = {
+                            'channelId':device['channelID'],
+                            'latitude': device['latitude'],
+                            'locationId': device['location_id'],
+                            'longitude': device['longitude'],
+                            'power': device['power'],
+                            'productName': device['product_name'],
+                            'phoneNumber': device['phoneNumber'],
+                            'nextMaintenance': device['nextMaintenance'],
+                            'isOnline': True,
+                            'isDueMaintenance': False
+                        }
+                        devices_with_coordinates.append(mapped_device)
 
             for device in result['offline_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
