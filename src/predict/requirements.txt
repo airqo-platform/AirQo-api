@@ -24,5 +24,11 @@ pytest>=4.6.6,<5.0.0
 gunicorn==20.0.4
 
 #google cloud services
-google-cloud-bigquery==1.22.0
+google-cloud-bigquery==1.26.1
 #google-python-cloud-debugger==2.14
+google-resumable-media==0.6.0
+google-cloud-storage==1.30.0
+gcsfs==0.6.2
+lightgbm==2.3.1
+pymongo==3.10.1
+Flask-PyMongo==2.3.0
