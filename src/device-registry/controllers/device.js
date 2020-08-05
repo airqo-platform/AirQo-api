@@ -26,10 +26,17 @@ const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
 
 const doesDeviceExist = async (deviceName) => {
-  const device = await Device.find({ name: deviceName }).exec();
-  if (!isEmpty(device)) {
-    return true;
-  } else if (isEmpty(device)) {
+  try {
+    logText(".......................................");
+    logText("doesDeviceExist?...");
+    const device = await Device.find({ name: deviceName }).exec();
+    if (!isEmpty(device)) {
+      return true;
+    } else if (isEmpty(device)) {
+      return false;
+    }
+  } catch (e) {
+    logElement("unable to check device existence in system", e);
     return false;
   }
 };
@@ -334,6 +341,7 @@ const updateThingBodies = (req, res) => {
   };
 
   let tsBody = {
+    ...(!isEmpty(name) && { name: name }),
     ...(!isEmpty(elevation) && { elevation: elevation }),
     ...(!isEmpty(tags) && { tags: tags }),
     ...(!isEmpty(latitude) && { latitude: latitude }),
@@ -546,15 +554,17 @@ const device = {
   /********************************* create Thing ****************************** */
   createThing: async (req, res) => {
     const baseUrl = constants.CREATE_THING_URL;
-    let bodyPrep = {
-      ...req.body,
+    let { name } = req.body;
+    let { tsBody, deviceBody } = updateThingBodies(req, res);
+    let prepBodyTS = {
+      ...tsBody,
       ...constants.DEVICE_CREATION,
     };
     try {
-      if (!doesDeviceExist(req.body.name)) {
+      if (doesDeviceExist(name)) {
         logText("adding device on TS...");
         await axios
-          .post(baseUrl, bodyPrep)
+          .post(baseUrl, prepBodyTS)
           .then(async (response) => {
             logObject("the response from TS", response);
             let writeKey = response.data.api_keys[0].write_flag
@@ -563,15 +573,16 @@ const device = {
             let readKey = !response.data.api_keys[1].write_flag
               ? response.data.api_keys[1].api_key
               : "";
-            let deviceBody = {
-              ...req.body,
+            let prepBodyDevice = {
+              ...deviceBody,
               channelID: `${response.data.id}`,
               writeKey: writeKey,
               readKey: readKey,
             };
             logText("adding the device in the DB...");
-            const device = await Device.createDevice(deviceBody);
+            const device = await Device.createDevice(prepBodyDevice);
             logObject("DB addition response", device);
+            logText("device created on TS.....");
             device.then((device) => {
               logObject("the added device", device);
               return res.status(HTTPStatus.CREATED).json({
@@ -593,7 +604,7 @@ const device = {
       } else {
         res.status(400).json({
           success: false,
-          message: "device already exists!",
+          message: `device "${name}" already exists!`,
         });
       }
     } catch (e) {
