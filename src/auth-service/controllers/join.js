@@ -16,7 +16,7 @@ const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
 var generatorPassword = require("generate-password");
 const log = require("../utils/log");
-const { getModelByTenant } = require("../config/dbConnection");
+const { getModelByTenant, getTenantDB } = require("../config/dbConnection");
 
 const join = {
   addUserByTenant: async (req, res) => {

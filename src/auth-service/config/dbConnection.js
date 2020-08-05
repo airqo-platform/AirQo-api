@@ -55,7 +55,6 @@ const getTenantDB = (tenantId, modelName, schema) => {
     db.model(modelName, schema);
     return db;
   }
-  //   return throwError(500, codes.CODE_8004);
 };
 
 //return model as per tenant
