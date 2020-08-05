@@ -30,6 +30,9 @@ const doesDeviceExist = async (deviceName) => {
     logText(".......................................");
     logText("doesDeviceExist?...");
     const device = await Device.find({ name: deviceName }).exec();
+    logElement("device element", device);
+    logObject("device Object", device);
+    logElement("does device exist?", !isEmpty(device));
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {
@@ -553,19 +556,22 @@ const device = {
 
   /********************************* create Thing ****************************** */
   createThing: async (req, res) => {
-    const baseUrl = constants.CREATE_THING_URL;
-    let { name } = req.body;
-    let { tsBody, deviceBody } = updateThingBodies(req, res);
-    let prepBodyTS = {
-      ...tsBody,
-      ...constants.DEVICE_CREATION,
-    };
     try {
-      if (doesDeviceExist(name)) {
+      const baseUrl = constants.CREATE_THING_URL;
+      let { name } = req.body;
+      let { tsBody, deviceBody } = updateThingBodies(req, res);
+      let prepBodyTS = {
+        ...tsBody,
+        ...constants.DEVICE_CREATION,
+      };
+      let isDevicePresent = await doesDeviceExist(name);
+      logElement("isDevicePresent ?", isDevicePresent);
+      if (!isDevicePresent) {
         logText("adding device on TS...");
         await axios
           .post(baseUrl, prepBodyTS)
           .then(async (response) => {
+            logText("device successfully created on TS.");
             logObject("the response from TS", response);
             let writeKey = response.data.api_keys[0].write_flag
               ? response.data.api_keys[0].api_key
@@ -581,15 +587,11 @@ const device = {
             };
             logText("adding the device in the DB...");
             const device = await Device.createDevice(prepBodyDevice);
-            logObject("DB addition response", device);
-            logText("device created on TS.....");
-            device.then((device) => {
-              logObject("the added device", device);
-              return res.status(HTTPStatus.CREATED).json({
-                success: true,
-                message: "successfully created the device",
-                device,
-              });
+            logElement("DB addition response", device);
+            return res.status(HTTPStatus.CREATED).json({
+              success: true,
+              message: "successfully created the device",
+              device,
             });
           })
           .catch((e) => {
