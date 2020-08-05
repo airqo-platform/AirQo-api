@@ -5,7 +5,10 @@ const { logObject, logText, logElement } = require("../utils/log");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const Event = require("../models/Event");
-const { uniqueNamesGenerator } = require("unique-names-generator");
+const {
+  uniqueNamesGenerator,
+  NumberDictionary,
+} = require("unique-names-generator");
 
 const getApiKeys = async (deviceName) => {
   logText("...................................");
@@ -19,6 +22,25 @@ const getApiKeys = async (deviceName) => {
 };
 
 const getArrayLength = async (array, model, event) => {};
+
+const doesComponentExist = async (componentName) => {
+  try {
+    logText(".......................................");
+    logText("doesComponentExist?...");
+    const component = await Component.find({ name: componentName }).exec();
+    logElement("component element", component);
+    logObject("component Object", component);
+    logElement("does component exist?", !isEmpty(component));
+    if (!isEmpty(component)) {
+      return true;
+    } else if (isEmpty(component)) {
+      return false;
+    }
+  } catch (e) {
+    logElement("unable to check component existence in system", e);
+    return false;
+  }
+};
 
 const component = {
   listAll: async (req, res) => {
@@ -92,29 +114,40 @@ const component = {
     try {
       let { device } = req.query;
       let { measurement, description } = req.body;
+
+      let isComponentPresent = await doesComponentExist(device);
+      logElement("isComponentPresent ?", isComponentPresent);
+
       logObject("measurement", measurement);
       logObject("description", description);
 
       const comp = ["comp"];
       const deviceName = [];
       deviceName.push(device);
-      const kind = [];
-      kind.push(measurement[0].quantityKind);
-
+      const numberDictionary = NumberDictionary.generate({
+        min: 0,
+        max: 99,
+      });
       let componentName = uniqueNamesGenerator({
-        dictionaries: [deviceName, comp, kind],
+        dictionaries: [deviceName, comp, numberDictionary],
         separator: "_",
         length: 3,
       });
-      logElement("component name", componentName);
 
-      let deviceBody = {
+      logElement("component name", componentName);
+      logElement("componentNameWhenDeviceExists", componentName);
+
+      let componentBody = {
         ...req.body,
         deviceID: device,
         name: componentName,
       };
 
-      const component = await Component.createComponent(deviceBody);
+      const component = await Component.createComponent(componentBody);
+
+      logElement("the component element", component);
+      logObject("the component object", component);
+
       return res.status(HTTPStatus.CREATED).json({
         success: true,
         message: "successfully created the component",
