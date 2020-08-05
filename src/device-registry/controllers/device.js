@@ -658,8 +658,9 @@ const device = {
     try {
       const { device } = req.query;
       if (doesDeviceExist(device)) {
-        const channelID = getChannelID(req, res, device);
+        const channelID = await getChannelID(req, res, device);
         logText("deleting device from TS.......");
+        logElement("the channel ID", channelID);
         await axios
           .delete(constants.DELETE_THING_URL(channelID))
           .then(async (response) => {
