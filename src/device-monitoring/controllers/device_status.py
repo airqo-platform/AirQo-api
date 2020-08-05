@@ -257,7 +257,7 @@ def get_all_online_offline():
                             'phoneNumber': device['phoneNumber'],
                             'nextMaintenance': device['nextMaintenance'],
                             'isOnline': True,
-                            'isOverDueMaintenance': False
+                            'isDueMaintenance': "codeGreen"
                         }
                         devices_with_coordinates.append(mapped_device)
 
@@ -274,7 +274,7 @@ def get_all_online_offline():
                             'phoneNumber': device['phoneNumber'],
                             'nextMaintenance': "null",
                             'isOnline': True,
-                            'isOverDueMaintenance': True
+                            'isDueMaintenance': "codeRed"
                         }
                         devices_with_coordinates.append(mapped_device)
 
@@ -292,27 +292,29 @@ def get_all_online_offline():
                             'phoneNumber': device['phoneNumber'],
                             'isOnline': False,
                             'nextMaintenance': device['nextMaintenance'],
-                            'isOverDueMaintenance': False
+                            'isDueMaintenance': "codeGreen"
                         }
                         devices_with_coordinates.append(mapped_device)  
 
             for device in result['offline_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None) :
-                     if "nextMaintenance" not in device:
+                #if "true" in device['isActive'] :
+                if "nextMaintenance" not in device:
+                    if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                        if "nextMaintenance" not in device:
                     
-                        mapped_device = {
-                            'channelId':device['channelID'],
-                            'latitude': device['latitude'],
-                            'locationId': device['location_id'],
-                            'longitude': device['longitude'],
-                            'power': device['power'],
-                            'productName': device['product_name'],
-                            'phoneNumber': device['phoneNumber'],
-                            'isOnline': False,
-                            'nextMaintenance': "null",
-                            'isOverDueMaintenance': True
-                        }
-                        devices_with_coordinates.append(mapped_device)               
+                            mapped_device = {
+                                'channelId':device['channelID'],
+                                'latitude': device['latitude'],
+                                'locationId': device['location_id'],
+                                'longitude': device['longitude'],
+                                'power': device['power'],
+                                'productName': device['product_name'],
+                                'phoneNumber': device['phoneNumber'],
+                                'isOnline': False,
+                                'nextMaintenance': "null",
+                                'isDueMaintenance': "codeRed"
+                            }
+                            devices_with_coordinates.append(mapped_device)               
                     
 
             response = {'online_offline_devices': devices_with_coordinates}
