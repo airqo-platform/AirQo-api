@@ -357,33 +357,10 @@ const updateThingBodies = (req, res) => {
   return { deviceBody, tsBody };
 };
 
-const clearDeviceBody = () => {
-  let deviceBody = {
-    name: "",
-    latitude: null,
-    longitude: null,
-    description: "",
-    public_flag: false,
-    readKey: "",
-    writeKey: "",
-    mobility: false,
-    height: null,
-    mountType: "",
-    ISP: "",
-    phoneNumber: null,
-    device_manufacturer: "",
-    product_name: "",
-    powerType: "",
-    locationID: "",
-    host: {},
-    isPrimaryInLocation: false,
-    isUsedForCollocation: false,
-    nextMaintenance: "",
-    channelID: "",
-    isActive: false,
-  };
+const clearEventsBody = () => {
+  let eventsBody = {};
 
-  return { deviceBody };
+  return { eventsBody };
 };
 
 const doLocationActivity = async (
@@ -658,6 +635,13 @@ const device = {
   deleteThing: async (req, res) => {
     try {
       const { device } = req.query;
+      if (!device) {
+        res.status(400).json({
+          message:
+            "please use the correct query parameter, check API documentation",
+          success: false,
+        });
+      }
       if (doesDeviceExist(device)) {
         const channelID = await getChannelID(req, res, device);
         logText("deleting device from TS.......");
@@ -712,44 +696,33 @@ const device = {
   clearThing: async (req, res) => {
     try {
       const { device } = req.query;
+      if (!device) {
+        res.status(400).json({
+          message:
+            "please use the correct query parameter, check API documentation",
+          success: false,
+        });
+      }
       let isDevicePresent = await doesDeviceExist(device);
       logElement("isDevicePresent ?", isDevicePresent);
       if (isDevicePresent) {
         //get the thing's channel ID
-        logText("...................................");
-        logText("clearing the Thing....");
         //lets first get the channel ID
         const channelID = await getChannelID(req, res, device);
+        logText("...................................");
+        logText("clearing the Thing....");
+        logElement("url", constants.CLEAR_THING_URL(channelID));
         await axios
-          .delete(CLEAR_THING_URL(channelID))
+          .delete(constants.CLEAR_THING_URL(channelID))
           .then(async (response) => {
             logText("successfully cleared the device in TS");
             logObject("response from TS", response.data);
-            logText("clearing the device in DB....");
-            //this is more like updating a document
-            //first get the body I need
-            let { deviceBody } = clearDeviceBody();
-            //use the body to update the document.
-            let updatedDevice = await Device.findOneAndUpdate(
-              { name: device },
-              deviceBody,
-              { new: true }
-            );
-            if (updatedDevice) {
-              res.status(200).json({
-                message: `successfully cleared the data for device ${device}`,
-                success: true,
-                updatedDevice,
-              });
-            } else {
-              logText(
-                `unable to clear the data for device ${device} in the DB`
-              );
-              res.status(500).json({
-                message: `unable to clear the data for device ${device} in the DB`,
-                success: false,
-              });
-            }
+            res.status(200).json({
+              message: `successfully cleared the data for device ${device}`,
+              success: true,
+              updatedDevice,
+            });
+            //will clear data from Events table
           })
           .catch(function(error) {
             console.log(error);
@@ -775,6 +748,13 @@ const device = {
   updateThingSettings: async (req, res) => {
     try {
       let { device } = req.query;
+      if (!device) {
+        res.status(400).json({
+          message:
+            "please use the correct query parameter, check API documentation",
+          success: false,
+        });
+      }
       let isDevicePresent = await doesDeviceExist(device);
       logElement("isDevicePresent ?", isDevicePresent);
 
