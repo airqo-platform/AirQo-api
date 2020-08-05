@@ -24,6 +24,7 @@ const request = require("request");
 const axios = require("axios");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
+const qs = require("qs");
 
 const doesDeviceExist = async (deviceName) => {
   try {
@@ -49,7 +50,7 @@ const getChannelID = async (req, res, deviceName) => {
     logText("...................................");
     logText("getting channel ID...");
     const deviceDetails = await Device.find({ name: deviceName }).exec();
-    logObject("the device details", deviceDetails[0]._doc);
+    logObject("the device details", deviceDetails);
     logElement("the channel ID", deviceDetails[0]._doc.channelID);
     let channeID = deviceDetails[0]._doc.channelID;
     return channeID;
@@ -710,59 +711,60 @@ const device = {
   /********************************* clear Thing ****************************** */
   clearThing: async (req, res) => {
     try {
-      let { device } = req.query;
-      if (doesDeviceExist(device)) {
+      const { device } = req.query;
+      let isDevicePresent = await doesDeviceExist(device);
+      logElement("isDevicePresent ?", isDevicePresent);
+      if (isDevicePresent) {
         //get the thing's channel ID
         logText("...................................");
         logText("clearing the Thing....");
         //lets first get the channel ID
-        const channelID = getChannelID(req, res, device);
-        if (channelID) {
-          await axios
-            .delete(CLEAR_THING_URL(deviceDetails.channelID))
-            .then(async (response) => {
-              logText("successfully cleared the device in TS");
-              logObject("response from TS", response.data);
-              logText("clearing the device in DB....");
-              //this is more like updating a document
-              //first get the body I need
-              let { deviceBody } = clearDeviceBody();
-              //use the body to update the document.
-              let updatedDevice = await Device.findOneAndUpdate(
-                { name: device },
-                deviceBody,
-                { new: true }
-              );
-              if (updatedDevice) {
-                res.status(200).json({
-                  message: `successfully cleared the data for device ${device}`,
-                  success: true,
-                  updatedDevice,
-                });
-              } else {
-                logText(
-                  `unable to clear the data for device ${device} in the DB`
-                );
-                res.status(500).json({
-                  message: `unable to clear the data for device ${device} in the DB`,
-                  success: false,
-                });
-              }
-              logText("...................................");
-            })
-            .catch(function(error) {
-              console.log(error);
-              res.status(500).json({
-                message: `unable to clear the device data, device ${device} does not exist`,
-                success: false,
-                //   error,
+        const channelID = await getChannelID(req, res, device);
+        await axios
+          .delete(CLEAR_THING_URL(channelID))
+          .then(async (response) => {
+            logText("successfully cleared the device in TS");
+            logObject("response from TS", response.data);
+            logText("clearing the device in DB....");
+            //this is more like updating a document
+            //first get the body I need
+            let { deviceBody } = clearDeviceBody();
+            //use the body to update the document.
+            let updatedDevice = await Device.findOneAndUpdate(
+              { name: device },
+              deviceBody,
+              { new: true }
+            );
+            if (updatedDevice) {
+              res.status(200).json({
+                message: `successfully cleared the data for device ${device}`,
+                success: true,
+                updatedDevice,
               });
+            } else {
+              logText(
+                `unable to clear the data for device ${device} in the DB`
+              );
+              res.status(500).json({
+                message: `unable to clear the data for device ${device} in the DB`,
+                success: false,
+              });
+            }
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message: `unable to clear the device data, device ${device} does not exist`,
+              success: false,
+              //   error,
             });
-        } else {
-          logText(`failed to find the channel ID of device ${device}`);
-        }
+          });
       } else {
         logText(`device ${device} does not exist in the system`);
+        res.status(500).json({
+          message: `device ${device} does not exist in the system`,
+          success: false,
+        });
       }
     } catch (e) {
       logText(`unable to clear device ${device}`);
@@ -772,34 +774,32 @@ const device = {
   /********************************* Thing Settings ****************************** */
   updateThingSettings: async (req, res) => {
     try {
-      const { device } = req.query;
-      const channelID = await getChannelID(req, res, device);
-      logText(".............................................");
-      logText("updating the thing...");
-      const deviceFilter = { name: device };
-      if (!doesDeviceExist(device)) {
-        logText(`device ${device} does not exist in DB`);
-        res.status(500).json({
-          message: `device ${device} does not exist`,
-          success: false,
-        });
-      }
-      let { tsBody, deviceBody } = updateThingBodies(req, res);
-      logObject("TS body", tsBody);
-      logObject("device body", deviceBody);
-      const config = {
-        headers: {
-          "Content-Type": "application/x-www-form-urlencoded",
-        },
-      };
-      //update the device in TS
-      //on success update, then update the device details accordingly.
-      if (!isEmpty(channelID)) {
+      let { device } = req.query;
+      let isDevicePresent = await doesDeviceExist(device);
+      logElement("isDevicePresent ?", isDevicePresent);
+
+      if (isDevicePresent) {
+        const channelID = await getChannelID(req, res, device);
+        logText(".............................................");
+        logText("updating the thing.......");
+        logElement("the channel ID", channelID);
+
+        const deviceFilter = { name: device };
+        let { tsBody, deviceBody } = updateThingBodies(req, res);
+        logObject("TS body", tsBody);
+        logObject("device body", deviceBody);
+        logElement("the channel ID", channelID);
+        const config = {
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+        };
+        logElement("the url", constants.UPDATE_THING(channelID));
         await axios
-          .put(constants.UPDATE_THING(channelID), tsBody, config)
+          .put(constants.UPDATE_THING(channelID), qs.stringify(tsBody), config)
           .then(async (response) => {
             logText(`successfully updated device ${device} in TS`);
-            logElement("response from TS", response.data);
+            logObject("response from TS", response.data);
             const updatedDevice = await Device.findOneAndUpdate(
               deviceFilter,
               deviceBody,
@@ -830,10 +830,10 @@ const device = {
               error: error.message,
             });
           });
-      } else if (isEmpty(channelID)) {
-        logText("channel ID does not exist in TS");
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
-          message: `channel ID for device "${device}" does not exist in TS`,
+      } else {
+        logText(`device ${device} does not exist in DB`);
+        res.status(500).json({
+          message: `device ${device} does not exist`,
           success: false,
         });
       }
