@@ -250,7 +250,7 @@ def get_all_online_offline():
                         mapped_device = {
                             'channelId':device['channelID'],
                             'latitude': device['latitude'],
-                            'locationId': device['location_id'],
+                            'locationID': device['locationID'],
                             'longitude': device['longitude'],
                             'power': device['power'],
                             'productName': device['product_name'],
@@ -267,7 +267,7 @@ def get_all_online_offline():
                         mapped_device = {
                             'channelId':device['channelID'],
                             'latitude': device['latitude'],
-                            'locationId': device['location_id'],
+                            'locationID': device['locationID'],
                             'longitude': device['longitude'],
                             'power': device['power'],
                             'productName': device['product_name'],
@@ -285,7 +285,7 @@ def get_all_online_offline():
                         mapped_device = {
                             'channelId':device['channelID'],
                             'latitude': device['latitude'],
-                            'locationId': device['location_id'],
+                            'locationID': device['locationID'],
                             'longitude': device['longitude'],
                             'power': device['power'],
                             'productName': device['product_name'],
@@ -305,7 +305,7 @@ def get_all_online_offline():
                             mapped_device = {
                                 'channelId':device['channelID'],
                                 'latitude': device['latitude'],
-                                'locationId': device['location_id'],
+                                'locationID': device['locationID'],
                                 'longitude': device['longitude'],
                                 'power': device['power'],
                                 'productName': device['product_name'],
