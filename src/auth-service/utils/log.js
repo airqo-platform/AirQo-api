@@ -2,13 +2,13 @@ const logText = (message) => {
   console.log(message);
 };
 
-const logLongText = (message, body) => {
+const logElement = (message, body) => {
   console.log(`${message}` + ": " + `${body}`);
 };
 
 const logObject = (message, object) => {
   console.log(`${message} +": "`);
-  console.log(`${object}`);
+  console.dir(`${object}`);
 };
 
-module.exports = { logText, logLongText, logObject };
+module.exports = { logText, logElement, logObject };
