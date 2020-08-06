@@ -32,6 +32,7 @@ router.post("/loginUser", authUserLocal, joinController.loginUser);
 router.get("/", joinController.listAll);
 router.get("/:id", joinController.listOne);
 router.post("/registerUser", joinController.registerUser);
+router.post("/addWithTenant", joinController.addUserByTenant);
 router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
 router.put("/updatePassword", joinController.updatePassword);

@@ -1,4 +1,4 @@
-const { User, UserSchema } = require("../models/User");
+const UserSchema = require("../models/User");
 const Location = require("../models/Location");
 const Defaults = require("../models/Defaults");
 const HTTPStatus = require("http-status");
@@ -15,28 +15,38 @@ const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
 var generatorPassword = require("generate-password");
-const log = require("../utils/log");
-const { getModelByTenant, getTenantDB } = require("../config/dbConnection");
+const { logElement, logText, logObject } = require("../utils/log");
+const { getModelByTenant } = require("../utils/multitenancy");
 
 const join = {
   addUserByTenant: async (req, res) => {
-    const { tenant } = req.query;
-    const { body } = req;
-    const User = getModelByTenant(tenant, "user", UserSchema);
-    const { err, response } = await User.createUser(body);
-    if (err || !response) {
+    try {
+      logText("...................................");
+      const { tenant } = req.query;
+      const { body } = req;
+      logObject("checking the body", body);
+      const User = getModelByTenant(tenant, "user", UserSchema);
+      const user = await User.createUser(body);
+      if (user) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "User creation successful",
+        });
+      }
+    } catch (e) {
+      logText(`User created with response`, e.message);
       return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: "User creation failed userDao.js",
-        error: err.message,
+        error: e.message,
       });
     }
-    log.info(`User created with response: ${response}`);
-    return response;
   },
 
   listAll: async (req, res) => {
     try {
+      const { tenant } = req.query;
+      const User = getModelByTenant(tenant, "user", UserSchema);
       const users = await User.find(req.query);
       return res.status(HTTPStatus.OK).json({
         success: true,
