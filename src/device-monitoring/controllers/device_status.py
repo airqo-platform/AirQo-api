@@ -251,10 +251,10 @@ def get_all_online_offline():
                     if "nextMaintenance" in device:
                         date_difference = datetime.now()-device['nextMaintenance']
                         print (date_difference.days, file=sys.stderr)
-                        if date_difference.days<0:
-                            codeString = "codeGreen",
-                        elif date_difference.days>14:
-                            codeString = "codeRed",
+                        if date_difference.days<-14:
+                            codeString = "codeGreen"
+                        elif date_difference.days>=0:
+                            codeString = "codeRed"
                         else:
                             codeString = "codeOrange"
                                         
@@ -268,9 +268,7 @@ def get_all_online_offline():
                             'phoneNumber': device['phoneNumber'],
                             'nextMaintenance': device['nextMaintenance'],
                             'isOnline': True,
-                            'isDueMaintenance': codeString[0]
-                            #'isDueMaintenance': "codeGreen"
-                            #'isDueMaintenance': codeString
+                            'isDueMaintenance': codeString
                         }
                         devices_with_coordinates.append(mapped_device)
 
@@ -294,6 +292,13 @@ def get_all_online_offline():
             for device in result['offline_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
                      if "nextMaintenance" in device:
+                        date_difference = datetime.now()-device['nextMaintenance']
+                        if date_difference.days<-14:
+                            codeString = "codeGreen"
+                        elif date_difference.days>=0:
+                            codeString = "codeRed"
+                        else:
+                            codeString = "codeOrange"
                     
                         mapped_device = {
                             'channelId':device['channelID'],
@@ -305,7 +310,7 @@ def get_all_online_offline():
                             'phoneNumber': device['phoneNumber'],
                             'isOnline': False,
                             'nextMaintenance': device['nextMaintenance'],
-                            'isDueMaintenance': "codeGreen"
+                            'isDueMaintenance': codeString
                         }
                         devices_with_coordinates.append(mapped_device)  
 
