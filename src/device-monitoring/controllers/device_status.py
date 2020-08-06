@@ -6,6 +6,8 @@ from helpers import db_helpers, utils
 from models import device_status
 from routes import api
 from flask_cors import CORS
+import sys
+from datetime import datetime
 
 _logger = logging.getLogger(__name__)
 
@@ -241,11 +243,20 @@ def get_all_online_offline():
         documents = model.get_all_devices_latest_status()
         if documents:
             result = documents[0]
+            print(len(result['online_devices']), file=sys.stderr)
             devices_without_coordinates =[]
             devices_with_coordinates =[]
             for device in result['online_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
                     if "nextMaintenance" in device:
+                        date_difference = datetime.now()-device['nextMaintenance']
+                        print (date_difference.days, file=sys.stderr)
+                        if date_difference.days<0:
+                            codeString = "codeGreen",
+                        elif date_difference.days>14:
+                            codeString = "codeRed",
+                        else:
+                            codeString = "codeOrange"
                                         
                         mapped_device = {
                             'channelId':device['channelID'],
@@ -257,7 +268,9 @@ def get_all_online_offline():
                             'phoneNumber': device['phoneNumber'],
                             'nextMaintenance': device['nextMaintenance'],
                             'isOnline': True,
-                            'isDueMaintenance': "codeGreen"
+                            'isDueMaintenance': codeString[0]
+                            #'isDueMaintenance': "codeGreen"
+                            #'isDueMaintenance': codeString
                         }
                         devices_with_coordinates.append(mapped_device)
 
