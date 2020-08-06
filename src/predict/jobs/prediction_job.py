@@ -24,8 +24,8 @@ from joblib import Parallel, delayed
 import datetime as dt
 from datetime import datetime,timedelta
 
-MONGO_URI = os.getenv("MONGO_URI")
-
+#MONGO_URI = os.getenv("MONGO_URI")
+MONGO_URI = 'mongodb://admin:airqo-250220-master@35.224.67.244:27017'
 client = MongoClient(MONGO_URI)
 db=client['airqo_netmanager_staging']
 
@@ -258,9 +258,9 @@ if __name__ == '__main__':
     
     save_next_24hrs_prediction_results(prediction_results)   
 
-    next_24hrs_predictions.to_csv('resultsX.csv')
+    #next_24hrs_predictions.to_csv('resultsX.csv')
     
     print(mean_squared_error(next_24hrs_predictions[TARGET_COL], next_24hrs_predictions['preds']) ** 0.5)
     channel_results = get_predictions_for_channel(next_24hrs_predictions, 672528)
     print(channel_results)
-    channel_results.to_csv('channel_resultsX.csv')
+    #channel_results.to_csv('channel_resultsX.csv')

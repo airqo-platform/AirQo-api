@@ -27,8 +27,8 @@ def query_prediction_data():
     job_config.use_legacy_sql = False
      
     df = client.query(sql,job_config=job_config).to_dataframe()
-    df['created_at'] =  pd.to_datetime(df['created_at'])
-    df['created_at'] = df['created_at'].dt.tz_localize('Africa/Kampala')
+    df['created_at'] =  pd.to_datetime(df['created_at'],format='%Y-%m-%d %H:%M:%S')
+    #df['created_at'] = df['created_at'].dt.tz_localize('Africa/Kampala')
     #time_indexed_data = df.set_index('created_at')
     return df 
 
@@ -66,15 +66,15 @@ def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_pa
   #getting boundarylayer data
   boundary_layer_mapper = get_boundary_layer_mapper(boundary_layer_path)
 
-  forecast_data['created_at'] = forecast_data['created_at'].apply(lambda x: x.replace(r'+03:00', ''))
+  #forecast_data['created_at'] = forecast_data['created_at'].apply(lambda x: x.replace(r'+03:00', ''))
   forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
   forecast_data['date'] = forecast_data['created_at'].dt.date
   forecast_data = forecast_data[forecast_data['channel_id'].isin(metadata['channel_id'])].reset_index(drop=True)
   channel_max_dates = forecast_data.groupby('channel_id').apply(lambda x: x['created_at'].max())
 
   ### Set this as a list of chanels to be used. Can be read from a file.
-  use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
-  #use_channels =  get_all_static_channels()
+  #use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
+  use_channels =  get_all_static_channels()
   
   forecast_data = forecast_data[forecast_data['channel_id'].isin(use_channels)]
 
@@ -90,7 +90,7 @@ def preprocess_metadata(METADATA_PATH):
   drop_fts = ['loc_ref', 'chan_ref', 'loc_mob_stat', 'airqo_name', 'district_lookup', 'county_lookup', 'coords', 'loc_start_date', 'loc_end_date', 'gmaps_link',
               'OSM_link', 'nearby_sources', 'geometry', 'geometry_43', 'event_logging_link']
   metadata = metadata.drop(drop_fts, axis=1)
-  metadata.to_csv('metadata_to_use.csv', index = False)
+  #metadata.to_csv('metadata_to_use.csv', index = False)
 
   return metadata
 
@@ -135,7 +135,7 @@ def make_train():
 
   ### Aggregate data every 1 hour using mean
   all_channels = train_forecast_data['channel_id'].unique()
-  joblib.dump(all_channels, 'all_channels.pkl')
+  #joblib.dump(all_channels, 'all_channels.pkl')
 
   op = Parallel(n_jobs = -1)(delayed(get_agg_channel_data_train)(chan_num,train_forecast_data, freq='1H') for chan_num in all_channels)
   train = pd.concat(op, axis=0).reset_index(drop=True)[train_forecast_data.columns.tolist()]
@@ -229,16 +229,16 @@ def initialise_training_constants():
     test_start_datetime = date_to_str(datetime.now())
     test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
 
-    TEST_DATE_HOUR_START = pd.to_datetime('2020-07-12 09:00:00')
+    TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
 
     ### Prediction will end at this date-hour
-    TEST_DATE_HOUR_END = pd.to_datetime('2020-07-13 08:00:00')
+    TEST_DATE_HOUR_END = pd.to_datetime(test_end_datetime)
 
     ### Training will start at this date-hour
     TRAIN_DATE_HOUR_START = pd.to_datetime('2019-06-01 00:00:00')
 
     ### Training will end at this date-hour
-    TRAIN_DATE_HOUR_END = pd.to_datetime('2020-07-11 08:00:00')
+    TRAIN_DATE_HOUR_END = pd.to_datetime(date_to_str(datetime.now()))
 
     ### Boolean value to indicate whether to train or only predict
     TRAIN_MODEL_NOW = True
@@ -250,9 +250,6 @@ def initialise_training_constants():
     FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data.csv'
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
-
-    ### Trained Model Path. Not required if TRAIN_MODEL_NOW = True
-    TRAIN_MODEL_PATH = 'model.pkl'
 
     N_HRS_BACK = 24 
     SEQ_LEN = 24
@@ -273,14 +270,15 @@ def initialise_training_constants():
         clf = train_model(train)
 
         ##dump the model to google cloud storage.
-        joblib.dump(clf, 'model.pkl')
+        #joblib.dump(clf, 'model.pkl')
+        upload_trained_model_to_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
 
 
 def get_next_24hrs_predictions():
     #load & preprocess test data:
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
-    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data.csv'
+    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data_.csv'
     
     #boundary_layer_mapper = get_boundary_layer_mapper(BOUNDARY_LAYER_PATH)
     forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH)
@@ -300,9 +298,9 @@ def get_next_24hrs_predictions():
     TARGET_COL = 'pm2_5'
     
     CHANNELS_TO_PREDICT_PATH = 'all_channels.pkl' 
-    #TODO:load model from google cloud storage
-    TRAIN_MODEL_PATH = 'model.pkl'
-    clf = joblib.load(TRAIN_MODEL_PATH)
+    clf = get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
+    #TRAIN_MODEL_PATH = 'model.pkl'
+    #clf = joblib.load(TRAIN_MODEL_PATH)
    
     test_forecast_data = forecast_data[(forecast_data['created_at'] >= TEST_LAG_LAST_DATE_HOUR) & (forecast_data['created_at'] <= TEST_DATE_HOUR_END + pd.Timedelta(days=2))].drop('date', axis=1)
     #TODO:get the channelIds to use for prediction
@@ -390,12 +388,8 @@ if __name__ == '__main__':
     #list_buckets()
     #upload_blob('airqo_prediction_bucket', 'E:\Work\AirQo\AirQo-api\src\predict\jobs\model.pkl', 'model.pkl')
     #download_blob('airqo_prediction_bucket','model.pkl','model_downloaded2.pkl')
-    #initialise_training_constants()
-    TARGET_COL = 'pm2_5'
-    next_24hrs_predictions = get_next_24hrs_predictions()
-    next_24hrs_predictions.to_csv('results.csv')
+    initialise_training_constants()
     
-    print(mean_squared_error(next_24hrs_predictions[TARGET_COL], next_24hrs_predictions['preds']) ** 0.5)
-    channel_results = get_predictions_for_channel(next_24hrs_predictions, 672528)
-    print(channel_results)
-    channel_results.to_csv('channel_results.csv')
+    
+    
+    
