@@ -2,9 +2,10 @@ const mongoose = require("mongoose");
 const constants = require("./constants");
 const log = require("../utils/log");
 const URI = `mongodb://localhost/`;
+const { logElement, logText, logObject } = require("../utils/log");
 // const URI = constants.MONGO_URI;
-log.logLongText("environment", process.env.NODE_ENV);
-log.logLongText("the URI string", URI);
+logElement("environment", process.env.NODE_ENV);
+logElement("the URI string", URI);
 
 //the DB connection options....
 const options = {
@@ -47,21 +48,4 @@ const connectToMongoDB = () => {
 
 const mongodb = connectToMongoDB();
 
-// creating a new mongoDB connection by switching tenant
-const getTenantDB = (tenantId, modelName, schema) => {
-  const dbName = `${constants.DB_NAME}+"_"+${tenantId}`;
-  if (mongodb) {
-    const db = mongodb.useDb(dbName, { useCache: true });
-    db.model(modelName, schema);
-    return db;
-  }
-};
-
-//return model as per tenant
-const getModelByTenant = (tenantId, modelName, schema) => {
-  log.logLongText("getModelByTenant tenantId", tenantId);
-  const tenantDb = getTenantDB(tenantId, modelName, schema);
-  return tenantDb.model(modelName);
-};
-
-module.exports = { getTenantDB, getModelByTenant, connectToMongoDB };
+module.exports = mongodb;

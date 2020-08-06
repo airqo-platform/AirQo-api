@@ -8,13 +8,8 @@ var cookieParser = require("cookie-parser");
 var bodyParser = require("body-parser");
 
 var api = require("./routes/api");
-const { connectToMongoDB } = require("./config/dbConnection");
-connectToMongoDB();
-
-// const {
-//     bindCurrentNamespace,
-//     setCurrentTenantId,
-// } = require("./config/storage");
+const { mongodb } = require("./config/dbConnection");
+mongodb;
 
 var app = express();
 
@@ -29,17 +24,6 @@ app.use(express.static(path.join(__dirname, "public")));
 // app.use(bindCurrentNamespace);
 
 app.use("/api/v1/users", api);
-
-app.use((req, res, next) => {
-  //get current user from session or token
-  const user = req.user;
-  // Get current tenant from user here
-  // Make sure its a string
-  const tenantId = user.organization._id.toString();
-
-  setCurrentTenantId("tenantId", tenantId);
-  next();
-});
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
