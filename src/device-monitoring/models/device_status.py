@@ -27,13 +27,14 @@ class DeviceStatus():
     # get device maintenance log infromation
     def get_device_maintenance_log(self):
         db = db_helpers.connect_mongo()
-        documents = db.maintenance_log.find({})
+        documents = db.activities.find({"activityType":"maintenance"})
         return documents
 
      # get maintenance log for a given device name/id
     def get_device_name_maintenance_log(self, device_name):
         db = db_helpers.connect_mongo()
-        documents = db.maintenance_log.find({'device': device_name})
+        #documents = db.maintenance_log.find({'device': device_name})
+        documents = db.activities.find({'activityType':'maintenance', 'device': device_name})
         return documents
 
     # get devices status infromation
