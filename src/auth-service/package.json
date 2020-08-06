@@ -6,8 +6,11 @@
     "scripts": {
         "start": "./bin/www",
         "dev": "NODE_ENV=development nodemon ./bin/www",
+        "dev-pc": "SET NODE_ENV=development&&nodemon ./bin/www",
         "prod": "NODE_ENV=production nodemon ./bin/www",
+        "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
         "test": "NODE_ENV=test nodemon ./bin/www",
+        "test-pc": "SET NODE_ENV=test&&nodemon ./bin/www",
         "create-env": "printenv > .env"
     },
     "dependencies": {
