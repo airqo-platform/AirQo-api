@@ -1,10 +1,3 @@
-// Using DataStore from GCP
-// const { instances } = require("gstore-node");
-// const gstoreDefaultInstance = instances.get("default");
-// const gstoreWithCache = instances.get("cache-on");
-// const gstoreStaging = instances.get("staging");
-// const Schema = gstoreDefaultInstance.Schema;
-
 //const DataAccess = require("../config/das");
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
@@ -15,7 +8,6 @@ const saltRounds = 10;
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { tenantModel } = require("../config/multiTenant");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -82,6 +74,7 @@ const UserSchema = new Schema({
   org_department: { type: String, default: "none" },
   uni_faculty: { type: String, default: "none" },
   uni_course_yr: { type: String, default: 0 },
+  organisation: { type: String, default: "none" },
   pref_locations: [{ type: ObjectId, ref: "loc" }],
   country: { type: String, default: "Uganda" },
   phoneNumber: { type: Number, default: 0, unique: true },
@@ -110,13 +103,6 @@ UserSchema.pre("save", function (next) {
   }
   return next();
 });
-
-// UserSchema.pre("findOneAndUpdate", function(next) {
-//     if (this.isModified("password")) {
-//         this.password = this._hashPassword(this.password);
-//     }
-//     return next();
-// });
 
 UserSchema.pre("findOneAndUpdate", function () {
   let that = this;
@@ -201,11 +187,7 @@ UserSchema.methods = {
   },
 };
 
-const user = mongoose.model("user", UserSchema);
-
-module.exports = { user, UserSchema };
-
-// module.exports = tenantModel("user", UserSchema);
+module.exports = UserSchema;
 
 // shall consider this when implementing the Bridge Design Pattern
 // const Model = function () {
