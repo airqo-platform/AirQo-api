@@ -180,5 +180,64 @@ class DeviceStatus():
         return uptime_result
         
 
+    def get_device_battery_voltage_results(self, device_channel_id):
+        "gets the latest device batery voltage for the device with the specifided channel id"
+        db = db_helpers.connect_mongo()
+        results = list(db.network_uptime_analysis_results.find(
+            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+
+        result = results[0]
+                
+        twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
+        device_twenty_eight_days_battery_voltage = [d['device_battery_voltage_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
+        device_twenty_eight_days_labels = [d['device_time_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
+        
+        if twenty_eight_days_devices : 
+                labels = [utils.convert_to_date(value) for value in device_twenty_eight_days_labels[0]]
+                values = device_twenty_eight_days_battery_voltage[0]
+                uptime_result = {'battery_voltage_values': values, 'battery_voltage_labels': labels ,
+                         'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+        else:
+            values = []        
+            uptime_result = {
+                "message": "device battery voltage data not available for the specified device", "success": False}
+        return uptime_result
+
+
+    def get_device_sensor_correlation_results(self, device_channel_id):
+        "gets the latest device sensor correlations for the device with the specifided channel id"
+        db = db_helpers.connect_mongo()
+        results = list(db.network_uptime_analysis_results.find(
+            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+
+        result = results[0]
+                
+        twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
+        device_twenty_eight_days_sensor_one_readings = [d['device_sensor_one_pm2_5_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
+        device_twenty_eight_days_sensor_two_readings = [d['device_sensor_two_pm2_5_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
+        device_twenty_eight_days_labels = [d['device_time_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
+        
+        datasets = [] #for displaying multiple sensor data on graph
+        colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
+
+        if twenty_eight_days_devices : 
+                labels = [utils.convert_to_date(value) for value in device_twenty_eight_days_labels[0]]
+                sensor_one_values = device_twenty_eight_days_sensor_one_readings[0]
+                sensor_two_values = device_twenty_eight_days_sensor_two_readings[0]
+
+                x = pd.Series(sensor_one_values)
+                y = pd.Series(sensor_two_values)
+                pearson_correlation_value = round(x.corr(y),4)
+                uptime_result = {'sensor_one_values': sensor_one_values, 
+                                'sensor_two_values':sensor_two_values,'labels': labels ,
+                                'correlation_value':pearson_correlation_value,
+                         'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+        else:
+            values = []        
+            uptime_result = {
+                "message": "device sensor correlation data not available for the specified device", "success": False}
+        return uptime_result
+        
+
 if __name__ == "__main__":
     dx = DeviceStatus()
