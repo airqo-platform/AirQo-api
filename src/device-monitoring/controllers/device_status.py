@@ -6,6 +6,8 @@ from helpers import db_helpers, utils
 from models import device_status
 from routes import api
 from flask_cors import CORS
+import sys
+from datetime import datetime
 
 _logger = logging.getLogger(__name__)
 
@@ -284,37 +286,96 @@ def get_all_online_offline():
         documents = model.get_all_devices_latest_status()
         if documents:
             result = documents[0]
+            print(len(result['online_devices']), file=sys.stderr)
             devices_without_coordinates =[]
             devices_with_coordinates =[]
             for device in result['online_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
-                    
-                    mapped_device = {
-                        'channelId':device['channelID'],
-                        'latitude': device['latitude'],
-                        'locationId': device['location_id'],
-                        'longitude': device['longitude'],
-                         'power': device['power'],
-                         'productName': device['product_name'],
-                         'phoneNumber': device['phoneNumber'],
-                         'isOnline': True
-                    }
-                    devices_with_coordinates.append(mapped_device)
+                    if "nextMaintenance" in device:
+                        date_difference = datetime.now()-device['nextMaintenance']
+                        print (date_difference.days, file=sys.stderr)
+                        if date_difference.days<-14:
+                            codeString = "codeGreen"
+                        elif date_difference.days>=0:
+                            codeString = "codeRed"
+                        else:
+                            codeString = "codeOrange"
+                                        
+                        mapped_device = {
+                            'channelId':device['channelID'],
+                            'latitude': device['latitude'],
+                            'locationID': device['locationID'],
+                            'longitude': device['longitude'],
+                            'power': device['power'],
+                            'productName': device['product_name'],
+                            'phoneNumber': device['phoneNumber'],
+                            'nextMaintenance': device['nextMaintenance'],
+                            'isOnline': True,
+                            'isDueMaintenance': codeString
+                        }
+                        devices_with_coordinates.append(mapped_device)
+
+            for device in result['online_devices']:
+                if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                    if "nextMaintenance" not in device:                   
+                        mapped_device = {
+                            'channelId':device['channelID'],
+                            'latitude': device['latitude'],
+                            'locationID': device['locationID'],
+                            'longitude': device['longitude'],
+                            'power': device['power'],
+                            'productName': device['product_name'],
+                            'phoneNumber': device['phoneNumber'],
+                            'nextMaintenance': "null",
+                            'isOnline': True,
+                            'isDueMaintenance': "codeRed"
+                        }
+                        devices_with_coordinates.append(mapped_device)
 
             for device in result['offline_devices']:
                 if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                     if "nextMaintenance" in device:
+                        date_difference = datetime.now()-device['nextMaintenance']
+                        if date_difference.days<-14:
+                            codeString = "codeGreen"
+                        elif date_difference.days>=0:
+                            codeString = "codeRed"
+                        else:
+                            codeString = "codeOrange"
                     
-                    mapped_device = {
-                        'channelId':device['channelID'],
-                        'latitude': device['latitude'],
-                        'locationId': device['location_id'],
-                        'longitude': device['longitude'],
-                         'power': device['power'],
-                         'productName': device['product_name'],
-                         'phoneNumber': device['phoneNumber'],
-                         'isOnline': False
-                    }
-                    devices_with_coordinates.append(mapped_device)                   
+                        mapped_device = {
+                            'channelId':device['channelID'],
+                            'latitude': device['latitude'],
+                            'locationID': device['locationID'],
+                            'longitude': device['longitude'],
+                            'power': device['power'],
+                            'productName': device['product_name'],
+                            'phoneNumber': device['phoneNumber'],
+                            'isOnline': False,
+                            'nextMaintenance': device['nextMaintenance'],
+                            'isDueMaintenance': codeString
+                        }
+                        devices_with_coordinates.append(mapped_device)  
+
+            for device in result['offline_devices']:
+                #if "true" in device['isActive'] :
+                if "nextMaintenance" not in device:
+                    if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                        if "nextMaintenance" not in device:
+                    
+                            mapped_device = {
+                                'channelId':device['channelID'],
+                                'latitude': device['latitude'],
+                                'locationID': device['locationID'],
+                                'longitude': device['longitude'],
+                                'power': device['power'],
+                                'productName': device['product_name'],
+                                'phoneNumber': device['phoneNumber'],
+                                'isOnline': False,
+                                'nextMaintenance': "null",
+                                'isDueMaintenance': "codeRed"
+                            }
+                            devices_with_coordinates.append(mapped_device)               
                     
 
             response = {'online_offline_devices': devices_with_coordinates}
