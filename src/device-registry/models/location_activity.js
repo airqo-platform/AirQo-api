@@ -11,11 +11,12 @@ function threeMonthsFromNow() {
 
 const activitySchema = new Schema(
   {
-    device: { type: String, trim: true, unique: true },
+    device: { type: String, trim: true },
     location: { type: String, trim: true },
     date: { String: Date },
     description: { type: String, trim: true },
     activityType: { type: String, trim: true },
+    tags: [{ type: String }],
     nextMaintenance: { type: Date, default: threeMonthsFromNow },
     createdAt: {
       type: Date,
@@ -31,12 +32,13 @@ activitySchema.methods = {
     return {
       _id: this._id,
       device: this.device,
-      location: this.activity,
+      location: this.location,
       date: this.date,
       description: this.description,
       activityType: this.activityType,
       nextMaintenance: this.nextMaintenance,
       createdAt: this.createdAt,
+      tags: this.tags,
     };
   },
 };
