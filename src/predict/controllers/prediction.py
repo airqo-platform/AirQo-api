@@ -23,8 +23,16 @@ def get_next_24hr_predictions(device_channel_id,prediction_start_time):
     if request.method == 'GET':
         if type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id) 
+        
+        if type(prediction_start_time) is not int:
+            try:
+               prediction_start_time =  int(prediction_start_time) 
+            except ValueError:
+                error =  {"message": "Invalid prediction start time. expected unix timestamp format like 1500000000", "success": False}
+                return jsonify(error, 400) 
 
-        prediction_start_datetime = dt.datetime.strptime(prediction_start_time,"%Y-%m-%d %H:00:00")      
+        prediction_start_timestamp = dt.datetime.fromtimestamp(prediction_start_time)
+        prediction_start_datetime = dt.datetime.strftime(prediction_start_timestamp,"%Y-%m-%d %H:00:00")      
         result = get_next_24hr_predictions_for_channel(device_channel_id, prediction_start_datetime)
         if result:
             response = result

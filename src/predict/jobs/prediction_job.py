@@ -174,22 +174,35 @@ def save_next_24hrs_prediction_results(data):
         print('saved')
 
 
+def make_test_forecast_data(forecast_data, test_lag_last_date_hour, test_end_datetime ):
+  all_tdf = pd.DataFrame()
+  for c in all_channels:
+    tdf = pd.DataFrame()
+    tdf['created_at'] = pd.date_range(start = test_lag_last_date_hour - pd.Timedelta(days = 2), end = test_end_datetime, freq = '1800S')
+    tdf['channel_id'] = c
+    tdf['pm2_5'] = np.nan
+    all_tdf = pd.concat([tdf, all_tdf], axis=0)
+
+  test_forecast_data = forecast_data[(forecast_data['created_at'] >= test_lag_last_date_hour - pd.Timedelta(days=2)) & (forecast_data['created_at'] <= test_end_datetime )].drop('date', axis=1)
+  test_forecast_data = pd.merge(all_tdf[['created_at', 'channel_id']], test_forecast_data, on = ['created_at', 'channel_id'], how = 'outer')
+
+  return test_forecast_data
+
 def get_next_24hrs_predictions():
     #load & preprocess test data:
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
     FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data.csv'
     
-    #boundary_layer_mapper = get_boundary_layer_mapper(BOUNDARY_LAYER_PATH)
     forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH)
     #set constants
     test_start_datetime = date_to_str(datetime.now())
-    test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
+    #test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
 
-    TEST_DATE_HOUR_START = pd.to_datetime('2020-07-12 09:00:00')
+    TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime).strftime('%Y-%m-%d %H')
 
     ### Prediction will end at this date-hour
-    TEST_DATE_HOUR_END = pd.to_datetime('2020-07-13 08:00:00')
+    TEST_DATE_HOUR_END = TEST_DATE_HOUR_START + pd.Timedelta(hours=23)
     N_HRS_BACK = 24 
     SEQ_LEN = 24
     ROLLING_SEQ_LEN = 24*90
