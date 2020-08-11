@@ -219,8 +219,8 @@ def get_device_uptime(device_channel_id):
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        if type(device_channel_id) is not str:
-            device_channel_id = str(device_channel_id)           
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id)           
 
         result = model.get_device_uptime_analysis_results(device_channel_id)
         if result:
@@ -228,6 +228,49 @@ def get_device_uptime(device_channel_id):
         else:
             response = {
                 "message": "Uptime data not available for the specified device", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+
+@device_status_bp.route(api.route['device_battery_voltage'], methods=['GET'])
+def get_device_battery_voltage(device_channel_id):
+    '''
+    Get device uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id)           
+
+        result = model.get_device_battery_voltage_results(device_channel_id)
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "battery voltage data not available for the specified device", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
+
+@device_status_bp.route(api.route['device_sensor_correlation'], methods=['GET'])
+def get_device_sensor_correlation(device_channel_id):
+    '''
+    Get device uptime
+    '''
+    model = device_status.DeviceStatus()
+    if request.method == 'GET':
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id)           
+
+        result = model.get_device_sensor_correlation_results(device_channel_id)
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "device sensor correlation data not available for the specified device", "success": False}
         data = jsonify(response)
         return data, 201
     else:
