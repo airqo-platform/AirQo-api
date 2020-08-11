@@ -1,6 +1,6 @@
 const UserSchema = require("../models/User");
 const Location = require("../models/Location");
-const Defaults = require("../models/Defaults");
+const DefaultsSchema = require("../models/Defaults");
 const HTTPStatus = require("http-status");
 const constants = require("../config/constants");
 const privileges = require("../utils/privileges");
@@ -14,7 +14,7 @@ const validateForgotPwdInput = require("../utils/validations.forgot");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
-var generatorPassword = require("generate-password");
+const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 
@@ -49,21 +49,30 @@ const join = {
       logText("list all users by tenant...");
       const { tenant, id } = req.query;
       const User = getModelByTenant(tenant, "user", UserSchema);
-      if (!id && tenant) {
+      if (isEmpty(id) && !isEmpty(tenant)) {
         const users = await User.find();
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: "Users fetched successfully",
-          users,
-        });
-      } else if (tenant && id) {
-        logText(".....................................");
-        logText("listing one user by tenant...");
+        if (!isEmpty(users)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Users fetched successfully",
+            users,
+          });
+        } else if (isEmpty(users)) {
+          return res.json({
+            success: false,
+            message: `this organisation (${tenant}) does not have users or it does not exist, please crosscheck`,
+          });
+        }
+      } else if (!isEmpty(tenant) && !isEmpty(id)) {
         User.find({ _id: id }).exec((err, user) => {
           if (err) {
-            return res.json({ success: false, message: "Some Error" });
+            return res.json({
+              success: false,
+              message: "Unable to list the users for this tenant",
+              error: err,
+            });
           }
-          if (user.length) {
+          if (!isEmpty(user)) {
             return res.json({
               success: true,
               message: "User fetched by id successfully",
@@ -146,70 +155,73 @@ const join = {
   },
 
   registerUser: (req, res) => {
-    console.log("the elements we need:");
-    console.dir(req.body);
+    try {
+      const { errors, isValid } = validateRegisterInput(req.body);
+      if (!isValid) {
+        return res
+          .status(400)
+          .json({ success: false, errors, message: "validation error" });
+      }
 
-    const { errors, isValid } = validateRegisterInput(req.body);
+      const { tenant } = req.query;
+      const User = getModelByTenant(tenant, "user", UserSchema);
+      const { firstName, lastName, password, userName } = req.body;
 
-    if (!isValid) {
-      return res
-        .status(400)
-        .json({ success: false, errors, message: "validation error" });
+      let mailOptions = {};
+      if (tenant == "kcca") {
+        mailOptions = {
+          from: `airqo.analytics@gmail.com`,
+          to: `${req.body.email}`,
+          subject: "Welcome to the AirQo KCCA Platform",
+          text: `${msgs.welcome_kcca(firstName, lastName, password, userName)}`,
+        };
+      } else {
+        mailOptions = {
+          from: `airqo.analytics@gmail.com`,
+          to: `${req.body.email}`,
+          subject: "Welcome to the AirQo Platform",
+          text: `${msgs.welcome_general(
+            firstName,
+            lastName,
+            password,
+            userName
+          )}`,
+        };
+      }
+      register(req, res, mailOptions, req.body, User, tenant);
+    } catch (e) {
+      logElement("the error", e);
+      return res.status(500).json({ success: false, message: "server error" });
     }
-    /**** generate the password */
-    var password = generatorPassword.generate({
-      length: 6,
-      numbers: true,
-      uppercase: true,
-      lowercase: true,
-    });
-
-    const mailOptions = {
-      from: `info@airqo.net`,
-      to: `${req.body.email}`,
-      subject: "Welcome to AirQo",
-      text: `${msgs.welcome(
-        req.body.firstName,
-        req.body.lastName,
-        req.body.password,
-        req.body.userName
-      )}`,
-    };
-
-    /**** I will consider this for the confirmation process ******/
-    // let userData = req.body;
-    // userData.password = password;
-
-    console.log("the values we are sending");
-    console.dir(req.body);
-
-    const { tenant } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
-
-    register(req, res, mailOptions, req.body, User);
   },
   //invoked when the user visits the confirmation url on the client
   confirmEmail: async (req, res) => {
-    const { tenant, id } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
-    User.findById(id)
-      .then((user) => {
-        //when the user does not exist in the DB
-        if (!user) {
-          res.json({ msg: msgs.couldNotFind });
-        }
-        // The user exists but has not been confirmed. So we confirm them...
-        else if (user && !user.emailConfirmed) {
-          User.findByIdAndUpdate(id, { confirmed: true })
-            .then(() => res.json({ msg: msgs.confirmed }))
-            .catch((err) => console.log(err));
-        }
-        //when the user has already confirmed their email address
-        else {
-          res.json({ msg: msgs.alreadyConfirmed });
-        }
-      })
-      .catch((err) => console.log(err));
+    try {
+      const { tenant, id } = req.query;
+      const User = getModelByTenant(tenant, "user", UserSchema);
+      User.findById(id)
+        .then((user) => {
+          //when the user does not exist in the DB
+          if (!user) {
+            res.json({ msg: msgs.couldNotFind });
+          }
+          // The user exists but has not been confirmed. So we confirm them...
+          else if (user && !user.emailConfirmed) {
+            User.findByIdAndUpdate(id, { confirmed: true })
+              .then(() => res.json({ msg: msgs.confirmed }))
+              .catch((err) => console.log(err));
+          }
+          //when the user has already confirmed their email address
+          else {
+            res.json({ msg: msgs.alreadyConfirmed });
+          }
+        })
+        .catch((err) => console.log(err));
+    } catch (e) {
+      return res
+        .status(500)
+        .json({ success: false, e, message: "server error" });
+    }
   },
 
   loginUser: (req, res, next) => {
@@ -227,49 +239,57 @@ const join = {
   },
 
   deleteUser: (req, res, next) => {
-    const { tenant } = req.query;
+    const { tenant, id } = req.query;
     const User = getModelByTenant(tenant, "user", UserSchema);
 
-    User.findByIdAndRemove(req.params.id, (err, user) => {
+    User.findByIdAndRemove(id, (err, user) => {
       if (err) {
-        return res.json({ success: false, message: "Some Error" });
+        return res.status(400).json({
+          success: false,
+          message: "unable to remove User",
+          error: err,
+        });
       } else if (user) {
         return res.status(200).json({
           success: true,
           message: user.userName + " deleted successfully",
         });
       } else {
-        return res.status(400).json({
-          success: true,
-          message: user.userName + " deleted successfully",
+        return res.status(500).json({
+          success: false,
+          message: "unable to delete the user due to a server error",
         });
       }
     });
   },
 
   updateUser: (req, res, next) => {
-    User.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true },
-      (err, user) => {
-        if (err) {
-          res.json({ success: false, message: "Some Error", error: err });
-        } else if (user) {
-          console.log(user);
-          res.json({ success: true, message: "Updated successfully", user });
-        } else {
-          res.json({
-            success: false,
-            message: "user does not exist in the db",
-          });
-        }
+    const { tenant, id } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
+    User.findByIdAndUpdate(id, req.body, { new: true }, (err, user) => {
+      if (err) {
+        res
+          .status(500)
+          .json({ success: false, message: "Server Error", error: err });
+      } else if (user) {
+        console.log(user);
+        res
+          .status(200)
+          .json({ success: true, message: "User updated successfully", user });
+      } else {
+        res.status(400).json({
+          success: false,
+          message: "user does not exist in the db",
+        });
       }
-    );
+    });
   },
 
   updateUserDefaults: async (req, res, next) => {
-    let query = { user: req.params.id, chartTitle: req.body.chartTitle },
+    const { tenant, id } = req.query;
+    const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
+
+    let query = { user: id, chartTitle: req.body.chartTitle },
       update = req.body,
       options = { upsert: true, new: true };
     console.log("when I have just joined the platform");
@@ -304,9 +324,9 @@ const join = {
 
   getDefaults: async (req, res) => {
     try {
-      console.log("the query");
-      console.log(req.query);
-      const defaults = await Defaults.find({ user: req.params.id });
+      const { tenant, id } = req.query;
+      const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
+      const defaults = await Defaults.find({ user: id });
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: " defaults fetched successfully",
@@ -315,14 +335,15 @@ const join = {
     } catch (e) {
       return res
         .status(HTTPStatus.BAD_REQUEST)
-        .json({ success: false, message: "Some Error" });
+        .json({ success: false, message: "Unable to fetch the defaults" });
     }
   },
   updateLocations: (req, res) => {
-    console.log("the user ID");
-    console.log(req.params.id);
+    const { tenant, id } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
+    logElement("the user ID", id);
     let response = {};
-    User.find({ _id: req.params.id }, (error, user) => {
+    User.find({ _id: id }, (error, user) => {
       if (error) {
         response.success = false;
         response.message = "Internal Server Error";
@@ -361,8 +382,11 @@ const join = {
   },
 
   resetPassword: async (req, res, next) => {
-    console.log("inside the reset password function...");
-    console.log(`${req.query.resetPasswordToken}`);
+    const { resetPasswordToken } = req.query;
+    logText("resetting password......");
+    logElement("the reset password token", resetPasswordToken);
+    const { tenant } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
     await User.findOne(
       {
         resetPasswordToken: req.query.resetPasswordToken,
@@ -391,6 +415,9 @@ const join = {
 
   updatePasswordViaEmail: (req, res, next) => {
     const { userName, password } = req.body;
+
+    const { tenant } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
 
     User.findOne({
       userName: userName,
@@ -429,8 +456,9 @@ const join = {
     if (!isValid) {
       return res.status(400).json(errors);
     }
-
-    User.findByIdAndUpdate({ _id: req.body.id }, req.body, (err, result) => {
+    const { tenant, id } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
+    User.findByIdAndUpdate({ _id: id }, req.body, (err, result) => {
       if (err) {
         res.status(500).json({ message: "server error", err, success: false });
       } else if (result) {

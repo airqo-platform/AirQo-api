@@ -38,10 +38,9 @@ router.put("/updatePassword", joinController.updatePassword);
 router.get("/reset/you", joinController.resetPassword);
 router.post("/forgotPassword", joinController.forgotPassword);
 router.put("/", joinController.updateUser);
-router.delete("/:id", joinController.deleteUser);
-router.put("/defaults/:id", joinController.updateUserDefaults);
-router.get("/defaults/:id", joinController.getDefaults);
-router.post("/tenants/addUser", joinController.addUserByTenant);
+router.delete("/", joinController.deleteUser);
+router.put("/defaults/", joinController.updateUserDefaults);
+router.get("/defaults/", joinController.getDefaults);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
