@@ -13,7 +13,7 @@ const activitySchema = new Schema(
   {
     device: { type: String, trim: true },
     location: { type: String, trim: true },
-    date: { String: Date },
+    date: { type: Date },
     description: { type: String, trim: true },
     activityType: { type: String, trim: true },
     tags: [{ type: String }],
