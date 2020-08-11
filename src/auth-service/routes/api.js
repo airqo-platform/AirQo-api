@@ -30,15 +30,13 @@ const checkAuth = () => {
 //************************* users ***************************************************
 router.post("/loginUser", authUserLocal, joinController.loginUser);
 router.get("/", joinController.listAll);
-router.get("/:id", joinController.listOne);
 router.post("/registerUser", joinController.registerUser);
 router.post("/addWithTenant", joinController.addUserByTenant);
-router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
+router.get("/email/confirm/", joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
 router.put("/updatePassword", joinController.updatePassword);
 router.get("/reset/you", joinController.resetPassword);
 router.post("/forgotPassword", joinController.forgotPassword);
-router.get("/findUser", joinController.findUser);
 router.put("/", joinController.updateUser);
 router.delete("/:id", joinController.deleteUser);
 router.put("/defaults/:id", joinController.updateUserDefaults);
@@ -51,6 +49,6 @@ router.post("/register/new/candidate", candidateController.registerCandidate);
 router.get("/candidates/fetch", candidateController.getAllCandidates);
 
 //params
-router.param("userId", joinController.findUserById);
+//router.param("userId", joinController.findUserById);
 
 module.exports = router;

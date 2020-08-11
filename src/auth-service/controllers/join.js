@@ -45,118 +45,104 @@ const join = {
 
   listAll: async (req, res) => {
     try {
-      const { tenant } = req.query;
+      logText(".....................................");
+      logText("list all users by tenant...");
+      const { tenant, id } = req.query;
       const User = getModelByTenant(tenant, "user", UserSchema);
-      const users = await User.find(req.query);
-      return res.status(HTTPStatus.OK).json({
-        success: true,
-        message: "Users fetched successfully",
-        users,
-      });
-    } catch (e) {
-      return res.status(HTTPStatus.BAD_REQUEST).json({
-        success: false,
-        message: "A bad request has been made, please crosscheck",
-      });
-    }
-  },
-
-  listOne: async (req, res) => {
-    User.find({ _id: req.params.id }).exec((err, user) => {
-      if (err) {
-        return res.json({ success: false, message: "Some Error" });
-      }
-      if (user.length) {
-        return res.json({
+      if (!id && tenant) {
+        const users = await User.find();
+        return res.status(HTTPStatus.OK).json({
           success: true,
-          message: "User fetched by id successfully",
-          user,
+          message: "Users fetched successfully",
+          users,
+        });
+      } else if (tenant && id) {
+        logText(".....................................");
+        logText("listing one user by tenant...");
+        User.find({ _id: id }).exec((err, user) => {
+          if (err) {
+            return res.json({ success: false, message: "Some Error" });
+          }
+          if (user.length) {
+            return res.json({
+              success: true,
+              message: "User fetched by id successfully",
+              user,
+            });
+          } else {
+            return res.json({
+              success: false,
+              message: "User with the given id not found",
+            });
+          }
         });
       } else {
         return res.json({
           success: false,
-          message: "User with the given id not found",
+          message:
+            "request is missing the required query params, please crosscheck",
         });
       }
-    });
-  },
-
-  findUser: (req, res, next) => {
-    if (req.user.userName === req.query.userName) {
-      User.findOne({
-        userName: req.query.userName,
-      }).then((userInfo) => {
-        if (userInfo != null) {
-          console.log("user found in db from findUsers");
-          res.status(200).json(userInfo);
-        } else {
-          console.error("no user exists in db with that username");
-          res.status(401).send("no user exists in db with that username");
-        }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: "A bad request has been made, please crosscheck",
+        error: e.message,
       });
-    } else {
-      console.error("jwt id and username do not match");
-      res.status(403).send("username and jwt token do not match");
     }
-  },
-  findUserById: (req, res, next, id) => {
-    User.findById(id).exec((err, user) => {
-      if (err || !user) {
-        return res.status(400).json({
-          error: "No user found with these credentials!",
-        });
-      }
-      req.profile = user;
-      next();
-    });
   },
 
   forgotPassword: async (req, res) => {
-    console.log("the email who forgot is  " + req.body.email);
+    try {
+      logElement("the email", req.body.email);
+      // const { errors, isValid } = validateForgotPwdInput(req.body.email);
+      // if (!isValid) {
+      //     return res.status(400).json(errors);
+      // }
+      console.log("reaching forgotPassword");
+      console.log("the email is here: " + req.body.email);
 
-    // const { errors, isValid } = validateForgotPwdInput(req.body.email);
-    // if (!isValid) {
-    //     return res.status(400).json(errors);
-    // }
-    console.log("reaching forgotPassword");
-    console.log("the email is here: " + req.body.email);
+      const token = crypto.randomBytes(20).toString("hex");
 
-    const token = crypto.randomBytes(20).toString("hex");
+      let query = { email: req.body.email };
+      let updateDetails = {
+        resetPasswordToken: token,
+        resetPasswordExpires: Date.now() + 3600000,
+      };
+      //get the model based on tenant
+      const { tenant } = req.query;
+      const User = getModelByTenant(tenant, "user", UserSchema);
 
-    let query = { email: req.body.email };
-    let updateDetails = {
-      resetPasswordToken: token,
-      resetPasswordExpires: Date.now() + 3600000,
-    };
-    await User.findOneAndUpdate(query, updateDetails, (error, response) => {
-      if (error) {
-        return res.status(400).json({ email: "Email does not exist" });
-      } else if (response) {
-        const mailOptions = {
-          from: `info@airqo.net`,
-          to: `${req.body.email}`,
-          subject: `Link To Reset Password`,
-          text: `${msgs.recovery_email(token)}`,
-        };
-        //we shall review other third party libraries for making emails....^^
+      await User.findOneAndUpdate(query, updateDetails, (error, response) => {
+        if (error) {
+          return res.status(400).json({ email: "Email does not exist" });
+        } else if (response) {
+          const mailOptions = {
+            from: `info@airqo.net`,
+            to: `${req.body.email}`,
+            subject: `Link To Reset Password`,
+            text: `${msgs.recovery_email(token)}`,
+          };
+          //we shall review other third party libraries for making emails....^^
 
-        console.log("sending mail");
+          console.log("sending mail");
 
-        //deliver the message object using sendMail
-        transporter.sendMail(mailOptions, (err, response) => {
-          if (err) {
-            console.error("there was an error: ", err);
-            return res.status(500).json({ email: "unable to send email" });
-          } else {
-            console.log("here is the res: ", response);
-            return res.status(200).json({ email: "recovery email sent" });
-          }
-        });
-        //return res.status(HTTPStatus.OK).json(response);
-      } else {
-        return res.status(400).json({ email: "unable to send email" });
-      }
-    });
+          //deliver the message object using sendMail
+          transporter.sendMail(mailOptions, (err, response) => {
+            if (err) {
+              console.error("there was an error: ", err);
+              return res.status(500).json({ email: "unable to send email" });
+            } else {
+              console.log("here is the res: ", response);
+              return res.status(200).json({ email: "recovery email sent" });
+            }
+          });
+          //return res.status(HTTPStatus.OK).json(response);
+        } else {
+          return res.status(400).json({ email: "unable to send email" });
+        }
+      });
+    } catch (e) {}
   },
 
   registerUser: (req, res) => {
@@ -197,11 +183,15 @@ const join = {
     console.log("the values we are sending");
     console.dir(req.body);
 
+    const { tenant } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
+
     register(req, res, mailOptions, req.body, User);
   },
   //invoked when the user visits the confirmation url on the client
   confirmEmail: async (req, res) => {
-    const { id } = req.params;
+    const { tenant, id } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
     User.findById(id)
       .then((user) => {
         //when the user does not exist in the DB
@@ -223,9 +213,9 @@ const join = {
   },
 
   loginUser: (req, res, next) => {
-    console.log("we have reached loginUser....");
-    console.log("the body:");
-    console.dir(req.body);
+    logText("..................................");
+    logText("user login......");
+    logElement("the body", req.body);
     const { errors, isValid } = validateLoginInput(req.body);
 
     if (!isValid) {
@@ -237,6 +227,9 @@ const join = {
   },
 
   deleteUser: (req, res, next) => {
+    const { tenant } = req.query;
+    const User = getModelByTenant(tenant, "user", UserSchema);
+
     User.findByIdAndRemove(req.params.id, (err, user) => {
       if (err) {
         return res.json({ success: false, message: "Some Error" });
