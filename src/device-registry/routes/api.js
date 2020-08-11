@@ -7,7 +7,7 @@ const deviceValidation = require("../utils/validations");
 const validate = require("express-validation");
 const mqttBridge = require("../controllers/mqtt-bridge");
 const httpBridge = require("../controllers/http-bridge");
-const sensorController = require("../controllers/sense");
+const componentController = require("../controllers/component");
 
 middlewareConfig(router);
 
@@ -35,13 +35,23 @@ router.put(
 );
 router.put("/:name/gcp", deviceController.updateDeviceGcp);
 
-/*** creation of Things   *********/
+/******************* creation of Things   *****************/
 router.post("/ts", deviceController.createThing);
 router.delete("/ts/delete", deviceController.deleteThing);
 router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
-router.post("/ts/deploy/device", deviceController.deployDevice);
-router.get("/get/sensors", sensorController.listAll);
+router.post("/ts/activity", deviceController.doActivity);
+router.get("/by/location", deviceController.listAllByLocation);
+
+/******************* components ************************* */
+router.get("/list/components/", componentController.listAll);
+router.post("/add/components/", componentController.addComponent);
+router.delete("/delete/components/", componentController.deleteComponent);
+router.put("/update/components/", componentController.updateComponent);
+
+/******************* adding values******************************/
+router.post("/d_id/components/c_id/value", componentController.addValue);
+router.post("/d_id/components/c_id/values", componentController.addValues);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);

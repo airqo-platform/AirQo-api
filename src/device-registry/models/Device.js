@@ -30,7 +30,7 @@ const deviceSchema = new mongoose.Schema(
       unique: true,
     },
     visibility: {
-      type: String,
+      type: Boolean,
       require: [true, "visibility is required"],
       trim: true,
     },
@@ -41,7 +41,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: String,
+      type: ObjectId,
       require: [true, "owner is required"],
     },
     description: {
@@ -60,7 +60,6 @@ const deviceSchema = new mongoose.Schema(
     },
     mountType: {
       type: String,
-      default: "pole",
       trim: true,
     },
     ISP: {
@@ -77,11 +76,9 @@ const deviceSchema = new mongoose.Schema(
     },
     powerType: {
       type: String,
-      default: "mains",
     },
-    location_id: {
+    locationID: {
       type: String,
-      default: "none",
     },
     host: {
       name: String,
@@ -99,6 +96,9 @@ const deviceSchema = new mongoose.Schema(
     channelID: {
       type: Number,
       required: [true, "Channel ID is required!"],
+    },
+    isActive: {
+      type: Boolean,
     },
   },
   {
@@ -131,7 +131,24 @@ deviceSchema.methods = {
       channelID: this.channelID,
       powerType: this.powerType,
       mountType: this.mountType,
-      location_id: this.location_id,
+      locationID: this.locationID,
+      isActive: this.isActive,
+    };
+  },
+
+  toUpdateJSON() {
+    return {
+      deviceName: this.deviceName,
+      locationID: this.locationName,
+      height: this.height,
+      mountType: this.mountType,
+      powerType: this.powerType,
+      date: this.date,
+      latitude: this.latitude,
+      longitude: this.longitude,
+      isPrimaryInLocation: this.isPrimaryInLocation,
+      isUserForCollocaton: this.isUsedForCollocation,
+      updatedAt: this.updatedAt,
     };
   },
 };
@@ -146,6 +163,13 @@ deviceSchema.statics = {
 
   list({ skip = 0, limit = 5 } = {}) {
     return this.find()
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+  },
+
+  listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {
+    return this.find({ locationID: loc })
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
