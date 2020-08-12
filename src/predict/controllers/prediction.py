@@ -32,7 +32,8 @@ def get_next_24hr_predictions(device_channel_id,prediction_start_time):
                 return jsonify(error, 400) 
 
         prediction_start_timestamp = dt.datetime.fromtimestamp(prediction_start_time)
-        prediction_start_datetime = dt.datetime.strftime(prediction_start_timestamp,"%Y-%m-%d %H:00:00")      
+        prediction_start_datetime = dt.datetime.strftime(prediction_start_timestamp,"%Y-%m-%d %H:00:00") 
+        print(prediction_start_datetime)     
         result = get_next_24hr_predictions_for_channel(device_channel_id, prediction_start_datetime)
         if result:
             response = result

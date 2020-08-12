@@ -24,8 +24,7 @@ from joblib import Parallel, delayed
 import datetime as dt
 from datetime import datetime,timedelta
 
-#MONGO_URI = os.getenv("MONGO_URI")
-MONGO_URI = 'mongodb://admin:airqo-250220-master@35.224.67.244:27017'
+MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db=client['airqo_netmanager_staging']
 
@@ -72,10 +71,9 @@ def get_other_features(df_tmp,boundary_layer_mapper,metadata):
   return df_tmp
 
 def preprocess_df(df_tmp, boundary_layer_mapper, metadata, target_column,n_hrs_back, seq_len, is_test = False):
-
   df_tmp = get_lag_features(df_tmp,target_column, n_hrs_back, seq_len)
+  #print(df_tmp.head())
   df_tmp = get_other_features(df_tmp,boundary_layer_mapper,metadata)
-
   return df_tmp
 
 
@@ -114,8 +112,7 @@ def preprocess_metadata(METADATA_PATH):
   drop_fts = ['loc_ref', 'chan_ref', 'loc_mob_stat', 'airqo_name', 'district_lookup', 'county_lookup', 'coords', 'loc_start_date', 'loc_end_date', 'gmaps_link',
               'OSM_link', 'nearby_sources', 'geometry', 'geometry_43', 'event_logging_link']
   metadata = metadata.drop(drop_fts, axis=1)
-  metadata.to_csv('metadata_to_use.csv', index = False)
-
+ 
   return metadata
 
 
@@ -125,20 +122,6 @@ def get_boundary_layer_mapper(BOUNDARY_LAYER_PATH):
   
   return boundary_layer_mapper
 
-
-def get_agg_channel_data_train(chan_num,train_forecast_data, freq='1H'):
-  '''
-  Get Hourly Aggregates using Mean of the Data for training.
-  '''
-
-  chan = train_forecast_data[train_forecast_data['channel_id'] == chan_num]
-  chan = chan.sort_values(by = 'created_at')[['created_at', 'pm2_5']].set_index('created_at')
-  chan = chan.interpolate('time', limit_direction='both')
-
-  chan_agg = chan.resample(freq).mean().reset_index()
-  chan_agg['channel_id'] = chan_num
-
-  return chan_agg
 
 def get_agg_channel_data_test(chan_num,test_forecast_data,freq='1H'):
   '''
@@ -174,7 +157,7 @@ def save_next_24hrs_prediction_results(data):
         print('saved')
 
 
-def make_test_forecast_data(forecast_data, test_lag_last_date_hour, test_end_datetime ):
+def make_test_forecast_data(forecast_data, test_lag_last_date_hour, test_end_datetime, all_channels ):
   all_tdf = pd.DataFrame()
   for c in all_channels:
     tdf = pd.DataFrame()
@@ -192,15 +175,15 @@ def get_next_24hrs_predictions():
     #load & preprocess test data:
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
-    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data.csv'
+    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_datay.csv'
     
     forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH)
     #set constants
-    test_start_datetime = date_to_str(datetime.now())
+    test_start_datetime = datetime.now().strftime('%Y-%m-%d %H')
     #test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
 
-    TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime).strftime('%Y-%m-%d %H')
-
+    TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
+    
     ### Prediction will end at this date-hour
     TEST_DATE_HOUR_END = TEST_DATE_HOUR_START + pd.Timedelta(hours=23)
     N_HRS_BACK = 24 
@@ -211,27 +194,21 @@ def get_next_24hrs_predictions():
     TARGET_COL = 'pm2_5'
     
     CHANNELS_TO_PREDICT_PATH = 'all_channels.pkl' 
-    #TODO:load model from google cloud storage
-    #TRAIN_MODEL_PATH = 'model.pkl'
     clf = get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
-    #clf = joblib.load(TRAIN_MODEL_PATH)
+     
     
-    test_forecast_data = forecast_data[(forecast_data['created_at'] >= TEST_LAG_LAST_DATE_HOUR) & (forecast_data['created_at'] <= TEST_DATE_HOUR_END + pd.Timedelta(days=2))].drop('date', axis=1)
-    #TODO:get the channelIds to use for prediction
-    all_channels = joblib.load('all_channels.pkl')
-
+    all_channels =  get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'all_channels.pkl')
+    test_forecast_data = make_test_forecast_data(forecast_data, TEST_LAG_LAST_DATE_HOUR, TEST_DATE_HOUR_END, all_channels )
+    
     op = Parallel(n_jobs = 1)(delayed(get_agg_channel_data_test)(chan_num, test_forecast_data, freq='1H') for chan_num in all_channels)
     test = pd.concat(op, axis=0).reset_index(drop=True)[test_forecast_data.columns.tolist()]
     
-    test = test.groupby('channel_id').apply(lambda x: x.set_index('created_at')['pm2_5'].interpolate('time', limit_direction = 'both')).reset_index()
-
     test = preprocess_df(test, boundary_layer_mapper, metadata, TARGET_COL, N_HRS_BACK, SEQ_LEN, is_test = True)
     test = test[(test['created_at'] >= TEST_DATE_HOUR_START) & (test['created_at'] <= TEST_DATE_HOUR_END) ]
 
     test_orig = test[["created_at",  "pm2_5", "channel_id"]].copy()
 
-    #modified train.columns and added test.columns
-    features = [c for c in test.columns if c not in ["created_at",  "pm2_5", "channel_id"]]
+    features = [c for c in test.columns if c not in ["created_at",  "pm2_5"]]
     test_preds = clf.predict(test[features])
     
     test_orig['preds'] = test_preds
@@ -259,7 +236,7 @@ if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
     next_24hrs_predictions, TEST_DATE_HOUR_START, TEST_DATE_HOUR_END = get_next_24hrs_predictions()
     #all_channels = 
-    all_channels_x = joblib.load('all_channels.pkl')
+    all_channels_x = get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'all_channels.pkl')
     prediction_results =[]
     
     created_at =   str_to_date(date_to_str(datetime.now()))

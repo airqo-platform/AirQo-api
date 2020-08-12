@@ -28,8 +28,6 @@ def query_prediction_data():
      
     df = client.query(sql,job_config=job_config).to_dataframe()
     df['created_at'] =  pd.to_datetime(df['created_at'],format='%Y-%m-%d %H:%M:%S')
-    #df['created_at'] = df['created_at'].dt.tz_localize('Africa/Kampala')
-    #time_indexed_data = df.set_index('created_at')
     return df 
 
 def get_all_static_channels():
@@ -73,8 +71,8 @@ def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_pa
   channel_max_dates = forecast_data.groupby('channel_id').apply(lambda x: x['created_at'].max())
 
   ### Set this as a list of chanels to be used. Can be read from a file.
-  #use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
-  use_channels =  get_all_static_channels()
+  use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
+  #use_channels =  get_all_static_channels()
   
   forecast_data = forecast_data[forecast_data['channel_id'].isin(use_channels)]
 
@@ -131,11 +129,12 @@ def get_agg_channel_data_test(chan_num,test_forecast_data,freq='1H'):
   return chan_agg
 
 
-def make_train():
+def make_train(train_forecast_data):
 
   ### Aggregate data every 1 hour using mean
   all_channels = train_forecast_data['channel_id'].unique()
   #joblib.dump(all_channels, 'all_channels.pkl')
+  upload_trained_model_to_gcs(all_channels,'airqo-250220','airqo_prediction_bucket', 'all_channels.pkl')
 
   op = Parallel(n_jobs = -1)(delayed(get_agg_channel_data_train)(chan_num,train_forecast_data, freq='1H') for chan_num in all_channels)
   train = pd.concat(op, axis=0).reset_index(drop=True)[train_forecast_data.columns.tolist()]
@@ -196,7 +195,7 @@ def preprocess_df(df_tmp, boundary_layer_mapper, metadata, target_column,n_hrs_b
 
 def train_model(train):
 
-  features = [c for c in train.columns if c not in ["created_at",  "pm2_5", "channel_id"]]
+  features = [c for c in train.columns if c not in ["created_at",  "pm2_5"]]
   TARGET_COL = "pm2_5"
 
   trn = train.groupby('channel_id').apply(lambda x: x[:-24*7]).reset_index(drop=True)
@@ -225,15 +224,7 @@ def date_to_str(date):
 
 def initialise_training_constants():
 ### These constants must be set before running
-### Prediction will start from this date-hour
-    test_start_datetime = date_to_str(datetime.now())
-    test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
-
-    TEST_DATE_HOUR_START = pd.to_datetime(test_start_datetime)
-
-    ### Prediction will end at this date-hour
-    TEST_DATE_HOUR_END = pd.to_datetime(test_end_datetime)
-
+    
     ### Training will start at this date-hour
     TRAIN_DATE_HOUR_START = pd.to_datetime('2019-06-01 00:00:00')
 
@@ -247,7 +238,7 @@ def initialise_training_constants():
     ########### PATHS #############
 
     ### These paths must be set
-    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data.csv'
+    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_datay.csv'
     METADATA_PATH = 'meta.csv'
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
 
@@ -255,8 +246,7 @@ def initialise_training_constants():
     SEQ_LEN = 24
     ROLLING_SEQ_LEN = 24*90
     MAX_LAGS = N_HRS_BACK + max(ROLLING_SEQ_LEN, SEQ_LEN) + 48 # Extra 48 or 2 days for safety
-    TEST_LAG_LAST_DATE_HOUR = TEST_DATE_HOUR_START - pd.Timedelta(hours = MAX_LAGS)
-
+    
     metadata = preprocess_metadata(METADATA_PATH)
 
     forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH)
@@ -265,67 +255,14 @@ def initialise_training_constants():
 
     if TRAIN_MODEL_NOW == True:
         train_forecast_data = forecast_data[(forecast_data['created_at'] >= TRAIN_DATE_HOUR_START) & (forecast_data['created_at'] <= TRAIN_DATE_HOUR_END)].drop('date', axis=1)
-        train = make_train()
+        train = make_train(train_forecast_data)
         train = preprocess_df(train, boundary_layer_mapper, metadata, TARGET_COL, N_HRS_BACK, SEQ_LEN, is_test = False)
         clf = train_model(train)
 
         ##dump the model to google cloud storage.
         #joblib.dump(clf, 'model.pkl')
-        upload_trained_model_to_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
+        upload_trained_model_to_gcs(clf,'airqo-250220','airqo_prediction_bucket', 'model.pkl')
 
-
-def get_next_24hrs_predictions():
-    #load & preprocess test data:
-    METADATA_PATH = 'meta.csv'
-    BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
-    FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_data_.csv'
-    
-    #boundary_layer_mapper = get_boundary_layer_mapper(BOUNDARY_LAYER_PATH)
-    forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH)
-    #set constants
-    test_start_datetime = date_to_str(datetime.now())
-    test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
-
-    TEST_DATE_HOUR_START = pd.to_datetime('2020-07-13 09:00:00')
-
-    ### Prediction will end at this date-hour
-    TEST_DATE_HOUR_END = pd.to_datetime('2020-07-14 08:00:00')
-    N_HRS_BACK = 24 
-    SEQ_LEN = 24
-    ROLLING_SEQ_LEN = 24*90
-    MAX_LAGS = N_HRS_BACK + max(ROLLING_SEQ_LEN, SEQ_LEN) + 48 # Extra 48 or 2 days for safety
-    TEST_LAG_LAST_DATE_HOUR = TEST_DATE_HOUR_START - pd.Timedelta(hours = MAX_LAGS)
-    TARGET_COL = 'pm2_5'
-    
-    CHANNELS_TO_PREDICT_PATH = 'all_channels.pkl' 
-    clf = get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
-    #TRAIN_MODEL_PATH = 'model.pkl'
-    #clf = joblib.load(TRAIN_MODEL_PATH)
-   
-    test_forecast_data = forecast_data[(forecast_data['created_at'] >= TEST_LAG_LAST_DATE_HOUR) & (forecast_data['created_at'] <= TEST_DATE_HOUR_END + pd.Timedelta(days=2))].drop('date', axis=1)
-    #TODO:get the channelIds to use for prediction
-    all_channels = joblib.load('all_channels.pkl')
-
-    op = Parallel(n_jobs = 1)(delayed(get_agg_channel_data_test)(chan_num, test_forecast_data, freq='1H') for chan_num in all_channels)
-    test = pd.concat(op, axis=0).reset_index(drop=True)[test_forecast_data.columns.tolist()]
-    
-    test = test.groupby('channel_id').apply(lambda x: x.set_index('created_at')['pm2_5'].interpolate('time', limit_direction = 'both')).reset_index()
-
-    test = preprocess_df(test, boundary_layer_mapper, metadata, TARGET_COL, N_HRS_BACK, SEQ_LEN, is_test = True)
-    test = test[(test['created_at'] >= TEST_DATE_HOUR_START) & (test['created_at'] <= TEST_DATE_HOUR_END) ]
-
-    test_orig = test[["created_at",  "pm2_5", "channel_id"]].copy()
-
-    #modified train.columns and added test.columns
-    features = [c for c in test.columns if c not in ["created_at",  "pm2_5", "channel_id"]]
-    test_preds = clf.predict(test[features])
-    
-    test_orig['preds'] = test_preds
-
-    return test_orig
-
-def get_predictions_for_channel(next_24_hrs, chan_num):
-  return next_24_hrs[next_24_hrs['channel_id'] == chan_num]
 
 def invoke_training_process():
     metadata = preprocess_metadata(METADATA_PATH)
@@ -377,15 +314,13 @@ def get_trained_model_from_gcs(project_name,bucket_name,source_blob_name):
     with fs.open(bucket_name + '/' + source_blob_name, 'rb') as handle:
         job = joblib.load(handle)
 
-def upload_trained_model_to_gcs(project_name,bucket_name,source_blob_name):
+def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_blob_name):
     fs = gcsfs.GCSFileSystem(project=project_name)    
     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-        job = joblib.dump(handle)
+        job = joblib.dump(trained_model,handle)
 
 
 if __name__ == '__main__':
-    #get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
-    #list_buckets()
     #upload_blob('airqo_prediction_bucket', 'E:\Work\AirQo\AirQo-api\src\predict\jobs\model.pkl', 'model.pkl')
     #download_blob('airqo_prediction_bucket','model.pkl','model_downloaded2.pkl')
     initialise_training_constants()
