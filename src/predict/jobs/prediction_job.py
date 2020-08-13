@@ -28,6 +28,20 @@ MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db=client['airqo_netmanager_staging']
 
+def query_prediction_data(test_lag_last_date_hour):
+    client = bigquery.Client()
+    sql_query = """SELECT created_at ,channel_id,pm2_5
+        FROM `airqo-250220.thingspeak.clean_feeds_pms` 
+        WHERE created_at >= CAST({0} AS DATETIME)"""
+    last_date = "'"+ test_lag_last_date_hour +"'"
+    sql_query = sql_query.format(last_date)
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql_query,job_config=job_config).to_dataframe()
+    df['created_at'] =  pd.to_datetime(df['created_at'],format='%Y-%m-%d %H:%M:%S')
+    return df 
+
 def get_lag_features(df_tmp,TARGET_COL,N_HRS_BACK, SEQ_LEN):
 
   df_tmp = df_tmp.sort_values(by='created_at')
@@ -77,10 +91,10 @@ def preprocess_df(df_tmp, boundary_layer_mapper, metadata, target_column,n_hrs_b
   return df_tmp
 
 
-def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_path):
+def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_path, test_lag_last_date_hour):
   print('begin getting data from bq')
-  #forecast_data = query_prediction_data() 
-  forecast_data = pd.read_csv(forecast_data_path, usecols = ['created_at','channel_id', 'pm2_5'])
+  forecast_data = query_prediction_data(test_lag_last_date_hour) 
+  #forecast_data = pd.read_csv(forecast_data_path, usecols = ['created_at','channel_id', 'pm2_5'])
   print('end getting data from bq') 
   
   #getting metadata 
@@ -88,7 +102,6 @@ def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_pa
   #getting boundarylayer data
   boundary_layer_mapper = get_boundary_layer_mapper(boundary_layer_path)
 
-  forecast_data['created_at'] = forecast_data['created_at'].apply(lambda x: x.replace(r'+03:00', ''))
   forecast_data['created_at'] = pd.to_datetime(forecast_data['created_at'], format='%Y-%m-%d %H:%M:%S')
   forecast_data['date'] = forecast_data['created_at'].dt.date
   forecast_data = forecast_data[forecast_data['channel_id'].isin(metadata['channel_id'])].reset_index(drop=True)
@@ -104,7 +117,7 @@ def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_pa
 
 
 def preprocess_metadata(METADATA_PATH):
-  metadata = pd.read_csv(METADATA_PATH)
+  metadata = get_csv_file_from_gcs('airqo-250220','airqo_prediction_bucket',METADATA_PATH)
   fts = [c for c in metadata if c not in ['chan_id']]
   cat_fts = metadata[fts].select_dtypes('object').columns.tolist()
   metadata[cat_fts] = metadata[cat_fts].apply(lambda x: pd.factorize(x)[0])
@@ -117,7 +130,7 @@ def preprocess_metadata(METADATA_PATH):
 
 
 def get_boundary_layer_mapper(BOUNDARY_LAYER_PATH):  
-  boundary_layer = pd.read_csv(BOUNDARY_LAYER_PATH)
+  boundary_layer =  get_csv_file_from_gcs('airqo-250220','airqo_prediction_bucket',BOUNDARY_LAYER_PATH)
   boundary_layer_mapper = pd.Series(index = boundary_layer['hour'], data = boundary_layer['height'])  
   
   return boundary_layer_mapper
@@ -177,7 +190,6 @@ def get_next_24hrs_predictions():
     BOUNDARY_LAYER_PATH = 'boundary_layer.csv'
     FORECAST_DATA_PATH = 'Zindi_PM2_5_forecast_datay.csv'
     
-    forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH)
     #set constants
     test_start_datetime = datetime.now().strftime('%Y-%m-%d %H')
     #test_end_datetime = date_to_str(datetime.now() + timedelta(hours=24))
@@ -192,12 +204,14 @@ def get_next_24hrs_predictions():
     MAX_LAGS = N_HRS_BACK + max(ROLLING_SEQ_LEN, SEQ_LEN) + 48 # Extra 48 or 2 days for safety
     TEST_LAG_LAST_DATE_HOUR = TEST_DATE_HOUR_START - pd.Timedelta(hours = MAX_LAGS)
     TARGET_COL = 'pm2_5'
-    
+    print(TEST_LAG_LAST_DATE_HOUR)
+    print(TEST_DATE_HOUR_END)
     CHANNELS_TO_PREDICT_PATH = 'all_channels.pkl' 
     clf = get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'model.pkl')
-     
-    
     all_channels =  get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'all_channels.pkl')
+    
+    forecast_data, metadata, boundary_layer_mapper = preprocess_forecast_data(FORECAST_DATA_PATH,METADATA_PATH,BOUNDARY_LAYER_PATH,date_to_str(TEST_LAG_LAST_DATE_HOUR))
+    
     test_forecast_data = make_test_forecast_data(forecast_data, TEST_LAG_LAST_DATE_HOUR, TEST_DATE_HOUR_END, all_channels )
     
     op = Parallel(n_jobs = 1)(delayed(get_agg_channel_data_test)(chan_num, test_forecast_data, freq='1H') for chan_num in all_channels)
@@ -214,6 +228,7 @@ def get_next_24hrs_predictions():
     test_orig['preds'] = test_preds
 
     return test_orig, TEST_DATE_HOUR_START, TEST_DATE_HOUR_END
+    
 
 def get_predictions_for_channel(next_24_hrs, chan_num):
   return next_24_hrs[next_24_hrs['channel_id'] == chan_num]
@@ -231,11 +246,20 @@ def upload_trained_model_to_gcs(project_name,bucket_name,source_blob_name):
     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
         job = joblib.dump(handle)
 
+def get_csv_file_from_gcs(project_name,bucket_name,source_blob_name):
+    """
+    gets csv file from google cloud storage and returns as a pandas dataframe.
+    """
+    fs = gcsfs.GCSFileSystem(project=project_name)
+    with fs.open(bucket_name + '/' + source_blob_name) as file_handle:
+        df = pd.read_csv(file_handle)
+    return df
 
 if __name__ == '__main__':
     TARGET_COL = 'pm2_5'
+    
     next_24hrs_predictions, TEST_DATE_HOUR_START, TEST_DATE_HOUR_END = get_next_24hrs_predictions()
-    #all_channels = 
+    
     all_channels_x = get_trained_model_from_gcs('airqo-250220','airqo_prediction_bucket', 'all_channels.pkl')
     prediction_results =[]
     
@@ -254,3 +278,7 @@ if __name__ == '__main__':
     channel_results = get_predictions_for_channel(next_24hrs_predictions, 672528)
     print(channel_results)
     #channel_results.to_csv('channel_resultsX.csv')
+    
+    #get_next_24hrs_predictions()
+    #res = query_prediction_data('2020-08-10 03:00:00')
+    #res.to_csv('res.csv')

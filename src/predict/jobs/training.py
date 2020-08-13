@@ -22,7 +22,7 @@ def query_prediction_data():
     client = bigquery.Client()
     sql = """SELECT created_at ,channel_id,pm2_5
         FROM `airqo-250220.thingspeak.clean_feeds_pms` """
-
+    
     job_config = bigquery.QueryJobConfig()
     job_config.use_legacy_sql = False
      
@@ -55,8 +55,8 @@ def get_all_static_channels():
 
 def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_path):
   print('begin getting data from bq')
-  #forecast_data = query_prediction_data() 
-  forecast_data = pd.read_csv(forecast_data_path, usecols = ['created_at','channel_id', 'pm2_5'])
+  forecast_data = query_prediction_data() 
+  #forecast_data = pd.read_csv(forecast_data_path, usecols = ['created_at','channel_id', 'pm2_5'])
   print('end getting data from bq') 
   
   #getting metadata 
@@ -80,7 +80,7 @@ def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_pa
 
 
 def preprocess_metadata(METADATA_PATH):
-  metadata = pd.read_csv(METADATA_PATH)
+  metadata = get_csv_file_from_gcs('airqo-250220','airqo_prediction_bucket',METADATA_PATH)  
   fts = [c for c in metadata if c not in ['chan_id']]
   cat_fts = metadata[fts].select_dtypes('object').columns.tolist()
   metadata[cat_fts] = metadata[cat_fts].apply(lambda x: pd.factorize(x)[0])
@@ -88,13 +88,12 @@ def preprocess_metadata(METADATA_PATH):
   drop_fts = ['loc_ref', 'chan_ref', 'loc_mob_stat', 'airqo_name', 'district_lookup', 'county_lookup', 'coords', 'loc_start_date', 'loc_end_date', 'gmaps_link',
               'OSM_link', 'nearby_sources', 'geometry', 'geometry_43', 'event_logging_link']
   metadata = metadata.drop(drop_fts, axis=1)
-  #metadata.to_csv('metadata_to_use.csv', index = False)
-
+ 
   return metadata
 
 
 def get_boundary_layer_mapper(BOUNDARY_LAYER_PATH):  
-  boundary_layer = pd.read_csv(BOUNDARY_LAYER_PATH)
+  boundary_layer = get_csv_file_from_gcs('airqo-250220','airqo_prediction_bucket',BOUNDARY_LAYER_PATH)
   boundary_layer_mapper = pd.Series(index = boundary_layer['hour'], data = boundary_layer['height'])  
   
   return boundary_layer_mapper
@@ -310,7 +309,6 @@ def download_blob(bucket_name,source_blob_name, destination_file_name):
 
 def get_trained_model_from_gcs(project_name,bucket_name,source_blob_name):
     fs = gcsfs.GCSFileSystem(project=project_name)
-    fs.ls(bucket_name)
     with fs.open(bucket_name + '/' + source_blob_name, 'rb') as handle:
         job = joblib.load(handle)
 
@@ -319,6 +317,14 @@ def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_bl
     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
         job = joblib.dump(trained_model,handle)
 
+def get_csv_file_from_gcs(project_name,bucket_name,source_blob_name):
+    """
+    gets csv file from google cloud storage and returns as a pandas dataframe.
+    """
+    fs = gcsfs.GCSFileSystem(project=project_name)
+    with fs.open(bucket_name + '/' + source_blob_name) as file_handle:
+        df = pd.read_csv(file_handle)
+    return df
 
 if __name__ == '__main__':
     #upload_blob('airqo_prediction_bucket', 'E:\Work\AirQo\AirQo-api\src\predict\jobs\model.pkl', 'model.pkl')
