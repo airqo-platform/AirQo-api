@@ -55,8 +55,8 @@ def get_all_static_channels():
 
 def preprocess_forecast_data(forecast_data_path,metadata_path, boundary_layer_path):
   print('begin getting data from bq')
-  forecast_data = query_prediction_data() 
-  #forecast_data = pd.read_csv(forecast_data_path, usecols = ['created_at','channel_id', 'pm2_5'])
+  #forecast_data = query_prediction_data() 
+  forecast_data = pd.read_csv(forecast_data_path, usecols = ['created_at','channel_id', 'pm2_5'])
   print('end getting data from bq') 
   
   #getting metadata 
@@ -255,6 +255,7 @@ def initialise_training_constants():
     if TRAIN_MODEL_NOW == True:
         train_forecast_data = forecast_data[(forecast_data['created_at'] >= TRAIN_DATE_HOUR_START) & (forecast_data['created_at'] <= TRAIN_DATE_HOUR_END)].drop('date', axis=1)
         train = make_train(train_forecast_data)
+        train['pm2_5'] = np.clip(train['pm2_5'], 0, 350)
         train = preprocess_df(train, boundary_layer_mapper, metadata, TARGET_COL, N_HRS_BACK, SEQ_LEN, is_test = False)
         clf = train_model(train)
 

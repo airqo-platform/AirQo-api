@@ -47,17 +47,17 @@ def get_next_24hr_predictions_for_channel(channel_id,prediction_start_time):
     print(prediction_start_time)
     print(type(prediction_start_time))
     prediction_start_time = utils.str_to_date(prediction_start_time)
-    channel_predictions = list(db.predictions.find(
-            {'$and': [{'channel_id':  channel_id},
-             {'created_at': {'$gte': prediction_start_time}}]},{'_id': 0}).sort([('$natural', -1)]).limit(1))
-    '''
-    query = {'$match': {'channel_id': channel_id}}
-    projection =  {'$project':{'_id': 0}}
-    sort_order = {'$sort': {'$natural', -1}}
+    #channel_predictions = list(db.predictions.find(
+            #{'$and': [{'channel_id':  channel_id},
+             #{'created_at': {'$gte': prediction_start_time}}]},{'_id': 0}).sort([('$natural', -1)]).limit(1))
+    
+    #query = {'$match': {'channel_id': channel_id}}
+    #projection =  {'$project':{'_id': 0}}
+    #sort_order = {'$sort': {'$natural', -1}}
     channel_predictions = list(db.predictions.find(
             {'channel_id': channel_id
                             },{'_id': 0}).sort([('$natural', -1)]).limit(1))
-    '''
+    
     #channel_predictions = list(db.predictions.aggregate(
                 #[query, projection]))
     
