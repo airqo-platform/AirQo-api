@@ -72,7 +72,7 @@ const data = {
         return obj.entry_id === entry;
       });
       response.feed = feed[0];
-      res.status(200).json(response);
+      res.status(200).json(response.feed);
     } catch (e) {
       res.status(501).send(e.message);
     }
