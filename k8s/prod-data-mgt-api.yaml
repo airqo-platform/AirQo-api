@@ -1,0 +1,56 @@
+###########################################################
+# Start deployment of data mgt api
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-data-mgt-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: data-mgt-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: data-mgt-api
+    spec:
+      containers:
+        - name: data-mgt-api
+          image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: data-mgt-api
+          env:
+            - name: TS_API_KEY
+              value: JQZOU97VDLX7OTDH
+            - name: MONGO_GCE_URI
+              value: mongodb://admin:airqo-250220-master@35.224.67.244:27017
+            - name: JWT_SECRET
+              value: mkT23j#u!45
+            - name: MONGO_DEV
+              value: data-mgt-dev
+            - name: MONGO_TEST
+              value: data-mgt-test
+            - name: MONGO_STAGE
+              value: data-mgt-stage
+            - name: MONGO_PROD
+              value: data-mgt-prod
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-data-mgt-api-svc
+  namespace: production
+spec:
+  selector:
+    app: data-mgt-api
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30001
+  type: NodePort

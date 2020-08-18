@@ -1,0 +1,56 @@
+###########################################################
+# Start deployment of data-mgt api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-data-mgt-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-data-mgt-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: sta-data-mgt-api
+    spec:
+      containers:
+        - name: sta-data-mgt-api
+          image: us.gcr.io/airqo-250220/airqo-stage-data-mgt-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: sta-data-mgt-api
+          env:
+            - name: TS_API_KEY
+              value: JQZOU97VDLX7OTDH
+            - name: MONGO_GCE_URI
+              value: mongodb://admin:airqo-250220-master@35.224.67.244:27017
+            - name: JWT_SECRET
+              value: mkT23j#u!45
+            - name: MONGO_DEV
+              value: data-mgt-dev
+            - name: MONGO_TEST
+              value: data-mgt-test
+            - name: MONGO_STAGE
+              value: data-mgt-stage
+            - name: MONGO_PROD
+              value: data-mgt-prod
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-data-mgt-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-data-mgt-api
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 31001
+  type: NodePort
