@@ -23,22 +23,6 @@ spec:
           ports:
             - containerPort: 3000
               name: sta-data-mgt-api
-          env:
-            - name: TS_API_KEY
-              value: JQZOU97VDLX7OTDH
-            - name: MONGO_GCE_URI
-              value: mongodb://admin:airqo-250220-master@35.224.67.244:27017
-            - name: JWT_SECRET
-              value: mkT23j#u!45
-            - name: MONGO_DEV
-              value: data-mgt-dev
-            - name: MONGO_TEST
-              value: data-mgt-test
-            - name: MONGO_STAGE
-              value: data-mgt-stage
-            - name: MONGO_PROD
-              value: data-mgt-prod
-
 ---
 kind: Service
 apiVersion: v1
