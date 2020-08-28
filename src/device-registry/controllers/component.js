@@ -369,15 +369,42 @@ const component = {
 
   addValues: async (req, res) => {
     try {
-      let { c_id, d_id } = req.params;
-      let { values, timestamp } = req.body;
-      let eventBody = {
-        $addToSet: { values: { $each: values } },
-      };
-
-      //check the rights of the current user
-      if (!component.owner.equals(req.user._id)) {
-        res.status(HTTPStatus.UNAUTHORIZED);
+      logText("adding values...");
+      const { device } = req.query;
+      const { values, timestamp } = req.body;
+      if (values.length == 0 && timestamp == null) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "required fields missing in request body",
+        });
+      } else {
+        const eventBody = {
+          values: values,
+          timestamp: timestamp,
+        };
+        const eventFilter = { deviceName: device };
+        const updatedEvent = await Event.findOneAndUpdate(
+          eventFilter,
+          eventBody,
+          {
+            new: true,
+            upsert: true,
+          }
+        );
+        if (updatedEvent) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "successfully added the device data",
+            updatedEvent,
+          });
+        } else if (!updatedEvent) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            message: "unable to add events",
+            success: false,
+          });
+        } else {
+          logText("just unable to add events");
+        }
       }
     } catch (e) {
       res.status(HTTPStatus.BAD_REQUEST).json({
@@ -387,6 +414,46 @@ const component = {
       });
     }
   },
+
+  /********************************* push data to Thing ****************************** */
+  writeToThing: async (req, res) => {
+    await axios
+      .get(constants.ADD_VALUE(field, value, apiKey))
+      .then(function(response) {
+        console.log(response.data);
+        updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
+        axios
+          .post(updateUrl, req.body)
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              output,
+            });
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message: "unable to write data to the device",
+              success: false,
+              error,
+            });
+          });
+      })
+      .catch(function(error) {
+        console.log(error);
+        res.status(500).json({
+          message:
+            "unable to get channel details necessary for writing this data",
+          success: false,
+          error,
+        });
+      });
+  },
+
+  bulkWriteToThing: (req, res) => {},
 
   calibrate: async (req, res) => {
     let { c_id, d_id } = req.params;
