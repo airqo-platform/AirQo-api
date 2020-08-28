@@ -744,7 +744,7 @@ const device = {
     }
   },
 
-  /********************************* Thing Settings ****************************** */
+  /********************************* Update Thing Settings ****************************** */
   updateThingSettings: async (req, res) => {
     try {
       let { device } = req.query;
@@ -826,46 +826,6 @@ const device = {
       });
     }
   },
-
-  /********************************* push data to Thing ****************************** */
-  writeToThing: async (req, res) => {
-    await axios
-      .get(constants.ADD_VALUE(field, value, apiKey))
-      .then(function(response) {
-        console.log(response.data);
-        updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
-        axios
-          .post(updateUrl, req.body)
-          .then(function(response) {
-            console.log(response.data);
-            let output = response.data;
-            res.status(200).json({
-              message: "successfully written data to the device",
-              success: true,
-              output,
-            });
-          })
-          .catch(function(error) {
-            console.log(error);
-            res.status(500).json({
-              message: "unable to write data to the device",
-              success: false,
-              error,
-            });
-          });
-      })
-      .catch(function(error) {
-        console.log(error);
-        res.status(500).json({
-          message:
-            "unable to get channel details necessary for writing this data",
-          success: false,
-          error,
-        });
-      });
-  },
-
-  bulkWriteToThing: (req, res) => {},
 
   /**************************** end of using ThingSpeak **************************** */
 
