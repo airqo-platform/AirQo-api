@@ -1,32 +1,27 @@
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const ObjectId = Schema.Types.ObjectId;
 
 const eventSchema = new Schema(
   {
-    deviceID: {
+    deviceName: {
       type: String,
-      required: [true, "The deviceID is required"],
+      required: [true, "The deviceName is required"],
       trim: true,
     },
-    sensorID: {
-      type: String,
-      required: [true, "The sensorID is required"],
-      trim: true,
-    },
-    nvalues: {
+    nValues: {
       type: Number,
-      default: 50,
     },
-    day: { type: Date, default: Date.now() },
-    first: {},
-    last: {},
-    values: [{ value: { type: Number }, timestamp: { type: String } }],
-    frequency: {
-      type: String,
-      required: [true, "The frequency is required"],
-      trim: true,
-    },
+    timestamp: { type: Date },
+    values: [
+      {
+        componentName: {
+          value: { type: Number },
+          raw: { type: Number },
+          weight: { type: Number },
+          frequency: { type: String },
+        },
+      },
+    ],
   },
   {
     timestamps: true,
