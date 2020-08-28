@@ -1,5 +1,4 @@
 const Device = require("../models/Device");
-const Maintenance = require("../models/maintenance_log");
 const LocationActivity = require("../models/location_activity");
 const Location = require("../models/Location");
 const HTTPStatus = require("http-status");
