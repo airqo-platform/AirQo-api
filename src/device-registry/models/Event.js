@@ -42,10 +42,10 @@ eventSchema.methods = {
     return {
       _id: this._id,
       createdAt: this.createdAt,
-      deviceID: this.deviceID,
-      sensorID: this.sensorID,
-      nvalues: this.nvalues,
+      deviceName: this.deviceName,
+      nValues: this.nValues,
       values: this.values,
+      timestamp: this.timestamp,
     };
   },
 };
