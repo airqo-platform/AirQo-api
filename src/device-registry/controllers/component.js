@@ -372,18 +372,14 @@ const component = {
       logText("adding values...");
       const { device } = req.query;
       const { values, timestamp } = req.body;
-      if (values.length == 0 && timestamp == null) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "required fields missing in request body",
-        });
-      } else {
+      logObject("the type of device name", typeof device);
+      if (!isEmpty(values) && !isEmpty(timestamp) && !isEmpty(device)) {
         const eventBody = {
           values: values,
           timestamp: timestamp,
         };
         const eventFilter = { deviceName: device };
-        const updatedEvent = await Event.findOneAndUpdate(
+        const addedEvent = await Event.findOneAndUpdate(
           eventFilter,
           eventBody,
           {
@@ -391,13 +387,13 @@ const component = {
             upsert: true,
           }
         );
-        if (updatedEvent) {
+        if (addedEvent) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: "successfully added the device data",
-            updatedEvent,
+            addedEvent,
           });
-        } else if (!updatedEvent) {
+        } else if (!addedEvent) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             message: "unable to add events",
             success: false,
@@ -405,6 +401,12 @@ const component = {
         } else {
           logText("just unable to add events");
         }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "required fields missing either in request body or URL query parameter",
+        });
       }
     } catch (e) {
       res.status(HTTPStatus.BAD_REQUEST).json({
