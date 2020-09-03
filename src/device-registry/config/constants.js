@@ -1,7 +1,7 @@
 const { logElement } = require("../utils/log");
 
 const devConfig = {
-  MONGO_URL: `mongodb://localhost/`,
+  MONGO_URI: `mongodb://localhost/`,
   DB_NAME: process.env.MONGO_DEV,
   JWT_SECRET: process.env.JWT_SECRET,
   REGION: "europe-west1",
@@ -48,7 +48,7 @@ const prodConfig = {
     field8: "NO2",
     field9: "SO3",
   },
-  MONGO_URL: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
   JWT_SECRET: process.env.JWT_SECRET,
 };
@@ -75,7 +75,7 @@ const stageConfig = {
     field8: "NO2",
     field9: "SO3",
   },
-  MONGO_URL: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
   JWT_SECRET: process.env.JWT_SECRET,
 };
