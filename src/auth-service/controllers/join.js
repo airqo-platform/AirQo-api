@@ -247,7 +247,7 @@ const join = {
   },
 
   updateUserDefaults: async (req, res, next) => {
-    let filter = { user: req.params.id, chartTitle: req.body.chartTitle },
+    let filter = { user: req.query.user, chartTitle: req.body.chartTitle },
       update = req.body,
       options = { upsert: true, new: true };
     let doc = await Defaults.findOneAndUpdate(filter, update, options);
@@ -268,18 +268,17 @@ const join = {
 
   getDefaults: async (req, res) => {
     try {
-      console.log("the query");
-      console.log(req.query);
-      const defaults = await Defaults.find({ user: req.params.id });
+      const defaults = await Defaults.find({ user: req.query.user });
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: " defaults fetched successfully",
         defaults,
       });
     } catch (e) {
-      return res
-        .status(HTTPStatus.BAD_REQUEST)
-        .json({ success: false, message: "Some Error" });
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: "Unable to fetch the defaults for the user",
+      });
     }
   },
   updateLocations: (req, res) => {
