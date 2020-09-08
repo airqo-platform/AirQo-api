@@ -40,6 +40,7 @@ const DefaultsSchema = new mongoose.Schema({
       type: String,
     },
   ],
+  range: { type: String, required: [true, "range is required!"] },
 });
 
 DefaultsSchema.plugin(uniqueValidator);
