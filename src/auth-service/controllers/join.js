@@ -15,6 +15,7 @@ const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
 var generatorPassword = require("generate-password");
+const isEmpty = require("is-empty");
 
 const join = {
   listAll: async (req, res) => {
@@ -28,14 +29,14 @@ const join = {
     } catch (e) {
       return res
         .status(HTTPStatus.BAD_REQUEST)
-        .json({ success: false, message: "Some Error" });
+        .json({ success: false, message: "Unable to list all" });
     }
   },
 
   listOne: async (req, res) => {
     User.find({ _id: req.params.id }).exec((err, user) => {
       if (err) {
-        return res.json({ success: false, message: "Some Error" });
+        return res.json({ success: false, message: "Unable to list one" });
       }
       if (user.length) {
         return res.json({
@@ -210,7 +211,7 @@ const join = {
   deleteUser: (req, res, next) => {
     User.findByIdAndRemove(req.params.id, (err, user) => {
       if (err) {
-        return res.json({ success: false, message: "Some Error" });
+        return res.json({ success: false, message: "Unable to delete user" });
       } else if (user) {
         return res.status(200).json({
           success: true,
@@ -232,7 +233,11 @@ const join = {
       { new: true },
       (err, user) => {
         if (err) {
-          res.json({ success: false, message: "Some Error", error: err });
+          res.json({
+            success: false,
+            message: "Unable to update user",
+            error: err,
+          });
         } else if (user) {
           console.log(user);
           res.json({ success: true, message: "Updated successfully", user });
@@ -247,28 +252,72 @@ const join = {
   },
 
   updateUserDefaults: async (req, res, next) => {
-    let filter = { user: req.query.user, chartTitle: req.body.chartTitle },
-      update = req.body,
-      options = { upsert: true, new: true };
-    let doc = await Defaults.findOneAndUpdate(filter, update, options);
+    try {
+      const { user, chartTitle } = req.query;
+      if (!isEmpty(user) && !isEmpty(chartTitle)) {
+        const filter = {
+            user: req.query.user,
+            chartTitle: req.query.chartTitle,
+          },
+          update = req.body,
+          options = { upsert: true, new: true };
+        let doc = await Defaults.findOneAndUpdate(filter, update, options);
 
-    if (doc) {
-      res.status(200).json({
-        success: true,
-        message: "updated/created the user defaults",
-        doc,
-      });
-    } else {
-      res.status(500).json({
+        if (doc) {
+          res.status(200).json({
+            success: true,
+            message: "updated/created the user defaults",
+            doc,
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            message: "unable to create/update these defaults",
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "please crosscheck the api query parameters using the documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        message: "unable to create/update these defaults",
+        message:
+          "please crosscheck the api query parameters using the documentation",
+        error: e.message,
       });
     }
   },
 
   getDefaults: async (req, res) => {
     try {
-      const defaults = await Defaults.find({ user: req.query.user });
+      const { user, chartTitle } = req.query;
+      let filter = {};
+      console.log;
+      if (!isEmpty(user) && isEmpty(chartTitle)) {
+        filter = {
+          user: user,
+        };
+      } else if (!isEmpty(user) && !isEmpty(chartTitle)) {
+        filter = {
+          user: user,
+          chartTitle: chartTitle,
+        };
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "please crosscheck the api query parameters using the documentation",
+        });
+      }
+      // const filter = {
+      //   user: req.query.user,
+      //   chartTitle: req.query.chartTitle,
+      // };
+      const defaults = await Defaults.find(filter);
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: " defaults fetched successfully",
@@ -278,6 +327,7 @@ const join = {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
         message: "Unable to fetch the defaults for the user",
+        error: e.message,
       });
     }
   },
