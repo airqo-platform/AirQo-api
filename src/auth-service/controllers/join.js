@@ -191,7 +191,11 @@ const join = {
       register(req, res, mailOptions, req.body, User, tenant);
     } catch (e) {
       logElement("the error", e);
-      return res.status(500).json({ success: false, message: "server error" });
+      return res.status(500).json({
+        success: false,
+        message: "unable to register user",
+        error: e.message,
+      });
     }
   },
   //invoked when the user visits the confirmation url on the client
@@ -220,7 +224,12 @@ const join = {
     } catch (e) {
       return res
         .status(500)
-        .json({ success: false, e, message: "server error" });
+        .json({
+          success: false,
+          e,
+          message: "unable to confirm email",
+          error: e.message,
+        });
     }
   },
 
@@ -268,9 +277,11 @@ const join = {
     const User = getModelByTenant(tenant, "user", UserSchema);
     User.findByIdAndUpdate(id, req.body, { new: true }, (err, user) => {
       if (err) {
-        res
-          .status(500)
-          .json({ success: false, message: "Server Error", error: err });
+        res.status(500).json({
+          success: false,
+          message: "Unable to update user",
+          error: err,
+        });
       } else if (user) {
         console.log(user);
         res
@@ -286,62 +297,91 @@ const join = {
   },
 
   updateUserDefaults: async (req, res, next) => {
-    const { tenant, id } = req.query;
-    const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
+    try {
+      const { tenant, user, chartTitle } = req.query;
+      const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
 
-    let query = { user: id, chartTitle: req.body.chartTitle },
-      update = req.body,
-      options = { upsert: true, new: true };
-    console.log("when I have just joined the platform");
+      if (!isEmpty(user) && !isEmpty(chartTitle)) {
+        const filter = {
+            user: user,
+            chartTitle: chartTitle,
+          },
+          update = req.body,
+          options = { upsert: true, new: true };
+        let doc = await Defaults.findOneAndUpdate(filter, update, options);
 
-    await Defaults.findOneAndUpdate(query, update, options, (error, result) => {
-      if (!error) {
-        //if the document does not exist
-        if (!result) {
-          result = new Defaults();
+        if (doc) {
+          res.status(200).json({
+            success: true,
+            message: "updated/created the user defaults",
+            doc,
+          });
+        } else {
+          res.status(500).json({
+            success: false,
+            message: "unable to create/update these defaults",
+          });
         }
-        //save the document
-        result.save(function (error, saved) {
-          if (!error) {
-            console.log("when there is no error");
-            res.status(200).json({
-              success: true,
-              message: "saved the user default",
-              saved,
-            });
-          } else {
-            console.log("when there is an error");
-            res.status(500).json({
-              success: false,
-              message: "unable to save defaults",
-              error,
-            });
-          }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "please crosscheck the api query parameters using the documentation",
         });
       }
-    });
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message:
+          "please crosscheck the api query parameters using the documentation",
+        error: e.message,
+      });
+    }
   },
 
   getDefaults: async (req, res) => {
     try {
-      const { tenant, id } = req.query;
+      const { user, chartTitle, tenant } = req.query;
       const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
-      const defaults = await Defaults.find({ user: id });
+      let filter = {};
+      console.log;
+      if (!isEmpty(user) && isEmpty(chartTitle)) {
+        filter = {
+          user: user,
+        };
+      } else if (!isEmpty(user) && !isEmpty(chartTitle)) {
+        filter = {
+          user: user,
+          chartTitle: chartTitle,
+        };
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "please crosscheck the api query parameters using the documentation",
+        });
+      }
+      // const filter = {
+      //   user: req.query.user,
+      //   chartTitle: req.query.chartTitle,
+      // };
+      const defaults = await Defaults.find(filter);
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: " defaults fetched successfully",
         defaults,
       });
     } catch (e) {
-      return res
-        .status(HTTPStatus.BAD_REQUEST)
-        .json({ success: false, message: "Unable to fetch the defaults" });
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: "Unable to fetch the defaults for the user",
+        error: e.message,
+      });
     }
   },
   updateLocations: (req, res) => {
     const { tenant, id } = req.query;
     const User = getModelByTenant(tenant, "user", UserSchema);
-    logElement("the user ID", id);
     let response = {};
     User.find({ _id: id }, (error, user) => {
       if (error) {
@@ -382,14 +422,13 @@ const join = {
   },
 
   resetPassword: async (req, res, next) => {
-    const { resetPasswordToken } = req.query;
-    logText("resetting password......");
-    logElement("the reset password token", resetPasswordToken);
-    const { tenant } = req.query;
+    const { tenant, resetPasswordToken } = req.query;
     const User = getModelByTenant(tenant, "user", UserSchema);
+    console.log("inside the reset password function...");
+    console.log(`${resetPasswordToken}`);
     await User.findOne(
       {
-        resetPasswordToken: req.query.resetPasswordToken,
+        resetPasswordToken: resetPasswordToken,
         resetPasswordExpires: {
           $gt: Date.now(),
         },
@@ -414,14 +453,13 @@ const join = {
   },
 
   updatePasswordViaEmail: (req, res, next) => {
-    const { userName, password } = req.body;
-
     const { tenant } = req.query;
     const User = getModelByTenant(tenant, "user", UserSchema);
+    const { userName, password, resetPasswordToken } = req.body;
 
     User.findOne({
       userName: userName,
-      resetPasswordToken: req.body.resetPasswordToken,
+      resetPasswordToken: resetPasswordToken,
       resetPasswordExpires: {
         $gt: Date.now(),
       },
