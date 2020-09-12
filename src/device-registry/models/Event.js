@@ -8,18 +8,26 @@ const eventSchema = new Schema(
       required: [true, "The deviceName is required"],
       trim: true,
     },
+    componentName: {
+      type: String,
+      required: [true, "the componentName is required"],
+      trim: true,
+    },
+    day: {
+      type: Date,
+    },
+    first: { type: Timestamp },
+    last: { type: Timestamp },
     nValues: {
       type: Number,
     },
-    timestamp: { type: Date },
     values: [
       {
-        componentName: {
-          value: { type: Number },
-          raw: { type: Number },
-          weight: { type: Number },
-          frequency: { type: String },
-        },
+        value: { type: Number },
+        raw: { type: Number },
+        weight: { type: Number },
+        frequency: { type: String },
+        time: { type: Timestamp },
       },
     ],
   },
