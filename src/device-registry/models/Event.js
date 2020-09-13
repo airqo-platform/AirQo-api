@@ -16,18 +16,32 @@ const eventSchema = new Schema(
     day: {
       type: Date,
     },
-    first: { type: Timestamp },
-    last: { type: Timestamp },
+    first: { type: Date },
+    last: { type: Date },
     nValues: {
       type: Number,
     },
     values: [
       {
-        value: { type: Number },
+        value: { type: Number, required: [true, "the value is required"] },
         raw: { type: Number },
+        calibratedValue: { type: Number },
         weight: { type: Number },
-        frequency: { type: String },
-        time: { type: Timestamp },
+        frequency: {
+          type: String,
+          required: [true, "the frequency is required"],
+        },
+        time: { type: Date },
+        measurement: {
+          quantityKind: {
+            type: String,
+            required: [true, "The quantity kind is required"],
+          },
+          measurementUnit: {
+            type: String,
+            required: [true, "The unit is required"],
+          },
+        },
       },
     ],
   },
@@ -51,9 +65,11 @@ eventSchema.methods = {
       _id: this._id,
       createdAt: this.createdAt,
       deviceName: this.deviceName,
-      nValues: this.nValues,
+      componentName: this.componentName,
       values: this.values,
-      timestamp: this.timestamp,
+      day: this.day,
+      first: this.first,
+      last: this.last,
     };
   },
 };
