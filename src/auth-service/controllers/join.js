@@ -18,6 +18,18 @@ const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 
+const UserModel = (tenant) => {
+  return getModelByTenant(tenant, "user", UserSchema);
+};
+
+const DefaultModel = (tenant) => {
+  return getModelByTenant(tenant, "default", DefaultSchema);
+};
+
+const LocationModel = (tenant) => {
+  return getModelByTenant(tenant, "location", LocationSchema);
+};
+
 const join = {
   addUserByTenant: async (req, res) => {
     try {
@@ -25,8 +37,7 @@ const join = {
       const { tenant } = req.query;
       const { body } = req;
       logObject("checking the body", body);
-      const User = getModelByTenant(tenant, "user", UserSchema);
-      const user = await User.createUser(body);
+      const user = await UserModel(tenant).createUser(body);
       if (user) {
         return res.status(HTTPStatus.OK).json({
           success: true,
@@ -48,9 +59,8 @@ const join = {
       logText(".....................................");
       logText("list all users by tenant...");
       const { tenant, id } = req.query;
-      const User = getModelByTenant(tenant, "user", UserSchema);
       if (isEmpty(id) && !isEmpty(tenant)) {
-        const users = await User.find();
+        const users = await UserModel(tenant).find();
         if (!isEmpty(users)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
@@ -120,37 +130,40 @@ const join = {
       };
       //get the model based on tenant
       const { tenant } = req.query;
-      const User = getModelByTenant(tenant, "user", UserSchema);
 
-      await User.findOneAndUpdate(query, updateDetails, (error, response) => {
-        if (error) {
-          return res.status(400).json({ email: "Email does not exist" });
-        } else if (response) {
-          const mailOptions = {
-            from: `info@airqo.net`,
-            to: `${req.body.email}`,
-            subject: `Link To Reset Password`,
-            text: `${msgs.recovery_email(token)}`,
-          };
-          //we shall review other third party libraries for making emails....^^
+      await UserModel(tenant).findOneAndUpdate(
+        query,
+        updateDetails,
+        (error, response) => {
+          if (error) {
+            return res.status(400).json({ email: "Email does not exist" });
+          } else if (response) {
+            const mailOptions = {
+              from: `info@airqo.net`,
+              to: `${req.body.email}`,
+              subject: `Link To Reset Password`,
+              text: `${msgs.recovery_email(token)}`,
+            };
+            //we shall review other third party libraries for making emails....^^
 
-          console.log("sending mail");
+            console.log("sending mail");
 
-          //deliver the message object using sendMail
-          transporter.sendMail(mailOptions, (err, response) => {
-            if (err) {
-              console.error("there was an error: ", err);
-              return res.status(500).json({ email: "unable to send email" });
-            } else {
-              console.log("here is the res: ", response);
-              return res.status(200).json({ email: "recovery email sent" });
-            }
-          });
-          //return res.status(HTTPStatus.OK).json(response);
-        } else {
-          return res.status(400).json({ email: "unable to send email" });
+            //deliver the message object using sendMail
+            transporter.sendMail(mailOptions, (err, response) => {
+              if (err) {
+                console.error("there was an error: ", err);
+                return res.status(500).json({ email: "unable to send email" });
+              } else {
+                console.log("here is the res: ", response);
+                return res.status(200).json({ email: "recovery email sent" });
+              }
+            });
+            //return res.status(HTTPStatus.OK).json(response);
+          } else {
+            return res.status(400).json({ email: "unable to send email" });
+          }
         }
-      });
+      );
     } catch (e) {}
   },
 
@@ -164,7 +177,6 @@ const join = {
       }
 
       const { tenant } = req.query;
-      const User = getModelByTenant(tenant, "user", UserSchema);
       const { firstName, lastName, password, userName } = req.body;
 
       let mailOptions = {};
@@ -188,7 +200,7 @@ const join = {
           )}`,
         };
       }
-      register(req, res, mailOptions, req.body, User, tenant);
+      register(req, res, mailOptions, req.body, UserModel(tenant), tenant);
     } catch (e) {
       logElement("the error", e);
       return res.status(500).json({
@@ -202,8 +214,8 @@ const join = {
   confirmEmail: async (req, res) => {
     try {
       const { tenant, id } = req.query;
-      const User = getModelByTenant(tenant, "user", UserSchema);
-      User.findById(id)
+      UserModel(tenant)
+        .findById(id)
         .then((user) => {
           //when the user does not exist in the DB
           if (!user) {
@@ -222,14 +234,12 @@ const join = {
         })
         .catch((err) => console.log(err));
     } catch (e) {
-      return res
-        .status(500)
-        .json({
-          success: false,
-          e,
-          message: "unable to confirm email",
-          error: e.message,
-        });
+      return res.status(500).json({
+        success: false,
+        e,
+        message: "unable to confirm email",
+        error: e.message,
+      });
     }
   },
 
@@ -249,9 +259,7 @@ const join = {
 
   deleteUser: (req, res, next) => {
     const { tenant, id } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
-
-    User.findByIdAndRemove(id, (err, user) => {
+    UserModel(tenant).findByIdAndRemove(id, (err, user) => {
       if (err) {
         return res.status(400).json({
           success: false,
@@ -274,32 +282,37 @@ const join = {
 
   updateUser: (req, res, next) => {
     const { tenant, id } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
-    User.findByIdAndUpdate(id, req.body, { new: true }, (err, user) => {
-      if (err) {
-        res.status(500).json({
-          success: false,
-          message: "Unable to update user",
-          error: err,
-        });
-      } else if (user) {
-        console.log(user);
-        res
-          .status(200)
-          .json({ success: true, message: "User updated successfully", user });
-      } else {
-        res.status(400).json({
-          success: false,
-          message: "user does not exist in the db",
-        });
+    UserModel(tenant).findByIdAndUpdate(
+      id,
+      req.body,
+      { new: true },
+      (err, user) => {
+        if (err) {
+          res.status(500).json({
+            success: false,
+            message: "Unable to update user",
+            error: err,
+          });
+        } else if (user) {
+          console.log(user);
+          res.status(200).json({
+            success: true,
+            message: "User updated successfully",
+            user,
+          });
+        } else {
+          res.status(400).json({
+            success: false,
+            message: "user does not exist in the db",
+          });
+        }
       }
-    });
+    );
   },
 
   updateUserDefaults: async (req, res, next) => {
     try {
       const { tenant, user, chartTitle } = req.query;
-      const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
 
       if (!isEmpty(user) && !isEmpty(chartTitle)) {
         const filter = {
@@ -308,7 +321,11 @@ const join = {
           },
           update = req.body,
           options = { upsert: true, new: true };
-        let doc = await Defaults.findOneAndUpdate(filter, update, options);
+        let doc = await DefaultModel(tenant).findOneAndUpdate(
+          filter,
+          update,
+          options
+        );
 
         if (doc) {
           res.status(200).json({
@@ -342,7 +359,6 @@ const join = {
   getDefaults: async (req, res) => {
     try {
       const { user, chartTitle, tenant } = req.query;
-      const Defaults = getModelByTenant(tenant, "defaults", DefaultsSchema);
       let filter = {};
       console.log;
       if (!isEmpty(user) && isEmpty(chartTitle)) {
@@ -365,7 +381,7 @@ const join = {
       //   user: req.query.user,
       //   chartTitle: req.query.chartTitle,
       // };
-      const defaults = await Defaults.find(filter);
+      const defaults = await DefaultModel(tenant).find(filter);
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: " defaults fetched successfully",
@@ -381,15 +397,14 @@ const join = {
   },
   updateLocations: (req, res) => {
     const { tenant, id } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
     let response = {};
-    User.find({ _id: id }, (error, user) => {
+    UserModel(tenant).find({ _id: id }, (error, user) => {
       if (error) {
         response.success = false;
         response.message = "Internal Server Error";
         res.status(500).json(response);
       } else if (user.length) {
-        let location = new Location(req.body);
+        let location = new LocationModel(tenant)(req.body);
         location.user = user[0]._id;
         location.save((error, savedLocation) => {
           if (error) {
@@ -397,7 +412,7 @@ const join = {
             response.message = "Internal Server Error";
             res.status(500).json(response);
           } else {
-            User.findByIdAndUpdate(
+            UserModel(tenant).findByIdAndUpdate(
               req.params.id,
               { $push: { pref_locations: savedLocation._id } },
               { new: true },
@@ -423,10 +438,9 @@ const join = {
 
   resetPassword: async (req, res, next) => {
     const { tenant, resetPasswordToken } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
     console.log("inside the reset password function...");
     console.log(`${resetPasswordToken}`);
-    await User.findOne(
+    await UserModel(tenant).findOne(
       {
         resetPasswordToken: resetPasswordToken,
         resetPasswordExpires: {
@@ -454,39 +468,43 @@ const join = {
 
   updatePasswordViaEmail: (req, res, next) => {
     const { tenant } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
+
     const { userName, password, resetPasswordToken } = req.body;
 
-    User.findOne({
-      userName: userName,
-      resetPasswordToken: resetPasswordToken,
-      resetPasswordExpires: {
-        $gt: Date.now(),
-      },
-    }).then((user) => {
-      if (user === null) {
-        console.log("password reset link is invalid or has expired");
-        res
-          .status(403)
-          .json({ msg: "password reset link is invalid or has expired" });
-      } else if (user !== null) {
-        user.resetPasswordToken = null;
-        user.resetPasswordExpires = null;
-        user.password = password;
-        user.save((error, saved) => {
-          if (error) {
-            console.log("no user exists in db to update");
-            res.status(401).json({ message: "no user exists in db to update" });
-          } else if (saved) {
-            console.log("password updated");
-            res.status(200).json({ message: "password updated" });
-          }
-        });
-      } else {
-        console.log("no user exists in db to update");
-        res.status(401).json({ message: "no user exists in db to update" });
-      }
-    });
+    UserModel(tenant)
+      .findOne({
+        userName: userName,
+        resetPasswordToken: resetPasswordToken,
+        resetPasswordExpires: {
+          $gt: Date.now(),
+        },
+      })
+      .then((user) => {
+        if (user === null) {
+          console.log("password reset link is invalid or has expired");
+          res
+            .status(403)
+            .json({ msg: "password reset link is invalid or has expired" });
+        } else if (user !== null) {
+          user.resetPasswordToken = null;
+          user.resetPasswordExpires = null;
+          user.password = password;
+          user.save((error, saved) => {
+            if (error) {
+              console.log("no user exists in db to update");
+              res
+                .status(401)
+                .json({ message: "no user exists in db to update" });
+            } else if (saved) {
+              console.log("password updated");
+              res.status(200).json({ message: "password updated" });
+            }
+          });
+        } else {
+          console.log("no user exists in db to update");
+          res.status(401).json({ message: "no user exists in db to update" });
+        }
+      });
   },
 
   updatePassword: (req, res) => {
@@ -495,21 +513,27 @@ const join = {
       return res.status(400).json(errors);
     }
     const { tenant, id } = req.query;
-    const User = getModelByTenant(tenant, "user", UserSchema);
-    User.findByIdAndUpdate({ _id: id }, req.body, (err, result) => {
-      if (err) {
-        res.status(500).json({ message: "server error", err, success: false });
-      } else if (result) {
-        res
-          .status(200)
-          .json({ message: "password updated", success: true, result });
-      } else {
-        res.status(400).json({
-          message: "user does not exist in the database",
-          success: false,
-        });
+
+    UserModel(tenant).findByIdAndUpdate(
+      { _id: id },
+      req.body,
+      (err, result) => {
+        if (err) {
+          res
+            .status(500)
+            .json({ message: "server error", err, success: false });
+        } else if (result) {
+          res
+            .status(200)
+            .json({ message: "password updated", success: true, result });
+        } else {
+          res.status(400).json({
+            message: "user does not exist in the database",
+            success: false,
+          });
+        }
       }
-    });
+    );
   },
 };
 

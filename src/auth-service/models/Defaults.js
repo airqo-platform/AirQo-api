@@ -1,7 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Schema.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { tenantModel } = require("../config/multiTenant");
 
 const DefaultsSchema = new mongoose.Schema({
   pollutant: {
@@ -71,6 +70,4 @@ DefaultsSchema.methods = {
   },
 };
 
-const defaults = mongoose.model("defaults", DefaultsSchema);
-
-module.exports = defaults;
+module.exports = DefaultsSchema;

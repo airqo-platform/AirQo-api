@@ -1,4 +1,3 @@
-//const DataAccess = require("../config/das");
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
@@ -188,19 +187,3 @@ UserSchema.methods = {
 };
 
 module.exports = UserSchema;
-
-// shall consider this when implementing the Bridge Design Pattern
-// const Model = function () {
-
-// }
-
-// Model.prototype.GetUsers = function () {
-//     return new Promise(function (fulfill, reject) {
-//         DataAccess.GetEntities("auth_service", "users")
-//             .then(function (docs) {
-//                 fulfill(docs);
-//             }).catch(function (err) {
-//                 reject(err);
-//             });
-//     });
-// };

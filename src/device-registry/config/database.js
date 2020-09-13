@@ -3,7 +3,6 @@ mongoose.set("useFindAndModify", false);
 const constants = require("./constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const URI = constants.MONGO_URI;
-const db = mongoose.connection;
 logElement("environment", process.env.NODE_ENV);
 logElement("the URI string", URI);
 
