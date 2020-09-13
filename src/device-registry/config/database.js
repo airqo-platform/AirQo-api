@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+mongoose.set("useFindAndModify", false);
 const constants = require("./constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const URI = constants.MONGO_URI;

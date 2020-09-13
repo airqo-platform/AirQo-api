@@ -1,33 +1,51 @@
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
-const ObjectId = Schema.Types.ObjectId;
-const constants = require("../config/constants");
 
 const eventSchema = new Schema(
   {
-    deviceID: {
+    deviceName: {
       type: String,
-      required: [true, "The deviceID is required"],
+      required: [true, "The deviceName is required"],
       trim: true,
     },
-    sensorID: {
+    componentName: {
       type: String,
-      required: [true, "The sensorID is required"],
+      required: [true, "the componentName is required"],
       trim: true,
     },
-    nvalues: {
+    day: {
+      type: Date,
+    },
+    first: { type: Date },
+    last: { type: Date },
+    nValues: {
       type: Number,
-      default: 50,
     },
-    day: { type: Date, default: Date.now() },
-    first: {},
-    last: {},
-    values: [{ value: { type: Number }, timestamp: { type: String } }],
-    frequency: {
-      type: String,
-      required: [true, "The frequency is required"],
-      trim: true,
-    },
+    values: [
+      {
+        value: { type: Number, required: [true, "the value is required"] },
+        raw: { type: Number },
+        calibratedValue: { type: Number },
+        uncertaintyValue: { type: Number },
+        standardDeviationValue: { type: Number },
+        weight: { type: Number },
+        frequency: {
+          type: String,
+          required: [true, "the frequency is required"],
+        },
+        time: { type: Date },
+        measurement: {
+          quantityKind: {
+            type: String,
+            required: [true, "The quantity kind is required"],
+          },
+          measurementUnit: {
+            type: String,
+            required: [true, "The unit is required"],
+          },
+        },
+      },
+    ],
   },
   {
     timestamps: true,
@@ -48,10 +66,12 @@ eventSchema.methods = {
     return {
       _id: this._id,
       createdAt: this.createdAt,
-      deviceID: this.deviceID,
-      sensorID: this.sensorID,
-      nvalues: this.nvalues,
+      deviceName: this.deviceName,
+      componentName: this.componentName,
       values: this.values,
+      day: this.day,
+      first: this.first,
+      last: this.last,
     };
   },
 };

@@ -40,20 +40,39 @@ const getApiKeys = async (deviceName) => {
 
 const getArrayLength = async (array, model, event) => {};
 
-const doesComponentExist = async (ComponentName) => {
+const doesDeviceExist = async (deviceName) => {
+  try {
+    logText(".......................................");
+    logText("doesDeviceExist?...");
+    const device = await Component.find({
+      name: deviceName,
+    }).exec();
+    logElement("device element", device);
+    logObject("device Object", device);
+    logElement("does device exist?", !isEmpty(device));
+    if (!isEmpty(device)) {
+      return true;
+    } else if (isEmpty(device)) {
+      return false;
+    }
+  } catch (e) {
+    logElement("unable to check device existence in system", e);
+    return false;
+  }
+};
+
+const doesComponentExist = async (componentName, deviceName) => {
   try {
     logText(".......................................");
     logText("doesComponentExist?...");
-    const { tenant } = req.query;
-    const ComponentDetails = await ComponentModel(tenant)
-      .find({
-        name: ComponentName,
-      })
-      .exec();
-    logElement("ComponentDetails element", ComponentDetails);
-    logObject("Component Object", ComponentDetails);
-    logElement("does Component exist?", !isEmpty(ComponentDetails));
-    if (!isEmpty(ComponentDetails)) {
+    const component = await Component.find({
+      name: componentName,
+      deviceID: deviceName,
+    }).exec();
+    logElement("component element", component);
+    logObject("component Object", component);
+    logElement("does component exist?", !isEmpty(component));
+    if (!isEmpty(component)) {
       return true;
     } else if (isEmpty(ComponentDetails)) {
       return false;
@@ -144,7 +163,7 @@ const Component = {
       let { device, tenant } = req.query;
       let { measurement, description } = req.body;
 
-      let isComponentPresent = await doesComponentExist(device);
+      let isComponentPresent = await doesDeviceExist(device);
       logElement("isComponentPresent ?", isComponentPresent);
 
       logObject("measurement", measurement);
@@ -406,24 +425,155 @@ const Component = {
 
   addValues: async (req, res) => {
     try {
-      let { comp, device, tenant } = req.query;
-      let { values, timestamp } = req.body;
-      let eventBody = {
-        $addToSet: { values: { $each: values } },
-      };
+      logText("adding values...");
+      const { device, component, tenant } = req.query;
+      const {
+        value,
+        raw,
+        weight,
+        frequency,
+        time,
+        calibratedValue,
+        measurement,
+        uncertaintyValue,
+        standardDeviationValue,
+      } = req.body;
+      logObject("the type of device name", typeof device);
+      if (
+        !isEmpty(value) &&
+        !isEmpty(raw) &&
+        !isEmpty(weight) &&
+        !isEmpty(frequency) &&
+        !isEmpty(device) &&
+        !isEmpty(time) &&
+        !isEmpty(component) &&
+        !isEmpty(calibratedValue) &&
+        !isEmpty(measurement) &&
+        !isEmpty(uncertaintyValue) &&
+        !isEmpty(standardDeviationValue)
+      ) {
+        const isComponentExist = await doesComponentExist(component, device);
+        logElement("does component exist", isComponentExist);
+        if (isComponentExist) {
+          const sample = {
+            value,
+            raw,
+            weight,
+            frequency,
+            time,
+            calibratedValue,
+            measurement,
+            uncertaintyValue,
+            standardDeviationValue,
+          };
+          const day = new Date(time);
+          const eventBody = {
+            componentName: component,
+            deviceName: device,
+            day: day,
+            nValues: { $lt: constants.N_VALUES },
+          };
+          const options = {
+            $push: { values: sample },
+            $min: { first: sample.time },
+            $max: { last: sample.time },
+            $inc: { nValues: 1 },
+          };
 
-      //check the rights of the current user
-      if (!ComponentModel(tenant).owner.equals(req.user._id)) {
-        res.status(HTTPStatus.UNAUTHORIZED);
+          const addedEvent = await EventModel(tenant).updateOne(
+            eventBody,
+            options,
+            {
+              upsert: true,
+            }
+          );
+
+          logObject("the inserted document", addedEvent);
+
+          if (addedEvent) {
+            /**
+             * add the component name in the response body
+             */
+            const samples = { ...sample };
+            const event = {
+              values: samples,
+              component: component,
+              device: device,
+            };
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully added the device data",
+              event,
+            });
+          } else if (!addedEvent) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              message: "unable to add events",
+              success: false,
+            });
+          } else {
+            logText("just unable to add events");
+          }
+        } else {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "the component does not exist",
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "required fields missing either in request body or URL query parameter",
+        });
       }
     } catch (e) {
       res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        error: e,
+        error: e.message,
         message: "unable to add the values",
       });
     }
   },
+
+  /********************************* push data to Thing ****************************** */
+  writeToThing: async (req, res) => {
+    await axios
+      .get(constants.ADD_VALUE(field, value, apiKey))
+      .then(function(response) {
+        console.log(response.data);
+        updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
+        axios
+          .post(updateUrl, req.body)
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              output,
+            });
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message: "unable to write data to the device",
+              success: false,
+              error,
+            });
+          });
+      })
+      .catch(function(error) {
+        console.log(error);
+        res.status(500).json({
+          message:
+            "unable to get channel details necessary for writing this data",
+          success: false,
+          error,
+        });
+      });
+  },
+
+  bulkWriteToThing: (req, res) => {},
 
   calibrate: async (req, res) => {
     let { comp, device, tenant } = req.query;
