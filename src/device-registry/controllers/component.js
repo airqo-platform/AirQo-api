@@ -23,11 +23,35 @@ const getApiKeys = async (deviceName) => {
 
 const getArrayLength = async (array, model, event) => {};
 
-const doesComponentExist = async (componentName) => {
+const doesDeviceExist = async (deviceName) => {
+  try {
+    logText(".......................................");
+    logText("doesDeviceExist?...");
+    const device = await Component.find({
+      name: deviceName,
+    }).exec();
+    logElement("device element", device);
+    logObject("device Object", device);
+    logElement("does device exist?", !isEmpty(device));
+    if (!isEmpty(device)) {
+      return true;
+    } else if (isEmpty(device)) {
+      return false;
+    }
+  } catch (e) {
+    logElement("unable to check device existence in system", e);
+    return false;
+  }
+};
+
+const doesComponentExist = async (componentName, deviceName) => {
   try {
     logText(".......................................");
     logText("doesComponentExist?...");
-    const component = await Component.find({ name: componentName }).exec();
+    const component = await Component.find({
+      name: componentName,
+      deviceID: deviceName,
+    }).exec();
     logElement("component element", component);
     logObject("component Object", component);
     logElement("does component exist?", !isEmpty(component));
@@ -115,7 +139,7 @@ const component = {
       let { device } = req.query;
       let { measurement, description } = req.body;
 
-      let isComponentPresent = await doesComponentExist(device);
+      let isComponentPresent = await doesDeviceExist(device);
       logElement("isComponentPresent ?", isComponentPresent);
 
       logObject("measurement", measurement);
@@ -370,36 +394,88 @@ const component = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device } = req.query;
-      const { values, timestamp } = req.body;
+      const { device, component } = req.query;
+      const {
+        value,
+        raw,
+        weight,
+        frequency,
+        time,
+        calibratedValue,
+        measurement,
+      } = req.body;
       logObject("the type of device name", typeof device);
-      if (!isEmpty(values) && !isEmpty(timestamp) && !isEmpty(device)) {
-        const eventBody = {
-          values: values,
-          timestamp: timestamp,
-        };
-        const eventFilter = { deviceName: device };
-        const addedEvent = await Event.findOneAndUpdate(
-          eventFilter,
-          eventBody,
-          {
-            new: true,
+      if (
+        !isEmpty(value) &&
+        !isEmpty(raw) &&
+        !isEmpty(weight) &&
+        !isEmpty(frequency) &&
+        !isEmpty(device) &&
+        !isEmpty(time) &&
+        !isEmpty(component) &&
+        !isEmpty(calibratedValue) &&
+        !isEmpty(measurement)
+      ) {
+        const isComponentExist = await doesComponentExist(component, device);
+        logElement("does component exist", isComponentExist);
+        if (isComponentExist) {
+          const sample = {
+            value,
+            raw,
+            weight,
+            frequency,
+            time,
+            calibratedValue,
+            measurement,
+          };
+          const day = new Date(time);
+          const eventBody = {
+            componentName: component,
+            deviceName: device,
+            day: day,
+            nValues: { $lt: constants.N_VALUES },
+          };
+          const options = {
+            $push: { values: sample },
+            $min: { first: sample.time },
+            $max: { last: sample.time },
+            $inc: { nValues: 1 },
+          };
+
+          const addedEvent = await Event.updateOne(eventBody, options, {
             upsert: true,
+          });
+
+          logObject("the inserted document", addedEvent);
+
+          if (addedEvent) {
+            /**
+             * add the component name in the response body
+             */
+            const samples = { ...sample };
+            const event = {
+              values: samples,
+              component: component,
+              device: device,
+            };
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully added the device data",
+              event,
+            });
+          } else if (!addedEvent) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              message: "unable to add events",
+              success: false,
+            });
+          } else {
+            logText("just unable to add events");
           }
-        );
-        if (addedEvent) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully added the device data",
-            addedEvent,
-          });
-        } else if (!addedEvent) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            message: "unable to add events",
-            success: false,
-          });
         } else {
-          logText("just unable to add events");
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "the component does not exist",
+          });
         }
       } else {
         return res.status(HTTPStatus.BAD_REQUEST).json({
@@ -411,7 +487,7 @@ const component = {
     } catch (e) {
       res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        error: e,
+        error: e.message,
         message: "unable to add the values",
       });
     }
