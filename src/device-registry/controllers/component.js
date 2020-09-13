@@ -403,6 +403,8 @@ const component = {
         time,
         calibratedValue,
         measurement,
+        uncertaintyValue,
+        standardDeviationValue,
       } = req.body;
       logObject("the type of device name", typeof device);
       if (
@@ -414,7 +416,9 @@ const component = {
         !isEmpty(time) &&
         !isEmpty(component) &&
         !isEmpty(calibratedValue) &&
-        !isEmpty(measurement)
+        !isEmpty(measurement) &&
+        !isEmpty(uncertaintyValue) &&
+        !isEmpty(standardDeviationValue)
       ) {
         const isComponentExist = await doesComponentExist(component, device);
         logElement("does component exist", isComponentExist);
@@ -427,6 +431,8 @@ const component = {
             time,
             calibratedValue,
             measurement,
+            uncertaintyValue,
+            standardDeviationValue,
           };
           const day = new Date(time);
           const eventBody = {

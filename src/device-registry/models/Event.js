@@ -26,6 +26,8 @@ const eventSchema = new Schema(
         value: { type: Number, required: [true, "the value is required"] },
         raw: { type: Number },
         calibratedValue: { type: Number },
+        uncertaintyValue: { type: Number },
+        standardDeviationValue: { type: Number },
         weight: { type: Number },
         frequency: {
           type: String,
