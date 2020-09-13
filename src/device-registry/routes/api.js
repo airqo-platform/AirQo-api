@@ -50,7 +50,6 @@ router.delete("/delete/components/", componentController.deleteComponent);
 router.put("/update/components/", componentController.updateComponent);
 
 /******************* adding values******************************/
-router.post("/components/add/value", componentController.addValue);
 router.post("/components/add/values", componentController.addValues);
 
 //configuration of devices
