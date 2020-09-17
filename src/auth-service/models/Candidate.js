@@ -26,15 +26,10 @@ const CandidateSchema = new mongoose.Schema({
     trim: true,
   },
   description: { type: String, required: [true, "description is required"] },
-  country: { type: String, required: [true, "country is required"] },
   organization: { type: String, required: [true, "organization is required"] },
   jobTitle: { type: String, required: [true, "jobTitle is required"] },
-  phoneNumber: {
-    type: Number,
-    unique: true,
-    required: [true, "phoneNumber is required"],
-    trim: true,
-  },
+  category: { type: String, required: [true, "category is required"] },
+  website: { type: String, required: [true, "website is required"] },
 });
 
 CandidateSchema.methods = {
@@ -45,10 +40,10 @@ CandidateSchema.methods = {
       lastName: this.lastName,
       email: this.email,
       description: this.description,
-      country: this.country,
+      category: this.category,
       organization: this.organization,
       jobTitle: this.jobTitle,
-      phoneNumber: this.phoneNumber,
+      website: this.website,
     };
   },
 };
