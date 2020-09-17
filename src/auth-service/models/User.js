@@ -159,6 +159,7 @@ UserSchema.methods = {
         email: this.email,
         privilege: this.privilege,
         locationCount: this.locationCount,
+        organization: this.organization,
       },
       constants.JWT_SECRET
     );
@@ -180,8 +181,8 @@ UserSchema.methods = {
       lastName: this.lastName,
       locationCount: this.locationCount,
       privilege: this.privilege,
-      phoneNumber: this.phoneNumber,
       website: this.website,
+      organization: this.organization,
       category: this.category,
       jobTitle: this.jobTitle,
     };
