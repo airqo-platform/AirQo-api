@@ -4,7 +4,12 @@ const joinController = require("../controllers/join");
 const candidateController = require("../controllers/candidate");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
-const { authUserLocal, authColabLocal, authJWT } = require("../services/auth");
+const {
+  authColabLocal,
+  authJWT,
+  login,
+  authUserLocal,
+} = require("../services/auth");
 const privileges = require("../utils/privileges");
 
 //the middleware function
@@ -28,7 +33,7 @@ const checkAuth = () => {
 };
 
 //************************* users ***************************************************
-router.post("/loginUser", authUserLocal, joinController.loginUser);
+router.post("/loginUser", login, authUserLocal, joinController.loginUser);
 router.get("/", joinController.listAll);
 router.post("/registerUser", joinController.registerUser);
 router.post("/addWithTenant", joinController.addUserByTenant);
@@ -46,8 +51,5 @@ router.get("/defaults/", joinController.getDefaults);
 //could this be the one where we just load people with inactive status?
 router.post("/register/new/candidate", candidateController.registerCandidate);
 router.get("/candidates/fetch", candidateController.getAllCandidates);
-
-//params
-//router.param("userId", joinController.findUserById);
 
 module.exports = router;
