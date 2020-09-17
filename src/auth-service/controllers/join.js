@@ -59,7 +59,25 @@ const join = {
       logText(".....................................");
       logText("list all users by tenant...");
       const { tenant, id } = req.query;
-      if (isEmpty(id) && !isEmpty(tenant)) {
+
+      if (tenant && id) {
+        logElement("the tenant", tenant);
+        logElement("the id", id);
+        const user = await UserModel(tenant).findOne({ _id: id });
+        logObject("the user", user);
+        if (!isEmpty(user)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "User fetched successfully",
+            user,
+          });
+        } else if (isEmpty(user)) {
+          return res.json({
+            success: false,
+            message: `this organisation (${tenant}) does not have this user or they do not exist, please crosscheck`,
+          });
+        }
+      } else if (tenant && !id) {
         const users = await UserModel(tenant).find();
         if (!isEmpty(users)) {
           return res.status(HTTPStatus.OK).json({
@@ -68,35 +86,13 @@ const join = {
             users,
           });
         } else if (isEmpty(users)) {
-          return res.json({
+          return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: `this organisation (${tenant}) does not have users or it does not exist, please crosscheck`,
           });
         }
-      } else if (!isEmpty(tenant) && !isEmpty(id)) {
-        User.find({ _id: id }).exec((err, user) => {
-          if (err) {
-            return res.json({
-              success: false,
-              message: "Unable to list the users for this tenant",
-              error: err,
-            });
-          }
-          if (!isEmpty(user)) {
-            return res.json({
-              success: true,
-              message: "User fetched by id successfully",
-              user,
-            });
-          } else {
-            return res.json({
-              success: false,
-              message: "User with the given id not found",
-            });
-          }
-        });
       } else {
-        return res.json({
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message:
             "request is missing the required query params, please crosscheck",
@@ -246,15 +242,18 @@ const join = {
   loginUser: (req, res, next) => {
     logText("..................................");
     logText("user login......");
-    logElement("the body", req.body);
-    const { errors, isValid } = validateLoginInput(req.body);
+    try {
+      // logElement("the body", req.body);
+      const { errors, isValid } = validateLoginInput(req.body);
 
-    if (!isValid) {
-      return res.status(400).json(errors);
+      if (!isValid) {
+        return res.status(400).json(errors);
+      }
+      res.status(200).json(req.user.toAuthJSON());
+      return next();
+    } catch (e) {
+      res.json({ success: false, message: e.message });
     }
-
-    res.status(200).json(req.user.toAuthJSON());
-    return next();
   },
 
   deleteUser: (req, res, next) => {
@@ -282,6 +281,8 @@ const join = {
 
   updateUser: (req, res, next) => {
     const { tenant, id } = req.query;
+    delete req.body.password;
+    delete req.body.email;
     UserModel(tenant).findByIdAndUpdate(
       id,
       req.body,
@@ -508,32 +509,39 @@ const join = {
   },
 
   updatePassword: (req, res) => {
-    const { errors, isValid } = validatePasswordUpdate(req.body);
-    if (!isValid) {
-      return res.status(400).json(errors);
-    }
-    const { tenant, id } = req.query;
-
-    UserModel(tenant).findByIdAndUpdate(
-      { _id: id },
-      req.body,
-      (err, result) => {
-        if (err) {
-          res
-            .status(500)
-            .json({ message: "server error", err, success: false });
-        } else if (result) {
-          res
-            .status(200)
-            .json({ message: "password updated", success: true, result });
-        } else {
-          res.status(400).json({
-            message: "user does not exist in the database",
-            success: false,
-          });
-        }
+    try {
+      const { errors, isValid } = validatePasswordUpdate(req.body);
+      if (!isValid) {
+        return res.status(400).json(errors);
       }
-    );
+      const { tenant, id } = req.query;
+      const { password } = req.body;
+      UserModel(tenant)
+        .findOne({
+          _id: id,
+        })
+        .then((user) => {
+          if (user !== null) {
+            user.password = password;
+            user.save((error, saved) => {
+              if (error) {
+                console.log("no user exists in db to update");
+                res
+                  .status(401)
+                  .json({ message: "no user exists in db to update" });
+              } else if (saved) {
+                console.log("password updated");
+                res.status(200).json({ message: "password updated" });
+              }
+            });
+          } else {
+            console.log("no user exists in db to update");
+            res.status(401).json({ message: "no user exists in db to update" });
+          }
+        });
+    } catch (e) {
+      res.status(500).json({ message: e.message });
+    }
   },
 };
 
