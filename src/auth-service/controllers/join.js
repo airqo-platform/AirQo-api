@@ -17,6 +17,7 @@ const register = require("../utils/register");
 const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
+const bcrypt = require("bcrypt");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -56,6 +57,7 @@ const join = {
 
   listAll: async (req, res) => {
     try {
+      //....
       logText(".....................................");
       logText("list all users by tenant...");
       const { tenant, id } = req.query;
@@ -515,30 +517,52 @@ const join = {
         return res.status(400).json(errors);
       }
       const { tenant, id } = req.query;
-      const { password } = req.body;
-      UserModel(tenant)
-        .findOne({
-          _id: id,
-        })
-        .then((user) => {
-          if (user !== null) {
-            user.password = password;
-            user.save((error, saved) => {
-              if (error) {
-                console.log("no user exists in db to update");
-                res
-                  .status(401)
-                  .json({ message: "no user exists in db to update" });
-              } else if (saved) {
-                console.log("password updated");
-                res.status(200).json({ message: "password updated" });
-              }
-            });
-          } else {
-            console.log("no user exists in db to update");
-            res.status(401).json({ message: "no user exists in db to update" });
-          }
+      const { password, password2, old_pwd } = req.body;
+      if ((password, password2, old_pwd)) {
+        UserModel(tenant)
+          .findOne({
+            _id: id,
+          })
+          .then((user) => {
+            if (user !== null) {
+              //first compare old_pwd with current one
+              bcrypt.compare(old_pwd, user.password, (err, resp) => {
+                if (err) {
+                  res
+                    .status(500)
+                    .json({ message: "please crosscheck your old password" });
+                } else if (resp == false) {
+                  res
+                    .status(404)
+                    .json({ message: "please crosscheck your old password" });
+                } else {
+                  user.password = password;
+                  user.save((error, saved) => {
+                    if (error) {
+                      console.log("no user exists in db to update");
+                      res
+                        .status(401)
+                        .json({ message: "no user exists in db to update" });
+                    } else if (saved) {
+                      console.log("password updated");
+                      res.status(200).json({ message: "password updated" });
+                    }
+                  });
+                }
+              });
+            } else {
+              console.log("no user exists in db to update");
+              res
+                .status(401)
+                .json({ message: "no user exists in db to update" });
+            }
+          });
+      } else {
+        res.status(HTTPStatus.BAD_REQUEST).json({
+          message:
+            "missing some query params or request body items, please check documentation",
         });
+      }
     } catch (e) {
       res.status(500).json({ message: e.message });
     }
