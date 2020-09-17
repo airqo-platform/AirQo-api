@@ -63,30 +63,21 @@ const UserSchema = new Schema({
       message: "{VALUE} is not a valid password!",
     },
   },
-  interest: { type: String },
   privilege: { type: String },
-  isActive: { type: String },
-  hasAccess: { type: Boolean, default: false },
-  publisher: { type: Boolean, default: false },
+  isActive: { type: Boolean },
   duration: { type: Date, default: oneMonthFromNow },
-  bus_nature: { type: String },
-  org_department: { type: String },
-  uni_faculty: { type: String },
-  uni_course_yr: { type: String, default: 0 },
   organisation: { type: String },
-  pref_locations: [{ type: ObjectId, ref: "loc" }],
   country: { type: String },
   phoneNumber: { type: Number },
+  locationCount: { type: Number },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
-  role: {
-    job_title: { type: String },
-    org_name: { type: String },
+  jobTitle: {
+    type: String,
   },
-  product: {
-    analytics: { type: Boolean, default: false },
-    locate: { type: Boolean, default: false },
-    admin: { type: Boolean, default: false },
+  website: { type: String },
+  category: {
+    type: String,
   },
   notifications: {
     email: { type: Boolean, default: false },
@@ -129,6 +120,14 @@ UserSchema.pre("update", function (next) {
   return next();
 });
 
+UserSchema.pre("findByIdAndUpdate", function (next) {
+  this.options.runValidators = true;
+  if (this.isModified("password")) {
+    this.password = this._hashPassword(this.password);
+  }
+  return next();
+});
+
 UserSchema.statics = {
   createUser(args) {
     return this.create({
@@ -156,9 +155,10 @@ UserSchema.methods = {
         _id: this._id,
         firstName: this.firstName,
         lastName: this.lastName,
+        userName: this.userName,
         email: this.email,
-        pref_locations: this.pref_locations,
         privilege: this.privilege,
+        locationCount: this.locationCount,
       },
       constants.JWT_SECRET
     );
@@ -178,10 +178,12 @@ UserSchema.methods = {
       email: this.email,
       firstName: this.firstName,
       lastName: this.lastName,
-      graph_defaults: this.graph_defaults,
-      pref_locations: this.pref_locations,
+      locationCount: this.locationCount,
       privilege: this.privilege,
       phoneNumber: this.phoneNumber,
+      website: this.website,
+      category: this.category,
+      jobTitle: this.jobTitle,
     };
   },
 };
