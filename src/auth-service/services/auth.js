@@ -1,7 +1,8 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const User = require("../models/User");
+const UserSchema = require("../models/User");
 const constants = require("../config/constants");
+const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JWTStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
@@ -9,19 +10,29 @@ const localOpts = {
   usernameField: "userName",
   passwordField: "password",
 };
+const isEmpty = require("is-empty");
+const { getModelByTenant } = require("../utils/multitenancy");
+
+let tenantSession;
+
+const UserModel = (tenant) => {
+  return getModelByTenant(tenant, "user", UserSchema);
+};
 
 const jwtOpts = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderWithScheme("jwt"),
   secretOrKey: constants.JWT_SECRET,
 };
 
+function createTenantSession(tenant) {
+  tenantSession = tenant;
+}
+
 const userLocalStrategy = new LocalStrategy(
   localOpts,
   async (userName, password, done) => {
     try {
-      const { tenant } = req.query;
-      const User = getModelByTenant(tenant, "user", UserSchema);
-      const user = await User.findOne({
+      const user = await UserModel(tenantSession).findOne({
         userName,
       });
       if (!user) {
@@ -75,10 +86,20 @@ passport.deserializeUser((id, cb) => {
   }
 });
 
+function login(req, res, next) {
+  try {
+    createTenantSession(req.query.tenant);
+    next();
+  } catch (e) {
+    console.log("the error in login is: ", e.message);
+    res.json({ success: false, message: e.message });
+  }
+}
+
 const authUserLocal = passport.authenticate("user-local", {
   session: false,
-  //   successFlash: "Welcome!",
-  //   failureFlash: "Invalid username or password."
+  // successFlash: "Welcome!",
+  // failureFlash: "Invalid username or password.",
 });
 
 const authColabLocal = passport.authenticate("colab-local", {
@@ -104,6 +125,7 @@ const requiresSignIn = expressJwt({
 });
 
 module.exports = {
+  login: login,
   authUserLocal: authUserLocal,
   authJWT: authJWT,
   authColabLocal: authColabLocal,
