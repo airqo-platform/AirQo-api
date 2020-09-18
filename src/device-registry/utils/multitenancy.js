@@ -21,7 +21,7 @@ const getTenantDB = (tenantId, modelName, schema) => {
   afterwards, we can be able to use this model to carry out any kinds of CRUD
    */
 const getModelByTenant = (tenantId, modelName, schema) => {
-  logElement("getModelByTenant tenantId", tenantId);
+  logElement("tenantId", tenantId);
   const tenantDb = getTenantDB(tenantId, modelName, schema);
   return tenantDb.model(modelName);
 };
