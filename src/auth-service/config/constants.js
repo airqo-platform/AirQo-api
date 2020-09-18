@@ -1,15 +1,18 @@
 const devConfig = {
   MONGO_URI: "mongodb://localhost",
   DB_NAME: process.env.MONGO_DEV,
+  PWD_RESET: "http://34.78.78.202:31104",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
+  PWD_RESET: "http://34.78.78.202:30101",
 };
 
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
+  PWD_RESET: "http://34.78.78.202:31104",
 };
 
 const defaultConfig = {
