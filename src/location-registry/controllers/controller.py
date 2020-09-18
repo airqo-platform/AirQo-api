@@ -131,13 +131,16 @@ def register_location():
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
-@cache.cached(timeout=0)
+#@cache.cached(timeout=2)
 def get_all_locations():
     '''
     Gets data for all the locations in the database
     '''
     tenant_id = request.args.get('tenant')
-    return jsonify(location.all_locations(tenant_id))
+    locations = location.all_locations(tenant_id)
+    if len(locations)==0:
+        return {'message': 'Organization does not exist on platform'}, 400
+    return jsonify(locations)
 
 
 @location_blueprint.route('/api/v1/location_registry/location', methods=['GET'])
@@ -153,7 +156,7 @@ def get_location_details():
             details = location.get_location(tenant_id, loc_ref)
             return details
         except:
-            return {'message': 'An error occured. Please enter valid location reference'}, 400
+            return {'message': 'An error occured. Please enter valid location reference and tenant id'}, 400
 
 
 @location_blueprint.route('/api/v1/location_registry/edit', methods=['GET'])
@@ -169,7 +172,7 @@ def edit_location():
             details = location.get_location_details_to_edit(tenant_id, loc_ref)
             return jsonify(details)
         except:
-            return {'message': 'An error occured. Please enter valid location reference'}, 400
+            return {'message': 'An error occured. Please enter valid location reference and tenant id'}, 400
 
 
 @location_blueprint.route('/api/v1/location_registry/update', methods=['POST'])
@@ -204,4 +207,4 @@ def update_location():
                 cache.clear()
                 return {'message': 'Location has been successfully updated'}, 200
             except:
-                return {'message': 'An error occured. Please try again'}, 400
+                return {'message': 'An error occured. Please ensure correct inputs'}, 400

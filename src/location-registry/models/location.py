@@ -103,15 +103,19 @@ class Location():
             db_name = 'airqo_netmanager'
         else:
             db_name = 'airqo_netmanager_'+tenant_id
-        db = client[db_name]
-        db.location_registry.update_one(
-            {'loc_ref': loc_ref},
-            {'$set':
-                {
-                    'road_intensity': road_intensity,
-                    'description': description,
-                    'road_status': road_status,
-                    'local_activities': local_activities
-                }
-             }
-        )
+        db_names = client.list_database_names()
+        if db_name not in db_names:
+            raise Exception("Organization does not exist") 
+        else:
+            db = client[db_name]
+            db.location_registry.update_one(
+                {'loc_ref': loc_ref},
+                {'$set':
+                    {
+                        'road_intensity': road_intensity,
+                        'description': description,
+                        'road_status': road_status,
+                        'local_activities': local_activities
+                    }
+                 }
+            )
