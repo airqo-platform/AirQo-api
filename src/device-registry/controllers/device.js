@@ -1,5 +1,5 @@
 const ComponentSchema = require("../models/Component");
-const DeviceSchema = require("../models/device");
+const DeviceSchema = require("../models/Device");
 const LocationActivitySchema = require("../models/location_activity");
 const Location = require("../models/Location");
 const HTTPStatus = require("http-status");
