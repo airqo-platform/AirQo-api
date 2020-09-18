@@ -4,6 +4,7 @@ import sys
 from flask_caching import Cache
 #from flask_cache import Cache
 from models.location import Location
+import sys
 
 location_blueprint = Blueprint('location_blueprint', __name__)
 location = Location()
@@ -31,7 +32,8 @@ def generate_ref():
     '''
     Generates a reference id for a new location
     '''
-    return helper.get_location_ref()
+    tenant_id = request.args.get('tenant')
+    return helper.get_location_ref(tenant_id)
 
 
 @location_blueprint.route('/api/v1/location_registry/register', methods=['POST'])
@@ -41,6 +43,10 @@ def register_location():
     Saves a new location into a database
     '''
     if request.method == 'POST':
+        tenant_id = request.args.get('tenant')
+        print (tenant_id, file=sys.stderr)
+        return tenant_id
+        '''
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
@@ -123,6 +129,7 @@ def register_location():
                 return {'message': 'Location registered succesfully'}, 200
             except:
                 return {'message': 'An error occured. Please try again'}, 400
+            '''
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])

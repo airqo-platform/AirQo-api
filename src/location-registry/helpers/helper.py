@@ -23,7 +23,7 @@ ee.Initialize(credentials)
 # ee.Initialize()
 
 
-def connect_mongo():
+def connect_mongo(tenant_id):
     '''
     Connects to MongoDB
     '''
@@ -31,17 +31,21 @@ def connect_mongo():
         client = MongoClient(MONGO_URI)
     except pymongo.errors.ConnectionFailure as e:
         print("Could not connect to MongoDB: %s" % e)
-
+    if tenant_id=='airqo':
+        db_name = 'airqo_netmanager'
+    else:
+        db_name = 'airqo_netmanager_'+tenant_id
     #db = client['locate']
-    db = client['airqo_netmanager']
+    #db = client['airqo_netmanager']
+    db = client[db_name]
     return db
 
 
-def get_location_ref():
+def get_location_ref(tenant_id):
     '''
     Generates location reference
     '''
-    db = connect_mongo()
+    db = connect_mongo(tenant_id)
     last_document = list(db.location_registry.find(
         {}).sort([('_id', -1)]).limit(1))
     # last_document = list(db.collection.find({}).limit(1).sort([('$natural',-1)])
@@ -54,7 +58,7 @@ def get_location_ref():
     return 'loc_'+str(loc_ref)
 
 
-def get_location_details(lon, lat):
+def get_location_details(lon, lat, tenant_id):
     '''
     Gets the location details for the coordinates
     '''
@@ -77,7 +81,7 @@ def get_location_details(lon, lat):
         'properties.Subcounty': 1,
         'properties.Parish': 1
     }
-    db = connect_mongo()
+    db = connect_mongo(tenant_id)
     records = list(db.locate_map.find(query, projection))
     region = records[0]['properties']['Region']
     district = records[0]['properties']['District']
