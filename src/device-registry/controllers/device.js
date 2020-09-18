@@ -37,14 +37,14 @@ const EventModel = (tenant) => {
   getModelByTenant(tenant, "event", EventSchema);
 };
 const LocationActivityModel = (tenant) => {
-  getModelByTenant(tenant, "component", LocationActivitySchema);
+  getModelByTenant(tenant, "activity", LocationActivitySchema);
 };
 
 const doesDeviceExist = async (deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesDeviceExist?...");
-    const device = await DeviceModel(tenant)
+    const device = await getModelByTenant(tenant, "device", DeviceSchema)
       .find({ name: deviceName })
       .exec();
     logElement("device element", device);
@@ -65,7 +65,7 @@ const getChannelID = async (req, res, deviceName, tenant) => {
   try {
     logText("...................................");
     logText("getting channel ID...");
-    const deviceDetails = await DeviceModel(tenant)
+    const deviceDetails = await getModelByTenant(tenant, "device", DeviceSchema)
       .find({ name: deviceName })
       .exec();
     logObject("the device details", deviceDetails);
@@ -84,7 +84,7 @@ const getChannelID = async (req, res, deviceName, tenant) => {
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
-  const deviceDetails = await DeviceModel(tenant)
+  const deviceDetails = await getModelByTenant(tenant, "device", DeviceSchema)
     .find({ name: deviceName })
     .exec();
   logElement("the write key", deviceDetails.writeKey);
@@ -128,7 +128,7 @@ const isDeviceModelNotDeployed = async (deviceName, tenant) => {
     // const query = DeviceModel.find({ name: deviceName });
     // device = query.getFilter(); // `{ name: 'Jean-Luc Picard' }`
 
-    const device = await DeviceModel(tenant)
+    const device = await getModelByTenant(tenant, "device", DeviceSchema)
       .find({ name: deviceName })
       .exec();
     logText("....................");
@@ -145,7 +145,7 @@ const isDeviceModelNotDeployed = async (deviceName, tenant) => {
 
 const isDeviceModelNotRecalled = async (deviceName, tenant) => {
   try {
-    const device = await DeviceModel(tenant)
+    const device = await getModelByTenant(tenant, "device", DeviceSchema)
       .find({ name: deviceName })
       .exec();
     logText("....................");
@@ -395,7 +395,8 @@ const doLocationActivity = async (
   type,
   deviceExists,
   isNotDeployed,
-  isNotRecalled
+  isNotRecalled,
+  tenant
 ) => {
   const deviceFilter = { name: deviceName };
 
@@ -424,7 +425,7 @@ const doLocationActivity = async (
 
   if (check) {
     //first update device body
-    await DeviceModel.findOneAndUpdate(
+    await getModelByTenant(tenant, "device", DeviceSchema).findOneAndUpdate(
       deviceFilter,
       deviceBody,
       {
@@ -439,9 +440,11 @@ const doLocationActivity = async (
           });
         } else if (updatedDeviceModel) {
           //then log the operation
-          const log = LocationActivityModel(tenant).createLocationActivity(
-            activityBody
-          );
+          const log = getModelByTenant(
+            tenant,
+            "activity",
+            LocationActivitySchema
+          ).createLocationActivity(activityBody);
           log.then((log) => {
             return res.status(HTTPStatus.OK).json({
               message: `${type} successfully carried out`,
@@ -467,15 +470,67 @@ const doLocationActivity = async (
 
 const device = {
   listAll: async (req, res) => {
-    const limit = parseInt(req.query.limit, 0);
-    const skip = parseInt(req.query.skip, 0);
-    const { tenant } = req.query;
-
     try {
-      const devices = await DeviceModel(tenant).list({ limit, skip });
-      return res.status(HTTPStatus.OK).json(devices);
+      //..
+      logText(".....................................");
+      logText("list all devices by tenant...");
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      const { tenant, name } = req.query;
+      if (tenant && name) {
+        logElement("the tenant", tenant);
+        logElement("the name", name);
+        const device = await getModelByTenant(
+          tenant,
+          "device",
+          DeviceSchema
+        ).findOne({ name: name });
+        logObject("the device", device);
+        if (!isEmpty(device)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Device fetched successfully",
+            device,
+          });
+        } else if (isEmpty(device)) {
+          return res.json({
+            success: false,
+            message: `this organisation (${tenant}) does not have this device or they do not exist, please crosscheck`,
+          });
+        }
+      } else if (tenant && !name) {
+        // const devices = await DeviceModel(tenant).list({ limit, skip });
+        // return res.status(HTTPStatus.OK).json(devices);
+        const devices = await getModelByTenant(
+          tenant,
+          "device",
+          DeviceSchema
+        ).list({ limit, skip });
+        if (!isEmpty(devices)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Devices fetched successfully",
+            devices,
+          });
+        } else if (isEmpty(devices)) {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: `this organisation (${tenant}) does not have devices or it does not exist, please crosscheck`,
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message:
+            "request is missing the required query params, please crosscheck",
+        });
+      }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_REQUEST).json(e);
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: "A bad request has been made, please crosscheck",
+        error: e.message,
+      });
     }
   },
 
@@ -483,7 +538,7 @@ const device = {
     const { tenant, loc } = req.query;
     logElement("location ", loc);
     try {
-      const devices = await DeviceModel(tenant)
+      const devices = await getModelByTenant(tenant, "device", DeviceSchema)
         .find({ locationID: loc })
         .exec();
       return res.status(HTTPStatus.OK).json(devices);
@@ -528,7 +583,11 @@ const device = {
     try {
       const { tenant } = req.query;
       console.log("creating one device....");
-      const device = await DeviceModel(tenant).createDevice(req.body);
+      const device = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).createDevice(req.body);
       return res.status(HTTPStatus.CREATED).json(device);
     } catch (e) {
       return res.status(400).json(e);
@@ -566,58 +625,69 @@ const device = {
   createThing: async (req, res) => {
     try {
       const { tenant } = req.query;
-      const baseUrl = constants.CREATE_THING_URL;
-      let { name } = req.body;
-      let { tsBody, deviceBody } = updateThingBodies(req, res);
-      let prepBodyTS = {
-        ...tsBody,
-        ...constants.DEVICE_CREATION,
-      };
-      let isDeviceModelPresent = await doesDeviceExist(name);
-      logElement("isDeviceModelPresent ?", isDeviceModelPresent);
-      if (!isDeviceModelPresent) {
-        logText("adding device on TS...");
-        await axios
-          .post(baseUrl, prepBodyTS)
-          .then(async (response) => {
-            logText("device successfully created on TS.");
-            logObject("the response from TS", response);
-            let writeKey = response.data.api_keys[0].write_flag
-              ? response.data.api_keys[0].api_key
-              : "";
-            let readKey = !response.data.api_keys[1].write_flag
-              ? response.data.api_keys[1].api_key
-              : "";
-            let prepBodyDeviceModel = {
-              ...deviceBody,
-              channelID: `${response.data.id}`,
-              writeKey: writeKey,
-              readKey: readKey,
-            };
-            logText("adding the device in the DB...");
-            const device = await DeviceModel(tenant).createDeviceModel(
-              prepBodyDeviceModel
-            );
-            logElement("DB addition response", device);
-            return res.status(HTTPStatus.CREATED).json({
-              success: true,
-              message: "successfully created the device",
-              device,
+      if (tenant) {
+        const baseUrl = constants.CREATE_THING_URL;
+        let { name } = req.body;
+        let { tsBody, deviceBody } = updateThingBodies(req, res);
+        let prepBodyTS = {
+          ...tsBody,
+          ...constants.DEVICE_CREATION,
+        };
+        let isDeviceModelPresent = await doesDeviceExist(name);
+        logElement("isDeviceModelPresent ?", isDeviceModelPresent);
+        if (!isDeviceModelPresent) {
+          logText("adding device on TS...");
+          await axios
+            .post(baseUrl, prepBodyTS)
+            .then(async (response) => {
+              logText("device successfully created on TS.");
+              logObject("the response from TS", response);
+              let writeKey = response.data.api_keys[0].write_flag
+                ? response.data.api_keys[0].api_key
+                : "";
+              let readKey = !response.data.api_keys[1].write_flag
+                ? response.data.api_keys[1].api_key
+                : "";
+              let prepBodyDeviceModel = {
+                ...deviceBody,
+                channelID: `${response.data.id}`,
+                writeKey: writeKey,
+                readKey: readKey,
+              };
+              logText("adding the device in the DB...");
+              const device = await getModelByTenant(
+                tenant,
+                "device",
+                DeviceSchema
+              ).createDeviceModel(prepBodyDeviceModel);
+              logElement("DB addition response", device);
+              return res.status(HTTPStatus.CREATED).json({
+                success: true,
+                message: "successfully created the device",
+                device,
+              });
+            })
+            .catch((e) => {
+              let errors = e.message;
+              res.status(400).json({
+                success: false,
+                message:
+                  "unable to create the device, please crosscheck the validity of all your input values",
+                errors,
+              });
             });
-          })
-          .catch((e) => {
-            let errors = e.message;
-            res.status(400).json({
-              success: false,
-              message:
-                "unable to create the device, please crosscheck the validity of all your input values",
-              errors,
-            });
+        } else {
+          res.status(400).json({
+            success: false,
+            message: `device "${name}" already exists!`,
           });
+        }
       } else {
-        res.status(400).json({
+        //missing params
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
-          message: `device "${name}" already exists!`,
+          message:
+            "request is missing the required query params, please crosscheck",
         });
       }
     } catch (e) {
@@ -648,7 +718,8 @@ const device = {
       type,
       deviceExists,
       isNotDeployed,
-      isNotRecalled
+      isNotRecalled,
+      tenant
     );
   },
 
@@ -657,7 +728,11 @@ const device = {
     const skip = parseInt(req.query.skip, 0);
 
     try {
-      const locationActivities = await LocationActivityModel(tenant).list({
+      const locationActivities = await getModelByTenant(
+        tenant,
+        "activity",
+        LocationActivitySchema
+      ).list({
         limit,
         skip,
       });
@@ -688,7 +763,11 @@ const device = {
             logText("successfully deleted device from TS");
             logObject("TS response data", response.data);
             logText("deleting device from DB.......");
-            const deviceRemovedFromDB = await DeviceModel(tenant)
+            const deviceRemovedFromDB = await getModelByTenant(
+              tenant,
+              "device",
+              DeviceSchema
+            )
               .findOneAndRemove({
                 name: device,
               })
@@ -818,8 +897,10 @@ const device = {
           .then(async (response) => {
             logText(`successfully updated device ${device} in TS`);
             logObject("response from TS", response.data);
-            const updatedDeviceModel = await DeviceModel(
-              tenant
+            const updatedDeviceModel = await getModelByTenant(
+              tenant,
+              "device",
+              DeviceSchema
             ).findOneAndUpdate(deviceFilter, deviceBody, {
               new: true,
             });
@@ -869,7 +950,11 @@ const device = {
   listOne: async (req, res) => {
     try {
       const { tenant } = req.query;
-      const device = await DeviceModel(tenant).findById(req.params.id);
+      const device = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).findById(req.params.id);
       return res.status(HTTPStatus.OK).json(device);
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json(e);
@@ -899,7 +984,11 @@ const device = {
   delete: async (req, res) => {
     try {
       const { tenant } = req.query;
-      const device = await DeviceModel(tenant).findById(req.params.id);
+      const device = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).findById(req.params.id);
 
       if (!device.device.equals(req.device._id)) {
         return res.sendStatus(HTTPStatus.UNAUTHORIZED);
@@ -938,7 +1027,11 @@ const device = {
   updateDevice: async (req, res) => {
     try {
       const { tenant } = req.query;
-      const device = await DeviceModel(tenant).findById(req.params.id);
+      const device = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).findById(req.params.id);
       if (!device.device.equals(req.device._id)) {
         return res.sendStatus(HTTPStatus.UNAUTHORIZED);
       }
