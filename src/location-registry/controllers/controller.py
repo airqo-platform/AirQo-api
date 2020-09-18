@@ -37,7 +37,7 @@ def generate_ref():
 
 
 @location_blueprint.route('/api/v1/location_registry/register', methods=['POST'])
-# @cache.cached(timeout=60)
+#@cache.cached(timeout=60)
 def register_location():
     '''
     Saves a new location into a database
@@ -131,7 +131,7 @@ def register_location():
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
-#@cache.cached(timeout=2)
+@cache.cached(timeout=60)
 def get_all_locations():
     '''
     Gets data for all the locations in the database
