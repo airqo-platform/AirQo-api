@@ -1,5 +1,5 @@
 const ComponentSchema = require("../models/Component");
-const DeviceSchema = require("../models/device");
+const DeviceSchema = require("../models/Device");
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const constants = require("../config/constants");
