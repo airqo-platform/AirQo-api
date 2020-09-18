@@ -35,8 +35,7 @@ def connect_mongo(tenant_id):
         db_name = 'airqo_netmanager'
     else:
         db_name = 'airqo_netmanager_'+tenant_id
-    #db = client['locate']
-    #db = client['airqo_netmanager']
+    
     db = client[db_name]
     return db
 

@@ -44,9 +44,7 @@ def register_location():
     '''
     if request.method == 'POST':
         tenant_id = request.args.get('tenant')
-        print (tenant_id, file=sys.stderr)
-        return tenant_id
-        '''
+    
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
@@ -79,7 +77,7 @@ def register_location():
             if mobility == 'Static':
                 try:
                     region, district, county, subcounty, parish = helper.get_location_details(
-                        longitude, latitude)
+                        longitude, latitude, 'airqo')
                     location_name = helper.get_location_name(
                         parish.capitalize(), district.capitalize())
                 except:
@@ -122,14 +120,14 @@ def register_location():
                 closest_motorway_distance = None
                 nearest_city_distance = None
             try:
-                location.register_location(loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status, 
+                location.register_location(tenant_id, loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status, 
                 local_activities, location_name, country, region, district, county, subcounty, parish, altitude, aspect, landform_90, 
                 landform_270, closest_distance, closest_motorway_distance, closest_residential_distance, nearest_city_distance)
                 cache.clear()
                 return {'message': 'Location registered succesfully'}, 200
             except:
                 return {'message': 'An error occured. Please try again'}, 400
-            '''
+            
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
@@ -138,7 +136,8 @@ def get_all_locations():
     '''
     Gets data for all the locations in the database
     '''
-    return jsonify(location.all_locations())
+    tenant_id = request.args.get('tenant')
+    return jsonify(location.all_locations(tenant_id))
 
 
 @location_blueprint.route('/api/v1/location_registry/location', methods=['GET'])
@@ -149,8 +148,9 @@ def get_location_details():
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
+        tenant_id = request.args.get('tenant')
         try:
-            details = location.get_location(loc_ref)
+            details = location.get_location(tenant_id, loc_ref)
             return details
         except:
             return {'message': 'An error occured. Please enter valid location reference'}, 400
@@ -164,8 +164,9 @@ def edit_location():
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
+        tenant_id = request.args.get('tenant')
         try: 
-            details = location.get_location_details_to_edit(loc_ref)
+            details = location.get_location_details_to_edit(tenant_id, loc_ref)
             return jsonify(details)
         except:
             return {'message': 'An error occured. Please enter valid location reference'}, 400
@@ -179,6 +180,7 @@ def update_location():
     '''
 
     if request.method == 'POST':
+        tenant_id = request.args.get('tenant')
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
@@ -198,7 +200,7 @@ def update_location():
             try:
                 '''location.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status,
                                               local_activities)'''
-                location.save_edited_location(loc_ref, road_intensity, description, road_status, local_activities)
+                location.save_edited_location(tenant_id, loc_ref, road_intensity, description, road_status, local_activities)
                 cache.clear()
                 return {'message': 'Location has been successfully updated'}, 200
             except:
