@@ -2,7 +2,7 @@ base_url = '/api/v1'
 route = {
     'root': '/',
     'health_check': '/health',
-    'device_status': base_url + '/device/monitorstatus',
+    'device_status': base_url + '/device/monitor/status',
     'maintenance_logs': base_url + '/device/monitor/maintenance_logs',
     'device_name_maintenance_log': base_url + '/device/monitor/maintenance_logs/<device_name>',
     'device_power': base_url + '/device/monitor/power_type',
