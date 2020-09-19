@@ -18,33 +18,34 @@ class DeviceStatus():
         """ initialize """
 
     # get device status infromation
-    def get_device_status(self):
-        db = db_helpers.connect_mongo()
+    def get_device_status(self, tenant):
+        db = db_helpers.connect_mongo(tenant)
         documents = db.devices.find(
             {'isActive': {'$eq': True}}, {'name': 1, 'location_id': 1, 'nextMaintenance': 1, 'channelID': 1})
         return documents
 
     # get device maintenance log infromation
-    def get_device_maintenance_log(self):
-        db = db_helpers.connect_mongo()
-        documents = db.activities.find({"activityType":"maintenance"})
+    def get_device_maintenance_log(self, tenant):
+        db = db_helpers.connect_mongo(tenant)
+        documents = db.activities.find({"activityType": "maintenance"})
         return documents
 
      # get maintenance log for a given device name/id
-    def get_device_name_maintenance_log(self, device_name):
-        db = db_helpers.connect_mongo()
+    def get_device_name_maintenance_log(self, tenant, device_name):
+        db = db_helpers.connect_mongo(tenant)
         #documents = db.maintenance_log.find({'device': device_name})
-        documents = db.activities.find({'activityType':'maintenance', 'device': device_name})
+        documents = db.activities.find(
+            {'activityType': 'maintenance', 'device': device_name})
         return documents
 
     # get devices status infromation
-    def get_device_power(self):
-        db = db_helpers.connect_mongo()
+    def get_device_power(self, tenant):
+        db = db_helpers.connect_mongo(tenant)
         documents = db.devices.find({'$and': [{'locationID': {'$ne': ""}}, {'status': {'$ne': "Retired"}}, {'power': {'$ne': ""}}]}, {
                                     'power': 1, 'name': 1, 'locationID': 1})
         return documents
 
-    def get_all_devices_latest_status(self):
+    def get_all_devices_latest_status(self, tenant):
         """
         Gets the latest status of whether device was online or offline in the last two hours.
 
@@ -62,15 +63,15 @@ class DeviceStatus():
             'format': time_format, 'date': '$time', 'timezone': 'Africa/Kampala'}}, }}
         sort_order = {'$sort': {'_id': -1}}
         limit = {'$limit': 1}
-        db = db_helpers.connect_mongo()
+        db = db_helpers.connect_mongo(tenant)
         # results = db.device_status_hourly_check_results.find().sort([('_id',-1)]).limit(1)
         results = db.device_status_hourly_check_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1)
         # results = list(db.device_status_hourly_check_results.aggregate([query, projection,sort_order,limit]) )
         return results
 
-    def get_all_devices(self):
-        db = db_helpers.connect_mongo()
+    def get_all_devices(self, tenant):
+        db = db_helpers.connect_mongo(tenant)
         results = list(db.device_status_summary.find({}, {'_id': 0}))
         return results
 
@@ -80,9 +81,9 @@ class DeviceStatus():
         """
         return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
 
-    def get_network_uptime_analysis_results(self):
+    def get_network_uptime_analysis_results(self, tenant):
         "gets the latest network uptime for the specified hours"
-        db = db_helpers.connect_mongo()
+        db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
@@ -112,9 +113,9 @@ class DeviceStatus():
                          'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         return uptime_result
 
-    def get_device_rankings(self, sorting_order):
+    def get_device_rankings(self, tenant, sorting_order):
         "gets the latest device rankings i.e best and worst performing devices interms of network uptime and downtime for the specified time period"
-        db = db_helpers.connect_mongo()
+        db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
@@ -143,9 +144,9 @@ class DeviceStatus():
 
         return ranking_results
 
-    def get_device_uptime_analysis_results(self, device_channel_id):
+    def get_device_uptime_analysis_results(self, tenant, device_channel_id):
         "gets the latest device uptime for the device with the specifided channel id"
-        db = db_helpers.connect_mongo()
+        db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
@@ -184,65 +185,70 @@ class DeviceStatus():
                 "message": "Uptime data not available for the specified device", "success": False}
         return uptime_result
 
-
-    def get_device_battery_voltage_results(self, device_channel_id):
+    def get_device_battery_voltage_results(self, tenant, device_channel_id):
         "gets the latest device batery voltage for the device with the specifided channel id"
-        db = db_helpers.connect_mongo()
+        db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
         result = results[0]
-                
+
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
-        device_twenty_eight_days_battery_voltage = [d['device_battery_voltage_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
-        device_twenty_eight_days_labels = [d['device_time_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
-        
-        if twenty_eight_days_devices : 
-                labels = [utils.convert_to_date(value) for value in device_twenty_eight_days_labels[0]]
-                values = device_twenty_eight_days_battery_voltage[0]
-                uptime_result = {'battery_voltage_values': values, 'battery_voltage_labels': labels ,
-                         'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+        device_twenty_eight_days_battery_voltage = [d['device_battery_voltage_readings']
+                                                    for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+        device_twenty_eight_days_labels = [d['device_time_readings']
+                                           for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+
+        if twenty_eight_days_devices:
+            labels = [utils.convert_to_date(
+                value) for value in device_twenty_eight_days_labels[0]]
+            values = device_twenty_eight_days_battery_voltage[0]
+            uptime_result = {'battery_voltage_values': values, 'battery_voltage_labels': labels,
+                             'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         else:
-            values = []        
+            values = []
             uptime_result = {
                 "message": "device battery voltage data not available for the specified device", "success": False}
         return uptime_result
 
-
-    def get_device_sensor_correlation_results(self, device_channel_id):
+    def get_device_sensor_correlation_results(self, tenant, device_channel_id):
         "gets the latest device sensor correlations for the device with the specifided channel id"
-        db = db_helpers.connect_mongo()
+        db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
         result = results[0]
-                
+
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
-        device_twenty_eight_days_sensor_one_readings = [d['device_sensor_one_pm2_5_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
-        device_twenty_eight_days_sensor_two_readings = [d['device_sensor_two_pm2_5_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
-        device_twenty_eight_days_labels = [d['device_time_readings']  for d in twenty_eight_days_devices if d['device_channel_id']==device_channel_id]
-        
-        datasets = [] #for displaying multiple sensor data on graph
-        colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
+        device_twenty_eight_days_sensor_one_readings = [d['device_sensor_one_pm2_5_readings']
+                                                        for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+        device_twenty_eight_days_sensor_two_readings = [d['device_sensor_two_pm2_5_readings']
+                                                        for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+        device_twenty_eight_days_labels = [d['device_time_readings']
+                                           for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
 
-        if twenty_eight_days_devices : 
-                labels = [utils.convert_to_date(value) for value in device_twenty_eight_days_labels[0]]
-                sensor_one_values = device_twenty_eight_days_sensor_one_readings[0]
-                sensor_two_values = device_twenty_eight_days_sensor_two_readings[0]
+        datasets = []  # for displaying multiple sensor data on graph
+        colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']
 
-                x = pd.Series(sensor_one_values)
-                y = pd.Series(sensor_two_values)
-                pearson_correlation_value = round(x.corr(y),4)
-                uptime_result = {'sensor_one_values': sensor_one_values, 
-                                'sensor_two_values':sensor_two_values,'labels': labels ,
-                                'correlation_value':pearson_correlation_value,
-                         'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+        if twenty_eight_days_devices:
+            labels = [utils.convert_to_date(
+                value) for value in device_twenty_eight_days_labels[0]]
+            sensor_one_values = device_twenty_eight_days_sensor_one_readings[0]
+            sensor_two_values = device_twenty_eight_days_sensor_two_readings[0]
+
+            x = pd.Series(sensor_one_values)
+            y = pd.Series(sensor_two_values)
+            pearson_correlation_value = round(x.corr(y), 4)
+            uptime_result = {'sensor_one_values': sensor_one_values,
+                             'sensor_two_values': sensor_two_values, 'labels': labels,
+                             'correlation_value': pearson_correlation_value,
+                             'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         else:
-            values = []        
+            values = []
             uptime_result = {
                 "message": "device sensor correlation data not available for the specified device", "success": False}
         return uptime_result
-        
+
 
 if __name__ == "__main__":
     dx = DeviceStatus()
