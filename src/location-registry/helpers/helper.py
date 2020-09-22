@@ -52,10 +52,13 @@ def get_location_ref(tenant_id):
         loc_ref = 1
     else:
         ref = last_document[0]['loc_ref']
-        loc_ref = int(ref[4:])+1
+        try: 
+            loc_ref = int(ref[4:])+1
+            return 'loc_'+str(loc_ref)
+        except:
+            return {'message': 'Invalid input'}, 400
 
-    return 'loc_'+str(loc_ref)
-
+    
 
 def get_location_details(lon, lat, tenant_id):
     '''

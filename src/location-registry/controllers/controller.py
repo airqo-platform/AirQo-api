@@ -33,7 +33,10 @@ def generate_ref():
     Generates a reference id for a new location
     '''
     tenant_id = request.args.get('tenant')
-    return helper.get_location_ref(tenant_id)
+    if tenant_id:
+        return helper.get_location_ref(tenant_id)
+    else:
+        return {'message': 'Tenant id required'}, 400
 
 
 @location_blueprint.route('/api/v1/location_registry/register', methods=['POST'])
@@ -44,6 +47,8 @@ def register_location():
     '''
     if request.method == 'POST':
         tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required'}, 400
     
         json_data = request.get_json()
         if not json_data:
@@ -131,12 +136,14 @@ def register_location():
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
-@cache.cached(timeout=60)
+@cache.cached(timeout=5)
 def get_all_locations():
     '''
     Gets data for all the locations in the database
     '''
     tenant_id = request.args.get('tenant')
+    if not tenant_id:
+        return {'message': 'Tenant id required'}, 400
     locations = location.all_locations(tenant_id)
     if len(locations)==0:
         return {'message': 'Organization does not exist on platform'}, 400
@@ -152,6 +159,8 @@ def get_location_details():
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
         tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required'}, 400
         try:
             details = location.get_location(tenant_id, loc_ref)
             return details
@@ -168,6 +177,8 @@ def edit_location():
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
         tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required'}, 400
         try: 
             details = location.get_location_details_to_edit(tenant_id, loc_ref)
             return jsonify(details)
@@ -184,6 +195,8 @@ def update_location():
 
     if request.method == 'POST':
         tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required'}, 400
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
