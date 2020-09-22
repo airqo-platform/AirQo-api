@@ -1,5 +1,4 @@
 const Device = require("../models/Device");
-const Maintenance = require("../models/maintenance_log");
 const LocationActivity = require("../models/location_activity");
 const Location = require("../models/Location");
 const HTTPStatus = require("http-status");
@@ -109,12 +108,12 @@ const isDeviceNotDeployed = async (deviceName) => {
     // device = query.getFilter(); // `{ name: 'Jean-Luc Picard' }`
 
     const device = await Device.find({ name: deviceName }).exec();
-    logElement("....................");
-    logElement("checking isDeviceNotDeployed....");
+    logText("....................");
+    logText("checking isDeviceNotDeployed....");
     logObject("device is here", device[0]._doc);
     const isNotDeployed = isEmpty(device[0]._doc.locationID) ? true : false;
-    logText("locationID", device[0]._doc.locationID);
-    logText("isNotDeployed", isNotDeployed);
+    logElement("locationID", device[0]._doc.locationID);
+    logElement("isNotDeployed", isNotDeployed);
     return isNotDeployed;
   } catch (e) {
     logText("error", e);
@@ -124,15 +123,15 @@ const isDeviceNotDeployed = async (deviceName) => {
 const isDeviceNotRecalled = async (deviceName) => {
   try {
     const device = await Device.find({ name: deviceName }).exec();
-    logElement("....................");
-    logElement("checking isDeviceNotRecalled....");
+    logText("....................");
+    logText("checking isDeviceNotRecalled....");
     logObject("device is here", device[0]._doc);
     const isNotRecalled = device[0]._doc.isActive == true ? true : false;
-    logText("isActive", device[0]._doc.isActive);
-    logText("isNotRecalled", isNotRecalled);
+    logElement("isActive", device[0]._doc.isActive);
+    logElement("isNotRecalled", isNotRecalled);
     return isNotRecalled;
   } catch (e) {
-    logText("error", e);
+    logElement("error", e);
   }
 };
 
@@ -149,9 +148,9 @@ function threeMonthsFromNow(date) {
 const locationActivityRequestBodies = (req, res) => {
   try {
     const type = req.query.type;
-    logElement("....................");
-    logElement("locationActivityRequestBodies...");
-    logText("activityType", type);
+    logText("....................");
+    logText("locationActivityRequestBodies...");
+    logElement("activityType", type);
     let locationActivityBody = {};
     let deviceBody = {};
     const {
@@ -174,7 +173,7 @@ const locationActivityRequestBodies = (req, res) => {
       locationActivityBody = {
         location: locationName,
         device: deviceName,
-        date: date,
+        date: new Date(date),
         description: "device deployed",
         activityType: "deployment",
       };
@@ -226,7 +225,7 @@ const locationActivityRequestBodies = (req, res) => {
       locationActivityBody = {
         location: locationName,
         device: deviceName,
-        date: date,
+        date: new Date(date),
         description: "device recalled",
         activityType: "recallment",
       };
@@ -252,7 +251,7 @@ const locationActivityRequestBodies = (req, res) => {
       locationActivityBody = {
         location: locationName,
         device: deviceName,
-        date: date,
+        date: new Date(date),
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
@@ -386,17 +385,17 @@ const doLocationActivity = async (
     check = false;
   }
 
-  logElement("....................");
-  logElement("doLocationActivity...");
+  logText("....................");
+  logText("doLocationActivity...");
   logText("activityType", type);
-  logText("deviceExists", isNotDeployed);
-  logText("isNotDeployed", isNotDeployed);
-  logText("isNotRecalled", isNotRecalled);
+  logElement("deviceExists", isNotDeployed);
+  logElement("isNotDeployed", isNotDeployed);
+  logElement("isNotRecalled", isNotRecalled);
   logObject("activityBody", activityBody);
-  logText("check", check);
+  logElement("check", check);
   logObject("deviceBody", deviceBody);
 
-  logElement("....................");
+  logText("....................");
 
   if (check) {
     //first update device body
@@ -454,7 +453,7 @@ const device = {
 
   listAllByLocation: async (req, res) => {
     const location = req.query.loc;
-    logText("location ", location);
+    logElement("location ", location);
     try {
       const devices = await Device.find({ locationID: location }).exec();
       return res.status(HTTPStatus.OK).json(devices);
@@ -744,7 +743,7 @@ const device = {
     }
   },
 
-  /********************************* Thing Settings ****************************** */
+  /********************************* Update Thing Settings ****************************** */
   updateThingSettings: async (req, res) => {
     try {
       let { device } = req.query;
@@ -826,46 +825,6 @@ const device = {
       });
     }
   },
-
-  /********************************* push data to Thing ****************************** */
-  writeToThing: async (req, res) => {
-    await axios
-      .get(constants.ADD_VALUE(field, value, apiKey))
-      .then(function(response) {
-        console.log(response.data);
-        updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
-        axios
-          .post(updateUrl, req.body)
-          .then(function(response) {
-            console.log(response.data);
-            let output = response.data;
-            res.status(200).json({
-              message: "successfully written data to the device",
-              success: true,
-              output,
-            });
-          })
-          .catch(function(error) {
-            console.log(error);
-            res.status(500).json({
-              message: "unable to write data to the device",
-              success: false,
-              error,
-            });
-          });
-      })
-      .catch(function(error) {
-        console.log(error);
-        res.status(500).json({
-          message:
-            "unable to get channel details necessary for writing this data",
-          success: false,
-          error,
-        });
-      });
-  },
-
-  bulkWriteToThing: (req, res) => {},
 
   /**************************** end of using ThingSpeak **************************** */
 

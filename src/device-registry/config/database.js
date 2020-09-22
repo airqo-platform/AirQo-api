@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+mongoose.set("useFindAndModify", false);
 const constants = require("./constants");
 
 mongoose.Promise = global.Promise;
@@ -8,7 +9,8 @@ try {
   mongoose.connect(
     constants.MONGO_URL,
     { dbName: constants.DB_NAME },
-    { useNewUrlParser: true }
+    { useNewUrlParser: true },
+    { useFindAndModify: false }
   );
 } catch (e) {
   mongoose.createConnection(constants.MONGO_URL);
