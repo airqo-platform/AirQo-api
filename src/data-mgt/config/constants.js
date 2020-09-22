@@ -3,10 +3,10 @@ const devConfig = {
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_DEV,
 };
-const testConfig = {
+const stageConfig = {
   MONGO_URL: "mongodb://localhost/",
   JWT_SECRET: process.env.JWT_SECRET,
-  DB_NAME: process.env.MONGO_TEST,
+  DB_NAME: process.env.MONGO_STAGE,
 };
 const prodConfig = {
   MONGO_URL: process.env.MONGO_GCE_URI,
@@ -21,8 +21,8 @@ function envConfig(env) {
   switch (env) {
     case "development":
       return devConfig;
-    case "test":
-      return testConfig;
+    case "staging":
+      return stageConfig;
     default:
       return prodConfig;
   }
