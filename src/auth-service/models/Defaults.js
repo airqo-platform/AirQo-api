@@ -29,6 +29,10 @@ const DefaultsSchema = new mongoose.Schema({
     type: String,
     required: [true, "chartTyoe is required!"],
   },
+  period: {
+    type: String,
+    required: [true, "period is required!"],
+  },
   chartTitle: {
     type: String,
     required: [true, "chartTitle is required!"],

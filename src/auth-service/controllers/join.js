@@ -43,6 +43,7 @@ const join = {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: "User creation successful",
+          user,
         });
       }
     } catch (e) {
@@ -245,7 +246,6 @@ const join = {
     logText("..................................");
     logText("user login......");
     try {
-      // logElement("the body", req.body);
       const { errors, isValid } = validateLoginInput(req.body);
 
       if (!isValid) {
@@ -317,7 +317,7 @@ const join = {
     try {
       const { tenant, user, chartTitle } = req.query;
 
-      if (!isEmpty(user) && !isEmpty(chartTitle)) {
+      if (!isEmpty(user) && !isEmpty(chartTitle) && !isEmpty(tenant)) {
         const filter = {
             user: user,
             chartTitle: chartTitle,
@@ -350,10 +350,9 @@ const join = {
         });
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_REQUEST).json({
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
-        message:
-          "please crosscheck the api query parameters using the documentation",
+        message: "there is a server error",
         error: e.message,
       });
     }
