@@ -32,9 +32,11 @@ const userLocalStrategy = new LocalStrategy(
   localOpts,
   async (userName, password, done) => {
     try {
-      const user = await UserModel(tenantSession).findOne({
-        userName,
-      });
+      const user = await UserModel(tenantSession)
+        .findOne({
+          userName,
+        })
+        .exec();
       if (!user) {
         return done(null, false);
       } else if (!user.authenticateUser(password)) {
@@ -88,8 +90,16 @@ passport.deserializeUser((id, cb) => {
 
 function login(req, res, next) {
   try {
-    createTenantSession(req.query.tenant);
-    next();
+    if (req.query.tenant) {
+      createTenantSession(req.query.tenant);
+      next();
+    } else {
+      res.json({
+        success: false,
+        message:
+          "the organization is missing in the request field, please check documentation",
+      });
+    }
   } catch (e) {
     console.log("the error in login is: ", e.message);
     res.json({ success: false, message: e.message });

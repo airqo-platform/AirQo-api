@@ -63,13 +63,16 @@ const UserSchema = new Schema({
       message: "{VALUE} is not a valid password!",
     },
   },
-  privilege: { type: String },
+  privilege: { type: String, required: [true, "the role is required!"] },
   isActive: { type: Boolean },
   duration: { type: Date, default: oneMonthFromNow },
-  organisation: { type: String },
+  organization: {
+    type: String,
+    required: [true, "the organization is required!"],
+  },
   country: { type: String },
   phoneNumber: { type: Number },
-  locationCount: { type: Number },
+  locationCount: { type: Number, default: 5 },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
   jobTitle: {
@@ -153,13 +156,13 @@ UserSchema.methods = {
     return jwt.sign(
       {
         _id: this._id,
+        locationCount: this.locationCount,
+        organization: this.organization,
         firstName: this.firstName,
         lastName: this.lastName,
         userName: this.userName,
         email: this.email,
         privilege: this.privilege,
-        locationCount: this.locationCount,
-        organization: this.organization,
       },
       constants.JWT_SECRET
     );
