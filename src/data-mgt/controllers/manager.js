@@ -1,7 +1,7 @@
 const HTTPStatus = require("http-status");
 const fetch = require("node-fetch");
 const request = require("request");
-const Channels = require("../models/Channel");
+const Channel = require("../models/Channel");
 const Feed = require("../models/Feed");
 const axios = require("axios");
 const redis = require("../config/redis");
@@ -71,10 +71,26 @@ const data = {
       let feed = await json.feeds.filter((obj) => {
         return obj.entry_id === entry;
       });
-      response.feed = feed[0];
-      res.status(200).json(response.feed);
+      response = feed[0];
+      console.log("feeds from TS: ", response);
+      console.log("channel ID from request: ", req.params.ch_id);
+      if (feed[0].field6 == 0.0 || field[0].field5 == 0.0) {
+        const channel = await Channel.findOne({
+          channel_id: Number(req.params.ch_id),
+        }).exec();
+        console.log("the channel details: ", channel._doc);
+        console.log("type of channel: ", typeof channel._doc);
+        // console.dir(channel);
+        response.field5 = channel._doc.latitude;
+        console.log("latitude: ", channel._doc.latitude);
+        response.field6 = channel._doc.longitude;
+        console.log("longitude: ", channel._doc.longitude);
+      }
+      res.status(200).json(response);
     } catch (e) {
-      res.status(501).send(e.message);
+      res
+        .status(501)
+        .send({ success: false, message: "server error", error: e.message });
     }
   },
 
