@@ -29,10 +29,6 @@ const DefaultsSchema = new mongoose.Schema({
     type: String,
     required: [true, "chartTyoe is required!"],
   },
-  period: {
-    type: String,
-    required: [true, "period is required!"],
-  },
   chartTitle: {
     type: String,
     required: [true, "chartTitle is required!"],
@@ -43,7 +39,7 @@ const DefaultsSchema = new mongoose.Schema({
       type: String,
     },
   ],
-  range: { type: String, required: [true, "range is required!"] },
+  period: { type: String, required: [true, "period is required!"] },
 });
 
 DefaultsSchema.plugin(uniqueValidator);
@@ -70,6 +66,7 @@ DefaultsSchema.methods = {
       chartType: this.chartType,
       chartTitle: this.chartTitle,
       locations: this.locations,
+      period: this.period,
     };
   },
 };

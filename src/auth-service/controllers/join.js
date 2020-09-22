@@ -138,7 +138,7 @@ const join = {
             return res.status(400).json({ email: "Email does not exist" });
           } else if (response) {
             const mailOptions = {
-              from: `info@airqo.net`,
+              from: constants.EMAIL,
               to: `${req.body.email}`,
               subject: `Link To Reset Password`,
               text: `${msgs.recovery_email(token)}`,
@@ -316,19 +316,23 @@ const join = {
   updateUserDefaults: async (req, res, next) => {
     try {
       const { tenant, user, chartTitle } = req.query;
+      logElement("title", chartTitle);
+      logElement("type of title", typeof chartTitle);
+      logElement("user", user);
+      logElement("tenant", tenant);
 
       if (!isEmpty(user) && !isEmpty(chartTitle) && !isEmpty(tenant)) {
         const filter = {
-            user: user,
-            chartTitle: chartTitle,
-          },
-          update = req.body,
+          user: user,
+          chartTitle: chartTitle,
+        };
+        delete req.body.chartTitle;
+        delete req.body.user;
+        let update = req.body,
           options = { upsert: true, new: true };
-        let doc = await DefaultModel(tenant).findOneAndUpdate(
-          filter,
-          update,
-          options
-        );
+        let doc = await DefaultModel(tenant)
+          .findOneAndUpdate(filter, update, options)
+          .exec();
 
         if (doc) {
           res.status(200).json({
@@ -360,39 +364,58 @@ const join = {
 
   getDefaults: async (req, res) => {
     try {
-      const { user, chartTitle, tenant } = req.query;
-      let filter = {};
-      console.log;
-      if (!isEmpty(user) && isEmpty(chartTitle)) {
-        filter = {
-          user: user,
-        };
-      } else if (!isEmpty(user) && !isEmpty(chartTitle)) {
-        filter = {
-          user: user,
-          chartTitle: chartTitle,
-        };
+      //....
+      logText(".....................................");
+      logText("list all defaults by tenant...");
+      const { tenant, user, chartTitle } = req.query;
+
+      if (tenant && user && !chartTitle) {
+        logElement("the tenant", tenant);
+        logElement("the user", user);
+        const defaults = await DefaultModel(tenant).find({ user: user }).exec();
+        logObject("the defaults", defaults);
+        if (!isEmpty(defaults)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: `Customised chart defaults for ${user} fetched successfully`,
+            defaults,
+          });
+        } else if (isEmpty(defaults)) {
+          return res.json({
+            success: false,
+            message: `this organisation (${tenant}) does not have these user defaults or they do not exist, please crosscheck`,
+          });
+        }
+      } else if (tenant && user && chartTitle) {
+        const userdefault = await DefaultModel(tenant)
+          .find({
+            user: user,
+            chartTitle: chartTitle,
+          })
+          .exec();
+        if (userdefault) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: `Customised chart defaults for ${user} on chart ${chartTitle} fetched successfully`,
+            userdefault,
+          });
+        } else if (!userdefault) {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: `this organisation (${tenant}) does not have defaults or it does not exist, please crosscheck`,
+          });
+        }
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message:
-            "please crosscheck the api query parameters using the documentation",
+            "request is missing the required query params, please crosscheck",
         });
       }
-      // const filter = {
-      //   user: req.query.user,
-      //   chartTitle: req.query.chartTitle,
-      // };
-      const defaults = await DefaultModel(tenant).find(filter);
-      return res.status(HTTPStatus.OK).json({
-        success: true,
-        message: " defaults fetched successfully",
-        defaults,
-      });
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        message: "Unable to fetch the defaults for the user",
+        message: "A bad request has been made, please crosscheck",
         error: e.message,
       });
     }
