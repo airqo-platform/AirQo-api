@@ -10,12 +10,11 @@ load_dotenv()
 MONGO_URI = os.getenv('MONGO_URI')
 
 
-# def connect_mongo():
-#     client = MongoClient(MONGO_URI)
-#     db = client['airqo_devicemonitor']
-#     return db
-
-def connect_mongo():
+def connect_mongo(tenant):
     client = MongoClient(MONGO_URI)
-    db = client['airqo_netmanager']
+    if tenant == 'airqo':
+        db_selected = 'airqo_netmanager'
+    else:
+        db_selected = 'airqo_netmanager_' + tenant
+    db = client[db_selected]
     return db
