@@ -74,17 +74,17 @@ const data = {
       response = feed[0];
       console.log("feeds from TS: ", response);
       console.log("channel ID from request: ", req.params.ch_id);
-      if (feed[0].field6 == 0.0 || field[0].field5 == 0.0) {
+      if (feed[0].field6 == 0.0 || feed[0].field5 == 0.0) {
         const channel = await Channel.findOne({
           channel_id: Number(req.params.ch_id),
         }).exec();
         console.log("the channel details: ", channel._doc);
         console.log("type of channel: ", typeof channel._doc);
         // console.dir(channel);
-        response.field5 = channel._doc.latitude;
-        console.log("latitude: ", channel._doc.latitude);
-        response.field6 = channel._doc.longitude;
-        console.log("longitude: ", channel._doc.longitude);
+        response.field5 = channel._doc.latitude.toString();
+        console.log("latitude: ", channel._doc.latitude.toString());
+        response.field6 = channel._doc.longitude.toString();
+        console.log("longitude: ", channel._doc.longitude.toString());
       }
       res.status(200).json(response);
     } catch (e) {
