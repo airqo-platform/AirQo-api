@@ -27,6 +27,7 @@ const defaultConfig = {
   CLIENT_ORIGIN: "https://airqo.net/",
   BCRYPT_SALT_ROUNDS: 12,
   JWT_SECRET: process.env.JWT_SECRET,
+  EMAIL: process.env.MAIL_USER,
   YOUTUBE_CHANNEL: "https://www.youtube.com/channel/UCx7YtV55TcqKGeKsDdT5_XQ",
 };
 
