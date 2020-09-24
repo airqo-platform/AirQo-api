@@ -64,8 +64,8 @@ def get_all_devices():
     results = list(db.devices.find({"locationID":{ '$ne': '' } },{'_id':0}))
     active_devices = []
     for device in results:
-        print(device['name'])
-        if(device['status'] != 'Retired'):
+        print(device['name'])        
+        if(device['isActive'] == True):
             active_devices.append(device)
     return active_devices
 
@@ -140,4 +140,8 @@ def save_hourly_device_status_check_results(data):
 
 
 if __name__ == '__main__':    
-    get_device_channel_status()
+    #get_device_channel_status()
+    results = get_all_devices()
+    print(len(results))
+    for result in results:
+        print(result)
