@@ -4,12 +4,7 @@ const joinController = require("../controllers/join");
 const candidateController = require("../controllers/candidate");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
-const {
-  authColabLocal,
-  authJWT,
-  login,
-  authUserLocal,
-} = require("../services/auth");
+const { authJWT, login, authUserLocal } = require("../services/auth");
 const privileges = require("../utils/privileges");
 
 //the middleware function

@@ -13,8 +13,6 @@ const localOpts = {
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("../utils/multitenancy");
 
-let tenantSession;
-
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
 };
@@ -24,30 +22,32 @@ const jwtOpts = {
   secretOrKey: constants.JWT_SECRET,
 };
 
-function createTenantSession(tenant) {
-  tenantSession = tenant;
-}
-
-const userLocalStrategy = new LocalStrategy(
-  localOpts,
-  async (userName, password, done) => {
+const userLocalStrategy = (tenant, req, res, next) =>
+  new LocalStrategy(localOpts, async (userName, password, done) => {
     try {
-      const user = await UserModel(tenantSession)
+      const user = await UserModel(tenant)
         .findOne({
           userName,
         })
         .exec();
       if (!user) {
-        return done(null, false);
+        return done(null, false, { message: "bad man" });
       } else if (!user.authenticateUser(password)) {
-        return done(null, false);
+        // return done(null, false, { message: "bad girl" });
+        return res.json({
+          success: false,
+          message: "incorrect username or password",
+        });
       }
       return done(null, user);
     } catch (e) {
-      return done(e, false);
+      // return done(e, false, { message: "bad boy" });
+      return res.json({
+        success: false,
+        message: e.message,
+      });
     }
-  }
-);
+  });
 
 const jwtStrategy = new JWTStrategy(jwtOpts, async (payload, done) => {
   try {
@@ -61,7 +61,10 @@ const jwtStrategy = new JWTStrategy(jwtOpts, async (payload, done) => {
   }
 });
 
-passport.use("user-local", userLocalStrategy);
+const createStrategy = (tenant, req, res, next) => {
+  passport.use("user-local", userLocalStrategy(tenant, req, res, next));
+};
+
 passport.use(jwtStrategy);
 
 passport.serializeUser((user, cb) => {
@@ -91,7 +94,7 @@ passport.deserializeUser((id, cb) => {
 function login(req, res, next) {
   try {
     if (req.query.tenant) {
-      createTenantSession(req.query.tenant);
+      createStrategy(req.query.tenant, req, res, next);
       next();
     } else {
       res.json({
@@ -109,7 +112,8 @@ function login(req, res, next) {
 const authUserLocal = passport.authenticate("user-local", {
   session: false,
   // successFlash: "Welcome!",
-  // failureFlash: "Invalid username or password.",
+  // failureMessage: "Invalid username or password.",
+  failureFlash: true,
 });
 
 const authColabLocal = passport.authenticate("colab-local", {
