@@ -50,8 +50,7 @@ router.delete("/delete/components/", componentController.deleteComponent);
 router.put("/update/components/", componentController.updateComponent);
 
 /******************* adding values******************************/
-router.post("/d_id/components/c_id/value", componentController.addValue);
-router.post("/d_id/components/c_id/values", componentController.addValues);
+router.post("/components/add/values", componentController.addValues);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
