@@ -34,7 +34,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
         return done(null, false, { message: "bad man" });
       } else if (!user.authenticateUser(password)) {
         // return done(null, false, { message: "bad girl" });
-        return res.json({
+        return res.status(401).json({
           success: false,
           message: "incorrect username or password",
         });
@@ -42,7 +42,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
       return done(null, user);
     } catch (e) {
       // return done(e, false, { message: "bad boy" });
-      return res.json({
+      return res.status(500).json({
         success: false,
         message: e.message,
       });
