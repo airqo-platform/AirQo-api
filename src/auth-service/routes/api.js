@@ -30,7 +30,7 @@ const checkAuth = () => {
 //************************* users ***************************************************
 router.post("/loginUser", authUserLocal, joinController.loginUser);
 router.get("/", joinController.listAll);
-router.get("/:id", joinController.listOne);
+// router.get("/:id", joinController.listOne);
 router.post("/registerUser", joinController.registerUser);
 router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
@@ -40,10 +40,8 @@ router.post("/forgotPassword", joinController.forgotPassword);
 router.get("/findUser", joinController.findUser);
 router.put("/", joinController.updateUser);
 router.delete("/:id", joinController.deleteUser);
-router.put("/defaults/:id", joinController.updateUserDefaults);
-router.get("/defaults/:id", joinController.getDefaults);
-router.post("/confirmation", authUserLocal, joinController.confirmEmail);
-router.post("/resend", joinController.resendConfirmEmailToken);
+router.put("/defaults", joinController.updateUserDefaults);
+router.get("/defaults", joinController.getDefaults);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?

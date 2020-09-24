@@ -20,3 +20,7 @@ def convert_GMT_time_to_EAT_local_time(gmt_datetime):
      converts a datetime object in GMT to East African Local Time and formats it to a string value.
     """
     return datetime.strftime(gmt_datetime + timedelta(hours=3), '%a, %d %b %Y %H:%M %p')
+
+def convert_to_date(gmt_datetime):
+    return datetime.strftime(gmt_datetime, '%Y-%m-%d')
+

@@ -4,48 +4,69 @@ const uniqueValidator = require("mongoose-unique-validator");
 
 const locationSchema = new mongoose.Schema(
   {
-    locations: [
-      {
-        type: ObjectId,
-        ref: "location",
-      },
-    ],
-    name: {
+    loc_ref: {
       type: String,
-      required: [true, "Location name is required!"],
       trim: true,
-      unique: true,
+    },
+    latitude: {
+      type: Number,
+    },
+    longitude: {
+      type: Number,
+    },
+    location_name: {
+      type: String,
+      trim: true,
+    },
+    host: {
+      type: String,
+      trim: true,
     },
     description: {
       type: String,
-      required: [true, "Description is required!"],
+      trim: true,
+    },
+    country: {
+      type: String,
       trim: true,
     },
     county: {
       type: String,
-      required: [true, "County is required"],
       trim: true,
     },
-    subCounty: {
+    region: {
       type: String,
-      required: [true, "subCounty is required"],
+      trim: true,
+    },
+    subcounty: {
+      type: String,
       trim: true,
     },
     parish: {
       type: String,
-      required: [true, "parish is required"],
       trim: true,
     },
-    distanceToRoad: {
-      type: Number,
-    },
-    roadIntensiity: {
-      type: Number,
-    },
-    roadStatus: {
+    road_status: {
       type: String,
+      trim: true,
     },
-    localActivities: {
+    distance_from_nearest_road: {
+      type: Number,
+    },
+    road_intensity: {
+      type: Number,
+    },
+
+    distance_from_motorway: {
+      type: Number,
+    },
+    distance_from_residential: {
+      type: Number,
+    },
+    distance_from_city: {
+      type: Number,
+    },
+    local_activities: {
       type: String,
     },
     region: {
@@ -60,20 +81,11 @@ const locationSchema = new mongoose.Schema(
     aspect: {
       type: String,
     },
-    landform90: {
+    landform_90: {
       type: String,
     },
-    landform270: {
+    landform_270: {
       type: String,
-    },
-    distanceToNearestMotorway: {
-      type: Number,
-    },
-    distanceToNearestCity: {
-      type: Number,
-    },
-    primaryDevice: {
-      type: ObjectId,
     },
   },
   {
@@ -93,18 +105,23 @@ locationSchema.methods = {
       createdAt: this.createdAt,
       description: this.description,
       county: this.county,
-      subCounty: this.subCounty,
+      subcounty: this.subcounty,
       parish: this.parish,
-      distanceToRoad: this.distanceToRoad,
-      distanceToNearestCity: this.distanceToNearestCity,
-      primaryDevice: this.primaryDevice,
+      road_intensity: this.road_intensity,
+      distance_from_motorway: this.distance_from_motorway,
+      distance_from_residential: this.distance_from_residential,
+      distance_from_city: this.distance_from_city,
+      distance_from_nearest_road: this.distance_from_nearest_road,
+      host: this.host,
+      latitude: this.latitude,
+      longitude: this.longitude,
     };
   },
 };
 
 // I will add the check for the user after setting up the communications between services
 locationSchema.statics = {
-  createDevice(args) {
+  createLocation(args) {
     return this.create({
       ...args,
     });
@@ -118,6 +135,6 @@ locationSchema.statics = {
   },
 };
 
-const location = mongoose.model("location", locationSchema);
+const location = mongoose.model("location_registry", locationSchema);
 
 module.exports = location;
