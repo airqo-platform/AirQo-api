@@ -35,7 +35,7 @@ const candidate = {
   getAllCandidates: async (req, res) => {
     try {
       const { tenant } = req.query;
-      const users = await CandidateModel(tenant).find(req.query);
+      const users = await CandidateModel(tenant).find();
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: "Candidates fetched successfully",
