@@ -380,11 +380,6 @@ const join = {
             message: `Customised chart defaults for ${user} fetched successfully`,
             defaults,
           });
-        } else if (isEmpty(defaults)) {
-          return res.json({
-            success: false,
-            message: `this organisation (${tenant}) does not have these user defaults or they do not exist, please crosscheck`,
-          });
         }
       } else if (tenant && user && chartTitle) {
         const userdefault = await DefaultModel(tenant)
