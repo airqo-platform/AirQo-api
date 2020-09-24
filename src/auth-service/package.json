@@ -17,7 +17,7 @@
     "dependencies": {
         "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
-        "bcrypt": "^3.0.6",
+        "bcrypt": "^5.0.0",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",
         "connect-mongo": "^3.2.0",
