@@ -41,10 +41,11 @@ const userLocalStrategy = (tenant, req, res, next) =>
       }
       return done(null, user);
     } catch (e) {
+      logElement("error in services/auth/userLocalStrategy", e.message);
       // return done(e, false, { message: "bad boy" });
       return res.status(500).json({
         success: false,
-        message: e.message,
+        message: "organization does not exist",
       });
     }
   });
