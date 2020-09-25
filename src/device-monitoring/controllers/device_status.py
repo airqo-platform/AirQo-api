@@ -21,7 +21,8 @@ def get_device_status():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_device_status()
+        tenant = request.args.get('tenant')
+        documents = model.get_device_status(tenant)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
@@ -39,7 +40,8 @@ def get_device_maintenance_log():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_device_maintenance_log()
+        tenant = request.args.get('tenant')
+        documents = model.get_device_maintenance_log(tenant)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
@@ -57,7 +59,8 @@ def get_device_name_maintenance_log(device_name):
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_device_name_maintenance_log(device_name)
+        tenant = request.args.get('tenant')
+        documents = model.get_device_name_maintenance_log(tenant, device_name)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
@@ -76,7 +79,8 @@ def get_device_power():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_device_power()
+        tenant = request.args.get('tenant')
+        documents = model.get_device_power(tenant)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
@@ -94,7 +98,8 @@ def get_all_devices_latest_status():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_all_devices_latest_status()
+        tenant = request.args.get('tenant')
+        documents = model.get_all_devices_latest_status(tenant)
         response_ = []
         if documents:
             result = documents[0]
@@ -118,7 +123,8 @@ def get_all_devices():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_all_devices()
+        tenant = request.args.get('tenant')
+        documents = model.get_all_devices(tenant)
         response = []
         '''
         if documents:
@@ -126,7 +132,8 @@ def get_all_devices():
             response = {'online_devices_percentage':result['online_devices_percentage'],
              'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':result['created_at']}
         else:
-            response = {"message": "Device status not available", "success":False }
+            response = {
+                "message": "Device status not available", "success":False }
         '''
         for document in documents:
             response.append(document)
@@ -143,7 +150,8 @@ def get_all_latest_offline_devices():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_all_devices_latest_status()
+        tenant = request.args.get('tenant')
+        documents = model.get_all_devices_latest_status(tenant)
         if documents:
             result = documents[0]
             response = result['offline_devices']
@@ -163,7 +171,8 @@ def get_network_uptime():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        result = model.get_network_uptime_analysis_results()
+        tenant = request.args.get('tenant')
+        result = model.get_network_uptime_analysis_results(tenant)
         if result:
             response = result
         else:
@@ -182,7 +191,8 @@ def get_best_performing_devices():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        result = model.get_device_rankings(sorting_order='desc')
+        tenant = request.args.get('tenant')
+        result = model.get_device_rankings(tenant, sorting_order='desc')
         if result:
             response = result
         else:
@@ -201,7 +211,8 @@ def get_worst_performing_devices():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        result = model.get_device_rankings(sorting_order='asc')
+        tenant = request.args.get('tenant')
+        result = model.get_device_rankings(tenant, sorting_order='asc')
         if result:
             response = result
         else:
@@ -212,6 +223,7 @@ def get_worst_performing_devices():
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+
 @device_status_bp.route(api.route['device_uptime'], methods=['GET'])
 def get_device_uptime(device_channel_id):
     '''
@@ -219,10 +231,12 @@ def get_device_uptime(device_channel_id):
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
+        tenant = request.args.get('tenant')
         if type(device_channel_id) is not int:
-            device_channel_id = int(device_channel_id)           
+            device_channel_id = int(device_channel_id)
 
-        result = model.get_device_uptime_analysis_results(device_channel_id)
+        result = model.get_device_uptime_analysis_results(
+            tenant, device_channel_id)
         if result:
             response = result
         else:
@@ -241,10 +255,13 @@ def get_device_battery_voltage(device_channel_id):
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        if type(device_channel_id) is not int:
-            device_channel_id = int(device_channel_id)           
+        tenant = request.args.get('tenant')
 
-        result = model.get_device_battery_voltage_results(device_channel_id)
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id)
+
+        result = model.get_device_battery_voltage_results(
+            tenant, device_channel_id)
         if result:
             response = result
         else:
@@ -255,6 +272,7 @@ def get_device_battery_voltage(device_channel_id):
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+
 @device_status_bp.route(api.route['device_sensor_correlation'], methods=['GET'])
 def get_device_sensor_correlation(device_channel_id):
     '''
@@ -262,10 +280,13 @@ def get_device_sensor_correlation(device_channel_id):
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        if type(device_channel_id) is not int:
-            device_channel_id = int(device_channel_id)           
+        tenant = request.args.get('tenant')
 
-        result = model.get_device_sensor_correlation_results(device_channel_id)
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id)
+
+        result = model.get_device_sensor_correlation_results(
+            tenant, device_channel_id)
         if result:
             response = result
         else:
@@ -276,6 +297,7 @@ def get_device_sensor_correlation(device_channel_id):
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+
 @device_status_bp.route(api.route['online_offline'], methods=['GET'])
 def get_all_online_offline():
     '''
@@ -283,26 +305,29 @@ def get_all_online_offline():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
-        documents = model.get_all_devices_latest_status()
+        tenant = request.args.get('tenant')
+
+        documents = model.get_all_devices_latest_status(tenant)
         if documents:
             result = documents[0]
             print(len(result['online_devices']), file=sys.stderr)
-            devices_without_coordinates =[]
-            devices_with_coordinates =[]
+            devices_without_coordinates = []
+            devices_with_coordinates = []
             for device in result['online_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                if (device['latitude'] is not None) or (device['longitude'] is not None):
                     if "nextMaintenance" in device:
-                        date_difference = datetime.now()-device['nextMaintenance']
-                        print (date_difference.days, file=sys.stderr)
-                        if date_difference.days<-14:
+                        date_difference = datetime.now() - \
+                            device['nextMaintenance']
+                        print(date_difference.days, file=sys.stderr)
+                        if date_difference.days < -14:
                             codeString = "codeGreen"
-                        elif date_difference.days>=0:
+                        elif date_difference.days >= 0:
                             codeString = "codeRed"
                         else:
                             codeString = "codeOrange"
-                                        
+
                         mapped_device = {
-                            'channelId':device['channelID'],
+                            'channelId': device['channelID'],
                             'latitude': device['latitude'],
                             'locationID': device['locationID'],
                             'longitude': device['longitude'],
@@ -316,10 +341,10 @@ def get_all_online_offline():
                         devices_with_coordinates.append(mapped_device)
 
             for device in result['online_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None) :
-                    if "nextMaintenance" not in device:                   
+                if (device['latitude'] is not None) or (device['longitude'] is not None):
+                    if "nextMaintenance" not in device:
                         mapped_device = {
-                            'channelId':device['channelID'],
+                            'channelId': device['channelID'],
                             'latitude': device['latitude'],
                             'locationID': device['locationID'],
                             'longitude': device['longitude'],
@@ -333,18 +358,19 @@ def get_all_online_offline():
                         devices_with_coordinates.append(mapped_device)
 
             for device in result['offline_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None) :
-                     if "nextMaintenance" in device:
-                        date_difference = datetime.now()-device['nextMaintenance']
-                        if date_difference.days<-14:
+                if (device['latitude'] is not None) or (device['longitude'] is not None):
+                    if "nextMaintenance" in device:
+                        date_difference = datetime.now() - \
+                            device['nextMaintenance']
+                        if date_difference.days < -14:
                             codeString = "codeGreen"
-                        elif date_difference.days>=0:
+                        elif date_difference.days >= 0:
                             codeString = "codeRed"
                         else:
                             codeString = "codeOrange"
-                    
+
                         mapped_device = {
-                            'channelId':device['channelID'],
+                            'channelId': device['channelID'],
                             'latitude': device['latitude'],
                             'locationID': device['locationID'],
                             'longitude': device['longitude'],
@@ -355,16 +381,16 @@ def get_all_online_offline():
                             'nextMaintenance': device['nextMaintenance'],
                             'isDueMaintenance': codeString
                         }
-                        devices_with_coordinates.append(mapped_device)  
+                        devices_with_coordinates.append(mapped_device)
 
             for device in result['offline_devices']:
-                #if "true" in device['isActive'] :
+                # if "true" in device['isActive'] :
                 if "nextMaintenance" not in device:
-                    if (device['latitude'] is not None) or (device['longitude'] is not None) :
+                    if (device['latitude'] is not None) or (device['longitude'] is not None):
                         if "nextMaintenance" not in device:
-                    
+
                             mapped_device = {
-                                'channelId':device['channelID'],
+                                'channelId': device['channelID'],
                                 'latitude': device['latitude'],
                                 'locationID': device['locationID'],
                                 'longitude': device['longitude'],
@@ -375,11 +401,10 @@ def get_all_online_offline():
                                 'nextMaintenance': "null",
                                 'isDueMaintenance': "codeRed"
                             }
-                            devices_with_coordinates.append(mapped_device)               
-                    
+                            devices_with_coordinates.append(mapped_device)
 
             response = {'online_offline_devices': devices_with_coordinates}
-            
+
         else:
             response = {
                 "message": "devices data not available", "success": False}
@@ -387,5 +412,3 @@ def get_all_online_offline():
         return data, 201
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
-
-        
