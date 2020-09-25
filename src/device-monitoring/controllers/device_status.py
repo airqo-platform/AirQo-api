@@ -22,13 +22,17 @@ def get_device_status():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_device_status(tenant)
+
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
             response.append(document)
-        data = jsonify(response)
-        return data, 200
+        if len(response) == 0:
+            return jsonify({"message": "please provide a valid organization name.", "success": False}), 400
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
@@ -41,13 +45,16 @@ def get_device_maintenance_log():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_device_maintenance_log(tenant)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
             response.append(document)
-        data = jsonify(response)
-        return data, 200
+        if len(response) == 0:
+            return jsonify({"message": "please provide a valid organization name.", "success": False}), 400
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
@@ -60,13 +67,16 @@ def get_device_name_maintenance_log(device_name):
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_device_name_maintenance_log(tenant, device_name)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
             response.append(document)
-        data = jsonify(response)
-        return data, 200
+        if len(response) == 0:
+            return jsonify({"message": "please provide a valid organization name.", "success": False}), 400
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
@@ -80,13 +90,16 @@ def get_device_power():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_device_power(tenant)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
             response.append(document)
-        data = jsonify(response)
-        return data, 200
+        if len(response) == 0:
+            return jsonify({"message": "please provide a valid organization name.", "success": False}), 400
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
@@ -99,6 +112,8 @@ def get_all_devices_latest_status():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_all_devices_latest_status(tenant)
         response_ = []
         if documents:
@@ -124,6 +139,8 @@ def get_all_devices():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_all_devices(tenant)
         response = []
         '''
@@ -137,8 +154,9 @@ def get_all_devices():
         '''
         for document in documents:
             response.append(document)
-        data = jsonify(response)
-        return data, 201
+        if len(response) == 0:
+            return jsonify({"message": "No record available. please make sure you have provided a valid organization name.", "success": False}), 400
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
@@ -151,6 +169,8 @@ def get_all_latest_offline_devices():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_all_devices_latest_status(tenant)
         if documents:
             result = documents[0]
@@ -172,6 +192,8 @@ def get_network_uptime():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         result = model.get_network_uptime_analysis_results(tenant)
         if result:
             response = result
@@ -192,6 +214,8 @@ def get_best_performing_devices():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         result = model.get_device_rankings(tenant, sorting_order='desc')
         if result:
             response = result
@@ -212,6 +236,8 @@ def get_worst_performing_devices():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         result = model.get_device_rankings(tenant, sorting_order='asc')
         if result:
             response = result
@@ -232,6 +258,8 @@ def get_device_uptime(device_channel_id):
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         if type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id)
 
@@ -256,7 +284,8 @@ def get_device_battery_voltage(device_channel_id):
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
-
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         if type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id)
 
@@ -281,7 +310,8 @@ def get_device_sensor_correlation(device_channel_id):
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
-
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         if type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id)
 
@@ -306,6 +336,8 @@ def get_all_online_offline():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
 
         documents = model.get_all_devices_latest_status(tenant)
         if documents:
