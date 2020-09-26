@@ -37,8 +37,11 @@ app.use(function(err, req, res, next) {
   res.locals.error = req.app.get("env") === "development" ? err : {};
 
   // render the error page
-  res.status(err.status || 500);
-  res.render("error");
+  // res.status(err.status || 500);
+  res
+    .status(err.status || 500)
+    .json({ success: false, message: "this endpoint does not exist" });
+  // res.render("error");
 });
 
 module.exports = app;
