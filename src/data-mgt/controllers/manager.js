@@ -63,30 +63,75 @@ const data = {
   getLastEntry: async (req, res) => {
     try {
       const api_url = `https://api.thingspeak.com/channels/${req.params.ch_id}/feeds.json`;
-      let fetch_response = await fetch(api_url);
-      let json = await fetch_response.json();
-      let response = {};
-      response.metadata = json.channel;
-      let entry = json.channel.last_entry_id;
-      let feed = await json.feeds.filter((obj) => {
-        return obj.entry_id === entry;
-      });
-      response = feed[0];
-      console.log("feeds from TS: ", response);
-      console.log("channel ID from request: ", req.params.ch_id);
-      if (feed[0].field6 == 0.0 || feed[0].field5 == 0.0) {
+      const fetch_response = await fetch(api_url);
+
+      console.log(
+        "the symbols attached to this object ",
+        Object.getOwnPropertySymbols(fetch_response)
+      );
+
+      console.log(
+        `the content of the "Response internals" Symbol `,
+        fetch_response[Object.getOwnPropertySymbols(fetch_response)[1]]
+      );
+
+      const response_internals =
+        fetch_response[Object.getOwnPropertySymbols(fetch_response)[1]];
+
+      /****
+       * if the status from TS is not 200, please return appropriate error response
+       */
+      if (response_internals.status !== 200) {
+        res.status(response_internals.status).send({
+          success: false,
+          message: `no events/feeds are present for this device`,
+          statusText: response_internals.statusText,
+        });
+      } else {
+        let json = await fetch_response.json();
+        let response = {};
+        response.metadata = json.channel;
+        let entry = json.channel.last_entry_id;
+        let feed = await json.feeds.filter((obj) => {
+          return obj.entry_id === entry;
+        });
+        response = feed[0];
         const channel = await Channel.findOne({
           channel_id: Number(req.params.ch_id),
         }).exec();
-        console.log("the channel details: ", channel._doc);
-        console.log("type of channel: ", typeof channel._doc);
-        // console.dir(channel);
-        response.field5 = channel._doc.latitude.toString();
-        console.log("latitude: ", channel._doc.latitude.toString());
-        response.field6 = channel._doc.longitude.toString();
-        console.log("longitude: ", channel._doc.longitude.toString());
+        console.log("feeds from TS: ", response);
+        console.log("channel ID from request: ", req.params.ch_id);
+        if (feed[0].field6 == 0.0 || feed[0].field5 == 0.0) {
+          if (channel) {
+            console.log("the channel details: ", channel._doc);
+            console.log("type of channel: ", typeof channel._doc);
+            response.field5 = channel._doc.latitude.toString();
+            console.log("latitude: ", channel._doc.latitude.toString());
+            response.field6 = channel._doc.longitude.toString();
+            console.log("longitude: ", channel._doc.longitude.toString());
+          } else {
+            res.status(401).send({
+              success: false,
+              message: `Innacurate GPS sensor readings and there are no recorded cordinates to use`,
+            });
+          }
+        } else if (feed[0].field6 == 1000.0 || feed[0].field5 == 1000.0) {
+          if (channel) {
+            console.log("the channel details: ", channel._doc);
+            console.log("type of channel: ", typeof channel._doc);
+            response.field5 = channel._doc.latitude.toString();
+            console.log("latitude: ", channel._doc.latitude.toString());
+            response.field6 = channel._doc.longitude.toString();
+            console.log("longitude: ", channel._doc.longitude.toString());
+          } else {
+            res.status(401).send({
+              success: false,
+              message: `Innacurate GPS sensor readings and there are no recorded cordinates to use`,
+            });
+          }
+        }
+        res.status(200).json(response);
       }
-      res.status(200).json(response);
     } catch (e) {
       res
         .status(501)
