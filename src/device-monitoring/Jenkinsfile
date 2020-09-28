@@ -19,9 +19,6 @@ pipeline {
             stage("Checkout code") {
                 steps {
                     checkout scm
-                    sh """
-                    git rev-parse --abbrev-ref HEAD
-                    """
                 }
             }
             stage('Code Analysis') {           
