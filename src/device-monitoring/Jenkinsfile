@@ -155,20 +155,11 @@ pipeline {
                     }
                 }
             }
-        post{
-            always{
-                step([
-                    // Testing
-                    ])
+            stage('Final') {
+                steps {
+                    //webhook for your notification channel 
+                    echo 'Service deployed successfully'
                 }
-                success{
-                    //notification webhook
-                    echo 'Pipeline Execution Successfully Notification'
-                }
-                failure{
-                    //notification webhook
-                    echo 'Pipeline Execution Failed Notification'
-                }
-        }
+            }
     }
  }
