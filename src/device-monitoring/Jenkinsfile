@@ -1,0 +1,170 @@
+pipeline {
+    agent any
+    environment {
+        
+        //environment variables
+        REGISTRY_URI = 'us.gcr.io'
+        PROJECT_ID = 'airqo-250220'
+        IMAGE_NAME_PROD = 'airqo-device-monitor-api'
+        IMAGE_NAME_STAGE = 'airqo-stage-device-monitor-api'
+        K8S_CONFIG = 'airqo-k8s-config'
+        }
+    stages {
+            stage('Initial Notification') {
+                steps {
+                    //webhook for your notification channel 
+                    echo 'CI/CD pipeline initiated '
+                }
+            }
+            stage("Checkout code") {
+                steps {
+                    checkout scm
+                }
+            }
+            stage('Code Analysis') {           
+                steps {
+                //code scanner 
+                    echo 'Code Scanning and Analysis'
+                }
+            }
+    
+            stage('Robot Testing') {
+                steps {
+                    //Testing
+                    echo 'Robot Testing Started'
+                }
+                post{
+                    success{
+                        echo "Robot Testing Successful"
+                    }
+                    failure{
+                        echo "Robot Testing Failed"
+                    }
+                }
+            }
+            stage("Build"){
+                 when {
+                    branch 'master'
+                }
+                steps {
+
+                    echo "Docker Build"
+                    sh """
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_PROD:"latest" -f Dockerfile
+                    """
+                    echo "Docker Push"
+                    sh """
+                        docker push ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_PROD:"latest"
+                    """
+                    }
+                post{
+                        success{
+                            echo "Build and Push Successfully"
+                            }
+                        failure{
+                            echo "Build and Push Failed"
+                            }
+                    }
+                when {
+                    branch 'chore-cicd'
+                 }
+                 steps {
+
+                    echo "Docker Build"
+                    sh """
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_STAGE:"latest" -f "Dockerfile-stage.txt"
+                    """
+                    echo "Docker Push"
+                    sh """
+                        docker push ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_STAGE:"latest"
+                    """
+                    }
+                    post{
+                        success{
+                            echo "Build and Push Successfully"
+                            }
+                        failure{
+                            echo "Build and Push Failed"
+                            }
+                    }
+
+                }
+            stage('Image Scan') {
+                steps {
+                    //image scanning tool 
+                    echo 'Image Scanning Start'
+                }
+                post{
+                    success{
+                        echo "Image Scanning Successfully"
+                    }
+                    failure{
+                        echo "Image Scanning Failed"
+                    }
+                }
+            }
+            
+            stage("Deploy to Production"){
+                when {
+                    branch 'master'
+                }
+                steps { 
+                   // kubernetesDeploy kubeconfigId: ${K8S_CONFIG}, configs: '../k8s/prod-device-monitor-api.yaml', enableConfigSubstitution: true  // REPLACE kubeconfigId
+                   sh """
+                    kubectl delete -f '../k8s/prod-device-monitor-api.yaml'
+                    """
+                   sh """
+                    kubectl apply -f '../k8s/prod-device-monitor-api.yaml'
+                   """
+    
+                }
+                post{
+                    success{
+                        echo "Successfully deployed to Production"
+                    }
+                    failure{
+                        echo "Failed deploying to Production"
+                    }
+                }
+            }
+            
+            stage("Deploy to chore-cicd"){
+                when {
+                    branch 'chore-cicd'
+                }
+                steps {
+                    //kubernetesDeploy kubeconfigId: ${K8S_CONFIG}, configs: '../k8s/stage-device-monitor-api.yaml', enableConfigSubstitution: true  // REPLACE kubeconfigId
+                    sh """
+                    kubectl delete -f '../k8s/stage-device-monitor-api.yaml'
+                    kubectl apply -f '../k8s/stage-device-monitor-api.yaml'
+                    """
+                    sh """
+                    kubectl apply -f '../k8s/stage-device-monitor-api.yaml'
+                    """
+                }
+                post{
+                    success{
+                        echo "Successfully deployed to chore-cicd"
+                    }
+                    failure{
+                        echo "Failed deploying to chore-cicd"
+                    }
+                }
+            }
+        post{
+            always{
+                step([
+                    // Testing
+                    ])
+                }
+                success{
+                    //notification webhook
+                    echo 'Pipeline Execution Successfully Notification'
+                }
+                failure{
+                    //notification webhook
+                    echo 'Pipeline Execution Failed Notification'
+                }
+        }
+    }
+ }
