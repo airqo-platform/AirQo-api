@@ -47,7 +47,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_STAGE:"latest" -f "Dockerfile-stage.txt"
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_STAGE:"latest" -f "Dockerfile-stage.txt" .
                     """
                     echo "Docker Push"
                     sh """
