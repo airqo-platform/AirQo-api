@@ -65,28 +65,6 @@ pipeline {
                             echo "Build and Push Failed"
                             }
                     }
-                when {
-                    branch 'chore-cicd'
-                 }
-                 steps {
-
-                    echo "Docker Build"
-                    sh """
-                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_STAGE:"latest" -f "Dockerfile-stage.txt"
-                    """
-                    echo "Docker Push"
-                    sh """
-                        docker push ${REGISTRY_URI}/${PROJECT_ID}/$IMAGE_NAME_STAGE:"latest"
-                    """
-                    }
-                    post{
-                        success{
-                            echo "Build and Push Successfully"
-                            }
-                        failure{
-                            echo "Build and Push Failed"
-                            }
-                    }
 
                 }
 
