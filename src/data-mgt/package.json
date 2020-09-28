@@ -5,8 +5,12 @@
     "main": "./bin/www",
     "scripts": {
         "start": "nodemon ./bin/www",
-        "dev": "NODE_ENV=development nodemon ./bin/www",
-        "prod": "NODE_ENV=production nodemon ./bin/www",
+        "dev-mac": "NODE_ENV=development nodemon ./bin/www",
+        "prod-mac": "NODE_ENV=production nodemon ./bin/www",
+        "stage-mac": "NODE_ENV=staging nodemon ./bin/www",
+        "dev-pc": "SET NODE_ENV=development&&nodemon ./bin/www",
+        "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
+        "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
         "test": "NODE_ENV=test nodemon ./bin/www"
     },
     "dependencies": {
@@ -22,7 +26,7 @@
         "mongoose": "^5.7.6",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
-        "node-fetch": "^2.6.0",
+        "node-fetch": "^2.6.1",
         "nodemon": "^1.19.4",
         "redis": "^3.0.2",
         "request": "^2.88.0",
