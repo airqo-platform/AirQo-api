@@ -3,7 +3,7 @@ const LocalStrategy = require("passport-local");
 const UserSchema = require("../models/User");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
-const { Strategy: JWTStrategy, ExtractJwt } = require("passport-jwt");
+const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
 const localOpts = {
@@ -50,23 +50,38 @@ const userLocalStrategy = (tenant, req, res, next) =>
     }
   });
 
-const jwtStrategy = new JWTStrategy(jwtOpts, async (payload, done) => {
-  try {
-    const user = await User.findById(payload._id);
-    if (!user) {
-      return done(null, false);
+const jwtStrategy = (tenant, req, res, next) =>
+  new JwtStrategy(jwtOpts, async (payload, done) => {
+    try {
+      const user = await UserModel(tenant).findOne({ _id: payload._id }).exec();
+      if (!user) {
+        return done(null, false);
+        // return res.status(401).json({
+        //   success: false,
+        //   message: "authentication failed",
+        // });
+      }
+      return done(null, user);
+    } catch (e) {
+      logElement("error in services/auth/jwtStrategy", e.message);
+      return done(e, false);
+      // return res.status(500).json({
+      //   success: false,
+      //   message: "organization does not exist",
+      //   error: e.message,
+      // });
     }
-    return done(null, user);
-  } catch (e) {
-    return done(e, false);
-  }
-});
+  });
 
 const createStrategy = (tenant, req, res, next) => {
   passport.use("user-local", userLocalStrategy(tenant, req, res, next));
 };
 
-passport.use(jwtStrategy);
+const createJWTStrategy = (tenant, req, res, next) => {
+  passport.use("jwt", jwtStrategy(tenant, req, res, next));
+};
+
+// passport.use(jwtStrategy);
 
 passport.serializeUser((user, cb) => {
   if (privileges.isUser(user)) {
@@ -101,7 +116,25 @@ function login(req, res, next) {
       res.json({
         success: false,
         message:
-          "the organization is missing in the request field, please check documentation",
+          "the organization is missing in the query params, please check documentation",
+      });
+    }
+  } catch (e) {
+    console.log("the error in login is: ", e.message);
+    res.json({ success: false, message: e.message });
+  }
+}
+
+function jwtAuth(req, res, next) {
+  try {
+    if (req.query.tenant) {
+      createJWTStrategy(req.query.tenant, req, res, next);
+      next();
+    } else {
+      res.json({
+        success: false,
+        message:
+          "the organization is missing in the query params, please check documentation",
       });
     }
   } catch (e) {
@@ -143,6 +176,7 @@ module.exports = {
   login: login,
   authUserLocal: authUserLocal,
   authJWT: authJWT,
+  jwtAuth: jwtAuth,
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
   requiresSignIn: requiresSignIn,
