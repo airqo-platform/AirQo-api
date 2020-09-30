@@ -48,6 +48,8 @@ router.get("/list/components/", componentController.listAll);
 router.post("/add/components/", componentController.addComponent);
 router.delete("/delete/components/", componentController.deleteComponent);
 router.put("/update/components/", componentController.updateComponent);
+router.post("/add/components/types", componentController.createType);
+router.get("/list/components/types", componentController.getTypes);
 
 /******************* adding values******************************/
 router.post("/components/add/values", componentController.addValues);
