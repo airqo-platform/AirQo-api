@@ -206,7 +206,7 @@ const component = {
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: "the component type does not exist",
+            message: "the component type does not exist for this network",
           });
         }
       } else {
@@ -433,7 +433,7 @@ const component = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, component, type } = req.query;
+      const { device, component } = req.query;
       const {
         value,
         raw,
@@ -457,19 +457,12 @@ const component = {
         !isEmpty(calibratedValue) &&
         !isEmpty(measurement) &&
         !isEmpty(uncertaintyValue) &&
-        !isEmpty(standardDeviationValue) &&
-        !isEmpty(type)
+        !isEmpty(standardDeviationValue)
       ) {
-        const isComponentExist = await doesComponentExist(component, device);
-        logElement("does component exist", isComponentExist);
+        const isComponentPresent = await doesComponentExist(component, device);
+        logElement("does component exist", isComponentPresent);
 
-        /****
-         * does the component type exist for this network?
-         */
-        const isComponentTypeExist = await doesComponentTypeExist(ctype);
-        logElement("does component type exist", isComponentTypeExist);
-
-        if (isComponentExist && isComponentTypeExist) {
+        if (isComponentPresent) {
           const sample = {
             value,
             raw,
@@ -527,7 +520,84 @@ const component = {
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: "the component/type do not exist for this device/network",
+            message: `the component (${component}) does not exist for this device (${device})`,
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "required fields missing either in request body or URL query parameter",
+        });
+      }
+    } catch (e) {
+      res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        error: e.message,
+        message: "unable to add the values",
+      });
+    }
+  },
+
+  addBulk: async (req, res) => {
+    try {
+      logText("adding values...");
+      const { device, component } = req.query;
+      const { values, time } = req.body;
+      logObject("the type of device name", typeof device);
+      if (!isEmpty(time, values) && !isEmpty(device) && !isEmpty(component)) {
+        const isComponentPresent = await doesComponentExist(component, device);
+        logElement("does component exist", isComponentPresent);
+
+        if (isComponentPresent) {
+          const samples = values;
+          const day = new Date(time);
+          const eventBody = {
+            componentName: component,
+            deviceName: device,
+            day: day,
+            nValues: { $lt: constants.N_VALUES },
+          };
+          const options = {
+            $push: { values: samples },
+            $min: { first: time },
+            $max: { last: time },
+            $inc: { nValues: samples.length },
+          };
+
+          const addedEvent = await Event.updateMany(eventBody, options, {
+            upsert: true,
+          });
+
+          logObject("the inserted document", addedEvent);
+
+          if (addedEvent) {
+            /**
+             * add the component name in the response body
+             */
+            // const samples = { ...samples };
+            const event = {
+              values: samples,
+              component: component,
+              device: device,
+            };
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully added the device data",
+              event,
+            });
+          } else if (!addedEvent) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              message: "unable to add events",
+              success: false,
+            });
+          } else {
+            logText("just unable to add events");
+          }
+        } else {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: `the component (${component}) does not exist for this device (${device})`,
           });
         }
       } else {
