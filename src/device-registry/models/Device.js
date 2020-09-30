@@ -96,6 +96,8 @@ const deviceSchema = new mongoose.Schema(
     channelID: {
       type: Number,
       required: [true, "Channel ID is required!"],
+      trim: true,
+      unique: true,
     },
     isActive: {
       type: Boolean,
