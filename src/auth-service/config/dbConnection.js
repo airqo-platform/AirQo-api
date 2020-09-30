@@ -1,21 +1,47 @@
 const mongoose = require("mongoose");
+mongoose.set("useFindAndModify", false);
 const constants = require("./constants");
+const { logElement, logText, logObject } = require("../utils/log");
+const URI = constants.MONGO_URI;
+logElement("environment", process.env.NODE_ENV);
+logElement("the URI string", URI);
 
-mongoose.Promise = global.Promise;
+const options = {
+  useCreateIndex: true,
+  useNewUrlParser: true,
+  useFindAndModify: false,
+  useUnifiedTopology: true,
+  autoIndex: true,
+  poolSize: 10,
+  bufferMaxEntries: 0,
+  connectTimeoutMS: 10000,
+  socketTimeoutMS: 30000,
+  dbName: constants.DB_NAME,
+};
 
-try {
-  console.log("the value for MONGO URL is: " + constants.MONGO_URI);
-  mongoose.connect(
-    constants.MONGO_URI,
-    { dbName: constants.DB_NAME },
-    { useNewUrlParser: true }
-  );
-} catch (e) {
-  mongoose.createConnection(constants.MONGO_URI);
-}
+const connect = () => mongoose.createConnection(URI, options);
 
-mongoose.connection
-  .once("open", () => console.log("MongoDB Running"))
-  .on("error", (e) => {
-    throw e;
+const connectToMongoDB = () => {
+  const db = connect();
+  db.on("open", () => {
+    logText(`mongoose connection opened on: ${URI}`);
   });
+
+  db.on("error", (err) => {
+    logElement("Mongoose connection error" + err);
+    process.exit(0);
+  });
+
+  process.on("unlimitedRejection", (reason, p) => {
+    console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
+    db.close(() => {
+      logText("mongoose is disconnected through the app");
+      process.exit(0);
+    });
+  });
+  return db;
+};
+
+const mongodb = connectToMongoDB();
+
+module.exports = mongodb;

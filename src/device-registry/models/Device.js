@@ -176,6 +176,4 @@ deviceSchema.statics = {
   },
 };
 
-const device = mongoose.model("device", deviceSchema);
-
-module.exports = device;
+module.exports = deviceSchema;

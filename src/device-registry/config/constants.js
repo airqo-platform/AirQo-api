@@ -1,16 +1,16 @@
 const { logElement } = require("../utils/log");
 
 const devConfig = {
-  MONGO_URL: `mongodb://localhost/`,
+  MONGO_URI: `mongodb://localhost/`,
   DB_NAME: process.env.MONGO_DEV,
 };
 const prodConfig = {
-  MONGO_URL: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
 };
 
 const stageConfig = {
-  MONGO_URL: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
 };
 
