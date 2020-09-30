@@ -444,10 +444,23 @@ const device = {
     const skip = parseInt(req.query.skip, 0);
 
     try {
-      const devices = await Device.list({ limit, skip });
-      return res.status(HTTPStatus.OK).json(devices);
+      const { name, chid } = req.query;
+      logElement("the channel ID", chid);
+      logElement("the device name", name);
+      if (name && !chid) {
+        const device = await Device.find({ name: name }).exec();
+        return res.status(HTTPStatus.OK).json(device);
+      } else if (chid && !name) {
+        const device = await Device.findOne({ channelID: chid }).exec();
+        return res.status(HTTPStatus.OK).json(device);
+      } else if (!name && !chid) {
+        const devices = await Device.list({ limit, skip });
+        return res.status(HTTPStatus.OK).json(devices);
+      }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_REQUEST).json(e);
+      return res
+        .status(HTTPStatus.BAD_REQUEST)
+        .json({ success: false, message: e.message });
     }
   },
 
