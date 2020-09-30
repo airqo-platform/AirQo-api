@@ -1,4 +1,5 @@
 const Component = require("../models/Component");
+const ComponentType = require("../models/ComponentType");
 const Device = require("../models/Device");
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
@@ -62,6 +63,27 @@ const doesComponentExist = async (componentName, deviceName) => {
     }
   } catch (e) {
     logElement("unable to check component existence in system", e);
+    return false;
+  }
+};
+
+const doesComponentTypeExist = async (name) => {
+  try {
+    logText(".......................................");
+    logText("doesComponentExist?...");
+    const componentType = await ComponentType.find({
+      name: name,
+    }).exec();
+    logElement("component type element", componentType);
+    logObject("component type Object", componentType);
+    logElement("does component type exist?", !isEmpty(componentType));
+    if (!isEmpty(componentType)) {
+      return true;
+    } else if (isEmpty(componentType)) {
+      return false;
+    }
+  } catch (e) {
+    logElement("unable to check component type existence in system", e);
     return false;
   }
 };
@@ -136,47 +158,64 @@ const component = {
     logText("adding component....");
 
     try {
-      let { device } = req.query;
+      let { device, ctype } = req.query;
       let { measurement, description } = req.body;
 
-      let isComponentPresent = await doesDeviceExist(device);
-      logElement("isComponentPresent ?", isComponentPresent);
+      /**
+       * check that all the request body elements are present
+       */
 
-      logObject("measurement", measurement);
-      logObject("description", description);
+      if (device && ctype && measurement && description) {
+        const isDevicePresent = await doesDeviceExist(device);
+        logElement("isDevicePresent ?", isDevicePresent);
 
-      const comp = ["comp"];
-      const deviceName = [];
-      deviceName.push(device);
-      const numberDictionary = NumberDictionary.generate({
-        min: 0,
-        max: 99,
-      });
-      let componentName = uniqueNamesGenerator({
-        dictionaries: [deviceName, comp, numberDictionary],
-        separator: "_",
-        length: 3,
-      });
+        const isComponentTypePresent = await doesComponentTypeExist(ctype);
+        logElement("isComponentTypePresent ?", isComponentTypePresent);
 
-      logElement("component name", componentName);
-      logElement("componentNameWhenDeviceExists", componentName);
+        logObject("measurement", measurement);
+        logElement("description", description);
 
-      let componentBody = {
-        ...req.body,
-        deviceID: device,
-        name: componentName,
-      };
+        let componentName = `${device.trim()}_${ctype.trim()}`;
 
-      const component = await Component.createComponent(componentBody);
+        /***
+         * create component name based on component type
+         * 
+         *if the component type does not exist, 
+         then alert the user and encourage them to first create the component type 
+         
+         Otherwise, use it to generate the component name
+         */
 
-      logElement("the component element", component);
-      logObject("the component object", component);
+        if (isComponentTypePresent) {
+          let componentBody = {
+            ...req.body,
+            deviceID: device,
+            name: componentName,
+          };
 
-      return res.status(HTTPStatus.CREATED).json({
-        success: true,
-        message: "successfully created the component",
-        component,
-      });
+          const component = await Component.createComponent(componentBody);
+
+          logElement("the component element", component);
+          logObject("the component object", component);
+
+          return res.status(HTTPStatus.CREATED).json({
+            success: true,
+            message: "successfully created the component",
+            component,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "the component type does not exist",
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "Required body and query parameters are missing in this request, please crosscheck documentation",
+        });
+      }
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
@@ -394,7 +433,7 @@ const component = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, component } = req.query;
+      const { device, component, type } = req.query;
       const {
         value,
         raw,
@@ -418,11 +457,19 @@ const component = {
         !isEmpty(calibratedValue) &&
         !isEmpty(measurement) &&
         !isEmpty(uncertaintyValue) &&
-        !isEmpty(standardDeviationValue)
+        !isEmpty(standardDeviationValue) &&
+        !isEmpty(type)
       ) {
         const isComponentExist = await doesComponentExist(component, device);
         logElement("does component exist", isComponentExist);
-        if (isComponentExist) {
+
+        /****
+         * does the component type exist for this network?
+         */
+        const isComponentTypeExist = await doesComponentTypeExist(ctype);
+        logElement("does component type exist", isComponentTypeExist);
+
+        if (isComponentExist && isComponentTypeExist) {
           const sample = {
             value,
             raw,
@@ -480,7 +527,7 @@ const component = {
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: "the component does not exist",
+            message: "the component/type do not exist for this device/network",
           });
         }
       } else {
@@ -495,6 +542,87 @@ const component = {
         success: false,
         error: e.message,
         message: "unable to add the values",
+      });
+    }
+  },
+
+  createType: async (req, res) => {
+    logText("................................");
+    logText("adding component type....");
+
+    try {
+      let { name } = req.query;
+
+      if (name) {
+        const isComponentTypeExist = await doesComponentTypeExist(name);
+        logElement("does component type exist", isComponentTypeExist);
+
+        let componentTypeBody = {
+          name: name,
+        };
+
+        const componentType = await ComponentType.createComponentType(
+          componentTypeBody
+        );
+
+        logElement("the component type element", componentType);
+        logObject("the component type object", componentType);
+
+        return res.status(HTTPStatus.CREATED).json({
+          success: true,
+          message: "successfully created the component type",
+          componentType,
+        });
+      } else if (!name) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "the component type is missing, please consult the API documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to create the component type",
+        error: e.message,
+      });
+    }
+  },
+  getTypes: async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      let { name } = req.query;
+      logElement("the component type ", name);
+      if (name) {
+        const componentType = await ComponentType.find({ name: name });
+
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: `successfully listed the details of this platform's componentType `,
+          componentType,
+          doesExist: !isEmpty(componentType),
+        });
+      } else if (!name) {
+        const componentTypes = await ComponentType.list({ limit, skip });
+        if (!isEmpty(componentTypes)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "successfully listed all platform componentTypes",
+            componentTypes,
+          });
+        } else if (isEmpty(componentTypes)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: `unable to find all the platform componentTypes`,
+          });
+        }
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to list any component type",
+        error: e.message,
       });
     }
   },
