@@ -20,17 +20,13 @@ const ComponentTypeModel = (tenant) => {
   getModelByTenant(tenant, "componentType", ComponentTypeSchema);
 };
 
-const DeviceModel = (tenant) => {
-  getModelByTenant(tenant, "device", DeviceSchema);
-};
 const EventModel = (tenant) => {
   getModelByTenant(tenant, "event", EventSchema);
 };
 
-const getApiKeys = async (deviceName) => {
+const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
-  const { tenant } = req.query;
   const deviceDetails = await ComponentModel(tenant)
     .find({
       name: deviceName,
@@ -45,13 +41,15 @@ const getApiKeys = async (deviceName) => {
 
 const getArrayLength = async (array, model, event) => {};
 
-const doesDeviceExist = async (deviceName) => {
+const doesDeviceExist = async (deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesDeviceExist?...");
-    const device = await Component.find({
-      name: deviceName,
-    }).exec();
+    const device = await ComponentModel(tenant)
+      .find({
+        name: deviceName,
+      })
+      .exec();
     logElement("device element", device);
     logObject("device Object", device);
     logElement("does device exist?", !isEmpty(device));
@@ -66,14 +64,16 @@ const doesDeviceExist = async (deviceName) => {
   }
 };
 
-const doesComponentExist = async (componentName, deviceName) => {
+const doesComponentExist = async (componentName, deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesComponentExist?...");
-    const component = await Component.find({
-      name: componentName,
-      deviceID: deviceName,
-    }).exec();
+    const component = await ComponentModel(tenant)
+      .find({
+        name: componentName,
+        deviceID: deviceName,
+      })
+      .exec();
     logElement("component element", component);
     logObject("component Object", component);
     logElement("does component exist?", !isEmpty(component));
@@ -116,58 +116,57 @@ const component = {
     try {
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      let { comp, device } = req.query;
+      const { comp, device, tenant } = req.query;
       logElement("device name ", device);
       logElement("Component name ", comp);
-      const { tenant } = req.query;
       if (comp && device) {
-        const Component = await ComponentModel(tenant)
+        const component = await ComponentModel(tenant)
           .find({
             name: comp,
             deviceID: device,
           })
           .exec();
-        if (!isEmpty(Component)) {
+        if (!isEmpty(component)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: "successfully listed one Component",
-            Component,
+            component,
           });
-        } else if (isEmpty(Component)) {
+        } else if (isEmpty(component)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: `unable to find that Component ${comp} for device ${device}`,
           });
         }
       } else if (device && !comp) {
-        const Components = await ComponentModel(tenant)
+        const components = await ComponentModel(tenant)
           .find({
             deviceID: device,
           })
           .exec();
-        if (!isEmpty(Components)) {
+        if (!isEmpty(components)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: `successfully listed the Components for device ${device}`,
-            Components,
+            components,
           });
-        } else if (isEmpty(Components)) {
+        } else if (isEmpty(components)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: `unable to find the Components for device ${device}`,
           });
         }
       } else if (!device && !comp) {
-        const Components = await ComponentModel(tenant).list({ limit, skip });
-        if (!isEmpty(Components)) {
+        const components = await ComponentModel(tenant).list({ limit, skip });
+        if (!isEmpty(components)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: "successfully listed all platform Components",
             tip:
               "use documented query parameters (device/comp) to filter your search results",
-            Components,
+            components,
           });
-        } else if (isEmpty(Components)) {
+        } else if (isEmpty(components)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: `unable to find all the platform Components`,
@@ -265,24 +264,24 @@ const component = {
     try {
       logText("...........................................");
       let { device, comp, tenant } = req.query;
-      if (Component && device) {
-        const Component = await ComponentModel(tenant)
+      if ((comp && device, tenant)) {
+        const component = await ComponentModel(tenant)
           .find({
             name: comp,
             deviceID: device,
           })
           .exec();
-        logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(Component));
+        logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(component));
 
-        if (isEmpty(Component)) {
+        if (isEmpty(component)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: `Component "${comp}" of device "${device}" does not exist in the platform`,
           });
         }
         let ComponentFilter = { name: comp };
-        if (!isEmpty(Component)) {
-          Component.findOneAndRemove(
+        if (!isEmpty(component)) {
+          ComponentModel(tenant).findOneAndRemove(
             ComponentFilter,
             (err, removedComponent) => {
               if (err) {
@@ -305,7 +304,7 @@ const component = {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message:
-            "please crosscheck your query parameters, should contain both device & comp for this usecase",
+            "please crosscheck your query parameters using the API documentation",
         });
       }
     } catch (e) {
@@ -321,26 +320,26 @@ const component = {
     try {
       logText("...........................................");
       let { device, comp, tenant } = req.query;
-      if (Component && device) {
-        const Component = await ComponentModel(tenant)
+      if (comp && device && tenant) {
+        const component = await ComponentModel(tenant)
           .find({
             name: comp,
             deviceID: device,
           })
           .exec();
-        logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(Component));
+        logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(component));
 
-        if (isEmpty(Component)) {
+        if (isEmpty(component)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: `Component "${comp}" of device "${device}" does not exist in the platform`,
           });
         }
 
-        let ComponentFilter = { name: comp };
+        let componentFilter = { name: comp };
 
         await ComponentModel(tenant).findOneAndUpdate(
-          ComponentFilter,
+          componentFilter,
           req.body,
           {
             new: true,
@@ -371,7 +370,7 @@ const component = {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message:
-            "please crosscheck your query parameters, should contain both device & comp for this usecase",
+            "please crosscheck your query parameters using the API documentation, some are missing",
         });
       }
     } catch (e) {
@@ -420,7 +419,7 @@ const component = {
         ...(!isEmpty(so3) && so3),
       ];
 
-      let { writeKey, readKey } = getApiKeys(device);
+      let { writeKey, readKey } = getApiKeys(device, tenant);
       if (device && comp) {
         const url = constants.ADD_VALUE(fields[0], value[0], writeKey);
         let eventBody = {
@@ -501,7 +500,11 @@ const component = {
         !isEmpty(uncertaintyValue) &&
         !isEmpty(standardDeviationValue)
       ) {
-        const isComponentPresent = await doesComponentExist(component, device);
+        const isComponentPresent = await doesComponentExist(
+          component,
+          device,
+          tenant
+        );
         logElement("does component exist", isComponentPresent);
 
         if (isComponentPresent) {
@@ -588,11 +591,15 @@ const component = {
   addBulk: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, component } = req.query;
+      const { device, component, tenant } = req.query;
       const { values, time } = req.body;
       logObject("the type of device name", typeof device);
       if (!isEmpty(time, values) && !isEmpty(device) && !isEmpty(component)) {
-        const isComponentPresent = await doesComponentExist(component, device);
+        const isComponentPresent = await doesComponentExist(
+          component,
+          device,
+          tenant
+        );
         logElement("does component exist", isComponentPresent);
 
         if (isComponentPresent) {
@@ -611,9 +618,13 @@ const component = {
             $inc: { nValues: samples.length },
           };
 
-          const addedEvent = await Event.updateMany(eventBody, options, {
-            upsert: true,
-          });
+          const addedEvent = await EventModel(tenant).updateMany(
+            eventBody,
+            options,
+            {
+              upsert: true,
+            }
+          );
 
           logObject("the inserted document", addedEvent);
 
@@ -667,19 +678,19 @@ const component = {
     logText("adding component type....");
 
     try {
-      let { name } = req.query;
+      let { name, tenant } = req.query;
 
-      if (name) {
-        const isComponentTypeExist = await doesComponentTypeExist(name);
+      if (name && tenant) {
+        const isComponentTypeExist = await doesComponentTypeExist(name, tenant);
         logElement("does component type exist", isComponentTypeExist);
 
         let componentTypeBody = {
           name: name,
         };
 
-        const componentType = await ComponentType.createComponentType(
-          componentTypeBody
-        );
+        const componentType = await ComponentTypeModel(
+          tenant
+        ).createComponentType(componentTypeBody);
 
         logElement("the component type element", componentType);
         logObject("the component type object", componentType);
@@ -689,11 +700,10 @@ const component = {
           message: "successfully created the component type",
           componentType,
         });
-      } else if (!name) {
+      } else {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
-          message:
-            "the component type is missing, please consult the API documentation",
+          message: "request parameters missing, please check API documentation",
         });
       }
     } catch (e) {
@@ -708,10 +718,12 @@ const component = {
     try {
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      let { name } = req.query;
+      let { name, tenant } = req.query;
       logElement("the component type ", name);
-      if (name) {
-        const componentType = await ComponentType.find({ name: name });
+      if (name && tenant) {
+        const componentType = await ComponentTypeModel(tenant).find({
+          name: name,
+        });
 
         return res.status(HTTPStatus.OK).json({
           success: true,
@@ -719,8 +731,11 @@ const component = {
           componentType,
           doesExist: !isEmpty(componentType),
         });
-      } else if (!name) {
-        const componentTypes = await ComponentType.list({ limit, skip });
+      } else if (!name && tenant) {
+        const componentTypes = await ComponentTypeModel(model).list({
+          limit,
+          skip,
+        });
         if (!isEmpty(componentTypes)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
@@ -733,6 +748,11 @@ const component = {
             message: `unable to find all the platform componentTypes`,
           });
         }
+      } else if (!tenant) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: `missing the organisation, please crosscheck API documentation`,
+        });
       }
     } catch (e) {
       return res.status(HTTPStatus.BAD_GATEWAY).json({
