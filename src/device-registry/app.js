@@ -40,7 +40,11 @@ app.use(function(err, req, res, next) {
   // res.status(err.status || 500);
   res
     .status(err.status || 500)
-    .json({ success: false, message: "this endpoint does not exist" });
+    .json({
+      success: false,
+      message: "this endpoint does not exist",
+      error: err.message,
+    });
   // res.render("error");
 });
 
