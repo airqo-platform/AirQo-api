@@ -374,13 +374,11 @@ const join = {
         logElement("the user", user);
         const defaults = await DefaultModel(tenant).find({ user: user }).exec();
         logObject("the defaults", defaults);
-        if (!isEmpty(defaults)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: `Customised chart defaults for ${user} fetched successfully`,
-            defaults,
-          });
-        }
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: `Customised chart defaults for ${user} fetched successfully`,
+          defaults,
+        });
       } else if (tenant && user && chartTitle) {
         const userdefault = await DefaultModel(tenant)
           .find({
