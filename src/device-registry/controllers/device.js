@@ -476,8 +476,10 @@ const device = {
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name } = req.query;
-      if (tenant && name) {
+      const { tenant, name, chid } = req.query;
+      logElement("the channel ID", chid);
+      logElement("the device name", name);
+      if (tenant && name && !chid) {
         logElement("the tenant", tenant);
         logElement("the name", name);
         const device = await getModelByTenant(
@@ -498,7 +500,28 @@ const device = {
             message: `this organisation (${tenant}) does not have this device or they do not exist, please crosscheck`,
           });
         }
-      } else if (tenant && !name) {
+      } else if (tenant && chid && !name) {
+        logElement("the tenant", tenant);
+        logElement("the channel ID", chid);
+        const device = await getModelByTenant(
+          tenant,
+          "device",
+          DeviceSchema
+        ).findOne({ channelID: chid });
+        logObject("the device", device);
+        if (!isEmpty(device)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Device fetched successfully",
+            device,
+          });
+        } else if (isEmpty(device)) {
+          return res.json({
+            success: false,
+            message: `this organisation (${tenant}) does not have this device or they do not exist, please crosscheck`,
+          });
+        }
+      } else if (tenant && !name && !chid) {
         // const devices = await DeviceModel(tenant).list({ limit, skip });
         // return res.status(HTTPStatus.OK).json(devices);
         const devices = await getModelByTenant(
