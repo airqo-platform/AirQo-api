@@ -54,6 +54,4 @@ componentTypeSchema.statics = {
   },
 };
 
-const componentType = model("componentType", componentTypeSchema);
-
-module.exports = componentType;
+module.exports = componentTypeSchema;
