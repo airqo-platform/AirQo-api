@@ -12,22 +12,14 @@ const {
 } = require("unique-names-generator");
 const { getModelByTenant } = require("../utils/multitenancy");
 
-const ComponentModel = (tenant) => {
-  getModelByTenant(tenant, "component", ComponentSchema);
-};
-
-const ComponentTypeModel = (tenant) => {
-  getModelByTenant(tenant, "componentType", ComponentTypeSchema);
-};
-
-const EventModel = (tenant) => {
-  getModelByTenant(tenant, "event", EventSchema);
-};
-
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
-  const deviceDetails = await ComponentModel(tenant)
+  const deviceDetails = await getModelByTenant(
+    tenant,
+    "component",
+    ComponentSchema
+  )
     .find({
       name: deviceName,
     })
@@ -45,7 +37,7 @@ const doesDeviceExist = async (deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesDeviceExist?...");
-    const device = await ComponentModel(tenant)
+    const device = await getModelByTenant(tenant, "component", ComponentSchema)
       .find({
         name: deviceName,
       })
@@ -68,7 +60,11 @@ const doesComponentExist = async (componentName, deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesComponentExist?...");
-    const component = await ComponentModel(tenant)
+    const component = await getModelByTenant(
+      tenant,
+      "component",
+      ComponentSchema
+    )
       .find({
         name: componentName,
         deviceID: deviceName,
@@ -92,7 +88,11 @@ const doesComponentTypeExist = async (name, tenant) => {
   try {
     logText(".......................................");
     logText("doesComponentExist?...");
-    const componentType = await ComponentTypeModel(tenant)
+    const componentType = await getModelByTenant(
+      tenant,
+      "componentType",
+      ComponentTypeSchema
+    )
       .find({
         name: name,
       })
@@ -111,7 +111,7 @@ const doesComponentTypeExist = async (name, tenant) => {
   }
 };
 
-const component = {
+const Component = {
   listAll: async (req, res) => {
     try {
       const limit = parseInt(req.query.limit, 0);
@@ -120,7 +120,11 @@ const component = {
       logElement("device name ", device);
       logElement("Component name ", comp);
       if (comp && device) {
-        const component = await ComponentModel(tenant)
+        const component = await getModelByTenant(
+          tenant,
+          "component",
+          ComponentSchema
+        )
           .find({
             name: comp,
             deviceID: device,
@@ -139,7 +143,11 @@ const component = {
           });
         }
       } else if (device && !comp) {
-        const components = await ComponentModel(tenant)
+        const components = await getModelByTenant(
+          tenant,
+          "component",
+          ComponentSchema
+        )
           .find({
             deviceID: device,
           })
@@ -157,7 +165,11 @@ const component = {
           });
         }
       } else if (!device && !comp) {
-        const components = await ComponentModel(tenant).list({ limit, skip });
+        const components = await getModelByTenant(
+          tenant,
+          "component",
+          ComponentSchema
+        ).list({ limit, skip });
         if (!isEmpty(components)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
@@ -225,9 +237,11 @@ const component = {
             name: componentName,
           };
 
-          const component = await ComponentModel(tenant).createComponent(
-            componentBody
-          );
+          const component = await getModelByTenant(
+            tenant,
+            "component",
+            ComponentSchema
+          ).createComponent(componentBody);
 
           logElement("the component element", component);
           logObject("the component object", component);
@@ -265,7 +279,11 @@ const component = {
       logText("...........................................");
       let { device, comp, tenant } = req.query;
       if ((comp && device, tenant)) {
-        const component = await ComponentModel(tenant)
+        const component = await getModelByTenant(
+          tenant,
+          "component",
+          ComponentSchema
+        )
           .find({
             name: comp,
             deviceID: device,
@@ -281,24 +299,25 @@ const component = {
         }
         let ComponentFilter = { name: comp };
         if (!isEmpty(component)) {
-          ComponentModel(tenant).findOneAndRemove(
-            ComponentFilter,
-            (err, removedComponent) => {
-              if (err) {
-                return res.status(HTTPStatus.BAD_GATEWAY).json({
-                  err,
-                  success: false,
-                  message: "unable to delete Component",
-                });
-              } else {
-                return res.status(HTTPStatus.OK).json({
-                  removedComponent,
-                  success: true,
-                  message: " Component successfully deleted",
-                });
-              }
+          getModelByTenant(
+            tenant,
+            "component",
+            ComponentSchema
+          ).findOneAndRemove(ComponentFilter, (err, removedComponent) => {
+            if (err) {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                err,
+                success: false,
+                message: "unable to delete Component",
+              });
+            } else {
+              return res.status(HTTPStatus.OK).json({
+                removedComponent,
+                success: true,
+                message: " Component successfully deleted",
+              });
             }
-          );
+          });
         }
       } else {
         return res.status(HTTPStatus.BAD_REQUEST).json({
@@ -321,7 +340,11 @@ const component = {
       logText("...........................................");
       let { device, comp, tenant } = req.query;
       if (comp && device && tenant) {
-        const component = await ComponentModel(tenant)
+        const component = await getModelByTenant(
+          tenant,
+          "component",
+          ComponentSchema
+        )
           .find({
             name: comp,
             deviceID: device,
@@ -338,7 +361,11 @@ const component = {
 
         let componentFilter = { name: comp };
 
-        await ComponentModel(tenant).findOneAndUpdate(
+        await getModelByTenant(
+          tenant,
+          "component",
+          ComponentSchema
+        ).findOneAndUpdate(
           componentFilter,
           req.body,
           {
@@ -427,7 +454,11 @@ const component = {
           sensorID: comp,
           $addToSet: { values: { $each: value } },
         };
-        const event = await EventModel(tenant).createEvent(eventBody);
+        const event = await getModelByTenant(
+          tenant,
+          "event",
+          EventSchema
+        ).createEvent(eventBody);
         logObject("DB addition response for add one value", event);
         event
           .then(async (event) => {
@@ -533,13 +564,13 @@ const component = {
             $inc: { nValues: 1 },
           };
 
-          const addedEvent = await EventModel(tenant).updateOne(
-            eventBody,
-            options,
-            {
-              upsert: true,
-            }
-          );
+          const addedEvent = await getModelByTenant(
+            tenant,
+            "event",
+            EventSchema
+          ).updateOne(eventBody, options, {
+            upsert: true,
+          });
 
           logObject("the inserted document", addedEvent);
 
@@ -618,13 +649,13 @@ const component = {
             $inc: { nValues: samples.length },
           };
 
-          const addedEvent = await EventModel(tenant).updateMany(
-            eventBody,
-            options,
-            {
-              upsert: true,
-            }
-          );
+          const addedEvent = await getModelByTenant(
+            tenant,
+            "event",
+            EventSchema
+          ).updateMany(eventBody, options, {
+            upsert: true,
+          });
 
           logObject("the inserted document", addedEvent);
 
@@ -688,8 +719,10 @@ const component = {
           name: name,
         };
 
-        const componentType = await ComponentTypeModel(
-          tenant
+        const componentType = await getModelByTenant(
+          tenant,
+          "componentType",
+          ComponentTypeSchema
         ).createComponentType(componentTypeBody);
 
         logElement("the component type element", componentType);
@@ -721,7 +754,11 @@ const component = {
       let { name, tenant } = req.query;
       logElement("the component type ", name);
       if (name && tenant) {
-        const componentType = await ComponentTypeModel(tenant).find({
+        const componentType = await getModelByTenant(
+          tenant,
+          "componentType",
+          ComponentTypeSchema
+        ).find({
           name: name,
         });
 
@@ -732,7 +769,11 @@ const component = {
           doesExist: !isEmpty(componentType),
         });
       } else if (!name && tenant) {
-        const componentTypes = await ComponentTypeModel(model).list({
+        const componentTypes = await getModelByTenant(
+          tenant,
+          "componentType",
+          ComponentTypeSchema
+        ).list({
           limit,
           skip,
         });
@@ -807,7 +848,11 @@ const component = {
     let { comp, device, tenant } = req.query;
     try {
       let ComponentFilter = { name: comp };
-      await ComponentModel(tenant).findOneAndUpdate(
+      await getModelByTenant(
+        tenant,
+        "component",
+        ComponentSchema
+      ).findOneAndUpdate(
         ComponentFilter,
         { ...req.body, deviceID: device },
         {
