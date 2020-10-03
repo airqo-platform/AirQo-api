@@ -12,12 +12,6 @@ cache = Cache(config={'CACHE_TYPE':'simple'})
 locate_map = Map()
 
 
-@locate_blueprint.route(api.route['root'])
-@cache.cached(timeout=300)
-def index():
-    return 'OK'
-
-
 @locate_blueprint.route(api.route['parishes'], methods=['POST'])
 @cache.cached(timeout=300)
 def place_sensors_map():
