@@ -1,19 +1,36 @@
 from flask import Flask
-import logging
-import os, sys
+import logging, os, sys
+from config import app_config
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.locate import locate_blueprint, cache
 from dotenv import load_dotenv
-
 load_dotenv()
-_logger = logging.getLogger(__name__)
-app = Flask(__name__)
-CORS(app)
-cache.init_app(app)
-app.config["MONGO_URI"] = os.getenv("MONGO_URI")
-mongo = PyMongo(app)
-app.register_blueprint(locate_blueprint)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+
+_logger = logging.getLogger(__name__)
+
+# db initialization
+mongo = PyMongo()
+
+
+def create_app(environment):
+    # create a flask app instance
+    app = Flask(__name__)
+    app.config.from_object(app_config[environment])
+    mongo.init_app(app)
+    cache.init_app(app)
+
+    # Allow cross-brower resource sharing
+    CORS(app)
+
+    # register blueprints
+    app.register_blueprint(locate_blueprint)
+
+    return app
+
+
+application = create_app(os.getenv("FLASK_ENV"))
+
+if __name__ == '__main__':
+    application.run(debug=True)
