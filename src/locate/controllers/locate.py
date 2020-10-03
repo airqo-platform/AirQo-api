@@ -21,6 +21,11 @@ def place_sensors_map():
     '''
     if request.method == 'POST':
         json_data = request.get_json()
+        
+        tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        
         if not json_data:
             return {'message': 'No input data provided'}, 400
         else:
@@ -34,7 +39,7 @@ def place_sensors_map():
             must_have_coordinates = json_data["must_have_coordinates"]
             if must_have_coordinates == "":
                 must_have_coordinates = None
-                return helper.recommend_locations(sensor_number, must_have_coordinates, geometry)
+                return helper.recommend_locations(sensor_number, must_have_coordinates, geometry, tenant)
             else:
                 try:
                     must_have_coordinates = ast.literal_eval(must_have_coordinates)
@@ -42,7 +47,7 @@ def place_sensors_map():
                     print('EXCEPTION')
                     return {'message': 'Coordinates must be in the form [[long, lat], [long, lat]]'}, 200
                 if all(isinstance(x, list) for x in must_have_coordinates):
-                    return helper.recommend_locations(sensor_number, must_have_coordinates, geometry)
+                    return helper.recommend_locations(sensor_number, must_have_coordinates, geometry, tenant)
                 else:
                     return {'message': 'Coordinates must be in the form [[longitude, latitude]]'}, 200
 
@@ -76,25 +81,36 @@ def save_locate_map():
     user_id = data['user_id']
     space_name = data['space_name']
     plan = data['plan']
+    
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
 
-    locate_map.save_locate_map(user_id, space_name, plan)
-
+    locate_map.save_locate_map(tenant, user_id, space_name, plan)
     return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
 
 
 @locate_blueprint.route(api.route['get_map'])
 @cache.cached(timeout=300)
-def get_locate_map(user_id):
+def get_locate_map(user_id, methods=['GET']):
     '''
     Get saved planning space for the user
     '''
-    documents = locate_map.get_locate_map(user_id)
-    response = []
-    for document in documents:
-        document['_id'] = str(document['_id'])
-        response.append(document)
-    data = jsonify(response)
-    return data
+    if request.method == 'GET':
+        tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+
+        documents = locate_map.get_locate_map(tenant, user_id)
+        response = []
+        for document in documents:
+            document['_id'] = str(document['_id'])
+            response.append(document)
+        if len(response) == 0:
+            return jsonify({"message": "please provide a valid organization name.", "success": False}), 400
+        return jsonify(response), 200
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
 @locate_blueprint.route(api.route['update_map'], methods=['GET', 'POST'])
@@ -114,10 +130,14 @@ def update_locate_map(space_name):
         except:
             # Bad request as the request body is not available
             return jsonify({"message": "bad request! request body required.", "success": False}), 400
-
+        
+        # check for organization name
+        tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        
         # Updating the planning space
-        records_updated = locate_map.update_locate_map(
-            space_name, update_plan)
+        records_updated = locate_map.update_locate_map(tenant, space_name, update_plan)
 
         # Check if resource is updated
         if records_updated.modified_count > 0:
@@ -139,8 +159,11 @@ def delete_locate_map(space_name):
     @return: null
     '''
     if request.method == 'DELETE':
+        tenant = request.args.get('tenant')
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         if space_name is not None:
-            db_response = locate_map.delete_locate_map(space_name)
+            db_response = locate_map.delete_locate_map(tenant, space_name)
             if db_response.deleted_count == 1:
                 response = {
                     "message": "planning space deleted successfully", "success": True}

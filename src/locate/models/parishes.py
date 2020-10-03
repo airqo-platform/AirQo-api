@@ -5,8 +5,6 @@ import os, sys
 from helpers import helper
 from helpers import db_helpers
 
-load_dotenv()
-MONGO_URI = os.getenv('MONGO_URI')
 
 class Parish():
     '''
@@ -20,7 +18,7 @@ class Parish():
         ''' initialize ''' 
 
 
-    def get_parishes_map(self, polygon):
+    def get_parishes_map(self, tenant, polygon):
         '''
         Gets all the parishes in a given polygon
         '''
@@ -40,15 +38,14 @@ class Parish():
                                 }
                 projection = {'_id': 0}
 
-                client = MongoClient(MONGO_URI)
-                db = client['airqo_netmanager']
+                db = db_helpers.connect_mongo(tenant)
                 records = db.locate.find(query, projection)
                 records_list = list(records)
                 return records_list
             except:
                 return 'Invalid polygon'
 
-    def get_parish_for_point(self, point):
+    def get_parish_for_point(self, tenant, point):
         '''
         Gets the parish in which the given coordinates belong
         '''
@@ -63,8 +60,7 @@ class Parish():
             }
         }
         projection = {'_id': 0}
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         records = db.locate.find(query, projection)
         records_list = list(records)
         return records_list

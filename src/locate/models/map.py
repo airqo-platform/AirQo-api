@@ -4,10 +4,6 @@ from dotenv import load_dotenv
 import os
 from helpers import db_helpers
 
-load_dotenv()
-MONGO_URI = os.getenv('MONGO_URI')
-#_config.MONGO_URI
-
 class Map():
     '''
     The class handles functionality for the planning space.
@@ -19,12 +15,11 @@ class Map():
     def __init__(self):
         ''' initialize ''' 
 
-    def save_locate_map(self, user_id, space_name, plan):
+    def save_locate_map(self, tenant, user_id, space_name, plan):
         '''
         Saves current planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         db.locate_map.insert({
             "user_id": user_id,
             "space_name": space_name,
@@ -32,32 +27,29 @@ class Map():
         })
 
 
-    def get_locate_map(self, user_id):
+    def get_locate_map(self, tenant, user_id):
         '''
         Retrieves previously saved planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         documents = db.locate_map.find({"user_id": str(user_id)})
         return documents
 
 
-    def update_locate_map(self, space_name, updated_plan):
+    def update_locate_map(self, tenant, space_name, updated_plan):
         '''
         Updates previously saved planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         response = db.locate_map.update_one(
             {"space_name": space_name}, {'$set': {'plan': updated_plan}})
         return response
 
 
-    def delete_locate_map(self, space_name):
+    def delete_locate_map(self, tenant, space_name):
         '''
         Deletes previously sved planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         response = db.locate_map.delete_one({'space_name': space_name})
         return response
