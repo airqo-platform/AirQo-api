@@ -1,10 +1,9 @@
 from flask import Blueprint, request, jsonify
 from helpers import helper
-import sys
-import ast
-import json
+import sys, ast, json
 from models.parishes import Parish
 from models.map import Map
+from routes import api
 from flask_caching import Cache
 
 locate_blueprint = Blueprint('locate_blueprint', __name__)
@@ -13,13 +12,13 @@ cache = Cache(config={'CACHE_TYPE':'simple'})
 locate_map = Map()
 
 
-@locate_blueprint.route('/')
+@locate_blueprint.route(api.route['root'])
 @cache.cached(timeout=300)
 def index():
     return 'OK'
 
 
-@locate_blueprint.route('/api/v1/map/parishes', methods=['POST'])
+@locate_blueprint.route(api.route['parishes'], methods=['POST'])
 @cache.cached(timeout=300)
 def place_sensors_map():
     '''
@@ -53,7 +52,7 @@ def place_sensors_map():
                     return {'message': 'Coordinates must be in the form [[longitude, latitude]]'}, 200
 
 
-@locate_blueprint.route('/api/v1/map/savelocatemap', methods=['GET', 'POST'])
+@locate_blueprint.route(api.route['save_map'], methods=['GET', 'POST'])
 @cache.cached(timeout=300)
 def save_locate_map():
     '''
@@ -88,7 +87,7 @@ def save_locate_map():
     return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
 
 
-@locate_blueprint.route('/api/v1/map/getlocatemap/<user_id>')
+@locate_blueprint.route(api.route['get_map'])
 @cache.cached(timeout=300)
 def get_locate_map(user_id):
     '''
@@ -103,7 +102,7 @@ def get_locate_map(user_id):
     return data
 
 
-@locate_blueprint.route('/api/v1/map/updatelocatemap/<space_name>', methods=['GET', 'POST'])
+@locate_blueprint.route(api.route['update_map'], methods=['GET', 'POST'])
 @cache.cached(timeout=300)
 def update_locate_map(space_name):
     '''
@@ -136,7 +135,7 @@ def update_locate_map(space_name):
         # Error while trying to update the resource
         return jsonify({"message": "error occured while trying to update planning space", "success": False}), 500
 
-@locate_blueprint.route('/api/v1/map/deletelocatemap/<space_name>', methods=['DELETE'])
+@locate_blueprint.route(api.route['delete_map'], methods=['DELETE'])
 @cache.cached(timeout=300)
 def delete_locate_map(space_name):
     '''
