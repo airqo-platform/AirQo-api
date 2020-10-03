@@ -4,6 +4,7 @@ from config import app_config
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.locate import locate_blueprint, cache
+from controllers.helpers import monitor_bp
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -26,6 +27,8 @@ def create_app(environment):
 
     # register blueprints
     app.register_blueprint(locate_blueprint)
+    app.register_blueprint(monitor_bp)
+    
 
     return app
 
