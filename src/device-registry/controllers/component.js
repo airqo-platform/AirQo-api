@@ -75,7 +75,7 @@ const doesComponentExist = async (componentName, deviceName, tenant) => {
     logElement("does component exist?", !isEmpty(component));
     if (!isEmpty(component)) {
       return true;
-    } else if (isEmpty(ComponentDetails)) {
+    } else if (isEmpty(component)) {
       return false;
     }
   } catch (e) {
@@ -621,11 +621,17 @@ const Component = {
 
   addBulk: async (req, res) => {
     try {
-      logText("adding values...");
+      logText("adding bulk values...");
       const { device, component, tenant } = req.query;
       const { values, time } = req.body;
       logObject("the type of device name", typeof device);
-      if (!isEmpty(time, values) && !isEmpty(device) && !isEmpty(component)) {
+      if (
+        !isEmpty(time) &&
+        !isEmpty(values) &&
+        !isEmpty(device) &&
+        !isEmpty(component) &&
+        !isEmpty(tenant)
+      ) {
         const isComponentPresent = await doesComponentExist(
           component,
           device,
