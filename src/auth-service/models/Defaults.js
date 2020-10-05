@@ -1,7 +1,6 @@
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Schema.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
-const { tenantModel } = require("../config/multiTenant");
 
 const DefaultsSchema = new mongoose.Schema({
   pollutant: {
@@ -40,7 +39,7 @@ const DefaultsSchema = new mongoose.Schema({
       type: String,
     },
   ],
-  range: { type: String, required: [true, "range is required!"] },
+  period: { type: String, required: [true, "period is required!"] },
 });
 
 DefaultsSchema.plugin(uniqueValidator);
@@ -67,10 +66,9 @@ DefaultsSchema.methods = {
       chartType: this.chartType,
       chartTitle: this.chartTitle,
       locations: this.locations,
+      period: this.period,
     };
   },
 };
 
-const defaults = mongoose.model("defaults", DefaultsSchema);
-
-module.exports = defaults;
+module.exports = DefaultsSchema;
