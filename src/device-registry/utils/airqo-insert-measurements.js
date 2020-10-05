@@ -1,6 +1,6 @@
 const axios = require("axios");
-// const base_url = "http://34.78.78.202:31002/api/v1/devices/";
-const base_url = "http://localhost:3000/api/v1/devices/";
+const base_url = "http://34.78.78.202:31002/api/v1/devices/";
+// const base_url = "http://localhost:3000/api/v1/devices/";
 /***
  * NOTE:
  * In this sample code, please note that ctypes (component types) are now the actual sensors within
