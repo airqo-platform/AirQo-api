@@ -2,9 +2,17 @@ import pandas as pd
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
+#from app import mongo
 load_dotenv()
-MONGO_URI = os.getenv('MONGO_URI')
+#MONGO_URI = os.getenv('MONGO_URI')
 # _config.MONGO_URI
+if os.getenv('FLASK_ENV') == 'production':
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+elif os.getenv('FLASK_ENV') == 'testing':
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+else:
+    MONGO_URI = os.getenv('DEV_MONGO_URI')
+
 
 
 class Location():

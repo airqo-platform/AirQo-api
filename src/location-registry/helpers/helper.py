@@ -8,16 +8,25 @@ import requests
 from shapely.geometry import Point
 from shapely.ops import transform
 from geopy.distance import distance
+import app
 from dotenv import load_dotenv
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
+#MONGO_URI = os.getenv("MONGO_URI")
 API_KEY = os.getenv("API_KEY")
 OVERPASS_URL = os.getenv("OVERPASS_URL")
 SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT")  # +
 
 credentials = ee.ServiceAccountCredentials(
     SERVICE_ACCOUNT, 'private_key.json')  # +
+
+if os.getenv('FLASK_ENV') == 'production':
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+elif os.getenv('FLASK_ENV') == 'testing':
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+else:
+    MONGO_URI = os.getenv('DEV_MONGO_URI')
+
 
 ee.Initialize(credentials)
 # ee.Initialize()
