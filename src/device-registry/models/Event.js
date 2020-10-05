@@ -90,6 +90,4 @@ eventSchema.statics = {
   },
 };
 
-const event = model("event", eventSchema);
-
-module.exports = event;
+module.exports = eventSchema;
