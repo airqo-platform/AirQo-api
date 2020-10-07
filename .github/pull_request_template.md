@@ -1,32 +1,17 @@
 # <Feature/Chore/Hotfix/Topic/Bug Title>
 
-Description
-**_#WHAT DOES THIS PR DO?_**
+**_WHAT DOES THIS PR DO?_**
 
-JIRA ID: **_#ADD LINK TO JIRA STORY/TASK_**
+**_WHAT JIRA STORY/TASK IS RELATED TO THIS PR?_**
 
-Unit tests completed?: (Y/N)
+**_WHAT IS THE LINK TO THE PR BRANCH_**
 
-PR Branch
-**_#ADD LINK TO PR BRANCH_**
+**_HOW DO I TEST OUT THIS PR?_**
 
-Procedure
-**_#HOW DO I TEST OUT THIS PR?_**
+**_WHICH ENDPOINTS SHOULD BE READY FOR TESTING?:_** 
 
-Existing endpoints?: (Y/N)
-**_#IF YES, SPECIFY THE ENDPOINTS_**
+**_IS THERE ANY JENKINS CONSOLE LINK FOR CODE COVERAGE AND BUILD INFO?_**
 
-Code Coverage & Build Info
-**_#ADD LINK TO JENKINS CONSOLE_**
+**_ARE THERE ANY RELATED PRs?_**
 
-E2E Approved
-**_#ADD LINK TO PASSING E2E TESTS_**
 
-Windows Testing
-**_#HAS WINDOWS BEEN TESTED?_**
-
-Related PR
-**_#ADD ANY RELATED PULL REQUESTS_**
-
-UX Approved
-**_#ADD UX APPROVAL IF NEEDED_**
