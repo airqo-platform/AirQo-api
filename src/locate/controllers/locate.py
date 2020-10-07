@@ -107,7 +107,7 @@ def get_locate_map(user_id, methods=['GET']):
             document['_id'] = str(document['_id'])
             response.append(document)
         if len(response) == 0:
-            return jsonify({"message": "please provide a valid organization name.", "success": False}), 400
+            return jsonify({"message": "no record available. please check the user_id or organization name.", "success": False}), 400
         return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
