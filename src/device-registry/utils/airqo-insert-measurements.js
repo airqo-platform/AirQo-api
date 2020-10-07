@@ -158,6 +158,10 @@ const AirQoNetwork = {
   },
 };
 
+/***
+ * Use the channel ID to get the corresponding device name
+ */
+
 try {
   /**
    * Using the device-registry bulk insert endpoint,
