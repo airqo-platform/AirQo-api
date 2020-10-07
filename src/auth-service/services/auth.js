@@ -31,9 +31,11 @@ const userLocalStrategy = (tenant, req, res, next) =>
         })
         .exec();
       if (!user) {
-        return done(null, false, { message: "bad man" });
+        return res.status(401).json({
+          success: false,
+          message: "incorrect username or password",
+        });
       } else if (!user.authenticateUser(password)) {
-        // return done(null, false, { message: "bad girl" });
         return res.status(401).json({
           success: false,
           message: "incorrect username or password",
@@ -42,10 +44,10 @@ const userLocalStrategy = (tenant, req, res, next) =>
       return done(null, user);
     } catch (e) {
       logElement("error in services/auth/userLocalStrategy", e.message);
-      // return done(e, false, { message: "bad boy" });
       return res.status(500).json({
         success: false,
         message: "organization does not exist",
+        error: e.message,
       });
     }
   });
