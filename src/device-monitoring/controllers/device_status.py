@@ -14,7 +14,7 @@ _logger = logging.getLogger(__name__)
 device_status_bp = Blueprint('device_status', __name__)
 
 
-@device_status_bp.route(api.route['device_status'], methods=['GET'])
+@device_status_bp.route(api.route['device_status'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_status():
     '''
     Get device status
@@ -37,7 +37,7 @@ def get_device_status():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 # maintenance log
-@device_status_bp.route(api.route['maintenance_logs'], methods=['GET'])
+@device_status_bp.route(api.route['maintenance_logs'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_maintenance_log():
     '''
     Get device maintenance_logs
@@ -58,8 +58,9 @@ def get_device_maintenance_log():
     else:
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
+
 # maintenance log
-@device_status_bp.route(api.route['device_name_maintenance_log'], methods=['GET'])
+@device_status_bp.route(api.route['device_name_maintenance_log'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_name_maintenance_log(device_name):
     '''
     Get device maintenance_logs
@@ -82,7 +83,7 @@ def get_device_name_maintenance_log(device_name):
 
 
 # maintenance log
-@device_status_bp.route(api.route['device_power'], methods=['GET'])
+@device_status_bp.route(api.route['device_power'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_power():
     '''
     Get device status
@@ -104,7 +105,7 @@ def get_device_power():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['all_devices_latest_status'], methods=['GET'])
+@device_status_bp.route(api.route['all_devices_latest_status'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_all_devices_latest_status():
     '''
     Get all devices latest status
@@ -161,7 +162,7 @@ def get_all_devices():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['latest_offline_devices'], methods=['GET'])
+@device_status_bp.route(api.route['latest_offline_devices'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_all_latest_offline_devices():
     '''
     Get all latest offline devices latest status
@@ -184,7 +185,7 @@ def get_all_latest_offline_devices():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['network_uptime'], methods=['GET'])
+@device_status_bp.route(api.route['network_uptime'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_network_uptime():
     '''
     Get network uptime/downtime status
@@ -206,7 +207,7 @@ def get_network_uptime():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['best_performing_devices'], methods=['GET'])
+@device_status_bp.route(api.route['best_performing_devices'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_best_performing_devices():
     '''
     Get best performing devices in terms of uptime
@@ -228,7 +229,7 @@ def get_best_performing_devices():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['worst_performing_devices'], methods=['GET'])
+@device_status_bp.route(api.route['worst_performing_devices'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_worst_performing_devices():
     '''
     Gets worst performing devices in terms of uptime
@@ -250,7 +251,7 @@ def get_worst_performing_devices():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['device_uptime'], methods=['GET'])
+@device_status_bp.route(api.route['device_uptime'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_uptime(device_channel_id):
     '''
     Get device uptime
@@ -276,7 +277,7 @@ def get_device_uptime(device_channel_id):
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['device_battery_voltage'], methods=['GET'])
+@device_status_bp.route(api.route['device_battery_voltage'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_battery_voltage(device_channel_id):
     '''
     Get device uptime
@@ -302,7 +303,7 @@ def get_device_battery_voltage(device_channel_id):
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['device_sensor_correlation'], methods=['GET'])
+@device_status_bp.route(api.route['device_sensor_correlation'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_device_sensor_correlation(device_channel_id):
     '''
     Get device uptime
@@ -328,7 +329,7 @@ def get_device_sensor_correlation(device_channel_id):
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
-@device_status_bp.route(api.route['online_offline'], methods=['GET'])
+@device_status_bp.route(api.route['online_offline'], methods=['GET', 'POST', 'PUT', 'DELETE'])
 def get_all_online_offline():
     '''
     Get all latest devices online_offline
