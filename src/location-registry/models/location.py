@@ -136,4 +136,4 @@ class Location():
                     }
                  }
             )
-            return {'message':'Location successfully updated', 'success':False}, 200
+            return {'message':'Location successfully updated', 'success':True}, 200

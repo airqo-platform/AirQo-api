@@ -132,9 +132,9 @@ def register_location():
                 local_activities, location_name, country, region, district, county, subcounty, parish, altitude, aspect, landform_90, 
                 landform_270, closest_distance, closest_motorway_distance, closest_residential_distance, nearest_city_distance)
                 cache.clear()
-                return {'message': 'Location registered succesfully'}, 200
+                return {'message': 'Location registered succesfully', 'success':True}, 200
             except:
-                return {'message': 'An error occured. Please try again'}, 400
+                return {'message': 'An error occured. Please try again', 'success':False}, 400
             
 
 
