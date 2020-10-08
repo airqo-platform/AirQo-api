@@ -2,6 +2,7 @@ import pandas as pd
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
+import sys
 #from app import mongo
 load_dotenv()
 #MONGO_URI = os.getenv('MONGO_URI')
@@ -39,10 +40,7 @@ class Location():
                          'distance_from_city': distance_from_city}
 
         client = MongoClient(MONGO_URI)
-        if tenant_id=='airqo':
-            db_name = 'airqo_netmanager'
-        else:
-            db_name = 'airqo_netmanager_'+tenant_id
+        db_name = 'airqo_netmanager_'+tenant_id
         db = client[db_name]
         db.location_registry.insert_one(location_dict)
 
@@ -51,10 +49,10 @@ class Location():
         Gets specific fields of all locations to be displayed
         '''
         client = MongoClient(MONGO_URI)
-        if tenant_id=='airqo':
-            db_name = 'airqo_netmanager'
-        else:
-            db_name = 'airqo_netmanager_'+tenant_id
+        db_name = 'airqo_netmanager_'+tenant_id
+        dbnames = client.list_database_names()
+        if db_name not in dbnames:
+            return {'message':'Organization does not exist', 'success':False}, 400
         db = client[db_name]
         query = {}
         projection = {'_id': 0, 'loc_ref': 1, 'location_name': 1, 'mobility': 1, 'latitude': 1, 'longitude': 1, 'country': 1, 'region': 1,
@@ -67,39 +65,48 @@ class Location():
         Gets all the data in the database for a specific location
         '''
         client = MongoClient(MONGO_URI)
-        if tenant_id=='airqo':
-            db_name = 'airqo_netmanager'
+        db_name = 'airqo_netmanager_'+tenant_id
+        dbnames = client.list_database_names()
+        if db_name not in dbnames:
+            return {'message':'Organization does not exist', 'success':False}, 400
         else:
-            db_name = 'airqo_netmanager_'+tenant_id
-        db = client[db_name]
-        query = {'loc_ref': loc_ref}
-        projection = {'_id': 0}
-        records = list(db.location_registry.find(query, projection))
-        return records[0]
+            db = client[db_name]
+            query = {'loc_ref': loc_ref}
+            projection = {'_id': 0}
+            records = list(db.location_registry.find(query, projection))
+            if len(records)==0:
+                return {'message':'Invalid location reference', 'success':False}, 400
+            else:
+                return records[0]
 
     def get_location_details_to_edit(self, tenant_id, loc_ref):
         '''
         Gets all the data in the database for a specific location
         '''
         client = MongoClient(MONGO_URI)
-        if tenant_id=='airqo':
-            db_name = 'airqo_netmanager'
+        db_name = 'airqo_netmanager_'+tenant_id
+        dbnames = client.list_database_names()
+        if db_name not in dbnames:
+            return {'message':'Organization does not exist', 'success':False}, 400
         else:
-            db_name = 'airqo_netmanager_'+tenant_id
-        db = client[db_name]
-        query = {'loc_ref': loc_ref}
-        projection = {'_id': 0, 'loc_ref': 1, 'host': 1, 'mobility': 1, 'latitude': 1, 'longitude': 1, 'road_intensity': 1, 
-                      'description': 1, 'road_status': 1, 'local_activities': 1}
-        records = list(db.location_registry.find(query, projection))
-        try:
-            revised_activities = []
-            for activity in records[0]['local_activities']:
-                revised_activities.append(
-                    {'value': activity, 'label': activity})
-            records[0]['local_activities'] = revised_activities
-            return records[0]
-        except:
-            return records[0]
+            db = client[db_name]
+            query = {'loc_ref': loc_ref}
+            projection = {'_id': 0, 'loc_ref': 1, 'host': 1, 'mobility': 1, 'latitude': 1, 'longitude': 1, 'road_intensity': 1, 
+            'description': 1, 'road_status': 1, 'local_activities': 1}
+            records = list(db.location_registry.find(query, projection))
+            if len(records)==0:
+                return {'message':'Invalid location reference', 'success':False}, 400
+            else:
+                try:
+                    revised_activities = []
+                    for activity in records[0]['local_activities']:
+                        revised_activities.append(
+                            {'value': activity, 'label': activity})
+                    records[0]['local_activities'] = revised_activities
+                    return records[0]
+                except:
+                    return records[0]
+        
 
     def save_edited_location(self, tenant_id, loc_ref, road_intensity, description, road_status, local_activities):
         '''
@@ -107,10 +114,7 @@ class Location():
         '''
 
         client = MongoClient(MONGO_URI)
-        if tenant_id=='airqo':
-            db_name = 'airqo_netmanager'
-        else:
-            db_name = 'airqo_netmanager_'+tenant_id
+        db_name = 'airqo_netmanager_'+tenant_id
         db_names = client.list_database_names()
         if db_name not in db_names:
             raise Exception("Organization does not exist") 

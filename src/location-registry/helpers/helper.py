@@ -39,12 +39,8 @@ def connect_mongo(tenant_id):
     try:
         client = MongoClient(MONGO_URI)
     except pymongo.errors.ConnectionFailure as e:
-        print("Could not connect to MongoDB: %s" % e)
-    if tenant_id=='airqo':
-        db_name = 'airqo_netmanager'
-    else:
-        db_name = 'airqo_netmanager_'+tenant_id
-    
+        return {'message':'unable to connect to database', 'sucess':False}, 400
+    db_name = 'airqo_netmanager_'+tenant_id
     db = client[db_name]
     return db
 
@@ -56,7 +52,6 @@ def get_location_ref(tenant_id):
     db = connect_mongo(tenant_id)
     last_document = list(db.location_registry.find(
         {}).sort([('_id', -1)]).limit(1))
-    # last_document = list(db.collection.find({}).limit(1).sort([('$natural',-1)])
     if len(last_document) == 0:
         loc_ref = 1
     else:
