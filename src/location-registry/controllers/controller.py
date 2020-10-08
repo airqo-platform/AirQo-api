@@ -192,14 +192,14 @@ def edit_location():
         
 
 
-@location_blueprint.route('/api/v1/location_registry/update', methods=['POST'])
+@location_blueprint.route('/api/v1/location_registry/update', methods=['PUT'])
 # @cache.cached(timeout=60)
 def update_location():
     '''
     Updates an edited location's details
     '''
 
-    if request.method == 'POST':
+    if request.method == 'PUT':
         tenant_id = request.args.get('tenant')
         if not tenant_id:
             return {'message': 'Tenant id required'}, 400
@@ -219,11 +219,6 @@ def update_location():
             for i in json_data["localActivities"]:
                 local_activities.append(i["value"])
 
-            try:
-                '''location.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status,
-                                              local_activities)'''
-                location.save_edited_location(tenant_id, loc_ref, road_intensity, description, road_status, local_activities)
-                cache.clear()
-                return {'message': 'Location has been successfully updated'}, 200
-            except:
-                return {'message': 'An error occured. Please ensure correct inputs'}, 400
+            message = location.save_edited_location(tenant_id, loc_ref, road_intensity, description, road_status, local_activities)
+            cache.clear()
+            return message

@@ -117,12 +117,17 @@ class Location():
         db_name = 'airqo_netmanager_'+tenant_id
         db_names = client.list_database_names()
         if db_name not in db_names:
-            raise Exception("Organization does not exist") 
+            return {'message': 'Organization does not exist', 'success':False}, 400
         else:
             db = client[db_name]
-            db.location_registry.update_one(
-                {'loc_ref': loc_ref},
-                {'$set':
+            a = db.location_registry.find({'loc_ref': loc_ref}).count()
+            print(a, file=sys.stderr)
+            if db.location_registry.find({'loc_ref': loc_ref}).count() == 0:
+                return {'message': 'Location not found', 'success':False}, 400
+            else:
+                db.location_registry.update_one(
+                    {'loc_ref': loc_ref},
+                    {'$set':
                     {
                         'road_intensity': road_intensity,
                         'description': description,
@@ -131,3 +136,4 @@ class Location():
                     }
                  }
             )
+            return {'message':'Location successfully updated', 'success':False}, 200
