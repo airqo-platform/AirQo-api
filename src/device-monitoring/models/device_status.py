@@ -86,7 +86,12 @@ class DeviceStatus():
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
-        result = results[0]
+        # basic exception handling
+        if len(results) != 0:
+            result = results[0]
+        else:
+            result = []
+            return result
 
         values = [round(result['average_uptime_for_entire_network_for_twentyfour_hours']['average_uptime_for_entire_network_in_percentage'], 2),
                   round(result['average_uptime_for_entire_network_for_seven_days']
@@ -149,7 +154,12 @@ class DeviceStatus():
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
-        result = results[0]
+        # basic exception handling
+        if len(results) != 0:
+            result = results[0]
+        else:
+            result = []
+            return result
 
         labels = ['24 hours', '7 days', '28 days', '12 months', 'all time']
 
@@ -190,7 +200,12 @@ class DeviceStatus():
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
-        result = results[0]
+        # basic exception handling
+        if len(results) != 0:
+            result = results[0]
+        else:
+            result = []
+            return result
 
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
         device_twenty_eight_days_battery_voltage = [d['device_battery_voltage_readings']
@@ -216,7 +231,12 @@ class DeviceStatus():
         results = list(db.network_uptime_analysis_results.find(
             {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
 
-        result = results[0]
+        # basic exception handling
+        if len(results) != 0:
+            result = results[0]
+        else:
+            result = []
+            return result
 
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
         device_twenty_eight_days_sensor_one_readings = [d['device_sensor_one_pm2_5_readings']
