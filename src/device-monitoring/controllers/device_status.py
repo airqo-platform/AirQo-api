@@ -200,7 +200,7 @@ def get_network_uptime():
             response = result
         else:
             response = {
-                "message": "Uptime data not available", "success": False}
+                "message": "Uptime data not available for " + tenant + " organization", "success": False}
         data = jsonify(response)
         return data, 200
     else:
@@ -244,7 +244,7 @@ def get_worst_performing_devices():
             response = result
         else:
             response = {
-                "message": "worst perfoming devices data not available", "success": False}
+                "message": "worst perfoming devices data not available for " + tenant + " organization", "success": False}
         data = jsonify(response)
         return data, 200
     else:
@@ -440,7 +440,7 @@ def get_all_online_offline():
 
         else:
             response = {
-                "message": "devices data not available of this " + tenant, "success": False}
+                "message": "devices data not available of this " + tenant + " organization", "success": False}
         data = jsonify(response)
         return data, 200
     else:

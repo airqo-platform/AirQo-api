@@ -64,15 +64,26 @@ class DeviceStatus():
         limit = {'$limit': 1}
         db = db_helpers.connect_mongo(tenant)
         # results = db.device_status_hourly_check_results.find().sort([('_id',-1)]).limit(1)
-        results = db.device_status_hourly_check_results.find(
-            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1)
+        results = list(db.device_status_hourly_check_results.find(
+            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
         # results = list(db.device_status_hourly_check_results.aggregate([query, projection,sort_order,limit]) )
-        return results
+        # basic exception handling
+        if len(results) != 0:
+            result = db.device_status_hourly_check_results.find(
+                {}, {'_id': 0}).sort([('$natural', -1)]).limit(1)
+        else:
+            result = []
+        return result
 
     def get_all_devices(self, tenant):
         db = db_helpers.connect_mongo(tenant)
         results = list(db.device_status_summary.find({}, {'_id': 0}))
-        return results
+        # basic exception handling
+        if len(results) != 0:
+            result = results[0]
+        else:
+            result = []
+        return result
 
     def str_to_date_find(self, st):
         """
@@ -125,7 +136,13 @@ class DeviceStatus():
 
         sort_order = True
 
-        result = results[0]
+        # basic exception handling
+        if len(results) != 0:
+            result = results[0]
+        else:
+            result = []
+            return result
+
         if sorting_order == 'asc':
             sort_order = False
 
