@@ -20,9 +20,6 @@ else:
 
 def connect_mongo(tenant):
     client = MongoClient(MONGO_URI)
-    if tenant.lower() == 'airqo':
-        db_selected = DB_NAME
-    else:
-        db_selected = DB_NAME + '_' + tenant
+    db_selected = DB_NAME + '_' + tenant.lower()
     db = client[db_selected]
     return db
