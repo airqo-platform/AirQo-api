@@ -3,18 +3,17 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import os
 import sys
-#from app import mongo
 load_dotenv()
-#MONGO_URI = os.getenv('MONGO_URI')
-# _config.MONGO_URI
+
 if os.getenv('FLASK_ENV') == 'production':
     MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_PROD')
 elif os.getenv('FLASK_ENV') == 'testing':
     MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_STAGING')
 else:
     MONGO_URI = os.getenv('DEV_MONGO_URI')
-
-
+    DB_NAME  = os.getenv('DB_NAME_PROD')
 
 class Location():
 
@@ -40,7 +39,7 @@ class Location():
                          'distance_from_city': distance_from_city}
 
         client = MongoClient(MONGO_URI)
-        db_name = 'airqo_netmanager_'+tenant_id
+        db_name = DB_NAME+tenant_id
         db = client[db_name]
         db.location_registry.insert_one(location_dict)
 
@@ -49,7 +48,8 @@ class Location():
         Gets specific fields of all locations to be displayed
         '''
         client = MongoClient(MONGO_URI)
-        db_name = 'airqo_netmanager_'+tenant_id
+        db_name = f'{DB_NAME}_{tenant_id.lower()}'
+        print(db_name, file=sys.stderr)
         dbnames = client.list_database_names()
         if db_name not in dbnames:
             return {'message':'Organization does not exist', 'success':False}, 400
@@ -65,7 +65,7 @@ class Location():
         Gets all the data in the database for a specific location
         '''
         client = MongoClient(MONGO_URI)
-        db_name = 'airqo_netmanager_'+tenant_id
+        db_name = f'{DB_NAME}_{tenant_id.lower()}'
         dbnames = client.list_database_names()
         if db_name not in dbnames:
             return {'message':'Organization does not exist', 'success':False}, 400
@@ -84,7 +84,7 @@ class Location():
         Gets all the data in the database for a specific location
         '''
         client = MongoClient(MONGO_URI)
-        db_name = 'airqo_netmanager_'+tenant_id
+        db_name = f'{DB_NAME}_{tenant_id.lower()}'
         dbnames = client.list_database_names()
         if db_name not in dbnames:
             return {'message':'Organization does not exist', 'success':False}, 400
@@ -114,7 +114,7 @@ class Location():
         '''
 
         client = MongoClient(MONGO_URI)
-        db_name = 'airqo_netmanager_'+tenant_id
+        db_name = f'{DB_NAME}_{tenant_id.lower()}'
         db_names = client.list_database_names()
         if db_name not in db_names:
             return {'message': 'Organization does not exist', 'success':False}, 400
