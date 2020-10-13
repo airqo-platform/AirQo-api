@@ -1,9 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const joinController = require("../controllers/join");
+const candidateController = require("../controllers/candidate");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
-const { authUserLocal, authColabLocal, authJWT } = require("../services/auth");
+const { jwtAuth, authJWT, login, authUserLocal } = require("../services/auth");
 const privileges = require("../utils/privileges");
 
 //the middleware function
@@ -18,55 +19,42 @@ const middleware = (req, res, next) => {
 };
 router.use(middleware);
 
-router.post("/loginUser", authUserLocal, joinController.loginUser);
-router.post(
-  "/loginCollaborator",
-  authColabLocal,
-  joinController.loginCollaborator
-);
-router.post("/logout", joinController.logout);
+const checkAuth = () => {
+  if (privileges.isCollab) {
+    return authColabLocal;
+  } else if (privileges.isUser) {
+    return authUserLocal;
+  }
+};
 
-//admin users
-router.get("/", authJWT, joinController.listAll);
-router.get("/:id", authJWT, joinController.listOne);
-router.post(
-  "/registerUser",
-  validate(userValidation.register),
-  joinController.registerUser
-);
-router.post("/registerCandidate", joinController.registerCandidate);
-router.delete("/:id", authJWT, joinController.deleteUser);
-router.put("/:id", authJWT, joinController.updateUser);
-router.post("/logout/:id", authJWT, joinController.logout);
-router.get("/email/confirm/:id", joinController.confirmEmail); //componentDidMount() will handle this one right here....
-router.put("/updatePasswordViaEmail", joinController.updatePasswordViaEmail);
-router.get("/reset/:resetPasswordToken", joinController.resetPassword);
-router.post("/forgotPassword", joinController.forgotPassword);
-router.get("/findUser", joinController.findUser);
-router.post("/accept/:id", joinController.activateUser);
-router.post("/deny/:id", joinController.deactivateUser);
-
-//collaborators
-router.post(
-  "/register/collab",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.addCollaborator
-);
+//************************* users ***************************************************
+router.post("/loginUser", login, authUserLocal, joinController.loginUser);
+router.get("/", jwtAuth, authJWT, joinController.listAll);
+router.post("/registerUser", joinController.registerUser);
+router.post("/addWithTenant", jwtAuth, authJWT, joinController.addUserByTenant);
+router.get("/email/confirm/", jwtAuth, authJWT, joinController.confirmEmail); //componentDidMount() will handle this one right here....
 router.put(
-  "/update/collab/:id",
+  "/updatePasswordViaEmail",
+  jwtAuth,
   authJWT,
-  privileges.isColabAdmin,
-  joinController.updateCollaborator
+  joinController.updatePasswordViaEmail
 );
-router.delete(
-  "/delete/collab/:id",
-  authJWT,
-  privileges.isColabAdmin,
-  joinController.deleteCollaborator
-);
+router.put("/updatePassword", jwtAuth, authJWT, joinController.updatePassword);
+router.get("/reset/you", jwtAuth, authJWT, joinController.resetPassword);
+router.post("/forgotPassword", jwtAuth, authJWT, joinController.forgotPassword);
+router.put("/", jwtAuth, authJWT, joinController.updateUser);
+router.delete("/", jwtAuth, authJWT, joinController.deleteUser);
+router.put("/defaults/", jwtAuth, authJWT, joinController.updateUserDefaults);
+router.get("/defaults/", jwtAuth, authJWT, joinController.getDefaults);
 
-//params
-router.param("userId", joinController.findUserById);
+//************************ candidates ***********************************************
+//could this be the one where we just load people with inactive status?
+router.post("/register/new/candidate", candidateController.registerCandidate);
+router.get(
+  "/candidates/fetch",
+  jwtAuth,
+  authJWT,
+  candidateController.getAllCandidates
+);
 
 module.exports = router;

@@ -1,12 +1,4 @@
-// Using DataStore from GCP
-// const { instances } = require("gstore-node");
-// const gstoreDefaultInstance = instances.get("default");
-// const gstoreWithCache = instances.get("cache-on");
-// const gstoreStaging = instances.get("staging");
-// const Schema = gstoreDefaultInstance.Schema;
-
-//const DataAccess = require("../config/das");
-const mongoose = require("mongoose");
+const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
 const { passwordReg } = require("../utils/validations");
@@ -71,23 +63,31 @@ const UserSchema = new Schema({
       message: "{VALUE} is not a valid password!",
     },
   },
-  interest: { type: String, default: "none" },
-  org_name: { type: String, default: "none" },
-  privilege: { type: String, default: "admin" },
-  accountStatus: { type: String, default: "false" },
-  hasAccess: { type: Boolean, default: false },
-  collaborators: [{ type: ObjectId, ref: "colab" }],
-  publisher: { type: Boolean, default: false },
+  privilege: { type: String, required: [true, "the role is required!"] },
+  isActive: { type: Boolean },
   duration: { type: Date, default: oneMonthFromNow },
-  bus_nature: { type: String, default: "none" },
-  org_department: { type: String, default: "none" },
-  uni_faculty: { type: String, default: "none" },
-  uni_course_yr: { type: String, default: 0 },
-  pref_locations: [{ type: ObjectId, ref: "loc" }],
-  country: { type: String, default: "Uganda" },
-  job_title: { type: String, default: "none" },
+  organization: {
+    type: String,
+    required: [true, "the organization is required!"],
+  },
+  country: { type: String },
+  phoneNumber: { type: Number },
+  locationCount: { type: Number, default: 5 },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
+  jobTitle: {
+    type: String,
+  },
+  website: { type: String },
+  category: {
+    type: String,
+  },
+  notifications: {
+    email: { type: Boolean, default: false },
+    push: { type: Boolean, default: false },
+    text: { type: Boolean, default: false },
+    phone: { type: Boolean, default: false },
+  },
 });
 
 UserSchema.pre("save", function (next) {
@@ -98,7 +98,8 @@ UserSchema.pre("save", function (next) {
 });
 
 UserSchema.pre("findOneAndUpdate", function () {
-  const update = this.getUpdate();
+  let that = this;
+  const update = that.getUpdate();
   if (update.__v != null) {
     delete update.__v;
   }
@@ -122,6 +123,22 @@ UserSchema.pre("update", function (next) {
   return next();
 });
 
+UserSchema.pre("findByIdAndUpdate", function (next) {
+  this.options.runValidators = true;
+  if (this.isModified("password")) {
+    this.password = this._hashPassword(this.password);
+  }
+  return next();
+});
+
+UserSchema.statics = {
+  createUser(args) {
+    return this.create({
+      ...args,
+    });
+  },
+};
+
 UserSchema.methods = {
   _hashPassword(password) {
     // bcrypt.hash(password, saltRounds).then(function (hash) {
@@ -139,8 +156,13 @@ UserSchema.methods = {
     return jwt.sign(
       {
         _id: this._id,
+        locationCount: this.locationCount,
+        organization: this.organization,
         firstName: this.firstName,
         lastName: this.lastName,
+        userName: this.userName,
+        email: this.email,
+        privilege: this.privilege,
       },
       constants.JWT_SECRET
     );
@@ -158,26 +180,16 @@ UserSchema.methods = {
       _id: this._id,
       userName: this.userName,
       email: this.email,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      locationCount: this.locationCount,
+      privilege: this.privilege,
+      website: this.website,
+      organization: this.organization,
+      category: this.category,
+      jobTitle: this.jobTitle,
     };
   },
 };
 
-const user = mongoose.model("user", UserSchema);
-
-module.exports = user;
-
-// shall consider this when implementing the Bridge Design Pattern
-// const Model = function () {
-
-// }
-
-// Model.prototype.GetUsers = function () {
-//     return new Promise(function (fulfill, reject) {
-//         DataAccess.GetEntities("auth_service", "users")
-//             .then(function (docs) {
-//                 fulfill(docs);
-//             }).catch(function (err) {
-//                 reject(err);
-//             });
-//     });
-// };
+module.exports = UserSchema;

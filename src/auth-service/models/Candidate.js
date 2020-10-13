@@ -1,4 +1,3 @@
-//const DataAccess = require("../config/das");
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
@@ -26,12 +25,11 @@ const CandidateSchema = new mongoose.Schema({
     required: [true, "LastName is required"],
     trim: true,
   },
-  desc: { type: String, default: "none" },
-  company: { type: String, default: "none" },
-  country: { type: String, default: "Uganda" },
-  jobTitle: { type: String, default: "none" },
-  phoneNumber: { type: Number },
-  user: { type: ObjectId, ref: "user" },
+  description: { type: String, required: [true, "description is required"] },
+  organization: { type: String, required: [true, "organization is required"] },
+  jobTitle: { type: String, required: [true, "jobTitle is required"] },
+  category: { type: String, required: [true, "category is required"] },
+  website: { type: String, required: [true, "website is required"] },
 });
 
 CandidateSchema.methods = {
@@ -40,10 +38,14 @@ CandidateSchema.methods = {
       _id: this._id,
       firstName: this.firstName,
       lastName: this.lastName,
+      email: this.email,
+      description: this.description,
+      category: this.category,
+      organization: this.organization,
+      jobTitle: this.jobTitle,
+      website: this.website,
     };
   },
 };
 
-const candidate = mongoose.model("candidate", CandidateSchema);
-
-module.exports = candidate;
+module.exports = CandidateSchema;

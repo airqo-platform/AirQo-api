@@ -1,0 +1,41 @@
+###########################################################
+# Start deployment of auth api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-auth-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-auth-api
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: sta-auth-api
+    spec:
+      containers:
+        - name: sta-auth-api
+          image: us.gcr.io/airqo-250220/airqo-stage-auth-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: sta-auth-api
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-auth-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-auth-api
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 31000
+  type: NodePort

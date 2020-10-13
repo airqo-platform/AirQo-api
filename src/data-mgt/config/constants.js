@@ -1,28 +1,31 @@
 const devConfig = {
-    MONGO_URL: 'mongodb://localhost/forecast-dev',
-    JWT_SECRET: 'thisisasecret'
+  MONGO_URL: "mongodb://localhost/",
+  JWT_SECRET: process.env.JWT_SECRET,
+  DB_NAME: process.env.MONGO_DEV,
 };
-const testConfig = {
-    MONGO_URL: 'mongodb://localhost/forecast-test',
-    JWT_SECRET: 'thisisasecret'
+const stageConfig = {
+  MONGO_URL: "mongodb://localhost/",
+  JWT_SECRET: process.env.JWT_SECRET,
+  DB_NAME: process.env.MONGO_STAGE,
 };
 const prodConfig = {
-    MONGO_URL: `mongodb://${process.env.MLAB_USERNAME}:${process.env.MLAB_PASSWORD}@ds215229.mlab.com:15229/data-manager`,
-    JWT_SECRET: 'thisisasecret'
+  MONGO_URL: process.env.MONGO_GCE_URI,
+  JWT_SECRET: process.env.JWT_SECRET,
+  DB_NAME: process.env.MONGO_PROD,
 };
 const defaultConfig = {
-    PORT: process.env.PORT || 3000,
+  PORT: process.env.PORT || 3000,
 };
 
 function envConfig(env) {
-    switch (env) {
-        case 'development':
-            return devConfig;
-        case 'test':
-            return testConfig;
-        default:
-            return prodConfig;
-    }
+  switch (env) {
+    case "development":
+      return devConfig;
+    case "staging":
+      return stageConfig;
+    default:
+      return prodConfig;
+  }
 }
 
-module.exports = { ...defaultConfig, ...envConfig(process.env.NODE_ENV), };
+module.exports = { ...defaultConfig, ...envConfig(process.env.NODE_ENV) };

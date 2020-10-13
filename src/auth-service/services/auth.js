@@ -1,74 +1,89 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
-const User = require("../models/User");
-const Collaborator = require("../models/Collaborator");
+const UserSchema = require("../models/User");
 const constants = require("../config/constants");
-const { Strategy: JWTStrategy, ExtractJwt } = require("passport-jwt");
+const { logElement, logText, logObject } = require("../utils/log");
+const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
 const localOpts = {
   usernameField: "userName",
-  passwordField: "password"
+  passwordField: "password",
+};
+const isEmpty = require("is-empty");
+const { getModelByTenant } = require("../utils/multitenancy");
+
+const UserModel = (tenant) => {
+  return getModelByTenant(tenant, "user", UserSchema);
 };
 
 const jwtOpts = {
   jwtFromRequest: ExtractJwt.fromAuthHeaderWithScheme("jwt"),
-  secretOrKey: constants.JWT_SECRET
+  secretOrKey: constants.JWT_SECRET,
 };
 
-const userLocalStrategy = new LocalStrategy(
-  localOpts,
-  async (userName, password, done) => {
+const userLocalStrategy = (tenant, req, res, next) =>
+  new LocalStrategy(localOpts, async (userName, password, done) => {
     try {
-      const user = await User.findOne({
-        userName
-      });
+      const user = await UserModel(tenant)
+        .findOne({
+          userName,
+        })
+        .exec();
       if (!user) {
-        return done(null, false);
+        return res.status(401).json({
+          success: false,
+          message: "incorrect username or password",
+        });
       } else if (!user.authenticateUser(password)) {
-        return done(null, false);
+        return res.status(401).json({
+          success: false,
+          message: "incorrect username or password",
+        });
       }
       return done(null, user);
     } catch (e) {
-      return done(e, false);
-    }
-  }
-);
-
-const colabLocalStrategy = new LocalStrategy(
-  localOpts,
-  async (userName, password, done) => {
-    try {
-      const colab = await Collaborator.findOne({
-        userName
+      logElement("error in services/auth/userLocalStrategy", e.message);
+      return res.status(500).json({
+        success: false,
+        message: "organization does not exist",
+        error: e.message,
       });
-      if (!colab) {
+    }
+  });
+
+const jwtStrategy = (tenant, req, res, next) =>
+  new JwtStrategy(jwtOpts, async (payload, done) => {
+    try {
+      const user = await UserModel(tenant).findOne({ _id: payload._id }).exec();
+      if (!user) {
         return done(null, false);
-      } else if (!colab.authenticateUser(password)) {
-        return done(null, false);
+        // return res.status(401).json({
+        //   success: false,
+        //   message: "authentication failed",
+        // });
       }
-      return done(null, colab);
+      return done(null, user);
     } catch (e) {
+      logElement("error in services/auth/jwtStrategy", e.message);
       return done(e, false);
+      // return res.status(500).json({
+      //   success: false,
+      //   message: "organization does not exist",
+      //   error: e.message,
+      // });
     }
-  }
-);
+  });
 
-const jwtStrategy = new JWTStrategy(jwtOpts, async (payload, done) => {
-  try {
-    const user = await User.findById(payload._id);
-    if (!user) {
-      return done(null, false);
-    }
-    return done(null, user);
-  } catch (e) {
-    return done(e, false);
-  }
-});
+const createStrategy = (tenant, req, res, next) => {
+  passport.use("user-local", userLocalStrategy(tenant, req, res, next));
+};
 
-passport.use("user-local", userLocalStrategy);
-passport.use("colab-local", colabLocalStrategy);
-passport.use(jwtStrategy);
+const createJWTStrategy = (tenant, req, res, next) => {
+  passport.use("jwt", jwtStrategy(tenant, req, res, next));
+};
+
+// passport.use(jwtStrategy);
 
 passport.serializeUser((user, cb) => {
   if (privileges.isUser(user)) {
@@ -83,30 +98,67 @@ passport.serializeUser((user, cb) => {
 passport.deserializeUser((id, cb) => {
   if (privileges.isUser(id)) {
     User.findById(id)
-      .then(user => cb(null, user))
-      .catch(err => cb(err));
+      .then((user) => cb(null, user))
+      .catch((err) => cb(err));
     // serialize user
   } else if (privileges.isCollab(user)) {
     // serialize collaborator
     Collaborator.findById(id)
-      .then(user => cb(null, user))
-      .catch(err => cb(err));
+      .then((user) => cb(null, user))
+      .catch((err) => cb(err));
   }
 });
 
+function login(req, res, next) {
+  try {
+    if (req.query.tenant) {
+      createStrategy(req.query.tenant, req, res, next);
+      next();
+    } else {
+      res.json({
+        success: false,
+        message:
+          "the organization is missing in the query params, please check documentation",
+      });
+    }
+  } catch (e) {
+    console.log("the error in login is: ", e.message);
+    res.json({ success: false, message: e.message });
+  }
+}
+
+function jwtAuth(req, res, next) {
+  try {
+    if (req.query.tenant) {
+      createJWTStrategy(req.query.tenant, req, res, next);
+      next();
+    } else {
+      res.json({
+        success: false,
+        message:
+          "the organization is missing in the query params, please check documentation",
+      });
+    }
+  } catch (e) {
+    console.log("the error in login is: ", e.message);
+    res.json({ success: false, message: e.message });
+  }
+}
+
 const authUserLocal = passport.authenticate("user-local", {
-  session: false
-  //   successFlash: "Welcome!",
-  //   failureFlash: "Invalid username or password."
+  session: false,
+  // successFlash: "Welcome!",
+  // failureMessage: "Invalid username or password.",
+  failureFlash: true,
 });
 
 const authColabLocal = passport.authenticate("colab-local", {
   successFlash: "Welcome!",
-  failureFlash: "Invalid username or password."
+  failureFlash: "Invalid username or password.",
 });
 
 const authJWT = passport.authenticate("jwt", {
-  session: false
+  session: false,
 });
 
 const isLoggedIn = function isLoggedIn(req, res, next) {
@@ -119,13 +171,15 @@ const isLoggedIn = function isLoggedIn(req, res, next) {
 
 const requiresSignIn = expressJwt({
   secret: process.env.JWT_SECRET,
-  userProperty: "auth"
+  userProperty: "auth",
 });
 
 module.exports = {
+  login: login,
   authUserLocal: authUserLocal,
   authJWT: authJWT,
+  jwtAuth: jwtAuth,
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
-  requiresSignIn: requiresSignIn
+  requiresSignIn: requiresSignIn,
 };

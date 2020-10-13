@@ -9,6 +9,8 @@ module.exports = function validateRegisterInput(data) {
   data.email = !isEmpty(data.email) ? data.email : "";
   data.password = !isEmpty(data.password) ? data.password : "";
   data.password2 = !isEmpty(data.password2) ? data.password2 : "";
+  data.privilege = !isEmpty(data.privilege) ? data.privilege : "";
+  data.organization = !isEmpty(data.organization) ? data.organization : "";
   // Name checks
   if (Validator.isEmpty(data.firstName)) {
     errors.firstName = "firstName field is required";
@@ -19,9 +21,14 @@ module.exports = function validateRegisterInput(data) {
   }
 
   //privilege checks
-  // if (Validator.isEmpty(data.privilege)) {
-  //   errors.privilege = "privilege field is required";
-  // }
+  if (Validator.isEmpty(data.privilege)) {
+    errors.privilege = "privilege field is required";
+  }
+
+  //organization checks
+  if (Validator.isEmpty(data.organization)) {
+    errors.organization = "organization field is required";
+  }
 
   //userName checks
   if (Validator.isEmpty(data.userName)) {
