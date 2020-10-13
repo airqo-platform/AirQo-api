@@ -1,0 +1,3 @@
+node_modules
+controllers/rsa_private.pem
+.env
