@@ -108,7 +108,13 @@ const main = {
          */
 
         // if (deviceName) {
-        const numbers = [...Array(100).keys()];
+        // const numbers = [...Array(100).keys()];
+
+        const totalNumbers = 110;
+        let numbers = [];
+        for (i = 0; i <= totalNumbers; i++) {
+          numbers.push(i < 10 ? "0" + i.toString() : i.toString());
+        }
         numbers.map((number) => {
           ctypes.map(async (type, index) => {
             console.log("this is the ctype", type);
