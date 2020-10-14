@@ -31,7 +31,7 @@ const getChannels = async () => {
   }
 };
 
-async function main() {
+async function main(req, res) {
   //   try {
   //     const channels = await getChannels();
   //     let arrayCopy = [...channels];
@@ -674,7 +674,7 @@ const pushToTopic = (data, topic) => {
  */
 const subscribeToTopic = (topic) => {};
 
-main();
+module.exports = main;
 // check that the sorter was called as a worker thread
 if (!isMainThread) {
   // make sure we got an array of data
