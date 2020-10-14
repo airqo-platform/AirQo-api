@@ -41,7 +41,7 @@ router.put(
 );
 router.put("/updatePassword", jwtAuth, authJWT, joinController.updatePassword);
 router.get("/reset/you", jwtAuth, authJWT, joinController.resetPassword);
-router.post("/forgotPassword", jwtAuth, authJWT, joinController.forgotPassword);
+router.post("/forgotPassword", jwtAuth, joinController.forgotPassword);
 router.put("/", jwtAuth, authJWT, joinController.updateUser);
 router.delete("/", jwtAuth, authJWT, joinController.deleteUser);
 router.put("/defaults/", jwtAuth, authJWT, joinController.updateUserDefaults);

@@ -123,6 +123,12 @@ const join = {
       const token = crypto.randomBytes(20).toString("hex");
 
       let query = { email: req.body.email };
+
+      if (!query.email) {
+        return res
+          .status(400)
+          .json({ success: false, message: "email field is required" });
+      }
       let updateDetails = {
         resetPasswordToken: token,
         resetPasswordExpires: Date.now() + 3600000,
@@ -159,7 +165,9 @@ const join = {
             });
             //return res.status(HTTPStatus.OK).json(response);
           } else {
-            return res.status(400).json({ email: "unable to send email" });
+            return res.status(400).json({
+              email: "unable to send email. Please crosscheck the organisation and email information provided."
+            });
           }
         }
       );
