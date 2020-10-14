@@ -36,4 +36,4 @@ def create_app(environment):
 application = create_app(os.getenv("FLASK_ENV"))
 
 if __name__ == '__main__':
-    application.run(debug=True)
+    application.run()
