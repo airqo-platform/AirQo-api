@@ -141,7 +141,7 @@ const join = {
         updateDetails,
         (error, response) => {
           if (error) {
-            return res.status(400).json({ email: "Email does not exist" });
+            return res.status(400).json({ message: "Email does not exist" });
           } else if (response) {
             const mailOptions = {
               from: constants.EMAIL,
@@ -160,13 +160,13 @@ const join = {
                 return res.status(500).json({ email: "unable to send email" });
               } else {
                 console.log("here is the res: ", response);
-                return res.status(200).json({ email: "recovery email sent" });
+                return res.status(200).json({ message: "recovery email sent" });
               }
             });
             //return res.status(HTTPStatus.OK).json(response);
           } else {
             return res.status(400).json({
-              email: "unable to send email. Please crosscheck the organisation and email information provided."
+              message: "unable to send email. Please crosscheck the organisation and email information provided."
             });
           }
         }
