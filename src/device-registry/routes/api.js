@@ -48,10 +48,12 @@ router.get("/list/components/", componentController.listAll);
 router.post("/add/components/", componentController.addComponent);
 router.delete("/delete/components/", componentController.deleteComponent);
 router.put("/update/components/", componentController.updateComponent);
+router.post("/add/components/types", componentController.createType);
+router.get("/list/components/types", componentController.getTypes);
 
 /******************* adding values******************************/
-router.post("/d_id/components/c_id/value", componentController.addValue);
-router.post("/d_id/components/c_id/values", componentController.addValues);
+router.post("/components/add/values", componentController.addValues);
+router.post("/components/add/values/bulk", componentController.addBulk);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
