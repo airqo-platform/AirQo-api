@@ -14,3 +14,8 @@ __pycache__/
 
 # Local History for Visual Studio Code
 .history/
+
+.env.yaml
+venv/
+.idea/
+*.pyc

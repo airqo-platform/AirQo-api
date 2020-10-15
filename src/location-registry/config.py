@@ -19,7 +19,7 @@ class ProductionConfig(Config):
     load_dotenv(dotenv_path)
     DEBUG = False
     #SERVER_PORT = os.environ.get('PORT', 5000)
-    MONGO_URI = os.getenv("MONGO_URI")
+    MONGO_URI = os.getenv("PROD_MONGO_URI")
 
 
 class DevelopmentConfig(Config):
@@ -28,7 +28,7 @@ class DevelopmentConfig(Config):
 
     DEVELOPMENT = True
     DEBUG = True
-    MONGO_URI = os.getenv("MONGO_URI")
+    MONGO_URI = os.getenv("DEV_MONGO_URI")
 
 
 class TestingConfig(Config):
@@ -36,7 +36,7 @@ class TestingConfig(Config):
     load_dotenv(dotenv_path)
 
     TESTING = True
-    MONGO_URI = os.getenv("MONGO_URI")
+    MONGO_URI = os.getenv("DEV_MONGO_URI")
 
 
 app_config = {"development": DevelopmentConfig,
@@ -44,4 +44,4 @@ app_config = {"development": DevelopmentConfig,
 
 
 if __name__ == '__main__':
-    print('package root', "Locations Registry App")
+    print('package root', "Location Registry App")

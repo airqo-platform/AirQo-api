@@ -8,10 +8,11 @@ import requests
 from shapely.geometry import Point
 from shapely.ops import transform
 from geopy.distance import distance
+import app
 from dotenv import load_dotenv
 load_dotenv()
 
-MONGO_URI = os.getenv("MONGO_URI")
+#MONGO_URI = os.getenv("MONGO_URI")
 API_KEY = os.getenv("API_KEY")
 OVERPASS_URL = os.getenv("OVERPASS_URL")
 SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT")  # +
@@ -19,42 +20,54 @@ SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT")  # +
 credentials = ee.ServiceAccountCredentials(
     SERVICE_ACCOUNT, 'private_key.json')  # +
 
+if os.getenv('FLASK_ENV') == 'production':
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_PROD')
+elif os.getenv('FLASK_ENV') == 'testing':
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_STAGING')
+else:
+    MONGO_URI = os.getenv('DEV_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_STAGING')
+
+
 ee.Initialize(credentials)
 # ee.Initialize()
 
 
-def connect_mongo():
+def connect_mongo(tenant_id):
     '''
     Connects to MongoDB
     '''
     try:
         client = MongoClient(MONGO_URI)
     except pymongo.errors.ConnectionFailure as e:
-        print("Could not connect to MongoDB: %s" % e)
-
-    #db = client['locate']
-    db = client['airqo_netmanager']
+        return {'message':'unable to connect to database', 'sucess':False}, 400
+    db_name = f'{DB_NAME}_{tenant_id.lower()}'
+    db = client[db_name]
     return db
 
 
-def get_location_ref():
+def get_location_ref(tenant_id):
     '''
     Generates location reference
     '''
-    db = connect_mongo()
+    db = connect_mongo(tenant_id)
     last_document = list(db.location_registry.find(
         {}).sort([('_id', -1)]).limit(1))
-    # last_document = list(db.collection.find({}).limit(1).sort([('$natural',-1)])
     if len(last_document) == 0:
         loc_ref = 1
     else:
         ref = last_document[0]['loc_ref']
-        loc_ref = int(ref[4:])+1
+        try: 
+            loc_ref = int(ref[4:])+1
+            return 'loc_'+str(loc_ref)
+        except:
+            return {'message': 'Invalid input'}, 400
 
-    return 'loc_'+str(loc_ref)
+    
 
-
-def get_location_details(lon, lat):
+def get_location_details(lon, lat, tenant_id):
     '''
     Gets the location details for the coordinates
     '''
@@ -77,7 +90,7 @@ def get_location_details(lon, lat):
         'properties.Subcounty': 1,
         'properties.Parish': 1
     }
-    db = connect_mongo()
+    db = connect_mongo(tenant_id)
     records = list(db.locate_map.find(query, projection))
     region = records[0]['properties']['Region']
     district = records[0]['properties']['District']

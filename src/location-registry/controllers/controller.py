@@ -4,6 +4,7 @@ import sys
 from flask_caching import Cache
 #from flask_cache import Cache
 from models.location import Location
+import sys
 
 location_blueprint = Blueprint('location_blueprint', __name__)
 location = Location()
@@ -31,19 +32,30 @@ def generate_ref():
     '''
     Generates a reference id for a new location
     '''
-    return helper.get_location_ref()
+    tenant_id = request.args.get('tenant')
+    if not tenant_id:
+        return {'message': 'Tenant id required', 'success':False}, 400
+    elif tenant_id != 'airqo':
+        return {'message':'Invalid organization', 'success':False}, 400
+    else:
+        return helper.get_location_ref(tenant_id) 
+   
 
 
 @location_blueprint.route('/api/v1/location_registry/register', methods=['POST'])
-# @cache.cached(timeout=60)
+#@cache.cached(timeout=60)
 def register_location():
     '''
     Saves a new location into a database
     '''
     if request.method == 'POST':
+        tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required', 'success':False}, 400
+    
         json_data = request.get_json()
         if not json_data:
-            return {'message': 'No input data provided'}, 400
+            return {'message': 'No input data provided', 'success':False}, 400
         else:
             loc_ref = json_data["locationReference"]
             host_name = json_data["hostName"]
@@ -73,7 +85,7 @@ def register_location():
             if mobility == 'Static':
                 try:
                     region, district, county, subcounty, parish = helper.get_location_details(
-                        longitude, latitude)
+                        longitude, latitude, 'airqo')
                     location_name = helper.get_location_name(
                         parish.capitalize(), district.capitalize())
                 except:
@@ -106,7 +118,7 @@ def register_location():
                         latitude, longitude)
                 except:
                     #nearest_city_distance = None, None, None
-                    nearest_city_ditance = None
+                    nearest_city_distance = None
             else:
                 region, district, county, subcounty, parish, location_name = None, None, None, None, None, None
                 altitude = None
@@ -116,22 +128,32 @@ def register_location():
                 closest_motorway_distance = None
                 nearest_city_distance = None
             try:
-                location.register_location(loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status, 
+                location.register_location(tenant_id, loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status, 
                 local_activities, location_name, country, region, district, county, subcounty, parish, altitude, aspect, landform_90, 
                 landform_270, closest_distance, closest_motorway_distance, closest_residential_distance, nearest_city_distance)
                 cache.clear()
-                return {'message': 'Location registered succesfully'}, 200
+                return {'message': 'Location registered succesfully', 'success':True}, 200
             except:
-                return {'message': 'An error occured. Please try again'}, 400
+                return {'message': 'An error occured. Please try again', 'success':False}, 400
+            
 
 
 @location_blueprint.route('/api/v1/location_registry/locations', methods=['GET'])
-@cache.cached(timeout=0)
+@cache.cached(timeout=5)
 def get_all_locations():
     '''
     Gets data for all the locations in the database
     '''
-    return jsonify(location.all_locations())
+    tenant_id = request.args.get('tenant')
+    if not tenant_id:
+        return {'message': 'Tenant id required', 'success':False}, 400
+    locations = location.all_locations(tenant_id)
+    if type(locations) != list:
+        return locations
+    elif len(locations)==0:
+        return {'message': 'Organization does not have any locations'}, 400
+    else:
+        return jsonify(locations)
 
 
 @location_blueprint.route('/api/v1/location_registry/location', methods=['GET'])
@@ -142,11 +164,14 @@ def get_location_details():
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
-        try:
-            details = location.get_location(loc_ref)
-            return details
-        except:
-            return {'message': 'An error occured. Please enter valid location reference'}, 400
+        tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required', 'success': False}, 400
+        if not loc_ref:
+            return {'message': 'Location reference required', 'success': False}, 400
+        details = location.get_location(tenant_id, loc_ref)
+        return details
+        
 
 
 @location_blueprint.route('/api/v1/location_registry/edit', methods=['GET'])
@@ -157,21 +182,27 @@ def edit_location():
     '''
     if request.method == 'GET':
         loc_ref = request.args.get('loc_ref')
-        try: 
-            details = location.get_location_details_to_edit(loc_ref)
-            return jsonify(details)
-        except:
-            return {'message': 'An error occured. Please enter valid location reference'}, 400
+        tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required', 'success':False}, 400
+        if not loc_ref:
+            return {'message': 'Location reference required', 'success': False}, 400
+        details = location.get_location_details_to_edit(tenant_id, loc_ref)
+        return details
+        
 
 
-@location_blueprint.route('/api/v1/location_registry/update', methods=['POST'])
+@location_blueprint.route('/api/v1/location_registry/update', methods=['PUT'])
 # @cache.cached(timeout=60)
 def update_location():
     '''
     Updates an edited location's details
     '''
 
-    if request.method == 'POST':
+    if request.method == 'PUT':
+        tenant_id = request.args.get('tenant')
+        if not tenant_id:
+            return {'message': 'Tenant id required'}, 400
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided'}, 400
@@ -188,11 +219,6 @@ def update_location():
             for i in json_data["localActivities"]:
                 local_activities.append(i["value"])
 
-            try:
-                '''location.save_edited_location(loc_ref, power, internet, height, road_intensity, installation_type, road_status,
-                                              local_activities)'''
-                location.save_edited_location(loc_ref, road_intensity, description, road_status, local_activities)
-                cache.clear()
-                return {'message': 'Location has been successfully updated'}, 200
-            except:
-                return {'message': 'An error occured. Please try again'}, 400
+            message = location.save_edited_location(tenant_id, loc_ref, road_intensity, description, road_status, local_activities)
+            cache.clear()
+            return message
