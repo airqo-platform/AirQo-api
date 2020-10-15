@@ -4,6 +4,7 @@ import os
 import sys
 from dotenv import load_dotenv
 
+
 class Config:
     DEBUG = False
     TESTING = False
@@ -11,18 +12,17 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
     #SERVER_PORT = 5000
 
-    CLARITY_API_BASE_URL= os.getenv("CLARITY_API_BASE_URL")
-    CLARITY_API_KEY= os.getenv("CLARITY_API_KEY")
-
-    
+    CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
+    CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
 
 
 class ProductionConfig(Config):
-    dotenv_path = os.path.join(os.path.dirname(__file__), 'production.env')
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
     DEBUG = False
     #SERVER_PORT = os.environ.get('PORT', 5000)
-    MONGO_URI = os.getenv("MONGO_URI") 
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
+    DB_NAME = os.getenv("MONGO_PROD")
 
 
 class DevelopmentConfig(Config):
@@ -31,21 +31,22 @@ class DevelopmentConfig(Config):
 
     DEVELOPMENT = True
     DEBUG = True
-    MONGO_URI = os.getenv("MONGO_URI") 
+    MONGO_URI = os.getenv("MONGO_LOCAL_URI")
+    DB_NAME = os.getenv("MONGO_DEV")
 
 
 class TestingConfig(Config):
-    dotenv_path = os.path.join(os.path.dirname(__file__), 'testing.env')
+    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
 
     TESTING = True
-    MONGO_URI = os.getenv("MONGO_URI") 
-    
+    MONGO_URI = os.getenv("MONGO_GCE_URI")
+    DB_NAME = os.getenv("MONGO_STAGE")
 
-app_config = {"development": DevelopmentConfig, "testing": TestingConfig, "production": ProductionConfig}
+
+app_config = {"development": DevelopmentConfig,
+              "testing": TestingConfig, "production": ProductionConfig}
 
 
 if __name__ == '__main__':
     print('package root', "Analytics App")
-
-
