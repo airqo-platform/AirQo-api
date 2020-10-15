@@ -38,7 +38,7 @@ const join = {
       const { tenant } = req.query;
       const { body } = req;
       logObject("checking the body", body);
-      const user = await UserModel(tenant).createUser(body);
+      const user = await UserModel(tenant.toLowerCase()).createUser(body);
       if (user) {
         return res.status(HTTPStatus.OK).json({
           success: true,
@@ -66,7 +66,7 @@ const join = {
       if (tenant && id) {
         logElement("the tenant", tenant);
         logElement("the id", id);
-        const user = await UserModel(tenant).findOne({ _id: id });
+        const user = await UserModel(tenant.toLowerCase()).findOne({ _id: id });
         logObject("the user", user);
         if (!isEmpty(user)) {
           return res.status(HTTPStatus.OK).json({
@@ -81,7 +81,7 @@ const join = {
           });
         }
       } else if (tenant && !id) {
-        const users = await UserModel(tenant).find();
+        const users = await UserModel(tenant.toLowerCase()).find();
         if (!isEmpty(users)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
@@ -130,7 +130,7 @@ const join = {
       //get the model based on tenant
       const { tenant } = req.query;
 
-      await UserModel(tenant).findOneAndUpdate(
+      await UserModel(tenant.toLowerCase()).findOneAndUpdate(
         query,
         updateDetails,
         (error, response) => {
@@ -199,7 +199,14 @@ const join = {
           )}`,
         };
       }
-      register(req, res, mailOptions, req.body, UserModel(tenant), tenant);
+      register(
+        req,
+        res,
+        mailOptions,
+        req.body,
+        UserModel(tenant.toLowerCase()),
+        tenant
+      );
     } catch (e) {
       logElement("the error", e);
       return res.status(500).json({
@@ -213,7 +220,7 @@ const join = {
   confirmEmail: async (req, res) => {
     try {
       const { tenant, id } = req.query;
-      UserModel(tenant)
+      UserModel(tenant.toLowerCase())
         .findById(id)
         .then((user) => {
           //when the user does not exist in the DB
@@ -260,7 +267,7 @@ const join = {
 
   deleteUser: (req, res, next) => {
     const { tenant, id } = req.query;
-    UserModel(tenant).findByIdAndRemove(id, (err, user) => {
+    UserModel(tenant.toLowerCase()).findByIdAndRemove(id, (err, user) => {
       if (err) {
         return res.status(400).json({
           success: false,
@@ -285,7 +292,7 @@ const join = {
     const { tenant, id } = req.query;
     delete req.body.password;
     delete req.body.email;
-    UserModel(tenant).findByIdAndUpdate(
+    UserModel(tenant.toLowerCase()).findByIdAndUpdate(
       id,
       req.body,
       { new: true },
@@ -330,7 +337,7 @@ const join = {
         delete req.body.user;
         let update = req.body,
           options = { upsert: true, new: true };
-        let doc = await DefaultModel(tenant)
+        let doc = await DefaultModel(tenant.toLowerCase())
           .findOneAndUpdate(filter, update, options)
           .exec();
 
@@ -372,7 +379,9 @@ const join = {
       if (tenant && user && !chartTitle) {
         logElement("the tenant", tenant);
         logElement("the user", user);
-        const defaults = await DefaultModel(tenant).find({ user: user }).exec();
+        const defaults = await DefaultModel(tenant.toLowerCase())
+          .find({ user: user })
+          .exec();
         logObject("the defaults", defaults);
         return res.status(HTTPStatus.OK).json({
           success: true,
@@ -380,7 +389,7 @@ const join = {
           defaults,
         });
       } else if (tenant && user && chartTitle) {
-        const userdefault = await DefaultModel(tenant)
+        const userdefault = await DefaultModel(tenant.toLowerCase())
           .find({
             user: user,
             chartTitle: chartTitle,
@@ -416,13 +425,13 @@ const join = {
   updateLocations: (req, res) => {
     const { tenant, id } = req.query;
     let response = {};
-    UserModel(tenant).find({ _id: id }, (error, user) => {
+    UserModel(tenant.toLowerCase()).find({ _id: id }, (error, user) => {
       if (error) {
         response.success = false;
         response.message = "Internal Server Error";
         res.status(500).json(response);
       } else if (user.length) {
-        let location = new LocationModel(tenant)(req.body);
+        let location = new LocationModel(tenant.toLowerCase())(req.body);
         location.user = user[0]._id;
         location.save((error, savedLocation) => {
           if (error) {
@@ -430,7 +439,7 @@ const join = {
             response.message = "Internal Server Error";
             res.status(500).json(response);
           } else {
-            UserModel(tenant).findByIdAndUpdate(
+            UserModel(tenant.toLowerCase()).findByIdAndUpdate(
               req.params.id,
               { $push: { pref_locations: savedLocation._id } },
               { new: true },
@@ -458,7 +467,7 @@ const join = {
     const { tenant, resetPasswordToken } = req.query;
     console.log("inside the reset password function...");
     console.log(`${resetPasswordToken}`);
-    await UserModel(tenant).findOne(
+    await UserModel(tenant.toLowerCase()).findOne(
       {
         resetPasswordToken: resetPasswordToken,
         resetPasswordExpires: {
@@ -489,7 +498,7 @@ const join = {
 
     const { userName, password, resetPasswordToken } = req.body;
 
-    UserModel(tenant)
+    UserModel(tenant.toLowerCase())
       .findOne({
         userName: userName,
         resetPasswordToken: resetPasswordToken,
@@ -534,7 +543,7 @@ const join = {
       const { tenant, id } = req.query;
       const { password, password2, old_pwd } = req.body;
       if ((password, password2, old_pwd)) {
-        UserModel(tenant)
+        UserModel(tenant.toLowerCase())
           .findOne({
             _id: id,
           })
