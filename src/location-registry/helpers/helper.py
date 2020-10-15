@@ -22,10 +22,13 @@ credentials = ee.ServiceAccountCredentials(
 
 if os.getenv('FLASK_ENV') == 'production':
     MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_PROD')
 elif os.getenv('FLASK_ENV') == 'testing':
     MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_STAGING')
 else:
     MONGO_URI = os.getenv('DEV_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_STAGING')
 
 
 ee.Initialize(credentials)
@@ -40,7 +43,7 @@ def connect_mongo(tenant_id):
         client = MongoClient(MONGO_URI)
     except pymongo.errors.ConnectionFailure as e:
         return {'message':'unable to connect to database', 'sucess':False}, 400
-    db_name = 'airqo_netmanager_'+tenant_id
+    db_name = f'{DB_NAME}_{tenant_id.lower()}'
     db = client[db_name]
     return db
 
