@@ -17,7 +17,7 @@ ENV VIRTUAL_ENV /env
 ENV PATH /env/bin:$PATH
 
 #Setting running environment to production
-ENV FLASK_ENV=production
+ENV FLASK_ENV=testing
 
 # Copy the application's requirements.txt and run pip to install all
 # dependencies into the virtualenv.
