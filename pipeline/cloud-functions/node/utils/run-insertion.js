@@ -60,7 +60,7 @@ async function run() {
   // get the channels on the platform
   const getChannels = async () => {
     try {
-      const channelsAPI = `https://api.thingspeak.com/channels.json?api_key=JQZOU97VDLX7OTDH`;
+      const channelsAPI = `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`;
       console.log("channelsAPI", channelsAPI);
       const response = await axios.get(channelsAPI);
       return response.data;
