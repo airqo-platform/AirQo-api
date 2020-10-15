@@ -1,32 +1,44 @@
-const morgan = require('morgan');
+const morgan = require("morgan");
+const bodyParser = require("body-parser");
+const compression = require("compression");
+const helmet = require("helmet");
+const passport = require("passport");
+const session = require("express-session");
+const MongoStore = require("connect-mongo")(session);
+const mongoose = require("mongoose");
 
-const bodyParser = require('body-parser');
+const { isPrimitive } = require("util");
 
-const compression = require('compression');
+const isDev = process.env.NODE_ENV === "development";
+const isProd = process.env.NODE_ENV === "production";
 
-const helmet = require('helmet');
+module.exports = (app) => {
+  if (isProd) {
+    app.use(compression());
+    app.use(helmet());
+  }
 
-const { isPrimitive } = require('util')
+  const options = { mongooseConnection: mongoose.connection };
 
-const isDev = process.env.NODE_ENV === 'development';
-const isProd = process.env.NODE_ENV === 'production';
-const isTest = process.env.NODE_ENV === 'test';
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET,
+      store: new MongoStore(options),
+      resave: false,
+      saveUninitialized: false,
+    })
+  );
 
-module.exports = app => {
-    if (isProd) {
-        app.use(compression());
-        app.use(helmet());
-    }
-    app.use(bodyParser.json());
-    app.use(bodyParser.urlencoded({
-        extended: true
-    }));
+  app.use(passport.initialize());
+  app.use(passport.session());
+  app.use(bodyParser.json());
+  app.use(
+    bodyParser.urlencoded({
+      extended: true,
+    })
+  );
 
-    if (isDev) {
-        app.use(morgan('dev'));
-    }
-
-    if (isTest) {
-        app.use(morgan('dev'));
-    }
-}
+  if (isDev) {
+    app.use(morgan("dev"));
+  }
+};

@@ -21,7 +21,7 @@ spec:
           image: us.gcr.io/airqo-250220/airqo-stage-device-monitor:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 4000
+            - containerPort: 4001
               name: sta-dev-monitor
 
 ---
@@ -35,7 +35,7 @@ spec:
     app: sta-device-monitor
   ports:
     - protocol: TCP
-      port: 4000
-      targetPort: 4000
-      nodePort: 30006
+      port: 4001
+      targetPort: 4001
+      nodePort: 31006
   type: NodePort

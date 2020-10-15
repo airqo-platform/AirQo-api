@@ -78,7 +78,7 @@ docker push <host-name>/<GCP project>/<microservice-name>
 - Example: docker push us.gcr.io/airqo-api/airqo-device-registry-api
 
 ## Contributing
-We invite you to help us build this platform. Please look up the [contributing guide](https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines) for details. 
+We invite you to help us build this platform. Please look up the [contributing guide](https://github.com/airqo-platform/AirQo-api/wiki) for details. 
 
 ## Issues
-Before reporting a problem, please check out the [issue guide](https://github.com/airqo-platform/AirQo-api/wiki/Coding-Guidelines).
+Before reporting a problem, please check out the [issue guide](https://github.com/airqo-platform/AirQo-api/wiki#reporting-issues).

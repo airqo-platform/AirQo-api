@@ -1,14 +1,17 @@
 const devConfig = {
-  MONGO_URL: "mongodb://localhost/data-mgt-dev",
+  MONGO_URL: "mongodb://localhost/",
   JWT_SECRET: process.env.JWT_SECRET,
+  DB_NAME: process.env.MONGO_DEV,
 };
-const testConfig = {
-  MONGO_URL: "mongodb://localhost/data-mgt-test",
+const stageConfig = {
+  MONGO_URL: "mongodb://localhost/",
   JWT_SECRET: process.env.JWT_SECRET,
+  DB_NAME: process.env.MONGO_STAGE,
 };
 const prodConfig = {
   MONGO_URL: process.env.MONGO_GCE_URI,
   JWT_SECRET: process.env.JWT_SECRET,
+  DB_NAME: process.env.MONGO_PROD,
 };
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
@@ -18,8 +21,8 @@ function envConfig(env) {
   switch (env) {
     case "development":
       return devConfig;
-    case "test":
-      return testConfig;
+    case "staging":
+      return stageConfig;
     default:
       return prodConfig;
   }

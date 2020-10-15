@@ -16,6 +16,9 @@ RUN virtualenv /env -p python3.7
 ENV VIRTUAL_ENV /env
 ENV PATH /env/bin:$PATH
 
+#Setting running environment to production
+ENV FLASK_ENV=production
+
 # Copy the application's requirements.txt and run pip to install all
 # dependencies into the virtualenv.
 ADD requirements.txt /app/requirements.txt
