@@ -821,6 +821,80 @@ const Component = {
     }
   },
 
+  getValues: async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      const { comp, device, tenant } = req.query;
+      logElement("device name ", device);
+      logElement("Component name ", comp);
+      if (comp && device) {
+        const event = await getModelByTenant(tenant, "event", EventSchema)
+          .find({
+            componentName: comp,
+            deviceName: device,
+          })
+          .exec();
+        if (!isEmpty(event)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "successfully listed one Event",
+            event,
+          });
+        } else if (isEmpty(event)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: `unable to find that Component ${comp} for device ${device}`,
+          });
+        }
+      } else if (device && !comp) {
+        const events = await getModelByTenant(tenant, "event", EventSchema)
+          .find({
+            deviceID: device,
+          })
+          .exec();
+        if (!isEmpty(events)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: `successfully listed the Events for device ${device}`,
+            events,
+          });
+        } else if (isEmpty(events)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: `unable to find the Events for device ${device}`,
+          });
+        }
+      } else if (!device && !comp) {
+        const events = await getModelByTenant(
+          tenant,
+          "event",
+          EventSchema
+        ).list({ limit, skip });
+        if (!isEmpty(events)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "successfully listed all platform Events",
+            tip:
+              "use documented query parameters (device/comp) to filter your search results",
+            events,
+          });
+        } else if (isEmpty(events)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: `unable to find all the platform Events`,
+          });
+        }
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: "unable to list any Event",
+        error: e.message,
+      });
+    }
+  },
+
   /********************************* push data to Thing ****************************** */
   writeToThing: async (req, res) => {
     await axios

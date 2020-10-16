@@ -51,9 +51,10 @@ router.put("/update/components/", componentController.updateComponent);
 router.post("/add/components/types", componentController.createType);
 router.get("/list/components/types", componentController.getTypes);
 
-/******************* adding values******************************/
+/******************* device measurements ******************************/
 router.post("/components/add/values", componentController.addValues);
 router.post("/components/add/values/bulk", componentController.addBulk);
+router.get("/components/list/values", componentController.getValues);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
