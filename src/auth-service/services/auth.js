@@ -25,7 +25,7 @@ const jwtOpts = {
 const userLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(localOpts, async (userName, password, done) => {
     try {
-      const user = await UserModel(tenant)
+      const user = await UserModel(tenant.toLowerCase())
         .findOne({
           userName,
         })
@@ -33,7 +33,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: "incorrect username or password",
+          message: `username or password does not exist in this organisation (${tenant})`,
         });
       } else if (!user.authenticateUser(password)) {
         return res.status(401).json({
@@ -55,7 +55,9 @@ const userLocalStrategy = (tenant, req, res, next) =>
 const jwtStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
-      const user = await UserModel(tenant).findOne({ _id: payload._id }).exec();
+      const user = await UserModel(tenant.toLowerCase())
+        .findOne({ _id: payload._id })
+        .exec();
       if (!user) {
         return done(null, false);
         // return res.status(401).json({
