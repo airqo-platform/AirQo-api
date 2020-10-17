@@ -682,7 +682,7 @@ const device = {
                 tenant,
                 "device",
                 DeviceSchema
-              ).createDeviceModel(prepBodyDeviceModel);
+              ).createDevice(prepBodyDeviceModel);
               logElement("DB addition response", device);
               return res.status(HTTPStatus.CREATED).json({
                 success: true,
@@ -690,14 +690,26 @@ const device = {
                 device,
               });
             })
-            .catch((e) => {
-              let errors = e.message;
-              res.status(400).json({
-                success: false,
-                message:
-                  "unable to create the device, please crosscheck the validity of all your input values",
-                errors,
-              });
+            .catch(async (e) => {
+              /**
+               * In case of errors, delete the created Thing from TS
+               */
+              logElement(
+                "unable to create device on the platform, attempting to delete it from TS",
+                e.message
+              );
+              let query = {};
+              query.tenant = tenant;
+              query.device = deviceBody.name;
+              let newReq = { query };
+              // delete res.headers;ç
+              device.deleteThing(newReq, res);
+              // res.status(400).json({
+              //   success: false,
+              //   message:
+              //     "unable to create the device, please crosscheck the validity of all your input values",
+              //   error: e.message,
+              // });
             });
         } else {
           res.status(400).json({
@@ -717,7 +729,7 @@ const device = {
       return res.status(400).json({
         success: false,
         message: "unable to create the device",
-        error: e,
+        error: e.message,
       });
     }
   },
@@ -827,8 +839,44 @@ const device = {
         });
       }
     } catch (e) {
-      logElement("unable to carry out the entire deletion of device", e);
-      logObject("unable to carry out the entire deletion of device", e);
+      logElement(
+        "unable to carry out the entire deletion of device",
+        e.message
+      );
+      logObject("unable to carry out the entire deletion of device", e.message);
+    }
+  },
+
+  deleteChannel: async (channel) => {
+    try {
+      if (!channel) {
+        res.status(400).json({
+          message: "the channel is missing in the request body",
+          success: false,
+        });
+      }
+      logText("deleting device from TS.......");
+      logElement("the channel ID", channel);
+      await axios
+        .delete(constants.DELETE_THING_URL(channel))
+        .then(async (response) => {
+          logText("successfully deleted device from TS");
+          logObject("TS response data", response.data);
+        })
+        .catch(function(error) {
+          logElement("unable to delete device from TS", error);
+          res.status(500).json({
+            message: "unable to delete the device from TS",
+            success: false,
+            error,
+          });
+        });
+    } catch (e) {
+      logElement(
+        "unable to carry out the entire deletion of device",
+        e.message
+      );
+      logObject("unable to carry out the entire deletion of device", e.message);
     }
   },
 
