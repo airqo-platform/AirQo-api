@@ -656,7 +656,7 @@ const device = {
           ...tsBody,
           ...constants.DEVICE_CREATION,
         };
-        let isDeviceModelPresent = await doesDeviceExist(name);
+        let isDeviceModelPresent = await doesDeviceExist(name, tenant);
         logElement("isDeviceModelPresent ?", isDeviceModelPresent);
         if (!isDeviceModelPresent) {
           logText("adding device on TS...");
@@ -777,7 +777,7 @@ const device = {
         });
       }
       if (doesDeviceExist(device)) {
-        const channelID = await getChannelID(req, res, device);
+        const channelID = await getChannelID(req, res, device, tenant);
         logText("deleting device from TS.......");
         logElement("the channel ID", channelID);
         await axios
@@ -889,7 +889,7 @@ const device = {
       if (isDeviceModelPresent) {
         //get the thing's channel ID
         //lets first get the channel ID
-        const channelID = await getChannelID(req, res, device);
+        const channelID = await getChannelID(req, res, device, tenant);
         logText("...................................");
         logText("clearing the Thing....");
         logElement("url", constants.CLEAR_THING_URL(channelID));
@@ -940,7 +940,7 @@ const device = {
       logElement("isDeviceModelPresent ?", isDeviceModelPresent);
 
       if (isDeviceModelPresent) {
-        const channelID = await getChannelID(req, res, device);
+        const channelID = await getChannelID(req, res, device, tenant);
         logText(".............................................");
         logText("updating the thing.......");
         logElement("the channel ID", channelID);
