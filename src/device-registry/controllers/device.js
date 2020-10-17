@@ -26,6 +26,10 @@ const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
 const qs = require("qs");
 const { getModelByTenant } = require("../utils/multitenancy");
+const {
+  createOnThingSpeak,
+  createOnClarity,
+} = require("../utils/integrations");
 
 const ComponentModel = (tenant) => {
   getModelByTenant(tenant, "component", ComponentSchema);
@@ -659,46 +663,28 @@ const device = {
         let isDeviceModelPresent = await doesDeviceExist(name, tenant);
         logElement("isDeviceModelPresent ?", isDeviceModelPresent);
         if (!isDeviceModelPresent) {
+          /***
+           * when creating for AirQo, make call to TS
+           * As for other organisations, just make a different call or just ignore
+           * will put this function in a separate place as a util of sorts
+           */
           logText("adding device on TS...");
           let channel;
-          await axios
-            .post(baseUrl, prepBodyTS)
-            .then(async (response) => {
-              channel = response.data.id;
-              logText("device successfully created on TS.");
-              logObject("the response from TS", response);
-              let writeKey = response.data.api_keys[0].write_flag
-                ? response.data.api_keys[0].api_key
-                : "";
-              let readKey = !response.data.api_keys[1].write_flag
-                ? response.data.api_keys[1].api_key
-                : "";
-              let prepBodyDeviceModel = {
-                ...deviceBody,
-                channelID: `${response.data.id}`,
-                writeKey: writeKey,
-                readKey: readKey,
-              };
-              logText("adding the device in the DB...");
-              const device = await getModelByTenant(
-                tenant,
-                "device",
-                DeviceSchema
-              ).createDevice(prepBodyDeviceModel);
-              logElement("DB addition response", device);
-              return res.status(HTTPStatus.CREATED).json({
-                success: true,
-                message: "successfully created the device",
-                device,
-              });
-            })
-            .catch(async (e) => {
-              logElement(
-                "unable to create device on the platform, attempting to delete it from TS",
-                e.message
-              );
-              device.deleteChannel(channel, req, res, e.message);
-            });
+          if (tenant === "airqo") {
+            createOnThingSpeak(
+              req,
+              res,
+              baseUrl,
+              prepBodyTS,
+              channel,
+              device,
+              deviceBody,
+              tenant
+            );
+          } else {
+            //just create the device locally
+            createOnClarity(tenant, req, res);
+          }
         } else {
           res.status(400).json({
             success: false,
