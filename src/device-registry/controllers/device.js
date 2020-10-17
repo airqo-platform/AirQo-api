@@ -660,9 +660,11 @@ const device = {
         logElement("isDeviceModelPresent ?", isDeviceModelPresent);
         if (!isDeviceModelPresent) {
           logText("adding device on TS...");
+          let channel;
           await axios
             .post(baseUrl, prepBodyTS)
             .then(async (response) => {
+              channel = response.data.id;
               logText("device successfully created on TS.");
               logObject("the response from TS", response);
               let writeKey = response.data.api_keys[0].write_flag
@@ -691,25 +693,11 @@ const device = {
               });
             })
             .catch(async (e) => {
-              /**
-               * In case of errors, delete the created Thing from TS
-               */
               logElement(
                 "unable to create device on the platform, attempting to delete it from TS",
                 e.message
               );
-              let query = {};
-              query.tenant = tenant;
-              query.device = deviceBody.name;
-              let newReq = { query };
-              // delete res.headers;ç
-              device.deleteThing(newReq, res);
-              // res.status(400).json({
-              //   success: false,
-              //   message:
-              //     "unable to create the device, please crosscheck the validity of all your input values",
-              //   error: e.message,
-              // });
+              device.deleteChannel(channel, req, res, e.message);
             });
         } else {
           res.status(400).json({
@@ -847,7 +835,7 @@ const device = {
     }
   },
 
-  deleteChannel: async (channel) => {
+  deleteChannel: async (channel, req, res, error) => {
     try {
       if (!channel) {
         res.status(400).json({
@@ -862,6 +850,11 @@ const device = {
         .then(async (response) => {
           logText("successfully deleted device from TS");
           logObject("TS response data", response.data);
+          res.status(500).json({
+            message: "unable to create device on platform",
+            success: false,
+            error: error,
+          });
         })
         .catch(function(error) {
           logElement("unable to delete device from TS", error);
