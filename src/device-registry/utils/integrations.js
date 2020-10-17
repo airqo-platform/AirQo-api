@@ -33,17 +33,6 @@ const createOnThingSpeak = async (
       };
       logText("adding the device in the DB...");
       createDevice(tenant, prepBodyDeviceModel, req, res);
-      //   const device = await getModelByTenant(
-      //     tenant,
-      //     "device",
-      //     DeviceSchema
-      //   ).createDevice(prepBodyDeviceModel);
-      //   logElement("DB addition response", device);
-      //   return res.status(HTTPStatus.CREATED).json({
-      //     success: true,
-      //     message: "successfully created the device",
-      //     device,
-      //   });
     })
     .catch(async (e) => {
       logElement(
