@@ -6,6 +6,7 @@ const { logObject, logText, logElement } = require("../utils/log");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const EventSchema = require("../models/Event");
+const axios = require("axios");
 const {
   uniqueNamesGenerator,
   NumberDictionary,
@@ -16,7 +17,7 @@ const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
   const deviceDetails = await getModelByTenant(
-    tenant,
+    tenant.toLowerCase(),
     "component",
     ComponentSchema
   )
@@ -53,7 +54,11 @@ const doesDeviceExist = async (deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesDeviceExist?...");
-    const device = await getModelByTenant(tenant, "component", ComponentSchema)
+    const device = await getModelByTenant(
+      tenant.toLowerCase(),
+      "component",
+      ComponentSchema
+    )
       .find({
         name: deviceName,
       })
@@ -77,7 +82,7 @@ const doesComponentExist = async (componentName, deviceName, tenant) => {
     logText(".......................................");
     logText("doesComponentExist?...");
     const component = await getModelByTenant(
-      tenant,
+      tenant.toLowerCase(),
       "component",
       ComponentSchema
     )
@@ -105,7 +110,7 @@ const doesComponentTypeExist = async (name, tenant) => {
     logText(".......................................");
     logText("doesComponentExist?...");
     const componentType = await getModelByTenant(
-      tenant,
+      tenant.toLowerCase(),
       "componentType",
       ComponentTypeSchema
     )
@@ -133,73 +138,81 @@ const Component = {
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
       const { comp, device, tenant } = req.query;
-      logElement("device name ", device);
-      logElement("Component name ", comp);
-      if (comp && device) {
-        const component = await getModelByTenant(
-          tenant,
-          "component",
-          ComponentSchema
-        )
-          .find({
-            name: comp,
-            deviceID: device,
-          })
-          .exec();
-        if (!isEmpty(component)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully listed one Component",
-            component,
-          });
-        } else if (isEmpty(component)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find that Component ${comp} for device ${device}`,
-          });
+
+      if (tenant) {
+        logElement("device name ", device);
+        logElement("Component name ", comp);
+        if (comp && device) {
+          const component = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          )
+            .find({
+              name: comp,
+              deviceID: device,
+            })
+            .exec();
+          if (!isEmpty(component)) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully listed one Component",
+              component,
+            });
+          } else if (isEmpty(component)) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: `unable to find that Component ${comp} for device ${device}`,
+            });
+          }
+        } else if (device && !comp) {
+          const components = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          )
+            .find({
+              deviceID: device,
+            })
+            .exec();
+          if (!isEmpty(components)) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: `successfully listed the Components for device ${device}`,
+              components,
+            });
+          } else if (isEmpty(components)) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: `unable to find the Components for device ${device}`,
+            });
+          }
+        } else if (!device && !comp) {
+          const components = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          ).list({ limit, skip });
+          if (!isEmpty(components)) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully listed all platform Components",
+              tip:
+                "use documented query parameters (device/comp) to filter your search results",
+              components,
+            });
+          } else if (isEmpty(components)) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: `unable to find all the platform Components`,
+            });
+          }
         }
-      } else if (device && !comp) {
-        const components = await getModelByTenant(
-          tenant,
-          "component",
-          ComponentSchema
-        )
-          .find({
-            deviceID: device,
-          })
-          .exec();
-        if (!isEmpty(components)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: `successfully listed the Components for device ${device}`,
-            components,
-          });
-        } else if (isEmpty(components)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find the Components for device ${device}`,
-          });
-        }
-      } else if (!device && !comp) {
-        const components = await getModelByTenant(
-          tenant,
-          "component",
-          ComponentSchema
-        ).list({ limit, skip });
-        if (!isEmpty(components)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully listed all platform Components",
-            tip:
-              "use documented query parameters (device/comp) to filter your search results",
-            components,
-          });
-        } else if (isEmpty(components)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find all the platform Components`,
-          });
-        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
+        });
       }
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
@@ -222,13 +235,13 @@ const Component = {
        * check that all the request body elements are present
        */
 
-      if (device && ctype && measurement && description) {
+      if (device && ctype && measurement && description && tenant) {
         const isDevicePresent = await doesDeviceExist(device);
         logElement("isDevicePresent ?", isDevicePresent);
 
         const isComponentTypePresent = await doesComponentTypeExist(
           ctype,
-          tenant
+          tenant.toLowerCase()
         );
         logElement("isComponentTypePresent ?", isComponentTypePresent);
 
@@ -254,7 +267,7 @@ const Component = {
           };
 
           const component = await getModelByTenant(
-            tenant,
+            tenant.toLowerCase(),
             "component",
             ComponentSchema
           ).createComponent(componentBody);
@@ -296,7 +309,7 @@ const Component = {
       let { device, comp, tenant } = req.query;
       if ((comp && device, tenant)) {
         const component = await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "component",
           ComponentSchema
         )
@@ -316,7 +329,7 @@ const Component = {
         let ComponentFilter = { name: comp };
         if (!isEmpty(component)) {
           getModelByTenant(
-            tenant,
+            tenant.toLowerCase(),
             "component",
             ComponentSchema
           ).findOneAndRemove(ComponentFilter, (err, removedComponent) => {
@@ -357,7 +370,7 @@ const Component = {
       let { device, comp, tenant } = req.query;
       if (comp && device && tenant) {
         const component = await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "component",
           ComponentSchema
         )
@@ -378,7 +391,7 @@ const Component = {
         let componentFilter = { name: comp };
 
         await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "component",
           ComponentSchema
         ).findOneAndUpdate(
@@ -462,7 +475,7 @@ const Component = {
         ...(!isEmpty(so3) && so3),
       ];
 
-      let { writeKey, readKey } = getApiKeys(device, tenant);
+      let { writeKey, readKey } = getApiKeys(device, tenant.toLowerCase());
       if (device && comp) {
         const url = constants.ADD_VALUE(fields[0], value[0], writeKey);
         let eventBody = {
@@ -471,7 +484,7 @@ const Component = {
           $addToSet: { values: { $each: value } },
         };
         const event = await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "event",
           EventSchema
         ).createEvent(eventBody);
@@ -522,6 +535,7 @@ const Component = {
     try {
       logText("adding values...");
       const { device, component, tenant } = req.query;
+
       const {
         value,
         raw,
@@ -545,12 +559,13 @@ const Component = {
         !isEmpty(calibratedValue) &&
         !isEmpty(measurement) &&
         !isEmpty(uncertaintyValue) &&
-        !isEmpty(standardDeviationValue)
+        !isEmpty(standardDeviationValue) &&
+        !isEmpty(tenant)
       ) {
         const isComponentPresent = await doesComponentExist(
           component,
           device,
-          tenant
+          tenant.toLowerCase()
         );
         logElement("does component exist", isComponentPresent);
 
@@ -581,7 +596,7 @@ const Component = {
           };
 
           const addedEvent = await getModelByTenant(
-            tenant,
+            tenant.toLowerCase(),
             "event",
             EventSchema
           ).updateOne(eventBody, options, {
@@ -641,11 +656,17 @@ const Component = {
       const { device, component, tenant } = req.query;
       const { values, time } = req.body;
       logObject("the type of device name", typeof device);
-      if (!isEmpty(time, values) && !isEmpty(device) && !isEmpty(component)) {
+      if (
+        !isEmpty(time) &&
+        !isEmpty(values) &&
+        !isEmpty(device) &&
+        !isEmpty(component) &&
+        !isEmpty(tenant)
+      ) {
         const isComponentPresent = await doesComponentExist(
           component,
           device,
-          tenant
+          tenant.toLowerCase()
         );
         logElement("does component exist", isComponentPresent);
 
@@ -667,7 +688,7 @@ const Component = {
           };
 
           const addedEvent = await getModelByTenant(
-            tenant,
+            tenant.toLowerCase(),
             "event",
             EventSchema
           ).updateMany(eventBody, options, {
@@ -729,7 +750,10 @@ const Component = {
       let { name, tenant } = req.query;
 
       if (name && tenant) {
-        const isComponentTypeExist = await doesComponentTypeExist(name, tenant);
+        const isComponentTypeExist = await doesComponentTypeExist(
+          name,
+          tenant.toLowerCase()
+        );
         logElement("does component type exist", isComponentTypeExist);
 
         let componentTypeBody = {
@@ -737,7 +761,7 @@ const Component = {
         };
 
         const componentType = await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "componentType",
           ComponentTypeSchema
         ).createComponentType(componentTypeBody);
@@ -772,7 +796,7 @@ const Component = {
       logElement("the component type ", name);
       if (name && tenant) {
         const componentType = await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "componentType",
           ComponentTypeSchema
         ).find({
@@ -787,7 +811,7 @@ const Component = {
         });
       } else if (!name && tenant) {
         const componentTypes = await getModelByTenant(
-          tenant,
+          tenant.toLowerCase(),
           "componentType",
           ComponentTypeSchema
         ).list({
@@ -823,40 +847,57 @@ const Component = {
 
   /********************************* push data to Thing ****************************** */
   writeToThing: async (req, res) => {
-    await axios
-      .get(constants.ADD_VALUE(field, value, apiKey))
-      .then(function(response) {
-        console.log(response.data);
-        updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
-        axios
-          .post(updateUrl, req.body)
+    try {
+      const { field, value, apiKey } = req.body;
+      let tenant = req.query;
+      if ((field, value, apiKey, tenant)) {
+        await axios
+          .get(constants.ADD_VALUE(field, value, apiKey))
           .then(function(response) {
             console.log(response.data);
-            let output = response.data;
-            res.status(200).json({
-              message: "successfully written data to the device",
-              success: true,
-              output,
-            });
+            updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
+            axios
+              .post(updateUrl, req.body)
+              .then(function(response) {
+                console.log(response.data);
+                let output = response.data;
+                res.status(200).json({
+                  message: "successfully written data to the device",
+                  success: true,
+                  output,
+                });
+              })
+              .catch(function(error) {
+                console.log(error);
+                res.status(500).json({
+                  message: "unable to write data to the device",
+                  success: false,
+                  error,
+                });
+              });
           })
           .catch(function(error) {
             console.log(error);
             res.status(500).json({
-              message: "unable to write data to the device",
+              message:
+                "unable to get channel details necessary for writing this data",
               success: false,
               error,
             });
           });
-      })
-      .catch(function(error) {
-        console.log(error);
-        res.status(500).json({
-          message:
-            "unable to get channel details necessary for writing this data",
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
-          error,
+          message: "missing query params, please check documentation",
         });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to push data",
+        error: e.message,
       });
+    }
   },
 
   bulkWriteToThing: (req, res) => {},
@@ -866,7 +907,7 @@ const Component = {
     try {
       let ComponentFilter = { name: comp };
       await getModelByTenant(
-        tenant,
+        tenant.toLowerCase(),
         "component",
         ComponentSchema
       ).findOneAndUpdate(
