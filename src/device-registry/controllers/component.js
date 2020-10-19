@@ -855,26 +855,12 @@ const Component = {
           .get(constants.ADD_VALUE(field, value, apiKey))
           .then(function(response) {
             console.log(response.data);
-            updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
-            axios
-              .post(updateUrl, req.body)
-              .then(function(response) {
-                console.log(response.data);
-                let output = response.data;
-                res.status(200).json({
-                  message: "successfully written data to the device",
-                  success: true,
-                  output,
-                });
-              })
-              .catch(function(error) {
-                console.log(error);
-                res.status(500).json({
-                  message: "unable to write data to the device",
-                  success: false,
-                  error,
-                });
-              });
+            let output = response.data;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              data: output,
+            });
           })
           .catch(function(error) {
             console.log(error);
@@ -900,7 +886,85 @@ const Component = {
     }
   },
 
-  bulkWriteToThing: (req, res) => {},
+  writeToThingJSON: async (req, res) => {
+    try {
+      let tenant = req.query;
+      let body = req.body;
+      if ((body, tenant)) {
+        await axios
+          .post(constants.ADD_VALUE_JSON, body)
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              data: output,
+            });
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message:
+                "unable to get channel details necessary for writing this data",
+              success: false,
+              error,
+            });
+          });
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing request parameters, please check documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to push data",
+        error: e.message,
+      });
+    }
+  },
+
+  bulkWriteToThing: async (req, res) => {
+    try {
+      let tenant = req.query;
+      let { write_api_key, updates } = req.body;
+      if ((write_api_key, updates, tenant)) {
+        await axios
+          .post(constants.BULK_ADD_VALUES_JSON(channel), body)
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              data: output,
+            });
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message:
+                "unable to get channel details necessary for writing this data",
+              success: false,
+              error,
+            });
+          });
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing request parameters, please check documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to push data",
+        error: e.message,
+      });
+    }
+  },
 
   calibrate: async (req, res) => {
     let { comp, device, tenant } = req.query;
