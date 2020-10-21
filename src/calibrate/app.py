@@ -16,7 +16,7 @@ app = Flask(__name__)
 # Allow cross-brower resource sharing
 CORS(app)
 
-app.config["MONGO_URI"] = os.getenv("MONGO_DEV_URI")
+app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 mongo = PyMongo(app)
 
 # register blueprints
