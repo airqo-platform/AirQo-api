@@ -756,9 +756,9 @@ const device = {
 
   doActivity: async (req, res) => {
     try {
-      if (tenant) {
+      const { type, tenant } = req.query;
+      if (tenant && type) {
         const { deviceName } = req.body;
-        const { type, tenant } = req.query;
 
         const deviceExists = await doesDeviceExist(
           deviceName,
