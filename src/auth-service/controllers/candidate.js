@@ -29,13 +29,19 @@ const candidate = {
       text: msgs.joinRequest,
     };
 
-    register(req, res, mailOptions, req.body, CandidateModel(tenant));
+    register(
+      req,
+      res,
+      mailOptions,
+      req.body,
+      CandidateModel(tenant.toLowerCase())
+    );
   },
 
   getAllCandidates: async (req, res) => {
     try {
       const { tenant } = req.query;
-      const users = await CandidateModel(tenant).find();
+      const users = await CandidateModel(tenant.toLowerCase()).find();
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: "Candidates fetched successfully",

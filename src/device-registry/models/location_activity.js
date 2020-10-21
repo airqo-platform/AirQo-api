@@ -58,6 +58,4 @@ activitySchema.statics = {
   },
 };
 
-const activity = model("activity", activitySchema);
-
-module.exports = activity;
+module.exports = activitySchema;
