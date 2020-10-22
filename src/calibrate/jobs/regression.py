@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import matplotlib.dates as mdates
-%matplotlib inline
+#%matplotlib inline
 import re
 import os
 import datetime
@@ -13,6 +13,11 @@ import joblib
 from scipy.optimize import curve_fit
 import uncertainties.unumpy as unp
 import uncertainties as unc
+#from flask import Blueprint, request, jsonify
+
+
+# regression_bp = Blueprint('regression_bp', __name__)
+
 
 
 def get_lowcost_data():
@@ -119,9 +124,20 @@ def linear_regression_func(hourly_combined_dataset):
     regressor_muk.fit(X_train_muk, y_train_muk)  
 
     intercept =  regressor_muk.intercept_
+
     slope = regressor_muk.coef_
 
-    return intercept, slope 
+    return regressor_muk
+
+def intercept(regressor_muk):
+    intercept =  regressor_muk.intercept_
+    print(intercept)
+    return intercept
+
+def slope(regressor_muk):
+    slope = regressor_muk.coef_
+    print(slope)
+    return slope 
 
 
 
