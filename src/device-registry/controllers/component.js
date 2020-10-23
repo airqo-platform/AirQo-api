@@ -879,7 +879,7 @@ const Component = {
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        message: "unable to list any Event",
+        message: "Server Error",
         error: e.message,
       });
     }
