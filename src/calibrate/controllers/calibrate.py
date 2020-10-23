@@ -16,8 +16,6 @@ calibrate_bp = Blueprint('calibrate_bp', __name__)
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
 def calibrate_pm25_values():
     #predicted_values = intercept +  slope * raw_value
-
-    print(regression.intercept())
    
     if request.method == 'GET':
         raw_value = request.args.get('raw_value')
@@ -26,3 +24,4 @@ def calibrate_pm25_values():
         uncertainty_value = 1.2*float(raw_value)
         std_value = 0.5*float(raw_value)
         return jsonify({"message": "caliiiii", "calibrattion": calibrated_value, "uncertainty_value": calibrated_value, "std_value": calibrated_value})
+print(regression.intercept)
