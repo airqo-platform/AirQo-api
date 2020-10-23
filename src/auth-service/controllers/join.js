@@ -18,7 +18,6 @@ const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 const bcrypt = require("bcrypt");
-const constants = require("../config/constants");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
