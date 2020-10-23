@@ -6,11 +6,19 @@ import app
 import json
 import uncertainties.unumpy as unp
 from jobs import regression
+import os
+from pymongo import MongoClient
 
-
-# from jobs.regression import regression_bp
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
+
+
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client['airqo_netmanager']
+col = db["sensors"] 
+raw_value = col.quantityKind[0]
+
 
 
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
