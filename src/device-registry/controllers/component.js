@@ -7,11 +7,19 @@ const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const EventSchema = require("../models/Event");
 const axios = require("axios");
+const { queryParam, filterOptions } = require("../utils/mappings");
 const {
   uniqueNamesGenerator,
   NumberDictionary,
 } = require("unique-names-generator");
 const { getModelByTenant } = require("../utils/multitenancy");
+const {
+  responseAll,
+  responseDateRanges,
+  responseDevice,
+  responseDeviceAndComponent,
+  responseComponent,
+} = require("utils/get-events");
 
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
@@ -847,68 +855,26 @@ const Component = {
 
   getValues: async (req, res) => {
     try {
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
       const { comp, device, tenant } = req.query;
       logElement("device name ", device);
       logElement("Component name ", comp);
-      if (comp && device) {
-        const event = await getModelByTenant(tenant, "event", EventSchema)
-          .find({
-            componentName: comp,
-            deviceName: device,
-          })
-          .exec();
-        if (!isEmpty(event)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully listed one Event",
-            event,
-          });
-        } else if (isEmpty(event)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find that Component ${comp} for device ${device}`,
-          });
-        }
-      } else if (device && !comp) {
-        const events = await getModelByTenant(tenant, "event", EventSchema)
-          .find({
-            deviceID: device,
-          })
-          .exec();
-        if (!isEmpty(events)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: `successfully listed the Events for device ${device}`,
-            events,
-          });
-        } else if (isEmpty(events)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find the Events for device ${device}`,
-          });
-        }
-      } else if (!device && !comp) {
-        const events = await getModelByTenant(
-          tenant,
-          "event",
-          EventSchema
-        ).list({ limit, skip });
-        if (!isEmpty(events)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully listed all platform Events",
-            tip:
-              "use documented query parameters (device/comp) to filter your search results",
-            events,
-          });
-        } else if (isEmpty(events)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find all the platform Events`,
-          });
-        }
+      if (device && comp && tenant) {
+        responseDeviceAndComponent(
+          res,
+          filterOptions.bothDeviceAndComponent(device, comp),
+          tenant
+        );
+      } else if (device && !comp && tenant) {
+        responseDevice(res, filterOptions.device(device), tenant);
+      } else if (!device && !comp && tenant) {
+        responseAll(req, res, tenant);
+      } else if (comp && !device && tenant) {
+        responseComponent(res, filterOptions.component(comp), tenant);
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: `some of the required parameters are missing, please crosscheck with the documentation`,
+        });
       }
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
