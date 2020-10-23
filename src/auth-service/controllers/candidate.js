@@ -13,9 +13,6 @@ const CandidateModel = (tenant) => {
 const candidate = {
   registerCandidate: (req, res) => {
     const { tenant } = req.query;
-    console.log("yay!");
-    console.log("the elements we need:");
-    console.dir(req.body);
     const { errors, isValid } = validateCandidateInput(req.body);
     if (!isValid) {
       return res
