@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.dates as mdates
 #%matplotlib inline
-import re
 import os
 import datetime
 from sklearn.linear_model import LinearRegression  
@@ -18,15 +17,8 @@ import uncertainties as unc
 
 # regression_bp = Blueprint('regression_bp', __name__)
 
-
-
-def get_lowcost_data():
-    muk_lowcost_data = pd.read_csv('AQ_88.csv') #channel 88-thingspeak,  device colocated with MUK BAM
-    return muk_lowcost_data
-
-def get_bam_data():
-    muk_bam_data = pd.read_csv('MUK-BAM.csv')#MUK BAM
-    return muk_bam_data
+muk_lowcost_data = pd.read_csv("jobs\AQ_88.csv") #channel 88-thingspeak,  device colocated with MUK BAM
+muk_bam_data = pd.read_csv('jobs\MUK-BAM.csv')#MUK BAM
 
 def process_data_lowcost(muk_lowcost_data):
     muk_lowcost_data.rename(columns={'field1':'Sensor1 PM2.5_CF_1_ug/m3','field2':'Sensor1 PM10_CF_1_ug/m3',
@@ -50,6 +42,8 @@ def process_data_lowcost(muk_lowcost_data):
     muk_lowcost_hourly_mean = muk_lowcost_data.resample('H').mean().round(2)
     
     return muk_lowcost_hourly_mean
+muk_lowcost_hourly_mean = process_data_lowcost(muk_lowcost_data)
+
 
 def process_data_bam(muk_bam_data):
     muk_bam_data = muk_bam_data.drop(['Flow(lpm)', 'WS(m/s)', 'WD(Deg)', 'BP(mmHg)', 'FT(C)', 'FRH(%)', 'Status'], axis=1)
@@ -62,6 +56,7 @@ def process_data_bam(muk_bam_data):
     muk_bam_data = muk_bam_data[muk_bam_data['ConcHR(ug/m3)'] > 0]
 
     return muk_bam_data
+muk_bam_data = process_data_bam(muk_bam_data)
 
 def combine_datasets(muk_lowcost_hourly_mean, muk_bam_data):
     ## get the lower boundary date 
@@ -108,6 +103,7 @@ def combine_datasets(muk_lowcost_hourly_mean, muk_bam_data):
     hourly_combined_dataset['muk_bam_hourly_PM'] = hourly_combined_dataset['muk_bam_hourly_PM'].shift(-1)
 
     return hourly_combined_dataset
+hourly_combined_dataset = combine_datasets(muk_lowcost_hourly_mean, muk_bam_data)
 
 def linear_regression_func(hourly_combined_dataset):
     # take only rows where hourly_PM is not null
@@ -128,16 +124,21 @@ def linear_regression_func(hourly_combined_dataset):
     slope = regressor_muk.coef_
 
     return regressor_muk
+regressor_muk = linear_regression_func(hourly_combined_dataset)
 
 def intercept(regressor_muk):
     intercept =  regressor_muk.intercept_
-    print(intercept)
     return intercept
+intercept = intercept(regressor_muk)
+print(intercept)
 
 def slope(regressor_muk):
     slope = regressor_muk.coef_
-    print(slope)
-    return slope 
+    return slope
+slope = slope(regressor_muk)
+print(slope)
+
+# calibrated_value = intercept + slope * 12
 
 
 
