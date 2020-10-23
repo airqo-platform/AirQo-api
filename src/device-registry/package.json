@@ -6,8 +6,8 @@
     "scripts": {
         "start": "node ./bin/www",
         "dev-mac": "NODE_ENV=development nodemon ./bin/www",
-        "prod-mac": "NODE_ENV=production node ./bin/www",
-        "stage-mac": "NODE_ENV=staging node ./bin/www",
+        "prod-mac": "NODE_ENV=production nodemon ./bin/www",
+        "stage-mac": "NODE_ENV=staging nodemon ./bin/www",
         "dev-pc": "SET NODE_ENV=development&&nodemon ./bin/www",
         "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
         "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
