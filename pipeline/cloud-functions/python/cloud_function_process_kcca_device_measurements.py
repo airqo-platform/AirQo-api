@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 import pandas as pd
 import requests
@@ -31,8 +31,9 @@ def get_kcca_device_data():
     :return: current kcca device measurements
     """
 
-    # get current date : %Y-%m-%dT%H:%M:%SZ
-    date = date_to_str2(datetime.now())
+    # get current date and time 5 minutes ago : %Y-%m-%dT%H:%M:%SZ
+    # the cron job must be scheduled to run as the time interval stated here
+    date = date_to_str2(datetime.now() - timedelta(hours=0, minutes=5))
 
     # get kcca devices
     device_codes = get_kcca_devices_codes()
