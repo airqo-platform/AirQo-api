@@ -1,13 +1,10 @@
 from datetime import datetime
-import base64
-import json
 import os
 import pandas as pd
 import requests
-from google.cloud import pubsub_v1
 from threading import Thread
 from device_registry import single_component_insertion, get_component_details
-from helpers import convert_date_to_formatted_str
+from helpers import date_to_str2
 import numpy as np
 
 GOOGLE_CLOUD_PROJECT = os.getenv("GOOGLE_CLOUD_PROJECT")
@@ -24,8 +21,6 @@ def process_kcca_device_data():
 
     print(device_measurements_data)
 
-    # push_kcca_raw_data_to_pub_sub(device_measurements_data)
-
     # process all kcca device measurements
     process_kcca_data(device_measurements_data)
 
@@ -36,8 +31,8 @@ def get_kcca_device_data():
     :return: current kcca device measurements
     """
 
-    # get current date : %Y-%m-%d
-    date = convert_date_to_formatted_str(datetime.now(), 'daily')
+    # get current date : %Y-%m-%dT%H:%M:%SZ
+    date = date_to_str2(datetime.now())
 
     # get kcca devices
     device_codes = get_kcca_devices_codes()
@@ -163,51 +158,3 @@ def process_chunk(chunk):
     # wait for all threads to terminate before ending the function
     for thread in threads:
         thread.join()
-
-    # push_kcca_processed_data_to_pub_sub(devices_components_data)
-
-
-def push_kcca_raw_data_to_pub_sub(data):
-
-    """
-    pushes raw kcca device measurements to a pubsub topic
-    :param data: raw data
-    :return: none
-    """
-
-    json_data = json.dumps(data)
-
-    publisher = pubsub_v1.PublisherClient()
-    topic_name = 'projects/{project_id}/topics/{topic}'.format(
-        project_id=GOOGLE_CLOUD_PROJECT,
-        topic=RAW_DATA_PUB_SUB_TOPIC,
-    )
-
-    encoded_data = base64.b64encode(json_data.encode('utf-8'))
-    print("\n------raw data to be sent to pubsub-----\n")
-    print(json_data)
-
-    publisher.publish(topic=topic_name, data=encoded_data)
-
-
-def push_kcca_processed_data_to_pub_sub(data):
-
-    """
-    pushes processed kcca device measurements to a pubsub topic
-    :param data: processed data
-    :return: none
-    """
-
-    json_data = json.dumps(data)
-
-    publisher = pubsub_v1.PublisherClient()
-    topic_name = 'projects/{project_id}/topics/{topic}'.format(
-        project_id=GOOGLE_CLOUD_PROJECT,
-        topic=PROCESSED_DATA_PUB_SUB_TOPIC,
-    )
-
-    encoded_data = base64.b64encode(json_data.encode('utf-8'))
-    print("\n------Processed data to be sent to pubsub-----\n")
-    print(json_data)
-
-    publisher.publish(topic=topic_name, data=encoded_data)
