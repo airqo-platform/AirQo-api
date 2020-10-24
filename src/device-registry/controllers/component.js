@@ -7,6 +7,7 @@ const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const EventSchema = require("../models/Event");
 const axios = require("axios");
+const writeToThingMappings = require("../utils/writeToThingMappings");
 const {
   uniqueNamesGenerator,
   NumberDictionary,
@@ -848,18 +849,34 @@ const Component = {
   /********************************* push data to Thing ****************************** */
   writeToThing: async (req, res) => {
     try {
-      const { field, value, apiKey } = req.body;
+      console.log("we are in");
+      const { quantityKind, value, apiKey } = req.body;
       let tenant = req.query;
-      if ((field, value, apiKey, tenant)) {
+
+      if (quantityKind && value && apiKey && tenant) {
+        console.log(
+          "the field we are updating",
+          writeToThingMappings(quantityKind, res)
+        );
         await axios
-          .get(constants.ADD_VALUE(field, value, apiKey))
+          .get(
+            constants.ADD_VALUE(
+              writeToThingMappings(quantityKind),
+              value,
+              apiKey
+            )
+          )
           .then(function(response) {
             console.log(response.data);
             let output = response.data;
+            let resp = {};
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
             res.status(200).json({
               message: "successfully written data to the device",
               success: true,
-              data: output,
+              data: resp,
             });
           })
           .catch(function(error) {
@@ -868,7 +885,7 @@ const Component = {
               message:
                 "unable to get channel details necessary for writing this data",
               success: false,
-              error,
+              error: error.response.data,
             });
           });
       } else {
@@ -889,17 +906,50 @@ const Component = {
   writeToThingJSON: async (req, res) => {
     try {
       let tenant = req.query;
-      let body = req.body;
-      if ((body, tenant)) {
+      let {
+        api_key,
+        created_at,
+        pm2_5,
+        pm10,
+        s2_pm2_5,
+        s2_pm10,
+        latitude,
+        longitude,
+        battery,
+        other_data,
+        status,
+      } = req.body;
+
+      let requestBody = {
+        api_key: api_key,
+        created_at: created_at,
+        field1: pm2_5,
+        field2: pm10,
+        field3: s2_pm2_5,
+        field4: s2_pm10,
+        field5: latitude,
+        field6: longitude,
+        field7: battery,
+        field8: other_data,
+        latitude: latitude,
+        longitude: longitude,
+        status: status,
+      };
+
+      if (tenant) {
         await axios
-          .post(constants.ADD_VALUE_JSON, body)
+          .post(constants.ADD_VALUE_JSON, requestBody)
           .then(function(response) {
             console.log(response.data);
             let output = response.data;
+            let resp = {};
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
             res.status(200).json({
               message: "successfully written data to the device",
               success: true,
-              data: output,
+              update: resp,
             });
           })
           .catch(function(error) {
@@ -908,13 +958,14 @@ const Component = {
               message:
                 "unable to get channel details necessary for writing this data",
               success: false,
-              error,
+              error: error.response.data,
             });
           });
       } else {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
-          message: "missing request parameters, please check documentation",
+          message:
+            "missing request parameters, please crosscheck with the API documentation",
         });
       }
     } catch (e) {
