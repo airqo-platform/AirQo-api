@@ -851,9 +851,10 @@ const Component = {
     try {
       console.log("we are in");
       const { quantityKind, value, apiKey } = req.body;
-      let tenant = req.query;
+      const { tenant } = req.query;
 
-      if (quantityKind && value && apiKey && tenant) {
+      if (tenant && quantityKind && value && apiKey) {
+        console.log("the organisation: ", tenant);
         console.log(
           "the field we are updating",
           writeToThingMappings(quantityKind, res)
@@ -905,7 +906,7 @@ const Component = {
 
   writeToThingJSON: async (req, res) => {
     try {
-      let tenant = req.query;
+      let { tenant } = req.query;
       let {
         api_key,
         created_at,
