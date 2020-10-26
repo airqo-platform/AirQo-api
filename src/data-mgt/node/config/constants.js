@@ -32,6 +32,9 @@ const defaultConfig = {
   GET_HOURLY_FEEDS: (channel) => {
     return `https://us-central1-airqo-250220.cloudfunctions.net/get_hourly_channel_data?channel_id=${channel}`;
   },
+  GET_GPS: (channel) => {
+    return `${channel}`;
+  },
 };
 
 function envConfig(env) {
