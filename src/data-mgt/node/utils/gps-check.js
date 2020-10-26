@@ -4,7 +4,6 @@ const HTTPStatus = require("http-status");
 const { getFieldLabel } = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 constants = require("../config/constants");
-const Channel = require("../models/Channel");
 
 const gpsCheck = async (data, req, res) => {
   try {
