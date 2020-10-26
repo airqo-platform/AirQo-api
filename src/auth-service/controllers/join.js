@@ -487,71 +487,87 @@ const join = {
     const { tenant, resetPasswordToken } = req.query;
     console.log("inside the reset password function...");
     console.log(`${resetPasswordToken}`);
-    await UserModel(tenant.toLowerCase()).findOne(
-      {
-        resetPasswordToken: resetPasswordToken,
-        resetPasswordExpires: {
-          $gt: Date.now(),
+
+    if (tenant && resetPasswordToken) {
+      await UserModel(tenant.toLowerCase()).findOne(
+        {
+          resetPasswordToken: resetPasswordToken,
+          resetPasswordExpires: {
+            $gt: Date.now(),
+          },
         },
-      },
-      (err, result) => {
-        if (err) {
-          res
-            .status(403)
-            .json({ message: "password reset link is invalid or has expired" });
-        } else if (result) {
-          res.status(200).send({
-            userName: result.userName,
-            message: "password reset link a-ok",
-          });
-        } else {
-          res
-            .status(403)
-            .json({ message: "password reset link is invalid or has expired" });
+        (err, result) => {
+          if (err) {
+            res.status(HTTPStatus.BAD_REQUEST).json({
+              message: "password reset link is invalid or has expired",
+            });
+          } else if (result) {
+            res.status(HTTPStatus.OK).send({
+              userName: result.userName,
+              message: "password reset link a-ok",
+            });
+          } else {
+            res.status(HTTPStatus.BAD_GATEWAY).json({
+              message: "password reset link is invalid or has expired",
+            });
+          }
         }
-      }
-    );
+      );
+    } else {
+      res.status(HTTPStatus.BAD_REQUEST).json({
+        message: "missing request parameters, please check documentation",
+      });
+    }
   },
 
   updatePasswordViaEmail: (req, res, next) => {
-    const { tenant } = req.query;
-
-    const { userName, password, resetPasswordToken } = req.body;
-
-    UserModel(tenant.toLowerCase())
-      .findOne({
-        userName: userName,
-        resetPasswordToken: resetPasswordToken,
-        resetPasswordExpires: {
-          $gt: Date.now(),
-        },
-      })
-      .then((user) => {
-        if (user === null) {
-          console.log("password reset link is invalid or has expired");
-          res
-            .status(403)
-            .json({ msg: "password reset link is invalid or has expired" });
-        } else if (user !== null) {
-          user.resetPasswordToken = null;
-          user.resetPasswordExpires = null;
-          user.password = password;
-          user.save((error, saved) => {
-            if (error) {
+    try {
+      const { tenant } = req.query;
+      const { userName, password, resetPasswordToken } = req.body;
+      if (tenant && userName && password && resetPasswordToken) {
+        UserModel(tenant.toLowerCase())
+          .findOne({
+            userName: userName,
+            resetPasswordToken: resetPasswordToken,
+            resetPasswordExpires: {
+              $gt: Date.now(),
+            },
+          })
+          .then((user) => {
+            if (user === null) {
+              console.log("password reset link is invalid or has expired");
+              res
+                .status(403)
+                .json({ msg: "password reset link is invalid or has expired" });
+            } else if (user !== null) {
+              user.resetPasswordToken = null;
+              user.resetPasswordExpires = null;
+              user.password = password;
+              user.save((error, saved) => {
+                if (error) {
+                  console.log("no user exists in db to update");
+                  res
+                    .status(HTTPStatus.BAD_REQUEST)
+                    .json({ message: "no user exists in db to update" });
+                } else if (saved) {
+                  console.log("password updated");
+                  res.status(200).json({ message: "password updated" });
+                }
+              });
+            } else {
               console.log("no user exists in db to update");
               res
-                .status(401)
+                .status(HTTPStatus.BAD_GATEWAY)
                 .json({ message: "no user exists in db to update" });
-            } else if (saved) {
-              console.log("password updated");
-              res.status(200).json({ message: "password updated" });
             }
           });
-        } else {
-          console.log("no user exists in db to update");
-          res.status(401).json({ message: "no user exists in db to update" });
-        }
-      });
+      } else {
+        res.status(HTTPStatus.BAD_REQUEST).json({
+          message:
+            "some request params missing, please crosscheck with documentation",
+        });
+      }
+    } catch (e) {}
   },
 
   updatePassword: (req, res) => {
