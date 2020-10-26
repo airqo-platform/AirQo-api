@@ -112,66 +112,78 @@ const join = {
 
   forgotPassword: async (req, res) => {
     try {
-      logElement("the email", req.body.email);
-      // const { errors, isValid } = validateForgotPwdInput(req.body.email);
-      // if (!isValid) {
-      //     return res.status(400).json(errors);
-      // }
-      console.log("reaching forgotPassword");
-      console.log("the email is here: " + req.body.email);
-
-      const token = crypto.randomBytes(20).toString("hex");
-
-      let query = { email: req.body.email };
-
-      if (!query.email) {
-        return res
-          .status(400)
-          .json({ success: false, message: "email field is required" });
-      }
-      let updateDetails = {
-        resetPasswordToken: token,
-        resetPasswordExpires: Date.now() + 3600000,
-      };
-      //get the model based on tenant
       const { tenant } = req.query;
+      const { email } = req.body;
+      if (tenant && email) {
+        logElement("the email", email);
+        // const { errors, isValid } = validateForgotPwdInput(req.body.email);
+        // if (!isValid) {
+        //     return res.status(400).json(errors);
+        // }
+        console.log("reaching forgotPassword");
+        console.log("the email is here: " + email);
 
-      await UserModel(tenant.toLowerCase()).findOneAndUpdate(
-        query,
-        updateDetails,
-        (error, response) => {
-          if (error) {
-            return res.status(400).json({ message: "Email does not exist" });
-          } else if (response) {
-            const mailOptions = {
-              from: constants.EMAIL,
-              to: `${req.body.email}`,
-              subject: `Link To Reset Password`,
-              text: `${msgs.recovery_email(token)}`,
-            };
-            //we shall review other third party libraries for making emails....^^
+        const token = crypto.randomBytes(20).toString("hex");
 
-            console.log("sending mail");
+        let query = { email: email };
 
-            //deliver the message object using sendMail
-            transporter.sendMail(mailOptions, (err, response) => {
-              if (err) {
-                console.error("there was an error: ", err);
-                return res.status(500).json({ email: "unable to send email" });
-              } else {
-                console.log("here is the res: ", response);
-                return res.status(200).json({ message: "recovery email sent" });
-              }
-            });
-            //return res.status(HTTPStatus.OK).json(response);
-          } else {
-            return res.status(400).json({
-              message: "unable to send email. Please crosscheck the organisation and email information provided."
-            });
-          }
+        if (!query.email) {
+          return res
+            .status(400)
+            .json({ success: false, message: "email field is required" });
         }
-      );
-    } catch (e) {}
+        let updateDetails = {
+          resetPasswordToken: token,
+          resetPasswordExpires: Date.now() + 3600000,
+        };
+        await UserModel(tenant.toLowerCase()).findOneAndUpdate(
+          query,
+          updateDetails,
+          (error, response) => {
+            if (error) {
+              return res.status(400).json({ message: "Email does not exist" });
+            } else if (response) {
+              const mailOptions = {
+                from: constants.EMAIL,
+                to: `${req.body.email}`,
+                subject: `Link To Reset Password`,
+                text: `${msgs.recovery_email(token)}`,
+              };
+              console.log("sending mail");
+
+              transporter.sendMail(mailOptions, (err, response) => {
+                if (err) {
+                  console.error("there was an error: ", err);
+                  return res
+                    .status(500)
+                    .json({ email: "unable to send email" });
+                } else {
+                  console.log("here is the res: ", response);
+                  return res
+                    .status(200)
+                    .json({ message: "recovery email sent" });
+                }
+              });
+              //return res.status(HTTPStatus.OK).json(response);
+            } else {
+              return res.status(400).json({
+                message:
+                  "unable to send email. Please crosscheck the organisation and email information provided.",
+              });
+            }
+          }
+        );
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          message: "missing query params, please crosscheck documentation ",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        message: "Server Error",
+        error: e.message,
+      });
+    }
   },
 
   registerUser: (req, res) => {
