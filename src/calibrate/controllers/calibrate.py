@@ -28,14 +28,20 @@ def calibrate_pm25_values():
         # raw_value = list(db.sensors.find({'quantityKind':1}))
     
 
-        raw_values = list(db.events.find({'values.raw': {'$exists': 1}},{'_id':0, 'values.raw': 1}))
-        raw_value = []
-        for value in raw_values:
-            raw_value.append(value)
+        raw_values_dict = db.events.find({'values.raw': {'$exists': 1}},{'_id':0, 'values.raw': 1})
+        raw_value_list = []
+        for value in raw_values_dict:
+            raw_value_list.append(value)
+        
+        # raw_values = []
+        # for pm in raw_value_list:
+        #     raw_values = pm['values'][0]['raw']  
+            
+        raw_values = [pm['values'][0]['raw'] for pm in raw_value_list]    
   
-        calibrated_value = regression.intercept + regression.slope *  raw_value.values()
+        calibrated_value = regression.intercept + regression.slope * raw_values
         calibrated_value = calibrated_value.tolist()
         uncertainty_value = 1.2* 5
         std_value = 0.5* 5
 
-        return jsonify({"message": "caliiiii", "calibration": calibrated_value, "uncertainty_value": calibrated_value, "std_value": calibrated_value, "raw_value":raw_value})
+        return jsonify({" raw_values": raw_values, "message": "caliiiii", "calibration": calibrated_value, "uncertainty_value": uncertainty_value, "std_value": std_value})
