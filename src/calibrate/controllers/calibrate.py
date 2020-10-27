@@ -15,7 +15,7 @@ calibrate_bp = Blueprint('calibrate_bp', __name__)
 
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client['airqo_netmanager']
+db = client['airqo_netmanager_staging']
 
 
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
@@ -28,14 +28,14 @@ def calibrate_pm25_values():
         # raw_value = list(db.sensors.find({'quantityKind':1}))
     
 
-        values = list(db.sensors.find({"quantityKind.PM 2.5(Ug/m3)":{'$ne': ''}},{'_id':0}))
+        raw_values = list(db.events.find({'values.raw': {'$exists': 1}},{'_id':0, 'values.raw': 1}))
         raw_value = []
-        for value in values:
+        for value in raw_values:
             raw_value.append(value)
-
-        calibrated_value = regression.intercept + regression.slope *  raw_value
+  
+        calibrated_value = regression.intercept + regression.slope *  raw_value.values()
         calibrated_value = calibrated_value.tolist()
-        uncertainty_value = 1.2* raw_value
-        std_value = 0.5* raw_value
+        uncertainty_value = 1.2* 5
+        std_value = 0.5* 5
 
         return jsonify({"message": "caliiiii", "calibration": calibrated_value, "uncertainty_value": calibrated_value, "std_value": calibrated_value, "raw_value":raw_value})
