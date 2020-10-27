@@ -217,6 +217,17 @@ def get_entries_since(channel_id,daysago=7):
     df = client.query(sql).to_dataframe() 
     return df
 
+def preprocessing(df): 
+    '''
+    Preprocesses data for a particular channel
+    '''
+    df = df.sort_values(by='created_at',ascending=False)
+    df = df.set_index('created_at')
+    hourly_df = df.resample('H').mean()
+    hourly_df.dropna(inplace=True)
+    hourly_df= hourly_df.reset_index()
+    return hourly_df
+
 
 if __name__ == '__main__':
     
