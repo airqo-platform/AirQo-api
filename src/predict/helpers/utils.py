@@ -165,11 +165,19 @@ def convert_local_string_date_to_tz_aware_datetime(local_date_string):
     timezone_date_time_obj = timezone.localize(date_time_obj)
     return timezone_date_time_obj
 
+def string_to_hourly_datetime(my_list):
+    '''
+    converts a datetime string in a list to a format known by the gp model
+    '''
+    my_list[2] = datetime.strptime(my_list[2], '%Y-%m-%dT%H:%M:%SZ')
+    my_list[2] = my_list[2].timestamp()/3600
+    return my_list
+
 def load_model():
     '''
     loads saved trained gaussian process model
     '''
-    save_dir = '../saved_model'
+    save_dir = 'saved_model'
     model = tf.saved_model.load(save_dir)
     return model
 
@@ -177,11 +185,13 @@ def get_gp_predictions(arr):
     '''
     returns pm 2.5 predictions given an array of space and time inputs
     '''
-    np_arr = np.array(arr)
+    new_arr = list(map(string_to_hourly_datetime, arr))
+    np_arr = np.array(new_arr)
     loaded_model = load_model()
     preds = loaded_model.predict(arr)
-    concat_preds = np.c_[preds[0], preds[1]]
-    return concat_preds.tolist()
+    means = preds[0].numpy().flatten().tolist()
+    variances = preds[1].numpy().flatten().tolist()
+    return means, variances
 
 
 if __name__ == '__main__':

@@ -166,7 +166,7 @@ def predict_channel_next_24_hours():
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
-def predict_channel_next_24_hours():
+def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
@@ -179,7 +179,8 @@ def predict_channel_next_24_hours():
             my_arr = json_data['data']
         except:
             return {'message': 'Wrong request data. Please inout an array of space and time inputs', 'success': False}, 400
-        return get_gp_predictions(my_arr)
+        pred, var = get_gp_predictions(my_arr)
+        return {'predictions': pred, 'variances': var, 'success':True}, 200
         
     else:
         return {'message': 'No input data provided', 'success': False}, 400
