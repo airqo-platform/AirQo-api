@@ -5,6 +5,7 @@ from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_
 import logging
 from models import datamanagement as dm
 import datetime as dt
+import sys
 
 
 from routes import api
@@ -174,15 +175,23 @@ def predictions_for_heatmap():
         json_data = request.get_json()
     else:
         return {'message': 'Wrong request method. This is a POST request', 'success': False}, 400
-    if json_data:
+    if not json_data:
+        return {'message': 'No input data provided', 'success': False}, 400
+    else:
         try:
             my_arr = json_data['data']
+            if len(my_arr)==0:
+                return {'message': 'Input array is empty', 'success':False}, 400
         except:
-            return {'message': 'Wrong request data. Please inout an array of space and time inputs', 'success': False}, 400
-        pred, var = get_gp_predictions(my_arr)
-        return {'predictions': pred, 'variances': var, 'success':True}, 200
+            return {'message': 'Wrong request data. Please input an array of space and time inputs', 'success': False}, 400  
         
-    else:
-        return {'message': 'No input data provided', 'success': False}, 400
-         
+        pred, var = get_gp_predictions(my_arr)
+        print(type(pred), file=sys.stderr)
 
+        if type(pred) is list:
+            print(pred, file=sys.stderr)
+            return {'predictions': pred, 'variances': var, 'success':True}, 200
+        else:
+            print(pred, file=sys.stderr)
+            return pred, var
+             

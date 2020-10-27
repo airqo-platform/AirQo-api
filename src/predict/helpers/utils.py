@@ -185,10 +185,17 @@ def get_gp_predictions(arr):
     '''
     returns pm 2.5 predictions given an array of space and time inputs
     '''
-    new_arr = list(map(string_to_hourly_datetime, arr))
+    try:
+        new_arr = list(map(string_to_hourly_datetime, arr))
+    except:
+        return {'message': 'Datetime string should be in the format YYYY-MM-DDTHH:MM:SSZ', 'success': False}, 400
     np_arr = np.array(new_arr)
     loaded_model = load_model()
-    preds = loaded_model.predict(arr)
+    try:
+        preds = loaded_model.predict(np_arr)
+    except:
+        return {'message': 'Latitude and longitude coordinates should be floats/integers', 'success': False}, 400
+
     means = preds[0].numpy().flatten().tolist()
     variances = preds[1].numpy().flatten().tolist()
     return means, variances
