@@ -165,7 +165,7 @@ def predict_channel_next_24_hours():
 
 
 
-@ml_app.route(api.route['predict_for heatmap'], methods=['POST'])
+@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
 def predict_channel_next_24_hours():
     '''
     makes predictions for a specified location at a given time.
