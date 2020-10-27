@@ -14,6 +14,7 @@ import requests
 MET_API_URL= os.getenv("MET_API_UR")
 MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
 MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
+MONGO_URI = os.getenv("MONGO_URI")
 
 def get_hourly_met_forecasts():
     """
@@ -227,6 +228,48 @@ def preprocessing(df):
     hourly_df.dropna(inplace=True)
     hourly_df= hourly_df.reset_index()
     return hourly_df
+
+
+def get_channels():
+    '''
+    Returns channels to be considered in training the model
+    '''
+    channels = [{'id':930434, 'lat':0.360209, 'long':32.610756},{'id':718028, 'lat':0.3075, 'long':32.6206}, 
+    {'id':912224, 'lat':0.34646, 'long':32.70328}, {'id':930426, 'lat':0.3655, 'long':32.6468}, {'id':930427, 'lat':0.2689, 'long':32.588}, 
+    {'id':912223, 'lat':0.341674, 'long':32.635306}, {'id':912222, 'lat':0.325346, 'long':32.632288}, {'id':912220, 'lat':0.322108, 'long':32.576}, 
+    {'id':870145, 'lat':0.373078, 'long':32.628226}, {'id':870143, 'lat':0.381576, 'long':32.647109}, {'id':870144, 'lat':0.30778, 'long':32.651449}, 
+    {'id':870147, 'lat':0.363, 'long':32.529}, {'id':870142, 'lat':0.3759, 'long':32.528}, {'id':870139, 'lat':0.3101, 'long':32.516}, 
+    {'id':832255, 'lat':0.3875, 'long':32.601}, {'id':832252, 'lat':0.2182, 'long':32.6176}, {'id':832253, 'lat':0.269993, 'long':32.558017}, 
+    {'id':832254, 'lat':0.3564, 'long':32.573}, {'id':832251, 'lat':0.299, 'long':32.592}, {'id':782720, 'lat':0.3517, 'long':32.591},
+    {'id':782719, 'lat':0.29875, 'long':32.615}, {'id':782718, 'lat':0.344, 'long':32.553}, {'id':755614, 'lat':0.3412, 'long':32.602}, 
+    {'id':755612, 'lat':0.289, 'long':32.589}, {'id':870146, 'lat':0.3323, 'long':32.5698}, {'id':737276, 'lat':0.295314, 'long':32.553682}, 
+    {'id':737273, 'lat':0.354825, 'long':32.67781}, {'id':689761, 'lat':0.314, 'long':32.59}, {'id':718029, 'lat':0.059604, 'long':32.46032},
+    {'id':718030, 'lat':0.347014, 'long':32.64936}, {'id':730014, 'lat':0.235668, 'long':32.55764}, {'id':782721, 'lat':0.2336, 'long':32.5635},
+    {'id':782722, 'lat':0.2836, 'long':32.6}, {'id':912219, 'lat':0.391478, 'long':32.62583}, {'id':912221, 'lat':0.32232, 'long':32.5757},
+    {'id':912225, 'lat':0.286595, 'long':32.506107}, {'id':930429, 'lat': 0.307489, 'long':32.611755}]
+    
+    return channels
+
+def periodic_function():
+    '''
+    Periodically updates training data and re-trains model
+    '''
+    X = np.zeros([0,3])
+    Y = np.zeros([0,1])
+    channels = get_channels()
+    for channel in channels:
+        d = get_entries_since(channel['id'])
+        if d.shape[0]!=0:
+            d = preprocessing(d)
+            df = pd.DataFrame({'channel_id':[channel['id']], 
+                               'longitude':[channel['long']], 
+                               'latitude':[channel['lat']]})
+        
+            Xchan = np.c_[np.repeat(np.array(df)[:,1:],d.shape[0],0),[n.timestamp()/3600 for n in d['created_at']]]
+            Ychan = np.array(d['pm2_5'])
+            X = np.r_[X,Xchan]
+            Y = np.r_[Y,Ychan[:, None]]
+            train_model(X, Y)
 
 
 if __name__ == '__main__':
