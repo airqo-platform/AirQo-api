@@ -14,7 +14,7 @@ route = {
     'worst_performing_devices': base_url + '/monitor/network/devices/worstperforming',
     'device_uptime': base_url + '/monitor/device/uptime',
     'online_offline': base_url + '/monitor/devices/online_offline',
-    'device_battery_voltage': base_url + '/monitor/device/batteryvoltage/<int:device_channel_id>',
-    'device_sensor_correlation': base_url + '/monitor/device/sensors/correlation/<int:device_channel_id>',
+    'device_battery_voltage': base_url + '/monitor/device/batteryvoltage',
+    'device_sensor_correlation': base_url + '/monitor/device/sensors/correlation',
 
 }

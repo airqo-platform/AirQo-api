@@ -292,20 +292,34 @@ def get_device_uptime():
 
 
 @device_status_bp.route(api.route['device_battery_voltage'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_battery_voltage(device_channel_id):
+def get_device_battery_voltage():
     '''
     Get device uptime
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        device_channel_id = request.args.get('device_channel_id')
+        device_id = request.args.get('device_id')
+        device_name = request.args.get('device_name')
+
+        if (not device_id and not device_name and not device_channel_id):
+            return jsonify({"message": "please specify one of the following query parameters i.e.device_channel_id , device_name ,device_id. Refer to the API documentation for details.", "success": False}), 400
+
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if type(device_channel_id) is not int:
+        if type(device_channel_id) is not int and device_channel_id:
             device_channel_id = int(device_channel_id)
+            filter_param = device_channel_id
+
+        if not device_channel_id:
+            if device_name:
+                filter_param = device_name
+            else:
+                filter_param = device_id
 
         result = model.get_device_battery_voltage_results(
-            tenant, device_channel_id)
+            tenant, filter_param)
         if result:
             response = result
         else:
@@ -318,20 +332,34 @@ def get_device_battery_voltage(device_channel_id):
 
 
 @device_status_bp.route(api.route['device_sensor_correlation'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_sensor_correlation(device_channel_id):
+def get_device_sensor_correlation():
     '''
     Get device uptime
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
+        device_channel_id = request.args.get('device_channel_id')
+        device_id = request.args.get('device_id')
+        device_name = request.args.get('device_name')
+
+        if (not device_id and not device_name and not device_channel_id):
+            return jsonify({"message": "please specify one of the following query parameters i.e.device_channel_id , device_name ,device_id. Refer to the API documentation for details.", "success": False}), 400
+
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if type(device_channel_id) is not int:
+        if device_channel_id and type(device_channel_id) is not int :
             device_channel_id = int(device_channel_id)
+            filter_param = device_channel_id
+
+        if not device_channel_id:
+            if device_name:
+                filter_param = device_name
+            else:
+                filter_param = device_id
 
         result = model.get_device_sensor_correlation_results(
-            tenant, device_channel_id)
+            tenant, filter_param)
         if result:
             response = result
         else:
