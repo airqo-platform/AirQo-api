@@ -173,11 +173,15 @@ def predict_channel_next_24_hours():
     if request.method == 'POST':
         json_data = request.get_json()
     else:
-        return {'message': 'Wrong request method. This is a POST request'}, 400
+        return {'message': 'Wrong request method. This is a POST request', 'success': False}, 400
     if json_data:
-        my_arr = json_data['data']
+        try:
+            my_arr = json_data['data']
+        except:
+            return {'message': 'Wrong request data. Please inout an array of space and time inputs', 'success': False}, 400
         return get_gp_predictions(my_arr)
+        
     else:
-        return {'message': 'No input data provided'}, 400
-        #error message that body is empty
+        return {'message': 'No input data provided', 'success': False}, 400
+         
 
