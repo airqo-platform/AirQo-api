@@ -259,7 +259,7 @@ def get_device_uptime():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('device_channel_id')
+        device_channel_id = request.args.get('channel_id')
         device_id = request.args.get('device_id')
         device_name = request.args.get('device_name')
 
@@ -299,7 +299,7 @@ def get_device_battery_voltage():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('device_channel_id')
+        device_channel_id = request.args.get('channel_id')
         device_id = request.args.get('device_id')
         device_name = request.args.get('device_name')
 
@@ -339,7 +339,7 @@ def get_device_sensor_correlation():
     model = device_status.DeviceStatus()
     if request.method == 'GET':
         tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('device_channel_id')
+        device_channel_id = request.args.get('channel_id')
         device_id = request.args.get('device_id')
         device_name = request.args.get('device_name')
 
