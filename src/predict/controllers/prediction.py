@@ -163,3 +163,20 @@ def predict_channel_next_24_hours():
             _logger.info(f'errors: {errors}')
             return jsonify({'inputs': json_data,'errors': errors }), 400
 
+
+
+@ml_app.route(api.route['predict_for heatmap'], methods=['POST'])
+def predict_channel_next_24_hours():
+    '''
+    makes predictions for a specified location at a given time.
+    '''
+    if request.method == 'POST':
+        json_data = request.get_json()
+    else:
+        return {'message': 'Wrong request method. This is a POST request'}, 400
+    if json_data:
+        my_arr = json_data['data']
+    else:
+        return {'message': 'No input data provided'}, 400
+        #error message that body is empty
+
