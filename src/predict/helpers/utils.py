@@ -6,7 +6,8 @@ from datetime import datetime
 import pandas as pd
 from models import datamanagement as dm
 import os
-
+import numpy as np
+import tensorflow as tf
 
 import requests
 
@@ -163,6 +164,25 @@ def convert_local_string_date_to_tz_aware_datetime(local_date_string):
     date_time_obj = datetime.strptime(local_date_string, '%Y-%m-%d %H:%M:%S+3:00')
     timezone_date_time_obj = timezone.localize(date_time_obj)
     return timezone_date_time_obj
+
+def load_model():
+    '''
+    loads saved trained gaussian process model
+    '''
+    save_dir = '../saved_model'
+    model = tf.saved_model.load(save_dir)
+    return model
+
+def get_gp_predictions(arr):
+    '''
+    returns pm 2.5 predictions given an array of space and time inputs
+    '''
+    np_arr = np.array(arr)
+    loaded_model = load_model()
+    preds = loaded_model.predict(arr)
+    concat_preds = np.c_[preds[0], preds[1]]
+    return concat_preds.tolist()
+
 
 if __name__ == '__main__':
     

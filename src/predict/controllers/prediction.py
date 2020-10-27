@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models.predict import make_prediction, make_prediction_using_averages 
-from helpers.utils import checkKey, get_closest_channel
+from helpers.utils import checkKey, get_closest_channel, get_gp_predictions
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
 import logging
 from models import datamanagement as dm
@@ -176,6 +176,7 @@ def predict_channel_next_24_hours():
         return {'message': 'Wrong request method. This is a POST request'}, 400
     if json_data:
         my_arr = json_data['data']
+        return get_gp_predictions(my_arr)
     else:
         return {'message': 'No input data provided'}, 400
         #error message that body is empty
