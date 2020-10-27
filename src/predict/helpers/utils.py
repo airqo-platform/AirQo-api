@@ -200,6 +200,23 @@ def get_gp_predictions(arr):
     variances = preds[1].numpy().flatten().tolist()
     return means, variances
 
+def get_entries_since(channel_id,daysago=7):
+    '''
+    Returns hourly data for the past 7 days for a particular channel
+    '''
+    from datetime import datetime,timedelta
+    datestring = (datetime.now()-timedelta(daysago)).strftime("%Y-%m-%d %H:%M:%S") # current date and time
+
+    sql = """
+    SELECT created_at, channel_id, pm2_5 
+    FROM `airqo-250220.thingspeak.clean_feeds_pms` 
+    WHERE channel_id={} 
+    AND created_at > '{}'
+    """.format(channel_id,datestring)
+
+    df = client.query(sql).to_dataframe() 
+    return df
+
 
 if __name__ == '__main__':
     
