@@ -10,62 +10,30 @@ from shapely.ops import transform
 from geopy.distance import distance
 import app
 from dotenv import load_dotenv
+from helpers import db_helpers
 load_dotenv()
 
-#MONGO_URI = os.getenv("MONGO_URI")
-API_KEY = os.getenv("API_KEY")
-OVERPASS_URL = os.getenv("OVERPASS_URL")
-SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT")  # +
-
-credentials = ee.ServiceAccountCredentials(
-    SERVICE_ACCOUNT, 'private_key.json')  # +
-
-if os.getenv('FLASK_ENV') == 'production':
-    MONGO_URI = os.getenv('PROD_MONGO_URI')
-    DB_NAME  = os.getenv('DB_NAME_PROD')
-elif os.getenv('FLASK_ENV') == 'testing':
-    MONGO_URI = os.getenv('PROD_MONGO_URI')
-    DB_NAME  = os.getenv('DB_NAME_STAGING')
-else:
-    MONGO_URI = os.getenv('DEV_MONGO_URI')
-    DB_NAME  = os.getenv('DB_NAME_STAGING')
-
-
-ee.Initialize(credentials)
+ee.Initialize(db_helpers.app_configuration.CREDENTIALS)
 # ee.Initialize()
-
-
-def connect_mongo(tenant_id):
-    '''
-    Connects to MongoDB
-    '''
-    try:
-        client = MongoClient(MONGO_URI)
-    except pymongo.errors.ConnectionFailure as e:
-        return {'message':'unable to connect to database', 'sucess':False}, 400
-    db_name = f'{DB_NAME}_{tenant_id.lower()}'
-    db = client[db_name]
-    return db
 
 
 def get_location_ref(tenant_id):
     '''
     Generates location reference
     '''
-    db = connect_mongo(tenant_id)
+    db = db_helpers.connect_mongo(tenant_id)
     last_document = list(db.location_registry.find(
         {}).sort([('_id', -1)]).limit(1))
     if len(last_document) == 0:
         loc_ref = 1
     else:
         ref = last_document[0]['loc_ref']
-        try: 
+        try:
             loc_ref = int(ref[4:])+1
             return 'loc_'+str(loc_ref)
         except:
             return {'message': 'Invalid input'}, 400
 
-    
 
 def get_location_details(lon, lat, tenant_id):
     '''
@@ -90,7 +58,7 @@ def get_location_details(lon, lat, tenant_id):
         'properties.Subcounty': 1,
         'properties.Parish': 1
     }
-    db = connect_mongo(tenant_id)
+    db = db_helpers.connect_mongo(tenant_id)
     records = list(db.locate_map.find(query, projection))
     region = records[0]['properties']['Region']
     district = records[0]['properties']['District']
@@ -112,7 +80,7 @@ def get_altitude(lat, lon):
     Returns the altitude at the specified coordinates
     '''
     url = 'https://maps.googleapis.com/maps/api/elevation/json?locations={0},{1}&key={2}'.format(
-        lat, lon, API_KEY)
+        lat, lon, db_helpers.app_configuration.API_KEY)
 
     response = requests.get(url).json()
     altitude = response['results'][0]['elevation']
@@ -241,7 +209,8 @@ def distance_to_nearest_city(lat, lon):
     );
     out;
     '''.format(lat, lon)
-    response = requests.get(OVERPASS_URL, params={'data': city_query})
+    response = requests.get(
+        db_helpers.app_configuration.OVERPASS_URL, params={'data': city_query})
     data = response.json()
     if len(data['elements']) > 0:
         for element in data['elements']:
