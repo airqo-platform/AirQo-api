@@ -199,7 +199,6 @@ const data = {
                 // responseData.field6 = gpsCods.longitude;
 
                 delete responseData.entry_id;
-                delete responseData.created_at;
 
                 let transformedData = await transformMeasurement(responseData);
                 let otherData = transformedData.other_data;
