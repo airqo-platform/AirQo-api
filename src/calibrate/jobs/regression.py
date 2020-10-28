@@ -169,7 +169,7 @@ def Uncertainity_std(popt, pcov):
     nom = unp.nominal_values(py)
     std = unp.std_devs(py)
 
-    return 'R^2: ' + str(r2), 'Uncertainty-Slope: ' + str(a), 'Uncertainty-Intercept: ' + str(b)#, 'Standard Deviation:' + str(std)
+    return 'R^2: ' + str(r2), 'Uncertainty-Slope: ' + str(a), 'Uncertainty-Intercept: ' + str(b), 'Standard Deviation:' + str(std)
 performance = Uncertainity_std(popt, pcov)
 print(performance)
 
