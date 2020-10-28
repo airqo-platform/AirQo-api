@@ -27,6 +27,12 @@ function getFieldLabel(field) {
   return fieldsAndLabels[field];
 }
 
+function getFieldByLabel(value) {
+  return Object.keys(fieldsAndLabels).find(
+    (key) => fieldsAndLabels[key] === value
+  );
+}
+
 function getPositionLabel(position) {
   return positionsAndLabels[position];
 }
@@ -76,4 +82,5 @@ module.exports = {
   transformMeasurement,
   trasformFieldValues,
   getPositionLabel,
+  getFieldByLabel,
 };
