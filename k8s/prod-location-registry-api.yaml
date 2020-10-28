@@ -39,6 +39,21 @@ spec:
                 secretKeyRef:
                   name: airqo-secret
                   key: SECRET_KEY
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: LOC_API_KEY
+            - name: OVERPASS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: LOC_OVERPASS_URL
+            - name: SERVICE_ACCOUNT
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: LOC_SERVICE_ACCOUNT
 
 ---
 kind: Service
