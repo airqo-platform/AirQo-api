@@ -5,7 +5,7 @@ const fieldsAndLabels = {
   field4: "s2_pm10",
   field5: "latitude",
   field6: "longitude",
-  field7: "voltage",
+  field7: "battery",
   field8: "other_data",
 };
 
@@ -13,4 +13,19 @@ function getFieldLabel(field) {
   return fieldsAndLabels[field];
 }
 
-module.exports = { getFieldLabel };
+const transformMeasurement = async (measurement) => {
+  try {
+    let newObj = await Object.entries(measurement).reduce(
+      (newObj, [field, value]) => {
+        let transformedField = getFieldLabel(field);
+        return { ...newObj, [transformedField]: value.trim() };
+      },
+      {}
+    );
+    return newObj;
+  } catch (e) {
+    console.log(e.message);
+  }
+};
+
+module.exports = { getFieldLabel, transformMeasurement };
