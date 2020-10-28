@@ -96,4 +96,42 @@ function handleInaccurate(cacheID, req, res) {
   }
 }
 
-module.exports = { gpsCheck };
+function getGPSFromDB(channel, data, req, res) {
+  console.log("channel ID from request: ", req.params.ch_id);
+  let modifiedResponse = data;
+  if (data.field6 == 0.0 || data.field5 == 0.0) {
+    if (channel) {
+      console.log("the channel details: ", channel._doc);
+      console.log("type of channel: ", typeof channel._doc);
+      modifiedResponse.field5 = channel._doc.latitude.toString();
+      console.log("latitude: ", channel._doc.latitude.toString());
+      modifiedResponse.field6 = channel._doc.longitude.toString();
+      console.log("longitude: ", channel._doc.longitude.toString());
+      return modifiedResponse;
+    } else {
+      res.status(HTTPStatus.BAD_REQUEST).send({
+        success: false,
+        message: `Innacurate GPS sensor readings and there are no recorded cordinates to use`,
+      });
+    }
+  } else if (data.field6 == 1000.0 || data.field5 == 1000.0) {
+    if (channel) {
+      console.log("the channel details: ", channel._doc);
+      console.log("type of channel: ", typeof channel._doc);
+      modifiedResponse.field5 = channel._doc.latitude.toString();
+      console.log("latitude: ", channel._doc.latitude.toString());
+      modifiedResponse.field6 = channel._doc.longitude.toString();
+      console.log("longitude: ", channel._doc.longitude.toString());
+      return modifiedResponse;
+    } else {
+      res.status(HTTPStatus.BAD_REQUEST).send({
+        success: false,
+        message: `Innacurate GPS sensor readings and there are no recorded cordinates to use`,
+      });
+    }
+  } else {
+    return modifiedResponse;
+  }
+}
+
+module.exports = { gpsCheck, getGPSFromDB };
