@@ -29,7 +29,7 @@ def calibrate_pm25_values():
   
         calibrated_value = regression.intercept + regression.slope * raw_values
         calibrated_value = calibrated_value.tolist()
-        uncertainty_value = 1.2* 5
+        performance_eval = regression.performance
         std_value = 0.5* 5
 
-        return jsonify({" raw_values": raw_values, "calibrated Values": calibrated_value, "uncertainty": uncertainty_value, "Standard Deviation": std_value})
+        return jsonify({" raw_values": raw_values, "calibrated Values": calibrated_value, "Performance Evaluation": performance_eval, "Standard Deviation": std_value})
