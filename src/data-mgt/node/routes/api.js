@@ -7,7 +7,7 @@ middlewareConfig(router);
 router.get("/channels", transformController.getChannels);
 router.get("/feeds/:ch_id", transformController.getFeeds);
 router.get("/feeds/recent/:ch_id", transformController.getLastEntry);
-router.get("/feeds/hourly/:ch_id", transformController.hourly);
+router.get("/hourly/feeds", transformController.hourly);
 router.get("/channels/age", transformController.getChannelLastEntryAge);
 router.get("/channels/fields/age", transformController.getLastFieldEntryAge);
 router.get("/channels/count", transformController.getDeviceCount);
