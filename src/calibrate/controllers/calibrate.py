@@ -32,11 +32,7 @@ def calibrate_pm25_values():
         raw_value_list = []
         for value in raw_values_dict:
             raw_value_list.append(value)
-        
-        # raw_values = []
-        # for pm in raw_value_list:
-        #     raw_values = pm['values'][0]['raw']  
-            
+                   
         raw_values = [pm['values'][0]['raw'] for pm in raw_value_list]    
   
         calibrated_value = regression.intercept + regression.slope * raw_values
@@ -44,4 +40,4 @@ def calibrate_pm25_values():
         uncertainty_value = 1.2* 5
         std_value = 0.5* 5
 
-        return jsonify({" raw_values": raw_values, "message": "caliiiii", "calibration": calibrated_value, "uncertainty_value": uncertainty_value, "std_value": std_value})
+        return jsonify({" raw_values": raw_values, "calibrated Values": calibrated_value, "uncertainty": uncertainty_value, "Standard Deviation": std_value})
