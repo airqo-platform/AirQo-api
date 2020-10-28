@@ -12,7 +12,7 @@ router.get("/channels/age", transformController.getChannelLastEntryAge);
 router.get("/channels/fields/age", transformController.getLastFieldEntryAge);
 router.get("/channels/count", transformController.getDeviceCount);
 router.get(
-  "/feeds/json/recent",
+  "/feeds/transform/recent",
   transformController.generateDescriptiveLastEntry
 );
 

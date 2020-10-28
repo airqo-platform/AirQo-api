@@ -7,7 +7,12 @@ const axios = require("axios");
 const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
 const Issue = require("../models/Issue");
-const { getFieldLabel, transformMeasurement } = require("../utils/mappings");
+const {
+  getFieldLabel,
+  getPositionLabel,
+  transformMeasurement,
+  trasformFieldValues,
+} = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 const constants = require("../config/constants");
 const { gpsCheck } = require("../utils/gps-check");
@@ -185,15 +190,19 @@ const data = {
                 delete responseData.created_at;
 
                 let transformedData = await transformMeasurement(responseData);
+                let otherData = transformedData.other_data;
+                let transformedField = await trasformFieldValues(otherData);
+                delete transformedData.other_data;
+                let newResp = { ...transformedData, ...transformedField };
 
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...transformedData })
+                  JSON.stringify({ isCache: true, ...newResp })
                 );
 
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
-                  ...transformedData,
+                  ...newResp,
                 });
               })
               .catch((error) => {

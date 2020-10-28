@@ -16,27 +16,27 @@ async function gpsCheck(data, req, res) {
     let ts = Date.now();
     let day = await generateDateFormat(ts);
     let cacheID = `gpsCheck_${day}`;
-    console.log("the cache value: ", cacheID);
+    // console.log("the cache value: ", cacheID);
 
-    console.log("the data: ", data);
-    console.log("the field6: ", data.field6);
-    console.log("the field5: ", data.field5);
+    // console.log("the data: ", data);
+    // console.log("the field6: ", data.field6);
+    // console.log("the field5: ", data.field5);
 
     let field5 = data.field5;
     let field6 = data.field6;
 
     if (field5 == 0.0 && field6 == 0.0) {
       let gpsCods = handleInaccurate(cacheID, req, res);
-      console.log("the gpsCods for Innacurate: ", typeof gpsCods);
+      // console.log("the gpsCods for Innacurate: ", typeof gpsCods);
       console.dir(gpsCods);
       return gpsCods;
     } else if (field5 == 1000.0 && field6 == 1000.0) {
       let gpsCods = handleInaccurate(cacheID, req, res);
-      console.log("the gpsCods for Innacurate: ", gpsCods);
+      // console.log("the gpsCods for Innacurate: ", gpsCods);
       return gpsCods;
     } else {
       let gpsCods = handleAccurate(cacheID, data, req, res);
-      console.log("the gpsCods for accurate: ", gpsCods);
+      // console.log("the gpsCods for accurate: ", gpsCods);
       return gpsCods;
     }
   } catch (error) {
@@ -87,7 +87,7 @@ function handleInaccurate(cacheID, req, res) {
         let gpsCods = {};
         gpsCods.latitude = null;
         gpsCods.longitude = null;
-        console.log("the innacurate logs: ", { ...gpsCods });
+        // console.log("the innacurate logs: ", { ...gpsCods });
         return "me";
       }
     });
