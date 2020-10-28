@@ -7,6 +7,7 @@ const fieldsAndLabels = {
   field6: "longitude",
   field7: "battery",
   field8: "other_data",
+  created_at: "created_at",
 };
 
 const positionsAndLabels = {
