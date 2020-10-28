@@ -52,6 +52,7 @@ const data = {
                 cacheID,
                 JSON.stringify({ isCache: true, ...responseJSON })
               );
+              redis.expire(cacheID, 86400);
               return res
                 .status(HTTPStatus.OK)
                 .json({ isCache: false, ...responseJSON });
@@ -102,6 +103,7 @@ const data = {
                   cacheID,
                   JSON.stringify({ isCache: true, ...responseData })
                 );
+                redis.expire(cacheID, 86400);
 
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
@@ -124,13 +126,48 @@ const data = {
   hourly: async (req, res) => {
     console.log("getting hourly..............  ");
     try {
-      let fetch_response = await fetch(
-        constants.GET_HOURLY_FEEDS(req.params.ch_id)
-      );
-      let json = await fetch_response.json();
-      res.status(HTTPStatus.OK).send(json);
+      const { channel } = req.query;
+
+      if (channel) {
+        let ts = Date.now();
+        let day = await generateDateFormat(ts);
+        let cacheID = `get_hourly_${day}`;
+
+        redis.get(cacheID, (err, result) => {
+          if (result) {
+            const resultJSON = JSON.parse(result);
+            return res.status(HTTPStatus.OK).json(resultJSON);
+          } else if (err) {
+            callbackErrors(err, req, res);
+          } else {
+            axios
+              .get(constants.GET_HOURLY_FEEDS(Number(channel)))
+              .then((response) => {
+                const responseJSON = response.data;
+                redis.set(
+                  cacheID,
+                  JSON.stringify({ isCache: true, ...responseJSON })
+                );
+                redis.expire(cacheID, 86400);
+                return res
+                  .status(HTTPStatus.OK)
+                  .json({ isCache: false, ...responseJSON });
+              })
+              .catch((err) => {
+                axiosError(err, req, res);
+              });
+          }
+        });
+        // let fetch_response = await fetch(
+        //   constants.GET_HOURLY_FEEDS(req.params.ch_id)
+        // );
+        // let json = await fetch_response.json();
+        // res.status(HTTPStatus.OK).send(json);
+      } else {
+        missingQueryParams(req, res);
+      }
     } catch (error) {
-      res.status(HTTPStatus.BAD_GATEWAY).send(error.message);
+      tryCatchErrors(error, req, res);
     }
   },
 
@@ -174,7 +211,7 @@ const data = {
                   cacheID,
                   JSON.stringify({ isCache: true, ...newResp })
                 );
-
+                redis.expire(cacheID, 86400);
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
                   ...newResp,
@@ -219,6 +256,7 @@ const data = {
                   ...responseJSON,
                 })
               );
+              redis.expire(cacheID, 86400);
               return res.status(HTTPStatus.OK).json({
                 isCache: false,
                 ...responseJSON,
@@ -246,10 +284,10 @@ const data = {
       if (channel && sensor) {
         let ts = Date.now();
         let day = await generateDateFormat(ts);
-        let cacheValue = `entry_age_${channel.trim()}_${sensor.trim()}_${day}`;
-        console.log("the cache value: ", cacheValue);
+        let cacheID = `entry_age_${channel.trim()}_${sensor.trim()}_${day}`;
+        console.log("the cache value: ", cacheID);
 
-        return redis.get(`${cacheValue}`, (err, result) => {
+        return redis.get(`${cacheID}`, (err, result) => {
           if (result) {
             const resultJSON = JSON.parse(result);
             return res.status(HTTPStatus.OK).json({ ...resultJSON });
@@ -263,9 +301,11 @@ const data = {
               .then((response) => {
                 const responseJSON = response.data;
                 redis.set(
-                  cacheValue,
+                  cacheID,
                   JSON.stringify({ isCache: true, ...responseJSON })
                 );
+                redis.expire(cacheID, 86400);
+
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
                   ...responseJSON,
@@ -296,9 +336,9 @@ const data = {
     try {
       let ts = Date.now();
       let day = await generateDateFormat(ts);
-      let cacheValue = `device_count_${day}`;
-      console.log("the cache value: ", cacheValue);
-      return redis.get(`${cacheValue}`, (err, result) => {
+      let cacheID = `device_count_${day}`;
+      console.log("the cache value: ", cacheID);
+      return redis.get(`${cacheID}`, (err, result) => {
         if (result) {
           const resultJSON = JSON.parse(result);
           return res.status(200).json(resultJSON);
@@ -308,10 +348,8 @@ const data = {
             .then((response) => {
               const responseJSON = response.data;
               let count = Object.keys(responseJSON).length;
-              redis.set(
-                `${cacheValue}`,
-                JSON.stringify({ isCache: true, count })
-              );
+              redis.set(`${cacheID}`, JSON.stringify({ isCache: true, count }));
+              redis.expire(cacheID, 86400);
               // Send JSON response to redis
               return res.status(200).json({ isCache: false, count });
             })
