@@ -15,6 +15,11 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY").strip()
     DB_NAME = os.getenv("DB_NAME_PROD").strip()
     MONGO_URI = os.getenv('MONGO_GCE_URI').strip()
+    API_KEY = os.getenv("API_KEY").strip()
+    OVERPASS_URL = os.getenv("OVERPASS_URL").strip()
+    SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT").strip()
+    CREDENTIALS = ee.ServiceAccountCredentials(
+        SERVICE_ACCOUNT, 'private_key.json')
 
 
 class ProductionConfig(Config):
@@ -29,6 +34,11 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = os.getenv("MONGO_DEV_URI").strip()
     DB_NAME = os.getenv("DB_NAME_DEV").strip()
+    API_KEY = os.getenv("API_KEY").strip()
+    OVERPASS_URL = os.getenv("OVERPASS_URL").strip()
+    SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT").strip()
+    CREDENTIALS = ee.ServiceAccountCredentials(
+        SERVICE_ACCOUNT, 'private_key.json')
 
 
 class TestingConfig(Config):
@@ -38,6 +48,11 @@ class TestingConfig(Config):
     TESTING = True
     MONGO_URI = os.getenv('MONGO_GCE_URI').strip()
     DB_NAME = os.getenv("DB_NAME_STAGE").strip()
+    API_KEY = os.getenv("API_KEY").strip()
+    OVERPASS_URL = os.getenv("OVERPASS_URL").strip()
+    SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT").strip()
+    CREDENTIALS = ee.ServiceAccountCredentials(
+        SERVICE_ACCOUNT, 'private_key.json')
 
 
 app_config = {"development": DevelopmentConfig,
