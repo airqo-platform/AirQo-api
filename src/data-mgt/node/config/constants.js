@@ -4,7 +4,7 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
 };
 const stageConfig = {
-  MONGO_URI: "mongodb://localhost/",
+  MONGO_URI: process.env.MONGO_GCE_URI,
   JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_STAGE,
 };

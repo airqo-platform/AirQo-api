@@ -15,11 +15,12 @@ const {
 } = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 const constants = require("../config/constants");
-const { gpsCheck } = require("../utils/gps-check");
+const { gpsCheck, getGPSFromDB } = require("../utils/gps-check");
 const {
   axiosError,
   tryCatchErrors,
   missingQueryParams,
+  callbackErrors,
 } = require("../utils/errors");
 
 async function asyncForEach(array, callback) {
@@ -30,32 +31,38 @@ async function asyncForEach(array, callback) {
 
 const data = {
   getChannels: async (req, res) => {
-    let ts = Date.now();
-    let day = await generateDateFormat(ts);
-    let cacheID = `get_channels_${day}`;
+    try {
+      let ts = Date.now();
+      let day = await generateDateFormat(ts);
+      let cacheID = `get_channels_${day}`;
 
-    redis.get(cacheID, (err, result) => {
-      if (result) {
-        const resultJSON = JSON.parse(result);
-        return res.status(HTTPStatus.OK).json(resultJSON);
-      } else {
-        axios
-          .get(constants.GET_CHANNELS)
-          .then((response) => {
-            const responseJSON = response.data;
-            redis.set(
-              cacheID,
-              JSON.stringify({ isCache: true, ...responseJSON })
-            );
-            return res
-              .status(HTTPStatus.OK)
-              .json({ isCache: false, ...responseJSON });
-          })
-          .catch((err) => {
-            return res.json(err);
-          });
-      }
-    });
+      redis.get(cacheID, (err, result) => {
+        if (result) {
+          const resultJSON = JSON.parse(result);
+          return res.status(HTTPStatus.OK).json(resultJSON);
+        } else if (err) {
+          callbackErrors(err, req, res);
+        } else {
+          axios
+            .get(constants.GET_CHANNELS)
+            .then((response) => {
+              const responseJSON = response.data;
+              redis.set(
+                cacheID,
+                JSON.stringify({ isCache: true, ...responseJSON })
+              );
+              return res
+                .status(HTTPStatus.OK)
+                .json({ isCache: false, ...responseJSON });
+            })
+            .catch((err) => {
+              axiosError(err, req, res);
+            });
+        }
+      });
+    } catch (e) {
+      tryCatchErrors(e, req, res);
+    }
   },
   getFeeds: async (req, res) => {
     console.log("getting feeds..............  ");
@@ -65,84 +72,51 @@ const data = {
   },
 
   getLastEntry: async (req, res) => {
-    console.log("getting last entry..............  ");
-
     try {
-      const fetch_response = await fetch(
-        constants.GENERATE_LAST_ENTRY(channel)
-      );
+      const { ch_id } = req.params;
+      if (ch_id) {
+        let ts = Date.now();
+        let day = await generateDateFormat(ts);
+        let cacheID = `last_entry_${ch_id.trim()}_${day}`;
+        redis.get(cacheID, (err, result) => {
+          if (result) {
+            const resultJSON = JSON.parse(result);
+            return res.status(HTTPStatus.OK).json(resultJSON);
+          } else {
+            axios
+              .get(constants.GENERATE_LAST_ENTRY(ch_id))
+              .then(async (response) => {
+                let readings = response.data;
 
-      console.log(
-        "the symbols attached to this object ",
-        Object.getOwnPropertySymbols(fetch_response)
-      );
+                let lastEntryId = readings.channel.last_entry_id;
+                let recentReadings = await readings.feeds.filter((item) => {
+                  return item.entry_id === lastEntryId;
+                });
+                let responseData = recentReadings[0];
 
-      console.log(
-        `the content of the "Response internals" Symbol `,
-        fetch_response[Object.getOwnPropertySymbols(fetch_response)[1]]
-      );
+                let referenceForRefactor =
+                  "https://docs.google.com/document/d/163T5dZj_FaDHJ_sBAmKamqGN2PSuaZdBEirx-Kz-80Q/edit?usp=sharing";
 
-      const response_internals =
-        fetch_response[Object.getOwnPropertySymbols(fetch_response)[1]];
+                redis.set(
+                  cacheID,
+                  JSON.stringify({ isCache: true, ...responseData })
+                );
 
-      /****
-       * if the status from TS is not 200, please return appropriate error response
-       */
-      if (response_internals.status !== 200) {
-        res.status(response_internals.status).send({
-          success: false,
-          message: `no events/feeds are present for this device`,
-          statusText: response_internals.statusText,
+                return res.status(HTTPStatus.OK).json({
+                  isCache: false,
+                  ...responseData,
+                });
+              })
+              .catch((error) => {
+                axiosError(error, req, res);
+              });
+          }
         });
       } else {
-        let json = await fetch_response.json();
-        let response = {};
-        response.metadata = json.channel;
-        let entry = json.channel.last_entry_id;
-        let feed = await json.feeds.filter((obj) => {
-          return obj.entry_id === entry;
-        });
-        response = feed[0];
-        const channel = await Channel.findOne({
-          channel_id: Number(req.params.ch_id),
-        }).exec();
-        console.log("feeds from TS: ", response);
-        console.log("channel ID from request: ", req.params.ch_id);
-        if (feed[0].field6 == 0.0 || feed[0].field5 == 0.0) {
-          if (channel) {
-            console.log("the channel details: ", channel._doc);
-            console.log("type of channel: ", typeof channel._doc);
-            response.field5 = channel._doc.latitude.toString();
-            console.log("latitude: ", channel._doc.latitude.toString());
-            response.field6 = channel._doc.longitude.toString();
-            console.log("longitude: ", channel._doc.longitude.toString());
-          } else {
-            res.status(401).send({
-              success: false,
-              message: `Innacurate GPS sensor readings and there are no recorded cordinates to use`,
-            });
-          }
-        } else if (feed[0].field6 == 1000.0 || feed[0].field5 == 1000.0) {
-          if (channel) {
-            console.log("the channel details: ", channel._doc);
-            console.log("type of channel: ", typeof channel._doc);
-            response.field5 = channel._doc.latitude.toString();
-            console.log("latitude: ", channel._doc.latitude.toString());
-            response.field6 = channel._doc.longitude.toString();
-            console.log("longitude: ", channel._doc.longitude.toString());
-          } else {
-            res.status(HTTPStatus.BAD_REQUEST).send({
-              success: false,
-              message: `Innacurate GPS sensor readings and there are no recorded cordinates to use`,
-            });
-          }
-        }
-        res.status(200).json(response);
+        missingQueryParams(req, res);
       }
     } catch (e) {
-      res
-        .status(501)
-        .send({ success: false, message: "server error", error: e.message });
+      tryCatchErrors(e, req, res);
     }
   },
 
