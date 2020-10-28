@@ -1,2 +1,2 @@
 runtime: nodejs10
-service: data-manager
+service: staging-data-manager
