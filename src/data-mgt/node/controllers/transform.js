@@ -12,6 +12,7 @@ const {
   getPositionLabel,
   transformMeasurement,
   trasformFieldValues,
+  getFieldByLabel,
 } = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 const constants = require("../config/constants");
@@ -240,12 +241,12 @@ const data = {
 
   getLastFieldEntryAge: async (req, res) => {
     try {
-      const { channel, field } = req.query;
+      const { channel, sensor } = req.query;
 
-      if (channel && field) {
+      if (channel && sensor) {
         let ts = Date.now();
         let day = await generateDateFormat(ts);
-        let cacheValue = `entry_age_${channel.trim()}_${field.trim()}_${day}`;
+        let cacheValue = `entry_age_${channel.trim()}_${sensor.trim()}_${day}`;
         console.log("the cache value: ", cacheValue);
 
         return redis.get(`${cacheValue}`, (err, result) => {
@@ -253,6 +254,10 @@ const data = {
             const resultJSON = JSON.parse(result);
             return res.status(HTTPStatus.OK).json({ ...resultJSON });
           } else {
+            /**
+             * we can trasform the field
+             */
+            let field = getFieldByLabel(sensor);
             return axios
               .get(constants.GET_LAST_FIELD_ENTRY_AGE(channel, field))
               .then((response) => {
