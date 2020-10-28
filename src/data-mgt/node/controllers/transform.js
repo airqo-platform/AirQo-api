@@ -7,10 +7,15 @@ const axios = require("axios");
 const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
 const Issue = require("../models/Issue");
-const { getFieldLabel } = require("../utils/mappings");
+const { getFieldLabel, transformMeasurement } = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 const constants = require("../config/constants");
 const { gpsCheck } = require("../utils/gps-check");
+const {
+  axiosError,
+  tryCatchErrors,
+  missingQueryParams,
+} = require("../utils/errors");
 
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
@@ -20,11 +25,9 @@ async function asyncForEach(array, callback) {
 
 const data = {
   getChannels: async (req, res) => {
-    console.log("getting channels..............  ");
     let ts = Date.now();
     let day = await generateDateFormat(ts);
-    let cacheID = `channels_${day}`;
-    console.log("the cache ID ", cacheID);
+    let cacheID = `get_channels_${day}`;
 
     redis.get(cacheID, (err, result) => {
       if (result) {
@@ -37,11 +40,11 @@ const data = {
             const responseJSON = response.data;
             redis.set(
               cacheID,
-              JSON.stringify({ message: "from the cache", ...responseJSON })
+              JSON.stringify({ isCache: true, ...responseJSON })
             );
             return res
               .status(HTTPStatus.OK)
-              .json({ message: "from the API", ...responseJSON });
+              .json({ isCache: false, ...responseJSON });
           })
           .catch((err) => {
             return res.json(err);
@@ -58,6 +61,7 @@ const data = {
 
   getLastEntry: async (req, res) => {
     console.log("getting last entry..............  ");
+
     try {
       const fetch_response = await fetch(
         constants.GENERATE_LAST_ENTRY(channel)
@@ -151,92 +155,71 @@ const data = {
   },
 
   generateDescriptiveLastEntry: async (req, res) => {
-    console.log("generateDescriptiveLastEntry..............  ");
     try {
-      const { chid } = req.query;
-      console.log("the channel ID:", chid);
-      if (chid) {
-        axios
-          .get(constants.GENERATE_LAST_ENTRY(chid))
-          .then(async (response) => {
-            let readings = response.data;
+      const { channel } = req.query;
+      if (channel) {
+        let ts = Date.now();
+        let day = await generateDateFormat(ts);
+        let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
+        redis.get(cacheID, (err, result) => {
+          if (result) {
+            const resultJSON = JSON.parse(result);
+            return res.status(HTTPStatus.OK).json(resultJSON);
+          } else {
+            axios
+              .get(constants.GENERATE_LAST_ENTRY(channel))
+              .then(async (response) => {
+                let readings = response.data;
 
-            let lastEntryId = readings.channel.last_entry_id;
-            let recentReadings = await readings.feeds.filter((item) => {
-              return item.entry_id === lastEntryId;
-            });
+                let lastEntryId = readings.channel.last_entry_id;
+                let recentReadings = await readings.feeds.filter((item) => {
+                  return item.entry_id === lastEntryId;
+                });
+                let responseData = recentReadings[0];
+                //check the GPS values
+                let gpsCods = gpsCheck(responseData, req, res);
+                // responseData.field5 = gpsCods.latitude;
+                // responseData.field6 = gpsCods.longitude;
 
-            //check the GPS values
-            let { lat, lon } = gpsCheck(...recentReadings[0], req, res);
-            let responseData = {
-              ...recentReadings[0],
-            };
-            responseData.field5 = lat;
-            responseData.field6 = long;
+                delete responseData.entry_id;
+                delete responseData.created_at;
 
-            //  * afterwards, transform its content to something more relatable using the ctypes
+                let transformedData = await transformMeasurement(responseData);
 
-            // transformedData = {
-            //   getFieldLabel(`${responseData.field1}`): `${responseData.field1}`
-            // }
+                redis.set(
+                  cacheID,
+                  JSON.stringify({ isCache: true, ...transformedData })
+                );
 
-            res.status(HTTPStatus.OK).json({
-              ...responseData,
-            });
-          })
-          .catch((error) => {
-            if (error.response) {
-              // that falls out of the range of 2xx
-              console.log(error.response.data);
-              console.log(error.response.status);
-              console.log(error.response.headers);
-              res.status(HTTPStatus.BAD_GATEWAY).json({
-                success: false,
-                error: error.response.data,
+                return res.status(HTTPStatus.OK).json({
+                  isCache: false,
+                  ...transformedData,
+                });
+              })
+              .catch((error) => {
+                axiosError(error, req, res);
               });
-            } else if (error.request) {
-              // The request was made but no response was received
-              console.log(error.request);
-              res.status(HTTPStatus.BAD_GATEWAY).json({
-                success: false,
-                error: error.request,
-              });
-            } else {
-              // Something happened in setting up the request that triggered an Error
-              console.log("Error", error.message);
-              res.status(HTTPStatus.BAD_GATEWAY).json({
-                success: false,
-                error: error.message,
-              });
-            }
-            console.log(error.config);
-          });
-      } else {
-        res.status(HTTPStatus.BAD_REQUEST).send({
-          success: false,
-          message: "misssing request parameters, please check documentation",
+          }
         });
+      } else {
+        missingQueryParams(req, res);
       }
     } catch (e) {
-      res
-        .status(HTTPStatus.BAD_GATEWAY)
-        .send({ success: false, message: "server error", error: e.message });
+      tryCatchErrors(e, req, res);
     }
   },
   getChannelLastEntryAge: async (req, res) => {
-    console.log(" getChannelLastEntryAge..............  ");
     try {
       const { channel } = req.query;
       console.log("the channel ID:", channel);
       let ts = Date.now();
       let day = await generateDateFormat(ts);
-      let cacheID = `${channel.trim()}_${day}`;
+      let cacheID = `entry_age_${channel.trim()}_${day}`;
       console.log("the cache ID", cacheID);
       return redis.get(cacheID, (err, result) => {
         if (result) {
           const resultJSON = JSON.parse(result);
           return res.status(HTTPStatus.OK).json({
-            message: "from the cache",
             ...resultJSON,
           });
         } else {
@@ -246,10 +229,14 @@ const data = {
               const responseJSON = response.data;
               redis.set(
                 cacheID,
-                JSON.stringify({ channel: channel, ...responseJSON })
+                JSON.stringify({
+                  isCache: true,
+                  channel: channel,
+                  ...responseJSON,
+                })
               );
               return res.status(HTTPStatus.OK).json({
-                message: "from the API",
+                isCache: false,
                 ...responseJSON,
               });
             })
@@ -269,30 +256,30 @@ const data = {
   },
 
   getLastFieldEntryAge: async (req, res) => {
-    console.log(" getLastFieldEntryAge..............  ");
     try {
       const { channel, field } = req.query;
 
       if (channel && field) {
         let ts = Date.now();
         let day = await generateDateFormat(ts);
-        let cacheValue = `${channel.trim()}_${field.trim()}_${day}`;
+        let cacheValue = `entry_age_${channel.trim()}_${field.trim()}_${day}`;
         console.log("the cache value: ", cacheValue);
 
         return redis.get(`${cacheValue}`, (err, result) => {
           if (result) {
             const resultJSON = JSON.parse(result);
-            return res
-              .status(HTTPStatus.OK)
-              .json({ message: "from the cache", ...resultJSON });
+            return res.status(HTTPStatus.OK).json({ ...resultJSON });
           } else {
             return axios
               .get(constants.GET_LAST_FIELD_ENTRY_AGE(channel, field))
               .then((response) => {
                 const responseJSON = response.data;
-                redis.set(`${cacheValue}`, JSON.stringify({ ...responseJSON }));
+                redis.set(
+                  cacheValue,
+                  JSON.stringify({ isCache: true, ...responseJSON })
+                );
                 return res.status(HTTPStatus.OK).json({
-                  message: "from the API",
+                  isCache: false,
                   ...responseJSON,
                 });
               })
@@ -335,10 +322,10 @@ const data = {
               let count = Object.keys(responseJSON).length;
               redis.set(
                 `${cacheValue}`,
-                JSON.stringify({ message: "from the cache", count })
+                JSON.stringify({ isCache: true, count })
               );
               // Send JSON response to redis
-              return res.status(200).json({ message: "from the API", count });
+              return res.status(200).json({ isCache: false, count });
             })
             .catch((err) => {
               return res.json(err);
