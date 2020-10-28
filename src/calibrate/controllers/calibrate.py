@@ -8,6 +8,7 @@ import uncertainties.unumpy as unp
 from jobs import regression
 import os
 from pymongo import MongoClient
+import uncertainties.unumpy as unp
 
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
@@ -30,6 +31,5 @@ def calibrate_pm25_values():
         calibrated_value = regression.intercept + regression.slope * raw_values
         calibrated_value = calibrated_value.tolist()
         performance_eval = regression.performance
-        std_value = 0.5* 5
-
-        return jsonify({" raw_values": raw_values, "calibrated Values": calibrated_value, "Performance Evaluation": performance_eval, "Standard Deviation": std_value})
+        
+        return jsonify({" raw_values": raw_values, "calibrated Values": calibrated_value, "Performance Evaluation": performance_eval})
