@@ -138,7 +138,41 @@ def slope(regressor_muk):
 slope = slope(regressor_muk)
 print(slope)
 
-# calibrated_value = intercept + slope * 12
+
+# Uncertainity, Standard Deviation and R2
+
+hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_lowcost_hourly_PM'].notna()]
+hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_bam_hourly_PM'].notna()]
+x = hourly_combined_dataset['muk_lowcost_hourly_PM'].values
+y = hourly_combined_dataset['muk_bam_hourly_PM'].values
+
+n = len(y)
+
+def f(x, a, b):
+    return a * x + b
+popt, pcov = curve_fit(f, x, y)
+
+def Uncertainity_std(popt, pcov):
+    # retrieve parameter values
+    a = popt[0]
+    b = popt[1]
+
+    # compute r^2
+    r2 = 1.0-(sum((y-f(x,a,b))**2)/((n-1.0)*np.var(y,ddof=1)))
+
+    # calculate parameter confidence interval
+    a,b = unc.correlated_values(popt, pcov)
+
+    # calculate regression confidence interval
+    px = np.linspace(0, 200, 300)
+    py = a*px+b
+    nom = unp.nominal_values(py)
+    std = unp.std_devs(py)
+
+    return 'R^2: ' + str(r2), 'Uncertainty-Slope: ' + str(a), 'Uncertainty-Intercept: ' + str(b), 'Standard Deviation:' + str(std)
+results = Uncertainity_std(popt, pcov)
+print(results)
+
 
 
 
