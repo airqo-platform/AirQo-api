@@ -4,6 +4,20 @@ from datetime import datetime,timedelta
 import pandas as pd
 
 
+def query_prediction_data():
+    client = bigquery.Client()
+    sql = """SELECT created_at ,channel_id,pm2_5
+        FROM `airqo-250220.thingspeak.clean_feeds_pms` """
+
+    job_config = bigquery.QueryJobConfig()
+    job_config.use_legacy_sql = False
+     
+    df = client.query(sql,job_config=job_config).to_dataframe()
+    df['created_at'] =  pd.to_datetime(df['created_at'])
+    df['created_at'] = df['created_at'].dt.tz_localize('Africa/Kampala')
+    time_indexed_data = df.set_index('created_at')
+    return time_indexed_data 
+
 def save_predictions_all(predictions):
     client = bigquery.Client()
     dataset_ref = client.dataset('thingspeak','airqo-250220')
