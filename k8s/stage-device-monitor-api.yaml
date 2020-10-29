@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: sta-dev-monitor
-          image: us.gcr.io/airqo-250220/airqo-stage-device-monitor:latest
+          image: us.gcr.io/airqo-250220/airqo-stage-device-monitor-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4001
