@@ -208,22 +208,6 @@ def get_gp_predictions():
                       'variance':variances[i]})
     return result
 
-
-def get_preds_again():
-    
-    loaded_model = load_model()
-    means, variances = loaded_model.predict(arr)
-    means = preds[0].numpy().flatten()
-    variances = preds[1].numpy().flatten()
-    
-    result = []
-    for i in range(pred_set.shape[0]):
-        result.append({'lat':locations_flat[i][1],
-                      'long':locations_flat[i][0],
-                      'mean': means[i],
-                      'variance':variances[i]})
-    return result
-
 def get_entries_since(channel_id,daysago=7):
     '''
     Returns hourly data for the past 7 days for a particular channel

@@ -6,6 +6,7 @@ import logging
 from models import datamanagement as dm
 import datetime as dt
 import sys
+from datetime import datetime
 
 
 from routes import api
@@ -166,32 +167,15 @@ def predict_channel_next_24_hours():
 
 
 
-@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
+@ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
-    if request.method == 'POST':
-        json_data = request.get_json()
+    time = datetime.now()
+    if request.method == 'GET':
+        data = get_gp_predictions()
+        return {'data':data, 'success':True}, 200
     else:
-        return {'message': 'Wrong request method. This is a POST request', 'success': False}, 400
-    if not json_data:
-        return {'message': 'No input data provided', 'success': False}, 400
-    else:
-        try:
-            my_arr = json_data['data']
-            if len(my_arr)==0:
-                return {'message': 'Input array is empty', 'success':False}, 400
-        except:
-            return {'message': 'Wrong request data. Please input an array of space and time inputs', 'success': False}, 400  
-        
-        pred, var = get_gp_predictions(my_arr)
-        print(type(pred), file=sys.stderr)
-
-        if type(pred) is list:
-            print(pred, file=sys.stderr)
-            return {'predictions': pred, 'variances': var, 'success':True}, 200
-        else:
-            print(pred, file=sys.stderr)
-            return pred, var
-             
+        return {'message': 'Wrong request method. This is a GET endpoint', 'success':False}, 400
+    
