@@ -7,15 +7,13 @@ import datetime
 from sklearn.linear_model import LinearRegression  
 from sklearn.model_selection import train_test_split 
 from sklearn import metrics
-from scipy import stats
+#from scipy import stats
+import scipy.stats
 import joblib
 from scipy.optimize import curve_fit
 import uncertainties.unumpy as unp
 import uncertainties as unc
-#from flask import Blueprint, request, jsonify
 
-
-# regression_bp = Blueprint('regression_bp', __name__)
 
 muk_lowcost_data = pd.read_csv("jobs\AQ_88.csv") #channel 88-thingspeak,  device colocated with MUK BAM
 muk_bam_data = pd.read_csv('jobs\MUK-BAM.csv')#MUK BAM
@@ -104,12 +102,12 @@ def combine_datasets(muk_lowcost_hourly_mean, muk_bam_data):
 
     return hourly_combined_dataset
 hourly_combined_dataset = combine_datasets(muk_lowcost_hourly_mean, muk_bam_data)
+hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_lowcost_hourly_PM'].notna()]
+hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_bam_hourly_PM'].notna()]
 
 def linear_regression_func(hourly_combined_dataset):
     # take only rows where hourly_PM is not null
-    hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_lowcost_hourly_PM'].notna()]
-    hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_bam_hourly_PM'].notna()]
-    
+        
     X_muk = hourly_combined_dataset['muk_lowcost_hourly_PM'].values
     X_muk = X_muk.reshape((-1, 1))
     y_muk = hourly_combined_dataset['muk_bam_hourly_PM'].values     
@@ -140,9 +138,6 @@ print(slope)
 
 
 # Uncertainity, Standard Deviation and R2
-
-hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_lowcost_hourly_PM'].notna()]
-hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['muk_bam_hourly_PM'].notna()]
 x = hourly_combined_dataset['muk_lowcost_hourly_PM'].values
 y = hourly_combined_dataset['muk_bam_hourly_PM'].values
 
@@ -171,7 +166,20 @@ def Uncertainity_std(popt, pcov):
 
     return 'R^2: ' + str(r2), 'Uncertainty-Slope: ' + str(a), 'Uncertainty-Intercept: ' + str(b)#, 'Standard Deviation:' + str(std)
 performance = Uncertainity_std(popt, pcov)
-print(performance)
+
+# def mean_confidence_interval(x, confidence=0.95):
+#     '''
+#         calculating mean and confidence intervals
+#     '''
+#     a = 1.0 * np.array(x)
+#     n = len(a)
+#     m, se = np.mean(a), scipy.stats.sem(a, nan_policy='omit')
+#     h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
+#     mean = m
+#     lower_ci = m-h
+#     upper_ci = m+h
+#     return mean, lower_ci, upper_ci, h
+# ci = mean_confidence_interval(x, confidence=0.95)
 
 
 
