@@ -172,7 +172,6 @@ def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
-    time = datetime.now()
     if request.method == 'GET':
         data = get_gp_predictions()
         return {'data':data, 'success':True}, 200
