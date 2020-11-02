@@ -21,8 +21,24 @@ spec:
           image: us.gcr.io/airqo-250220/airqo-device-monitor-api:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 4000
+            - containerPort: 4001
               name: dev-monitor-api
+          env:
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: MONGO_GCE_URI
+            - name: DB_NAME_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: PLATFORM_MONGO_PROD
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: SECRET_KEY
 
 ---
 kind: Service
@@ -35,7 +51,7 @@ spec:
     app: device-monitor-api
   ports:
     - protocol: TCP
-      port: 4000
-      targetPort: 4000
+      port: 4001
+      targetPort: 4001
       nodePort: 30006
   type: NodePort

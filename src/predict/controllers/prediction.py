@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from models.predict import make_prediction, make_prediction_using_averages 
 from helpers.utils import checkKey, get_closest_channel, get_gp_predictions
+from models.predict import make_prediction, make_prediction_using_averages, get_next_24hr_predictions_for_channel
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
 import logging
 from models import datamanagement as dm
@@ -16,6 +17,36 @@ cache = Cache(config={'CACHE_TYPE': 'simple'})
 _logger = logging.getLogger(__name__)
 
 ml_app = Blueprint('ml_app', __name__)
+
+@ml_app.route(api.route['next_24hr_predictions'], methods=['GET'])
+def get_next_24hr_predictions(device_channel_id,prediction_start_time):
+    '''
+    Get predictions for the next 24 hours from specified start time.
+    '''
+    if request.method == 'GET':
+        if type(device_channel_id) is not int:
+            device_channel_id = int(device_channel_id) 
+        
+        if type(prediction_start_time) is not int:
+            try:
+               prediction_start_time =  int(prediction_start_time) 
+            except ValueError:
+                error =  {"message": "Invalid prediction start time. expected unix timestamp format like 1500000000", "success": False}
+                return jsonify(error, 400) 
+
+        prediction_start_timestamp = dt.datetime.fromtimestamp(prediction_start_time)
+        prediction_start_datetime = dt.datetime.strftime(prediction_start_timestamp,"%Y-%m-%d %H:00:00") 
+        print(prediction_start_datetime)     
+        result = get_next_24hr_predictions_for_channel(device_channel_id, prediction_start_datetime)
+        if result:
+            response = result
+        else:
+            response = {
+                "message": "predictions for channel are not available", "success": False}
+        data = jsonify(response)
+        return data, 201
+    else:
+        return jsonify({"message": "Invalid request method", "success": False}), 400
 
 
 @ml_app.route(api.route['averages_training'], methods=['GET'])

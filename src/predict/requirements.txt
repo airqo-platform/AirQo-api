@@ -78,3 +78,28 @@ wcwidth==0.2.5
 Werkzeug==1.0.1
 wrapt==1.12.1
 zipp==3.1.0
+matplotlib==3.1.1
+#psutil==5.6.5
+
+# packaging
+setuptools==41.6.0
+wheel==0.32.3
+
+#schema validation
+marshmallow== 3.2.2
+geopy==1.20.0
+
+# testing requirements
+pytest>=4.6.6,<5.0.0
+#environment setup
+gunicorn==20.0.4
+
+#google cloud services
+google-cloud-bigquery==1.26.1
+#google-python-cloud-debugger==2.14
+google-resumable-media==0.6.0
+google-cloud-storage==1.30.0
+gcsfs==0.6.2
+lightgbm==2.3.1
+pymongo==3.10.1
+Flask-PyMongo==2.3.0

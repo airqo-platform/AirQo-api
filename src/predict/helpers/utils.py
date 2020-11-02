@@ -279,6 +279,11 @@ def periodic_function():
             Y = np.r_[Y,Ychan[:, None]]
             train_model(X, Y)
 
+def str_to_date(st):
+    """
+    Converts a string to datetime
+    """
+    return datetime.strptime(st, '%Y-%m-%d %H:%M:%S')
 
 if __name__ == '__main__':
     
