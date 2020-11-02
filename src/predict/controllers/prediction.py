@@ -204,9 +204,20 @@ def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
-    if request.method == 'GET':
-        data = get_gp_predictions()
+    if request.method == 'POST':
+        json_data = request.get_json()
+        if not json_data:
+            return {'message': 'No input data provided', 'success':False}, 400
+        try:
+            min_long = json_data['min_long']
+            max_long = json_data['max_long']
+            min_lat = json_data['min_lat'] 
+            max_lat = json_data['max_lat']
+        except:
+            return {'message': 'Invalid input data. Please inout the four coordinates of the region of interest', 'success':False}, 400
+        
+        data = get_gp_predictions(min_long, max_long, min_lat, max_lat)
         return {'data':data, 'success':True}, 200
     else:
-        return {'message': 'Wrong request method. This is a GET endpoint', 'success':False}, 400
+        return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
     

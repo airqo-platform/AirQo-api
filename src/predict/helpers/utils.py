@@ -182,14 +182,14 @@ def load_model():
     model = tf.saved_model.load(save_dir)
     return model
 
-def get_gp_predictions():
+def get_gp_predictions(min_long, max_long, min_lat, max_lat):
     '''
     returns pm 2.5 predictions given an array of space and time inputs
     '''
     #generating input array
     time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
-    longitudes = np.linspace(32.4, 32.8, 100)
-    latitudes = np.linspace(0.1, 0.5, 100)
+    longitudes = np.linspace(min_long, max_long, 100)
+    latitudes = np.linspace(min_lat, max_lat, 100)
     locations = np.meshgrid(longitudes, latitudes)
     locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
     pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
