@@ -33,4 +33,4 @@ def calibrate_pm25_values():
         calibrated_value = calibrated_value.tolist()
         performance_eval = regression.performance
 
-        return jsonify({"calibrated Value": calibrated_value, "Performance Evaluation": performance_eval, "Confidence_intervals":confidence_int})
+        return jsonify({"calibrated Value": calibrated_value, "Performance Evaluation": performance_eval})
