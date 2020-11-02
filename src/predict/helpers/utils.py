@@ -196,7 +196,7 @@ def get_gp_predictions():
 
     #making predictions
     loaded_model = load_model()
-    means, variances = loaded_model.predict(pred_set)
+    preds = loaded_model.predict(pred_set)
     means = preds[0].numpy().flatten()
     variances = preds[1].numpy().flatten()
 
