@@ -201,6 +201,7 @@ def get_gp_predictions():
     variances = preds[1].numpy().flatten()
 
     #returning result
+    result = []
     for i in range(pred_set.shape[0]):
         result.append({'lat':locations_flat[i][1],
                       'long':locations_flat[i][0],
