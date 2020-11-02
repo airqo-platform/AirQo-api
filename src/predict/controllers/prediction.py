@@ -7,11 +7,11 @@ from models import datamanagement as dm
 import datetime as dt
 import sys
 from datetime import datetime
-
-
+from flask_caching import Cache
 from routes import api
 from flask_cors import CORS
 
+cache = Cache(config={'CACHE_TYPE': 'simple'})
 
 _logger = logging.getLogger(__name__)
 
@@ -168,6 +168,7 @@ def predict_channel_next_24_hours():
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
+@cache.cached(timeout=59)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.

@@ -1,4 +1,4 @@
-from controllers.prediction import ml_app
+from controllers.prediction import ml_app, cache
 from flask import Flask
 import logging
 import os
@@ -12,6 +12,7 @@ app = Flask(__name__)
 
 # Allow cross-brower resource sharing
 CORS(app)
+cache.init_app(app)
 
 
 # register blueprints
