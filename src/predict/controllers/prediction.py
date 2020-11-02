@@ -198,7 +198,7 @@ def predict_channel_next_24_hours():
 
 
 
-@ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
+@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
 #@cache.cached(timeout=59)
 def predictions_for_heatmap():
     '''
