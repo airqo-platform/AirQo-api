@@ -214,7 +214,7 @@ def predictions_for_heatmap():
             min_lat = json_data['min_lat'] 
             max_lat = json_data['max_lat']
         except:
-            return {'message': 'Invalid input data. Please inout the four coordinates of the region of interest', 'success':False}, 400
+            return {'message': 'Invalid input data. Please input the four coordinates of the region of interest', 'success':False}, 400
         
         data = get_gp_predictions(min_long, max_long, min_lat, max_lat)
         return {'data':data, 'success':True}, 200
