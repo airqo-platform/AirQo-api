@@ -27,7 +27,11 @@ const defaultConfig = {
     return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   ADD_VALUE: (field, value, apiKey) => {
-    `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+    return `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+  },
+  ADD_VALUE_JSON: `https://api.thingspeak.com/update.json`,
+  BULK_ADD_VALUES_JSON: (channel) => {
+    return `https://api.thingspeak.com/channels/${channel}/bulk_update.json`;
   },
   ADD_VALUES: (device) => {
     return `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
