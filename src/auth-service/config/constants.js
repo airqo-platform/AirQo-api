@@ -29,6 +29,7 @@ const defaultConfig = {
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
   YOUTUBE_CHANNEL: "https://www.youtube.com/channel/UCx7YtV55TcqKGeKsDdT5_XQ",
+  ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
 };
 
 function envConfig(env) {
