@@ -164,6 +164,12 @@ def convert_local_string_date_to_tz_aware_datetime(local_date_string):
     timezone_date_time_obj = timezone.localize(date_time_obj)
     return timezone_date_time_obj
 
+def str_to_date(st):
+    """
+    Converts a string to datetime
+    """
+    return datetime.strptime(st, '%Y-%m-%d %H:%M:%S')
+
 if __name__ == '__main__':
     
     #get_closest_channel(0.540184, 31.439622)

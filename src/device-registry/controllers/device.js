@@ -756,9 +756,9 @@ const device = {
 
   doActivity: async (req, res) => {
     try {
-      if (tenant) {
+      const { type, tenant } = req.query;
+      if (tenant && type) {
         const { deviceName } = req.body;
-        const { type, tenant } = req.query;
 
         const deviceExists = await doesDeviceExist(
           deviceName,
@@ -1027,7 +1027,7 @@ const device = {
             success: false,
           });
         }
-        let isDeviceModelPresent = await doesDeviceExist(device);
+        let isDeviceModelPresent = await doesDeviceExist(device, tenant);
         logElement("isDeviceModelPresent ?", isDeviceModelPresent);
 
         if (isDeviceModelPresent) {

@@ -46,7 +46,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
       logElement("error in services/auth/userLocalStrategy", e.message);
       return res.status(500).json({
         success: false,
-        message: "organization does not exist",
+        message: "Server Error",
         error: e.message,
       });
     }

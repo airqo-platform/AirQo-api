@@ -2,7 +2,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 import datetime as dt
-from helpers.db_helpers import MONGO_URI, DB_NAME
+from helpers.db_helpers import app_configuration
 from bson import json_util, ObjectId
 import json
 from datetime import datetime, timedelta
@@ -28,4 +28,4 @@ def root():
 def health():
     if request.method == 'GET':
         _logger.info('health status OK')
-        return jsonify({"message": "health check passed. " + "DB_URL: " + MONGO_URI + ", DB_NAME: " + DB_NAME, "status": True}), 200
+        return jsonify({"message": f'health check passed. DB_URL: {app_configuration.MONGO_URI}, DB_NAME: {app_configuration.DB_NAME}', "status": True}), 200

@@ -25,10 +25,55 @@ import logging
 from helpers import utils
 from models  import processing 
 from models import datamanagement
+from dotenv import load_dotenv
+import os
+from pymongo import MongoClient
 
 
 _logger = logging.getLogger(__name__)
 
+load_dotenv()
+
+MONGO_URI = os.getenv('MONGO_URI')
+
+def connect_mongo():
+    client = MongoClient(MONGO_URI)
+    db=client['airqo_netmanager_staging']
+    return db
+
+
+def get_next_24hr_predictions_for_channel(channel_id,prediction_start_time):
+    db = connect_mongo()
+    print(prediction_start_time)
+    print(type(prediction_start_time))
+    prediction_start_time = utils.str_to_date(prediction_start_time)
+    #channel_predictions = list(db.predictions.find(
+            #{'$and': [{'channel_id':  channel_id},
+             #{'created_at': {'$gte': prediction_start_time}}]},{'_id': 0}).sort([('$natural', -1)]).limit(1))
+    
+    #query = {'$match': {'channel_id': channel_id}}
+    #projection =  {'$project':{'_id': 0}}
+    #sort_order = {'$sort': {'$natural', -1}}
+    channel_predictions = list(db.predictions.find(
+            {'channel_id': channel_id
+                            },{'_id': 0}).sort([('$natural', -1)]).limit(1))
+    
+    #channel_predictions = list(db.predictions.aggregate(
+                #[query, projection]))
+    
+    results = []
+    if len(channel_predictions) > 0:        
+        for i in range(0, len(channel_predictions[0]['predictions'])):
+            prediction_datetime = channel_predictions[0]['prediction_time'][i]
+            prediction_value = channel_predictions[0]['predictions'][i]
+            result = {'prediction_time':prediction_datetime, 'prediction_value':prediction_value,
+             'lower_ci':0,'upper_ci':0}
+            results.append(result)
+
+    formated_results = {'predictions':results}
+    return formated_results
+    
+    
 
 def make_prediction_using_averages_for_all_locations(entered_chan, entered_time, entered_latitude, entered_longitude):
     """
