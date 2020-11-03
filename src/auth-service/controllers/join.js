@@ -166,7 +166,8 @@ const join = {
             //return res.status(HTTPStatus.OK).json(response);
           } else {
             return res.status(400).json({
-              message: "unable to send email. Please crosscheck the organisation and email information provided."
+              message:
+                "unable to send email. Please crosscheck the organisation and email information provided.",
             });
           }
         }
@@ -187,16 +188,16 @@ const join = {
       const { firstName, lastName, password, userName } = req.body;
 
       let mailOptions = {};
-      if (tenant == "kcca") {
+      if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
-          from: `airqo.analytics@gmail.com`,
+          from: constants.EMAIL,
           to: `${req.body.email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, userName)}`,
         };
       } else {
         mailOptions = {
-          from: `airqo.analytics@gmail.com`,
+          from: constants.EMAIL,
           to: `${req.body.email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(
