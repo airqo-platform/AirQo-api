@@ -6,11 +6,16 @@ from models.map import Map
 from helpers import db_helpers
 from routes import api
 from flask_caching import Cache
+from pymongo import MongoClient
+
 
 _logger = logging.getLogger(__name__)
 
 locate_blueprint = Blueprint('locate_blueprint', __name__)
-cache = Cache(config={'CACHE_TYPE':'simple'})
+cache = Cache(config={'CACHE_TYPE': 'simple'})
+
+client = MongoClient(db_helpers.app_configuration.MONGO_URI)
+dbs = client.list_database_names()
 
 locate_map = Map()
 
@@ -26,18 +31,25 @@ def place_sensors_map():
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        
+        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        if org not in dbs:
+           return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400        
         if not json_data:
             return {'message': 'No input data provided'}, 400
-        else:
-            sensor_number = int(json_data["sensor_number"])
+        else: 
+            try:
+                sensor_number = int(json_data["sensor_number"])
 
-            polygon = json_data["polygon"]
-            if polygon == {}:
-                return {'message': 'Please draw a polygon'}, 200
-            geometry = polygon["geometry"]["coordinates"]
+                polygon = json_data["polygon"]
+                if polygon == {}:
+                    return jsonify({'message': 'Please draw a polygon'}), 200
+                geometry = polygon["geometry"]["coordinates"]
 
-            must_have_coordinates = json_data["must_have_coordinates"]
+                must_have_coordinates = json_data["must_have_coordinates"]
+            except KeyError as err:
+                return {'message': f'missing parameter: {str(err)}. please refer to API documentation for details', 'success': False}, 400
+            except Exception as err:
+                return {'message': f'Some error occurred: {str(err)}', 'success': False}, 400
             if must_have_coordinates == "":
                 must_have_coordinates = None
                 return helper.recommend_locations(sensor_number, must_have_coordinates, geometry, tenant)
@@ -47,10 +59,13 @@ def place_sensors_map():
                 except:
                     print('EXCEPTION')
                     return {'message': 'Coordinates must be in the form [[long, lat], [long, lat]]'}, 200
-                if all(isinstance(x, list) for x in must_have_coordinates):
-                    return helper.recommend_locations(sensor_number, must_have_coordinates, geometry, tenant)
-                else:
-                    return {'message': 'Coordinates must be in the form [[longitude, latitude]]'}, 200
+                try:
+                    if all(isinstance(x, list) for x in must_have_coordinates):
+                        return helper.recommend_locations(sensor_number, must_have_coordinates, geometry, tenant)
+                except (ValueError, TypeError) as err:
+                    return {'message': f'invalid input for parameter: must_have_coordinates. please refer to the API documentation', 'success': False}, 400
+
+                
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
@@ -71,13 +86,13 @@ def save_locate_map():
         data = request.json
         if not all([data.get('user_id'), data.get('space_name'), data.get('plan')]):
             error = json.dumps(
-                {"message": "Missing field/s (user_id, space_name or plan)", "success": False})
+                {"message": "missing field/s (user_id, space_name or plan). please provide all required fields", "success": False})
             return jsonify(error, 400)
 
         # make user_id is of type string
         if type(data.get('user_id')) is not str:
             error = json.dumps(
-                {"message": "Invalid user_id. string required!", "success": False})
+                {"message": "invalid user_id, expects string. please refer to API documentation for details", "success": False})
             return jsonify(error, 400)
 
         # if all checks have passed, save planning space
@@ -88,6 +103,9 @@ def save_locate_map():
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        if org not in dbs:
+            return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400
 
         locate_map.save_locate_map(tenant, user_id, space_name, plan)
         return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
@@ -105,6 +123,9 @@ def get_locate_map(user_id):
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        if org not in dbs:
+            return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400
 
         documents = locate_map.get_locate_map(tenant, user_id)
         response = []
@@ -139,6 +160,9 @@ def update_locate_map(space_name):
             tenant = request.args.get('tenant')
             if not tenant:
                 return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+            org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+            if org not in dbs:
+                return jsonify({"message": "organization doesnot exist. Refer to the API documentation for details.", "success": False}), 400
             
             # Updating the planning space
             records_updated = locate_map.update_locate_map(tenant, space_name, update_plan)
@@ -168,6 +192,9 @@ def delete_locate_map(space_name):
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        if org not in dbs:
+            return jsonify({"message": "organization doesnot exist. Refer to the API documentation for details.", "success": False}), 400
         if space_name is not None:
             db_response = locate_map.delete_locate_map(tenant, space_name)
             if db_response.deleted_count == 1:
