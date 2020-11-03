@@ -35,7 +35,7 @@ def place_sensors_map():
         if org not in dbs:
            return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400        
         if not json_data:
-            return {'message': 'No input data provided'}, 400
+            return {'message': 'missing request body: sensor_number, must_have_coordinates, polygon. please refer to API documentation for details'}, 400
         else: 
             try:
                 sensor_number = int(json_data["sensor_number"])
