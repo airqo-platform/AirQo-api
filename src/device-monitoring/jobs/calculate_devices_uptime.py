@@ -15,7 +15,7 @@ import os
 MONGO_URI = os.getenv("MONGO_URI")
 print(MONGO_URI)
 client = MongoClient(MONGO_URI)
-db = client['airqo_netmanager']
+db = client['airqo_netmanager_airqo']
 
 
 def function_to_execute(event, context):
@@ -59,10 +59,12 @@ def date_to_formated_str(date):
 
 
 def get_all_devices():
-    results = list(db.devices.find({"locationID":{ '$ne': '' } },{'_id':0}))
+    results = list(db.devices.find({"locationID":{ '$ne': '' } }))
     active_devices = []
     for device in results:
         print(device['name'])
+        device_id = device['_id']
+        print(device_id)
         if(device['isActive'] == True):
             active_devices.append(device)
     return active_devices
@@ -181,6 +183,8 @@ def compute_uptime_for_all_devices():
         for device in results:
             channel_id = device['channelID']
             mobililty = device['mobility']
+            device_id = device['_id']
+            device_name = device['name']
 
             if time_period['label'] == 'twelve_months':
                 device_registration_date = device['createdAt']
@@ -217,7 +221,7 @@ def compute_uptime_for_all_devices():
             all_devices_uptime_series.append(device_uptime_in_percentage)
             device_uptime_record = {"device_uptime_in_percentage": device_uptime_in_percentage,
                                     "device_downtime_in_percentage": device_downtime_in_percentage, "created_at": created_at,
-                                    "device_channel_id": channel_id, "specified_time_in_hours": specified_hours }
+                                    "device_channel_id": channel_id, "specified_time_in_hours": specified_hours, "device_name":device_name, "device_id":device_id }
 
             if time_period['label'] == 'twenty_eight_days':
                 device_uptime_record["device_sensor_one_pm2_5_readings"] = sensor_one_pm2_5_readings
@@ -303,3 +307,4 @@ def save_network_uptime_analysis_results(data):
 
 if __name__ == '__main__':
     compute_uptime_for_all_devices()
+    

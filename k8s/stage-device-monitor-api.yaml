@@ -23,6 +23,22 @@ spec:
           ports:
             - containerPort: 4001
               name: sta-dev-monitor
+          env:
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: MONGO_GCE_URI
+            - name: DB_NAME_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: PLATFORM_MONGO_STAGE
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: SECRET_KEY
 
 ---
 kind: Service
