@@ -174,6 +174,25 @@ def string_to_hourly_datetime(my_list):
     my_list[2] = my_list[2].timestamp()/3600
     return my_list
 
+def get_saved_model(bucket_name, gcp_folder, local_folder):
+    from os import makedirs
+    from os.path import join, isdir, isfile, basename
+    
+    storage_client = storage.Client.from_service_account_json("C:/Users/User/AirQo-d982995f6dd8.json")
+    bucket = storage_client.bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=gcp_folder)  # Get list of files
+    
+    if isdir(local_folder) == False:
+        makedirs(local_folder)
+        
+    for blob in blobs:
+        blob_name = blob.name 
+        dst_file_name = blob_name.replace(gcp_folder, local_folder)
+        if blob.name.endswith('/'):
+            makedirs(dst_file_name)
+        else:
+            blob.download_to_filename(dst_file_name)
+
 def load_model():
     '''
     loads saved trained gaussian process model
