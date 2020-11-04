@@ -207,7 +207,7 @@ def get_saved_model_orig():
     
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=gcp_folder)  # Get list of files
+    blobs = bucket.list_blobs(prefix=gcp_folder)
     
     if isdir(local_folder) == False:
         makedirs(local_folder)

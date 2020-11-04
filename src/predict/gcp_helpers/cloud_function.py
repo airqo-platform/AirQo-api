@@ -103,8 +103,7 @@ def upload_model():
     '''
     bucket_name = 'airqo-models-bucket'
     source_folder = 'saved_model'
-    destination_older = 'gp_model'
-    storage_client = storage.Client.from_service_account_json("C:/Users/User/AirQo-d982995f6dd8.json")
+    destination_folder = 'gp_model'
     bucket = storage_client.bucket(bucket_name)
     
     for file in glob.glob(source_folder + '/**'):
