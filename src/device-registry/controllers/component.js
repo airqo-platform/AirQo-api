@@ -144,6 +144,7 @@ const doesComponentTypeExist = async (name, tenant) => {
 const Component = {
   listAll: async (req, res) => {
     try {
+      logText("list components.......");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
       const { comp, device, tenant } = req.query;
@@ -314,7 +315,7 @@ const Component = {
 
   deleteComponent: async (req, res) => {
     try {
-      logText("...........................................");
+      logText("delete component...................");
       let { device, comp, tenant } = req.query;
       if ((comp && device, tenant)) {
         const component = await getModelByTenant(
@@ -375,7 +376,7 @@ const Component = {
 
   updateComponent: async (req, res) => {
     try {
-      logText("...........................................");
+      logText("update component.................");
       let { device, comp, tenant } = req.query;
       if (comp && device && tenant) {
         const component = await getModelByTenant(
@@ -447,6 +448,7 @@ const Component = {
 
   addValue: async (req, res) => {
     try {
+      logText("add value.......");
       let { device, comp, tenant } = req.query;
       let {
         firstPM2_5,
@@ -661,7 +663,7 @@ const Component = {
 
   addBulk: async (req, res) => {
     try {
-      logText("adding values...");
+      logText("adding values in bulk...");
       const { device, component, tenant } = req.query;
       const { values, time } = req.body;
       logObject("the type of device name", typeof device);
@@ -682,7 +684,7 @@ const Component = {
         if (isComponentPresent) {
           const samples = values;
           // const day = new Date(time);
-          const day = generateDateFormat(time);
+          const day = await generateDateFormat(time);
           const eventBody = {
             componentName: component,
             deviceName: device,
@@ -756,6 +758,7 @@ const Component = {
     logText("adding component type....");
 
     try {
+      logText("create types.......");
       let { name, tenant } = req.query;
 
       if (name && tenant) {
@@ -799,6 +802,7 @@ const Component = {
   },
   getTypes: async (req, res) => {
     try {
+      logText("get types.......");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
       let { name, tenant } = req.query;
@@ -857,6 +861,7 @@ const Component = {
   getValues: async (req, res) => {
     try {
       const { comp, device, tenant } = req.query;
+      logText("get values.......");
       logElement("device name ", device);
       logElement("Component name ", comp);
       if (device && comp && tenant) {
@@ -889,6 +894,7 @@ const Component = {
   /********************************* push data to Thing ****************************** */
   writeToThing: async (req, res) => {
     try {
+      logText("write to thing....");
       console.log("we are in");
       const { quantityKind, value, apiKey } = req.body;
       const { tenant } = req.query;
@@ -946,6 +952,7 @@ const Component = {
 
   writeToThingJSON: async (req, res) => {
     try {
+      logText("write to thing json.......");
       let { tenant } = req.query;
       let {
         api_key,
@@ -1020,6 +1027,7 @@ const Component = {
 
   bulkWriteToThing: async (req, res) => {
     try {
+      logText("bulk write to thing.......");
       let tenant = req.query;
       let { write_api_key, updates } = req.body;
       if ((write_api_key, updates, tenant)) {
@@ -1061,6 +1069,7 @@ const Component = {
   calibrate: async (req, res) => {
     let { comp, device, tenant } = req.query;
     try {
+      logText("calibrate.......");
       let ComponentFilter = { name: comp };
       await getModelByTenant(
         tenant.toLowerCase(),

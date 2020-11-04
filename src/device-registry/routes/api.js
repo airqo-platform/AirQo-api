@@ -12,28 +12,28 @@ const componentController = require("../controllers/component");
 middlewareConfig(router);
 
 router.get("/", deviceController.listAll);
-router.get("/gcp", deviceController.listAllGcp);
+// router.get("/gcp", deviceController.listAllGcp);
 
-router.post(
-  "/",
-  validate(deviceValidation.createDevice),
-  deviceController.createOne
-);
-router.post("/gcp/", deviceController.createOneGcp);
+// router.post(
+//   "/",
+//   validate(deviceValidation.createDevice),
+//   deviceController.createOne
+// );
+// router.post("/gcp/", deviceController.createOneGcp);
 
-router.get("/:id", deviceController.listOne);
-router.get("/:name/gcp", deviceController.listOneGcp);
+// router.get("/:id", deviceController.listOne);
+// router.get("/:name/gcp", deviceController.listOneGcp);
 
-router.delete("/:id", authJWT, deviceController.delete);
-router.delete("/:name/gcp", deviceController.deleteGcp);
+// router.delete("/:id", authJWT, deviceController.delete);
+// router.delete("/:name/gcp", deviceController.deleteGcp);
 
-router.put(
-  "/:id",
-  authJWT,
-  validate(deviceValidation.updateDevice),
-  deviceController.updateDevice
-);
-router.put("/:name/gcp", deviceController.updateDeviceGcp);
+// router.put(
+//   "/:id",
+//   authJWT,
+//   validate(deviceValidation.updateDevice),
+//   deviceController.updateDevice
+// );
+// router.put("/:name/gcp", deviceController.updateDeviceGcp);
 
 /******************* creation of Things   *****************/
 router.post("/ts", deviceController.createThing);
@@ -52,11 +52,11 @@ router.post("/add/components/types", componentController.createType);
 router.get("/list/components/types", componentController.getTypes);
 
 /******************* device measurements ******************************/
-router.post("/events/add/values", componentController.addValues);
-router.post("/events/add/values/bulk", componentController.addBulk);
-router.get("/events/list/values", componentController.getValues);
-router.post("/events/push/ts", componentController.writeToThing);
-router.post("/events/push/ts/json", componentController.writeToThingJSON);
+router.post("/events/add", componentController.addValues);
+router.post("/events/add/bulk", componentController.addBulk);
+router.get("/events", componentController.getValues);
+router.post("/events/push/one", componentController.writeToThing);
+router.post("/events/push", componentController.writeToThingJSON);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
