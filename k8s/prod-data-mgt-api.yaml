@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.service.type: NodePort
+    kompose.version: 1.21.0 (992df58d8)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: airqo-data-mgt-api
+  name: airqo-data-mgt-api
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      io.kompose.service: airqo-data-mgt-api
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.service.type: NodePort
+        kompose.version: 1.21.0 (992df58d8)
+      creationTimestamp: null
+      labels:
+        io.kompose.service: airqo-data-mgt-api
+    spec:
+      containers:
+      - env:
+        - name: GET_HOSTS_FROM
+          value: dns
+        image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest
+        imagePullPolicy: ""
+        name: airqo-data-mgt-api
+        ports:
+        - containerPort: 3000
+        resources: {}
+      restartPolicy: Always
+      serviceAccountName: ""
+      volumes: null
+status: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.service.type: NodePort
+    kompose.version: 1.21.0 (992df58d8)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: airqo-data-mgt-api
+  name: airqo-data-mgt-api
+  namespace: production
+spec:
+  ports:
+  - protocol: TCP
+    port: 3000
+    targetPort: 3000
+    nodePort: 30001
+  selector:
+    io.kompose.service: airqo-data-mgt-api
+  type: NodePort
+status:
+  loadBalancer: {}

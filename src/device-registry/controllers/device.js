@@ -1027,7 +1027,7 @@ const device = {
             success: false,
           });
         }
-        let isDeviceModelPresent = await doesDeviceExist(device);
+        let isDeviceModelPresent = await doesDeviceExist(device, tenant);
         logElement("isDeviceModelPresent ?", isDeviceModelPresent);
 
         if (isDeviceModelPresent) {
