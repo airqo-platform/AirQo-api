@@ -52,11 +52,11 @@ router.post("/add/components/types", componentController.createType);
 router.get("/list/components/types", componentController.getTypes);
 
 /******************* device measurements ******************************/
-router.post("/components/add/values", componentController.addValues);
-router.post("/components/add/values/bulk", componentController.addBulk);
-router.get("/components/list/values", componentController.getValues);
-router.post("/components/push/ts", componentController.writeToThing);
-router.post("/components/push/ts/json", componentController.writeToThingJSON);
+router.post("/events/add/values", componentController.addValues);
+router.post("/events/add/values/bulk", componentController.addBulk);
+router.get("/events/list/values", componentController.getValues);
+router.post("/events/push/ts", componentController.writeToThing);
+router.post("/events/push/ts/json", componentController.writeToThingJSON);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);
