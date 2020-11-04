@@ -6,9 +6,10 @@ from datetime import datetime
 import pandas as pd
 from models import datamanagement as dm
 import os
+from os import makedirs
+from os.path import join, isdir, isfile, basename
 import numpy as np
 import tensorflow as tf
-
 import requests
 
 MET_API_URL= os.getenv("MET_API_UR")
@@ -174,9 +175,11 @@ def string_to_hourly_datetime(my_list):
     my_list[2] = my_list[2].timestamp()/3600
     return my_list
 
-def get_saved_model(bucket_name, gcp_folder, local_folder):
-    from os import makedirs
-    from os.path import join, isdir, isfile, basename
+def get_saved_model():
+    
+    bucket_name = 'airqo_bucket'
+    gcp_folder = 'gp_model'
+    local_folder = 'saved_model'
     
     storage_client = storage.Client.from_service_account_json("C:/Users/User/AirQo-d982995f6dd8.json")
     bucket = storage_client.bucket(bucket_name)
@@ -214,6 +217,7 @@ def get_gp_predictions(min_long, max_long, min_lat, max_lat):
     pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
 
     #making predictions
+    get_saved_model()
     loaded_model = load_model()
     preds = loaded_model.predict(pred_set)
     means = preds[0].numpy().flatten()
