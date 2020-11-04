@@ -26,6 +26,8 @@ airqo-250220-642e046f4223.json
 *.csv
 results.json
 predictions.json
+private_key.json
+saved_model/
 
 __init__test.py
 .gitkeep

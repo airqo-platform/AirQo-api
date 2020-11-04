@@ -1,4 +1,4 @@
-from google.cloud import bigquery
+from google.cloud import storage
 from geopy import distance
 import json
 import pytz
@@ -181,7 +181,7 @@ def get_saved_model():
     gcp_folder = 'gp_model'
     local_folder = 'saved_model'
     
-    storage_client = storage.Client.from_service_account_json("C:/Users/User/AirQo-d982995f6dd8.json")
+    storage_client = storage.Client('private_key.json')
     bucket = storage_client.bucket(bucket_name)
     blobs = bucket.list_blobs(prefix=gcp_folder)  # Get list of files
     
