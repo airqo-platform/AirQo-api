@@ -64,8 +64,6 @@ def preprocessing(df):
 
     return df
 
-def objective_closure(m):
-    return - m.log_marginal_likelihood()
 
 def train_model(X, Y):
     '''
@@ -83,12 +81,15 @@ def train_model(X, Y):
     
     k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 1.5]) + gpflow.kernels.Bias()
     m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-    set_trainable(m.kernel.kernels[0].lengthscales, True) 
+    set_trainable(m.kernel.kernels[0].lengthscales, False) 
     
     opt = gpflow.optimizers.Scipy()
-    opt_logs = opt.minimize(objective_closure(m),
-                        m.trainable_variables,
-                        options=dict(maxiter=100))
+
+    def objective_closure():
+             return - m.log_marginal_likelihood()
+
+    opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
+
     return m
 
 
