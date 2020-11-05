@@ -25,6 +25,7 @@ const axios = require("axios");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
 const qs = require("qs");
+const redis = require("../config/redis");
 const { getModelByTenant } = require("../utils/multitenancy");
 const {
   createOnThingSpeak,
