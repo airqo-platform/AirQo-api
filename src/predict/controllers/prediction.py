@@ -197,9 +197,8 @@ def predict_channel_next_24_hours():
             return jsonify({'inputs': json_data,'errors': errors }), 400
 
 
-
 @ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
-#@cache.cached(timeout=59)
+#@cache.cached(timeout=30)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.

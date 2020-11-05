@@ -175,29 +175,6 @@ def string_to_hourly_datetime(my_list):
     my_list[2] = my_list[2].timestamp()/3600
     return my_list
 
-def get_saved_model():
-    bucket_name = 'airqo-models-bucket'
-    gcp_folder = 'gp_model'
-    local_folder = 'saved_model'
-    
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=gcp_folder)
-    
-    if isdir(local_folder) == False:
-        makedirs(local_folder)
-        
-    for blob in blobs:
-        blob_name = blob.name 
-        dst_file_name = blob_name.replace(gcp_folder, local_folder)
-        if blob_name.endswith('/'):
-            inner_blobs = bucket.list_blobs(prefix=blob_name)
-            if len(list(inner_blobs))==0:
-                pass
-            elif isdir(dst_file_name) == False:
-                makedirs(dst_file_name)
-        else:
-            blob.download_to_filename(dst_file_name)
 
 def get_saved_model_orig():
     
@@ -241,7 +218,6 @@ def get_gp_predictions(min_long, max_long, min_lat, max_lat):
     pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
 
     #making predictions
-    get_saved_model()
     loaded_model = load_model()
     preds = loaded_model.predict(pred_set)
     means = preds[0].numpy().flatten()
