@@ -709,19 +709,12 @@ const Component = {
           logObject("the inserted document", addedEvent);
 
           if (addedEvent) {
-            /**
-             * add the component name in the response body
-             */
-            // const samples = { ...samples };
-            const event = {
-              values: samples,
-              component: component,
-              device: device,
-            };
             return res.status(HTTPStatus.OK).json({
               success: true,
               message: "successfully added the device data",
-              event,
+              values: samples,
+              component: component,
+              device: device,
             });
           } else if (!addedEvent) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
