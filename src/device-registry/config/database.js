@@ -17,6 +17,7 @@ const options = {
   connectTimeoutMS: 10000,
   socketTimeoutMS: 30000,
   dbName: constants.DB_NAME,
+  autoIndex: false,
 };
 
 const connect = () => mongoose.createConnection(URI, options);

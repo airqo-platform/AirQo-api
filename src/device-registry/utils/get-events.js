@@ -7,12 +7,14 @@ const responseDevice = async (res, filter, tenant) => {
   try {
     const events = await getModelByTenant(tenant, "event", EventSchema)
       .find(filter)
+      .limit(100)
+      .lean()
       .exec();
     if (!isEmpty(events)) {
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: `successfully listed the Events for device ${device}`,
-        events,
+        values: events.values,
       });
     } else if (isEmpty(events)) {
       return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -33,6 +35,8 @@ const responseComponent = async (res, filter, tenant) => {
   try {
     const events = await getModelByTenant(tenant, "event", EventSchema)
       .find(filter)
+      .limit(100)
+      .lean()
       .exec();
     if (!isEmpty(events)) {
       return res.status(HTTPStatus.OK).json({
@@ -57,14 +61,17 @@ const responseComponent = async (res, filter, tenant) => {
 
 const responseDeviceAndComponent = async (res, filter, tenant) => {
   try {
-    const event = await getModelByTenant(tenant, "event", EventSchema)
+    constevents = await getModelByTenant(tenant, "event", EventSchema)
       .find(filter)
+      .limit(100)
+      .lean()
       .exec();
+
     if (!isEmpty(event)) {
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: `successfully listed the Events for this device (${filter.deviceName}) component (${filter.componentName})`,
-        event,
+        values: events.values,
       });
     } else if (isEmpty(event)) {
       return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -83,7 +90,8 @@ const responseDeviceAndComponent = async (res, filter, tenant) => {
 
 const responseAll = async (req, res, tenant) => {
   try {
-    const limit = parseInt(req.query.limit, 0);
+    // const limit = parseInt(req.query.limit, 0);
+    const limit = 100;
     const skip = parseInt(req.query.skip, 0);
     const events = await getModelByTenant(tenant, "event", EventSchema).list({
       limit,
@@ -95,7 +103,7 @@ const responseAll = async (req, res, tenant) => {
         message: "successfully listed all platform Events",
         tip:
           "use documented query parameters (device/comp) to filter your search results",
-        events,
+        values: events.values,
       });
     } else if (isEmpty(events)) {
       return res.status(HTTPStatus.BAD_GATEWAY).json({
