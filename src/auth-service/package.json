@@ -16,6 +16,7 @@
     "dependencies": {
         "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
+        "accesscontrol": "^2.2.1",
         "bcrypt": "^5.0.0",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",
