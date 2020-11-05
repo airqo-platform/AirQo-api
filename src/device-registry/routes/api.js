@@ -47,7 +47,7 @@ router.get("/by/location", deviceController.listAllByLocation);
 
 /********************** photo uploads ***************************/
 router.post(
-  "/upload-images/again",
+  "/upload-images",
   imageUpload.array("image"),
   imageController.uploadMany
 );
