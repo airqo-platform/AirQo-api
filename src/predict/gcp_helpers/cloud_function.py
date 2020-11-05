@@ -5,8 +5,9 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import os
+credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 
-storage_client = storage.Client()
+storage_client = storage.Client(credentials)
 
 def get_channels():
     '''
