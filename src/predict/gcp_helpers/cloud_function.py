@@ -5,6 +5,13 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import os
+import gpflow
+from gpflow.utilities import print_summary
+from gpflow import set_trainable
+import tensorflow as tf
+from gpflow.config import default_float
+from pandas import Timestamp
+
 credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 
 storage_client = storage.Client(credentials)
