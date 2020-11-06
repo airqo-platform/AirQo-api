@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import numpy as np
 import os
+import glob
 import gpflow
 from gpflow.utilities import print_summary
 from gpflow import set_trainable
@@ -12,9 +13,8 @@ import tensorflow as tf
 from gpflow.config import default_float
 from pandas import Timestamp
 
-credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 
-storage_client = storage.Client(credentials)
+storage_client = storage.Client('AirQo-e37846081569.json')
 
 def get_channels():
     '''
@@ -69,25 +69,33 @@ def train_model(X, Y):
     '''
     Creates a model, trains it using given data and saves it for future use
     '''
+    print('training model function')
     Yset = Y
     Yset[Yset==0] = np.nan
     
     keep = ~np.isnan(Yset[:,0]) 
     Yset = Yset[keep,:]
     Xset = X[keep,:]
+    print('Number of rows in Xset', Xset.shape[0])
     
     Xtraining = Xset[::10,:]
     Ytraining = Yset[::10,:]
+
+    print('Number of rows in Xtraining', Xset.shape[0])
     
+    print('creating kernel')
     k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 1.5]) + gpflow.kernels.Bias()
+    print('creating model')
     m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+    print('setting trainable lengthscales to false ')
     set_trainable(m.kernel.kernels[0].lengthscales, False) 
-    
+   
     opt = gpflow.optimizers.Scipy()
 
     def objective_closure():
              return - m.log_marginal_likelihood()
 
+    print('optimization')
     opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
 
     return m
@@ -97,6 +105,7 @@ def save_model(m):
     '''
     Saves the model to a folder
     '''
+    print('saving model function')
     frozen_model = gpflow.utilities.freeze(m)
     module_to_save = tf.Module()
     predict_fn = tf.function(frozen_model.predict_f, input_signature=[tf.TensorSpec(shape=[None, 3], dtype=tf.float64)])
@@ -106,13 +115,11 @@ def save_model(m):
         os.makedirs(save_dir)
     tf.saved_model.save(module_to_save, save_dir)
     
-def upload_model():
+def upload_model(bucket_name, source_folder, destination_folder):
     '''
     Uploads saved model to bucket on GCP
     '''
-    bucket_name = 'airqo-models-bucket'
-    source_folder = 'saved_model'
-    destination_folder = 'gp_model'
+    print('uploading model function')
     bucket = storage_client.bucket(bucket_name)
     
     for file in glob.glob(source_folder + '/**'):
@@ -128,7 +135,7 @@ def upload_model():
             dir_name = destination_folder+'/'+os.path.basename(file)+'/'
             blob = bucket.blob(dir_name)
             blob.upload_from_string('', content_type='application/x-www-form-urlencoded;charset=UTF-8')
-            upload_files(bucket_name, file.replace('\\','/'), dir_name) 
+            upload_model(bucket_name, file.replace('\\','/'), dir_name) 
 
 def periodic_function():
     '''
@@ -151,4 +158,8 @@ def periodic_function():
             Y = np.r_[Y,Ychan[:, None]]
     m = train_model(X, Y)
     save_model(m)
-    upload_model()
+    upload_model('airqo-models-bucket', 'saved_model', 'gp_model')
+
+
+if __name__ == "__main__":
+    periodic_function()

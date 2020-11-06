@@ -23,6 +23,7 @@ test.csv
 .vscode/
 
 airqo-250220-642e046f4223.json
+AirQo-e37846081569.json
 *.csv
 results.json
 predictions.json
