@@ -81,7 +81,7 @@ def train_model(X, Y):
     Xtraining = Xset[::10,:]
     Ytraining = Yset[::10,:]
 
-    print('Number of rows in Xtraining', Xset.shape[0])
+    print('Number of rows in Xtraining', Xtraining.shape[0])
     
     print('creating kernel')
     k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 1.5]) + gpflow.kernels.Bias()
