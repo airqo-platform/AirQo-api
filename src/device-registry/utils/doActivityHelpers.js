@@ -322,7 +322,7 @@ const isDeviceNotDeployed = async (deviceName, tenant) => {
     logText("....................");
     logText("checking isDeviceNotDeployed....");
     logObject("device is here", device[0]._doc);
-    const isNotDeployed = isEmpty(device[0]._doc.locationID) ? true : false;
+    const isNotDeployed = device[0]._doc.isActive == false ? true : false;
     logElement("locationID", device[0]._doc.locationID);
     logElement("isNotDeployed", isNotDeployed);
     return isNotDeployed;
