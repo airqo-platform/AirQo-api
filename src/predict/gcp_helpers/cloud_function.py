@@ -61,8 +61,12 @@ def preprocessing(df):
     df['created_at'] = pd.to_datetime(df['created_at'])
     df['field1'] = pd.to_numeric(df['field1'], errors='coerce')
     df = df.sort_values(by='created_at',ascending=False)
+    df = df.set_index('created_at')
+    hourly_df = df.resample('H').mean()
+    hourly_df.dropna(inplace=True)
+    hourly_df= hourly_df.reset_index()
 
-    return df
+    return hourly_df
 
 
 def train_model(X, Y):
@@ -78,8 +82,8 @@ def train_model(X, Y):
     Xset = X[keep,:]
     print('Number of rows in Xset', Xset.shape[0])
     
-    Xtraining = Xset[::10,:]
-    Ytraining = Yset[::10,:]
+    Xtraining = Xset[::2,:]
+    Ytraining = Yset[::2,:]
 
     print('Number of rows in Xtraining', Xtraining.shape[0])
     
@@ -144,7 +148,7 @@ def periodic_function():
     X = np.zeros([0,3])
     Y = np.zeros([0,1])
     channels = get_channels()
-    for channel in channels:
+    for channel in channels[]:
         d = download_seven_days(channel['id'], channel['api_key'])
         if d.shape[0]!=0:
             d = preprocessing(d)
