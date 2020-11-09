@@ -88,6 +88,4 @@ componentSchema.statics = {
   },
 };
 
-const component = model("component", componentSchema);
-
-module.exports = component;
+module.exports = componentSchema;

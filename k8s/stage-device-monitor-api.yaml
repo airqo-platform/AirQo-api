@@ -18,11 +18,27 @@ spec:
     spec:
       containers:
         - name: sta-dev-monitor
-          image: us.gcr.io/airqo-250220/airqo-stage-device-monitor:latest
+          image: us.gcr.io/airqo-250220/airqo-stage-device-monitor-api:latest
           imagePullPolicy: Always
           ports:
-            - containerPort: 4000
+            - containerPort: 4001
               name: sta-dev-monitor
+          env:
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: MONGO_GCE_URI
+            - name: DB_NAME_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: PLATFORM_MONGO_STAGE
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: airqo-secret
+                  key: SECRET_KEY
 
 ---
 kind: Service
@@ -35,7 +51,7 @@ spec:
     app: sta-device-monitor
   ports:
     - protocol: TCP
-      port: 4000
-      targetPort: 4000
-      nodePort: 30006
+      port: 4001
+      targetPort: 4001
+      nodePort: 31006
   type: NodePort

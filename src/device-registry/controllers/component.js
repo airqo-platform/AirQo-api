@@ -1,19 +1,31 @@
-const Component = require("../models/Component");
-const Device = require("../models/Device");
+const ComponentSchema = require("../models/Component");
+const DeviceSchema = require("../models/Device");
+const ComponentTypeSchema = require("../models/ComponentType");
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
-const Event = require("../models/Event");
+const EventSchema = require("../models/Event");
+const axios = require("axios");
+const writeToThingMappings = require("../utils/writeToThingMappings");
 const {
   uniqueNamesGenerator,
   NumberDictionary,
 } = require("unique-names-generator");
+const { getModelByTenant } = require("../utils/multitenancy");
 
-const getApiKeys = async (deviceName) => {
+const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
-  const deviceDetails = await Device.find({ name: deviceName }).exec();
+  const deviceDetails = await getModelByTenant(
+    tenant.toLowerCase(),
+    "component",
+    ComponentSchema
+  )
+    .find({
+      name: deviceName,
+    })
+    .exec();
   logElement("the write key", deviceDetails.writeKey);
   logElement("the read key", deviceDetails.readKey);
   const writeKey = deviceDetails.writeKey;
@@ -23,13 +35,35 @@ const getApiKeys = async (deviceName) => {
 
 const getArrayLength = async (array, model, event) => {};
 
-const doesDeviceExist = async (deviceName) => {
+const generateDateFormat = async (ISODate) => {
+  date = new Date(ISODate);
+  year = date.getFullYear();
+  month = date.getMonth() + 1;
+  dt = date.getDate();
+
+  if (dt < 10) {
+    dt = "0" + dt;
+  }
+  if (month < 10) {
+    month = "0" + month;
+  }
+
+  return `${year}-${month}-${dt}`;
+};
+
+const doesDeviceExist = async (deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesDeviceExist?...");
-    const device = await Component.find({
-      name: deviceName,
-    }).exec();
+    const device = await getModelByTenant(
+      tenant.toLowerCase(),
+      "component",
+      ComponentSchema
+    )
+      .find({
+        name: deviceName,
+      })
+      .exec();
     logElement("device element", device);
     logObject("device Object", device);
     logElement("does device exist?", !isEmpty(device));
@@ -44,88 +78,147 @@ const doesDeviceExist = async (deviceName) => {
   }
 };
 
-const doesComponentExist = async (componentName, deviceName) => {
+const doesComponentExist = async (componentName, deviceName, tenant) => {
   try {
     logText(".......................................");
     logText("doesComponentExist?...");
-    const component = await Component.find({
-      name: componentName,
-      deviceID: deviceName,
-    }).exec();
+    const component = await getModelByTenant(
+      tenant.toLowerCase(),
+      "component",
+      ComponentSchema
+    )
+      .find({
+        name: componentName,
+        deviceID: deviceName,
+      })
+      .exec();
     logElement("component element", component);
     logObject("component Object", component);
     logElement("does component exist?", !isEmpty(component));
     if (!isEmpty(component)) {
       return true;
-    } else if (isEmpty(component)) {
+    } else if (isEmpty(ComponentDetails)) {
       return false;
     }
   } catch (e) {
-    logElement("unable to check component existence in system", e);
+    logElement("unable to check Component existence in system", e);
     return false;
   }
 };
 
-const component = {
+const doesComponentTypeExist = async (name, tenant) => {
+  try {
+    logText(".......................................");
+    logText("doesComponentExist?...");
+    const componentType = await getModelByTenant(
+      tenant.toLowerCase(),
+      "componentType",
+      ComponentTypeSchema
+    )
+      .find({
+        name: name,
+      })
+      .exec();
+    logElement("component type element", componentType);
+    logObject("component type Object", componentType);
+    logElement("does component type exist?", !isEmpty(componentType));
+    if (!isEmpty(componentType)) {
+      return true;
+    } else if (isEmpty(componentType)) {
+      return false;
+    }
+  } catch (e) {
+    logElement("unable to check component type existence in system", e);
+    return false;
+  }
+};
+
+const Component = {
   listAll: async (req, res) => {
     try {
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      let { comp, device } = req.query;
-      logElement("device name ", device);
-      logElement("component name ", comp);
-      if (comp && device) {
-        const component = await Component.find({
-          name: comp,
-          deviceID: device,
-        }).exec();
-        if (!isEmpty(component)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully listed one component",
-            component,
-          });
-        } else if (isEmpty(component)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find that component ${comp} for device ${device}`,
-          });
+      const { comp, device, tenant } = req.query;
+
+      if (tenant) {
+        logElement("device name ", device);
+        logElement("Component name ", comp);
+        if (comp && device) {
+          const component = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          )
+            .find({
+              name: comp,
+              deviceID: device,
+            })
+            .exec();
+          if (!isEmpty(component)) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully listed one Component",
+              component,
+            });
+          } else if (isEmpty(component)) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: `unable to find that Component ${comp} for device ${device}`,
+            });
+          }
+        } else if (device && !comp) {
+          const components = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          )
+            .find({
+              deviceID: device,
+            })
+            .exec();
+          if (!isEmpty(components)) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: `successfully listed the Components for device ${device}`,
+              components,
+            });
+          } else if (isEmpty(components)) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: `unable to find the Components for device ${device}`,
+            });
+          }
+        } else if (!device && !comp) {
+          const components = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          ).list({ limit, skip });
+          if (!isEmpty(components)) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully listed all platform Components",
+              tip:
+                "use documented query parameters (device/comp) to filter your search results",
+              components,
+            });
+          } else if (isEmpty(components)) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: `unable to find all the platform Components`,
+            });
+          }
         }
-      } else if (device && !comp) {
-        const components = await Component.find({ deviceID: device }).exec();
-        if (!isEmpty(components)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: `successfully listed the components for device ${device}`,
-            components,
-          });
-        } else if (isEmpty(components)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find the components for device ${device}`,
-          });
-        }
-      } else if (!device && !comp) {
-        const components = await Component.list({ limit, skip });
-        if (!isEmpty(components)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully listed all platform components",
-            tip:
-              "use documented query parameters (device/comp) to filter your search results",
-            components,
-          });
-        } else if (isEmpty(components)) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: `unable to find all the platform components`,
-          });
-        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
+        });
       }
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        message: "unable to list any component",
+        message: "unable to list any Component",
         error: e.message,
       });
     }
@@ -133,54 +226,79 @@ const component = {
 
   addComponent: async (req, res) => {
     logText("................................");
-    logText("adding component....");
+    logText("adding Component....");
 
     try {
-      let { device } = req.query;
+      let { device, tenant, ctype } = req.query;
       let { measurement, description } = req.body;
 
-      let isComponentPresent = await doesDeviceExist(device);
-      logElement("isComponentPresent ?", isComponentPresent);
+      /**
+       * check that all the request body elements are present
+       */
 
-      logObject("measurement", measurement);
-      logObject("description", description);
+      if (device && ctype && measurement && description && tenant) {
+        const isDevicePresent = await doesDeviceExist(device);
+        logElement("isDevicePresent ?", isDevicePresent);
 
-      const comp = ["comp"];
-      const deviceName = [];
-      deviceName.push(device);
-      const numberDictionary = NumberDictionary.generate({
-        min: 0,
-        max: 99,
-      });
-      let componentName = uniqueNamesGenerator({
-        dictionaries: [deviceName, comp, numberDictionary],
-        separator: "_",
-        length: 3,
-      });
+        const isComponentTypePresent = await doesComponentTypeExist(
+          ctype,
+          tenant.toLowerCase()
+        );
+        logElement("isComponentTypePresent ?", isComponentTypePresent);
 
-      logElement("component name", componentName);
-      logElement("componentNameWhenDeviceExists", componentName);
+        logObject("measurement", measurement);
+        logElement("description", description);
 
-      let componentBody = {
-        ...req.body,
-        deviceID: device,
-        name: componentName,
-      };
+        let componentName = `${device.trim()}_${ctype.trim()}`;
 
-      const component = await Component.createComponent(componentBody);
+        /***
+         * create component name based on component type
+         * 
+         *if the component type does not exist, 
+         then alert the user and encourage them to first create the component type 
+         
+         Otherwise, use it to generate the component name
+         */
 
-      logElement("the component element", component);
-      logObject("the component object", component);
+        if (isComponentTypePresent) {
+          let componentBody = {
+            ...req.body,
+            deviceID: device,
+            name: componentName,
+          };
 
-      return res.status(HTTPStatus.CREATED).json({
-        success: true,
-        message: "successfully created the component",
-        component,
-      });
+          const component = await getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          ).createComponent(componentBody);
+
+          logElement("the component element", component);
+          logObject("the component object", component);
+
+          return res.status(HTTPStatus.CREATED).json({
+            success: true,
+            message: "successfully created the component",
+            component,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message:
+              "the component TYPE does not exist for this network, please first create it",
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "Required body and query parameters are missing in this request, please crosscheck documentation",
+        });
+      }
     } catch (e) {
       return res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
-        message: "unable to create the component",
+        message: "unable to create the Component",
         error: e.message,
       });
     }
@@ -189,76 +307,95 @@ const component = {
   deleteComponent: async (req, res) => {
     try {
       logText("...........................................");
-      let { device, comp } = req.query;
-      if (component && device) {
-        const component = await Component.find({
-          name: comp,
-          deviceID: device,
-        }).exec();
+      let { device, comp, tenant } = req.query;
+      if ((comp && device, tenant)) {
+        const component = await getModelByTenant(
+          tenant.toLowerCase(),
+          "component",
+          ComponentSchema
+        )
+          .find({
+            name: comp,
+            deviceID: device,
+          })
+          .exec();
         logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(component));
 
         if (isEmpty(component)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: `component "${comp}" of device "${device}" does not exist in the platform`,
+            message: `Component "${comp}" of device "${device}" does not exist in the platform`,
           });
         }
-        let componentFilter = { name: comp };
+        let ComponentFilter = { name: comp };
         if (!isEmpty(component)) {
-          Component.findOneAndRemove(
-            componentFilter,
-            (err, removedComponent) => {
-              if (err) {
-                return res.status(HTTPStatus.BAD_GATEWAY).json({
-                  err,
-                  success: false,
-                  message: "unable to delete component",
-                });
-              } else {
-                return res.status(HTTPStatus.OK).json({
-                  removedComponent,
-                  success: true,
-                  message: " component successfully deleted",
-                });
-              }
+          getModelByTenant(
+            tenant.toLowerCase(),
+            "component",
+            ComponentSchema
+          ).findOneAndRemove(ComponentFilter, (err, removedComponent) => {
+            if (err) {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                err,
+                success: false,
+                message: "unable to delete Component",
+              });
+            } else {
+              return res.status(HTTPStatus.OK).json({
+                removedComponent,
+                success: true,
+                message: " Component successfully deleted",
+              });
             }
-          );
+          });
         }
       } else {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message:
-            "please crosscheck your query parameters, should contain both device & comp for this usecase",
+            "please crosscheck your query parameters using the API documentation",
         });
       }
     } catch (e) {
-      return res
-        .status(HTTPStatus.BAD_REQUEST)
-        .json({ e, success: false, message: "unable to delete the component" });
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        e,
+        success: false,
+        message: "unable to delete the Component",
+      });
     }
   },
 
   updateComponent: async (req, res) => {
     try {
       logText("...........................................");
-      let { device, comp } = req.query;
-      if (component && device) {
-        const component = await Component.find({
-          name: comp,
-          deviceID: device,
-        }).exec();
+      let { device, comp, tenant } = req.query;
+      if (comp && device && tenant) {
+        const component = await getModelByTenant(
+          tenant.toLowerCase(),
+          "component",
+          ComponentSchema
+        )
+          .find({
+            name: comp,
+            deviceID: device,
+          })
+          .exec();
         logElement(`Does "${comp}" exist on "${device}"?`, !isEmpty(component));
 
         if (isEmpty(component)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: `component "${comp}" of device "${device}" does not exist in the platform`,
+            message: `Component "${comp}" of device "${device}" does not exist in the platform`,
           });
         }
 
         let componentFilter = { name: comp };
 
-        await Component.findOneAndUpdate(
+        await getModelByTenant(
+          tenant.toLowerCase(),
+          "component",
+          ComponentSchema
+        ).findOneAndUpdate(
           componentFilter,
           req.body,
           {
@@ -267,20 +404,20 @@ const component = {
           (error, updatedComponent) => {
             if (error) {
               return res.status(HTTPStatus.BAD_GATEWAY).json({
-                message: "unable to update component",
+                message: "unable to update Component",
                 error,
                 success: false,
               });
             } else if (updatedComponent) {
               return res.status(HTTPStatus.OK).json({
-                message: "successfully updated the component settings",
+                message: "successfully updated the Component settings",
                 updatedComponent,
                 success: true,
               });
             } else {
-              logObject("the updated component", updatedComponent);
+              logObject("the updated Component", updatedComponent);
               return res.status(HTTPStatus.BAD_REQUEST).json({
-                message: "unable to update the component ",
+                message: "unable to update the Component ",
                 success: false,
               });
             }
@@ -290,7 +427,7 @@ const component = {
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message:
-            "please crosscheck your query parameters, should contain both device & comp for this usecase",
+            "please crosscheck your query parameters using the API documentation, some are missing",
         });
       }
     } catch (e) {
@@ -302,7 +439,7 @@ const component = {
 
   addValue: async (req, res) => {
     try {
-      let { d_id, c_id } = req.params;
+      let { device, comp, tenant } = req.query;
       let {
         firstPM2_5,
         firstPM10,
@@ -339,15 +476,19 @@ const component = {
         ...(!isEmpty(so3) && so3),
       ];
 
-      let { writeKey, readKey } = getApiKeys(d_id);
-      if (d_id && c_id) {
+      let { writeKey, readKey } = getApiKeys(device, tenant.toLowerCase());
+      if (device && comp) {
         const url = constants.ADD_VALUE(fields[0], value[0], writeKey);
         let eventBody = {
-          deviceID: d_id,
-          sensorID: c_id,
+          deviceID: device,
+          sensorID: comp,
           $addToSet: { values: { $each: value } },
         };
-        const event = await Event.createEvent(eventBody);
+        const event = await getModelByTenant(
+          tenant.toLowerCase(),
+          "event",
+          EventSchema
+        ).createEvent(eventBody);
         logObject("DB addition response for add one value", event);
         event
           .then(async (event) => {
@@ -382,7 +523,7 @@ const component = {
             });
           });
       } else {
-        logText("component and/or device ID are missing in the request params");
+        logText("Component and/or device ID are missing in the request query");
       }
     } catch (e) {
       res
@@ -394,7 +535,8 @@ const component = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, component } = req.query;
+      const { device, component, tenant } = req.query;
+
       const {
         value,
         raw,
@@ -418,11 +560,17 @@ const component = {
         !isEmpty(calibratedValue) &&
         !isEmpty(measurement) &&
         !isEmpty(uncertaintyValue) &&
-        !isEmpty(standardDeviationValue)
+        !isEmpty(standardDeviationValue) &&
+        !isEmpty(tenant)
       ) {
-        const isComponentExist = await doesComponentExist(component, device);
-        logElement("does component exist", isComponentExist);
-        if (isComponentExist) {
+        const isComponentPresent = await doesComponentExist(
+          component,
+          device,
+          tenant.toLowerCase()
+        );
+        logElement("does component exist", isComponentPresent);
+
+        if (isComponentPresent) {
           const sample = {
             value,
             raw,
@@ -434,7 +582,7 @@ const component = {
             uncertaintyValue,
             standardDeviationValue,
           };
-          const day = new Date(time);
+          const day = await generateDateFormat(time);
           const eventBody = {
             componentName: component,
             deviceName: device,
@@ -448,7 +596,11 @@ const component = {
             $inc: { nValues: 1 },
           };
 
-          const addedEvent = await Event.updateOne(eventBody, options, {
+          const addedEvent = await getModelByTenant(
+            tenant.toLowerCase(),
+            "event",
+            EventSchema
+          ).updateOne(eventBody, options, {
             upsert: true,
           });
 
@@ -480,7 +632,7 @@ const component = {
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: "the component does not exist",
+            message: `the component (${component}) does not exist for this device (${device})`,
           });
         }
       } else {
@@ -499,53 +651,384 @@ const component = {
     }
   },
 
+  addBulk: async (req, res) => {
+    try {
+      logText("adding values...");
+      const { device, component, tenant } = req.query;
+      const { values, time } = req.body;
+      logObject("the type of device name", typeof device);
+      if (
+        !isEmpty(time) &&
+        !isEmpty(values) &&
+        !isEmpty(device) &&
+        !isEmpty(component) &&
+        !isEmpty(tenant)
+      ) {
+        const isComponentPresent = await doesComponentExist(
+          component,
+          device,
+          tenant.toLowerCase()
+        );
+        logElement("does component exist", isComponentPresent);
+
+        if (isComponentPresent) {
+          const samples = values;
+          // const day = new Date(time);
+          const day = generateDateFormat(time);
+          const eventBody = {
+            componentName: component,
+            deviceName: device,
+            day: day,
+            nValues: { $lt: constants.N_VALUES },
+          };
+          const options = {
+            $push: { values: samples },
+            $min: { first: time },
+            $max: { last: time },
+            $inc: { nValues: samples.length },
+          };
+
+          const addedEvent = await getModelByTenant(
+            tenant.toLowerCase(),
+            "event",
+            EventSchema
+          ).updateMany(eventBody, options, {
+            upsert: true,
+          });
+
+          logObject("the inserted document", addedEvent);
+
+          if (addedEvent) {
+            /**
+             * add the component name in the response body
+             */
+            // const samples = { ...samples };
+            const event = {
+              values: samples,
+              component: component,
+              device: device,
+            };
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully added the device data",
+              event,
+            });
+          } else if (!addedEvent) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              message: "unable to add events",
+              success: false,
+            });
+          } else {
+            logText("just unable to add events");
+          }
+        } else {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: `the component (${component}) does not exist for this device (${device})`,
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "required fields missing either in request body or URL query parameter",
+        });
+      }
+    } catch (e) {
+      res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        error: e.message,
+        message: "unable to add the values",
+      });
+    }
+  },
+
+  createType: async (req, res) => {
+    logText("................................");
+    logText("adding component type....");
+
+    try {
+      let { name, tenant } = req.query;
+
+      if (name && tenant) {
+        const isComponentTypeExist = await doesComponentTypeExist(
+          name,
+          tenant.toLowerCase()
+        );
+        logElement("does component type exist", isComponentTypeExist);
+
+        let componentTypeBody = {
+          name: name,
+        };
+
+        const componentType = await getModelByTenant(
+          tenant.toLowerCase(),
+          "componentType",
+          ComponentTypeSchema
+        ).createComponentType(componentTypeBody);
+
+        logElement("the component type element", componentType);
+        logObject("the component type object", componentType);
+
+        return res.status(HTTPStatus.CREATED).json({
+          success: true,
+          message: "successfully created the component type",
+          componentType,
+        });
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "request parameters missing, please check API documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to create the component type",
+        error: e.message,
+      });
+    }
+  },
+  getTypes: async (req, res) => {
+    try {
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      let { name, tenant } = req.query;
+      logElement("the component type ", name);
+      if (name && tenant) {
+        const componentType = await getModelByTenant(
+          tenant.toLowerCase(),
+          "componentType",
+          ComponentTypeSchema
+        ).find({
+          name: name,
+        });
+
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: `successfully listed the details of this platform's componentType `,
+          componentType,
+          doesExist: !isEmpty(componentType),
+        });
+      } else if (!name && tenant) {
+        const componentTypes = await getModelByTenant(
+          tenant.toLowerCase(),
+          "componentType",
+          ComponentTypeSchema
+        ).list({
+          limit,
+          skip,
+        });
+        if (!isEmpty(componentTypes)) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "successfully listed all platform componentTypes",
+            componentTypes,
+          });
+        } else if (isEmpty(componentTypes)) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: `unable to find all the platform componentTypes`,
+          });
+        }
+      } else if (!tenant) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: `missing the organisation, please crosscheck API documentation`,
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to list any component type",
+        error: e.message,
+      });
+    }
+  },
+
   /********************************* push data to Thing ****************************** */
   writeToThing: async (req, res) => {
-    await axios
-      .get(constants.ADD_VALUE(field, value, apiKey))
-      .then(function(response) {
-        console.log(response.data);
-        updateUrl = `https://api.thingspeak.com/update.json?api_key=${response.data.api_keys[0].api_key}`;
-        axios
-          .post(updateUrl, req.body)
+    try {
+      console.log("we are in");
+      const { quantityKind, value, apiKey } = req.body;
+      const { tenant } = req.query;
+
+      if (tenant && quantityKind && value && apiKey) {
+        console.log("the organisation: ", tenant);
+        console.log(
+          "the field we are updating",
+          writeToThingMappings(quantityKind, res)
+        );
+        await axios
+          .get(
+            constants.ADD_VALUE(
+              writeToThingMappings(quantityKind),
+              value,
+              apiKey
+            )
+          )
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            let resp = {};
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              data: resp,
+            });
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message:
+                "unable to get channel details necessary for writing this data",
+              success: false,
+              error: error.response.data,
+            });
+          });
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to push data",
+        error: e.message,
+      });
+    }
+  },
+
+  writeToThingJSON: async (req, res) => {
+    try {
+      let { tenant } = req.query;
+      let {
+        api_key,
+        created_at,
+        pm2_5,
+        pm10,
+        s2_pm2_5,
+        s2_pm10,
+        latitude,
+        longitude,
+        battery,
+        other_data,
+        status,
+      } = req.body;
+
+      let requestBody = {
+        api_key: api_key,
+        created_at: created_at,
+        field1: pm2_5,
+        field2: pm10,
+        field3: s2_pm2_5,
+        field4: s2_pm10,
+        field5: latitude,
+        field6: longitude,
+        field7: battery,
+        field8: other_data,
+        latitude: latitude,
+        longitude: longitude,
+        status: status,
+      };
+
+      if (tenant) {
+        await axios
+          .post(constants.ADD_VALUE_JSON, requestBody)
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            let resp = {};
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
+            res.status(200).json({
+              message: "successfully written data to the device",
+              success: true,
+              update: resp,
+            });
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(500).json({
+              message:
+                "unable to get channel details necessary for writing this data",
+              success: false,
+              error: error.response.data,
+            });
+          });
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message:
+            "missing request parameters, please crosscheck with the API documentation",
+        });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to push data",
+        error: e.message,
+      });
+    }
+  },
+
+  bulkWriteToThing: async (req, res) => {
+    try {
+      let tenant = req.query;
+      let { write_api_key, updates } = req.body;
+      if ((write_api_key, updates, tenant)) {
+        await axios
+          .post(constants.BULK_ADD_VALUES_JSON(channel), body)
           .then(function(response) {
             console.log(response.data);
             let output = response.data;
             res.status(200).json({
               message: "successfully written data to the device",
               success: true,
-              output,
+              data: output,
             });
           })
           .catch(function(error) {
             console.log(error);
             res.status(500).json({
-              message: "unable to write data to the device",
+              message:
+                "unable to get channel details necessary for writing this data",
               success: false,
               error,
             });
           });
-      })
-      .catch(function(error) {
-        console.log(error);
-        res.status(500).json({
-          message:
-            "unable to get channel details necessary for writing this data",
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
-          error,
+          message: "missing request parameters, please check documentation",
         });
+      }
+    } catch (e) {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to push data",
+        error: e.message,
       });
+    }
   },
 
-  bulkWriteToThing: (req, res) => {},
-
   calibrate: async (req, res) => {
-    let { c_id, d_id } = req.params;
+    let { comp, device, tenant } = req.query;
     try {
-      let componentFilter = { name: c_id };
-      await Component.findOneAndUpdate(
-        componentFilter,
-        { ...req.body, deviceID: d_id },
+      let ComponentFilter = { name: comp };
+      await getModelByTenant(
+        tenant.toLowerCase(),
+        "component",
+        ComponentSchema
+      ).findOneAndUpdate(
+        ComponentFilter,
+        { ...req.body, deviceID: device },
         {
           new: true,
         },
@@ -565,7 +1048,7 @@ const component = {
           } else {
             return res.status(HTTPStatus.BAD_REQUEST).json({
               message:
-                "component does not exist, please first create the component you are trying to calibrate ",
+                "Component does not exist, please first create the Component you are trying to calibrate ",
               success: false,
             });
           }
@@ -579,4 +1062,4 @@ const component = {
   },
 };
 
-module.exports = component;
+module.exports = Component;

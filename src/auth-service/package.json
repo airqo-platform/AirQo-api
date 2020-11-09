@@ -11,13 +11,12 @@
         "dev-pc": "set NODE_ENV=development&&nodemon ./bin/www",
         "stage-pc": "set NODE_ENV=staging&&nodemon ./bin/www",
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin/www",
-        "test": "NODE_ENV=test nodemon ./bin/www",
         "create-env": "printenv > .env"
     },
     "dependencies": {
         "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
-        "bcrypt": "^3.0.6",
+        "bcrypt": "^5.0.0",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",
         "connect-mongo": "^3.2.0",
@@ -42,7 +41,7 @@
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
         "nodemailer": "^6.4.6",
-        "passport": "^0.4.0",
+        "passport": "^0.4.1",
         "passport-jwt": "^4.0.0",
         "passport-local": "^1.0.0",
         "serve-favicon": "~2.4.5",
