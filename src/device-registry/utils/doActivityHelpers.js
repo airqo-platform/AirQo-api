@@ -177,7 +177,7 @@ const locationActivityRequestBodies = (req, res) => {
     //location and device body to be used for deploying....
     if (type == "deploy") {
       locationActivityBody = {
-        location: locationName,
+        // location: locationName,
         device: deviceName,
         date: new Date(date),
         description: "device deployed",
@@ -212,7 +212,7 @@ const locationActivityRequestBodies = (req, res) => {
 
       deviceBody = {
         name: deviceName,
-        locationID: locationName,
+        // locationID: locationName,
         height: height,
         mountType: mountType,
         powerType: powerType,
@@ -229,7 +229,7 @@ const locationActivityRequestBodies = (req, res) => {
     } else if (type == "recall") {
       /****** recalling bodies */
       locationActivityBody = {
-        location: locationName,
+        // location: locationName,
         device: deviceName,
         date: new Date(date),
         description: "device recalled",
