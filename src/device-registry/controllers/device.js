@@ -334,7 +334,7 @@ const device = {
               res.status(200).json({
                 message: `successfully cleared the data for device ${device}`,
                 success: true,
-                updatedDeviceModel,
+                updatedDevice,
               });
               //will clear data from Events table
             })
@@ -369,14 +369,7 @@ const device = {
     try {
       let { device, tenant } = req.query;
 
-      if (tenant) {
-        if (!device) {
-          res.status(400).json({
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          });
-        }
+      if (tenant && device) {
         let isDevicePresent = await doesDeviceExist(device, tenant);
         logElement("isDevicePresent ?", isDevicePresent);
 
@@ -411,20 +404,20 @@ const device = {
             .then(async (response) => {
               logText(`successfully updated device ${device} in TS`);
               logObject("response from TS", response.data);
-              const updatedDeviceModel = await getModelByTenant(
+              const updatedDevice = await getModelByTenant(
                 tenant.toLowerCase(),
                 "device",
                 DeviceSchema
               ).findOneAndUpdate(deviceFilter, deviceBody, {
                 new: true,
               });
-              if (updatedDeviceModel) {
+              if (updatedDevice) {
                 return res.status(HTTPStatus.OK).json({
                   message: "successfully updated the device settings in DB",
-                  updatedDeviceModel,
+                  updatedDevice,
                   success: true,
                 });
-              } else if (!updatedDeviceModel) {
+              } else if (!updatedDevice) {
                 return res.status(HTTPStatus.BAD_GATEWAY).json({
                   message: "unable to update device in DB but updated in TS",
                   success: false,
@@ -435,11 +428,7 @@ const device = {
             })
             .catch(function(error) {
               logElement("unable to update the device settings in TS", error);
-              res.status(500).json({
-                message: "unable to update the device settings in TS",
-                success: false,
-                error: error.message,
-              });
+              callbackErrors(error, req, res);
             });
         } else {
           logText(`device ${device} does not exist in DB`);
@@ -449,10 +438,7 @@ const device = {
           });
         }
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
+        missingQueryParams(req, res);
       }
     } catch (e) {
       logElement("unable to perform update operation", e);

@@ -8,6 +8,8 @@ const validate = require("express-validation");
 const mqttBridge = require("../controllers/mqtt-bridge");
 const httpBridge = require("../controllers/http-bridge");
 const componentController = require("../controllers/component");
+const imageUpload = require("../utils/multer");
+const imageController = require("../controllers/process-image");
 
 middlewareConfig(router);
 
@@ -42,6 +44,13 @@ router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
 router.post("/ts/activity", deviceController.doActivity);
 router.get("/by/location", deviceController.listAllByLocation);
+
+/********************** photo uploads ***************************/
+router.post(
+  "/upload-images",
+  imageUpload.array("image"),
+  imageController.uploadMany
+);
 
 /******************* components ************************* */
 router.get("/list/components/", componentController.listAll);
