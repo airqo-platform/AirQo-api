@@ -1,15 +1,18 @@
 from flask import Blueprint, request, jsonify
+from models.predict import make_prediction, make_prediction_using_averages 
+from helpers.utils import checkKey, get_closest_channel, get_gp_predictions
 from models.predict import make_prediction, make_prediction_using_averages, get_next_24hr_predictions_for_channel
-from helpers.utils import checkKey, get_closest_channel
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
 import logging
 from models import datamanagement as dm
 import datetime as dt
-
-
+import sys
+from datetime import datetime
+from flask_caching import Cache
 from routes import api
 from flask_cors import CORS
 
+cache = Cache(config={'CACHE_TYPE': 'simple'})
 
 _logger = logging.getLogger(__name__)
 
@@ -193,3 +196,27 @@ def predict_channel_next_24_hours():
             _logger.info(f'errors: {errors}')
             return jsonify({'inputs': json_data,'errors': errors }), 400
 
+
+@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
+#@cache.cached(timeout=30)
+def predictions_for_heatmap():
+    '''
+    makes predictions for a specified location at a given time.
+    '''
+    if request.method == 'POST':
+        json_data = request.get_json()
+        if not json_data:
+            return {'message': 'No input data provided', 'success':False}, 400
+        try:
+            min_long = json_data['min_long']
+            max_long = json_data['max_long']
+            min_lat = json_data['min_lat'] 
+            max_lat = json_data['max_lat']
+        except:
+            return {'message': 'Invalid input data. Please input the four coordinates of the region of interest', 'success':False}, 400
+        
+        data = get_gp_predictions(min_long, max_long, min_lat, max_lat)
+        return {'data':data, 'success':True}, 200
+    else:
+        return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
+    
