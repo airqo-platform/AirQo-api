@@ -1,3 +1,4 @@
 node_modules
 controllers/rsa_private.pem
 .env
+device-reg-secret.yaml
