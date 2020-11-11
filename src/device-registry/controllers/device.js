@@ -476,7 +476,7 @@ const doLocationActivity = async (
           log.then((log) => {
             return res.status(HTTPStatus.OK).json({
               message: `${type} successfully carried out`,
-              updatedDeviceModel,
+              activityBody,
               success: true,
             });
           });
