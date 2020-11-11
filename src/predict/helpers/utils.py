@@ -228,7 +228,7 @@ def get_gp_predictions(min_long, max_long, min_lat, max_lat):
     for i in range(pred_set.shape[0]):
         result.append({'lat':locations_flat[i][1],
                       'long':locations_flat[i][0],
-                      'mean': means[i],
+                      'predicted_value': means[i],
                       'variance':variances[i]})
     return result
 
