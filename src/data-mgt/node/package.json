@@ -23,6 +23,7 @@
         "express": "^4.17.1",
         "helmet": "^3.21.1",
         "http-status": "^1.4.0",
+        "is-empty": "^1.2.0",
         "mongoose": "^5.7.6",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
