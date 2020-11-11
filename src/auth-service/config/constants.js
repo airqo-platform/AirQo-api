@@ -1,25 +1,25 @@
 const devConfig = {
   MONGO_URI: "mongodb://localhost",
   DB_NAME: process.env.MONGO_DEV,
-  PWD_RESET: "http://34.78.78.202:31104/reset",
-  LOGIN_PAGE: "http://34.78.78.202:31104/login",
-  FORGOT_PAGE: "http://34.78.78.202:31104/forgot",
+  PWD_RESET: "http://localhost:3000/reset",
+  LOGIN_PAGE: "http://localhost:3000/login",
+  FORGOT_PAGE: "http://localhost:3000/forgot",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
   // PWD_RESET: "http://34.78.78.202:30101",
   PWD_RESET: "http://platform.airqo.net/reset",
-  LOGIN_PAGE: "http://34.78.78.202:30101/login",
-  FORGOT_PAGE: "http://34.78.78.202:30101/forgot",
+  LOGIN_PAGE: "http://platform.airqo.net/login",
+  FORGOT_PAGE: "http://platform.airqo.net/forgot",
 };
 
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
-  PWD_RESET: "http://34.78.78.202:31104/reset",
-  LOGIN_PAGE: "http://34.78.78.202:31104/login",
-  FORGOT_PAGE: "http://34.78.78.202:31104/forgot",
+  PWD_RESET: "http://staging-platform.airqo.net/reset",
+  LOGIN_PAGE: "http://staging-platform.airqo.net/login",
+  FORGOT_PAGE: "http://staging-platform.airqo.net/forgot",
 };
 
 const defaultConfig = {
