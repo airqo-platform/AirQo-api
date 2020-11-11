@@ -192,16 +192,16 @@ const join = {
       const { firstName, lastName, password, userName } = req.body;
 
       let mailOptions = {};
-      if (tenant == "kcca") {
+      if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
-          from: `airqo.analytics@gmail.com`,
+          from: constants.EMAIL,
           to: `${req.body.email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, userName)}`,
         };
       } else {
         mailOptions = {
-          from: `airqo.analytics@gmail.com`,
+          from: constants.EMAIL,
           to: `${req.body.email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(
