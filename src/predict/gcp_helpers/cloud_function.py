@@ -88,7 +88,7 @@ def train_model(X, Y):
     print('Number of rows in Xtraining', Xtraining.shape[0])
     
     print('creating kernel')
-    k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 1.5]) + gpflow.kernels.Bias()
+    k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
     print('creating model')
     m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
     print('setting trainable lengthscales to false ')
