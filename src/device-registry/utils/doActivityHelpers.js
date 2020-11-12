@@ -16,6 +16,13 @@ const {
   getApiKeys,
 } = require("./deviceControllerHelpers");
 
+const {
+  tryCatchErrors,
+  axiosError,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
+
 const getGpsCoordinates = async (locationName, tenant) => {
   logText("...................................");
   logText("Getting the GPS coordinates...");
@@ -109,7 +116,7 @@ const doLocationActivity = async (
             log.then((log) => {
               return res.status(HTTPStatus.OK).json({
                 message: `${type} successfully carried out`,
-                updatedDeviceModel,
+                activityBody,
                 success: true,
               });
             });
@@ -331,6 +338,51 @@ const isDeviceNotDeployed = async (deviceName, tenant) => {
   }
 };
 
+const queryFilterOptions = async (req, res) => {
+  try {
+    const { location, type, device, next, id } = req.query;
+
+    let activityFilter = {
+      ...(!isEmpty(location) && { location: location }),
+      ...(!isEmpty(type) && { type: type }),
+      ...(!isEmpty(device) && { device: device }),
+      ...(!isEmpty(next) && { next: next }),
+      ...(!isEmpty(id) && { _id: id }),
+      ...!isEmpty(),
+    };
+    return { activityFilter };
+  } catch (e) {
+    tryCatchErrors(res, e);
+  }
+};
+
+const bodyFilterOptions = async (req, res) => {
+  try {
+    const {
+      location,
+      device,
+      date,
+      description,
+      activityType,
+      nextMaintenance,
+      tags,
+    } = req.body;
+
+    let activityBody = {
+      ...(!isEmpty(location) && { location: location }),
+      ...(!isEmpty(date) && { date: date }),
+      ...(!isEmpty(device) && { device: device }),
+      ...(!isEmpty(description) && { description: description }),
+      ...(!isEmpty(activityType) && { activityType: activityType }),
+      ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+      ...(!isEmpty(tags) && { tags: tags }),
+    };
+    return { activityBody };
+  } catch (e) {
+    tryCatchErrors(res, e);
+  }
+};
+
 module.exports = {
   isDeviceNotDeployed,
   isDeviceNotRecalled,
@@ -338,4 +390,6 @@ module.exports = {
   doLocationActivity,
   getGpsCoordinates,
   doesLocationExist,
+  queryFilterOptions,
+  bodyFilterOptions,
 };
