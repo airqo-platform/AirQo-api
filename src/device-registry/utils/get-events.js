@@ -10,13 +10,16 @@ const {
   callbackErrors,
 } = require("./errors");
 
+const { logObject, logElement, logText } = require("./log");
+
 const { generateDateFormat } = require("./date");
 
 const responseDevice = async (res, filter, tenant) => {
   try {
     let ts = Date.now();
     let day = await generateDateFormat(ts);
-    let cacheID = `get_events_device_${day}`;
+    let cacheID = `get_events_device_${filter.deviceName}_${day}`;
+    logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
       if (result) {
@@ -64,7 +67,8 @@ const responseComponent = async (res, filter, tenant) => {
   try {
     let ts = Date.now();
     let day = await generateDateFormat(ts);
-    let cacheID = `get_events_component_${day}`;
+    let cacheID = `get_events_component_${filter.componentName}_${day}`;
+    logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
       if (result) {
@@ -112,7 +116,8 @@ const responseDeviceAndComponent = async (res, filter, tenant) => {
   try {
     let ts = Date.now();
     let day = await generateDateFormat(ts);
-    let cacheID = `get_events_component_and_device_${day}`;
+    let cacheID = `get_events_component_and_device_${filter.deviceName}_${filter.componentName}_${day}`;
+    logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
       if (result) {
@@ -161,6 +166,7 @@ const responseAll = async (req, res, tenant) => {
     let ts = Date.now();
     let day = await generateDateFormat(ts);
     let cacheID = `get_events_all_${day}`;
+    logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
       if (result) {
