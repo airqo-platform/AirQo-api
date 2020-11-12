@@ -22,6 +22,13 @@ const {
   responseComponent,
 } = require("utils/get-events");
 
+const {
+  tryCatchErrors,
+  axiosError,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
+
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
@@ -870,17 +877,10 @@ const Component = {
       } else if (comp && !device && tenant) {
         responseComponent(res, filterOptions.component(comp), tenant);
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: `some of the required parameters are missing, please crosscheck with the documentation`,
-        });
+        missingQueryParams(req, res);
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_REQUEST).json({
-        success: false,
-        message: "Server Error",
-        error: e.message,
-      });
+      tryCatchErrors(res, e);
     }
   },
 
