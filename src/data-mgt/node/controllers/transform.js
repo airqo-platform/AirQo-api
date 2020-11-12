@@ -149,6 +149,12 @@ const data = {
                   JSON.stringify({ isCache: true, ...responseJSON })
                 );
                 redis.expire(cacheID, 86400);
+                /***
+                 * in each each value of the array
+                 * add the calibrated value accordingly
+                 * run an axios from here
+                 */
+                // constants.GET_CALIBRATION(value);
                 return res
                   .status(HTTPStatus.OK)
                   .json({ isCache: false, ...responseJSON });

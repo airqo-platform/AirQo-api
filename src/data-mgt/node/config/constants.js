@@ -4,6 +4,9 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_CALIBRATION: (value) => {
+    return `http://localhost:3000/api/v1/calibrate?raw_value=${value}`;
+  },
 };
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -11,6 +14,9 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_CALIBRATION: (value) => {
+    return `http://34.78.78.202:31011/api/v1/calibrate?raw_value=${value}`;
+  },
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -18,6 +24,9 @@ const prodConfig = {
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_CALIBRATION: (value) => {
+    return `http://34.78.78.202:30011/api/v1/calibrate?raw_value=${value}`;
+  },
 };
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
