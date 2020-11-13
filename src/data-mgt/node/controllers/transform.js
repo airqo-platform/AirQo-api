@@ -123,6 +123,8 @@ const data = {
     }
   },
 
+  getLastHourlyEntry: async () => {},
+
   hourly: async (req, res) => {
     console.log("getting hourly..............  ");
     try {
@@ -234,6 +236,9 @@ const data = {
       tryCatchErrors(e, req, res);
     }
   },
+
+  generateDescriptiveLastEntry: async (req, res) => {},
+
   getChannelLastEntryAge: async (req, res) => {
     try {
       const { channel } = req.query;
