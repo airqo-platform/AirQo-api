@@ -6,13 +6,9 @@ const deviceSchema = new mongoose.Schema(
   {
     latitude: {
       type: Number,
-      required: true,
-      required: [true, "Device latitude is required!"],
     },
     longitude: {
       type: Number,
-      required: true,
-      required: [true, "Device longitude is required!"],
     },
     license: {
       type: String,
@@ -42,11 +38,9 @@ const deviceSchema = new mongoose.Schema(
     },
     owner: {
       type: ObjectId,
-      require: [true, "owner is required"],
     },
     description: {
       type: String,
-      required: [true, "Description is required!"],
       trim: true,
     },
     mobility: {
@@ -102,6 +96,7 @@ const deviceSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
     },
+    pictures: [{ type: String }],
   },
   {
     timestamps: true,
@@ -135,6 +130,9 @@ deviceSchema.methods = {
       mountType: this.mountType,
       locationID: this.locationID,
       isActive: this.isActive,
+      writeKey: this.writeKey,
+      readKey: this.readKey,
+      pictures: this.pictures,
     };
   },
 
