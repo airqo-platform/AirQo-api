@@ -2,8 +2,6 @@ const transporter = require("../services/mailer");
 
 function register(req, res, mailOptions, body, entity, tenant) {
   try {
-    console.log("the values coming in: ");
-    console.dir(body);
     entity
       .findOne({ email: body.email, userName: body.userName })
       .then((user) => {
@@ -23,7 +21,6 @@ function register(req, res, mailOptions, body, entity, tenant) {
                 if (err) {
                   console.error("there was an error: ", err);
                 } else {
-                  console.log("here is the res: ", response);
                   res.status(200).json({
                     savedData,
                     success: true,
