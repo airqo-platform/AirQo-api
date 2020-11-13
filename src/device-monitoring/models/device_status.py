@@ -165,13 +165,16 @@ class DeviceStatus():
 
         return ranking_results
 
-    def get_device_uptime_analysis_results(self, tenant, device_channel_id):
-        "gets the latest device uptime for the device with the specifided channel id"
+    def get_device_uptime_analysis_results(self, tenant, filter_param):
+        "gets the latest device uptime for the device with either the specifided channel id or device name or device id as filter param"
         db = db_helpers.connect_mongo(tenant)
+        
         results = list(db.network_uptime_analysis_results.find(
-            {}, {'_id': 0}).sort([('$natural', -1)]).limit(1))
+            {}, {'_id': 0}).sort([('created_at', -1)]).limit(1))
 
+        print('filter-params:{}'.format(filter_param))
         # basic exception handling
+        print(str(len(results)))
         if len(results) != 0:
             result = results[0]
         else:
@@ -182,23 +185,24 @@ class DeviceStatus():
 
         twenty_four_hour_devices = result['average_uptime_for_entire_network_for_twentyfour_hours']['device_uptime_records']
         device_twenty_four_hour_uptime = [d['device_uptime_in_percentage']
-                                          for d in twenty_four_hour_devices if d['device_channel_id'] == device_channel_id]
+                                          for d in twenty_four_hour_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
+
 
         seven_days_devices = result['average_uptime_for_entire_network_for_seven_days']['device_uptime_records']
         device_seven_days_uptime = [d['device_uptime_in_percentage']
-                                    for d in seven_days_devices if d['device_channel_id'] == device_channel_id]
+                                    for d in seven_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
 
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
         device_twenty_eight_days_uptime = [d['device_uptime_in_percentage']
-                                           for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+                                           for d in twenty_eight_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
 
         twelve_months_devices = result['average_uptime_for_entire_network_for_twelve_months']['device_uptime_records']
         device_twelve_months_uptime = [d['device_uptime_in_percentage']
-                                       for d in twelve_months_devices if d['device_channel_id'] == device_channel_id]
+                                       for d in twelve_months_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
 
         all_time_devices = result['average_uptime_for_entire_network_for_all_time']['device_uptime_records']
         device_all_time_uptime = [d['device_uptime_in_percentage']
-                                  for d in all_time_devices if d['device_channel_id'] == device_channel_id]
+                                  for d in all_time_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
 
         if device_twenty_four_hour_uptime and device_seven_days_uptime and twenty_eight_days_devices and twelve_months_devices and device_all_time_uptime:
             values = [round(device_twenty_four_hour_uptime[0], 2), round(device_seven_days_uptime[0], 2),
@@ -211,7 +215,7 @@ class DeviceStatus():
                 "message": "Uptime data not available for the specified device", "success": False}
         return uptime_result
 
-    def get_device_battery_voltage_results(self, tenant, device_channel_id):
+    def get_device_battery_voltage_results(self, tenant, filter_param):
         "gets the latest device batery voltage for the device with the specifided channel id"
         db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
@@ -226,9 +230,9 @@ class DeviceStatus():
 
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
         device_twenty_eight_days_battery_voltage = [d['device_battery_voltage_readings']
-                                                    for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+                                                    for d in twenty_eight_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
         device_twenty_eight_days_labels = [d['device_time_readings']
-                                           for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+                                           for d in twenty_eight_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
 
         if twenty_eight_days_devices:
             labels = [utils.convert_to_date(
@@ -242,7 +246,7 @@ class DeviceStatus():
                 "message": "device battery voltage data not available for the specified device", "success": False}
         return uptime_result
 
-    def get_device_sensor_correlation_results(self, tenant, device_channel_id):
+    def get_device_sensor_correlation_results(self, tenant, filter_param):
         "gets the latest device sensor correlations for the device with the specifided channel id"
         db = db_helpers.connect_mongo(tenant)
         results = list(db.network_uptime_analysis_results.find(
@@ -257,11 +261,11 @@ class DeviceStatus():
 
         twenty_eight_days_devices = result['average_uptime_for_entire_network_for_twenty_eight_days']['device_uptime_records']
         device_twenty_eight_days_sensor_one_readings = [d['device_sensor_one_pm2_5_readings']
-                                                        for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+                                                        for d in twenty_eight_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
         device_twenty_eight_days_sensor_two_readings = [d['device_sensor_two_pm2_5_readings']
-                                                        for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+                                                        for d in twenty_eight_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
         device_twenty_eight_days_labels = [d['device_time_readings']
-                                           for d in twenty_eight_days_devices if d['device_channel_id'] == device_channel_id]
+                                           for d in twenty_eight_days_devices if d['device_channel_id'] == filter_param or d['device_name']==filter_param or d['device_id']==filter_param]
 
         datasets = []  # for displaying multiple sensor data on graph
         colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']

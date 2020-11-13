@@ -1,4 +1,4 @@
-from google.cloud import bigquery
+from google.cloud import storage
 from geopy import distance
 import json
 import pytz
@@ -6,13 +6,16 @@ from datetime import datetime
 import pandas as pd
 from models import datamanagement as dm
 import os
-
-
+from os import makedirs
+from os.path import join, isdir, isfile, basename
+import numpy as np
+import tensorflow as tf
 import requests
 
 MET_API_URL= os.getenv("MET_API_UR")
 MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
 MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
+MONGO_URI = os.getenv("MONGO_URI")
 
 def get_hourly_met_forecasts():
     """
@@ -163,6 +166,77 @@ def convert_local_string_date_to_tz_aware_datetime(local_date_string):
     date_time_obj = datetime.strptime(local_date_string, '%Y-%m-%d %H:%M:%S+3:00')
     timezone_date_time_obj = timezone.localize(date_time_obj)
     return timezone_date_time_obj
+
+def string_to_hourly_datetime(my_list):
+    '''
+    converts a datetime string in a list to a format known by the gp model
+    '''
+    my_list[2] = datetime.strptime(my_list[2], '%Y-%m-%dT%H:%M:%SZ')
+    my_list[2] = my_list[2].timestamp()/3600
+    return my_list
+
+
+def get_saved_model_orig():
+    
+    bucket_name = 'airqo-models-bucket'
+    gcp_folder = 'gp_model'
+    local_folder = 'saved_model'
+    
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blobs = bucket.list_blobs(prefix=gcp_folder)
+    
+    if isdir(local_folder) == False:
+        makedirs(local_folder)
+        
+    for blob in blobs:
+        blob_name = blob.name 
+        dst_file_name = blob_name.replace(gcp_folder, local_folder)
+        if blob.name.endswith('/') and isdir(dst_file_name) == False:
+            makedirs(dst_file_name)
+        else:
+            blob.download_to_filename(dst_file_name)
+
+def load_model():
+    '''
+    loads saved trained gaussian process model
+    '''
+    save_dir = 'saved_model'
+    model = tf.saved_model.load(save_dir)
+    return model
+
+def get_gp_predictions(min_long, max_long, min_lat, max_lat):
+    '''
+    returns pm 2.5 predictions given an array of space and time inputs
+    '''
+    #generating input array
+    time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
+    longitudes = np.linspace(min_long, max_long, 100)
+    latitudes = np.linspace(min_lat, max_lat, 100)
+    locations = np.meshgrid(longitudes, latitudes)
+    locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
+    pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
+
+    #making predictions
+    loaded_model = load_model()
+    preds = loaded_model.predict(pred_set)
+    means = preds[0].numpy().flatten()
+    variances = preds[1].numpy().flatten()
+
+    #returning result
+    result = []
+    for i in range(pred_set.shape[0]):
+        result.append({'lat':locations_flat[i][1],
+                      'long':locations_flat[i][0],
+                      'predicted_value': means[i],
+                      'variance':variances[i]})
+    return result
+
+def str_to_date(st):
+    """
+    Converts a string to datetime
+    """
+    return datetime.strptime(st, '%Y-%m-%d %H:%M:%S')
 
 if __name__ == '__main__':
     

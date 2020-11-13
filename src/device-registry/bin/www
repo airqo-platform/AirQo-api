@@ -9,6 +9,7 @@ const constants = require("../config/constants");
 const middlewareConfig = require("../config/app.middleware");
 var debug = require("debug")("device-registry:server");
 var http = require("http");
+var isEmpty = require("is-empty");
 
 /****
  * pass the app instance to the middleware configuration
@@ -90,9 +91,16 @@ function onError(error) {
  * Event listener for HTTP server "listening" event.
  */
 
+let ENV = "";
+if (isEmpty(process.env.NODE_ENV)) {
+    ENV = "production";
+} else {
+    ENV = process.env.NODE_ENV;
+}
+
 function onListening() {
     console.log(`server is running on port: ${constants.PORT} ---
-Running on ${process.env.NODE_ENV}`);
+Running on ${ENV}`);
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);

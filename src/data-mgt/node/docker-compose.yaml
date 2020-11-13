@@ -1,0 +1,19 @@
+version: "2"
+
+services:
+
+  airqo-redis-server:
+    image: us.gcr.io/airqo-250220/airqo-redis-server:latest
+    ports:
+      - "6379"
+    environment:
+      - GET_HOSTS_FROM=dns
+
+  airqo-stage-data-mgt-api:
+    image: us.gcr.io/airqo-250220/airqo-stage-data-mgt-api:latest
+    ports:
+      - "31001:3000"
+    environment:
+      - GET_HOSTS_FROM=dns
+    labels:
+      kompose.service.type: NodePort
