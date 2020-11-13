@@ -21,7 +21,8 @@ def get_saved_model():
     blobs = bucket.list_blobs(prefix=gcp_folder)
     
     if isdir(local_folder) == False:
-        makedirs(local_folder)
+        print('Creating local folder')
+        os.makedirs(local_folder)
         
     for blob in blobs:
         blob_name = blob.name 
@@ -31,13 +32,14 @@ def get_saved_model():
             if len(list(inner_blobs))==0:
                 pass
             elif isdir(dst_file_name) == False:
-                makedirs(dst_file_name)
+                print('Creating inner folder')
+                os.makedirs(dst_file_name)
         else:
             blob.download_to_filename(dst_file_name)
     return {'message': 'Model successfully updated', 'success':True}, 200
 
 sched = BackgroundScheduler(daemon=True)
-sched.add_job(get_saved_model,'interval',minutes=30)
+sched.add_job(get_saved_model,'interval',hours=1)
 sched.start()
 
 _logger = logging.getLogger(__name__)
