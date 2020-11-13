@@ -45,6 +45,7 @@
         "passport": "^0.4.1",
         "passport-jwt": "^4.0.0",
         "passport-local": "^1.0.0",
+        "saslprep": "^1.0.3",
         "serve-favicon": "~2.4.5",
         "validator": "^11.1.0",
         "xoauth2": "^1.2.0"

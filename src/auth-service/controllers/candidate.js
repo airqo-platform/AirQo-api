@@ -4,6 +4,7 @@ const msgs = require("../utils/email.msgs");
 const validateCandidateInput = require("../utils/validations.candidate");
 const register = require("../utils/register");
 const { getModelByTenant } = require("../utils/multitenancy");
+const constants = require("../config/constants");
 
 const CandidateModel = (tenant) => {
   return getModelByTenant(tenant, "candidate", CandidateSchema);
@@ -12,9 +13,6 @@ const CandidateModel = (tenant) => {
 const candidate = {
   registerCandidate: (req, res) => {
     const { tenant } = req.query;
-    console.log("yay!");
-    console.log("the elements we need:");
-    console.dir(req.body);
     const { errors, isValid } = validateCandidateInput(req.body);
     if (!isValid) {
       return res
@@ -23,7 +21,7 @@ const candidate = {
     }
 
     const mailOptions = {
-      from: `info@airqo.net`,
+      from: constants.EMAIL,
       to: `${req.body.email}`,
       subject: "AirQo Platform JOIN request",
       text: msgs.joinRequest,

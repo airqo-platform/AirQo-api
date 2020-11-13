@@ -93,7 +93,7 @@ const UserSchema = new Schema({
     text: { type: Boolean, default: false },
     phone: { type: Boolean, default: false },
   },
-  accessToken: {
+  profilePicture: {
     type: String,
   },
 });
@@ -171,6 +171,7 @@ UserSchema.methods = {
         userName: this.userName,
         email: this.email,
         privilege: this.privilege,
+        profilePicture: this.profilePicture,
       },
       constants.JWT_SECRET
     );
@@ -196,6 +197,7 @@ UserSchema.methods = {
       organization: this.organization,
       category: this.category,
       jobTitle: this.jobTitle,
+      profilePicture: this.profilePicture,
     };
   },
 };
