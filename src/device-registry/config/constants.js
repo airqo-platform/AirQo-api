@@ -1,16 +1,16 @@
 const { logElement } = require("../utils/log");
 
 const devConfig = {
-  MONGO_URL: `mongodb://localhost/`,
+  MONGO_URI: `mongodb://localhost/`,
   DB_NAME: process.env.MONGO_DEV,
 };
 const prodConfig = {
-  MONGO_URL: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
 };
 
 const stageConfig = {
-  MONGO_URL: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
 };
 
@@ -27,7 +27,11 @@ const defaultConfig = {
     return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   ADD_VALUE: (field, value, apiKey) => {
-    `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+    return `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+  },
+  ADD_VALUE_JSON: `https://api.thingspeak.com/update.json`,
+  BULK_ADD_VALUES_JSON: (channel) => {
+    return `https://api.thingspeak.com/channels/${channel}/bulk_update.json`;
   },
   ADD_VALUES: (device) => {
     return `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
@@ -44,15 +48,14 @@ const defaultConfig = {
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
   DEVICE_CREATION: {
-    field1: "Sensor1 PM2.5",
-    field2: "Sensor1 PM10",
-    field3: "Sensor2 PM2.5",
-    field4: "Sensor2 PM10",
-    field5: "Humidity",
-    field5: "Battery Voltage",
-    field6: "Temperature",
-    field7: "NO2",
-    field8: "SO3",
+    field1: "Sensor1 PM2.5_CF_1_ug/m3",
+    field2: "Sensor1 PM10_CF_1_ug/m3",
+    field3: "Sensor2 PM2.5_CF_1_ug/m3",
+    field4: "Sensor2 PM10_CF_1_ug/m3",
+    field5: "Latitude",
+    field6: "Longitude",
+    field7: "Battery Voltage",
+    field8: "GpsData",
   },
   N_VALUES: 200,
 };

@@ -1,11 +1,3 @@
-// Using DataStore from GCP
-// const { instances } = require("gstore-node");
-// const gstoreDefaultInstance = instances.get("default");
-// const gstoreWithCache = instances.get("cache-on");
-// const gstoreStaging = instances.get("staging");
-// const Schema = gstoreDefaultInstance.Schema;
-
-//const DataAccess = require("../config/das");
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
@@ -15,7 +7,6 @@ const saltRounds = 10;
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const { tenantModel } = require("../config/multiTenant");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -72,37 +63,33 @@ const UserSchema = new Schema({
       message: "{VALUE} is not a valid password!",
     },
   },
-  interest: { type: String, default: "none" },
-  privilege: { type: String, default: "admin" },
-  accountStatus: { type: String, default: "false" },
-  hasAccess: { type: Boolean, default: false },
-  publisher: { type: Boolean, default: false },
+  privilege: { type: String, required: [true, "the role is required!"] },
+  isActive: { type: Boolean },
   duration: { type: Date, default: oneMonthFromNow },
-  bus_nature: { type: String, default: "none" },
-  org_department: { type: String, default: "none" },
-  uni_faculty: { type: String, default: "none" },
-  uni_course_yr: { type: String, default: 0 },
-  pref_locations: [{ type: ObjectId, ref: "loc" }],
-  country: { type: String, default: "Uganda" },
-  phoneNumber: { type: Number, default: 0, unique: true },
+  organization: {
+    type: String,
+    required: [true, "the organization is required!"],
+  },
+  country: { type: String },
+  phoneNumber: { type: Number },
+  locationCount: { type: Number, default: 5 },
   resetPasswordToken: { type: String },
   resetPasswordExpires: { type: Date },
-  emailVerificationToken: { type: String, required: true },
-  emailVerficationExpires: { type: Date },
-  role: {
-    job_title: { type: String, default: "none" },
-    org_name: { type: String, default: "none" },
+  jobTitle: {
+    type: String,
   },
-  product: {
-    analytics: { type: Boolean, default: false },
-    locate: { type: Boolean, default: false },
-    admin: { type: Boolean, default: false },
+  website: { type: String },
+  category: {
+    type: String,
   },
   notifications: {
     email: { type: Boolean, default: false },
     push: { type: Boolean, default: false },
     text: { type: Boolean, default: false },
     phone: { type: Boolean, default: false },
+  },
+  profilePicture: {
+    type: String,
   },
 });
 
@@ -112,13 +99,6 @@ UserSchema.pre("save", function (next) {
   }
   return next();
 });
-
-// UserSchema.pre("findOneAndUpdate", function(next) {
-//     if (this.isModified("password")) {
-//         this.password = this._hashPassword(this.password);
-//     }
-//     return next();
-// });
 
 UserSchema.pre("findOneAndUpdate", function () {
   let that = this;
@@ -201,18 +181,67 @@ module.exports = user;
 
 // module.exports = tenantModel("user", UserSchema);
 
-// shall consider this when implementing the Bridge Design Pattern
-// const Model = function () {
+UserSchema.statics = {
+  createUser(args) {
+    return this.create({
+      ...args,
+    });
+  },
+};
 
-// }
+UserSchema.methods = {
+  _hashPassword(password) {
+    // bcrypt.hash(password, saltRounds).then(function (hash) {
+    //     return hash;
+    // })
+    return bcrypt.hashSync(password, saltRounds);
+  },
+  authenticateUser(password) {
+    // bcrypt.compare(password, this.password).then(function (res) {
+    //     return res;
+    // })
+    return bcrypt.compareSync(password, this.password);
+  },
+  createToken() {
+    return jwt.sign(
+      {
+        _id: this._id,
+        locationCount: this.locationCount,
+        organization: this.organization,
+        firstName: this.firstName,
+        lastName: this.lastName,
+        userName: this.userName,
+        email: this.email,
+        privilege: this.privilege,
+        profilePicture: this.profilePicture,
+      },
+      constants.JWT_SECRET
+    );
+  },
+  toAuthJSON() {
+    return {
+      _id: this._id,
+      userName: this.userName,
+      token: `JWT ${this.createToken()}`,
+      email: this.email,
+    };
+  },
+  toJSON() {
+    return {
+      _id: this._id,
+      userName: this.userName,
+      email: this.email,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      locationCount: this.locationCount,
+      privilege: this.privilege,
+      website: this.website,
+      organization: this.organization,
+      category: this.category,
+      jobTitle: this.jobTitle,
+      profilePicture: this.profilePicture,
+    };
+  },
+};
 
-// Model.prototype.GetUsers = function () {
-//     return new Promise(function (fulfill, reject) {
-//         DataAccess.GetEntities("auth_service", "users")
-//             .then(function (docs) {
-//                 fulfill(docs);
-//             }).catch(function (err) {
-//                 reject(err);
-//             });
-//     });
-// };
+module.exports = UserSchema;

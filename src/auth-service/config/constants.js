@@ -1,44 +1,41 @@
 const devConfig = {
   MONGO_URI: "mongodb://localhost",
-  JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_DEV,
-  CLIENT_ORIGIN: "https://airqo.net/",
-  BCRYPT_SALT_ROUNDS: 12,
-};
-const testConfig = {
-  MONGO_URI: "mongodb://localhost",
-  JWT_SECRET: process.env.JWT_SECRET,
-  DB_NAME: process.env.MONGO_TEST,
-  CLIENT_ORIGIN: "https://airqo.net/",
-  BCRYPT_SALT_ROUNDS: 12,
+  PWD_RESET: "http://localhost:3000/reset",
+  LOGIN_PAGE: "http://localhost:3000/login",
+  FORGOT_PAGE: "http://localhost:3000/forgot",
 };
 const prodConfig = {
-  // MONGO_URI: process.env.ATLAS_URI,
   MONGO_URI: process.env.MONGO_GCE_URI,
-  JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_PROD,
-  CLIENT_ORIGIN: "https://airqo.net/",
-  BCRYPT_SALT_ROUNDS: 12,
+  // PWD_RESET: "http://34.78.78.202:30101",
+  PWD_RESET: "http://platform.airqo.net/reset",
+  LOGIN_PAGE: "http://platform.airqo.net/login",
+  FORGOT_PAGE: "http://platform.airqo.net/forgot",
 };
 
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
-  JWT_SECRET: process.env.JWT_SECRET,
   DB_NAME: process.env.MONGO_STAGE,
-  CLIENT_ORIGIN: "https://airqo.net/",
-  BCRYPT_SALT_ROUNDS: 12,
+  PWD_RESET: "http://staging-platform.airqo.net/reset",
+  LOGIN_PAGE: "http://staging-platform.airqo.net/login",
+  FORGOT_PAGE: "http://staging-platform.airqo.net/forgot",
 };
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  CLIENT_ORIGIN: "https://airqo.net/",
+  BCRYPT_SALT_ROUNDS: 12,
+  JWT_SECRET: process.env.JWT_SECRET,
+  EMAIL: process.env.MAIL_USER,
+  YOUTUBE_CHANNEL: "https://www.youtube.com/channel/UCx7YtV55TcqKGeKsDdT5_XQ",
+  ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
 };
 
 function envConfig(env) {
   switch (env) {
     case "development":
       return devConfig;
-    case "test":
-      return testConfig;
     case "staging":
       return stageConfig;
     default:
