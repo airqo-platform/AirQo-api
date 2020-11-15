@@ -18,6 +18,7 @@ const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 const bcrypt = require("bcrypt");
+const sendEmail = require("../utils/sendEmail");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -35,6 +36,7 @@ const join = {
   addUserByTenant: async (req, res) => {
     try {
       logText("...................................");
+      console.log("inside add user by tenant");
       const { tenant } = req.query;
       const { body } = req;
       logObject("checking the body", body);
@@ -111,6 +113,7 @@ const join = {
   },
 
   forgotPassword: async (req, res) => {
+    console.log("inside forgot password");
     try {
       logElement("the email", req.body.email);
       // const { errors, isValid } = validateForgotPwdInput(req.body.email);
@@ -166,7 +169,8 @@ const join = {
             //return res.status(HTTPStatus.OK).json(response);
           } else {
             return res.status(400).json({
-              message: "unable to send email. Please crosscheck the organisation and email information provided."
+              message:
+                "unable to send email. Please crosscheck the organisation and email information provided.",
             });
           }
         }
@@ -175,6 +179,7 @@ const join = {
   },
 
   registerUser: (req, res) => {
+    console.log("inside register user");
     try {
       const { errors, isValid } = validateRegisterInput(req.body);
       if (!isValid) {
@@ -187,16 +192,16 @@ const join = {
       const { firstName, lastName, password, userName } = req.body;
 
       let mailOptions = {};
-      if (tenant == "kcca") {
+      if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
-          from: `airqo.analytics@gmail.com`,
+          from: constants.EMAIL,
           to: `${req.body.email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, userName)}`,
         };
       } else {
         mailOptions = {
-          from: `airqo.analytics@gmail.com`,
+          from: constants.EMAIL,
           to: `${req.body.email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(
@@ -226,6 +231,7 @@ const join = {
   },
   //invoked when the user visits the confirmation url on the client
   confirmEmail: async (req, res) => {
+    console.log("inside confirm email");
     try {
       const { tenant, id } = req.query;
       UserModel(tenant.toLowerCase())
@@ -274,6 +280,7 @@ const join = {
   },
 
   deleteUser: (req, res, next) => {
+    console.log("inside delete update");
     const { tenant, id } = req.query;
     UserModel(tenant.toLowerCase()).findByIdAndRemove(id, (err, user) => {
       if (err) {
@@ -297,6 +304,7 @@ const join = {
   },
 
   updateUser: (req, res, next) => {
+    console.log("inside user update");
     const { tenant, id } = req.query;
     delete req.body.password;
     delete req.body.email;
@@ -306,20 +314,22 @@ const join = {
       { new: true },
       (err, user) => {
         if (err) {
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: "Unable to update user",
             error: err,
           });
         } else if (user) {
-          console.log(user);
-          res.status(200).json({
-            success: true,
-            message: "User updated successfully",
-            user,
-          });
+          const mailOptions = {
+            from: constants.EMAIL,
+            to: `${user.email}`,
+            subject: "AirQo Platform account updated",
+            text: `${msgs.user_updated(user.firstName, user.lastName)}`,
+          };
+          const message = constants.ACCOUNT_UPDATED;
+          sendEmail(req, res, mailOptions, message);
         } else {
-          res.status(400).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: "user does not exist in the db",
           });
@@ -329,6 +339,7 @@ const join = {
   },
 
   updateUserDefaults: async (req, res, next) => {
+    console.log("inside update user defaults");
     try {
       const { tenant, user, chartTitle } = req.query;
       logElement("title", chartTitle);
@@ -431,6 +442,7 @@ const join = {
     }
   },
   updateLocations: (req, res) => {
+    console.log("inside update locations");
     const { tenant, id } = req.query;
     let response = {};
     UserModel(tenant.toLowerCase()).find({ _id: id }, (error, user) => {
@@ -503,6 +515,7 @@ const join = {
 
   updatePasswordViaEmail: (req, res, next) => {
     const { tenant } = req.query;
+    console.log("inside update password via email");
 
     const { userName, password, resetPasswordToken } = req.body;
 
@@ -543,6 +556,8 @@ const join = {
   },
 
   updatePassword: (req, res) => {
+    console.log("inside update password");
+
     try {
       const { errors, isValid } = validatePasswordUpdate(req.body);
       if (!isValid) {
