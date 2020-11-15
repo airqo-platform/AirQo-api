@@ -41,7 +41,7 @@ const defaultConfig = {
     return `https://api.thingspeak.com/channels/${channel}/feeds.json`;
   },
   GENERATE_LAST_HOURLY_ENTRY: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel}/feeds.json?days=1&sum=60`;
+    return `https://api.thingspeak.com/channels/${channel}/feeds.json?days=1&average=60`;
   },
   GET_FEEDS: (channel) => {
     return `https://api.thingspeak.com/channels/${channel}/feeds.json`;
