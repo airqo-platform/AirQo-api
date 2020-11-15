@@ -8,6 +8,10 @@ const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
 const Issue = require("../models/Issue");
 const {
+  getLastEntry,
+  generateDescriptiveLastEntry,
+} = require("../utils/getLastEntry");
+const {
   getFieldLabel,
   getPositionLabel,
   transformMeasurement,
@@ -66,64 +70,18 @@ const data = {
       tryCatchErrors(e, req, res);
     }
   },
+
   getFeeds: async (req, res) => {
     console.log("getting feeds..............  ");
     const fetch_response = await fetch(constants.GET_FEEDS(req.params.ch_id));
     const json = await fetch_response.json();
-    res.status(200).send(json);
+    res.status(200).json(json);
   },
 
   getLastEntry: async (req, res) => {
-    try {
-      const { ch_id } = req.params;
-      if (ch_id) {
-        let ts = Date.now();
-        let day = await generateDateFormat(ts);
-        let cacheID = `last_entry_${ch_id.trim()}_${day}`;
-        redis.get(cacheID, (err, result) => {
-          if (result) {
-            const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json(resultJSON);
-          } else {
-            axios
-              .get(constants.GENERATE_LAST_ENTRY(ch_id))
-              .then(async (response) => {
-                let readings = response.data;
-
-                let lastEntryId = readings.channel.last_entry_id;
-                let recentReadings = await readings.feeds.filter((item) => {
-                  return item.entry_id === lastEntryId;
-                });
-                let responseData = recentReadings[0];
-
-                let referenceForRefactor =
-                  "https://docs.google.com/document/d/163T5dZj_FaDHJ_sBAmKamqGN2PSuaZdBEirx-Kz-80Q/edit?usp=sharing";
-
-                redis.set(
-                  cacheID,
-                  JSON.stringify({ isCache: true, ...responseData })
-                );
-                redis.expire(cacheID, 86400);
-
-                return res.status(HTTPStatus.OK).json({
-                  isCache: false,
-                  ...responseData,
-                });
-              })
-              .catch((error) => {
-                axiosError(error, req, res);
-              });
-          }
-        });
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(e, req, res);
-    }
+    const { frequency } = req.query;
+    getLastEntry(req, res, frequency);
   },
-
-  getLastHourlyEntry: async () => {},
 
   hourly: async (req, res) => {
     console.log("getting hourly..............  ");
@@ -180,64 +138,9 @@ const data = {
   },
 
   generateDescriptiveLastEntry: async (req, res) => {
-    try {
-      const { channel } = req.query;
-      if (channel) {
-        let ts = Date.now();
-        let day = await generateDateFormat(ts);
-        let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-        redis.get(cacheID, (err, result) => {
-          if (result) {
-            const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json(resultJSON);
-          } else {
-            axios
-              .get(constants.GENERATE_LAST_ENTRY(channel))
-              .then(async (response) => {
-                let readings = response.data;
-
-                let lastEntryId = readings.channel.last_entry_id;
-                let recentReadings = await readings.feeds.filter((item) => {
-                  return item.entry_id === lastEntryId;
-                });
-                let responseData = recentReadings[0];
-                //check the GPS values
-                let gpsCods = gpsCheck(responseData, req, res);
-                // responseData.field5 = gpsCods.latitude;
-                // responseData.field6 = gpsCods.longitude;
-
-                delete responseData.entry_id;
-
-                let transformedData = await transformMeasurement(responseData);
-                let otherData = transformedData.other_data;
-                let transformedField = await trasformFieldValues(otherData);
-                delete transformedData.other_data;
-                let newResp = { ...transformedData, ...transformedField };
-
-                redis.set(
-                  cacheID,
-                  JSON.stringify({ isCache: true, ...newResp })
-                );
-                redis.expire(cacheID, 86400);
-                return res.status(HTTPStatus.OK).json({
-                  isCache: false,
-                  ...newResp,
-                });
-              })
-              .catch((error) => {
-                axiosError(error, req, res);
-              });
-          }
-        });
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(e, req, res);
-    }
+    const { frequency } = req.query;
+    generateDescriptiveLastEntry(req, res, frequency);
   },
-
-  generateDescriptiveLastEntry: async (req, res) => {},
 
   getChannelLastEntryAge: async (req, res) => {
     try {
