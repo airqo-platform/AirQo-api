@@ -27,20 +27,27 @@ const axiosError = (error, req, res) => {
 const tryCatchErrors = (error, req, res) => {
   res
     .status(HTTPStatus.BAD_GATEWAY)
-    .send({ success: false, message: "server error", error: error.message });
+    .json({ success: false, message: "server error", error: error.message });
 };
 
 const missingQueryParams = (req, res) => {
-  res.status(HTTPStatus.BAD_REQUEST).send({
+  res.status(HTTPStatus.BAD_REQUEST).json({
     success: false,
     message: "misssing request parameters, please check documentation",
+  });
+};
+
+const incorrectValue = (req, res) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({
+    success: false,
+    message: "request value is not supported, please check documentation",
   });
 };
 
 const callbackErrors = (error, req, res) => {
   res
     .status(HTTPStatus.BAD_GATEWAY)
-    .send({ success: false, message: "server error", error: error });
+    .json({ success: false, message: "server error", error: error });
 };
 
 module.exports = {
@@ -48,4 +55,5 @@ module.exports = {
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
+  incorrectValue,
 };
