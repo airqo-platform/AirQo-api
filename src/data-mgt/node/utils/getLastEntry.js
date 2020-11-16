@@ -10,6 +10,8 @@ const {
   incorrectValue,
 } = require("./errors");
 
+const { calibrate } = require("./enrich");
+
 const { gpsCheck, getGPSFromDB } = require("./gps-check");
 
 const { generateDateFormat } = require("./date");
@@ -24,7 +26,7 @@ const {
   availableMeasurements,
 } = require("./mappings");
 
-const { logElement, logText, logObject } = require("../utils/log");
+const { logElement, logText, logObject } = require("./log");
 
 const getLastEntry = async (req, res, frequency) => {
   try {
@@ -45,6 +47,7 @@ const getLastEntry = async (req, res, frequency) => {
             .get(url)
             .then(async (response) => {
               let { data } = response;
+
               let responseData = await retrieveEntryData(
                 req,
                 res,
@@ -139,7 +142,7 @@ const retrieveEntryData = async (req, res, returnedData, frequency) => {
         });
       } else {
         let lastItem = feedsArray[feedsArray.length - 1];
-        // logObject("last item", lastItem);
+
         return lastItem;
       }
     } else if (frequency == "raw") {
@@ -214,8 +217,18 @@ const transform = async (data) => {
   let measurements = availableMeasurements(data);
   let transformedData = await transformMeasurement(measurements);
   let { other_data } = transformedData;
+
+  const { pm2_5, pm10, s2_pm2_5, s2_pm10 } = transformedData;
+  logElement("pm2_5", pm2_5);
+  let calibratedValue = calibrate(pm2_5);
+  logElement("calibratedValue", calibratedValue);
+  let newResp = {
+    ...transformedData,
+    ...{ pm2_5_calibrated: calibratedValue },
+  };
+  logObject("the retrieved entry data", newResp);
+
   if (isEmpty(other_data)) {
-    let newResp = { ...transformedData };
     return newResp;
   } else {
     let transformedField = await trasformFieldValues(other_data);

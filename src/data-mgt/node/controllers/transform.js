@@ -5,8 +5,6 @@ const Channel = require("../models/Channel");
 const Feed = require("../models/Feed");
 const axios = require("axios");
 const redis = require("../config/redis");
-const MaintenanceLog = require("../models/MaintenanceLogs");
-const Issue = require("../models/Issue");
 const {
   getLastEntry,
   generateDescriptiveLastEntry,
@@ -103,32 +101,18 @@ const data = {
             axios
               .get(constants.GET_HOURLY_FEEDS(Number(channel)))
               .then((response) => {
-                const responseJSON = response.data;
-                redis.set(
-                  cacheID,
-                  JSON.stringify({ isCache: true, ...responseJSON })
-                );
+                const { data } = response;
+                redis.set(cacheID, JSON.stringify({ isCache: true, ...data }));
                 redis.expire(cacheID, 86400);
-                /***
-                 * in each each value of the array
-                 * add the calibrated value accordingly
-                 * run an axios from here
-                 */
-                // constants.GET_CALIBRATION(value);
                 return res
                   .status(HTTPStatus.OK)
-                  .json({ isCache: false, ...responseJSON });
+                  .json({ isCache: false, ...data });
               })
               .catch((err) => {
                 axiosError(err, req, res);
               });
           }
         });
-        // let fetch_response = await fetch(
-        //   constants.GET_HOURLY_FEEDS(req.params.ch_id)
-        // );
-        // let json = await fetch_response.json();
-        // res.status(HTTPStatus.OK).send(json);
       } else {
         missingQueryParams(req, res);
       }
@@ -205,9 +189,6 @@ const data = {
             const resultJSON = JSON.parse(result);
             return res.status(HTTPStatus.OK).json({ ...resultJSON });
           } else {
-            /**
-             * we can trasform the field
-             */
             let field = getFieldByLabel(sensor);
             return axios
               .get(constants.GET_LAST_FIELD_ENTRY_AGE(channel, field))
@@ -263,7 +244,6 @@ const data = {
               let count = Object.keys(responseJSON).length;
               redis.set(`${cacheID}`, JSON.stringify({ isCache: true, count }));
               redis.expire(cacheID, 86400);
-              // Send JSON response to redis
               return res.status(200).json({ isCache: false, count });
             })
             .catch((err) => {
