@@ -8,12 +8,13 @@ load_dotenv()
 if os.getenv('FLASK_ENV') == 'production':
     MONGO_URI = os.getenv('PROD_MONGO_URI')
     DB_NAME  = os.getenv('DB_NAME_PROD')
-elif os.getenv('FLASK_ENV') == 'testing':
-    MONGO_URI = os.getenv('PROD_MONGO_URI')
-    DB_NAME  = os.getenv('DB_NAME_STAGING')
-else:
+elif os.getenv('FLASK_ENV') == 'development':
     MONGO_URI = os.getenv('DEV_MONGO_URI')
     DB_NAME  = os.getenv('DB_NAME_PROD')
+else:
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_STAGING')
+    
 
 class Location():
 
@@ -40,6 +41,8 @@ class Location():
 
         client = MongoClient(MONGO_URI)
         db_name = f'{DB_NAME}_{tenant_id.lower()}'
+        print(db_name)
+        dbnames = client.list_database_names()
         if db_name not in dbnames:
             return {'message':'Organization does not exist', 'success':False}, 400
         db = client[db_name]
@@ -117,8 +120,8 @@ class Location():
 
         client = MongoClient(MONGO_URI)
         db_name = f'{DB_NAME}_{tenant_id.lower()}'
-        db_names = client.list_database_names()
-        if db_name not in db_names:
+        dbnames = client.list_database_names()
+        if db_name not in dbnames:
             return {'message': 'Organization does not exist', 'success':False}, 400
         else:
             db = client[db_name]

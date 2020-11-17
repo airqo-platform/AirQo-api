@@ -23,11 +23,11 @@ credentials = ee.ServiceAccountCredentials(
 if os.getenv('FLASK_ENV') == 'production':
     MONGO_URI = os.getenv('PROD_MONGO_URI')
     DB_NAME  = os.getenv('DB_NAME_PROD')
-elif os.getenv('FLASK_ENV') == 'testing':
-    MONGO_URI = os.getenv('PROD_MONGO_URI')
-    DB_NAME  = os.getenv('DB_NAME_STAGING')
-else:
+elif os.getenv('FLASK_ENV') == 'development':
     MONGO_URI = os.getenv('DEV_MONGO_URI')
+    DB_NAME  = os.getenv('DB_NAME_PROD')
+else:
+    MONGO_URI = os.getenv('PROD_MONGO_URI')
     DB_NAME  = os.getenv('DB_NAME_STAGING')
 
 
