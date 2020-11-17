@@ -39,7 +39,9 @@ class Location():
                          'distance_from_city': distance_from_city}
 
         client = MongoClient(MONGO_URI)
-        db_name = DB_NAME+tenant_id
+        db_name = f'{DB_NAME}_{tenant_id.lower()}'
+        if db_name not in dbnames:
+            return {'message':'Organization does not exist', 'success':False}, 400
         db = client[db_name]
         db.location_registry.insert_one(location_dict)
 
