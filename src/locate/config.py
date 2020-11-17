@@ -11,9 +11,9 @@ class Config:
     DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
-    SECRET_KEY = os.getenv("SECRET_KEY").strip()
-    DB_NAME = os.getenv("DB_NAME_PROD").strip()
-    MONGO_URI = os.getenv('MONGO_GCE_URI').strip()
+    SECRET_KEY = os.getenv("SECRET_KEY")
+    DB_NAME = os.getenv("DB_NAME_PROD")
+    MONGO_URI = os.getenv('MONGO_GCE_URI')
 
 
 class ProductionConfig(Config):
@@ -26,8 +26,8 @@ class DevelopmentConfig(Config):
 
     DEVELOPMENT = True
     DEBUG = True
-    MONGO_URI = os.getenv("MONGO_DEV_URI").strip()
-    DB_NAME = os.getenv("DB_NAME_DEV").strip()
+    MONGO_URI = os.getenv("MONGO_DEV_URI")
+    DB_NAME = os.getenv("DB_NAME_DEV")
 
 
 class TestingConfig(Config):
@@ -35,8 +35,8 @@ class TestingConfig(Config):
     load_dotenv(dotenv_path)
 
     TESTING = True
-    MONGO_URI = os.getenv('MONGO_GCE_URI').strip()
-    DB_NAME = os.getenv("DB_NAME_STAGE").strip()
+    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    DB_NAME = os.getenv("DB_NAME_STAGE")
 
 
 app_config = {"development": DevelopmentConfig,
