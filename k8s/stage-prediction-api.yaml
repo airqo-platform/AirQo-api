@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-prediction-api
+  name: airqo-stage-prediction-api
   namespace: staging
 spec:
   selector:
@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: prediction-api
-          image: us.gcr.io/airqo-250220/airqo-prediction-api:latest
+          image: us.gcr.io/airqo-250220/airqo-stage-prediction-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 5000
@@ -28,7 +28,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-prediction-api-svc
+  name: airqo-stage-prediction-api-svc
   namespace: staging
 spec:
   selector:
