@@ -15,6 +15,7 @@ from pandas import Timestamp
 
 
 storage_client = storage.Client('AirQo-e37846081569.json')
+MONGO_URI = os.getenv("MONGO_URI")
 
 def get_channels():
     '''
@@ -118,6 +119,44 @@ def save_model(m):
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
     tf.saved_model.save(module_to_save, save_dir)
+
+def predict_model(m):
+    '''
+    Makes the predictions and stores them in a database
+    '''
+    mean, var = m.predict_f(Xtest)
+    time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
+    min_long, max_long, min_lat, max_lat = 32.4, 32.8, 0.1, 0.5
+
+    longitudes = np.linspace(min_long, max_long, 100)
+    latitudes = np.linspace(min_lat, max_lat, 100)
+    locations = np.meshgrid(longitudes, latitudes)
+    locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
+    pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
+    mean, var = m.predict(pred_set)
+
+    means = mean.numpy().flatten()
+    variances = var.numpy().flatten()
+    result = []
+    for i in range(pred_set.shape[0]):
+        result.append({'latitude':locations_flat[i][1],
+                      'longitude':locations_flat[i][0],
+                      'predicted_value': means[i],
+                      'variance':variances[i]})
+
+    try:
+        client = MongoClient(MONGO_URI)
+    except pymongo.errors.ConnectionFailure as e:
+        return {'message':'unable to connect to database', 'success':False}, 400
+    db = client['airqo_netmanager_airqo']
+    collection = db['gp_predictions']
+    
+    if collection.count() != 0:
+        collection.delete_many({})
+
+    collection.insert_many(result)
+
+
     
 def upload_model(bucket_name, source_folder, destination_folder):
     '''

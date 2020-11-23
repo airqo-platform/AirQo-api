@@ -197,11 +197,12 @@ def predict_channel_next_24_hours():
             return jsonify({'inputs': json_data,'errors': errors }), 400
 
 
-@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
+@ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
 @cache.cached(timeout=3600)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
+    '''
     '''
     if request.method == 'POST':
         json_data = request.get_json()
@@ -219,4 +220,11 @@ def predictions_for_heatmap():
         return {'data':data, 'success':True}, 200
     else:
         return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
+        '''
+    if request.method == 'GET':
+        try:
+            data = get_gp_predictions()
+            return {'data':data, 'success': True}, 200
+        except:
+            return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
     
