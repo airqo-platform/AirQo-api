@@ -148,8 +148,8 @@ const isDeviceModelNotDeployed = async (deviceName, tenant) => {
     logText("....................");
     logText("checking isDeviceModelNotDeployed....");
     logObject("device is here", device[0]._doc);
-    const isNotDeployed = isEmpty(device[0]._doc.locationID) ? true : false;
-    logElement("locationID", device[0]._doc.locationID);
+    const isNotDeployed = !device[0]._doc.isActive;
+    logElement("isActive", device[0]._doc.isActive);
     logElement("isNotDeployed", isNotDeployed);
     return isNotDeployed;
   } catch (e) {
@@ -169,7 +169,7 @@ const isDeviceModelNotRecalled = async (deviceName, tenant) => {
     logText("....................");
     logText("checking isDeviceModelNotRecalled....");
     logObject("device is here", device[0]._doc);
-    const isNotRecalled = device[0]._doc.isActive == true ? true : false;
+    const isNotRecalled = !!device[0]._doc.isActive;
     logElement("isActive", device[0]._doc.isActive);
     logElement("isNotRecalled", isNotRecalled);
     return isNotRecalled;
