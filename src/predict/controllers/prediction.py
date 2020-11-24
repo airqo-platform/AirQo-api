@@ -212,5 +212,5 @@ def predictions_for_heatmap():
         except:
             return {'message': 'An error occured. Please try again.', 'success':False}, 400
     else:
-        return {'message': 'Wrong request method. This is GET endpoint.', 'success':False}, 400
+        return {'message': 'Wrong request method. This is a GET endpoint.', 'success':False}, 400
     
