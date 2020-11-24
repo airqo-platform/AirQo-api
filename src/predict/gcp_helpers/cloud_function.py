@@ -12,6 +12,8 @@ from gpflow import set_trainable
 import tensorflow as tf
 from gpflow.config import default_float
 from pandas import Timestamp
+import pymongo
+from pymongo import MongoClient
 
 
 storage_client = storage.Client('AirQo-e37846081569.json')
@@ -124,7 +126,6 @@ def predict_model(m):
     '''
     Makes the predictions and stores them in a database
     '''
-    mean, var = m.predict_f(Xtest)
     time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
     min_long, max_long, min_lat, max_lat = 32.4, 32.8, 0.1, 0.5
 
@@ -133,7 +134,7 @@ def predict_model(m):
     locations = np.meshgrid(longitudes, latitudes)
     locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
     pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
-    mean, var = m.predict(pred_set)
+    mean, var = m.predict_f(pred_set)
 
     means = mean.numpy().flatten()
     variances = var.numpy().flatten()
@@ -200,8 +201,9 @@ def periodic_function():
             X = np.r_[X,Xchan]
             Y = np.r_[Y,Ychan[:, None]]
     m = train_model(X, Y)
-    save_model(m)
-    upload_model('airqo-models-bucket', 'saved_model', 'gp_model')
+    predict_model(m)
+    #save_model(m)
+    #upload_model('airqo-models-bucket', 'saved_model', 'gp_model')
 
 
 if __name__ == "__main__":

@@ -11,6 +11,7 @@ from google.cloud import storage
 from os.path import join, isdir, isfile, basename
 load_dotenv()
 
+'''
 def get_saved_model():
     bucket_name = 'airqo-models-bucket'
     gcp_folder = 'gp_model'
@@ -41,6 +42,8 @@ def get_saved_model():
 sched = BackgroundScheduler(daemon=True)
 sched.add_job(get_saved_model,'interval',hours=1)
 sched.start()
+
+'''
 
 _logger = logging.getLogger(__name__)
 
