@@ -14,6 +14,8 @@ from gpflow.config import default_float
 from pandas import Timestamp
 import pymongo
 from pymongo import MongoClient
+from dotenv import load_dotenv
+load_dotenv()
 
 
 storage_client = storage.Client('AirQo-e37846081569.json')
@@ -157,6 +159,7 @@ def predict_model(m):
         collection.delete_many({})
     
     print(len(result))
+    print(MONGO_URI)
     collection.insert_many(result)
     print('finishes insert job')
 

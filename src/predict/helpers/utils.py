@@ -11,6 +11,10 @@ from os.path import join, isdir, isfile, basename
 import numpy as np
 import tensorflow as tf
 import requests
+import pymongo
+from pymongo import MongoClient
+from dotenv import load_dotenv
+load_dotenv()
 
 MET_API_URL= os.getenv("MET_API_UR")
 MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
@@ -205,7 +209,7 @@ def load_model():
     model = tf.saved_model.load(save_dir)
     return model
 
-def get_gp_predictions(min_long, max_long, min_lat, max_lat):
+def get_gp_predictions():
     '''
     returns pm 2.5 predictions given an array of space and time inputs
     '''

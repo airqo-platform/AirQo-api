@@ -222,9 +222,9 @@ def predictions_for_heatmap():
         return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
         '''
     if request.method == 'GET':
-        try:
-            data = get_gp_predictions()
-            return {'data':data, 'success': True}, 200
-        except:
-            return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
+        #try:
+        data = get_gp_predictions()
+        return {'data':data, 'success': True}, 200
+        #except:
+         #   return {'message': 'Wrong request method. This is a get endpoint', 'success':False}, 400
     
