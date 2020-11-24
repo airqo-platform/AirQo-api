@@ -152,10 +152,13 @@ def predict_model(m):
     db = client['airqo_netmanager_airqo']
     collection = db['gp_predictions']
     
-    if collection.count() != 0:
+    print(collection.count_documents({}))
+    if collection.count_documents({})!= 0:
         collection.delete_many({})
-
+    
+    print(len(result))
     collection.insert_many(result)
+    print('finishes insert job')
 
 
     
@@ -188,7 +191,7 @@ def periodic_function():
     X = np.zeros([0,3])
     Y = np.zeros([0,1])
     channels = get_channels()
-    for channel in channels:
+    for channel in channels[:1]:
         d = download_seven_days(channel['id'], channel['api_key'])
         if d.shape[0]!=0:
             d = preprocessing(d)
