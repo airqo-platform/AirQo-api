@@ -180,35 +180,6 @@ def string_to_hourly_datetime(my_list):
     return my_list
 
 
-def get_saved_model_orig():
-    
-    bucket_name = 'airqo-models-bucket'
-    gcp_folder = 'gp_model'
-    local_folder = 'saved_model'
-    
-    storage_client = storage.Client()
-    bucket = storage_client.bucket(bucket_name)
-    blobs = bucket.list_blobs(prefix=gcp_folder)
-    
-    if isdir(local_folder) == False:
-        makedirs(local_folder)
-        
-    for blob in blobs:
-        blob_name = blob.name 
-        dst_file_name = blob_name.replace(gcp_folder, local_folder)
-        if blob.name.endswith('/') and isdir(dst_file_name) == False:
-            makedirs(dst_file_name)
-        else:
-            blob.download_to_filename(dst_file_name)
-
-def load_model():
-    '''
-    loads saved trained gaussian process model
-    '''
-    save_dir = 'saved_model'
-    model = tf.saved_model.load(save_dir)
-    return model
-
 def get_gp_predictions():
     '''
     returns pm 2.5 predictions given an array of space and time inputs
@@ -223,28 +194,6 @@ def get_gp_predictions():
     projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1}
     records = list(db.gp_predictions.find(query, projection))
     return records
-    #generating input array
-    #time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
-    #longitudes = np.linspace(min_long, max_long, 100)
-    #latitudes = np.linspace(min_lat, max_lat, 100)
-    #locations = np.meshgrid(longitudes, latitudes)
-    #locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
-    #pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
-
-    #making predictions
-    #loaded_model = load_model()
-    #preds = loaded_model.predict(pred_set)
-    #means = preds[0].numpy().flatten()
-    #variances = preds[1].numpy().flatten()
-
-    #returning result
-    #result = []
-    #for i in range(pred_set.shape[0]):
-    #    result.append({'lat':locations_flat[i][1],
-    #                  'long':locations_flat[i][0],
-    #                  'predicted_value': means[i],
-    #                  'variance':variances[i]})
-    #return result
 
 def str_to_date(st):
     """

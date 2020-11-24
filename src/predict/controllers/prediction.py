@@ -11,6 +11,8 @@ from datetime import datetime
 from flask_caching import Cache
 from routes import api
 from flask_cors import CORS
+from dotenv import load_dotenv
+load_dotenv()
 
 cache = Cache(config={'CACHE_TYPE': 'redis', 'CACHE_REDIS_HOST':'localhost', 'CACHE_REDIS_PORT':6379})
 
@@ -203,28 +205,12 @@ def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
-    '''
-    if request.method == 'POST':
-        json_data = request.get_json()
-        if not json_data:
-            return {'message': 'No input data provided', 'success':False}, 400
-        try:
-            min_long = json_data['min_long']
-            max_long = json_data['max_long']
-            min_lat = json_data['min_lat'] 
-            max_lat = json_data['max_lat']
-        except:
-            return {'message': 'Invalid input data. Please input the four coordinates of the region of interest', 'success':False}, 400
-        
-        data = get_gp_predictions(min_long, max_long, min_lat, max_lat)
-        return {'data':data, 'success':True}, 200
-    else:
-        return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
-        '''
     if request.method == 'GET':
-        #try:
-        data = get_gp_predictions()
-        return {'data':data, 'success': True}, 200
-        #except:
-         #   return {'message': 'Wrong request method. This is a get endpoint', 'success':False}, 400
+        try:
+            data = get_gp_predictions()
+            return {'success': True, 'data':data}, 200
+        except:
+            return {'message': 'An error occured. Please try again.', 'success':False}, 400
+    else:
+        return {'message': 'Wrong request method. This is GET endpoint.', 'success':False}, 400
     

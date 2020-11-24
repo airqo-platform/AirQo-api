@@ -109,21 +109,6 @@ def train_model(X, Y):
 
     return m
 
-
-def save_model(m):
-    '''
-    Saves the model to a folder
-    '''
-    print('saving model function')
-    frozen_model = gpflow.utilities.freeze(m)
-    module_to_save = tf.Module()
-    predict_fn = tf.function(frozen_model.predict_f, input_signature=[tf.TensorSpec(shape=[None, 3], dtype=tf.float64)])
-    module_to_save.predict = predict_fn
-    save_dir = 'saved_model'
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    tf.saved_model.save(module_to_save, save_dir)
-
 def predict_model(m):
     '''
     Makes the predictions and stores them in a database
@@ -154,38 +139,10 @@ def predict_model(m):
     db = client['airqo_netmanager_airqo']
     collection = db['gp_predictions']
     
-    print(collection.count_documents({}))
     if collection.count_documents({})!= 0:
         collection.delete_many({})
     
-    print(len(result))
-    print(MONGO_URI)
     collection.insert_many(result)
-    print('finishes insert job')
-
-
-    
-def upload_model(bucket_name, source_folder, destination_folder):
-    '''
-    Uploads saved model to bucket on GCP
-    '''
-    print('uploading model function')
-    bucket = storage_client.bucket(bucket_name)
-    
-    for file in glob.glob(source_folder + '/**'):
-        if os.path.isfile(file):
-            remote_path = os.path.join(destination_folder, file[1 + len(source_folder):])
-            remote_path = remote_path.replace('\\','/')
-            blob = bucket.blob(remote_path)
-            blob.upload_from_filename(file)
-        elif len(os.listdir(file)) == 0: 
-            blob = bucket.blob(destination_folder+'/'+os.path.basename(file)+'/')
-            blob.upload_from_string('', content_type='application/x-www-form-urlencoded;charset=UTF-8')
-        else:
-            dir_name = destination_folder+'/'+os.path.basename(file)+'/'
-            blob = bucket.blob(dir_name)
-            blob.upload_from_string('', content_type='application/x-www-form-urlencoded;charset=UTF-8')
-            upload_model(bucket_name, file.replace('\\','/'), dir_name) 
 
 def periodic_function():
     '''
@@ -208,8 +165,6 @@ def periodic_function():
             Y = np.r_[Y,Ychan[:, None]]
     m = train_model(X, Y)
     predict_model(m)
-    #save_model(m)
-    #upload_model('airqo-models-bucket', 'saved_model', 'gp_model')
 
 
 if __name__ == "__main__":
