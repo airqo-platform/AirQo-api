@@ -11,8 +11,10 @@ from datetime import datetime
 from flask_caching import Cache
 from routes import api
 from flask_cors import CORS
+from dotenv import load_dotenv
+load_dotenv()
 
-cache = Cache(config={'CACHE_TYPE': 'simple'})
+cache = Cache(config={'CACHE_TYPE': 'redis', 'CACHE_REDIS_HOST':'localhost', 'CACHE_REDIS_PORT':6379})
 
 _logger = logging.getLogger(__name__)
 
@@ -197,26 +199,18 @@ def predict_channel_next_24_hours():
             return jsonify({'inputs': json_data,'errors': errors }), 400
 
 
-@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
-#@cache.cached(timeout=30)
+@ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
+@cache.cached(timeout=3600)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
-    if request.method == 'POST':
-        json_data = request.get_json()
-        if not json_data:
-            return {'message': 'No input data provided', 'success':False}, 400
+    if request.method == 'GET':
         try:
-            min_long = json_data['min_long']
-            max_long = json_data['max_long']
-            min_lat = json_data['min_lat'] 
-            max_lat = json_data['max_lat']
+            data = get_gp_predictions()
+            return {'success': True, 'data':data}, 200
         except:
-            return {'message': 'Invalid input data. Please input the four coordinates of the region of interest', 'success':False}, 400
-        
-        data = get_gp_predictions(min_long, max_long, min_lat, max_lat)
-        return {'data':data, 'success':True}, 200
+            return {'message': 'An error occured. Please try again.', 'success':False}, 400
     else:
-        return {'message': 'Wrong request method. This is a POST endpoint', 'success':False}, 400
+        return {'message': 'Wrong request method. This is a GET endpoint.', 'success':False}, 400
     
