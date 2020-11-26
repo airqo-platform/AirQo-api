@@ -92,7 +92,7 @@ metadata:
   creationTimestamp: null
   labels:
     io.kompose.service: airqo-stage-data-mgt-api
-  name: airqo-stage-data-mgt-api
+  name: airqo-stage-data-mgt-api-svc
   namespace: staging
 spec:
   ports:

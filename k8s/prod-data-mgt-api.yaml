@@ -29,7 +29,7 @@ spec:
       containers:
         - name: airqo-data-mgt-api
           image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest
-          imagePullPolicy: ""
+          imagePullPolicy: Always
           ports:
             - containerPort: 3000
           env:
@@ -92,7 +92,7 @@ metadata:
   creationTimestamp: null
   labels:
     io.kompose.service: airqo-data-mgt-api
-  name: airqo-data-mgt-api
+  name: airqo-data-mgt-api-svc
   namespace: production
 spec:
   ports:
