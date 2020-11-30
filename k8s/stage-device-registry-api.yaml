@@ -69,7 +69,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-device-registry-api-svc
+  name: airqo-stage-device-registry-api-svc
   namespace: staging
 spec:
   selector:
