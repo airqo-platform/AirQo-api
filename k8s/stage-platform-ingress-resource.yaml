@@ -1,0 +1,62 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: stage-ingress-platform-resource
+  namespace: staging
+  annotations:
+    kubernetes.io/ingress.class: nginx 
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  rules:
+    - host: staging-platform.airqo.net
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: airqo-stage-platform-ui-svc
+              servicePort: 80
+          - path: /api/v1/users
+            backend:
+              serviceName: airqo-stage-auth-api-svc
+              servicePort: 3000
+          - path: /api/v1/devices
+            backend:
+              serviceName: airqo-stage-device-registry-api-svc
+              servicePort: 3000
+          - path: /api/v1/location_registry
+            backend:
+              serviceName: airqo-stage-location-registry-api-svc
+              servicePort: 8080
+          - path: /api/v1/data
+            backend:
+              serviceName: airqo-stage-data-mgt-api-svc
+              servicePort: 3000
+          - path: /api/v1/map
+            backend:
+              serviceName: airqo-locate-api-svc
+              servicePort: 4001
+          - path: /api/v1/analytics
+            backend:
+              serviceName: airqo-stage-analytics-api-svc
+              servicePort: 5000
+          - path: /api/v1/predict
+            backend:
+              serviceName: airqo-stage-prediction-api-svc
+              servicePort: 5000
+          - path: /api/v2/predict
+            backend:
+              serviceName: airqo-stage-prediction-api-svc
+              servicePort: 5000
+          - path: /api/v1/monitor
+            backend:
+              serviceName: airqo-stage-device-monitor-api-svc
+              servicePort: 4001
+          - path: /api/v1/calibrate
+            backend:
+              serviceName: airqo-stage-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v1/incentives
+            backend:
+              serviceName: airqo-stage-incentives-api-svc
+              servicePort: 3000
