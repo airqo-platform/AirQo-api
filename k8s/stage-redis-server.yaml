@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.21.0 (992df58d8)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: airqo-redis-server
+  name: airqo-redis-server
+  namespace: staging
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      io.kompose.service: airqo-redis-server
+  strategy: {}
+  template:
+    metadata:
+      annotations:
+        kompose.cmd: kompose convert
+        kompose.version: 1.21.0 (992df58d8)
+      creationTimestamp: null
+      labels:
+        io.kompose.service: airqo-redis-server
+    spec:
+      containers:
+      - env:
+        - name: GET_HOSTS_FROM
+          value: dns
+        image: us.gcr.io/airqo-250220/airqo-redis-server:latest
+        imagePullPolicy: Always
+        name: airqo-redis-server
+        ports:
+        - containerPort: 6379
+        resources: {}
+      restartPolicy: Always
+      serviceAccountName: ""
+      volumes: null
+status: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kompose.cmd: kompose convert
+    kompose.version: 1.21.0 (992df58d8)
+  creationTimestamp: null
+  labels:
+    io.kompose.service: airqo-redis-server
+  name: airqo-redis-server
+  namespace: staging
+spec:
+  ports:
+  - name: airqo-redis-server
+    port: 6379
+    targetPort: 6379
+  selector:
+    io.kompose.service: airqo-redis-server
+status:
+  loadBalancer: {}

@@ -31,18 +31,12 @@ const {
   createOnClarity,
 } = require("../utils/integrations");
 
-const ComponentModel = (tenant) => {
-  getModelByTenant(tenant, "component", ComponentSchema);
-};
-const DeviceModel = (tenant) => {
-  getModelByTenant(tenant, "device", DeviceSchema);
-};
-const EventModel = (tenant) => {
-  getModelByTenant(tenant, "event", EventSchema);
-};
-const LocationActivityModel = (tenant) => {
-  getModelByTenant(tenant, "activity", LocationActivitySchema);
-};
+const {
+  axiosError,
+  tryCatchErrors,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
 
 const doesDeviceExist = async (deviceName, tenant) => {
   try {
@@ -154,8 +148,8 @@ const isDeviceModelNotDeployed = async (deviceName, tenant) => {
     logText("....................");
     logText("checking isDeviceModelNotDeployed....");
     logObject("device is here", device[0]._doc);
-    const isNotDeployed = isEmpty(device[0]._doc.locationID) ? true : false;
-    logElement("locationID", device[0]._doc.locationID);
+    const isNotDeployed = !device[0]._doc.isActive;
+    logElement("isActive", device[0]._doc.isActive);
     logElement("isNotDeployed", isNotDeployed);
     return isNotDeployed;
   } catch (e) {
@@ -175,7 +169,7 @@ const isDeviceModelNotRecalled = async (deviceName, tenant) => {
     logText("....................");
     logText("checking isDeviceModelNotRecalled....");
     logObject("device is here", device[0]._doc);
-    const isNotRecalled = device[0]._doc.isActive == true ? true : false;
+    const isNotRecalled = !!device[0]._doc.isActive;
     logElement("isActive", device[0]._doc.isActive);
     logElement("isNotRecalled", isNotRecalled);
     return isNotRecalled;
@@ -359,6 +353,7 @@ const updateThingBodies = (req, res) => {
     isActive,
     tags,
     elevation,
+    pictures,
   } = req.body;
 
   let deviceBody = {
@@ -390,6 +385,7 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(mobility) && { mobility: mobility }),
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+    ...(!isEmpty(pictures) && { $push: { pictures: pictures } }),
   };
 
   let tsBody = {
@@ -459,14 +455,14 @@ const doLocationActivity = async (
       {
         new: true,
       },
-      (error, updatedDeviceModel) => {
+      (error, updatedDevice) => {
         if (error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             message: `unable to ${type} `,
             error,
             success: false,
           });
-        } else if (updatedDeviceModel) {
+        } else if (updatedDevice) {
           //then log the operation
           const log = getModelByTenant(
             tenant.toLowerCase(),
@@ -476,7 +472,7 @@ const doLocationActivity = async (
           log.then((log) => {
             return res.status(HTTPStatus.OK).json({
               message: `${type} successfully carried out`,
-              updatedDeviceModel,
+              activityBody,
               success: true,
             });
           });
@@ -703,12 +699,9 @@ const device = {
           ...tsBody,
           ...constants.DEVICE_CREATION,
         };
-        let isDeviceModelPresent = await doesDeviceExist(
-          name,
-          tenant.toLowerCase()
-        );
-        logElement("isDeviceModelPresent ?", isDeviceModelPresent);
-        if (!isDeviceModelPresent) {
+        let isDevicePresent = await doesDeviceExist(name, tenant.toLowerCase());
+        logElement("isDevicePresent ?", isDevicePresent);
+        if (!isDevicePresent) {
           /***
            * when creating for AirQo, make call to TS
            * As for other organisations, just make a different call or just ignore
@@ -962,9 +955,9 @@ const device = {
             success: false,
           });
         }
-        let isDeviceModelPresent = await doesDeviceExist(device);
-        logElement("isDeviceModelPresent ?", isDeviceModelPresent);
-        if (isDeviceModelPresent) {
+        let isDevicePresent = await doesDeviceExist(device);
+        logElement("isDevicePresent ?", isDevicePresent);
+        if (isDevicePresent) {
           //get the thing's channel ID
           //lets first get the channel ID
           const channelID = await getChannelID(
@@ -984,7 +977,7 @@ const device = {
               res.status(200).json({
                 message: `successfully cleared the data for device ${device}`,
                 success: true,
-                updatedDeviceModel,
+                updatedDevice,
               });
               //will clear data from Events table
             })
@@ -1019,18 +1012,11 @@ const device = {
     try {
       let { device, tenant } = req.query;
 
-      if (tenant) {
-        if (!device) {
-          res.status(400).json({
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          });
-        }
-        let isDeviceModelPresent = await doesDeviceExist(device);
-        logElement("isDeviceModelPresent ?", isDeviceModelPresent);
+      if (tenant && device) {
+        let isDevicePresent = await doesDeviceExist(device, tenant);
+        logElement("isDevicePresent ?", isDevicePresent);
 
-        if (isDeviceModelPresent) {
+        if (isDevicePresent) {
           const channelID = await getChannelID(
             req,
             res,
@@ -1061,20 +1047,20 @@ const device = {
             .then(async (response) => {
               logText(`successfully updated device ${device} in TS`);
               logObject("response from TS", response.data);
-              const updatedDeviceModel = await getModelByTenant(
+              const updatedDevice = await getModelByTenant(
                 tenant.toLowerCase(),
                 "device",
                 DeviceSchema
               ).findOneAndUpdate(deviceFilter, deviceBody, {
                 new: true,
               });
-              if (updatedDeviceModel) {
+              if (updatedDevice) {
                 return res.status(HTTPStatus.OK).json({
                   message: "successfully updated the device settings in DB",
-                  updatedDeviceModel,
+                  updatedDevice,
                   success: true,
                 });
-              } else if (!updatedDeviceModel) {
+              } else if (!updatedDevice) {
                 return res.status(HTTPStatus.BAD_GATEWAY).json({
                   message: "unable to update device in DB but updated in TS",
                   success: false,
@@ -1085,11 +1071,7 @@ const device = {
             })
             .catch(function(error) {
               logElement("unable to update the device settings in TS", error);
-              res.status(500).json({
-                message: "unable to update the device settings in TS",
-                success: false,
-                error: error.message,
-              });
+              callbackErrors(error, req, res);
             });
         } else {
           logText(`device ${device} does not exist in DB`);
@@ -1099,18 +1081,11 @@ const device = {
           });
         }
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
+        missingQueryParams(req, res);
       }
     } catch (e) {
       logElement("unable to perform update operation", e);
-      res.status(500).json({
-        message: "unable to perform update operation",
-        success: false,
-        error: e,
-      });
+      tryCatchErrors(e, req, res);
     }
   },
 

@@ -8,6 +8,8 @@ const validate = require("express-validation");
 const mqttBridge = require("../controllers/mqtt-bridge");
 const httpBridge = require("../controllers/http-bridge");
 const componentController = require("../controllers/component");
+const imageUpload = require("../utils/multer");
+const imageController = require("../controllers/process-image");
 
 middlewareConfig(router);
 
@@ -43,6 +45,13 @@ router.put("/ts/update", deviceController.updateThingSettings);
 router.post("/ts/activity", deviceController.doActivity);
 router.get("/by/location", deviceController.listAllByLocation);
 
+/********************** photo uploads ***************************/
+router.post(
+  "/upload-images",
+  imageUpload.array("image"),
+  imageController.uploadMany
+);
+
 /******************* components ************************* */
 router.get("/list/components/", componentController.listAll);
 router.post("/add/components/", componentController.addComponent);
@@ -51,10 +60,13 @@ router.put("/update/components/", componentController.updateComponent);
 router.post("/add/components/types", componentController.createType);
 router.get("/list/components/types", componentController.getTypes);
 
-/******************* adding values******************************/
+/******************* loading transformed values ******************************/
 router.post("/components/add/values", componentController.addValues);
 router.post("/components/add/values/bulk", componentController.addBulk);
+
+/********************** push values from device ***************************/
 router.post("/components/push/ts", componentController.writeToThing);
+router.post("/components/push/ts/json", componentController.writeToThingJSON);
 
 //configuration of devices
 // router.get('/mqtt/config/gcp', mqttBridge.reviewConfigs);

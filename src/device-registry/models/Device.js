@@ -96,6 +96,7 @@ const deviceSchema = new mongoose.Schema(
     isActive: {
       type: Boolean,
     },
+    pictures: [{ type: String }],
   },
   {
     timestamps: true,
@@ -131,6 +132,7 @@ deviceSchema.methods = {
       isActive: this.isActive,
       writeKey: this.writeKey,
       readKey: this.readKey,
+      pictures: this.pictures,
     };
   },
 
