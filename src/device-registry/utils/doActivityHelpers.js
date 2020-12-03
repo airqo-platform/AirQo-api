@@ -99,14 +99,14 @@ const doLocationActivity = async (
         {
           new: true,
         },
-        (error, updatedDeviceModel) => {
+        (error, updatedDevice) => {
           if (error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               message: `unable to ${type} `,
               error,
               success: false,
             });
-          } else if (updatedDeviceModel) {
+          } else if (updatedDevice) {
             //then log the operation
             const log = getModelByTenant(
               tenant.toLowerCase(),
@@ -117,6 +117,7 @@ const doLocationActivity = async (
               return res.status(HTTPStatus.OK).json({
                 message: `${type} successfully carried out`,
                 activityBody,
+                updatedDevice,
                 success: true,
               });
             });
