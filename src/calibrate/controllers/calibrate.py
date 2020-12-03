@@ -9,6 +9,7 @@ from jobs import regression
 import os
 from pymongo import MongoClient
 import uncertainties.unumpy as unp
+from models import calibrate as cb
 
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
@@ -34,3 +35,12 @@ def calibrate_pm25_values():
         performance_eval = regression.performance
 
         return jsonify({"calibrated Value": calibrated_value, "Performance Evaluation": performance_eval})
+
+
+@calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
+def calibrate():
+    if request.method == 'GET':
+        results = cb.calibrate_raw_data()
+        return jsonify({"calibrated Values":results})
+
+
