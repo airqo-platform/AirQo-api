@@ -1,0 +1,10 @@
+[masters]
+master ansible_host=35.238.244.76 ansible_user=balmart
+
+[workers]
+worker1 ansible_host=34.67.62.10 ansible_user=balmart
+worker2 ansible_host=34.71.65.148 ansible_user=balmart
+worker3 ansible_host=34.67.11.64 ansible_user=balmart
+
+[all:vars]
+ansible_python_interpreter=/usr/bin/python3
