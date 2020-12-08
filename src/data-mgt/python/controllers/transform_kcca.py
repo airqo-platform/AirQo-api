@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import requests
 from threading import Thread
-from device_registry import single_component_insertion, get_component_details
+from ../helpers/insert_events import single_component_insertion, get_component_details
 from helpers import date_to_str2
 import numpy as np
 
@@ -26,7 +26,6 @@ def process_kcca_device_data():
 
 
 def get_kcca_device_data():
-
     """
     :return: current kcca device measurements
     """
@@ -122,7 +121,8 @@ def process_chunk(chunk):
 
             # get the component details
             try:
-                component_details = get_component_details(device_code, component_type, "kcca")
+                component_details = get_component_details(
+                    device_code, component_type, "kcca")
             except Exception as e:
                 print(e)
                 continue
@@ -149,7 +149,8 @@ def process_chunk(chunk):
 
             # post the component data to events table using a separate thread
             # :function: single_component_insertion(args=(component data, tenant))
-            thread = Thread(target=single_component_insertion, args=(component_data, "kcca",))
+            thread = Thread(target=single_component_insertion,
+                            args=(component_data, "kcca",))
             threads.append(thread)
             thread.start()
 

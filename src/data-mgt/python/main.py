@@ -1,4 +1,4 @@
-from cloud_function_process_kcca_device_measurements import process_kcca_device_data
+from controllers/transform import process_kcca_device_data
 
 """
 Entry point for all functions

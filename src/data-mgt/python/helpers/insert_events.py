@@ -19,7 +19,6 @@ MEASUREMENT_UNITS = dict({
 
 
 def bulk_component_insertion(data, tenant, component, device):
-
     """
     TODO: TO BE IMPLEMENTED AND TESTED
     :param data:
@@ -34,7 +33,8 @@ def bulk_component_insertion(data, tenant, component, device):
         json_data = json.dumps(data)
 
         headers = {'Content-Type': 'application/json'}
-        url = AIRQO_API_BASE_URL + "api/v1/devices/components/add/values/bulk?device=" + device + "&component=" + component + "&tenant=" + tenant
+        url = AIRQO_API_BASE_URL + "api/v1/devices/components/add/values/bulk?device=" + \
+            device + "&component=" + component + "&tenant=" + tenant
 
         results = requests.post(url, json_data, headers=headers)
 
@@ -45,7 +45,6 @@ def bulk_component_insertion(data, tenant, component, device):
 
 
 def single_component_insertion(data, tenant):
-
     """
     inserts a single device component data into the events table
     :param data: component data (includes component name and device id to reduce on function args)
@@ -62,7 +61,8 @@ def single_component_insertion(data, tenant):
         # create a json object of the remaining data and post to events table
         json_data = json.dumps(data)
         headers = {'Content-Type': 'application/json'}
-        url = AIRQO_API_BASE_URL + "devices/components/add/values?device=" + device + "&component=" + component + "&tenant=" + tenant
+        url = AIRQO_API_BASE_URL + "devices/components/add/values?device=" + \
+            device + "&component=" + component + "&tenant=" + tenant
 
         results = requests.post(url, json_data, headers=headers)
 
@@ -73,7 +73,6 @@ def single_component_insertion(data, tenant):
 
 
 def get_component_type(component, tenant):
-
     """
     gets a component type if it exists, else creates it
     :param component: component name
@@ -83,12 +82,14 @@ def get_component_type(component, tenant):
     """
 
     # get component type
-    existing_component_type_url = AIRQO_API_BASE_URL + "devices/list/components/types?name=" + component + "&tenant=" + tenant
+    existing_component_type_url = AIRQO_API_BASE_URL + \
+        "devices/list/components/types?name=" + component + "&tenant=" + tenant
     existing_component_type_results = requests.get(existing_component_type_url)
 
     # register the component type if it doesnt exists
     if not existing_component_type_results.json()["doesExist"]:
-        get_component_type_url = AIRQO_API_BASE_URL + "devices/add/components/types?name=" + component + "&tenant=" + tenant
+        get_component_type_url = AIRQO_API_BASE_URL + \
+            "devices/add/components/types?name=" + component + "&tenant=" + tenant
         component_type_results = requests.post(get_component_type_url)
 
         if not component_type_results.json()["doesExist"]:
@@ -102,7 +103,6 @@ def get_component_type(component, tenant):
 
 
 def get_component_details(device_code, component, tenant):
-
     """
     :param device_code: device id
     :param component:
@@ -115,7 +115,7 @@ def get_component_details(device_code, component, tenant):
 
     # get component details
     get_component_details_url = AIRQO_API_BASE_URL + "devices/list/components?device=" + device_code + "&comp=" + \
-                                component_name + "&tenant=" + tenant
+        component_name + "&tenant=" + tenant
     component_details_results = requests.get(get_component_details_url)
 
     # add component details if they dont exist
@@ -131,7 +131,7 @@ def get_component_details(device_code, component, tenant):
             "measurement": [{
                 "quantityKind": component,
                 "measurementUnit": measurement_unit
-                }],
+            }],
             "description": component + " " + measurement_unit
         })
 
@@ -141,8 +141,10 @@ def get_component_details(device_code, component, tenant):
         component_type = get_component_type(component, tenant)
 
         headers = {'Content-Type': 'application/json'}
-        create_component_url = AIRQO_API_BASE_URL + "devices/add/components?device=" + device_code + "&ctype=" + component_type + "&tenant=" + tenant
-        create_component_results = requests.post(create_component_url, add_component_body_json, headers=headers)
+        create_component_url = AIRQO_API_BASE_URL + "devices/add/components?device=" + \
+            device_code + "&ctype=" + component_type + "&tenant=" + tenant
+        create_component_results = requests.post(
+            create_component_url, add_component_body_json, headers=headers)
 
         if not create_component_results.json()["success"]:
             print(create_component_results.json())
