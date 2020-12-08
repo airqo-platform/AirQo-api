@@ -4,11 +4,13 @@ from bson import json_util, ObjectId
 import json
 from datetime import datetime, timedelta
 from pymongo import MongoClient
+from models import DeviceStatus, Device
 import requests
 import math
 import os
 from flask import Blueprint, request, jsonify
 import logging
+from config import db_connection
 
 
 MONGO_URI = os.getenv("MONGO_URI")
@@ -73,14 +75,17 @@ def date_to_formated_str(date):
 
 
 def get_all_devices():
-    results = list(db.devices.find({"locationID": {'$ne': ''}}, {'_id': 0}))
-    active_devices = []
-    for device in results:
-        print(device['name'])
-        if(device['isActive'] == True):
-            active_devices.append(device)
-    return active_devices
-
+    model = Device.Device()
+    tenant = request.args.get('tenant')
+    if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        results = model.get_devices(tenant)
+        active_devices = []
+        for device in results:
+            print(device['name'])
+            if(device['isActive'] == True):
+                active_devices.append(device)
+        return active_devices
 
 def get_device_channel_status():
     BASE_API_URL = 'https://data-manager-dot-airqo-250220.uc.r.appspot.com/api/v1/data/'
@@ -150,16 +155,22 @@ def get_device_channel_status():
 def save_hourly_device_status_check_results(data):
     """
     """
+    DeviceModel = Device.Device()
+    DeviceStatusModel =  DeviceStatus.DeviceStatus()
+    tenant = request.args.get('tenant')
+    if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        results = DeviceModel.get_devices(tenant)
     for i in data:
         print(i)
-        db.device_status_hourly_check_results.insert_one(i)
+        DeviceStatusModel.device_status_hourly_check_results.insert_one(i)
         print('saved')
 
 
 if __name__ == '__main__':
     get_device_channel_status()
-    #results = get_all_devices()
+    # results = get_all_devices()
     # print(len(results))
     # for result in results:
     # print(result)
-    #print('\n -----------------\n')
+    # print('\n -----------------\n')
