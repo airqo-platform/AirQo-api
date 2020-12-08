@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import logging
 import app
 import json
-from helpers import db_helpers, utils
+from helpers import convert_dates
 from models import device_status
 from routes import api
 from flask_cors import CORS
@@ -37,6 +37,8 @@ def get_device_status():
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
 # maintenance log
+
+
 @device_status_bp.route(api.route['maintenance_logs'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
 def get_device_maintenance_log():
     '''
@@ -120,7 +122,7 @@ def get_all_devices_latest_status():
         if documents:
             result = documents[0]
             response = {'online_devices_percentage': result['online_devices_percentage'],
-                        'offline_devices_percentage': result['offline_devices_percentage'], 'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+                        'offline_devices_percentage': result['offline_devices_percentage'], 'created_at': convert_dates.convert_GMT_time_to_EAT_local_time(result['created_at'])}
         else:
             response = {
                 "message": "Device status data not available for " + tenant + " organization", "success": False}
@@ -348,7 +350,7 @@ def get_device_sensor_correlation():
 
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if device_channel_id and type(device_channel_id) is not int :
+        if device_channel_id and type(device_channel_id) is not int:
             device_channel_id = int(device_channel_id)
             filter_param = device_channel_id
 
