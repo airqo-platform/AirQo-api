@@ -24,10 +24,10 @@ const axiosError = (error, req, res) => {
   console.log(error.config);
 };
 
-const tryCatchErrors = (error, req, res) => {
+const tryCatchErrors = (res, error) => {
   res
     .status(HTTPStatus.BAD_GATEWAY)
-    .send({ success: false, message: "server error", error: error.message });
+    .json({ success: false, message: "server error", error: error.message });
 };
 
 const missingQueryParams = (req, res) => {
@@ -40,7 +40,7 @@ const missingQueryParams = (req, res) => {
 const callbackErrors = (error, req, res) => {
   res
     .status(HTTPStatus.BAD_GATEWAY)
-    .send({ success: false, message: "server error", error: error });
+    .json({ success: false, message: "server error", error: error });
 };
 
 module.exports = {
