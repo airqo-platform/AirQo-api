@@ -24,8 +24,8 @@ def create_app(environment):
     CORS(app)
 
     # import blueprints
-    from controllers.helpers import monitor_bp
-    from controllers.device_status import device_status_bp
+    from controllers.check_health import monitor_bp
+    from controllers.check_status import device_status_bp
 
     # register blueprints
     app.register_blueprint(monitor_bp)
