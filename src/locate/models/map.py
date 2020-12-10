@@ -44,20 +44,20 @@ class Map():
         return documents.count()
 
 
-    def update_locate_map(self, tenant, space_name, updated_plan):
+    def update_locate_map(self, tenant, user_id, space_name, updated_plan):
         '''
         Updates previously saved planning space
         '''
         db = db_helpers.connect_mongo(tenant)
         response = db.locate_map.update_one(
-            {"space_name": space_name}, {'$set': {'plan': updated_plan}})
+            {"$and": [{'user_id': user_id}, {'space_name': space_name}]}, {'$set': {'plan': updated_plan}})
         return response
 
 
-    def delete_locate_map(self, tenant, space_name):
+    def delete_locate_map(self, tenant, user_id, space_name):
         '''
         Deletes previously sved planning space
         '''
         db = db_helpers.connect_mongo(tenant)
-        response = db.locate_map.delete_one({'space_name': space_name})
+        response = db.locate_map.delete_one({"$and": [{'user_id': user_id}, {'space_name': space_name}]})
         return response
