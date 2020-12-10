@@ -27,56 +27,55 @@ spec:
         io.kompose.service: airqo-data-mgt-api
     spec:
       containers:
-        env:
-          - name: GET_HOSTS_FROM
-            value: dns
-          - name: MONGO_GCE_URI
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: MONGO_GCE_URI
-          - name: MONGO_PROD
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: MONGO_PROD
-          - name: JWT_SECRET
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: JWT_SECRET
-          - name: MONGO_DEV
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: MONGO_DEV
-          - name: MONGO_STAGE
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: MONGO_STAGE
-          - name: MAIL_PASS
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: MAIL_PASS
-          - name: MAIL_USER
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: MAIL_USER
-          - name: LOCAL_DB
-            valueFrom:
-              secretKeyRef:
-                name: data-mgt-secret
-                key: LOCAL_DB
-
-        image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest
-        imagePullPolicy: ""
-        name: airqo-data-mgt-api
-        ports:
-          - containerPort: 3000
-        resources: {}
+        - name: airqo-data-mgt-api
+          image: us.gcr.io/airqo-250220/airqo-data-mgt-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GET_HOSTS_FROM
+              value: dns
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: MONGO_GCE_URI
+            - name: MONGO_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: MONGO_PROD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: JWT_SECRET
+            - name: MONGO_DEV
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: MONGO_DEV
+            - name: MONGO_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: MONGO_STAGE
+            - name: MAIL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: MAIL_PASS
+            - name: MAIL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: MAIL_USER
+            - name: LOCAL_DB
+              valueFrom:
+                secretKeyRef:
+                  name: data-mgt-secret
+                  key: LOCAL_DB
+          resources: {}
       restartPolicy: Always
       serviceAccountName: ""
       volumes: null
@@ -93,7 +92,7 @@ metadata:
   creationTimestamp: null
   labels:
     io.kompose.service: airqo-data-mgt-api
-  name: airqo-data-mgt-api
+  name: airqo-data-mgt-api-svc
   namespace: production
 spec:
   ports:
