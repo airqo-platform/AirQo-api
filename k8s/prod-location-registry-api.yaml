@@ -27,33 +27,38 @@ spec:
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: prod-location-registry-secret
                   key: MONGO_GCE_URI
             - name: DB_NAME_PROD
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: prod-location-registry-secret
                   key: PLATFORM_MONGO_PROD
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: prod-location-registry-secret
                   key: SECRET_KEY
             - name: API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
-                  key: LOC_API_KEY
+                  name: prod-location-registry-secret
+                  key: API_KEY
             - name: OVERPASS_URL
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
-                  key: LOC_OVERPASS_URL
+                  name: prod-location-registry-secret
+                  key: OVERPASS_URL
             - name: SERVICE_ACCOUNT
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
-                  key: LOC_SERVICE_ACCOUNT
+                  name: prod-location-registry-secret
+                  key: SERVICE_ACCOUNT
+            - name: CREDENTIALS
+              valueFrom:
+                secretKeyRef:
+                  name: prod-location-registry-secret
+                  key: PRIVATE_KEY
 
 ---
 kind: Service
