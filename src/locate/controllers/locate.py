@@ -139,7 +139,7 @@ def get_locate_map(user_id):
 
 
 @locate_blueprint.route(api.route['update_map'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
-def update_locate_map(space_name):
+def update_locate_map(user_id, space_name):
     '''
     updates a previously saved planning space
     @param: space_name
@@ -164,7 +164,7 @@ def update_locate_map(space_name):
                 return jsonify({"message": "organization doesnot exist. Refer to the API documentation for details.", "success": False}), 400
             
             # Updating the planning space
-            records_updated = locate_map.update_locate_map(tenant, space_name, update_plan)
+            records_updated = locate_map.update_locate_map(tenant, user_id, space_name, update_plan)
 
             # Check if resource is updated
             if records_updated.modified_count > 0:
@@ -181,7 +181,7 @@ def update_locate_map(space_name):
  
 
 @locate_blueprint.route(api.route['delete_map'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
-def delete_locate_map(space_name):
+def delete_locate_map(user_id, space_name):
     '''
     deletes a previously saved planning space
     @param: space_name
@@ -195,7 +195,7 @@ def delete_locate_map(space_name):
         if org not in dbs:
             return jsonify({"message": "organization doesnot exist. Refer to the API documentation for details.", "success": False}), 400
         if space_name is not None:
-            db_response = locate_map.delete_locate_map(tenant, space_name)
+            db_response = locate_map.delete_locate_map(tenant, user_id, space_name)
             if db_response.deleted_count == 1:
                 response = {
                     "message": "planning space deleted successfully", "success": True}
