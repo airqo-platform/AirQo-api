@@ -10,7 +10,8 @@ import math
 import os
 from flask import Blueprint, request, jsonify
 import logging
-from config import db_connection
+from config import db_connection, config
+from helpers import convert_dates
 
 
 MONGO_URI = os.getenv("MONGO_URI")
@@ -46,34 +47,6 @@ def convert_seconds_to_days_hours_minutes_seconds(seconds_to_convert):
     return result
 
 
-def str_to_date(st):
-    """
-    Converts a string to datetime
-    """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-def date_to_str(date):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-def str_to_date_find(st):
-    """
-    Converts a string of different format to datetime
-    """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
-
-
-def date_to_formated_str(date):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, '%Y-%m-%d %H:%M')
-
-
 def get_all_devices():
     model = Device.Device()
     tenant = request.args.get('tenant')
@@ -87,10 +60,10 @@ def get_all_devices():
                 active_devices.append(device)
         return active_devices
 
+@device_status_bp.route(api.route['all_devices_latest_status'], methods=['POST'])
 def get_device_channel_status():
-    BASE_API_URL = 'https://data-manager-dot-airqo-250220.uc.r.appspot.com/api/v1/data/'
-
-    api_url = '{0}{1}'.format(BASE_API_URL, 'channels')
+    # api_url = '{0}{1}'.format(config.BASE_API_URL, 'channels')
+    api_url = '{0}'.format(config.BASE_API_URL, 'channels')
     print(api_url)
     results = get_all_devices()
     count = 0
@@ -98,8 +71,32 @@ def get_device_channel_status():
     online_devices = []
     offline_devices = []
     count_of_offline_devices = 0
+    ####
+    count_of_solar_devices = 0
+    count_of_alternator_devices = 0
+    count_of_mains = 0
+    count_due_maintenance=0
+    count_overdue_maintenance=0
+
     for channel in results:
         print(channel['channelID'])
+        # update the number of solar devices
+          # calculate the maintenance due periods
+        current_datetime = datetime.now()
+        maintenance_due_period = current_datetime - \
+            datetime.strptime(channel['nextMaintenance'], '%Y-%m-%dT%H:%M:%SZ')
+        maintenance_due_period_in_days = maintenance_due_period.total_seconds() / (24 * 3600)
+        if channel['Solar']: 
+            count_of_solar_devices +=1
+        elif channel['Mains']:
+            count_of_mains +=1
+        elif channel['Alternator']:
+            count_of_alternator_devices +=1
+        elif (maintenance_due_period_in_days<8 and maintenance_due_period_in_days>1):
+            count_due_maintenance+=1
+        elif maintenance_due_period_in_days>8:
+            count_overdue_maintenance +=1
+            
         latest_device_status_request_api_url = '{0}{1}{2}'.format(
             BASE_API_URL, 'feeds/recent/', channel['channelID'])
         latest_device_status_response = requests.get(
@@ -114,6 +111,8 @@ def get_device_channel_status():
                 datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
             date_time_difference_in_hours = date_time_difference.total_seconds() / 3600
             date_time_difference_in_seconds = date_time_difference.total_seconds()
+            date_time_difference_in_days = date_time_difference.total_seconds() / (24 * 3600)
+
             print(date_time_difference_in_hours)
             if date_time_difference_in_hours > 24:
                 count_of_offline_devices += 1
@@ -140,7 +139,7 @@ def get_device_channel_status():
 
     device_status_results = []
 
-    created_at = str_to_date(date_to_str(datetime.now()))
+    created_at = convert_dates.str_to_date(convert_dates.date_to_str(datetime.now()))
     record = {"online_devices_percentage": online_devices_percentage,
               "offline_devices_percentage": offline_devices_percentage, "created_at": created_at,
               "total_active_device_count": count, "count_of_online_devices": count_of_online_devices,
@@ -152,15 +151,10 @@ def get_device_channel_status():
     save_hourly_device_status_check_results(device_status_results)
 
 
-def save_hourly_device_status_check_results(data):
+def save_hourly_device_status_check_results(data, tenant):
     """
     """
-    DeviceModel = Device.Device()
-    DeviceStatusModel =  DeviceStatus.DeviceStatus()
-    tenant = request.args.get('tenant')
-    if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        results = DeviceModel.get_devices(tenant)
+    DeviceStatusModel =  DeviceStatus.DeviceStatus(tenant)
     for i in data:
         print(i)
         DeviceStatusModel.device_status_hourly_check_results.insert_one(i)
@@ -169,8 +163,4 @@ def save_hourly_device_status_check_results(data):
 
 if __name__ == '__main__':
     get_device_channel_status()
-    # results = get_all_devices()
-    # print(len(results))
-    # for result in results:
-    # print(result)
-    # print('\n -----------------\n')
+
