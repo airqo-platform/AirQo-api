@@ -35,6 +35,14 @@ class Map():
         documents = db.locate_map.find({"user_id": str(user_id)})
         return documents
 
+    def plan_space_exits(self, tenant, user_id, space_name):
+        '''
+        check if planning space name already exits for a given user. Avoid duplicates
+        '''
+        db = db_helpers.connect_mongo(tenant)
+        documents = db.locate_map.find({"$and": [{"user_id":str(user_id)}, {"space_name":space_name}]})
+        return documents.count()
+
 
     def update_locate_map(self, tenant, space_name, updated_plan):
         '''
