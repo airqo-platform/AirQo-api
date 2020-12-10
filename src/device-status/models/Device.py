@@ -6,7 +6,7 @@ import requests
 import math
 from google.cloud import bigquery
 import pandas as pd
-from ..config import db_connection
+from config import db_connection
 
 
 class Device():
@@ -23,8 +23,9 @@ class Device():
     def get_devices(self, tenant):
         db = db_connection.connect_mongo(tenant)
         documents = db.devices.find(
-            {{"locationID": {'$ne': ''}}, {'_id': 0})
+            {})
         return documents
+# {"locationID": {'$ne': ''}}, {'_id': 0}
 
 
 if __name__ == "__main__":

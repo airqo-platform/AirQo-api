@@ -15,8 +15,16 @@ class DeviceStatus():
         attr2 (:obj:`int`, optional): Description of `attr2`.
     """
 
-    def __init__(self):
+    def __init__(self, tenant):
         """ initialize """
+        self.tenant = tenant
+
+    # save hourly checks
+    def save_device_status_hourly(self, data):
+        tenant = self.tenant
+        db = db_connection.connect_mongo(tenant)
+        saved_doc = db.device_status_hourly_check_results.insert(data)
+        return saved_doc
 
     # get device status infromation
     def get_device_status(self, tenant):
@@ -88,7 +96,6 @@ class DeviceStatus():
 
     def device_status_hourly_check_results(self, tenant):
         pass
-
 
     def str_to_date_find(self, st):
         """
