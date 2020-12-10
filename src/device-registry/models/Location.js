@@ -135,6 +135,4 @@ locationSchema.statics = {
   },
 };
 
-const location = mongoose.model("location_registry", locationSchema);
-
-module.exports = location;
+module.exports = locationSchema;
