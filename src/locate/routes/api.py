@@ -6,5 +6,5 @@ route = {
     'save_map': base_url + '/map/savelocatemap',
     'get_map': base_url + '/map/getlocatemap/<user_id>',
     'update_map': base_url + '/map/updatelocatemap/<space_name>',
-    'delete_map': base_url + '/map/deletelocatemap/<space_name>',
+    'delete_map': base_url + '/map/deletelocatemap/<user_id>/<space_name>',
 }
