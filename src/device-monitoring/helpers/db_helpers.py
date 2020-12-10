@@ -3,12 +3,12 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 import os
 import sys
-from config import app_config
+from config import config
 from dotenv import load_dotenv
 load_dotenv()
 
 
-app_configuration = app_config.get(os.getenv("FLASK_ENV"))
+app_configuration = config.app_config.get(os.getenv("FLASK_ENV"))
 
 
 def connect_mongo(tenant):
