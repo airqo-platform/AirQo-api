@@ -9,7 +9,7 @@ terraform {
 
 provider "google" {
 
-  credentials = file("../AirQo-72961f2e56df.json")
+  credentials = file("../airqo-250220-76399bcdf074.json")
 
   project = "airqo-250220"
   region  = "us-central1"
