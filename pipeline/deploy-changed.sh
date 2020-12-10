@@ -8,9 +8,9 @@ function main {
     GIT_COMMIT=$(git rev-parse --short HEAD)
     
     get_branch_name
-    echo $branch
+    echo "$branch"
     get_changed_microservices
-    echo $changed_microservices
+    echo "$changed_microservices"
 
     trigger_build
 }
@@ -28,7 +28,7 @@ function get_changed_microservices {
 
 function trigger_build {
     STAGING="get-changed-microservices"
-    if [$branch -eq $STAGING]; then
+    if ["$branch" -eq $STAGING]; then
         echo "deployment activities..."
         for microservice in ${changed_microservices}; do
             case "$microservice" in
@@ -56,7 +56,7 @@ function trigger_build {
         done
     fi
 
-    if [$branch -eq "master"]; then
+    if ["$branch" -eq "master"]; then
         echo "deployment activities..."
         for microservice in ${changed_microservices}; do
             case "$microservice" in
