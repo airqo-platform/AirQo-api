@@ -78,22 +78,16 @@ def save_locate_map():
     if request.method == 'POST':
         # make sure content type is of type 'json'
         if request.content_type != 'application/json':
-            error = json.dumps(
-                {"message": "Invalid Content Type", "success": False})
-            return jsonify(error, 400)
+            return jsonify({"message": "Invalid Content Type", "success": False}),400
 
         # check that all fields are supplied
         data = request.json
         if not all([data.get('user_id'), data.get('space_name'), data.get('plan')]):
-            error = json.dumps(
-                {"message": "missing field/s (user_id, space_name or plan). please provide all required fields", "success": False})
-            return jsonify(error, 400)
+            return jsonify({"message": "missing field/s (user_id, space_name or plan). please provide all required fields", "success": False}), 400
 
         # make user_id is of type string
         if type(data.get('user_id')) is not str:
-            error = json.dumps(
-                {"message": "invalid user_id, expects string. please refer to API documentation for details", "success": False})
-            return jsonify(error, 400)
+            return jsonify({"message": "invalid user_id, expects string. please refer to API documentation for details", "success": False}),400
 
         # if all checks have passed, save planning space
         user_id = data['user_id']
@@ -106,6 +100,11 @@ def save_locate_map():
         org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
         if org not in dbs:
             return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400
+
+        # check if space name already been taken by the same user. 
+        # avoid duplicated planning space name for the same user
+        if locate_map.plan_space_exist(tenant, user_id, space_name) > 0:
+            return jsonify({"message": f'planning space name: {space_name} already exist for user: {user_id}', "success": False}), 400
 
         locate_map.save_locate_map(tenant, user_id, space_name, plan)
         return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
