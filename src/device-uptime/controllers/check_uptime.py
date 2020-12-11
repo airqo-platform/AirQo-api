@@ -8,11 +8,15 @@ from pymongo import MongoClient
 import requests
 import math
 from google.cloud import bigquery
+from flask import Blueprint, request, jsonify
+import logging
 import pandas as pd
 import numpy as np
+from routes import api
 import os
 import logging
-
+from helpers import convert_dates
+from models import DeviceUptime
 
 MONGO_URI = os.getenv("MONGO_URI")
 print(MONGO_URI)
@@ -33,34 +37,6 @@ def function_to_execute(event, context):
 
     if (action == "compute_uptime_for_all_devices"):
         compute_uptime_for_all_devices()
-
-
-def str_to_date(st):
-    """
-    Converts a string to datetime
-    """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-def date_to_str(date):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
-
-
-def str_to_date_find(st):
-    """
-    Converts a string of different format to datetime
-    """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
-
-
-def date_to_formated_str(date):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, '%Y-%m-%d %H:%M')
 
 
 def get_all_devices():
@@ -151,166 +127,219 @@ def calculate_device_uptime(expected_total_records_count, actual_valid_records_c
     return device_uptime_in_percentage, device_downtime_in_percentage
 
 
+@device_uptime_bp.route(api.route['uptime'], methods=['POST'])
 def compute_uptime_for_all_devices():
+    """
+    This function computes the uptime for the 
+    1. network and 
+    2. each device accordingly (when device IDs are provided as query params)
 
-    time_periods = [{'label': 'twenty_four_hours', 'specified_hours': 24, 'specifed_hours_mobile': 12}, {'label': 'seven_days', 'specified_hours': 168, 'specifed_hours_mobile': 84},
-                    {'label': 'twenty_eight_days', 'specified_hours': 672, 'specifed_hours_mobile': 336}, {'label': 'twelve_months', 'specified_hours': 0, 'specifed_hours_mobile': 0}, {'label': 'all_time', 'specified_hours': 0, 'specifed_hours_mobile': 0}]
+    Response Bodies:
+    1.  Entire Network:
+    {
+       "24hours":"100",
+       "7days": "97",
+       "28days":"934",
+       "12months":"123",
+       "alltime":"13"
+    }
 
-    average_uptime_for_entire_network_in_percentage_for_twentyfour_hours = {}
-    twentyfour_hours = 0
-    average_uptime_for_entire_network_in_percentage_for_seven_days = {}
-    seven_days = 0
-    average_uptime_for_entire_network_in_percentage_for_twenty_eight_days = {}
-    twenty_eight_days = 0
-    average_uptime_for_entire_network_in_percentage_for_twelve_months = {}
-    twelve_months = 0
-    average_uptime_for_entire_network_in_percentage_for_all_time = {}
-    all_time = 0
+    2. Each Device:
+    {
+       aq_02: {
+          "24hours":"100",
+       "7days": "97",
+       "28days":"934",
+       "12months":"123",
+       "alltime":"13"  
+       },
 
-    for time_period in time_periods:
-        results = get_all_devices()
-        specified_hours = int(time_period['specified_hours'])
-        device_uptime_records = []
-        all_devices_uptime_series = []
+       aq_45: {
+            "24hours":"100",
+       "7days": "97",
+       "28days":"934",
+       "12months":"123",
+       "alltime":"13"
+       },
+       ...
+    }
+    """
+    if request.method == 'POST':
+        tenant = request.args.get('tenant')
+        device_channel_id = request.args.get('channel_id')
+        device_id = request.args.get('device_id')
+        device_name = request.args.get('device_name')
 
-        if time_period['label'] == 'twelve_months':
-            today = dt.date.today()
-            past_day = today.day
-            past_month = (today.month - 12) % 12
-            past_year = today.year - ((today.month + 12)//12)
-            twelve_months_later = dt.date(past_year, past_month, past_day)
-            delta = datetime.now().date() - twelve_months_later
-            no_of_days = delta.days
-            specified_hours = no_of_days * 24
+        if not tenant:
+            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
 
-        elif time_period['label'] == 'all_time':
-            no_of_days = 365
-            specified_hours = no_of_days * 24
+        time_periods = [{'label': 'twenty_four_hours', 'specified_hours': 24, 'specifed_hours_mobile': 12}, {'label': 'seven_days', 'specified_hours': 168, 'specifed_hours_mobile': 84},
+                        {'label': 'twenty_eight_days', 'specified_hours': 672, 'specifed_hours_mobile': 336}, {'label': 'twelve_months', 'specified_hours': 0, 'specifed_hours_mobile': 0}, {'label': 'all_time', 'specified_hours': 0, 'specifed_hours_mobile': 0}]
 
-        print('specified hours\t' + str(specified_hours))
-        for device in results:
-            channel_id = device['channelID']
-            mobililty = device['mobility']
-            device_id = device['_id']
-            device_name = device['name']
+        average_uptime_for_entire_network_in_percentage_for_twentyfour_hours = {}
+        twentyfour_hours = 0
+        average_uptime_for_entire_network_in_percentage_for_seven_days = {}
+        seven_days = 0
+        average_uptime_for_entire_network_in_percentage_for_twenty_eight_days = {}
+        twenty_eight_days = 0
+        average_uptime_for_entire_network_in_percentage_for_twelve_months = {}
+        twelve_months = 0
+        average_uptime_for_entire_network_in_percentage_for_all_time = {}
+        all_time = 0
+
+        for time_period in time_periods:
+            results = get_all_devices()
+            specified_hours = int(time_period['specified_hours'])
+            device_uptime_records = []
+            all_devices_uptime_series = []
 
             if time_period['label'] == 'twelve_months':
-                device_registration_date = device['createdAt']
-                end_date = datetime.now().date()
-                start_date = device_registration_date.date()
-                number_of_months = compute_number_of_months_between_two_dates(
-                    start_date, end_date)
-                if number_of_months < 12:
-                    delta = end_date - device_registration_date.date()
-                    no_of_days = delta.days
-                    specified_hours = no_of_days * 24
-
-            if time_period['label'] == 'all_time':
-                device_registration_date = device['createdAt']
-                delta = datetime.now().date() - device_registration_date.date()
+                today = dt.date.today()
+                past_day = today.day
+                past_month = (today.month - 12) % 12
+                past_year = today.year - ((today.month + 12)//12)
+                twelve_months_later = dt.date(past_year, past_month, past_day)
+                delta = datetime.now().date() - twelve_months_later
                 no_of_days = delta.days
                 specified_hours = no_of_days * 24
 
-            if mobililty == 'Mobile':
-                # divide the specified hours by 2.. for mobile devices, use 12 hours
-                specified_hours = int(specified_hours/2)
+            elif time_period['label'] == 'all_time':
+                no_of_days = 365
+                specified_hours = no_of_days * 24
 
-            valid_hourly_records_with_out_null_values_count, total_hourly_records_count, sensor_one_pm2_5_readings, sensor_two_pm2_5_readings, battery_voltage_readings, time_readings = get_raw_channel_data(
-                channel_id, specified_hours)
-            print('valid records count' +
-                  str(valid_hourly_records_with_out_null_values_count))
-            device_uptime_in_percentage, device_downtime_in_percentage = calculate_device_uptime(
-                specified_hours, valid_hourly_records_with_out_null_values_count)
-            print('device-uptime \t' + str(device_uptime_in_percentage) +
-                  '\n downtime \t' + str(device_downtime_in_percentage))
+            print('specified hours\t' + str(specified_hours))
+            for device in results:
+                channel_id = device['channelID']
+                mobililty = device['mobility']
+                device_id = device['_id']
+                device_name = device['name']
 
-            created_at = str_to_date(date_to_str(datetime.now()))
+                if time_period['label'] == 'twelve_months':
+                    device_registration_date = device['createdAt']
+                    end_date = datetime.now().date()
+                    start_date = device_registration_date.date()
+                    number_of_months = compute_number_of_months_between_two_dates(
+                        start_date, end_date)
+                    if number_of_months < 12:
+                        delta = end_date - device_registration_date.date()
+                        no_of_days = delta.days
+                        specified_hours = no_of_days * 24
 
-            all_devices_uptime_series.append(device_uptime_in_percentage)
-            device_uptime_record = {"device_uptime_in_percentage": device_uptime_in_percentage,
-                                    "device_downtime_in_percentage": device_downtime_in_percentage, "created_at": created_at,
-                                    "device_channel_id": channel_id, "specified_time_in_hours": specified_hours, "device_name": device_name, "device_id": device_id}
+                if time_period['label'] == 'all_time':
+                    device_registration_date = device['createdAt']
+                    delta = datetime.now().date() - device_registration_date.date()
+                    no_of_days = delta.days
+                    specified_hours = no_of_days * 24
 
-            if time_period['label'] == 'twenty_eight_days':
-                device_uptime_record["device_sensor_one_pm2_5_readings"] = sensor_one_pm2_5_readings
-                device_uptime_record["device_sensor_two_pm2_5_readings"] = sensor_two_pm2_5_readings
-                device_uptime_record["device_battery_voltage_readings"] = battery_voltage_readings
-                device_uptime_record["device_time_readings"] = time_readings
+                if mobililty == 'Mobile':
+                    # divide the specified hours by 2.. for mobile devices, use 12 hours
+                    specified_hours = int(specified_hours/2)
 
-            device_uptime_records.append(device_uptime_record)
+                valid_hourly_records_with_out_null_values_count, total_hourly_records_count, sensor_one_pm2_5_readings, sensor_two_pm2_5_readings, battery_voltage_readings, time_readings = get_raw_channel_data(
+                    channel_id, specified_hours)
+                print('valid records count' +
+                      str(valid_hourly_records_with_out_null_values_count))
+                device_uptime_in_percentage, device_downtime_in_percentage = calculate_device_uptime(
+                    specified_hours, valid_hourly_records_with_out_null_values_count)
+                print('device-uptime \t' + str(device_uptime_in_percentage) +
+                      '\n downtime \t' + str(device_downtime_in_percentage))
 
-        average_uptime_for_entire_network_in_percentage_for_selected_timeperiod = round(
-            np.mean(all_devices_uptime_series), 2)
-        created_at = str_to_date(date_to_str(datetime.now()))
+                created_at = convert_dates.str_to_date(
+                    convert_dates.date_to_str(datetime.now()))
 
-        print('average uptime for entire network in percentage is : {}%'.format(
-            average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
+                all_devices_uptime_series.append(device_uptime_in_percentage)
+                device_uptime_record = {"device_uptime_in_percentage": device_uptime_in_percentage,
+                                        "device_downtime_in_percentage": device_downtime_in_percentage, "created_at": created_at,
+                                        "device_channel_id": channel_id, "specified_time_in_hours": specified_hours, "device_name": device_name, "device_id": device_id}
 
-        if time_period['label'] == 'twenty_four_hours':
-            entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
-                                            "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
+                if time_period['label'] == 'twenty_eight_days':
+                    device_uptime_record["device_sensor_one_pm2_5_readings"] = sensor_one_pm2_5_readings
+                    device_uptime_record["device_sensor_two_pm2_5_readings"] = sensor_two_pm2_5_readings
+                    device_uptime_record["device_battery_voltage_readings"] = battery_voltage_readings
+                    device_uptime_record["device_time_readings"] = time_readings
 
-            twentyfour_hours = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
-            average_uptime_for_entire_network_in_percentage_for_twentyfour_hours = entire_network_uptime_record
-            print('twenty four hours' +
-                  str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
-        elif time_period['label'] == 'seven_days':
-            entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
-                                            "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
+                device_uptime_records.append(device_uptime_record)
 
-            seven_days = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
-            average_uptime_for_entire_network_in_percentage_for_seven_days = entire_network_uptime_record
-        elif time_period['label'] == 'twelve_months':
-            entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
-                                            "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
+            average_uptime_for_entire_network_in_percentage_for_selected_timeperiod = round(
+                np.mean(all_devices_uptime_series), 2)
+            created_at = convert_dates.str_to_date(
+                convert_dates.date_to_str(datetime.now()))
 
-            twelve_months = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
-            print('twelve_months' +
-                  str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
-            average_uptime_for_entire_network_in_percentage_for_twelve_months = entire_network_uptime_record
-        elif time_period['label'] == 'twenty_eight_days':
-            entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
-                                            "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
+            print('average uptime for entire network in percentage is : {}%'.format(
+                average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
 
-            twenty_eight_days = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
-            print(
-                '28 days' + str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
-            average_uptime_for_entire_network_in_percentage_for_twenty_eight_days = entire_network_uptime_record
-        elif time_period['label'] == 'all_time':
-            entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
-                                            "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
+            if time_period['label'] == 'twenty_four_hours':
+                entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
+                                                "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
 
-            all_time = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
-            print(
-                'alltime' + str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
-            average_uptime_for_entire_network_in_percentage_for_all_time = entire_network_uptime_record
+                twentyfour_hours = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
+                average_uptime_for_entire_network_in_percentage_for_twentyfour_hours = entire_network_uptime_record
+                print('twenty four hours' +
+                      str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
+            elif time_period['label'] == 'seven_days':
+                entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
+                                                "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
 
-    all_network_device_uptime_records = []
+                seven_days = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
+                average_uptime_for_entire_network_in_percentage_for_seven_days = entire_network_uptime_record
+            elif time_period['label'] == 'twelve_months':
+                entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
+                                                "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
 
-    entire_network_uptime_record_for_all_periods = {"average_uptime_for_entire_network_for_twentyfour_hours": average_uptime_for_entire_network_in_percentage_for_twentyfour_hours,
-                                                    "average_uptime_for_entire_network_for_seven_days": average_uptime_for_entire_network_in_percentage_for_seven_days,
-                                                    "average_uptime_for_entire_network_for_twenty_eight_days": average_uptime_for_entire_network_in_percentage_for_twenty_eight_days,
-                                                    "average_uptime_for_entire_network_for_twelve_months": average_uptime_for_entire_network_in_percentage_for_twelve_months,
-                                                    "average_uptime_for_entire_network_for_all_time": average_uptime_for_entire_network_in_percentage_for_all_time,
-                                                    "created_at": created_at}
+                twelve_months = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
+                print('twelve_months' +
+                      str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
+                average_uptime_for_entire_network_in_percentage_for_twelve_months = entire_network_uptime_record
+            elif time_period['label'] == 'twenty_eight_days':
+                entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
+                                                "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
 
-    all_network_device_uptime_records.append(
-        entire_network_uptime_record_for_all_periods)
+                twenty_eight_days = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
+                print(
+                    '28 days' + str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
+                average_uptime_for_entire_network_in_percentage_for_twenty_eight_days = entire_network_uptime_record
+            elif time_period['label'] == 'all_time':
+                entire_network_uptime_record = {"average_uptime_for_entire_network_in_percentage": average_uptime_for_entire_network_in_percentage_for_selected_timeperiod,
+                                                "device_uptime_records": device_uptime_records, "created_at": created_at, 'specified_time_in_hours': specified_hours}
 
-    # print('average uptime for entire network is : {}%'.format(
-    # entire_network_uptime_record_for_all_periods))
+                all_time = average_uptime_for_entire_network_in_percentage_for_selected_timeperiod
+                print(
+                    'alltime' + str(average_uptime_for_entire_network_in_percentage_for_selected_timeperiod))
+                average_uptime_for_entire_network_in_percentage_for_all_time = entire_network_uptime_record
 
-    save_network_uptime_analysis_results(all_network_device_uptime_records)
+        all_network_device_uptime_records = []
+
+        entire_network_uptime_record_for_all_periods = {"average_uptime_for_entire_network_for_twentyfour_hours": average_uptime_for_entire_network_in_percentage_for_twentyfour_hours,
+                                                        "average_uptime_for_entire_network_for_seven_days": average_uptime_for_entire_network_in_percentage_for_seven_days,
+                                                        "average_uptime_for_entire_network_for_twenty_eight_days": average_uptime_for_entire_network_in_percentage_for_twenty_eight_days,
+                                                        "average_uptime_for_entire_network_for_twelve_months": average_uptime_for_entire_network_in_percentage_for_twelve_months,
+                                                        "average_uptime_for_entire_network_for_all_time": average_uptime_for_entire_network_in_percentage_for_all_time,
+                                                        "created_at": created_at}
+
+        all_network_device_uptime_records.append(
+            entire_network_uptime_record_for_all_periods)
+
+        # print('average uptime for entire network is : {}%'.format(
+        # entire_network_uptime_record_for_all_periods))
+
+        save_network_uptime_analysis_results(
+            all_network_device_uptime_records, tenant)
 
 
-def save_network_uptime_analysis_results(data):
+def save_network_uptime_analysis_results(data, tenant):
     """
+    This function saves the uptime for the entire network
     """
+    DeviceUptimeModel = DeviceUptime.DeviceUptime(tenant)
     for i in data:
         print(i)
-        db.network_uptime_analysis_results.insert_one(i)
+        DeviceUptimeModel.save_device_uptime(i)
         print('saved')
 
 
-if __name__ == '__main__':
-    compute_uptime_for_all_devices()
+def save_device_uptime_analysis_results(data, tenant):
+    """
+    """
+
+# if __name__ == '__main__':
+#     compute_uptime_for_all_devices()
