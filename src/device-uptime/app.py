@@ -3,7 +3,7 @@ import logging
 import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from config import app_config
+from config.config import app_config
 from dotenv import load_dotenv
 load_dotenv()
 
