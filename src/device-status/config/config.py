@@ -38,7 +38,21 @@ class TestingConfig(Config):
     DB_NAME = os.getenv("DB_NAME_STAGE")
 
 
-app_config = {"development": DevelopmentConfig,
-              "testing": TestingConfig,
-              "production": ProductionConfig,
-              "staging": TestingConfig}
+app_config = {
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,
+    "production": ProductionConfig,
+    "staging": TestingConfig}
+
+
+def envConfig(env):
+    switcher = {
+        "development": DevelopmentConfig,
+        "testing": TestingConfig,
+        "production": ProductionConfig,
+        "staging": TestingConfig}
+    return switcher.get(env, ProductionConfig)
+
+
+environment = os.getenv("FLASK_ENV")
+configuration = envConfig(environment)

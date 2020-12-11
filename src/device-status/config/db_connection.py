@@ -3,7 +3,7 @@ from pymongo import MongoClient
 from datetime import datetime, timedelta
 import os
 import sys
-from config import app_config
+from config.config import app_config
 from dotenv import load_dotenv
 load_dotenv()
 
