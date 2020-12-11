@@ -15,10 +15,12 @@ class DeviceUptime():
         attr2 (:obj:`int`, optional): Description of `attr2`.
     """
 
-    def __init__(self):
+    def __init__(self, tenant):
         """ initialize """
+        self.tenant = tenant
 
     # get device status infromation
+
     def get_device_status(self, tenant):
         db = db_connection.connect_mongo(tenant)
         documents = db.devices.find(
@@ -245,6 +247,12 @@ class DeviceUptime():
             uptime_result = {
                 "message": "device battery voltage data not available for the specified device", "success": False}
         return uptime_result
+
+    def save_device_uptime(self, value):
+        tenant = self.tenant
+        db = db_connection.connect_mongo(tenant)
+        results = db.network_uptime_analysis_results.insert_one(value)
+        return results
 
     def get_device_sensor_correlation_results(self, tenant, filter_param):
         "gets the latest device sensor correlations for the device with the specifided channel id"
