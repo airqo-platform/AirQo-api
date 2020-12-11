@@ -94,8 +94,11 @@ class DeviceStatus():
             result = []
         return result
 
-    def device_status_hourly_check_results(self, tenant):
-        pass
+    def device_status_hourly_check_results(self, value):
+        tenant = self.tenant
+        db = db_connection.connect_mongo(tenant)
+        results = db.device_status_hourly_check_results.insert_one(value)
+        return results
 
     def str_to_date_find(self, st):
         """
