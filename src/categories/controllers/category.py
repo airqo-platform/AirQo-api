@@ -10,6 +10,7 @@ import os
 from routes import api
 from helpers import convert_date
 from flask import Blueprint, request, jsonify
+from models import monitoring_site, pm25_location_categorycount
 
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
@@ -18,43 +19,46 @@ db = client['airqo_analytics']
 
 _logger = logging.getLogger(__name__)
 
-category_bp = Blueprint('device_category', __name__)
+category_bp = Blueprint('category', __name__)
 
 
 @category_bp.route(api.route['category'], methods=['POST'])
 def get_pm25categorycount_for_locations():
-    org_name = 'KCCA'
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
     pm25category_location_count_results = []
-    if org_name:
+    if tenant:
         organisation_monitoring_sites_cursor = get_all_organisation_monitoring_sites(
-            org_name)
+            tenant)
         results = get_pm25_category_count(organisation_monitoring_sites_cursor)
         created_at = convert_date.str_to_date(
             convert_date.date_to_str(datetime.now()))
         record = {"pm25_categories": results,
-                  'created_at': created_at, "Organisation": org_name}
+                  'created_at': created_at, "Organisation": tenant}
         pm25category_location_count_results.append(record)
 
         print(pm25category_location_count_results)
 
-        save_pm25_locations_categorycount(pm25category_location_count_results)
+        save_pm25_locations_categorycount(
+            pm25category_location_count_results, tenant)
     else:
         print("error msg, organisation name wasn't supplied in the query string parameter.")
 
 
-def get_all_organisation_monitoring_sites(organisation_name):
+def get_all_organisation_monitoring_sites(tenant):
     """
     Gets all the monitoring sites for the specified organisation. 
 ​
     Args:
-        organisation_name: the name of the organisation whose monitoring sites are to be returned. 
+        tenant: the name of the organisation whose monitoring sites are to be returned. 
 ​
     Returns:
         A list of the monitoring sites associated with the specified organisation name.
     """
     results_x = []
-    results = list(db.monitoring_site.find(
-        {"Organisation": organisation_name}))
+    MonitoringSite = monitoring_site.MonitoringSite(tenant)
+    results = MonitoringSite.get_all()
     for result in results:
         if 'LatestHourlyMeasurement' in result:
             w = result['LatestHourlyMeasurement']
@@ -119,10 +123,12 @@ def get_pm25_category_count(locations):
     return pm25_categories
 
 
-def save_pm25_locations_categorycount(data):
+def save_pm25_locations_categorycount(data, tenant):
     """
     """
+    PM25LocationsCategoryCount = pm25_location_categorycount.PM25LocationCategoryCount(
+        tenant)
     for i in data:
         print(i)
-        db.pm25_location_categorycount.insert_one(i)
+        PM25LocationsCategoryCount.save(i)
         print('saved')
