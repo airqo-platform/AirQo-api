@@ -3,7 +3,7 @@ import logging
 import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from config import app_config
+from config import constants
 from dotenv import load_dotenv
 # import blueprints
 from controllers.health import health_bp
@@ -20,7 +20,7 @@ mongo = PyMongo()
 def create_app(environment):
     # create a flask app instance
     app = Flask(__name__)
-    app.config.from_object(app_config[environment])
+    app.config.from_object(constants.app_config[environment])
     mongo.init_app(app)
 
     # Allow cross-brower resource sharing
@@ -28,7 +28,7 @@ def create_app(environment):
 
     # register blueprints
     app.register_blueprint(health_bp)
-    app.register_blueprint(exceedance_bp)
+    app.register_blueprint(category_bp)
 
     return app
 

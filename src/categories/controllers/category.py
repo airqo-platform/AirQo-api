@@ -1,491 +1,128 @@
-from flask import Blueprint, request, jsonify
+import base64
+import datetime as dt
 import logging
-import app
+from bson import json_util, ObjectId
 import json
-from helpers import db_helpers, utils
-from models import exceedance
+from datetime import datetime, timedelta
+from pymongo import MongoClient
+import requests
+import os
 from routes import api
-from flask_cors import CORS
-import sys
-from datetime import datetime
+from helpers import convert_date
+from flask import Blueprint, request, jsonify
+
+MONGO_URI = os.getenv("MONGO_URI")
+client = MongoClient(MONGO_URI)
+db = client['airqo_analytics']
+
 
 _logger = logging.getLogger(__name__)
 
-exceedance_bp = Blueprint('exceedance', __name__)
+category_bp = Blueprint('device_category', __name__)
 
 
-@exceedance_bp.route(api.route['exceedance'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_status():
-    '''
-    Get device status
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_device_status(tenant)
+@category_bp.route(api.route['category'], methods=['POST'])
+def get_pm25categorycount_for_locations():
+    org_name = 'KCCA'
+    pm25category_location_count_results = []
+    if org_name:
+        organisation_monitoring_sites_cursor = get_all_organisation_monitoring_sites(
+            org_name)
+        results = get_pm25_category_count(organisation_monitoring_sites_cursor)
+        created_at = convert_date.str_to_date(
+            convert_date.date_to_str(datetime.now()))
+        record = {"pm25_categories": results,
+                  'created_at': created_at, "Organisation": org_name}
+        pm25category_location_count_results.append(record)
 
-        response = []
-        for document in documents:
-            document['_id'] = str(document['_id'])
-            response.append(document)
-        if len(response) == 0:
-            return jsonify({"message": "No device status report available for " + tenant + " organization. please make sure you have provided a valid organization name.", "success": False}), 400
-        return jsonify(response), 200
+        print(pm25category_location_count_results)
+
+        save_pm25_locations_categorycount(pm25category_location_count_results)
     else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-# maintenance log
+        print("error msg, organisation name wasn't supplied in the query string parameter.")
 
 
-@exceedance_bp.route(api.route['maintenance_logs'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_maintenance_log():
-    '''
-    Get device maintenance_logs
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_device_maintenance_log(tenant)
-        response = []
-        for document in documents:
-            document['_id'] = str(document['_id'])
-            response.append(document)
-        if len(response) == 0:
-            return jsonify({"message": "No maintenance logs available for " + tenant + " organization. please make sure you have provided a valid organization name.", "success": False}), 400
-        return jsonify(response), 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-# maintenance log
-@exceedance_bp.route(api.route['device_name_maintenance_log'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_name_maintenance_log(device_name):
-    '''
-    Get device maintenance_logs
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_device_name_maintenance_log(tenant, device_name)
-        response = []
-        for document in documents:
-            document['_id'] = str(document['_id'])
-            response.append(document)
-        if len(response) == 0:
-            return jsonify({"message": "device '" + device_name + "' maintenance log is not available for " + tenant + " organization", "success": False}), 400
-        return jsonify(response), 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-# maintenance log
-@exceedance_bp.route(api.route['device_power'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_power():
-    '''
-    Get device status
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_device_power(tenant)
-        response = []
-        for document in documents:
-            document['_id'] = str(document['_id'])
-            response.append(document)
-        if len(response) == 0:
-            return jsonify({"message": "device power type is not available for " + tenant + " organization. please make sure you have provide a valid organization name.", "success": False}), 400
-        return jsonify(response), 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['all_devices_latest_status'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_all_devices_latest_status():
-    '''
-    Get all devices latest status
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_all_devices_latest_status(tenant)
-        response_ = []
-        if documents:
-            result = documents[0]
-            response = {'online_devices_percentage': result['online_devices_percentage'],
-                        'offline_devices_percentage': result['offline_devices_percentage'], 'created_at': utils.convert_GMT_time_to_EAT_local_time(result['created_at'])}
+def get_all_organisation_monitoring_sites(organisation_name):
+    """
+    Gets all the monitoring sites for the specified organisation. 
+​
+    Args:
+        organisation_name: the name of the organisation whose monitoring sites are to be returned. 
+​
+    Returns:
+        A list of the monitoring sites associated with the specified organisation name.
+    """
+    results_x = []
+    results = list(db.monitoring_site.find(
+        {"Organisation": organisation_name}))
+    for result in results:
+        if 'LatestHourlyMeasurement' in result:
+            w = result['LatestHourlyMeasurement']
+            last_hour_pm25_value = int(w[-1]['last_hour_pm25_value'])
+            last_hour = convert_date.date_to_formated_str(w[-1]['last_hour'])
         else:
-            response = {
-                "message": "Device status data not available for " + tenant + " organization", "success": False}
-        for document in documents:
-            response_.append(document)
-        data = jsonify({'data': response, 'all_data': response_})
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
+            last_hour_pm25_value = 0
+            last_hour = ''
+        obj = {"DeviceCode": result['DeviceCode'],
+               'Parish': result['Parish'],
+               'Division': result['Division'],
+               'Last_Hour_PM25_Value': last_hour_pm25_value,
+               'Latitude': result['Latitude'],
+               'Longitude': result['Longitude'],
+               'LocationCode': result['LocationCode'],
+               'LastHour': last_hour,
+               '_id': str(result['_id'])}
+        results_x.append(obj)
+    return results_x
 
 
-@exceedance_bp.route(api.route['devices'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_all_devices():
-    '''
-    Get all devices latest status
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_all_devices(tenant)
-        response = []
-        '''
-        if documents:
-            result = documents[0]
-            response = {'online_devices_percentage':result['online_devices_percentage'],
-             'offline_devices_percentage': result['offline_devices_percentage'], 'created_at':result['created_at']}
+def get_pm25_category_count(locations):
+    locations_with_category_good = []
+    locations_with_category_moderate = []
+    locations_with_category_UH4SG = []  # unhealthy for sensitive group
+    locations_with_category_unhealthy = []
+    locations_with_category_very_unhealthy = []
+    locations_with_category_hazardous = []
+    locations_with_category_unknown = []
+
+    for location in locations:
+        pm25_conc_value = location['Last_Hour_PM25_Value']
+
+        if pm25_conc_value > 0.0 and pm25_conc_value <= 12.0:
+            locations_with_category_good.append(location['Parish'])
+        elif pm25_conc_value > 12.0 and pm25_conc_value <= 35.4:
+            locations_with_category_moderate.append(location['Parish'])
+        elif pm25_conc_value > 35.4 and pm25_conc_value <= 55.4:
+            locations_with_category_UH4SG.append(location['Parish'])
+        elif pm25_conc_value > 55.4 and pm25_conc_value <= 150.4:
+            locations_with_category_unhealthy.append(location['Parish'])
+        elif pm25_conc_value > 150.4 and pm25_conc_value <= 250.4:
+            locations_with_category_very_unhealthy.append(location['Parish'])
+        elif pm25_conc_value > 250.4 and pm25_conc_value <= 500.4:
+            locations_with_category_hazardous.append(location['Parish'])
         else:
-            response = {
-                "message": "Device status not available", "success":False }
-        '''
-        for document in documents:
-            response.append(document)
-        if len(response) == 0:
-            return jsonify({"message": "No record available for " + tenant + " organization. please make sure you have provided a valid organization name.", "success": False}), 400
-        return jsonify(response), 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
+            locations_with_category_unknown.append(location['Parish'])
+
+    pm25_categories = [{'locations_with_category_good': {'category_name': 'Good', 'category_count': len(locations_with_category_good), 'category_locations': locations_with_category_good}},
+                       {'locations_with_category_moderate': {'category_name': 'Moderate', 'category_count': len(
+                           locations_with_category_moderate), 'category_locations': locations_with_category_moderate}},
+                       {'locations_with_category_UH4SG': {'category_name': 'UH4SG', 'category_count': len(
+                           locations_with_category_UH4SG), 'category_locations': locations_with_category_UH4SG}},
+                       {'locations_with_category_unhealth': {'category_name': 'Unhealthy', 'category_count': len(
+                           locations_with_category_unhealthy), 'category_locations': locations_with_category_unhealthy}},
+                       {'locations_with_category_very_unhealthy': {'category_name': 'Very Unhealthy', 'category_count': len(
+                           locations_with_category_very_unhealthy), 'category_locations': locations_with_category_very_unhealthy}},
+                       {'locations_with_category_hazardous': {'category_name': 'Hazardous', 'category_count': len(
+                           locations_with_category_hazardous), 'category_locations': locations_with_category_hazardous}},
+                       {'locations_with_category_unknown': {'category_name': 'Other', 'category_count': len(locations_with_category_unknown), 'category_locations': locations_with_category_unknown}}]
+
+    return pm25_categories
 
 
-@exceedance_bp.route(api.route['latest_offline_devices'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_all_latest_offline_devices():
-    '''
-    Get all latest offline devices latest status
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_all_devices_latest_status(tenant)
-        if documents:
-            result = documents[0]
-            response = result['offline_devices']
-        else:
-            response = {
-                "message": "Offline devices data not available for " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['network_uptime'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_network_uptime():
-    '''
-    Get network uptime/downtime status
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        result = model.get_network_uptime_analysis_results(tenant)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "Uptime data not available for " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['best_performing_devices'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_best_performing_devices():
-    '''
-    Get best performing devices in terms of uptime
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        result = model.get_device_rankings(tenant, sorting_order='desc')
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "besting perfoming devices data not available for " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['worst_performing_devices'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_worst_performing_devices():
-    '''
-    Gets worst performing devices in terms of uptime
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        result = model.get_device_rankings(tenant, sorting_order='asc')
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "worst perfoming devices data not available for " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['device_uptime'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_uptime():
-    '''
-    Get device uptime
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('channel_id')
-        device_id = request.args.get('device_id')
-        device_name = request.args.get('device_name')
-
-        if (not device_id and not device_name and not device_channel_id):
-            return jsonify({"message": "please specify one of the following query parameters i.e.device_channel_id , device_name ,device_id. Refer to the API documentation for details.", "success": False}), 400
-
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if device_channel_id and type(device_channel_id) is not int:
-            device_channel_id = int(device_channel_id)
-            filter_param = device_channel_id
-
-        if not device_channel_id:
-            if device_name:
-                filter_param = device_name
-            else:
-                filter_param = device_id
-
-        result = model.get_device_uptime_analysis_results(
-            tenant, filter_param)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "Uptime data not available for the specified device or " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['device_battery_voltage'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_battery_voltage():
-    '''
-    Get device uptime
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('channel_id')
-        device_id = request.args.get('device_id')
-        device_name = request.args.get('device_name')
-
-        if (not device_id and not device_name and not device_channel_id):
-            return jsonify({"message": "please specify one of the following query parameters i.e.device_channel_id , device_name ,device_id. Refer to the API documentation for details.", "success": False}), 400
-
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if type(device_channel_id) is not int and device_channel_id:
-            device_channel_id = int(device_channel_id)
-            filter_param = device_channel_id
-
-        if not device_channel_id:
-            if device_name:
-                filter_param = device_name
-            else:
-                filter_param = device_id
-
-        result = model.get_device_battery_voltage_results(
-            tenant, filter_param)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "battery voltage data not available for the specified device or " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['device_sensor_correlation'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_device_sensor_correlation():
-    '''
-    Get device uptime
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('channel_id')
-        device_id = request.args.get('device_id')
-        device_name = request.args.get('device_name')
-
-        if (not device_id and not device_name and not device_channel_id):
-            return jsonify({"message": "please specify one of the following query parameters i.e.device_channel_id , device_name ,device_id. Refer to the API documentation for details.", "success": False}), 400
-
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if device_channel_id and type(device_channel_id) is not int:
-            device_channel_id = int(device_channel_id)
-            filter_param = device_channel_id
-
-        if not device_channel_id:
-            if device_name:
-                filter_param = device_name
-            else:
-                filter_param = device_id
-
-        result = model.get_device_sensor_correlation_results(
-            tenant, filter_param)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "device sensor correlation data not available for the specified device or " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
-
-
-@exceedance_bp.route(api.route['online_offline'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_all_online_offline():
-    '''
-    Get all latest devices online_offline
-    '''
-    model = exceedance.Exceedance()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-
-        documents = model.get_all_devices_latest_status(tenant)
-        if documents:
-            result = documents[0]
-            print(len(result['online_devices']), file=sys.stderr)
-            devices_without_coordinates = []
-            devices_with_coordinates = []
-            for device in result['online_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None):
-                    if "nextMaintenance" in device:
-                        date_difference = datetime.now() - \
-                            device['nextMaintenance']
-                        print(date_difference.days, file=sys.stderr)
-                        if date_difference.days < -14:
-                            codeString = "codeGreen"
-                        elif date_difference.days >= 0:
-                            codeString = "codeRed"
-                        else:
-                            codeString = "codeOrange"
-
-                        mapped_device = {
-                            'channelId': device['channelID'],
-                            'latitude': device['latitude'],
-                            'locationID': device['locationID'],
-                            'longitude': device['longitude'],
-                            'power': device['power'],
-                            'productName': device['product_name'],
-                            'phoneNumber': device['phoneNumber'],
-                            'nextMaintenance': device['nextMaintenance'],
-                            'isOnline': True,
-                            'isDueMaintenance': codeString
-                        }
-                        devices_with_coordinates.append(mapped_device)
-
-            for device in result['online_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None):
-                    if "nextMaintenance" not in device:
-                        mapped_device = {
-                            'channelId': device['channelID'],
-                            'latitude': device['latitude'],
-                            'locationID': device['locationID'],
-                            'longitude': device['longitude'],
-                            'power': device['power'],
-                            'productName': device['product_name'],
-                            'phoneNumber': device['phoneNumber'],
-                            'nextMaintenance': "null",
-                            'isOnline': True,
-                            'isDueMaintenance': "codeRed"
-                        }
-                        devices_with_coordinates.append(mapped_device)
-
-            for device in result['offline_devices']:
-                if (device['latitude'] is not None) or (device['longitude'] is not None):
-                    if "nextMaintenance" in device:
-                        date_difference = datetime.now() - \
-                            device['nextMaintenance']
-                        if date_difference.days < -14:
-                            codeString = "codeGreen"
-                        elif date_difference.days >= 0:
-                            codeString = "codeRed"
-                        else:
-                            codeString = "codeOrange"
-
-                        mapped_device = {
-                            'channelId': device['channelID'],
-                            'latitude': device['latitude'],
-                            'locationID': device['locationID'],
-                            'longitude': device['longitude'],
-                            'power': device['power'],
-                            'productName': device['product_name'],
-                            'phoneNumber': device['phoneNumber'],
-                            'isOnline': False,
-                            'nextMaintenance': device['nextMaintenance'],
-                            'isDueMaintenance': codeString
-                        }
-                        devices_with_coordinates.append(mapped_device)
-
-            for device in result['offline_devices']:
-                # if "true" in device['isActive'] :
-                if "nextMaintenance" not in device:
-                    if (device['latitude'] is not None) or (device['longitude'] is not None):
-                        if "nextMaintenance" not in device:
-
-                            mapped_device = {
-                                'channelId': device['channelID'],
-                                'latitude': device['latitude'],
-                                'locationID': device['locationID'],
-                                'longitude': device['longitude'],
-                                'power': device['power'],
-                                'productName': device['product_name'],
-                                'phoneNumber': device['phoneNumber'],
-                                'isOnline': False,
-                                'nextMaintenance': "null",
-                                'isDueMaintenance': "codeRed"
-                            }
-                            devices_with_coordinates.append(mapped_device)
-
-            response = {'online_offline_devices': devices_with_coordinates}
-
-        else:
-            response = {
-                "message": "devices data not available of this " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
+def save_pm25_locations_categorycount(data):
+    """
+    """
+    for i in data:
+        print(i)
+        db.pm25_location_categorycount.insert_one(i)
+        print('saved')
