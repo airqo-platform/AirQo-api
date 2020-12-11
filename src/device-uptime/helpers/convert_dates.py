@@ -38,3 +38,9 @@ def date_to_formated_str(date):
     Converts datetime to a string
     """
     return datetime.strftime(date, '%Y-%m-%d %H:%M')
+
+
+def compute_number_of_months_between_two_dates(start_date, end_date):
+    number_of_months = (end_date.year - start_date.year) * \
+        12 + (end_date.month - start_date.month)
+    return number_of_months

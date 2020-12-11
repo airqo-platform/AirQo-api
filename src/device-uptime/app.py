@@ -3,7 +3,7 @@ import logging
 import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from config.config import app_config
+from config import constants
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -17,19 +17,19 @@ mongo = PyMongo()
 def create_app(environment):
     # create a flask app instance
     app = Flask(__name__)
-    app.config.from_object(app_config[environment])
+    app.config.from_object(constants.app_config[environment])
     mongo.init_app(app)
 
     # Allow cross-brower resource sharing
     CORS(app)
 
     # import blueprints
-    from controllers.check_health import monitor_bp
-    from controllers.check_uptime import device_uptime_bp
+    from controllers.health import health_bp
+    from controllers.uptime import uptime_bp
 
     # register blueprints
-    app.register_blueprint(monitor_bp)
-    app.register_blueprint(device_uptime_bp)
+    app.register_blueprint(health_bp)
+    app.register_blueprint(uptime_bp)
 
     return app
 
