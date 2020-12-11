@@ -27,6 +27,20 @@ class Device():
         return documents
 # {"locationID": {'$ne': ''}}, {'_id': 0}
 
+    # get devices status infromation
+    def get_device_power(self, tenant):
+        db = db_connection.connect_mongo(tenant)
+        documents = db.devices.find({'$and': [{'locationID': {'$ne': ""}}, {'status': {'$ne': "Retired"}}, {'power': {'$ne': ""}}]}, {
+                                    'power': 1, 'name': 1, 'locationID': 1})
+        return documents
+
+        # get device status infromation
+    def get_device_status(self, tenant):
+        db = db_connection.connect_mongo(tenant)
+        documents = db.devices.find(
+            {'isActive': {'$eq': True}}, {'name': 1, 'location_id': 1, 'nextMaintenance': 1, 'channelID': 1})
+        return documents
+
 
 if __name__ == "__main__":
     dx = Device()
