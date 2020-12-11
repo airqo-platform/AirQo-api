@@ -2,11 +2,10 @@
 from flask import Blueprint, request, jsonify
 import logging
 import datetime as dt
-from helpers.db_helpers import app_configuration
 from bson import json_util, ObjectId
 import json
 from datetime import datetime, timedelta
-from helpers import db_helpers
+from config.db_connection import app_configuration
 from routes import api
 import os
 from dotenv import load_dotenv
