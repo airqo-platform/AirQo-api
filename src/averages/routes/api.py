@@ -1,6 +1,6 @@
-base_url = '/api/v1/exceedance'
+base_url = '/api/v1/averages'
 route = {
     'root': '/',
-    'health_check': '/health',
-    'exceedances': base_url + '/values',
+    'health: '/health',
+    'average': base_url,
 }
