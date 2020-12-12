@@ -15,7 +15,7 @@ import numpy as np
 from routes import api
 import os
 import logging
-from helpers import convert_dates, calculate_uptime, get_expected_records_count
+from helpers import convert_dates, calculate_uptime, get_expected_records_count, get_device_hourly_records_count
 from models import network_uptime_analysis_results, device, raw_feeds_pms, device_uptime
 
 _logger = logging.getLogger(__name__)
@@ -68,23 +68,26 @@ def get_raw_channel_data(channel_id: int, hours=24):
     time_indexed_data = df.set_index('time')
     final_hourly_data = time_indexed_data.resample('H').mean().round(2)
 
-    final_hourly_data_copy = final_hourly_data.resample('D').mean().dropna()
-    sensor_one_pm2_5_readings = final_hourly_data_copy['s1_pm2_5'].tolist()
-    sensor_two_pm2_5_readings = final_hourly_data_copy['s2_pm2_5'].tolist()
-    battery_voltage_readings = final_hourly_data_copy['battery_voltage'].tolist(
+    daily_data = final_hourly_data.resample('D').mean().dropna()
+    sensor_one_pm2_5_readings = daily_data['s1_pm2_5'].tolist()
+    sensor_two_pm2_5_readings = daily_data['s2_pm2_5'].tolist()
+    battery_voltage_readings = daily_data['battery_voltage'].tolist(
     )
-    time_readings = final_hourly_data_copy.index.tolist()
+    time_readings = daily_data.index.tolist()
 
     total_hourly_records_count = final_hourly_data.shape[0]
 
+# removing outliers
     records_with_valid_values = final_hourly_data[final_hourly_data['s1_s2_average_pm2_5'] <= 500.4]
-    records_with_valid_values = final_hourly_data[final_hourly_data['s1_s2_average_pm2_5'] > 0]
+    records_with_valid_values = records_with_valid_values[
+        records_with_valid_values['s1_s2_average_pm2_5'] > 0]
 
     records_with_valid_values_count = records_with_valid_values.shape[0]
 
     invalid_records_count = records_with_valid_values - records_with_valid_values_count
 
     valid_hourly_records_with_out_null_values = records_with_valid_values.dropna().reset_index()
+
     valid_hourly_records_with_out_null_values_count = valid_hourly_records_with_out_null_values.shape[
         0]
 
@@ -100,33 +103,44 @@ def compute_uptime_for_all_devices():
 
     Response Bodies:
     1.  Entire Network:
-    {
-       "24hours":"100",
-       "7days": "97",
-       "28days":"934",
-       "12months":"123",
-       "alltime":"13"
-    }
+       [
+          {
+             network_name: "",
+              _id: "",
+             uptime: "",
+             created_at: ""
+          },
+          ...
+       ]
+    2. Uptime for one device
+        [ {
+               device_name: "",
+               channel_id: "",
+               _id: "",
+               uptime: "",
+               created_at: ""
+           }
+         ]
 
-    2. Each Device (all devices):
-    {
-       aq_02: {
-          "24hours":"100",
-       "7days": "97",
-       "28days":"934",
-       "12months":"123",
-       "alltime":"13"  
-       },
+    3. Uptime for various devices for a time period
 
-       aq_45: {
-            "24hours":"100",
-       "7days": "97",
-       "28days":"934",
-       "12months":"123",
-       "alltime":"13"
-       },
-       ...
-    }
+       {
+
+           "aq_23": [
+              {
+                 device_name: "",
+                 channel_id: "",
+                 _id: "",
+                 uptime: "",
+                 created_at: ""
+               },
+               ...
+           ],
+           "aq_23": [
+
+
+           ]
+       }
     """
     if request.method == 'POST':
         tenant = request.args.get('tenant')
@@ -210,7 +224,7 @@ def compute_uptime_for_all_devices():
 
                 created_at = convert_dates.str_to_date(
                     convert_dates.date_to_str(datetime.now()))
-
+                # storing the uptimes for the different devices within this timeframe
                 all_devices_uptime_series.append(device_uptime_in_percentage)
                 device_uptime_record = {"device_uptime_in_percentage": device_uptime_in_percentage,
                                         "device_downtime_in_percentage": device_downtime_in_percentage, "created_at": created_at,
@@ -294,13 +308,18 @@ def compute_uptime_for_all_devices():
 
 
 @uptime_bp.route(api.route['uptime'], methods=['POST', 'GET'])
-def compute_device_uptime(mobililty):
+def compute_device_uptime(mobility, device_name):
     """
     specify the expected number of records
     get actual hourly records for the device
     we use the method for calculating uptime
     """
-    expected_records_count = get_expected_records_count(mobility)
+
+    expected_records_count = get_expected_records_count.get_expected_records_count(
+        mobility)
+
+    device_hourly_records = get_device_hourly_records_count.get_count(
+        device_name)
 
 
 def save_network_uptime_analysis_results(data, tenant):

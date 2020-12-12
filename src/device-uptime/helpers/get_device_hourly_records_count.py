@@ -19,7 +19,7 @@ from helpers import convert_dates, calculate_uptime, get_expected_records_count
 from models import network_uptime_analysis_results, device, raw_feeds_pms, device_uptime
 
 
-def get_raw_channel_data(channel_id: int, hours=24):
+def get_count(channel_id: int, hours=24):
     """
     returns:
     valid_hourly_records_with_out_null_values_count
