@@ -1,4 +1,7 @@
 # device_uptime = {
+#    "sensor_one_day": "",
+#    "sensor_two_day":"",
+#     "battery_voltage":"",
 #     device_name: "",
 #     channel_id: "",
 #     _id: "",
@@ -38,5 +41,5 @@ class DeviceUptime():
         """
         tenant = self.tenant
         db = db_connection.connect_mongo(tenant)
-        results = db.insert_all(records)
+        results = db.device_uptime.insert_all(records)
         return results

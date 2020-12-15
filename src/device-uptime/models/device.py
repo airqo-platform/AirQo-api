@@ -22,7 +22,7 @@ class Device():
     def get_all(self):
         tenant = self.tenant
         db = db_connection.connect_mongo(tenant)
-        results = list(db.devices.find({"locationID": {'$ne': ''}}))
+        results = list(db.devices.find({"channelID": {'$ne': ''}}))
         return results
 
     # get device status infromation
