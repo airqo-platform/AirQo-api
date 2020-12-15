@@ -41,5 +41,5 @@ class DeviceUptime():
         """
         tenant = self.tenant
         db = db_connection.connect_mongo(tenant)
-        results = db.device_uptime.insert_all(records)
+        results = db.device_uptime.insert_many(records)
         return results
