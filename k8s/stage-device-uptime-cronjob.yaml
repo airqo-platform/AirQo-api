@@ -8,7 +8,7 @@ metadata:
       manager: kubectl
       operation: Update
       time: "2020-08-13T11:00:12Z"
-  name: stage-network-uptime-demo
+  name: stage-device-uptime-job
   namespace: staging
 spec:
   concurrencyPolicy: Allow
@@ -16,14 +16,14 @@ spec:
   jobTemplate:
     metadata:
       creationTimestamp: null
-      name: airqo-device-uptime
+      name: stage-device-uptime-job
     spec:
       template:
         metadata:
           creationTimestamp: null
         spec:
           containers:
-            - name: network-uptime-demo
+            - name: stage-device-uptime-job
               image: us.gcr.io/airqo-250220/airqo-stage-device-uptime-job:latest
               imagePullPolicy: Always
               resources: {}
