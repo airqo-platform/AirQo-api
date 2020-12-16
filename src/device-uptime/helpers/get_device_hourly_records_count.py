@@ -29,17 +29,22 @@ class DeviceChannelRecords:
 
     def get_records(self, hours=24):
         client = bigquery.Client()
-        # fetch the records from the database
+        today = datetime.now()
+        today_midnight = datetime(
+            year=today.year, month=today.month, day=today.day, hour=0, minute=0, second=0)
+        yesterday = today_midnight-timedelta(days=1)
+
         sql_query = """ 
                
                 SELECT SAFE_CAST(TIMESTAMP(created_at) as DATETIME) as time, channel_id,field1 as s1_pm2_5,
                 field2 as s1_pm10, field3 as s2_pm2_5, field4 as s2_pm10, field7 as battery_voltage
                 FROM `airqo-250220.thingspeak.raw_feeds_pms` 
-                WHERE channel_id = '{0}' AND CAST(created_at as TIMESTAMP) >= TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {1} HOUR) 
+                WHERE channel_id = '{0}' AND CAST(created_at as TIMESTAMP) BETWEEN CAST('{1}' as TIMESTAMP)  AND CAST('{2}' as TIMESTAMP)
                 ORDER BY time DESC           
                 
             """
-        sql_query = sql_query.format(self.channel_id, hours)
+        sql_query = sql_query.format(
+            self.channel_id, yesterday.isoformat(), today_midnight.isoformat())
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_legacy_sql = False
@@ -63,6 +68,7 @@ class DeviceChannelRecords:
 
     def get_sensor_readings(self):
         # change frequency to days
+
         time_indexed_data = self.df.set_index('time')
 
         # change freqeuncy to hours
@@ -70,8 +76,7 @@ class DeviceChannelRecords:
         daily_data = final_hourly_data.resample('D').mean().dropna()
         sensor_one_pm2_5_readings = daily_data['s1_pm2_5'].tolist()
         sensor_two_pm2_5_readings = daily_data['s2_pm2_5'].tolist()
-        battery_voltage_readings = daily_data['battery_voltage'].tolist(
-        )
+        battery_voltage_readings = daily_data['battery_voltage'].tolist()
         time_readings = daily_data.index.tolist()
 
         return sensor_one_pm2_5_readings, sensor_two_pm2_5_readings, battery_voltage_readings, time_readings
