@@ -38,3 +38,16 @@ def date_to_formated_str(date):
     Converts datetime to a string
     """
     return datetime.strftime(date, '%Y-%m-%d %H:%M')
+
+
+def convert_seconds_to_days_hours_minutes_seconds(seconds_to_convert):
+    day = seconds_to_convert // (24 * 3600)
+    seconds_to_convert = seconds_to_convert % (24 * 3600)
+    hour = seconds_to_convert // 3600
+    seconds_to_convert %= 3600
+    minutes = seconds_to_convert // 60
+    seconds_to_convert %= 60
+    seconds = seconds_to_convert
+    result = str(int(day)) + " days " + str(int(hour)) + " hours " + \
+        str(int(minutes)) + " minutes " + str(int(seconds)) + " seconds"
+    return result
