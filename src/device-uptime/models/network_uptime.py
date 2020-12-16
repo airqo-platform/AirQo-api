@@ -37,5 +37,5 @@ class NetworkUptime():
         """
         tenant = self.tenant
         db = db_connection.connect_mongo(tenant)
-        results = db.insert_all(records)
+        results = db.network_uptime.insert_many(records)
         return results

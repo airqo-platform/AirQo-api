@@ -17,8 +17,10 @@ import os
 import logging
 from helpers import convert_dates, calculate_uptime, get_expected_records_count, get_device_hourly_records_count
 from helpers.get_device_hourly_records_count import DeviceChannelRecords
-from models import network_uptime_analysis_results, device, raw_feeds_pms, device_uptime
+from models import network_uptime_analysis_results, device, raw_feeds_pms, device_uptime, network_uptime
+from models.network_uptime import NetworkUptime
 from concurrent.futures import ThreadPoolExecutor
+from functools import reduce
 
 
 _logger = logging.getLogger(__name__)
@@ -55,15 +57,16 @@ def save_device_uptime(tenant):
         created_at = datetime.now()
 
         record = {
-            "sensor_one_pm2_5": sensor_one_pm2_5_readings[0],
-            "sensor_two_pm2_5": sensor_two_pm2_5_readings[0],
-            "battery_voltage": battery_voltage_readings[0],
+            "sensor_one_pm2_5": sensor_one_pm2_5_readings and sensor_one_pm2_5_readings[0] or 0,
+            "sensor_two_pm2_5": sensor_two_pm2_5_readings and sensor_two_pm2_5_readings[0] or 0,
+            "battery_voltage": battery_voltage_readings and battery_voltage_readings[0] or 0,
             "device_name": device_name,
             "channel_id": channel_id,
             "uptime": device_uptime_in_percentage,
             "downtime": device_downtime_in_percentage,
             "created_at": created_at.isoformat()
         }
+
         return record
     devices = get_all_devices(tenant)
     records = []
@@ -80,9 +83,26 @@ def save_device_uptime(tenant):
         futures.append(executor.submit(get_device_record,
                                        channel_id, device_name, mobility))
     for future in futures:
-        records.append(future.result())
+        try:
+            records.append(future.result())
+        except Exception as e:
+            print("error occured while fetching data from channel", e)
+
+    network_uptime = sum(record.get("uptime", 0.0)
+                         for record in records) / len(records)
+
     device_uptime_model = device_uptime.DeviceUptime(tenant)
     device_uptime_model.save_device_uptime(records)
+
+    network_uptime_record = {
+        "network_name": tenant,
+        "uptime": network_uptime,
+        "created_at": datetime.now().isoformat()
+    }
+
+    network_uptime_model = NetworkUptime(tenant)
+    print("network_uptime_record", network_uptime_record)
+    network_uptime_model.save_network_uptime([network_uptime_record])
 
 
 def get_all_devices(tenant):
