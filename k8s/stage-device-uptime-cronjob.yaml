@@ -24,7 +24,7 @@ spec:
         spec:
           containers:
             - name: network-uptime-demo
-              image: us.gcr.io/airqo-250220/airqo-stage-device-uptime:latest
+              image: us.gcr.io/airqo-250220/airqo-stage-device-uptime-job:latest
               imagePullPolicy: Always
               resources: {}
               terminationMessagePath: /dev/termination-log
