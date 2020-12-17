@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import logging
 from helpers import convert_dates
 from helpers.convert_object_ids import convert_model_ids
+from helpers.group_by import group_by
 from models import device_status
 from routes import api
 import sys
@@ -301,6 +302,39 @@ def get_device_uptime():
         return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
+
+
+@device_status_bp.route(api.route['all_device_uptime'], methods=['GET'])
+def get_all_devices_uptime():
+    REQUIRED_ARGS = ['tenant', 'days']
+    errors = {}
+
+    for arg in REQUIRED_ARGS:
+        if not request.args.get(arg):
+            errors[arg] = f"'{arg}' is a required parameter"
+
+    tenant = request.args.get('tenant')
+
+    try:
+        days = int(request.args.get('days'))
+    except ValueError:
+        errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+
+    if errors:
+        return jsonify(dict(
+            message="Please specify one of the following query parameters. "
+                    "Refer to the API documentation for details.",
+            errors=errors
+        )), 400
+    model = device_status.DeviceStatus()
+    result = model.get_all_devices_uptime(tenant, days)
+    result = group_by('device_name', convert_model_ids(result))
+
+    response = dict(message="device uptime query successful", data=result)
+    return jsonify(response), 200
+
+
+
 
 
 @device_status_bp.route(api.route['device_battery_voltage'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])

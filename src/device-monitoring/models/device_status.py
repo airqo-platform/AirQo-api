@@ -1,10 +1,6 @@
-import app
 from datetime import datetime, timedelta
 from helpers import convert_dates
 from config import db_connection
-import requests
-import math
-from google.cloud import bigquery
 import pandas as pd
 
 
@@ -28,6 +24,13 @@ class DeviceStatus():
     def get_device_uptime(tenant, device_name, days):
         db = db_connection.connect_mongo(tenant)
         return db.device_uptime.find({'device_name': device_name}).limit(days)
+
+    @staticmethod
+    def get_all_devices_uptime(tenant, days):
+        db = db_connection.connect_mongo(tenant)
+        device_count = db.devices.find({'isActive': True}).count()
+        return db.device_uptime.find().limit(days * device_count)
+
 
     @staticmethod
     def get_network_uptime(tenant, days):

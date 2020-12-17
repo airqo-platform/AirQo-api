@@ -13,6 +13,7 @@ route = {
     'best_performing_devices': base_url + '/network/devices/bestperforming',
     'worst_performing_devices': base_url + '/network/devices/worstperforming',
     'device_uptime': base_url + '/device/uptime',
+    'all_device_uptime': base_url + '/devices/uptime',
     'online_offline': base_url + '/devices/online_offline',
     'device_battery_voltage': base_url + '/device/batteryvoltage',
     'device_sensor_correlation': base_url + '/device/sensors/correlation',
