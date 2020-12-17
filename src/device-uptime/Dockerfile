@@ -11,7 +11,7 @@ RUN pip install -r requirements.txt
 # Set "python" as the entry point
 # Set environment variables
 ENV FLASK_ENV=production
-ENV GOOGLE_APPLICATION_CREDENTIALS=AirQo-e37846081569.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
 
 # Expose the application's port, default is 5000 for python flask
 EXPOSE 5000
