@@ -1,12 +1,9 @@
 from flask import Blueprint, request, jsonify
 import logging
-import app
-import json
 from helpers import convert_dates
 from helpers.convert_object_ids import convert_model_ids
-from models import device_status, device_uptime
+from models import device_status
 from routes import api
-from flask_cors import CORS
 import sys
 from datetime import datetime
 
@@ -31,16 +28,10 @@ def get_device_status():
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
         documents = model.get_device_status(tenant)
-        if not documents:
-            return jsonify({"message": "No device status report available for " + tenant + " organization. please make sure you have provided a valid organization name.", "success": False}), 400
-        converted_document = convert_model_ids(documents[0])
-        import pdb
-        pdb.set_trace()
-        # response = []
-        # for document in documents:
-        #     document['_id'] = str(document['_id'])
-        #     response.append(document)
-        return jsonify(converted_document), 200
+        converted_documents = convert_model_ids(documents)
+
+        response = dict(message="devices status query successful", data=converted_documents)
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 

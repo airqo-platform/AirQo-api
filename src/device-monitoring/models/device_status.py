@@ -18,15 +18,15 @@ class DeviceStatus():
     def __init__(self):
         """ initialize """
 
-    # get device status infromation
     def get_device_status(self, tenant):
+        """get device status information"""
         db = db_connection.connect_mongo(tenant)
-        documents = db.device_status.find().limit(1)
-        print("documents", documents)
+        documents = db.device_status.find().sort([('$natural', -1)]).limit(1)
         return documents
 
     # get device maintenance log infromation
     def get_device_maintenance_log(self, tenant):
+        """# get device maintenance log information"""
         db = db_connection.connect_mongo(tenant)
         documents = db.activities.find({"activityType": "maintenance"})
         return documents
