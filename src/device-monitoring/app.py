@@ -3,7 +3,7 @@ import logging
 import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from config import config
+from config import constants
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -18,7 +18,7 @@ def create_app(environment):
     # create a flask app instance
     app = Flask(__name__)
 
-    app.config.from_object(config.app_config[environment])
+    app.config.from_object(constants.app_config[environment])
     mongo.init_app(app)
 
     # Allow cross-brower resource sharing
