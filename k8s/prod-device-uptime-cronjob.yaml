@@ -8,23 +8,23 @@ metadata:
       manager: kubectl
       operation: Update
       time: "2020-08-13T11:00:12Z"
-  name: stage-device-uptime-job
-  namespace: staging
+  name: prod-device-uptime-job
+  namespace: production
 spec:
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1
   jobTemplate:
     metadata:
       creationTimestamp: null
-      name: stage-device-uptime-job
+      name: prod-device-uptime-job
     spec:
       template:
         metadata:
           creationTimestamp: null
         spec:
           containers:
-            - name: stage-device-uptime-job
-              image: us.gcr.io/airqo-250220/airqo-stage-device-uptime-job:latest
+            - name: prod-device-uptime-job
+              image: us.gcr.io/airqo-250220/airqo-device-uptime-job:latest
               imagePullPolicy: Always
               resources: {}
               terminationMessagePath: /dev/termination-log
