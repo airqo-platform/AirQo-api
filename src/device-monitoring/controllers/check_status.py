@@ -31,7 +31,8 @@ def get_device_status():
         documents = model.get_device_status(tenant)
         converted_documents = convert_model_ids(documents)
 
-        response = dict(message="devices status query successful", data=converted_documents)
+        response = dict(message="devices status query successful",
+                        data=converted_documents)
         return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
@@ -207,6 +208,8 @@ def get_network_uptime():
             days = int(request.args.get('days'))
         except ValueError:
             errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+        except TypeError:
+            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
 
         if errors:
             return jsonify(dict(
@@ -287,6 +290,8 @@ def get_device_uptime():
             days = int(request.args.get('days'))
         except ValueError:
             errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+        except TypeError:
+            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
 
         if errors:
             return jsonify(dict(
@@ -319,6 +324,8 @@ def get_all_devices_uptime():
         days = int(request.args.get('days'))
     except ValueError:
         errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+    except TypeError:
+        errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
 
     if errors:
         return jsonify(dict(
@@ -332,9 +339,6 @@ def get_all_devices_uptime():
 
     response = dict(message="device uptime query successful", data=result)
     return jsonify(response), 200
-
-
-
 
 
 @device_status_bp.route(api.route['device_battery_voltage'], methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
