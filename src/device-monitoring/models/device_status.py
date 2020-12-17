@@ -21,8 +21,8 @@ class DeviceStatus():
     # get device status infromation
     def get_device_status(self, tenant):
         db = db_connection.connect_mongo(tenant)
-        documents = db.devices.find(
-            {'isActive': {'$eq': True}}, {'name': 1, 'location_id': 1, 'nextMaintenance': 1, 'channelID': 1})
+        documents = db.device_status.find().limit(1)
+        print("documents", documents)
         return documents
 
     # get device maintenance log infromation
@@ -34,7 +34,7 @@ class DeviceStatus():
      # get maintenance log for a given device name/id
     def get_device_name_maintenance_log(self, tenant, device_name):
         db = db_connection.connect_mongo(tenant)
-        #documents = db.maintenance_log.find({'device': device_name})
+        # documents = db.maintenance_log.find({'device': device_name})
         documents = db.activities.find(
             {'activityType': 'maintenance', 'device': device_name})
         return documents
@@ -43,7 +43,7 @@ class DeviceStatus():
     def get_device_power(self, tenant):
         db = db_connection.connect_mongo(tenant)
         documents = db.devices.find({'$and': [{'locationID': {'$ne': ""}}, {'status': {'$ne': "Retired"}}, {'power': {'$ne': ""}}]}, {
-                                    'power': 1, 'name': 1, 'locationID': 1})
+            'power': 1, 'name': 1, 'locationID': 1})
         return documents
 
     def get_all_devices_latest_status(self, tenant):

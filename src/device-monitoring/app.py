@@ -1,3 +1,4 @@
+from pathlib import Path
 from flask import Flask
 import logging
 import os
@@ -6,6 +7,9 @@ from flask_pymongo import PyMongo
 from config import constants
 from dotenv import load_dotenv
 load_dotenv()
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+print("BASE_DIR", BASE_DIR)
 
 
 _logger = logging.getLogger(__name__)

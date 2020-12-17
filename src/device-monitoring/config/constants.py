@@ -27,7 +27,6 @@ class ProductionConfig(Config):
 class DevelopmentConfig(Config):
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
-
     DEVELOPMENT = True
     DEBUG = True
     MONGO_URI = os.getenv("MONGO_DEV_URI")
@@ -37,7 +36,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
-
+    DEBUG = True
     TESTING = True
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
