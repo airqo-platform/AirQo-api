@@ -7,15 +7,14 @@ COPY . /app/
 WORKDIR /app/
 
 # Install the Flask package via pip
-RUN pip install -r requirements/prod.txt
+RUN pip install -r requirements.txt
 # Set "python" as the entry point
 # Set environment variables
-ENV FLASK_APP=app.py
 ENV FLASK_ENV=production
-ENV FLASK_RUN_PORT=4001
+ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
 
 # Expose the application's port, default is 5000 for python flask
-EXPOSE 4001
+EXPOSE 5000
 
 # Run the application
-CMD ["flask", "run", "--host=0.0.0.0"]
+CMD ["python", "app.py", "--tenant=airqo"]
