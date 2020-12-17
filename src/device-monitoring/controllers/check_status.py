@@ -273,35 +273,32 @@ def get_device_uptime():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
+        REQUIRED_ARGS = ['tenant', 'device_name', 'days']
+        errors = {}
+
+        for arg in REQUIRED_ARGS:
+            if not request.args.get(arg):
+                errors[arg] = f"'{arg}' is a required parameter"
+
         tenant = request.args.get('tenant')
-        device_channel_id = request.args.get('channel_id')
-        device_id = request.args.get('device_id')
         device_name = request.args.get('device_name')
+        try:
+            days = int(request.args.get('days'))
+        except ValueError:
+            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
 
-        if (not device_id and not device_name and not device_channel_id):
-            return jsonify({"message": "please specify one of the following query parameters i.e.device_channel_id , device_name ,device_id. Refer to the API documentation for details.", "success": False}), 400
+        if errors:
+            return jsonify(dict(
+                message="Please specify one of the following query parameters. "
+                        "Refer to the API documentation for details.",
+                errors=errors
+            )), 400
 
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        if device_channel_id and type(device_channel_id) is not int:
-            device_channel_id = int(device_channel_id)
-            filter_param = device_channel_id
+        result = model.get_device_uptime(tenant, device_name, days)
+        result = convert_model_ids(result)
 
-        if not device_channel_id:
-            if device_name:
-                filter_param = device_name
-            else:
-                filter_param = device_id
-
-        result = model.get_device_uptime_analysis_results(
-            tenant, filter_param)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "Uptime data not available for the specified device or " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
+        response = dict(message="device uptime query successful", data=result)
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
