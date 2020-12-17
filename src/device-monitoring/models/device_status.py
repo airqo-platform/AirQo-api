@@ -24,7 +24,17 @@ class DeviceStatus():
         documents = db.device_status.find().sort([('$natural', -1)]).limit(1)
         return documents
 
-    # get device maintenance log infromation
+    @staticmethod
+    def get_device_uptime(tenant, device_name, days):
+        db = db_connection.connect_mongo(tenant)
+        return db.device_uptime.find({'device_name': device_name}).sort([('$natural', -1)]).limit(days)
+
+    @staticmethod
+    def get_network_uptime(tenant, days):
+        db = db_connection.connect_mongo(tenant)
+        return db.network_uptime.find({'network_name': tenant}).sort([('$natural', -1)]).limit(days)
+
+
     def get_device_maintenance_log(self, tenant):
         """# get device maintenance log information"""
         db = db_connection.connect_mongo(tenant)

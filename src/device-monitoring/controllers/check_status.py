@@ -193,17 +193,31 @@ def get_network_uptime():
     '''
     model = device_status.DeviceStatus()
     if request.method == 'GET':
+        REQUIRED_ARGS = ['tenant', 'days']
+        errors = {}
+
+        for arg in REQUIRED_ARGS:
+            if not request.args.get(arg):
+                errors[arg] = f"'{arg}' is a required parameter"
+
         tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        result = model.get_network_uptime_analysis_results(tenant)
-        if result:
-            response = result
-        else:
-            response = {
-                "message": "Uptime data not available for " + tenant + " organization", "success": False}
-        data = jsonify(response)
-        return data, 200
+
+        try:
+            days = int(request.args.get('days'))
+        except ValueError:
+            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+
+        if errors:
+            return jsonify(dict(
+                message="Please specify one of the following query parameters. "
+                        "Refer to the API documentation for details.",
+                errors=errors
+            )), 400
+
+        result = model.get_network_uptime(tenant, days)
+        result = convert_model_ids(result)
+        response = dict(message="network uptime query successful", data=result)
+        return jsonify(response), 200
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
