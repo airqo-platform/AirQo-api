@@ -1,15 +1,7 @@
-import app
-from datetime import datetime, timedelta
-from helpers import convert_dates
-from config import db_connection
-import requests
-import math
-from google.cloud import bigquery
-import pandas as pd
 from config import db_connection
 
 
-class Device():
+class Device:
     """The class contains functionality for retrieving device status .
     Attributes:
         attr1 (str): Description of `attr1`.

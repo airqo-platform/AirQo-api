@@ -1,17 +1,10 @@
-import base64
-from bson import json_util, ObjectId
-import json
-from datetime import datetime, timedelta
-from pymongo import MongoClient
-from models import device_status_hourly_check_results, device, device_status
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+from models import device
 from models.device_status import DeviceStatus as DeviceStatusModel
-from routes import api
 import requests
-import math
-import os
-from flask import Blueprint, request, jsonify
 import logging
-from config import db_connection, constants
+from config import constants
 from helpers import convert_dates
 from dataclasses import dataclass
 _logger = logging.getLogger(__name__)
@@ -20,7 +13,8 @@ _logger = logging.getLogger(__name__)
 @dataclass
 class DeviceStatus:
     is_online: bool
-    elapsed_time: int
+    elapsed_time: float
+    channel: dict
 
 
 def get_all_devices(tenant):
@@ -29,12 +23,13 @@ def get_all_devices(tenant):
     return [device for device in results if device.get("isActive")]
 
 
-def get_device_status(channel_id):
+def get_device_status(channel):
+    print("Scheduled querying channel for", channel.get("channelID"))
+    channel_id = channel.get("channelID")
     api_url = '{0}{1}{2}'.format(
         constants.configuration.BASE_API_URL, 'feeds/recent/', channel_id)
     latest_device_status_response = requests.get(api_url)
     if latest_device_status_response.status_code == 200:
-        print(latest_device_status_response.json())
         result = latest_device_status_response.json()
         current_datetime = datetime.now()
 
@@ -44,9 +39,9 @@ def get_device_status(channel_id):
         six_hours = 21600  # in seconds
 
         if time_difference < six_hours:
-            return DeviceStatus(is_online=True, elapsed_time=time_difference)
-        return DeviceStatus(is_online=False, elapsed_time=time_difference)
-    return DeviceStatus(is_online=False, elapsed_time=-1)
+            return DeviceStatus(is_online=True, elapsed_time=time_difference, channel=channel)
+        return DeviceStatus(is_online=False, elapsed_time=time_difference, channel=channel)
+    return DeviceStatus(is_online=False, elapsed_time=-1, channel=channel)
 
 
 def compute_device_channel_status(tenant):
@@ -62,11 +57,19 @@ def compute_device_channel_status(tenant):
     count_due_maintenance = 0
     count_overdue_maintenance = 0
 
+    futures = []
+    executor = ThreadPoolExecutor()
+
     for channel in results:
-        print(f'the type for channel is {type(channel)}')
-        # print(channel['channelID'])
-        # update the number of solar devices
-        # calculate the maintenance due periods
+        futures.append(executor.submit(get_device_status, channel))
+
+    for future in futures:
+        try:
+            device_status = future.result()
+        except Exception as exec:
+            print("Cannot proccess channel", exec)
+            continue
+        channel = device_status.channel
 
         try:
             maintenance_status = (channel.get(
@@ -95,7 +98,6 @@ def compute_device_channel_status(tenant):
         elif check_power_type("alternator"):
             count_of_alternator_devices += 1
 
-        device_status = get_device_status(channel.get("channelID"))
         channel['elapsed_time'] = device_status.elapsed_time
         if device_status.is_online:
             count_of_online_devices += 1
@@ -104,8 +106,7 @@ def compute_device_channel_status(tenant):
             count_of_offline_devices += 1
             offline_devices.append(channel)
 
-    print(count_of_online_devices)
-    print(count_of_offline_devices)
+        print("Done processing channel", channel.get("channelID"))
 
     device_status_results = []
 
@@ -118,8 +119,6 @@ def compute_device_channel_status(tenant):
               "online_devices": online_devices,
               "offline_devices": offline_devices}
     device_status_results.append(record)
-
-    print(device_status_results)
 
     device_status_model = DeviceStatusModel(tenant)
     device_status_model.save_device_status(device_status_results)
