@@ -31,6 +31,15 @@ def get_device_status():
         documents = model.get_device_status(tenant)
         converted_documents = convert_model_ids(documents)
 
+        converted_documents[0]["offline_devices"] = [
+            {k: v for k, v in device.items() if k not in ['longitude', 'latitude']}
+            for device in converted_documents[0]["offline_devices"]
+        ]
+        converted_documents[0]["online_devices"] = [
+            {k: v for k, v in device.items() if k not in ['longitude', 'latitude']}
+            for device in converted_documents[0]["online_devices"]
+        ]
+
         response = dict(message="devices status query successful", data=converted_documents)
         return jsonify(response), 200
     else:

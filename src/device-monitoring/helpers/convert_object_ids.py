@@ -1,7 +1,7 @@
 def convert_model_ids(documents):
     docs = list(documents)
 
-    for key, document in enumerate(docs):
+    for document in docs:
         for k, v in dict(document).items():
             if k == '_id':
                 document[k] = str(v)
