@@ -40,7 +40,15 @@ def calibrate_pm25_values():
 @calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
 def calibrate():
     if request.method == 'GET':
-        results = cb.calibrate_raw_data()
-        return jsonify({"calibrated Values":results})
+        raw_value = request.args.get('raw_value')
+        datetime = request.args.get('datetime')
+        sensor_id = request.args.get('sensorid')
+
+        if (not raw_value or not datetime or not sensor_id):
+            return jsonify({"message": "please specify all the query parameters i.e.raw_value , datetime ,sensorid. Refer to the API documentation for details.", "success": False}), 400
+        
+        calibrateModel = cb.Calibrate()
+        response = calibrateModel.calibrate_sensor_raw_data(raw_value, datetime, sensor_id)
+        return jsonify(response), 200
 
 
