@@ -18,7 +18,7 @@ class DeviceStatus:
 
 
 def get_all_devices(tenant):
-    model = device.Device()
+    model = Device()
     results = model.get_devices(tenant)
     return [device for device in results if device.get("isActive")]
 
@@ -50,12 +50,12 @@ def compute_device_channel_status(tenant):
     online_devices = []
     offline_devices = []
     count_of_offline_devices = 0
-    ####
     count_of_solar_devices = 0
     count_of_alternator_devices = 0
     count_of_mains = 0
     count_due_maintenance = 0
     count_overdue_maintenance = 0
+    count_unspecified_maintenance = 0
 
     futures = []
     executor = ThreadPoolExecutor()
@@ -66,8 +66,8 @@ def compute_device_channel_status(tenant):
     for future in futures:
         try:
             device_status = future.result()
-        except Exception as exec:
-            print("Cannot proccess channel", exec)
+        except Exception as ex:
+            print("Cannot process channel", ex)
             continue
         channel = device_status.channel
 
@@ -85,8 +85,9 @@ def compute_device_channel_status(tenant):
                 count_due_maintenance += 1
             else:
                 channel["maintenance_status"] = "good"
-        except:
+        except Exception:
             channel["maintenance_status"] = -1
+            count_unspecified_maintenance += 1
 
         def check_power_type(power):
             return (channel.get("powerType") or channel.get("power") or "").lower() == power
@@ -95,7 +96,7 @@ def compute_device_channel_status(tenant):
             count_of_solar_devices += 1
         elif check_power_type("mains"):
             count_of_mains += 1
-        elif check_power_type("alternator"):
+        elif check_power_type("alternator") or check_power_type("battery"):
             count_of_alternator_devices += 1
 
         channel['elapsed_time'] = device_status.elapsed_time
@@ -116,6 +117,12 @@ def compute_device_channel_status(tenant):
               "total_active_device_count": len(results),
               "count_of_online_devices": count_of_online_devices,
               "count_of_offline_devices": count_of_offline_devices,
+              "count_of_mains": count_of_mains,
+              "count_of_solar_devices": count_of_solar_devices,
+              "count_of_alternator_devices": count_of_alternator_devices,
+              "count_due_maintenance": count_due_maintenance,
+              "count_overdue_maintenance": count_overdue_maintenance,
+              "count_unspecified_maintenance": count_unspecified_maintenance,
               "online_devices": online_devices,
               "offline_devices": offline_devices}
     device_status_results.append(record)
