@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-from models import device
+import math
+from models.device import Device
 from models.device_status import DeviceStatus as DeviceStatusModel
 import requests
 import logging
@@ -31,6 +32,14 @@ def get_device_status(channel):
     latest_device_status_response = requests.get(api_url)
     if latest_device_status_response.status_code == 200:
         result = latest_device_status_response.json()
+        try:
+            channel["_id"] = str(channel.get("_id"))
+            if math.isnan(channel.get("longitude")):
+               channel["longitude"] = float(result.get("field6"))
+            if math.isnan(channel.get("latitude")):
+               channel["latitude"] = float(result.get("field5"))
+        except Exception:
+            pass
         current_datetime = datetime.now()
 
         date_time_difference = current_datetime - \
