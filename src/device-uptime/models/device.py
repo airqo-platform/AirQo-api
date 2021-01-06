@@ -8,7 +8,7 @@ from google.cloud import bigquery
 import pandas as pd
 
 
-class Device():
+class Device:
     """The class contains functionality for retrieving device status .
     Attributes:
         attr1 (str): Description of `attr1`.

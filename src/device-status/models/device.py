@@ -8,9 +8,6 @@ class Device:
         attr2 (:obj:`int`, optional): Description of `attr2`.
     """
 
-    def __init__(self):
-        """ initialize """
-
     # get device status infromation
     def get_devices(self, tenant):
         db = db_connection.connect_mongo(tenant)
