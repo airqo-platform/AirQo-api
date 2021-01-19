@@ -8,11 +8,6 @@ const eventSchema = new Schema(
       required: [true, "The deviceName is required"],
       trim: true,
     },
-    componentName: {
-      type: String,
-      required: [true, "the componentName is required"],
-      trim: true,
-    },
     day: {
       type: Date,
     },
@@ -23,8 +18,12 @@ const eventSchema = new Schema(
     },
     values: [
       {
-        value: { type: Number, required: [true, "the value is required"] },
-        raw: { type: Number },
+        sensor: {
+          type: String,
+          required: [true, "the sensor name is required"],
+          trim: true,
+        },
+        raw: { type: Number, required: [true, "the raw value is required"] },
         calibratedValue: { type: Number },
         uncertaintyValue: { type: Number },
         standardDeviationValue: { type: Number },
@@ -33,16 +32,14 @@ const eventSchema = new Schema(
           type: String,
           required: [true, "the frequency is required"],
         },
-        time: { type: Date },
-        measurement: {
-          quantityKind: {
-            type: String,
-            required: [true, "The quantity kind is required"],
-          },
-          measurementUnit: {
-            type: String,
-            required: [true, "The unit is required"],
-          },
+        time: { type: Date, required: [true, "the timestamp is required"] },
+        quantityKind: {
+          type: String,
+          required: [true, "The quantity kind is required"],
+        },
+        measurementUnit: {
+          type: String,
+          required: [true, "The measurement unit is required"],
         },
       },
     ],
@@ -75,11 +72,12 @@ eventSchema.methods = {
       _id: this._id,
       createdAt: this.createdAt,
       deviceName: this.deviceName,
-      componentName: this.componentName,
       values: this.values,
       day: this.day,
       first: this.first,
       last: this.last,
+      quantityKind: this.quantityKind,
+      measurementUnit: this.measurementUnit,
     };
   },
 };
