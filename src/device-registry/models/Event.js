@@ -3,7 +3,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 
 const eventSchema = new Schema(
   {
-    deviceName: {
+    device: {
       type: String,
       required: [true, "The deviceName is required"],
       trim: true,
@@ -27,20 +27,11 @@ const eventSchema = new Schema(
         calibratedValue: { type: Number },
         uncertaintyValue: { type: Number },
         standardDeviationValue: { type: Number },
-        weight: { type: Number },
         frequency: {
           type: String,
           required: [true, "the frequency is required"],
         },
         time: { type: Date, required: [true, "the timestamp is required"] },
-        quantityKind: {
-          type: String,
-          required: [true, "The quantity kind is required"],
-        },
-        measurementUnit: {
-          type: String,
-          required: [true, "The measurement unit is required"],
-        },
       },
     ],
   },
@@ -49,13 +40,7 @@ const eventSchema = new Schema(
   }
 );
 
-eventSchema.index({ deviceName: 1, componentName: 1 });
-
-eventSchema.index({ componentName: 1 });
-
-eventSchema.index({ deviceName: 1 });
-
-eventSchema.index({ values: 1 });
+eventSchema.index({ device: 1 });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
@@ -71,13 +56,11 @@ eventSchema.methods = {
     return {
       _id: this._id,
       createdAt: this.createdAt,
-      deviceName: this.deviceName,
+      device: this.device,
       values: this.values,
       day: this.day,
       first: this.first,
       last: this.last,
-      quantityKind: this.quantityKind,
-      measurementUnit: this.measurementUnit,
     };
   },
 };
