@@ -663,38 +663,43 @@ const Component = {
   addBulk: async (req, res) => {
     try {
       logText("adding values in bulk...");
-      const { device, component, tenant } = req.query;
+      const { device, tenant } = req.query;
       const { values, time } = req.body;
       logObject("the type of device name", typeof device);
       if (
         !isEmpty(time) &&
         !isEmpty(values) &&
         !isEmpty(device) &&
-        !isEmpty(component) &&
         !isEmpty(tenant)
       ) {
-        const isComponentPresent = await doesComponentExist(
-          component,
+        const isDevicePresent = await doesDeviceExist(
           device,
           tenant.toLowerCase()
         );
-        logElement("does component exist", isComponentPresent);
 
-        if (isComponentPresent) {
-          const samples = values;
-          // const day = new Date(time);
+        logElement("does device exist", isDevicePresent);
+
+        if (isDevicePresent) {
           const day = await generateDateFormat(time);
           const eventBody = {
-            componentName: component,
-            deviceName: device,
+            device: device,
             day: day,
             nValues: { $lt: constants.N_VALUES },
           };
+          let valuesForExistingSensors = values.filter(function (el) {
+            let isComponentPresent = await doesComponentExist(
+              el.sensor,
+              device,
+              tenant.toLowerCase()
+            );
+            logElement("does component exist", isComponentPresent);
+            return isComponentPresent = true
+          } )
           const options = {
-            $push: { values: samples },
+            $push: { values: valuesForExistingSensors },
             $min: { first: time },
             $max: { last: time },
-            $inc: { nValues: samples.length },
+            $inc: { nValues: valuesForExistingSensors.length },
           };
 
           const addedEvent = await getModelByTenant(
@@ -711,22 +716,21 @@ const Component = {
             return res.status(HTTPStatus.OK).json({
               success: true,
               message: "successfully added the device data",
-              values: samples,
-              component: component,
+              values: valuesForExistingSensors,
               device: device,
             });
           } else if (!addedEvent) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: "unable to add events",
+              message: "unable to add events in bulk",
               success: false,
             });
           } else {
-            logText("just unable to add events");
+            logText("just unable to add events in bulk");
           }
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: `the component (${component}) does not exist for this device (${device})`,
+            message: `the device (${device}) does not exist on the network`,
           });
         }
       } else {
