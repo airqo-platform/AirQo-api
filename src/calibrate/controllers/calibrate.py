@@ -18,7 +18,7 @@ calibrate_bp = Blueprint('calibrate_bp', __name__)
 # MONGO_URI = os.getenv("MONGO_URI")
 # client = MongoClient(MONGO_URI)
 # db = client['airqo_netmanager_staging_airqo']
-
+# db = client['airqo_netmanager_staging_airqo']
 
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
 
@@ -35,6 +35,7 @@ def calibrate_pm25_values():
         performance_eval = regression.performance
 
         return jsonify({"calibrated Value": calibrated_value, "Performance Evaluation": performance_eval})
+
 
 
 @calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
