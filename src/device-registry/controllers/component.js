@@ -552,36 +552,32 @@ const Component = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, component, tenant } = req.query;
+      const { device, tenant } = req.query;
 
       const {
-        value,
+        calibratedValue,
         raw,
-        weight,
         frequency,
         time,
         calibratedValue,
-        measurement,
         uncertaintyValue,
         standardDeviationValue,
+        sensor,
       } = req.body;
       logObject("the type of device name", typeof device);
       if (
-        !isEmpty(value) &&
         !isEmpty(raw) &&
-        !isEmpty(weight) &&
         !isEmpty(frequency) &&
         !isEmpty(device) &&
         !isEmpty(time) &&
-        !isEmpty(component) &&
+        !isEmpty(sensor) &&
         !isEmpty(calibratedValue) &&
-        !isEmpty(measurement) &&
         !isEmpty(uncertaintyValue) &&
         !isEmpty(standardDeviationValue) &&
         !isEmpty(tenant)
       ) {
         const isComponentPresent = await doesComponentExist(
-          component,
+          sensor,
           device,
           tenant.toLowerCase()
         );
@@ -589,20 +585,17 @@ const Component = {
 
         if (isComponentPresent) {
           const sample = {
-            value,
             raw,
-            weight,
             frequency,
             time,
             calibratedValue,
-            measurement,
             uncertaintyValue,
             standardDeviationValue,
+            sensor,
           };
           const day = await generateDateFormat(time);
           const eventBody = {
-            componentName: component,
-            deviceName: device,
+            device: device,
             day: day,
             nValues: { $lt: constants.N_VALUES },
           };
@@ -630,7 +623,6 @@ const Component = {
             const samples = { ...sample };
             const event = {
               values: samples,
-              component: component,
               device: device,
             };
             return res.status(HTTPStatus.OK).json({
@@ -649,7 +641,7 @@ const Component = {
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: `the component (${component}) does not exist for this device (${device})`,
+            message: `the sensor (${sensor}) does not exist for this device (${device})`,
           });
         }
       } else {
