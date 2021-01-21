@@ -72,8 +72,8 @@ const doesDeviceExist = async (deviceName, tenant) => {
     logText("doesDeviceExist?...");
     const device = await getModelByTenant(
       tenant.toLowerCase(),
-      "component",
-      ComponentSchema
+      "device",
+      DeviceSchema
     )
       .find({
         name: deviceName,
