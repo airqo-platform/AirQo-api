@@ -559,7 +559,6 @@ const Component = {
         raw,
         frequency,
         time,
-        calibratedValue,
         uncertaintyValue,
         standardDeviationValue,
         sensor,
@@ -686,15 +685,15 @@ const Component = {
             day: day,
             nValues: { $lt: constants.N_VALUES },
           };
-          let valuesForExistingSensors = values.filter(function (el) {
+          let valuesForExistingSensors = values.filter(async function(el) {
             let isComponentPresent = await doesComponentExist(
               el.sensor,
               device,
               tenant.toLowerCase()
             );
             logElement("does component exist", isComponentPresent);
-            return isComponentPresent = true
-          } )
+            return (isComponentPresent = true);
+          });
           const options = {
             $push: { values: valuesForExistingSensors },
             $min: { first: time },
