@@ -2,10 +2,10 @@ import pandas as pd
 from google.cloud import bigquery
 import numpy as np
 import pickle
-import gpflow
+#import gpflow
 from datetime import datetime,timedelta
 import matplotlib.pyplot as plt
-from gpflow.utilities import print_summary
+#from gpflow.utilities import print_summary
 import download_airnow_web
 import pyproj
 from glob import glob
