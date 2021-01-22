@@ -8,8 +8,8 @@ def f(x,a,b):
     Experimental - calibration function [not used in main code yet]
     """
     return x*a+b
-    
-def compute_simple_calibration(X,Y,delta,refsensor,mincolocationsinperiod=3):
+
+def compute_simple_calibration(X,Y,delta,refsensor):
     """
     Computes scalings of each sensor using the network of colocated observations
     to connect reference sensors to other sensors by following a shortest path
@@ -32,7 +32,6 @@ def compute_simple_calibration(X,Y,delta,refsensor,mincolocationsinperiod=3):
     """
     G = nx.DiGraph()
     maxnum = int(np.max(X[:,1:]))
-    #data = np.full([maxnum+1,maxnum+1],np.NaN)
     for it,starttime in enumerate(np.arange(0,np.max(X[:,0]),delta)):
         keep = (X[:,0]>starttime) & (X[:,0]<starttime+delta)
         Xkeep = X[keep,:]
@@ -40,14 +39,14 @@ def compute_simple_calibration(X,Y,delta,refsensor,mincolocationsinperiod=3):
         for i in range(maxnum+1):
             for j in range(maxnum+1):
                 keep = (Xkeep[:,1]==i) & (Xkeep[:,2]==j)
-                if len(Ykeep[keep,0])>mincolocationsinperiod: #need a few data points for confidence?
+                if len(Ykeep[keep,0])>3: #need a few data points for confidence?
                     logratio=np.nanmean(np.log(Ykeep[keep,0]/Ykeep[keep,1]))
                     popt, pcov = curve_fit(f,Ykeep[keep,1],Ykeep[keep,0])
                     G.add_edge((i,it),(j,it),val=logratio,popt=popt,pcov=pcov,weight=2)
                     popt, pcov = curve_fit(f,Ykeep[keep,0],Ykeep[keep,1])
                     G.add_edge((j,it),(i,it),val=-logratio,popt=popt,pcov=pcov,weight=2)
     maxit = it
-    for it,starttime in enumerate(np.arange(0,np.max(X[:,0])+delta,delta)):
+    for it,starttime in enumerate(np.arange(0,np.max(X[:,0]),delta)):
         if it>0:
             for i in range(maxnum+1):
                 #if np.all(np.isnan(data[i,:])): continue
@@ -83,6 +82,7 @@ def compute_simple_calibration(X,Y,delta,refsensor,mincolocationsinperiod=3):
 
         #allpopt
     return G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists
+
 
 def plot_simple_calibration_graph(G):
     """
