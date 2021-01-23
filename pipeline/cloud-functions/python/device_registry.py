@@ -4,15 +4,17 @@ import requests
 
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
 MEASUREMENT_UNITS = dict({
-    "temperature": "degrees",
+    "temperature": "°C",
     "relHumid": "%",
-    "pm10ConcMass": "µg m−3",
+    "pm10ConcMass": "μg/m3",
     "pm10ConcNum": "micrograms",
-    "pm1ConcMass": "micrograms",
+    "pm1ConcMass": "μg/m3",
     "pm1ConcNum": "micrograms",
-    "pm2_5ConcMass": "micrograms",
+    "pm2_5ConcMass": "μg/m3",
     "pm2_5ConcNum": "micrograms",
     "no2Conc": "ppb",
+    "vocConc": "ppb",
+    "co2Conc": "ppb",
 })
 
 

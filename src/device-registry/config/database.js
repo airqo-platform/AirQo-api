@@ -3,7 +3,6 @@ mongoose.set("useFindAndModify", false);
 const constants = require("./constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const URI = constants.MONGO_URI;
-logElement("environment", process.env.NODE_ENV);
 logElement("the URI string", URI);
 
 const options = {
@@ -17,6 +16,7 @@ const options = {
   connectTimeoutMS: 10000,
   socketTimeoutMS: 30000,
   dbName: constants.DB_NAME,
+  autoIndex: false,
 };
 
 const connect = () => mongoose.createConnection(URI, options);

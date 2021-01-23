@@ -6,10 +6,10 @@ const dotenv = require("dotenv");
 dotenv.config();
 var cookieParser = require("cookie-parser");
 var bodyParser = require("body-parser");
-
 var api = require("./routes/api");
 const { mongodb } = require("./config/dbConnection");
 mongodb;
+console.log = function () {};
 
 var app = express();
 
