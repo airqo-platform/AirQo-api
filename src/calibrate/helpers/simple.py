@@ -8,6 +8,7 @@ def f(x,a,b):
     Experimental - calibration function [not used in main code yet]
     """
     return x*a+b
+f = f(x,a,b)
 
 def compute_simple_calibration(X,Y,delta,refsensor):
     """
@@ -82,6 +83,7 @@ def compute_simple_calibration(X,Y,delta,refsensor):
 
         #allpopt
     return G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists
+    G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = compute_simple_calibration(X,Y,delta,refsensor)
 
 
 def plot_simple_calibration_graph(G):
@@ -110,7 +112,7 @@ def compute_simple_predictions(testX,allcals,delta,allpcovs): # changed
         except KeyError as ke:
             print('Key Not Found:', ke)
     return res,scale,preds,key
-
+res,scale,preds,key = compute_simple_predictions(testX,allcals,delta,allpcovs)
 
 #original function
 #====================================================================================================================
