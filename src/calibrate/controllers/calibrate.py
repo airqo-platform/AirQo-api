@@ -18,7 +18,7 @@ calibrate_bp = Blueprint('calibrate_bp', __name__)
 # MONGO_URI = os.getenv("MONGO_URI")
 # client = MongoClient(MONGO_URI)
 # db = client['airqo_netmanager_staging_airqo']
-
+# db = client['airqo_netmanager_staging_airqo']
 
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
 
@@ -37,12 +37,13 @@ def calibrate_pm25_values():
         return jsonify({"calibrated Value": calibrated_value, "Performance Evaluation": performance_eval})
 
 
+
 @calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
 def calibrate():
     if request.method == 'GET':
-        raw_value = request.args.get('raw_value')
         datetime = request.args.get('datetime')
         sensor_id = request.args.get('sensorid')
+        raw_value = request.args.get('raw_value')
 
         if (not raw_value or not datetime or not sensor_id):
             return jsonify({"message": "please specify all the query parameters i.e.raw_value , datetime ,sensorid. Refer to the API documentation for details.", "success": False}), 400
