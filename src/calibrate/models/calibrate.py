@@ -43,7 +43,7 @@ class Calibrate():
     
     def calibrate_sensor_raw_data(self, raw_value, datetime, sensor_id):
         delta = 24*7
-        testX = np.c_[datetime, sensor_id,raw_value]
+        testX = [datetime, sensor_id, raw_value]
         res,scale,preds,key = sp.compute_simple_predictions
         result = {"calibrated_value": preds} #, "calibrated_standard_error": calibrated_standard_error
         print(result)
