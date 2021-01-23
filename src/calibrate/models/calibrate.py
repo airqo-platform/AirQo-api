@@ -16,15 +16,15 @@ class Calibrate():
         """ initialize """
 
    
-    def get_values(self):
+    def get_values():
         allbamdf = dp.processBAMdata
         df = dp.loaddata
         dataset = dp.combinedatasets
         encounters = dp.build_encounters   
         return encounters
+    encounters = get_values()
 
-
-    def calibrate_raw_data(self):
+    def calibrate_raw_data():
         unq = np.unique(np.r_[encounters['channel_id_sensorA'].unique(),encounters['channel_id_sensorB'].unique()])
         t = (encounters['created_at']-pd.Timestamp('2020-07-15',tz='UTC')).dt.total_seconds()/3600 #hours since 15th July put to 1970 and substract some dates
         idA = [np.where(a==unq)[0][0] for a in encounters['channel_id_sensorA']]
@@ -39,11 +39,12 @@ class Calibrate():
         G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = sp.compute_simple_calibration
         print(allcals)
         return allcals
-
+    allcals = calibrate_raw_data()
     
-    def calibrate_sensor_raw_data(self, raw_value, datetime, sensor_id):
+    def calibrate_sensor_raw_data(self, datetime, sensorid, raw_value):
         delta = 24*7
-        testX = [datetime, sensor_id, raw_value]
+
+        testX = [datetime, sensorid, raw_value]
         res,scale,preds,key = sp.compute_simple_predictions
         result = {"calibrated_value": preds} #, "calibrated_standard_error": calibrated_standard_error
         print(result)
@@ -51,6 +52,3 @@ class Calibrate():
 
 if __name__ == "__main__":
     calibrateInstance = Calibrate()
-    # #results = calibrateInstance.sample(2,3)
-    # results = calibrateInstance.calibrate_sensor_raw_data(74,'2020-12-01',23)
-    # print(results)
