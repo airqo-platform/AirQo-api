@@ -158,8 +158,8 @@ def intercept(regressor_muk):
     return intercept
 
 
-intercept = intercept(regressor_muk)
-print(intercept)
+# intercept = intercept(regressor_muk)
+# print(intercept)
 
 
 def slope(regressor_muk):
@@ -167,8 +167,8 @@ def slope(regressor_muk):
     return slope
 
 
-slope = slope(regressor_muk)
-print(slope)
+# slope = slope(regressor_muk)
+# print(slope)
 
 
 # Uncertainity, Standard Deviation and R2
