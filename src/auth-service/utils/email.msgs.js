@@ -48,4 +48,12 @@ module.exports = {
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
     );
   },
+  user_updated: (firstName, lastName) => {
+    return (
+      `Dear ${firstName + " " + lastName} \n\n` +
+      "Your account AirQo Platform account details have been updated. \n\n" +
+      "If this activity sounds suspicious to you, please reach out to your organisation's administrator \n\n" +
+      `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
+    );
+  },
 };

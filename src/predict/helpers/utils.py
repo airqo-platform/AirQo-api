@@ -1,4 +1,4 @@
-from google.cloud import bigquery
+from google.cloud import storage
 from geopy import distance
 import json
 import pytz
@@ -6,13 +6,20 @@ from datetime import datetime
 import pandas as pd
 from models import datamanagement as dm
 import os
-
-
+from os import makedirs
+from os.path import join, isdir, isfile, basename
+import numpy as np
+import tensorflow as tf
 import requests
+import pymongo
+from pymongo import MongoClient
+from dotenv import load_dotenv
+load_dotenv()
 
 MET_API_URL= os.getenv("MET_API_UR")
 MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
 MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
+MONGO_URI = os.getenv("MONGO_URI")
 
 def get_hourly_met_forecasts():
     """
@@ -163,6 +170,30 @@ def convert_local_string_date_to_tz_aware_datetime(local_date_string):
     date_time_obj = datetime.strptime(local_date_string, '%Y-%m-%d %H:%M:%S+3:00')
     timezone_date_time_obj = timezone.localize(date_time_obj)
     return timezone_date_time_obj
+
+def string_to_hourly_datetime(my_list):
+    '''
+    converts a datetime string in a list to a format known by the gp model
+    '''
+    my_list[2] = datetime.strptime(my_list[2], '%Y-%m-%dT%H:%M:%SZ')
+    my_list[2] = my_list[2].timestamp()/3600
+    return my_list
+
+
+def get_gp_predictions():
+    '''
+    returns pm 2.5 predictions given an array of space and time inputs
+    '''
+    try:
+        client = MongoClient(MONGO_URI)
+    except pymongo.errors.ConnectionFailure as e:
+        return {'message':'unable to connect to database', 'success':False}, 400
+
+    db = client['airqo_netmanager_airqo']
+    query = {}
+    projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1}
+    records = list(db.gp_predictions.find(query, projection))
+    return records
 
 def str_to_date(st):
     """
