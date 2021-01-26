@@ -52,6 +52,14 @@ const eventSchema = new Schema(
   }
 );
 
+eventSchema.index({ deviceName: 1, componentName: 1 });
+
+eventSchema.index({ componentName: 1 });
+
+eventSchema.index({ deviceName: 1 });
+
+eventSchema.index({ values: 1 });
+
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);

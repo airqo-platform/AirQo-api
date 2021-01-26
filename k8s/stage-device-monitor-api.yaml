@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-stage-device-monitor
+  name: airqo-stage-device-monitor-api
   namespace: staging
 spec:
   selector:
@@ -27,24 +27,24 @@ spec:
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: device-monitor-secret
                   key: MONGO_GCE_URI
             - name: DB_NAME_STAGE
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: device-monitor-secret
                   key: PLATFORM_MONGO_STAGE
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: device-monitor-secret
                   key: SECRET_KEY
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-stage-device-monitor-svc
+  name: airqo-stage-device-monitor-api-svc
   namespace: staging
 spec:
   selector:

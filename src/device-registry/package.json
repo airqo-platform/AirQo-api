@@ -15,8 +15,9 @@
     },
     "dependencies": {
         "@google-cloud/iot": "^1.5.0",
+        "app-module-path": "^2.2.0",
         "avsc": "^5.4.16",
-        "axios": "^0.19.2",
+        "axios": "^0.21.1",
         "body-parser": "^1.18.3",
         "cloudinary": "^1.23.0",
         "compression": "^1.7.4",
@@ -44,6 +45,7 @@
         "passport": "^0.4.0",
         "passport-jwt": "^4.0.0",
         "qs": "^6.9.4",
+        "redis": "^3.0.2",
         "request": "^2.88.2",
         "retry-request": "^4.1.1",
         "serve-favicon": "~2.4.5",
@@ -51,6 +53,8 @@
         "uuid": "^3.3.3"
     },
     "devDependencies": {
+        "acorn": "^6.4.2",
+        "eslint": "^7.18.0",
         "eslint-config-prettier": "^6.4.0",
         "eslint-plugin-prettier": "^3.1.1",
         "mocha": "^8.1.3",
