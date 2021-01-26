@@ -4,9 +4,11 @@ var logger = require("morgan");
 const dotenv = require("dotenv");
 var bodyParser = require("body-parser");
 dotenv.config();
+require("app-module-path").addPath(__dirname);
 var cookieParser = require("cookie-parser");
 var api = require("./routes/api");
 const { mongodb } = require("./config/database");
+
 mongodb;
 
 var app = express();
@@ -38,13 +40,11 @@ app.use(function(err, req, res, next) {
 
   // render the error page
   // res.status(err.status || 500);
-  res
-    .status(err.status || 500)
-    .json({
-      success: false,
-      message: "this endpoint does not exist",
-      error: err.message,
-    });
+  res.status(err.status || 500).json({
+    success: false,
+    message: "this endpoint does not exist",
+    error: err.message,
+  });
   // res.render("error");
 });
 

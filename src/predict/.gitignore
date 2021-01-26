@@ -29,6 +29,7 @@ results.json
 predictions.json
 private_key.json
 saved_model/
+gcp_helpers/AirQo-e37846081569.json
 
 __init__test.py
 .gitkeep
