@@ -29,7 +29,7 @@ spec:
         - name: GET_HOSTS_FROM
           value: dns
         image: us.gcr.io/airqo-250220/airqo-redis-server:latest
-        imagePullPolicy: ""
+        imagePullPolicy: Always
         name: airqo-redis-server
         ports:
         - containerPort: 6379
