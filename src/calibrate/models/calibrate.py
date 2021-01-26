@@ -57,7 +57,11 @@ class Calibrate():
         with open('models/log_ratios','rb') as logfile:
             allcals = pickle.load(logfile)
         delta = 24*7
-        testX = np.c_[[datetime, sensorid, raw_value]]
+        time = np.array([[float(datetime)]])
+        cid = np.array([[float(sensorid)]])
+        value = np.array([[float(raw_value)]])
+        print( allcals)
+        testX = np.concatenate((time, cid, value), axis=1)
         res,scale,preds,key = sp.compute_simple_predictions(testX,allcals,delta)
         result = {"calibrated_value": preds} #, "calibrated_standard_error": calibrated_standard_error
         print(result)
