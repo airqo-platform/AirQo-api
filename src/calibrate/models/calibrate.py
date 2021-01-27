@@ -52,13 +52,13 @@ class Calibrate():
         #pickle.dump(allcals,open('models/log_ratios.p','wb'))
     
   
-    def calibrate_sensor_raw_data(self, datetime, sensorid, raw_value):
+    def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value):
         #allcals = pickle.load(open('models/log_ratios.p','rb'))
         with open('models/log_ratios','rb') as logfile:
             allcals = pickle.load(logfile)
         delta = 24*7
         time = np.array([[float(datetime)]])
-        cid = np.array([[float(sensorid)]])
+        cid = np.array([[float(sensor_id)]])
         value = np.array([[float(raw_value)]])
         print( allcals)
         testX = np.concatenate((time, cid, value), axis=1)
