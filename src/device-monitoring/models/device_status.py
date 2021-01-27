@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta
+import pandas as pd
+from pymongo import DESCENDING
 from helpers import convert_dates
 from config import db_connection
-import pandas as pd
 
 
 class DeviceStatus():
@@ -23,7 +24,7 @@ class DeviceStatus():
     @staticmethod
     def get_device_uptime(tenant, device_name, days):
         db = db_connection.connect_mongo(tenant)
-        return db.device_uptime.find({'device_name': device_name}).limit(days)
+        return db.device_uptime.find({'device_name': device_name}).sort('created_at', DESCENDING).limit(days)
 
     @staticmethod
     def get_all_devices_uptime(tenant, days):
@@ -35,7 +36,7 @@ class DeviceStatus():
     @staticmethod
     def get_network_uptime(tenant, days):
         db = db_connection.connect_mongo(tenant)
-        return db.network_uptime.find({'network_name': tenant}).limit(days)
+        return db.network_uptime.find({'network_name': tenant}).sort('created_at', DESCENDING).limit(days)
 
 
     def get_device_maintenance_log(self, tenant):

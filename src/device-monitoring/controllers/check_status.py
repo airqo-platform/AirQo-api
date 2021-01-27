@@ -213,9 +213,9 @@ def get_network_uptime():
 
         try:
             days = int(request.args.get('days'))
-        except ValueError:
-            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
-        except TypeError:
+            if days <= 0:
+                errors["days"] = f"'{request.args.get('days')}' must be greater than zero"
+        except (ValueError, TypeError):
             errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
 
         if errors:
@@ -295,10 +295,11 @@ def get_device_uptime():
         device_name = request.args.get('device_name')
         try:
             days = int(request.args.get('days'))
-        except ValueError:
+            if days <= 0:
+                errors["days"] = f"'{request.args.get('days')}' must be greater than zero"
+        except (ValueError, TypeError):
             errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
-        except TypeError:
-            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+
 
         if errors:
             return jsonify(dict(
