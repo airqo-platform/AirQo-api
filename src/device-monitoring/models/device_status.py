@@ -18,7 +18,7 @@ class DeviceStatus():
     def get_device_status(self, tenant):
         """get device status information"""
         db = db_connection.connect_mongo(tenant)
-        documents = db.device_status.find().limit(1)
+        documents = db.device_status.find().sort('created_at', DESCENDING).limit(1)
         return documents
 
     @staticmethod
@@ -30,7 +30,7 @@ class DeviceStatus():
     def get_all_devices_uptime(tenant, days):
         db = db_connection.connect_mongo(tenant)
         device_count = db.devices.find({'isActive': True}).count()
-        return db.device_uptime.find().limit(days * device_count)
+        return db.device_uptime.find().sort('created_at', DESCENDING).limit(days * device_count)
 
 
     @staticmethod

@@ -330,9 +330,9 @@ def get_all_devices_uptime():
 
     try:
         days = int(request.args.get('days'))
-    except ValueError:
-        errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
-    except TypeError:
+        if days <= 0:
+            errors["days"] = f"'{request.args.get('days')}' must be greater than zero"
+    except (ValueError, TypeError):
         errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
 
     if errors:
