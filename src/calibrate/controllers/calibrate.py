@@ -42,14 +42,14 @@ def calibrate_pm25_values():
 def calibrate():
     if request.method == 'GET':
         datetime = request.args.get('datetime')
-        sensorid = request.args.get('sensorid')
+        sensor_id = request.args.get('sensor_id')
         raw_value = request.args.get('raw_value')
 
-        if (not datetime or not sensorid or not raw_value):
-            return jsonify({"message": "please specify all the query parameters i.e.raw_value , datetime ,sensorid. Refer to the API documentation for details.", "success": False}), 400
+        if (not datetime or not sensor_id or not raw_value):
+            return jsonify({"message": "please specify all the query parameters i.e.raw_value , datetime ,sensor_id. Refer to the API documentation for details.", "success": False}), 400
         
         calibrateModel = cb.Calibrate()
-        response = calibrateModel.calibrate_sensor_raw_data(datetime, sensorid, raw_value)
+        response = calibrateModel.calibrate_sensor_raw_data(datetime, sensor_id, raw_value)
         return jsonify(response), 200
 
 
