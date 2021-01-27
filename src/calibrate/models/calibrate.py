@@ -2,8 +2,8 @@ import numpy as np
 import pandas as pd
 import os
 import pickle
-from helpers import dataprocessing as dp #processBAMdata, loaddata, combinedatasets, build_encounters
-from helpers import simple as sp  #f, compute_simple_calibration, compute_simple_predictions
+from helpers import dataprocessing as dp 
+from helpers import simple as sp  
 
 # MONGO_URI = os.getenv("MONGO_URI")
 # client = MongoClient(MONGO_URI)
@@ -63,8 +63,11 @@ class Calibrate():
         print( allcals)
         testX = np.concatenate((time, cid, value), axis=1)
         res,scale,preds,key = sp.compute_simple_predictions(testX,allcals,delta)
+
+        if (not preds):
+            return ("Calirated values for channel_id "+ sensor_id +" are not available at the moment"), 400
+
         result = {"calibrated_value": preds} #, "calibrated_standard_error": calibrated_standard_error
-        print(result)
         return result
 
 if __name__ == "__main__":
