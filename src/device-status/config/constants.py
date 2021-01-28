@@ -1,9 +1,11 @@
+
 import logging
 import pathlib
 import os
 import sys
 from dotenv import load_dotenv
 from pathlib import Path
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 print("BASE_DIR", BASE_DIR)
 
@@ -16,12 +18,13 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = os.getenv("SECRET_KEY")
-    DB_NAME = os.getenv("DB_NAME_PROD")
-    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    BASE_API_URL = 'https://data-manager-dot-airqo-250220.uc.r.appspot.com/api/v1/data/'
 
 
 class ProductionConfig(Config):
     DEVELOPMENT = False
+    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    DB_NAME = os.getenv("DB_NAME_PROD")
 
 
 class DevelopmentConfig(Config):
@@ -36,13 +39,26 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
     load_dotenv(dotenv_path)
-    DEBUG = True
     TESTING = True
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
 
 
-app_config = {"development": DevelopmentConfig,
-              "testing": TestingConfig,
-              "production": ProductionConfig,
-              "staging": TestingConfig}
+app_config = {
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,
+    "production": ProductionConfig,
+    "staging": TestingConfig}
+
+
+def envConfig(env):
+    switcher = {
+        "development": DevelopmentConfig,
+        "testing": TestingConfig,
+        "production": ProductionConfig,
+        "staging": TestingConfig}
+    return switcher.get(env, ProductionConfig)
+
+
+environment = os.getenv("FLASK_ENV")
+configuration = envConfig(environment)
