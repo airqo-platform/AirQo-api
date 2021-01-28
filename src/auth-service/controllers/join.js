@@ -150,7 +150,7 @@ const join = {
               from: constants.EMAIL,
               to: `${req.body.email}`,
               subject: `Link To Reset Password`,
-              text: `${msgs.recovery_email(token)}`,
+              text: `${msgs.recovery_email(token, tenant)}`,
             };
             //we shall review other third party libraries for making emails....^^
 
