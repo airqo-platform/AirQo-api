@@ -11,6 +11,7 @@ const crypto = require("crypto");
 const validateRegisterInput = require("../utils/validations.register");
 const validateLoginInput = require("../utils/validations.login");
 const validateForgotPwdInput = require("../utils/validations.forgot");
+const verifyToken = require("../utils/verifyToken");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
@@ -483,6 +484,7 @@ const join = {
     });
   },
 
+  //this just verifies the token that is sent
   resetPassword: async (req, res, next) => {
     const { tenant, resetPasswordToken } = req.query;
     console.log("inside the reset password function...");
@@ -513,15 +515,23 @@ const join = {
     );
   },
 
+  /**
+   * so we shall not just provide the token from here and
+   * 1. Verify the token
+   * 2. Get the username using the verified token
+   * 3. Carry out the password update accordingly
+   **/
   updatePasswordViaEmail: (req, res, next) => {
     const { tenant } = req.query;
-    console.log("inside update password via email");
 
-    const { userName, password, resetPasswordToken } = req.body;
+    const { password, resetPasswordToken } = req.body;
+
+    // verify the token and get the username from it
+    let tokenVerification = verifyToken(tenant, resetPasswordToken);
 
     UserModel(tenant.toLowerCase())
       .findOne({
-        userName: userName,
+        userName: tokenVerification.userName,
         resetPasswordToken: resetPasswordToken,
         resetPasswordExpires: {
           $gt: Date.now(),
