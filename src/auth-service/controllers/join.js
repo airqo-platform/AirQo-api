@@ -20,6 +20,12 @@ const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 const bcrypt = require("bcrypt");
 const sendEmail = require("../utils/sendEmail");
+const {
+  tryCatchErrors,
+  axiosError,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -523,63 +529,64 @@ const join = {
    **/
   updatePasswordViaEmail: async (req, res, next) => {
     const { tenant } = req.query;
-
     const { password, resetPasswordToken } = req.body;
+    try {
+      // verify the token and get the username from it
+      const tokenVerification = await verifyToken(tenant, resetPasswordToken);
+      console.log("type of token verification...");
+      const { success, message, userName } = tokenVerification;
 
-    // verify the token and get the username from it
-    const tokenVerification = await verifyToken(tenant, resetPasswordToken);
-    const { success, message, userName } = tokenVerification;
-
-    if (success) {
-      UserModel(tenant.toLowerCase())
-        .findOne({
-          userName: userName,
-          resetPasswordToken: resetPasswordToken,
-          resetPasswordExpires: {
-            $gt: Date.now(),
-          },
-        })
-        .then((user) => {
-          if (user === null) {
-            console.log("password reset link is invalid or has expired");
-            res
-              .status(403)
-              .json({ msg: "password reset link is invalid or has expired" });
-          } else if (user !== null) {
-            user.resetPasswordToken = null;
-            user.resetPasswordExpires = null;
-            user.password = password;
-            user.save((error, saved) => {
-              if (error) {
-                console.log("no user exists in db to update");
-                res.status(401).json({
-                  success: false,
-                  message: "no user exists in db to update",
-                });
-              } else if (saved) {
-                console.log("password updated");
-                res
-                  .status(200)
-                  .json({
+      if (success) {
+        UserModel(tenant.toLowerCase())
+          .findOne({
+            userName: userName,
+            resetPasswordToken: resetPasswordToken,
+            resetPasswordExpires: {
+              $gt: Date.now(),
+            },
+          })
+          .then((user) => {
+            if (user === null) {
+              console.log("password reset link is invalid or has expired");
+              res
+                .status(403)
+                .json({ msg: "password reset link is invalid or has expired" });
+            } else if (user !== null) {
+              user.resetPasswordToken = null;
+              user.resetPasswordExpires = null;
+              user.password = password;
+              user.save((error, saved) => {
+                if (error) {
+                  console.log("no user exists in db to update");
+                  res.status(401).json({
+                    success: false,
+                    message: "no user exists in db to update",
+                  });
+                } else if (saved) {
+                  console.log("password updated");
+                  res.status(200).json({
                     success: true,
                     message: "password updated",
                     userName: userName,
                   });
-              }
-            });
-          } else {
-            console.log("no user exists in db to update");
-            res.status(401).json({
-              success: false,
-              message: "no user exists in db to update",
-            });
-          }
+                }
+              });
+            } else {
+              console.log("no user exists in db to update");
+              res.status(401).json({
+                success: false,
+                message: "no user exists in db to update",
+              });
+            }
+          });
+      } else {
+        res.status(403).json({
+          success: false,
+          message: "password reset link is invalid or has expired",
         });
-    } else {
-      res.status(403).json({
-        success: false,
-        message: "password reset link is invalid or has expired",
-      });
+      }
+    } catch (error) {
+      tryCatchErrors(res, error);
     }
   },
 
