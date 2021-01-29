@@ -521,13 +521,13 @@ const join = {
    * 2. Get the username using the verified token
    * 3. Carry out the password update accordingly
    **/
-  updatePasswordViaEmail: (req, res, next) => {
+  updatePasswordViaEmail: async (req, res, next) => {
     const { tenant } = req.query;
 
     const { password, resetPasswordToken } = req.body;
 
     // verify the token and get the username from it
-    const tokenVerification = verifyToken(tenant, resetPasswordToken);
+    const tokenVerification = await verifyToken(tenant, resetPasswordToken);
     const { success, message, userName } = tokenVerification;
 
     if (success) {
@@ -560,7 +560,11 @@ const join = {
                 console.log("password updated");
                 res
                   .status(200)
-                  .json({ success: true, message: "password updated" });
+                  .json({
+                    success: true,
+                    message: "password updated",
+                    userName: userName,
+                  });
               }
             });
           } else {
