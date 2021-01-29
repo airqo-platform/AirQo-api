@@ -527,42 +527,56 @@ const join = {
     const { password, resetPasswordToken } = req.body;
 
     // verify the token and get the username from it
-    let tokenVerification = verifyToken(tenant, resetPasswordToken);
+    const tokenVerification = verifyToken(tenant, resetPasswordToken);
+    const { success, message, userName } = tokenVerification;
 
-    UserModel(tenant.toLowerCase())
-      .findOne({
-        userName: tokenVerification.userName,
-        resetPasswordToken: resetPasswordToken,
-        resetPasswordExpires: {
-          $gt: Date.now(),
-        },
-      })
-      .then((user) => {
-        if (user === null) {
-          console.log("password reset link is invalid or has expired");
-          res
-            .status(403)
-            .json({ msg: "password reset link is invalid or has expired" });
-        } else if (user !== null) {
-          user.resetPasswordToken = null;
-          user.resetPasswordExpires = null;
-          user.password = password;
-          user.save((error, saved) => {
-            if (error) {
-              console.log("no user exists in db to update");
-              res
-                .status(401)
-                .json({ message: "no user exists in db to update" });
-            } else if (saved) {
-              console.log("password updated");
-              res.status(200).json({ message: "password updated" });
-            }
-          });
-        } else {
-          console.log("no user exists in db to update");
-          res.status(401).json({ message: "no user exists in db to update" });
-        }
+    if (success) {
+      UserModel(tenant.toLowerCase())
+        .findOne({
+          userName: userName,
+          resetPasswordToken: resetPasswordToken,
+          resetPasswordExpires: {
+            $gt: Date.now(),
+          },
+        })
+        .then((user) => {
+          if (user === null) {
+            console.log("password reset link is invalid or has expired");
+            res
+              .status(403)
+              .json({ msg: "password reset link is invalid or has expired" });
+          } else if (user !== null) {
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
+            user.password = password;
+            user.save((error, saved) => {
+              if (error) {
+                console.log("no user exists in db to update");
+                res.status(401).json({
+                  success: false,
+                  message: "no user exists in db to update",
+                });
+              } else if (saved) {
+                console.log("password updated");
+                res
+                  .status(200)
+                  .json({ success: true, message: "password updated" });
+              }
+            });
+          } else {
+            console.log("no user exists in db to update");
+            res.status(401).json({
+              success: false,
+              message: "no user exists in db to update",
+            });
+          }
+        });
+    } else {
+      res.status(403).json({
+        success: false,
+        message: "password reset link is invalid or has expired",
       });
+    }
   },
 
   updatePassword: (req, res) => {
