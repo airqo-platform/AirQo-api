@@ -11,7 +11,6 @@ const crypto = require("crypto");
 const validateRegisterInput = require("../utils/validations.register");
 const validateLoginInput = require("../utils/validations.login");
 const validateForgotPwdInput = require("../utils/validations.forgot");
-const verifyToken = require("../utils/verifyToken");
 const validatePwdUpdateInput = require("../utils/validations.update.pwd");
 const validatePasswordUpdate = require("../utils/validations.update.pwd.in");
 const register = require("../utils/register");
@@ -520,71 +519,52 @@ const join = {
       }
     );
   },
-
-  /**
-   * so we shall not just provide the token from here and
-   * 1. Verify the token
-   * 2. Get the username using the verified token
-   * 3. Carry out the password update accordingly
-   **/
-  updatePasswordViaEmail: async (req, res, next) => {
-    const { tenant } = req.query;
-    const { password, resetPasswordToken } = req.body;
+  updatePasswordViaEmail: async (req, res) => {
     try {
-      // verify the token and get the username from it
-      const tokenVerification = await verifyToken(tenant, resetPasswordToken);
-      console.log("type of token verification...");
-      const { success, message, userName } = tokenVerification;
+      const { tenant } = req.query;
+      const { password, resetPasswordToken } = req.body;
 
-      if (success) {
-        UserModel(tenant.toLowerCase())
-          .findOne({
-            userName: userName,
-            resetPasswordToken: resetPasswordToken,
-            resetPasswordExpires: {
-              $gt: Date.now(),
-            },
-          })
-          .then((user) => {
-            if (user === null) {
-              console.log("password reset link is invalid or has expired");
-              res
-                .status(403)
-                .json({ msg: "password reset link is invalid or has expired" });
-            } else if (user !== null) {
-              user.resetPasswordToken = null;
-              user.resetPasswordExpires = null;
-              user.password = password;
-              user.save((error, saved) => {
-                if (error) {
-                  console.log("no user exists in db to update");
-                  res.status(401).json({
-                    success: false,
-                    message: "no user exists in db to update",
-                  });
-                } else if (saved) {
-                  console.log("password updated");
-                  res.status(200).json({
-                    success: true,
-                    message: "password updated",
-                    userName: userName,
-                  });
-                }
-              });
-            } else {
-              console.log("no user exists in db to update");
-              res.status(401).json({
-                success: false,
-                message: "no user exists in db to update",
-              });
-            }
-          });
-      } else {
-        res.status(403).json({
-          success: false,
-          message: "password reset link is invalid or has expired",
+      await UserModel(tenant.toLowerCase())
+        .findOne({
+          resetPasswordToken: resetPasswordToken,
+          resetPasswordExpires: {
+            $gt: Date.now(),
+          },
+        })
+        .then((user) => {
+          if (user === null) {
+            console.log("password reset link is invalid or has expired");
+            res
+              .status(403)
+              .json({ msg: "password reset link is invalid or has expired" });
+          } else if (user !== null) {
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
+            user.password = password;
+            user.save((error, saved) => {
+              if (error) {
+                console.log("no user exists in db to update");
+                res.status(401).json({
+                  success: false,
+                  message: "no user exists in db to update",
+                });
+              } else if (saved) {
+                console.log("password updated");
+                res.status(200).json({
+                  success: true,
+                  message: "password updated",
+                  userName: user.userName,
+                });
+              }
+            });
+          } else {
+            console.log("no user exists in db to update");
+            res.status(401).json({
+              success: false,
+              message: "no user exists in db to update",
+            });
+          }
         });
-      }
     } catch (error) {
       tryCatchErrors(res, error);
     }
