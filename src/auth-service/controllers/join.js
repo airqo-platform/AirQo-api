@@ -504,7 +504,7 @@ const join = {
       (err, result) => {
         if (err) {
           res
-            .status(403)
+            .status(HTTPStatus.BAD_REQUEST)
             .json({ message: "password reset link is invalid or has expired" });
         } else if (result) {
           res.status(200).send({
@@ -513,7 +513,7 @@ const join = {
           });
         } else {
           res
-            .status(403)
+            .status(HTTPStatus.BAD_REQUEST)
             .json({ message: "password reset link is invalid or has expired" });
         }
       }
@@ -534,34 +534,35 @@ const join = {
         .then((user) => {
           if (user === null) {
             console.log("password reset link is invalid or has expired");
-            res
-              .status(403)
-              .json({ msg: "password reset link is invalid or has expired" });
+            res.status(HTTPStatus.BAD_REQUEST).json({
+              message: "password reset link is invalid or has expired",
+              success: false,
+            });
           } else if (user !== null) {
             user.resetPasswordToken = null;
             user.resetPasswordExpires = null;
             user.password = password;
             user.save((error, saved) => {
               if (error) {
-                console.log("no user exists in db to update");
-                res.status(401).json({
+                console.log("user does not exist");
+                res.status(HTTPStatus.BAD_GATEWAY).json({
                   success: false,
-                  message: "no user exists in db to update",
+                  message: "user does not exist",
                 });
               } else if (saved) {
                 console.log("password updated");
-                res.status(200).json({
+                res.status(HTTPStatus.OK).json({
                   success: true,
-                  message: "password updated",
+                  message: "password updated successfully",
                   userName: user.userName,
                 });
               }
             });
           } else {
-            console.log("no user exists in db to update");
-            res.status(401).json({
+            console.log("the user does not exist");
+            res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
-              message: "no user exists in db to update",
+              message: "the user does not exist",
             });
           }
         });
