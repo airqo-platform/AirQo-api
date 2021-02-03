@@ -130,7 +130,7 @@ function login(req, res, next) {
   }
 }
 
-function jwtAuth(req, res, next) {
+function checkTenancy(req, res, next) {
   try {
     if (req.query.tenant) {
       createJWTStrategy(req.query.tenant, req, res, next);
@@ -183,7 +183,7 @@ module.exports = {
   login: login,
   authUserLocal: authUserLocal,
   authJWT: authJWT,
-  jwtAuth: jwtAuth,
+  checkTenancy: checkTenancy,
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
   requiresSignIn: requiresSignIn,
