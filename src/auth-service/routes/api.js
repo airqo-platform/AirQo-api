@@ -36,7 +36,6 @@ router.get("/email/confirm/", jwtAuth, authJWT, joinController.confirmEmail); //
 router.put(
   "/updatePasswordViaEmail",
   jwtAuth,
-  authJWT,
   joinController.updatePasswordViaEmail
 );
 router.put("/updatePassword", jwtAuth, authJWT, joinController.updatePassword);
