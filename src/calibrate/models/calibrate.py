@@ -21,21 +21,11 @@ class Calibrate():
     def __init__(self):
         """ initialize """
 
-   
-    # def get_values(self):
-    #     allbamdf = dp.processBAMdata
-    #     df = dp.loaddata
-    #     dataset = dp.combinedatasets
-    #     encounters = dp.build_encounters   
-    #     return encounters
+        with open('models/encounters.p','rb') as pickle_file:
+            encounters = pickle.load(pickle_file)
+            self.allcals, self.myDict_id = self.calibrate_raw_data(encounters)
 
-    #encounters = pickle.load("encounters.p")
-
-    with open('models/encounters.p','rb') as pickle_file:
-        encounters = pickle.load(pickle_file)
-
-
-    def calibrate_raw_data(encounters):
+    def calibrate_raw_data(self, encounters):
         unq = np.unique(np.r_[encounters['channel_id_sensorA'].unique(),encounters['channel_id_sensorB'].unique()])
         t = (encounters['created_at']-pd.Timestamp('2020-07-15',tz='UTC')).dt.total_seconds()/3600 #hours since 15th July put to 1970 and substract some dates
         idA = [np.where(a==unq)[0][0] for a in encounters['channel_id_sensorA']]
@@ -55,46 +45,33 @@ class Calibrate():
         G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = sp.compute_simple_calibration(X,Y,delta,refsensor)
         return allcals, myDict_id
 
-    allcals, myDict_id = calibrate_raw_data(encounters)
-    file = open('models/log_ratios', 'wb')
-    pickle.dump(allcals, file)
+   
+    
+    # file = open('models/log_ratios', 'wb')
+    # pickle.dump(allcals, file)
 
     
   
-    def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value ):
-        # ratios_dict = col.find({'_id':0, 'channel_index': 1, 'time_index': 1, 'ratio': 1})
-        # ratios_dict = []
-        # for value in ratios_dict:
-        #     allcals.append(ratios_dict)
-        # raw_values = [pm['values'][0]['raw'] for pm in raw_value_list] 
-        #allcals = pickle.load(open('models/log_ratios.p','rb'))
-
-        # datetime = pd.Timestamp(datetime, tz='UTC')
-        # time_in_secs = (datetime-pd.Timestamp('2020-07-15',tz='UTC')).total_seconds()/3600  
-        # time = time_in_secs/delta
-        # cid = myDict_id.get(sensor_id)
+    def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value):
         
-        
-        with open('models/log_ratios','rb') as logfile:
-            allcals = pickle.load(logfile)
         delta = 24*7
 
-        datetime1 = [float(i) for i in datetime]
-        sensor_id1 = [float(j) for j in sensor_id]
-        raw_value1 = [float(k) for k in raw_value]
-        
-        time = np.array([datetime1])
-        cid = np.array([sensor_id1])
-        value = np.array([raw_value1])
+        datetime = pd.Timestamp(datetime, tz='UTC')
+        time_in_secs = (datetime-pd.Timestamp('2020-07-15',tz='UTC')).total_seconds()/3600  
+        time = time_in_secs/delta
+        #cid = myDict_id.get(sensor_id)
+    
+        time = np.array([[float(time)]])
+        cid = np.array([[float(sensor_id)]])
+        value = np.array([[float(raw_value)]])
 
         testX = np.concatenate((time, cid, value), axis=1)
-        res,scale,preds,key = sp.compute_simple_predictions(testX,allcals,delta)
+        res,scale,preds,key = sp.compute_simple_predictions(testX,self.allcals,delta)
 
         if (not preds):
-            return ("Calirated values for channel_id "+ sensor_id +" are not available at the moment"), 400
+            return none
 
-        result = {"calibrated_value": preds} #, "calibrated_standard_error": calibrated_standard_error
-        return result
+        return preds[0]
 
 if __name__ == "__main__":
     calibrateInstance = Calibrate()
