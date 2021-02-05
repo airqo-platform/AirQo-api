@@ -2,12 +2,15 @@ import numpy as np
 import pandas as pd
 import os
 import pickle
+from pymongo import MongoClient
 from helpers import dataprocessing as dp 
 from helpers import simple as sp  
 
-# MONGO_URI = os.getenv("MONGO_URI")
+# MONGO_URI = os.getenv('MONGO_URI')
 # client = MongoClient(MONGO_URI)
 # db = client['airqo_netmanager_staging_airqo']
+# col = db['calibration_ratios']
+
 
 
 class Calibrate():
@@ -46,13 +49,19 @@ class Calibrate():
         delta = 24*7
         G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = sp.compute_simple_calibration(X,Y,delta,refsensor)
         return allcals
+
     allcals = calibrate_raw_data(encounters)
     file = open('models/log_ratios', 'wb')
     pickle.dump(allcals, file)
-        #pickle.dump(allcals,open('models/log_ratios.p','wb'))
+
     
   
     def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value):
+        # ratios_dict = col.find({'_id':0, 'channel_index': 1, 'time_index': 1, 'ratio': 1})
+        # ratios_dict = []
+        # for value in ratios_dict:
+        #     allcals.append(ratios_dict)
+        # raw_values = [pm['values'][0]['raw'] for pm in raw_value_list] 
         #allcals = pickle.load(open('models/log_ratios.p','rb'))
         with open('models/log_ratios','rb') as logfile:
             allcals = pickle.load(logfile)
