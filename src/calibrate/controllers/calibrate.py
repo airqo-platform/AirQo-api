@@ -15,10 +15,10 @@ from models import calibrate as cb
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 
 
-# MONGO_URI = os.getenv("MONGO_URI")
-# client = MongoClient(MONGO_URI)
-# db = client['airqo_netmanager_staging_airqo']
-# db = client['airqo_netmanager_staging_airqo']
+MONGO_URI = os.getenv('MONGO_URI')
+client = MongoClient(MONGO_URI)
+db = client['airqo_netmanager_staging_airqo']
+col = db['calibration_ratios']
 
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
 
@@ -38,6 +38,26 @@ def calibrate_pm25_values():
 
 
 
+@calibrate_bp.route(api.route['ratios'], methods=['POST', 'GET'])
+def save_ratios():
+    calibrateModel = cb.Calibrate() 
+    allcals = calibrateModel.allcals
+
+    ratio_list = []
+    for key, val in allcals.items():
+        id, timeidx = key
+        result_ratio = {"channel_index":int(id), "time_index":int(timeidx), "ratio":float(val)}
+        ratio_list.append(result_ratio)
+    
+    col.insert_many(ratio_list)
+
+    return  jsonify(status="done", action="Data saved Succesfully",error="false")
+
+
+
+
+ 
+
 @calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
 def calibrate():
     if request.method == 'GET':
@@ -52,4 +72,5 @@ def calibrate():
         response = calibrateModel.calibrate_sensor_raw_data(datetime, sensor_id, raw_value)
         return jsonify(response), 200
 
+    
 
