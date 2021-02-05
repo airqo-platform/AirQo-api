@@ -5,6 +5,7 @@ import pickle
 from pymongo import MongoClient
 from helpers import dataprocessing as dp 
 from helpers import simple as sp  
+from datetime import datetime,timedelta
 
 # MONGO_URI = os.getenv('MONGO_URI')
 # client = MongoClient(MONGO_URI)
@@ -43,33 +44,49 @@ class Calibrate():
         sB = np.nanmean(encounters[['pm2_5_sensorB','s2_pm2_5_sensorB']],1)
         X = np.c_[t,idA,idB]
         Y = np.c_[sA,sB]
+
+        newids = set(idA+idB)
+        myDict_id = dict(zip(newids, unq))
+
         refsensor = np.zeros(len(unq))
         refsensor[2]=1
         f = sp.f
         delta = 24*7
         G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = sp.compute_simple_calibration(X,Y,delta,refsensor)
-        return allcals
+        return allcals, myDict_id
 
-    allcals = calibrate_raw_data(encounters)
+    allcals, myDict_id = calibrate_raw_data(encounters)
     file = open('models/log_ratios', 'wb')
     pickle.dump(allcals, file)
 
     
   
-    def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value):
+    def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value ):
         # ratios_dict = col.find({'_id':0, 'channel_index': 1, 'time_index': 1, 'ratio': 1})
         # ratios_dict = []
         # for value in ratios_dict:
         #     allcals.append(ratios_dict)
         # raw_values = [pm['values'][0]['raw'] for pm in raw_value_list] 
         #allcals = pickle.load(open('models/log_ratios.p','rb'))
+
+        # datetime = pd.Timestamp(datetime, tz='UTC')
+        # time_in_secs = (datetime-pd.Timestamp('2020-07-15',tz='UTC')).total_seconds()/3600  
+        # time = time_in_secs/delta
+        # cid = myDict_id.get(sensor_id)
+        
+        
         with open('models/log_ratios','rb') as logfile:
             allcals = pickle.load(logfile)
         delta = 24*7
-        time = np.array([[float(datetime)]])
-        cid = np.array([[float(sensor_id)]])
-        value = np.array([[float(raw_value)]])
-        print( allcals)
+
+        datetime1 = [float(i) for i in datetime]
+        sensor_id1 = [float(j) for j in sensor_id]
+        raw_value1 = [float(k) for k in raw_value]
+        
+        time = np.array([datetime1])
+        cid = np.array([sensor_id1])
+        value = np.array([raw_value1])
+
         testX = np.concatenate((time, cid, value), axis=1)
         res,scale,preds,key = sp.compute_simple_predictions(testX,allcals,delta)
 
