@@ -54,21 +54,18 @@ def save_ratios():
     return  jsonify(status="done", action="Data saved Succesfully",error="false")
 
 
-
-
- 
-
 @calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
 def calibrate():
     if request.method == 'GET':
-        datetime = request.args.get('datetime')
-        sensor_id = request.args.get('sensor_id')
-        raw_value = request.args.get('raw_value')
-
+        datetime = request.args.getlist('datetime')
+        sensor_id = request.args.getlist('sensor_id')
+        raw_value = request.args.getlist('raw_value')
+        
         if (not datetime or not sensor_id or not raw_value):
             return jsonify({"message": "please specify all the query parameters i.e.raw_value , datetime ,sensor_id. Refer to the API documentation for details.", "success": False}), 400
         
         calibrateModel = cb.Calibrate()
+        myDict_id = calibrateModel.myDict_id
         response = calibrateModel.calibrate_sensor_raw_data(datetime, sensor_id, raw_value)
         return jsonify(response), 200
 
