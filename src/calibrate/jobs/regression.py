@@ -105,9 +105,9 @@ hourly_combined_dataset = combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
 def linear_regression_func(hourly_combined_dataset):
     # take only rows where hourly_PM is not null
 
-    X_muk = hourly_combined_dataset['muk_lowcost_hourly_PM'].values
+    X_muk = hourly_combined_dataset['lowcost_pm'].values
     X_muk = X_muk.reshape((-1, 1))
-    y_muk = hourly_combined_dataset['muk_bam_hourly_PM'].values
+    y_muk = hourly_combined_dataset['bam_pm'].values
 
     X_train_muk, X_test_muk, y_train_muk, y_test_muk = train_test_split(
         X_muk, y_muk, test_size=0.2, random_state=0)
