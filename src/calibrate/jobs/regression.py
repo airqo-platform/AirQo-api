@@ -46,9 +46,6 @@ def get_lowcost_data():
     lowcost_hourly_mean = lowcost_data.resample('H').mean().round(2)                          
     return  lowcost_hourly_mean
 
-lowcost_hourly_mean = get_lowcost_data()
-
-
 def get_bam_data():
     sql = """
     SELECT 
@@ -80,9 +77,6 @@ def get_bam_data():
     bam_hourly_mean = bam_data                        
     return  bam_hourly_mean
 
-bam_hourly_mean = get_bam_data()
-
-
 def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     lowcost_hourly_timestamp = lowcost_hourly_mean.index.values
     lowcost_hourly_mean["Time"] = lowcost_hourly_timestamp
@@ -94,9 +88,6 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['lowcost_pm'].notna()]
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['bam_pm'].notna()]
     return hourly_combined_dataset
-
-hourly_combined_dataset = combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
-
 
 def simple_linear_regression(hourly_combined_dataset):
 
@@ -111,32 +102,10 @@ def simple_linear_regression(hourly_combined_dataset):
     regressor_muk.fit(X_train_muk, y_train_muk)
 
     intercept = regressor_muk.intercept_
-
     slope = regressor_muk.coef_
-
-    RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk)))
+    RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk))
 
     return regressor_muk
-
-regressor_muk = simple_linear_regression(hourly_combined_dataset)
-
-
-def intercept(regressor_muk):
-    intercept = regressor_muk.intercept_
-    return intercept
-
-
-intercept = intercept(regressor_muk)
-print(intercept)
-
-
-def slope(regressor_muk):
-    slope = regressor_muk.coef_
-    return slope
-
-
-slope = slope(regressor_muk)
-print(slope)
 
 
 def mlr(hourly_combined_dataset):
@@ -149,6 +118,7 @@ def mlr(hourly_combined_dataset):
     regressor_MLR_muk.fit(X_train_MLR_muk, y_train_MLR_muk)
 
     intercept_df_muk = regressor_MLR_muk.intercept_
-    coeff_df_muk = regressor_MLR_muk.coef_    
+    coeff_df_muk = regressor_MLR_muk.coef_
+    RMSE = np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))    
 
-    return regressor_muk
+    return regressor_MLR_muk
