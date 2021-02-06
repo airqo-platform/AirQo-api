@@ -83,7 +83,22 @@ def get_bam_data():
 bam_hourly_mean = get_bam_data()
 
 
+def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
+    lowcost_hourly_timestamp = lowcost_hourly_mean.index.values
+    lowcost_hourly_mean["Time"] = lowcost_hourly_timestamp
+    #lowcost_hourly_mean["Time"] = pd.to_datetime(lowcost_hourly_mean["Time"])
 
+    bam_hourly_timestamp = bam_hourly_mean.index.values
+    bam_hourly_mean["Time"] = bam_hourly_timestamp
+    #bam_hourly_mean["Time"] = pd.to_datetime(lowcost_hourly_mean["Time"])
+
+    hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
+    #hourly_combined_dataset['bam_pm'] = hourly_combined_dataset['lowcost_pm'].shift(-1)
+    hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['lowcost_pm'].notna()]
+    hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['bam_pm'].notna()]
+    return hourly_combined_dataset
+
+hourly_combined_dataset = combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
 
 
 
