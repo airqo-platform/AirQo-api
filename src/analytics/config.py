@@ -1,52 +1,43 @@
-import logging
-import pathlib
-import os
-import sys
+from pathlib import Path
 from dotenv import load_dotenv
+from decouple import config as env_var
+
+env_path = Path('.') / '.env'
+load_dotenv(dotenv_path=env_path, verbose=True)
 
 
 class Config:
     DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
-    SECRET_KEY = os.getenv("SECRET_KEY")
+    SECRET_KEY = env_var("SECRET_KEY")
     #SERVER_PORT = 5000
 
-    CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
-    CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
+    CLARITY_API_BASE_URL = env_var("CLARITY_API_BASE_URL")
+    CLARITY_API_KEY = env_var("CLARITY_API_KEY")
 
 
 class ProductionConfig(Config):
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-    load_dotenv(dotenv_path)
     DEBUG = False
-    #SERVER_PORT = os.environ.get('PORT', 5000)
-    MONGO_URI = os.getenv("MONGO_GCE_URI")
-    DB_NAME = os.getenv("MONGO_PROD")
+    MONGO_URI = env_var("MONGO_GCE_URI")
+    DB_NAME = env_var("MONGO_PROD")
 
 
 class DevelopmentConfig(Config):
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-    load_dotenv(dotenv_path)
-
     DEVELOPMENT = True
     DEBUG = True
-    MONGO_URI = os.getenv("MONGO_LOCAL_URI")
-    DB_NAME = os.getenv("MONGO_DEV")
+    MONGO_URI = env_var("MONGO_LOCAL_URI")
+    DB_NAME = env_var("MONGO_DEV")
 
 
 class TestingConfig(Config):
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
-    load_dotenv(dotenv_path)
-
     TESTING = True
-    MONGO_URI = os.getenv("MONGO_GCE_URI")
-    DB_NAME = os.getenv("MONGO_STAGE")
+    MONGO_URI = env_var("MONGO_GCE_URI")
+    DB_NAME = env_var("MONGO_STAGE")
 
 
-app_config = {"development": DevelopmentConfig,
-              "testing": TestingConfig, "production": ProductionConfig}
-
-
-if __name__ == '__main__':
-    print('package root', "Analytics App")
+config = {
+    "development": DevelopmentConfig,
+    "testing": TestingConfig,
+    "production": ProductionConfig
+}
