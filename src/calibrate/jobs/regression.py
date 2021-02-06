@@ -49,6 +49,40 @@ def get_lowcost_data():
 lowcost_hourly_mean = get_lowcost_data()
 
 
+def get_bam_data():
+    sql = """
+    SELECT 
+        Time,
+        ConcHR_ug_m3_ as bam_pm,
+        AT_C_ as temperature, 
+        RH___ as humidity
+    FROM 
+        `airqo-250220.thingspeak.airqo_bam_data`
+    WHERE 
+        channel_id = 'Y24516'
+    AND
+        Time >="2020-07-16T00:00:00"
+    AND 
+        Time <="2020-07-30T23:59:59"
+    GROUP BY 
+        Time,ConcHR_ug_m3_,AT_C_, RH___ 
+    ORDER BY 
+        Time
+    """
+    bam_data = client.query(sql).to_dataframe()
+    bam_data = bam_data[(bam_data['bam_pm'] > 0)&(bam_data['bam_pm'] <= 500.4)]
+                                       
+    bam_data["TimeStamp"] = pd.to_datetime(bam_data["Time"])
+    bam_data.drop_duplicates(subset="TimeStamp", keep='first', inplace=True)
+    bam_data = bam_data.set_index('TimeStamp')
+    bam_data = bam_data.drop(['Time'], axis=1)
+    
+    bam_hourly_mean = bam_data                        
+    return  bam_hourly_mean
+
+bam_hourly_mean = get_bam_data()
+
+
 
 
 
