@@ -14,7 +14,7 @@ import google.auth
 from google.cloud import bigquery
 
 
-client = bigquery.Client.from_service_account_json("airqo-250220-5149c2aac8f2.json")
+client = bigquery.Client.from_service_account_json("jobs/airqo-250220-5149c2aac8f2.json")
 
 
 def get_lowcost_data():
@@ -86,14 +86,11 @@ bam_hourly_mean = get_bam_data()
 def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     lowcost_hourly_timestamp = lowcost_hourly_mean.index.values
     lowcost_hourly_mean["Time"] = lowcost_hourly_timestamp
-    #lowcost_hourly_mean["Time"] = pd.to_datetime(lowcost_hourly_mean["Time"])
 
     bam_hourly_timestamp = bam_hourly_mean.index.values
     bam_hourly_mean["Time"] = bam_hourly_timestamp
-    #bam_hourly_mean["Time"] = pd.to_datetime(lowcost_hourly_mean["Time"])
 
     hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
-    #hourly_combined_dataset['bam_pm'] = hourly_combined_dataset['lowcost_pm'].shift(-1)
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['lowcost_pm'].notna()]
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['bam_pm'].notna()]
     return hourly_combined_dataset
@@ -101,9 +98,7 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
 hourly_combined_dataset = combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
 
 
-
-def linear_regression_func(hourly_combined_dataset):
-    # take only rows where hourly_PM is not null
+def simple_linear_regression(hourly_combined_dataset):
 
     X_muk = hourly_combined_dataset['lowcost_pm'].values
     X_muk = X_muk.reshape((-1, 1))
@@ -119,10 +114,11 @@ def linear_regression_func(hourly_combined_dataset):
 
     slope = regressor_muk.coef_
 
+    RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk)))
+
     return regressor_muk
 
-
-regressor_muk = linear_regression_func(hourly_combined_dataset)
+regressor_muk = simple_linear_regression(hourly_combined_dataset)
 
 
 def intercept(regressor_muk):
@@ -131,7 +127,7 @@ def intercept(regressor_muk):
 
 
 intercept = intercept(regressor_muk)
-# print(intercept)
+print(intercept)
 
 
 def slope(regressor_muk):
@@ -140,7 +136,19 @@ def slope(regressor_muk):
 
 
 slope = slope(regressor_muk)
-# print(slope)
+print(slope)
 
 
+def mlr(hourly_combined_dataset):
+    X_MLRx = hourly_combined_dataset[['lowcost_pm','temperature','humidity']]
+    X_MLR_muk = hourly_combined_dataset[['lowcost_pm','temperature','humidity']].values
+    y_MLR_muk = hourly_combined_dataset['bam_pm'].values    
 
+    X_train_MLR_muk, X_test_MLR_muk, y_train_MLR_muk, y_test_MLR_muk = train_test_split(X_MLR_muk, y_MLR_muk, test_size=0.2, random_state=0)
+    regressor_MLR_muk = LinearRegression()  
+    regressor_MLR_muk.fit(X_train_MLR_muk, y_train_MLR_muk)
+
+    intercept_df_muk = regressor_MLR_muk.intercept_
+    coeff_df_muk = regressor_MLR_muk.coef_    
+
+    return regressor_muk
