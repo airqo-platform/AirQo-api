@@ -18,34 +18,34 @@ from api.middlewares.base_validator import ValidationError
 from config import config
 
 config_name = env_config('FLASK_ENV', 'production')
-api = Api(api_blueprint, doc=False)
+rest_api = Api(prefix='/api/v1/analytics', doc='/apidocs')
 
 
-def initialize_errorhandlers(application):
+def initialize_blueprints(application):
     """Initialize error handlers"""
 
     application.register_blueprint(middleware_blueprint)
     application.register_blueprint(api_blueprint)
 
 
-def create_app(config=config[config_name]):
+def create_app(rest_api, config=config[config_name]):
     """creates a flask app object from a config object"""
 
     app = Flask(__name__)
+    rest_api.init_app(app)
     CORS(app)
     app.config.from_object(config)
 
     # Initialize error handlers
-    initialize_errorhandlers(app)
+    initialize_blueprints(app)
 
     # import views
     import api.views
 
-
     return app
 
 
-@api.errorhandler(MarshmallowValidationError)
+@rest_api.errorhandler(MarshmallowValidationError)
 @middleware_blueprint.app_errorhandler(MarshmallowValidationError)
 def handle_marshmallow_exception(error):
     """Error handler called when a marshmallow ValidationError is raised"""
@@ -58,7 +58,7 @@ def handle_marshmallow_exception(error):
     return jsonify(error_message), 400
 
 
-@api.errorhandler(ValidationError)
+@rest_api.errorhandler(ValidationError)
 @middleware_blueprint.app_errorhandler(ValidationError)
 def handle_exception(error):
     """Error handler called when a ValidationError is raised"""
