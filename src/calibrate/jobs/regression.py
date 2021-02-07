@@ -103,9 +103,8 @@ def simple_linear_regression(hourly_combined_dataset):
 
     intercept = regressor_muk.intercept_
     slope = regressor_muk.coef_
-    RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk))
-
-    return regressor_muk
+    # RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk))
+    return slope[0], intercept
 
 
 def mlr(hourly_combined_dataset):
@@ -117,8 +116,8 @@ def mlr(hourly_combined_dataset):
     regressor_MLR_muk = LinearRegression()  
     regressor_MLR_muk.fit(X_train_MLR_muk, y_train_MLR_muk)
 
-    intercept_df_muk = regressor_MLR_muk.intercept_
-    coeff_df_muk = regressor_MLR_muk.coef_
-    RMSE = np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))    
-
-    return regressor_MLR_muk
+    intercept = regressor_MLR_muk.intercept_
+    slope = regressor_MLR_muk.coef_
+    
+    # RMSE = np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))    
+    return slope, intercept
