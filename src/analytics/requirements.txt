@@ -1,6 +1,7 @@
 flask
 flask-restx
 flask-cors
+pymongo
 python-decouple
 python-dotenv
 marshmallow
