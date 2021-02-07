@@ -5,10 +5,10 @@ import logging
 import app
 import json
 import uncertainties.unumpy as unp
-from jobs import regression
 import os
 from pymongo import MongoClient
 import uncertainties.unumpy as unp
+from models import regression as rg
 from models import calibrate as cb
 
 
@@ -24,18 +24,20 @@ col = db['calibration_ratios']
 
 def calibrate_pm25_values():
     if request.method == 'GET':
-        # raw_values_dict = db.events.find({'values.raw': {'$exists': 1}},{'_id':0, 'values.raw': 1})
-        # raw_value_list = []
-        # for value in raw_values_dict:
-        #     raw_value_list.append(value)
-        # raw_values = [pm['values'][0]['raw'] for pm in raw_value_list]  
         raw_values = request.args.get('raw_value')
-        calibrated_value = regression.intercept + regression.slope * float(raw_values)
-        calibrated_value = calibrated_value.tolist()
+        temp = request.args.get('temp')
+        humidity = request.args.get('humidity')
 
-        return jsonify({"calibrated Value": calibrated_value})
+        rgModel = rg.Regression()
+        hourly_combined_dataset = rgModel.hourly_combined_dataset
 
+        calibrated_value_lr = rgModel.simple_lr(raw_values, hourly_combined_dataset)
+        calibrated_value_lr = calibrated_value_lr.tolist()
 
+        calibrated_value_mlr = rgModel.multivariate_lr(raw_values, temp, humidity, hourly_combined_dataset)
+        calibrated_value_mlr = calibrated_value_mlr.tolist()
+
+        return jsonify({"calibrated Value1": calibrated_value_lr, "calibrated Value2": calibrated_value_mlr})
 
 @calibrate_bp.route(api.route['ratios'], methods=['POST', 'GET'])
 def save_ratios():
