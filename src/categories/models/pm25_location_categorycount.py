@@ -1,6 +1,6 @@
 import app
 from datetime import datetime, timedelta
-from helpers import conver_date, convert_date
+from helpers import convert_date
 from config import db_connection, constants
 import requests
 import math
