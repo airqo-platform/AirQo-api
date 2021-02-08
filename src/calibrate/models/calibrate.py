@@ -44,13 +44,7 @@ class Calibrate():
         delta = 24*7
         G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = sp.compute_simple_calibration(X,Y,delta,refsensor)
         return allcals, myDict_id
-
    
-    
-    # file = open('models/log_ratios', 'wb')
-    # pickle.dump(allcals, file)
-
-    
   
     def calibrate_sensor_raw_data(self, datetime, sensor_id, raw_value):
         
