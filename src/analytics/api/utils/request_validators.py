@@ -117,3 +117,67 @@ class Validator(OrderedDict):
             raise Exception("Invalid rule")
 
 
+def request_validator_factory(input_source, info):
+    """
+    Factory function for creating request validator decorators
+    Args:
+        input_source: func that request data input source (request.args or request.get_json()
+        info: message to be appended in the error messages
+
+    Returns: request decorator
+
+    """
+    def validate_request(*rules):
+        """decorator for validating query params
+        :rules: list -  The sets of keys and rules to be applied
+        example: [username|required:str, email|required:email]
+        """
+        def validate_params(func):
+            @wraps(func)
+            def decorated(*args, **kwargs):
+                source = input_source() or {}
+                validator = Validator(validation_type=info)
+                errors = {}
+
+                for rule in rules:
+                    rule = validator.parse_rule(rule)
+
+                    for validation_type in rule.validators:
+
+                        validation_func = validator.get(validation_type)
+                        value = source.get(rule.key)
+                        v = validation_func(value)
+
+                        if validation_type != 'required' and not value:
+                            continue
+
+                        if not v.is_valid:
+                            errors[rule.key] = v.error_msg
+                            break
+
+                if errors:
+                    return {
+                        "status": "error",
+                        "message": "an error occurred while processing this request",
+                        "errors": errors
+
+                    }, Status.HTTP_400_BAD_REQUEST
+
+                return func(*args, **kwargs)
+
+            return decorated
+
+        return validate_params
+
+    return validate_request
+
+
+validate_request_params = request_validator_factory(
+    input_source=lambda: request.args,
+    info="query parameters",
+)
+
+validate_request_json = request_validator_factory(
+    input_source=lambda: request.get_json(),
+    info="json body",
+)
