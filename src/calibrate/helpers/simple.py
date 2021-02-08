@@ -95,9 +95,8 @@ def plot_simple_calibration_graph(G):
 
 
 def compute_simple_predictions(testX,allcals,delta): # changed
-    timedelta = (testX[:,0]).astype('float')
-    idx = (timedelta/delta).astype('int')
-    print(idx)
+    idx = (testX[:,0]/delta).astype(int)
+    print('time', idx)
     # idx = (testX[:,0]/delta).astype(int)
     scale = []
     preds = []
