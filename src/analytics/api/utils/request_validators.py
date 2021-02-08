@@ -38,11 +38,11 @@ class Validator(OrderedDict):
         self['required'] = self.type_validator(self.none_checker, "is required")
         self['int'] = self.type_validator(int, "{} is not a valid integer")
         self['float'] = self.type_validator(float, "{} is not a valid float")
-        self['list'] = self.type_validator(list, "{} is not a valid list/array")
+        self['list'] = self.type_validator(self.list_checker, "{} is not a valid list/array")
         self['bool'] = self.type_validator(self.str_to_bool, "{} is not a valid boolean")
         self['dict'] = self.type_validator(dict, "{} is not a valid dict")
         self['str'] = self.type_validator(str, "{} is not a valid string")
-        self['date'] = self.type_validator(self.date_checker, "{} is not a valid string")
+        self['date'] = self.type_validator(self.date_checker, "{} is not a valid date. Date format is '%Y-%M-%D'")
         self['email'] = self.type_validator(self.email_checker, "{} is not a valid email")
         self['url'] = self.type_validator(self.url_checker, "{} is not a valid url")
         self['data'] = self.type_validator(
@@ -62,6 +62,12 @@ class Validator(OrderedDict):
                 )
 
         return validator
+
+    @staticmethod
+    def list_checker(value):
+        if not isinstance(value, list):
+            raise TypeError("not a valid list")
+
 
     @staticmethod
     def str_to_bool(value):
