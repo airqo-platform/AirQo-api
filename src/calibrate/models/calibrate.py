@@ -5,6 +5,7 @@ import pickle
 from pymongo import MongoClient
 from helpers import dataprocessing as dp 
 from helpers import simple as sp  
+#from calibration import simple as sp 
 from datetime import datetime,timedelta
 
 # MONGO_URI = os.getenv('MONGO_URI')
@@ -69,5 +70,3 @@ class Calibrate():
 
 if __name__ == "__main__":
     calibrateInstance = Calibrate()
-# a = Calibrate()
-# a.calibrate_raw_data(encounters)
