@@ -36,7 +36,8 @@ class Calibrate():
         Y = np.c_[sA,sB]
 
         newids = set(idA+idB)
-        myDict_id = dict(zip(newids, unq))
+        myDict_id = dict(zip(unq, newids))
+        print('dict',myDict_id)
 
         refsensor = np.zeros(len(unq))
         refsensor[2]=1
@@ -51,19 +52,18 @@ class Calibrate():
         delta = 24*7
 
         datetime = pd.Timestamp(datetime, tz='UTC')
-        time_in_secs = (datetime-pd.Timestamp('2020-07-15',tz='UTC')).total_seconds()/3600  
-        time = time_in_secs/delta
-        #cid = myDict_id.get(sensor_id)
+        time = (datetime-pd.Timestamp('2020-07-15',tz='UTC')).total_seconds()/3600  
+        cid1 = self.myDict_id.get(sensor_id)
     
-        time = np.array([[float(time)]])
-        cid = np.array([[float(sensor_id)]])
+        time = np.array([[time]])
+        cid = np.array([[cid1]])
         value = np.array([[float(raw_value)]])
 
         testX = np.concatenate((time, cid, value), axis=1)
         res,scale,preds,key = sp.compute_simple_predictions(testX,self.allcals,delta)
 
         if (not preds):
-            return none
+            return None
 
         return preds[0]
 
