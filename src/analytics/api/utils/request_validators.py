@@ -43,6 +43,10 @@ class Validator(OrderedDict):
         self['dict'] = self.type_validator(dict, "{} is not a valid dict")
         self['str'] = self.type_validator(str, "{} is not a valid string")
         self['date'] = self.type_validator(self.date_checker, "{} is not a valid date. Date format is '%Y-%M-%D'")
+        self['datetime'] = self.type_validator(
+            self.datetime_checker,
+            "{} is not a valid datetime. Date format is '%Y-%m-%dT%H:%M:%S%z'"
+        )
         self['email'] = self.type_validator(self.email_checker, "{} is not a valid email")
         self['url'] = self.type_validator(self.url_checker, "{} is not a valid url")
         self['data'] = self.type_validator(
@@ -84,6 +88,13 @@ class Validator(OrderedDict):
             datetime.strptime(value, '%Y-%m-%d')
         except Exception:
             raise TypeError("cannot convert {} to date type".format(value))
+
+    @staticmethod
+    def datetime_checker(value):
+        try:
+            datetime.strptime(value, '%Y-%m-%dT%H:%M:%S%z')
+        except Exception:
+            raise TypeError("cannot convert {} to datetime type".format(value))
 
     @staticmethod
     def none_checker(value):
