@@ -10,7 +10,6 @@ from decouple import config as env_config
 from marshmallow import ValidationError as MarshmallowValidationError
 
 # middlewares
-from api import api_blueprint
 from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 
@@ -25,7 +24,6 @@ def initialize_blueprints(application):
     """Initialize error handlers"""
 
     application.register_blueprint(middleware_blueprint)
-    application.register_blueprint(api_blueprint)
 
 
 def create_app(rest_api, config=config[config_name]):

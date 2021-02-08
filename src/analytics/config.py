@@ -32,6 +32,7 @@ class DevelopmentConfig(Config):
 
 class TestingConfig(Config):
     TESTING = True
+    DEBUG = True
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_STAGE")
 

@@ -5,3 +5,6 @@ pymongo
 python-decouple
 python-dotenv
 marshmallow
+
+# Ports for stable python 3 functionality
+dataclasses # for py < 3.7
