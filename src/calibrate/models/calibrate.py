@@ -3,15 +3,10 @@ import pandas as pd
 import os
 import pickle
 from pymongo import MongoClient
-from helpers import dataprocessing as dp 
-from helpers import simple as sp  
-#from calibration import simple as sp 
+# from helpers import dataprocessing as dp 
+# from helpers import simple as sp  
+from calibration import simple as sp 
 from datetime import datetime,timedelta
-
-# MONGO_URI = os.getenv('MONGO_URI')
-# client = MongoClient(MONGO_URI)
-# db = client['airqo_netmanager_staging_airqo']
-# col = db['calibration_ratios']
 
 
 
