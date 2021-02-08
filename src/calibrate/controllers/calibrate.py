@@ -55,7 +55,7 @@ def save_ratios():
     return  jsonify(status="done", action="Data saved Succesfully",error="false")
 
 
-@calibrate_bp.route(api.route['mobilecalibrate'], methods=['POST', 'GET'])
+@calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
 def calibrate():
 
     if request.method == 'POST':
