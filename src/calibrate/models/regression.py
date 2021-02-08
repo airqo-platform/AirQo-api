@@ -12,9 +12,9 @@ class Regression():
         bam_hourly_mean = rg.get_bam_data()
         self.hourly_combined_dataset = rg.combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
 
-    def simple_lr(self, raw_values, hourly_combined_dataset):
+    def simple_lr(self, raw_value, hourly_combined_dataset):
         slope, intercept = rg.simple_linear_regression(hourly_combined_dataset)
-        calibrated_value_lr = intercept + slope * float(raw_values)
+        calibrated_value_lr = intercept + slope * float(raw_value)
                
         return calibrated_value_lr
 
