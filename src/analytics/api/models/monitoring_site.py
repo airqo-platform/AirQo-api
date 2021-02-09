@@ -22,7 +22,6 @@ class MonitoringSite(BasePyMongoModel):
             query,
             {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 1}
         ))
-        print('results', results)
         for result in results:
             result["_id"] = str(result['_id'])
 
