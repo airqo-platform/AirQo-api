@@ -2,18 +2,6 @@ from datetime import datetime
 import pandas as pd
 from api.models.base.base_model import BasePyMongoModel
 
-def str_to_date_find(st):
-    """
-    Converts a string of different format to datetime
-    """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
-
-def str_to_date(st):
-    """
-    Converts a string to datetime
-    """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
-
 
 class DeviceHourlyMeasurement(BasePyMongoModel):
     def __init__(self, tenant):
@@ -63,94 +51,12 @@ class DeviceHourlyMeasurement(BasePyMongoModel):
 
         """
 
-        # start = start_date and datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S.%fZ') or \
-        #     datetime.strptime('2019-06-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
-        #
-        # end = end_date and datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%fZ') or datetime.now()
-        #
-        # query = {'$match': {'deviceCode': device_code, 'time': {'$lte': end, '$gte': start}}}
-        # sort_order = {'$sort': {'time': 1}}
-        #
-        # time_format = '%Y-%m-%dT%H:%M:%S%z'
-        #
-        # if frequency == 'daily':
-        #     time_format = '%Y-%m-%d'
-        # elif frequency == 'hourly':
-        #     time_format = '%Y-%m-%d %H:%M'
-        #
-        # if pollutant == 'PM 10':
-        #     projection = {
-        #         '$project': {
-        #             '_id': 0,
-        #             'time': {
-        #                 '$dateToString': {
-        #                      'format': time_format,
-        #                      'date': '$time',
-        #                      'timezone': 'Africa/Kampala'
-        #                  }
-        #             },
-        #             'pollutant_value': {
-        #                 '$round': ['$characteristics.pm10ConcMass.value', 2]
-        #             }
-        #         }
-        #     }
-        # elif pollutant == 'NO2':
-        #     projection = {
-        #         '$project': {
-        #             '_id': 0,
-        #             'time': {
-        #                 '$dateToString': {
-        #                     'format': time_format,
-        #                     'date': '$time',
-        #                     'timezone': 'Africa/Kampala'
-        #                 }
-        #             },
-        #             'pollutant_value': {
-        #                 '$round': ['$characteristics.no2Conc.value', 2]
-        #             }
-        #         }
-        #     }
-        # else:
-        #     projection = {
-        #         '$project': {
-        #             '_id': 0,
-        #             'time': {
-        #                 '$dateToString': {
-        #                     'format': time_format,
-        #                     'date': '$time',
-        #                     'timezone': 'Africa/Kampala'
-        #                 }
-        #             },
-        #             'pollutant_value': {
-        #                 '$round': ['$characteristics.pm2_5ConcMass.value', 2]
-        #             }
-        #         }
-        #     }
-        #
-        # if frequency == 'hourly':
-        #     records = self.collection.aggregate(
-        #         [query, projection, sort_order])
-        # elif frequency == 'monthly':
-        #     results = list(self.collection.aggregate(
-        #         [query, projection, sort_order]))
-        #     records = self.resample_timeseries_data(results, 'M', 'time', 2)
-        # else:
-        #     records = self.collection.aggregate(
-        #         [query, projection, sort_order])
-        #
-        # return list(records)
+        start = start_date and datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S.%fZ') or \
+            datetime.strptime('2019-06-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
 
-        if start_date == None:
-            start = str_to_date_find('2019-06-01T00:00:00Z')
-        else:
-            start = str_to_date(start_date)
-        if end_date == None:
-            end = datetime.now()
-        else:
-            end = str_to_date(end_date)
+        end = end_date and datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%fZ') or datetime.now()
 
-        query = {'$match': {'deviceCode': device_code,
-                            'time': {'$lte': end, '$gte': start}}}
+        query = {'$match': {'deviceCode': device_code, 'time': {'$lte': end, '$gte': start}}}
         sort_order = {'$sort': {'time': 1}}
 
         time_format = '%Y-%m-%dT%H:%M:%S%z'
@@ -161,33 +67,63 @@ class DeviceHourlyMeasurement(BasePyMongoModel):
             time_format = '%Y-%m-%d %H:%M'
 
         if pollutant == 'PM 10':
-            projection = {'$project': {'_id': 0,
-                                       'time': {'$dateToString': {'format': time_format, 'date': '$time',
-                                                                  'timezone': 'Africa/Kampala'}},
-                                       'pollutant_value': {'$round': ['$characteristics.pm10ConcMass.value', 2]}}}
+            projection = {
+                '$project': {
+                    '_id': 0,
+                    'time': {
+                        '$dateToString': {
+                             'format': time_format,
+                             'date': '$time',
+                             'timezone': 'Africa/Kampala'
+                         }
+                    },
+                    'pollutant_value': {
+                        '$round': ['$characteristics.pm10ConcMass.value', 2]
+                    }
+                }
+            }
         elif pollutant == 'NO2':
-            projection = {'$project': {'_id': 0,
-                                       'time': {'$dateToString': {'format': time_format, 'date': '$time',
-                                                                  'timezone': 'Africa/Kampala'}},
-                                       'pollutant_value': {'$round': ['$characteristics.no2Conc.value', 2]}}}
+            projection = {
+                '$project': {
+                    '_id': 0,
+                    'time': {
+                        '$dateToString': {
+                            'format': time_format,
+                            'date': '$time',
+                            'timezone': 'Africa/Kampala'
+                        }
+                    },
+                    'pollutant_value': {
+                        '$round': ['$characteristics.no2Conc.value', 2]
+                    }
+                }
+            }
         else:
-            projection = {'$project': {'_id': 0,
-                                       'time': {'$dateToString': {'format': time_format, 'date': '$time',
-                                                                  'timezone': 'Africa/Kampala'}},
-                                       'pollutant_value': {'$round': ['$characteristics.pm2_5ConcMass.value', 2]}}}
+            projection = {
+                '$project': {
+                    '_id': 0,
+                    'time': {
+                        '$dateToString': {
+                            'format': time_format,
+                            'date': '$time',
+                            'timezone': 'Africa/Kampala'
+                        }
+                    },
+                    'pollutant_value': {
+                        '$round': ['$characteristics.pm2_5ConcMass.value', 2]
+                    }
+                }
+            }
 
-        print("dddd", self.db.device_hourly_measurements)
-        print("dddd agggg", self.db.device_hourly_measurements.aggregate)
         if frequency == 'hourly':
-            records = self.db.device_hourly_measurements.aggregate(
+            records = self.collection.aggregate(
                 [query, projection, sort_order])
         elif frequency == 'monthly':
-            results = list(self.db.device_daily_measurements.aggregate(
+            results = list(self.collection.aggregate(
                 [query, projection, sort_order]))
             records = self.resample_timeseries_data(results, 'M', 'time', 2)
         else:
-            records = self.db.device_daily_measurements.aggregate(
+            records = self.collection.aggregate(
                 [query, projection, sort_order])
-        print("records qqqqqq", list(records))
 
         return list(records)
