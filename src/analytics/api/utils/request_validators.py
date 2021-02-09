@@ -45,7 +45,7 @@ class Validator(OrderedDict):
         self['date'] = self.type_validator(self.date_checker, "{} is not a valid date. Date format is '%Y-%M-%D'")
         self['datetime'] = self.type_validator(
             self.datetime_checker,
-            "{} is not a valid datetime. Date format is '%Y-%m-%dT%H:%M:%S%z'"
+            "{} is not a valid datetime. Date format is '%Y-%m-%dT%H:%M:%S.%fZ' e.g '2021-02-08T21:00:00.000Z'"
         )
         self['email'] = self.type_validator(self.email_checker, "{} is not a valid email")
         self['url'] = self.type_validator(self.url_checker, "{} is not a valid url")
@@ -72,7 +72,6 @@ class Validator(OrderedDict):
         if not isinstance(value, list):
             raise TypeError("not a valid list")
 
-
     @staticmethod
     def str_to_bool(value):
         if str(value).lower() in ['true', '1', 't', 'y', 'yes']:
@@ -92,7 +91,7 @@ class Validator(OrderedDict):
     @staticmethod
     def datetime_checker(value):
         try:
-            datetime.strptime(value, '%Y-%m-%dT%H:%M:%S%z')
+            datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%fZ')
         except Exception:
             raise TypeError("cannot convert {} to datetime type".format(value))
 
