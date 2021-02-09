@@ -20,25 +20,6 @@ client = MongoClient(MONGO_URI)
 db = client['airqo_netmanager_staging_airqo']
 col = db['calibration_ratios']
 
-# @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
-
-# def calibrate_pm25_values():
-#     if request.method == 'GET':
-#         raw_values = request.args.get('raw_value')
-#         temp = request.args.get('temp')
-#         humidity = request.args.get('humidity')
-
-#         rgModel = rg.Regression()
-#         hourly_combined_dataset = rgModel.hourly_combined_dataset
-
-#         calibrated_value_lr = rgModel.simple_lr(raw_values, hourly_combined_dataset)
-#         calibrated_value_lr = calibrated_value_lr.tolist()
-
-#         calibrated_value_mlr = rgModel.multivariate_lr(raw_values, temp, humidity, hourly_combined_dataset)
-#         calibrated_value_mlr = calibrated_value_mlr.tolist()
-
-#         return jsonify({"calibrated Value1": calibrated_value_lr, "calibrated Value2": calibrated_value_mlr})
-
 @calibrate_bp.route(api.route['ratios'], methods=['POST', 'GET'])
 def save_ratios():
     calibrateModel = cb.Calibrate() 
