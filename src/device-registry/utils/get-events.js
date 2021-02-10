@@ -18,7 +18,7 @@ const responseDevice = async (res, filter, tenant) => {
   try {
     let ts = Date.now();
     let day = await generateDateFormat(ts);
-    let cacheID = `get_events_device_${filter.deviceName}_${day}`;
+    let cacheID = `get_events_device_${filter.device}_${day}`;
     logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
@@ -28,18 +28,20 @@ const responseDevice = async (res, filter, tenant) => {
       } else if (err) {
         callbackErrors(err, req, res);
       } else {
+        console.log("the filter: ", filter);
         const events = await getModelByTenant(tenant, "event", EventSchema)
           .find(filter)
           .limit(100)
           .lean()
           .exec();
+        console.log("the events: ", events);
         if (!isEmpty(events)) {
           redis.set(
             cacheID,
             JSON.stringify({
               isCache: true,
               success: true,
-              message: `successfully listed the Events for the device ${filter.deviceName}`,
+              message: `successfully listed the Events for the device ${filter.device}`,
               events,
             })
           );
@@ -47,13 +49,13 @@ const responseDevice = async (res, filter, tenant) => {
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,
-            message: `successfully listed the Events for the device ${filter.deviceName}`,
+            message: `successfully listed the Events for the device ${filter.device}`,
             events,
           });
         } else if (isEmpty(events)) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: `unable to find the Events for device ${device}`,
+            message: `unable to find the Events for device ${filter.device}`,
           });
         }
       }
