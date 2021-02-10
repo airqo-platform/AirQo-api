@@ -19,6 +19,12 @@ const { logElement, logText, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 const bcrypt = require("bcrypt");
 const sendEmail = require("../utils/sendEmail");
+const {
+  tryCatchErrors,
+  axiosError,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -150,7 +156,7 @@ const join = {
               from: constants.EMAIL,
               to: `${req.body.email}`,
               subject: `Link To Reset Password`,
-              text: `${msgs.recovery_email(token)}`,
+              text: `${msgs.recovery_email(token, tenant)}`,
             };
             //we shall review other third party libraries for making emails....^^
 
@@ -483,6 +489,7 @@ const join = {
     });
   },
 
+  //this just verifies the token that is sent
   resetPassword: async (req, res, next) => {
     const { tenant, resetPasswordToken } = req.query;
     console.log("inside the reset password function...");
@@ -497,7 +504,7 @@ const join = {
       (err, result) => {
         if (err) {
           res
-            .status(403)
+            .status(HTTPStatus.BAD_REQUEST)
             .json({ message: "password reset link is invalid or has expired" });
         } else if (result) {
           res.status(200).send({
@@ -506,53 +513,62 @@ const join = {
           });
         } else {
           res
-            .status(403)
+            .status(HTTPStatus.BAD_REQUEST)
             .json({ message: "password reset link is invalid or has expired" });
         }
       }
     );
   },
+  updatePasswordViaEmail: async (req, res) => {
+    try {
+      const { tenant } = req.query;
+      const { password, resetPasswordToken } = req.body;
 
-  updatePasswordViaEmail: (req, res, next) => {
-    const { tenant } = req.query;
-    console.log("inside update password via email");
-
-    const { userName, password, resetPasswordToken } = req.body;
-
-    UserModel(tenant.toLowerCase())
-      .findOne({
-        userName: userName,
-        resetPasswordToken: resetPasswordToken,
-        resetPasswordExpires: {
-          $gt: Date.now(),
-        },
-      })
-      .then((user) => {
-        if (user === null) {
-          console.log("password reset link is invalid or has expired");
-          res
-            .status(403)
-            .json({ msg: "password reset link is invalid or has expired" });
-        } else if (user !== null) {
-          user.resetPasswordToken = null;
-          user.resetPasswordExpires = null;
-          user.password = password;
-          user.save((error, saved) => {
-            if (error) {
-              console.log("no user exists in db to update");
-              res
-                .status(401)
-                .json({ message: "no user exists in db to update" });
-            } else if (saved) {
-              console.log("password updated");
-              res.status(200).json({ message: "password updated" });
-            }
-          });
-        } else {
-          console.log("no user exists in db to update");
-          res.status(401).json({ message: "no user exists in db to update" });
-        }
-      });
+      await UserModel(tenant.toLowerCase())
+        .findOne({
+          resetPasswordToken: resetPasswordToken,
+          resetPasswordExpires: {
+            $gt: Date.now(),
+          },
+        })
+        .then((user) => {
+          if (user === null) {
+            console.log("password reset link is invalid or has expired");
+            res.status(HTTPStatus.BAD_REQUEST).json({
+              message: "password reset link is invalid or has expired",
+              success: false,
+            });
+          } else if (user !== null) {
+            user.resetPasswordToken = null;
+            user.resetPasswordExpires = null;
+            user.password = password;
+            user.save((error, saved) => {
+              if (error) {
+                console.log("user does not exist");
+                res.status(HTTPStatus.BAD_GATEWAY).json({
+                  success: false,
+                  message: "user does not exist",
+                });
+              } else if (saved) {
+                console.log("password updated");
+                res.status(HTTPStatus.OK).json({
+                  success: true,
+                  message: "password updated successfully",
+                  userName: user.userName,
+                });
+              }
+            });
+          } else {
+            console.log("the user does not exist");
+            res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: "the user does not exist",
+            });
+          }
+        });
+    } catch (error) {
+      tryCatchErrors(res, error);
+    }
   },
 
   updatePassword: (req, res) => {
