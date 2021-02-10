@@ -743,24 +743,13 @@ const Component = {
     }
   },
 
-  getValues: async (req, res) => {
+  getValues: (req, res) => {
     try {
-      const { comp, device, tenant } = req.query;
+      const { device, tenant } = req.query;
       logText("get values.......");
       logElement("device name ", device);
-      logElement("Component name ", comp);
-      if (device && comp && tenant) {
-        responseDeviceAndComponent(
-          res,
-          filterOptions.bothDeviceAndComponent(device, comp),
-          tenant
-        );
-      } else if (device && !comp && tenant) {
-        responseDevice(res, filterOptions.device(device), tenant);
-      } else if (!device && !comp && tenant) {
-        responseAll(req, res, tenant);
-      } else if (comp && !device && tenant) {
-        responseComponent(res, filterOptions.component(comp), tenant);
+      if (device && tenant) {
+        responseDevice(res, { device: device }, tenant);
       } else {
         missingQueryParams(req, res);
       }
