@@ -6,7 +6,8 @@ import pandas as pd
 # Middlewares
 from main import rest_api
 
-from api.models import PM25LocationCategoryCount, MonitoringSite, DeviceHourlyMeasurement
+from api.models import PM25LocationCategoryCount, MonitoringSite, DeviceHourlyMeasurement, DeviceDailyExceedances
+from api.models.constants import CODE_LOCATIONS
 
 from api.utils.http import Status
 from api.utils.request_validators import validate_request_params, validate_request_json
@@ -138,3 +139,27 @@ class DownloadCustomisedData(Resource):
                    'status': 'error',
                    'message': f'unknown data format {download_type}'
                }, Status.HTTP_400_BAD_REQUEST
+
+
+@rest_api.route('/dashboard/exceedances')
+class Exceedances(Resource):
+
+    @validate_request_json('pollutant|required:str', 'standard|required:str')
+    def post(self):
+        tenant = request.args.get('tenant')
+
+        json_data = request.get_json()
+        pollutant = json_data["pollutant"]
+        standard = json_data["standard"]
+
+        de_model = DeviceDailyExceedances(tenant)
+
+        exceedances_data = de_model.get_last_28_days_exceedences(pollutant, standard)
+
+        return exceedances_data and exceedances_data[0].get('exceedences') or [], Status.HTTP_200_OK
+
+
+@rest_api.route('/dashboard/exceedance_locations')
+class ExceedanceLocations(Resource):
+    def get(self):
+        return list(CODE_LOCATIONS.keys()), Status.HTTP_200_OK
