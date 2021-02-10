@@ -141,6 +141,22 @@ class DownloadCustomisedData(Resource):
                }, Status.HTTP_400_BAD_REQUEST
 
 
+@rest_api.route('/dashboard/divisions')
+class Divisions(Resource):
+
+    def get(self):
+        tenant = request.args.get('tenant')
+
+        ms_model = MonitoringSite(tenant)
+
+        divisions = ms_model.find(
+            {},
+            {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 0}
+        )
+
+        return {"divisions": list(divisions)}, Status.HTTP_200_OK
+
+
 @rest_api.route('/dashboard/exceedances')
 class Exceedances(Resource):
 
