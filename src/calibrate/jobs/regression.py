@@ -50,19 +50,19 @@ def get_bam_data():
     sql = """
     SELECT 
         Time,
-        ConcHR_ug_m3_ as bam_pm,
-        AT_C_ as temperature, 
-        RH___ as humidity
+        ConcHR_ug_m3 as bam_pm,
+        AT_C as temperature, 
+        RH as humidity
     FROM 
         `airqo-250220.thingspeak.airqo_bam_data`
     WHERE 
-        channel_id = 'Y24516'
+        channel_id = -24516
     AND
         Time >="2020-07-16T00:00:00"
     AND 
         Time <="2020-07-30T23:59:59"
     GROUP BY 
-        Time,ConcHR_ug_m3_,AT_C_, RH___ 
+        Time,ConcHR_ug_m3, AT_C, RH
     ORDER BY 
         Time
     """
