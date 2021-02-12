@@ -3,8 +3,8 @@ import pandas as pd
 import os
 import pickle
 from pymongo import MongoClient
-# from helpers import dataprocessing as dp 
-# from helpers import simple as sp  
+#from helpers import dataprocessing as dp 
+#from helpers import simple as sp  
 from calibration import simple as sp 
 from datetime import datetime,timedelta
 
@@ -33,10 +33,9 @@ class Calibrate():
 
         newids = set(idA+idB)
         myDict_id = dict(zip(unq, newids))
-        print('dict',myDict_id)
 
         refsensor = np.zeros(len(unq))
-        refsensor[2]=1
+        refsensor[1]=1
         f = sp.f
         delta = 24*7
         G,allsp,allcals,allcallists,allpopts,allpcovs,allpoptslists = sp.compute_simple_calibration(X,Y,delta,refsensor)
