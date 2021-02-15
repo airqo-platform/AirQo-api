@@ -148,6 +148,21 @@ class DownloadCustomisedData(Resource):
                }, Status.HTTP_400_BAD_REQUEST
 
 
+@rest_api.route('/dashboard/monitoringsites/locations')
+class MonitoringSiteLocationResource(Resource):
+
+    @validate_request_params('orgName|str')
+    def get(self):
+        tenant = request.args.get('tenant')
+        org_name = request.args.get('orgName') or tenant
+
+        ms_model = MonitoringSite(tenant)
+
+        org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
+
+        return {"monitoring_sites": org_monitoring_sites}, Status.HTTP_200_OK
+
+
 @rest_api.route('/dashboard/monitoring_sites')
 class MonitoringSiteResource(Resource):
 
