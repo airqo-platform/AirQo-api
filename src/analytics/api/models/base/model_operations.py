@@ -101,10 +101,37 @@ class ModelOperations:
 
         return self
 
-    def exec(self, projections=None):
+    def _find_exec(self, projections):
+        filters = self._get_filter_dict()
+        self._init_filter_dict()
+        projections = projections if projections else {}
+
+        return self.find(filters, projections)
+
+    def _aggregate_exec(self, projections):
+        filters = self._get_filter_dict().get(self.andOperatorKey, [])
+        self._init_filter_dict()
+        print('filters', filters)
+        stages = []
+        mongo_db_match_operator = {}
+
+        for f in filters:
+            mongo_db_match_operator.update(f)
+
+        stages.append({'$match': mongo_db_match_operator})
+
+        if projections:
+            mongo_db_project_operator = projections
+            mongo_db_project_operator.update({"_id": {"$toString": "$_id"}})
+            stages.append({"$project": mongo_db_project_operator})
+
+        return self.aggregate(stages)
+
+    def exec(self, projections=None, aggregate=True):
         """
         This is a method used to terminate the chained filter query
         Args:
+            aggregate: boolean to switch between the mongo find and aggregate functions
             projections: an optional dict that specifies Specifies the fields to return in the documents that match
                          the query filter. To return all fields in the matching documents, omit this parameter.
                          For details, see https://docs.mongodb.com/manual/reference/method/db.collection.find/#find-projection
@@ -114,11 +141,9 @@ class ModelOperations:
 
         """
 
-        filters = self._get_filter_dict()
-        self._init_filter_dict()
-        projections = projections if projections else {}
-
-        return self.find(filters, projections)
+        if aggregate:
+            return self._aggregate_exec(projections)
+        return self._find_exec(projections)
 
     def convert_model_ids(self, documents):
         docs = list(documents)
