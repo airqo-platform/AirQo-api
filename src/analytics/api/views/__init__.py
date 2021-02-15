@@ -3,5 +3,6 @@ from .dashboard import (
     DownloadCustomisedData,
     Exceedances,
     ExceedanceLocations,
-    Divisions
+    Divisions,
+    DeviceDailyMeasurements
 )

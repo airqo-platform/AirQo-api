@@ -6,11 +6,18 @@ import pandas as pd
 # Middlewares
 from main import rest_api
 
-from api.models import PM25LocationCategoryCount, MonitoringSite, DeviceHourlyMeasurement, DeviceDailyExceedances
+from api.models import (
+    PM25LocationCategoryCount,
+    MonitoringSite,
+    DeviceHourlyMeasurement,
+    DeviceDailyExceedances,
+    DeviceDailyHistoricalAverages
+)
 from api.models.constants import CODE_LOCATIONS
 
 from api.utils.http import Status
 from api.utils.request_validators import validate_request_params, validate_request_json
+from api.utils.pollutants import set_pm25_category_background
 
 
 @rest_api.route("/dashboard/locations/pm25categorycount")
@@ -139,6 +146,35 @@ class DownloadCustomisedData(Resource):
                    'status': 'error',
                    'message': f'unknown data format {download_type}'
                }, Status.HTTP_400_BAD_REQUEST
+
+
+@rest_api.route('/dashboard/historical/daily/devices')
+class DeviceDailyMeasurements(Resource):
+
+    def get(self):
+        tenant = request.args.get('tenant')
+        dha_model = DeviceDailyHistoricalAverages(tenant)
+
+        sites = dha_model.get_last_28_days_measurements()
+
+        results = []
+        values = []
+        labels = []
+        background_colors = []
+
+        for site in sites:
+            values.append(int(site["average_pm25"]))
+            labels.append(site["Parish"])
+            background_colors.append(set_pm25_category_background(site["average_pm25"]))
+            results.append(site)
+
+        return {
+            "results": {
+                "average_pm25_values": values,
+                "labels": labels,
+                "background_colors": background_colors
+            }
+        }, Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/divisions')
