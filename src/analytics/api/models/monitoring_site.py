@@ -1,4 +1,5 @@
 from api.models.base.base_model import BasePyMongoModel
+from api.utils.dates import date_to_str
 
 
 class MonitoringSite(BasePyMongoModel):
@@ -26,3 +27,39 @@ class MonitoringSite(BasePyMongoModel):
             result["_id"] = str(result['_id'])
 
         return results
+
+    def get_all_org_monitoring_sites(self, organisation_name):
+        """
+        Gets all the monitoring sites for the specified organisation.
+
+        Args:
+            organisation_name: the name of the organisation whose monitoring sites are to be returned.
+
+        Returns:
+            A list of the monitoring sites associated with the specified organisation name.
+        """
+        final_results = []
+        results = list(self.find({"Organisation": organisation_name}))
+
+        for result in results:
+            if 'LatestHourlyMeasurement' in result:
+                w = result['LatestHourlyMeasurement']
+                last_hour_pm25_value = int(w[-1]['last_hour_pm25_value'])
+                last_hour = str(date_to_str(w[-1]['last_hour'], format='%Y-%m-%d %H:%M'))
+            else:
+                last_hour_pm25_value = 0
+                last_hour = ''
+
+            final_results.append({
+                "DeviceCode": result['DeviceCode'],
+                'Parish': result['Parish'],
+                'Division': result['Division'],
+                'Last_Hour_PM25_Value': last_hour_pm25_value,
+                'Latitude': result['Latitude'],
+                'Longitude': result['Longitude'],
+                'LocationCode': result['LocationCode'],
+                'LastHour': last_hour,
+                '_id': str(result['_id'])
+            })
+
+        return final_results
