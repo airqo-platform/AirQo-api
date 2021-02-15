@@ -8,6 +8,7 @@ import re
 from flask import request
 
 from api.utils.http import Status
+from api.utils.pollutants import PM_25_CATEGORY
 
 @dataclass
 class ValidatorResult:
@@ -32,6 +33,8 @@ class Validator(OrderedDict):
 
     DATA_TYPES = ['csv', 'json']
 
+    PM_CATEGORIES = PM_25_CATEGORY.keys();
+
     def __init__(self, validation_type=''):
         super().__init__()
         self.validation_type = validation_type
@@ -52,6 +55,10 @@ class Validator(OrderedDict):
         self['data'] = self.type_validator(
             self.data_checker,
             f"{{}} is not a supported data format. Supported data formats are {self.DATA_TYPES}"
+        )
+        self['pmCategory'] = self.type_validator(
+            self.pm_category_checker,
+            f"{{}} is not a valid pm category. Valid categories are {self.PM_CATEGORIES}"
         )
 
     def type_validator(self, type_checker, error_msg):
@@ -114,6 +121,11 @@ class Validator(OrderedDict):
     def data_checker(cls, value):
         if value not in cls.DATA_TYPES:
             raise TypeError("invalid data type")
+
+    @classmethod
+    def pm_category_checker(cls, value):
+        if value not in cls.PM_CATEGORIES:
+            raise TypeError("invalid pm category type")
 
     @staticmethod
     def parse_rule(rule):
