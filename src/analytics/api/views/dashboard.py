@@ -17,7 +17,7 @@ from api.models.constants import CODE_LOCATIONS
 
 from api.utils.http import Status
 from api.utils.request_validators import validate_request_params, validate_request_json
-from api.utils.pollutants import set_pm25_category_background
+from api.utils.pollutants import categorise_pm25_values, set_pm25_category_background
 
 
 @rest_api.route("/dashboard/locations/pm25categorycount")
@@ -146,6 +146,25 @@ class DownloadCustomisedData(Resource):
                    'status': 'error',
                    'message': f'unknown data format {download_type}'
                }, Status.HTTP_400_BAD_REQUEST
+
+
+@rest_api.route('/dashboard/monitoring_sites')
+class MonitoringSiteResource(Resource):
+
+    @validate_request_params('orgName|str', 'pm25Category|pmCategory')
+    def get(self):
+        tenant = request.args.get('tenant')
+        org_name = request.args.get('orgName') or tenant
+        pm25_category = request.args.get('pm25Category')
+
+        ms_model = MonitoringSite(tenant)
+
+        org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
+
+        if pm25_category:
+            org_monitoring_sites = categorise_pm25_values(org_monitoring_sites, pm25_category)
+
+        return {"monitoring_sites": org_monitoring_sites}, Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/historical/daily/devices')
