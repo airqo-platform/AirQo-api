@@ -1,4 +1,5 @@
 from .pm25_models import PM25LocationCategoryCount
 from .monitoring_site import MonitoringSite
-from .device_measurements import DeviceHourlyMeasurement
+from .device_measurements import DeviceHourlyMeasurement, DeviceDailyHistoricalAverages
 from .device_exceedances import DeviceDailyExceedances
+from .collection import Collection
