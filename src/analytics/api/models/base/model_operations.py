@@ -111,7 +111,7 @@ class ModelOperations:
     def _aggregate_exec(self, projections):
         filters = self._get_filter_dict().get(self.andOperatorKey, [])
         self._init_filter_dict()
-        print('filters', filters)
+
         stages = []
         mongo_db_match_operator = {}
 
@@ -122,7 +122,8 @@ class ModelOperations:
 
         if projections:
             mongo_db_project_operator = projections
-            mongo_db_project_operator.update({"_id": {"$toString": "$_id"}})
+            if projections.get("_id"):
+                mongo_db_project_operator.update({"_id": {"$toString": "$_id"}})
             stages.append({"$project": mongo_db_project_operator})
 
         return self.aggregate(stages)
