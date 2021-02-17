@@ -453,7 +453,7 @@ const Component = {
         standardDeviationValue,
         sensor,
       } = req.body;
-      logObject("the type of device name", typeof device);
+
       if (
         !isEmpty(raw) &&
         !isEmpty(frequency) &&
@@ -509,10 +509,12 @@ const Component = {
             /**
              * add the component name in the response body
              */
-            const samples = { ...sample };
+            console.log("sample: ", sample);
+            console.log("device: ", device);
+            // const samples = { ...sample };
             const event = {
-              values: samples,
-              device: device,
+              ...sample,
+              device,
             };
             return res.status(HTTPStatus.OK).json({
               success: true,
