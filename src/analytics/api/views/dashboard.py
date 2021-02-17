@@ -1,7 +1,9 @@
+from collections import OrderedDict
+
 # Third-party libraries
+import flask_excel as excel
 from flask_restx import Resource
 from flask import request
-import pandas as pd
 
 # Middlewares
 from main import rest_api
@@ -46,7 +48,7 @@ class DownloadCustomisedData(Resource):
     @validate_request_params('downloadType|required:data')
     @validate_request_json(
         'locations|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
-        'frequency|required:str', 'pollutants|required:list', 'fileType|required:data', 'orgName|str'
+        'frequency|required:str', 'pollutants|required:list', 'orgName|str'
     )
     def post(self):
         tenant = request.args.get("tenant")
@@ -57,102 +59,65 @@ class DownloadCustomisedData(Resource):
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
-        file_type = json_data["fileType"]
         org_name = json_data["orgName"]
 
         ms_model = MonitoringSite(tenant)
         dhm_model = DeviceHourlyMeasurement(tenant)
 
-        datasets = []
+        formatted_data = []
 
-        for location in locations:
-            devices = ms_model.get_location_devices_code(org_name or tenant, location['label'])
+        sites = list(ms_model.filter_by(Organisation=org_name).in_filter_by(Parish=locations).exec(
+            {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 1}
+        ))
 
-            for device in devices:
-                device_code = device['DeviceCode']
-                division = device['Division']
-                parish = device['Parish']
-                location_code = device['LocationCode']
-                values = []
-                labels = []
-                pollutant_list = []
-                data_to_download = {}
-                channel_ref = []
+        device_codes = []
+        location_mapper = {}
 
-                # control how some of the data is accessed
-                flag = 0
-                # loop through pollutants selected by the user
-                for pollutant in pollutants:
-                    filtered_data = dhm_model.get_filtered_data(
-                        device_code, start_date, end_date, frequency, pollutant['value']
-                    )
+        for site in sites:
+            device_codes.append(site["DeviceCode"])
+            location_mapper[site["DeviceCode"]] = site
 
-                    data_to_download[pollutant['value']] = []
-                    if filtered_data:
-                        for data in filtered_data:
-                            values.append(data['pollutant_value'])
-                            if flag == 0:
-                                labels.append(data['time'])
-                                channel_ref.append(device_code)
-                            pollutant_list.append(pollutant['value'])
-                            data_to_download[pollutant['value']].append(
-                                data['pollutant_value'])
-                    flag = 1
+        device_data = list(dhm_model.get_all_pollutant_values(
+            device_codes, start_date=start_date, end_date=end_date, frequency=frequency
+        ))
 
-                data_to_download['channel_ref'] = channel_ref
-                data_to_download['device_code'] = device_code
-                data_to_download['division'] = division
-                data_to_download['parish'] = parish
-                data_to_download['time'] = labels
-                data_to_download['location_code'] = location_code
-                data_to_download['start_date'] = start_date
-                data_to_download['end_date'] = end_date
-                data_to_download['frequency'] = frequency
-                data_to_download['file_type'] = file_type
-                data_to_download['owner'] = org_name or tenant
-                data_to_download['location'] = location['label']
+        for data in device_data:
+            dataset = OrderedDict()
+            site = location_mapper.get(data['deviceCode'])
+            dataset['datetime'] = data['time']
+            dataset['owner'] = org_name
+            dataset['location'] = site['Parish']
+            dataset['division'] = site['Division']
+            dataset['frequency'] = frequency
 
-                # This has been over indented compared to original
-                datasets.append(data_to_download)
+            data['owner'] = org_name
+            data['division'] = site['Division']
+            data['location'] = site['Parish']
+            data['frequency'] = frequency
 
-        # downloading json
+            if "PM 2.5" in pollutants:
+                dataset['pm25_value'] = data['pm25_value']
+
+            if 'PM 10' in pollutants:
+                dataset['pm10_value'] = data['pm10_value']
+
+            if 'NO2' in pollutants:
+                dataset['no2_value'] = data['no2_value']
+
+            dataset['channel_ref'] = data['deviceCode']
+
+            formatted_data.append(dataset)
+
         if download_type == 'json':
-            return {'results': datasets}, Status.HTTP_200_OK
+            return {'results': formatted_data}, Status.HTTP_200_OK
 
-        # downloading csv
         if download_type == 'csv':
-            # print(json.dumps(datasets, indent=1))
-            # json normalization to pandas datafrome
-            tempp = pd.DataFrame()
-            for _ in locations:
-                temp = pd.json_normalize(datasets, 'time', ['owner'])
-                if not temp.empty:
-                    tempp['datetime'] = temp[0]
-
-            for pollutant in pollutants:
-                temp = pd.json_normalize(datasets, pollutant['label'], [
-                    'owner', 'location', 'parish', 'division', 'frequency', 'location_code'])
-                tempp['owner'] = temp['owner']
-                tempp['location'] = temp['location']
-                tempp['location_code'] = temp['location_code']
-                tempp['parish'] = temp['parish']
-                tempp['division'] = temp['division']
-                tempp['frequency'] = temp['frequency']
-                if not temp.empty:
-                    tempp[pollutant['label']] = temp[0]
-
-            for _ in locations:
-                temp = pd.json_normalize(datasets, 'channel_ref', ['owner'])
-                if not temp.empty:
-                    tempp['channel_ref'] = temp[0]
-
-            final_data = tempp.to_json(orient='records')
-            return final_data, Status.HTTP_200_OK
+            return excel.make_response_from_records(formatted_data, 'csv', file_name=f'airquality-{frequency}-data')
 
         return {
                    'status': 'error',
                    'message': f'unknown data format {download_type}'
-               }, Status.HTTP_400_BAD_REQUEST
+                }, Status.HTTP_400_BAD_REQUEST
 
 
 @rest_api.route('/dashboard/customised_chart')
