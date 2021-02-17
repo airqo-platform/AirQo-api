@@ -4,6 +4,7 @@
 
 # Third-Party libraries
 from flask import Flask, jsonify
+from flask_excel import init_excel
 from flask_restx import Api
 from flask_cors import CORS
 from decouple import config as env_config
@@ -31,6 +32,7 @@ def create_app(rest_api, config=config[config_name]):
 
     app = Flask(__name__)
     rest_api.init_app(app)
+    init_excel(app)
     CORS(app)
     app.config.from_object(config)
 
