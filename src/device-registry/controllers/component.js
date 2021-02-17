@@ -456,13 +456,10 @@ const Component = {
 
       if (
         !isEmpty(raw) &&
-        !isEmpty(frequency) &&
         !isEmpty(device) &&
         !isEmpty(time) &&
+        !isEmpty(frequency) &&
         !isEmpty(sensor) &&
-        !isEmpty(calibratedValue) &&
-        !isEmpty(uncertaintyValue) &&
-        !isEmpty(standardDeviationValue) &&
         !isEmpty(tenant)
       ) {
         const isComponentPresent = await doesComponentExist(
@@ -474,13 +471,19 @@ const Component = {
 
         if (isComponentPresent) {
           const sample = {
-            raw,
-            frequency,
-            time,
-            calibratedValue,
-            uncertaintyValue,
-            standardDeviationValue,
-            sensor,
+            ...(!isEmpty(raw) && { raw: raw }),
+            ...(!isEmpty(frequency) && { frequency: frequency }),
+            ...(!isEmpty(time) && { time: time }),
+            ...(!isEmpty(calibratedValue) && {
+              calibratedValue: calibratedValue,
+            }),
+            ...(!isEmpty(uncertaintyValue) && {
+              uncertaintyValue: uncertaintyValue,
+            }),
+            ...(!isEmpty(standardDeviationValue) && {
+              standardDeviationValue: standardDeviationValue,
+            }),
+            ...(!isEmpty(sensor) && { sensor: sensor }),
           };
           const day = await generateDateFormat(time);
           const eventBody = {
