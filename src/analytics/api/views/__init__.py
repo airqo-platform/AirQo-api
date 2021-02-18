@@ -10,4 +10,4 @@ from .dashboard import (
     MonitoringSiteResource,
 )
 
-from .report import DefaultReportTemplateResource
+from .report import DefaultReportTemplateResource, MonthlyReportResource, MonthlyReportExtraResource
