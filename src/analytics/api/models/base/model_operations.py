@@ -1,7 +1,8 @@
 from pymongo import ASCENDING, DESCENDING
 
 
-class ModelOperations:
+class BaseMongoOperations:
+    """contains methods that map directly to the pymongo api"""
 
     def aggregate(self, stages):
         """
@@ -26,6 +27,30 @@ class ModelOperations:
             raise Exception("sort key cannot be empty")
         return self.collection.find().sort(key, ASCENDING if ascending else DESCENDING)
 
+    def insert(self, new_document):
+        """
+        Inserts a new document into a collection
+        Args:
+            new_document (dict): document to be inserted into the collection
+        """
+        return self.collection.insert(new_document)
+
+    def update_one(self, filter_cond=None, update_fields=None):
+        """
+        Method to update documents(s)
+        Args:
+            filter_cond (dict): condition to select the docs to be updated
+            update_fields: the document fields to be updated
+
+        Returns (int): count of updated documents
+        """
+        if not filter_cond:
+            raise Exception("filter_cond has to be specified")
+
+        return self.collection.update_one(filter_cond, {'$set': update_fields})
+
+
+class ChainableMongoOperations(BaseMongoOperations):
     def _init_filter_dict(self):
         self.andOperatorKey = "$and"
         self.filter_dict = {self.andOperatorKey: []}
@@ -145,6 +170,9 @@ class ModelOperations:
         if aggregate:
             return self._aggregate_exec(projections)
         return self._find_exec(projections)
+
+
+class ModelOperations(ChainableMongoOperations):
 
     def convert_model_ids(self, documents):
         docs = list(documents)
