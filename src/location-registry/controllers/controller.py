@@ -52,7 +52,7 @@ def register_location():
         tenant_id = request.args.get('tenant')
         if not tenant_id:
             return {'message': 'Tenant id required', 'success':False}, 400
-    
+        
         json_data = request.get_json()
         if not json_data:
             return {'message': 'No input data provided', 'success':False}, 400
@@ -74,7 +74,7 @@ def register_location():
             try:
                 road_intensity = int(json_data["roadIntensity"])
             except:
-                road_intensity = None    
+                road_intensity = None   
             road_status = json_data["roadStatus"]
             description = json_data["description"]
             local_activities = []
