@@ -1,0 +1,40 @@
+
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  creationTimestamp: "2020-08-13T11:00:12Z"
+  managedFields:
+    - apiVersion: batch/v1beta1
+      manager: kubectl
+      operation: Update
+      time: "2020-08-13T11:00:12Z"
+  name: stage-device-uptime-job
+  namespace: staging
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      creationTimestamp: null
+      name: stage-device-uptime-job
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+        spec:
+          containers:
+            - name: stage-device-uptime-job
+              image: us.gcr.io/airqo-250220/airqo-stage-device-uptime-job:latest
+              imagePullPolicy: Always
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+  schedule: 00 01 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false
+status: {}
