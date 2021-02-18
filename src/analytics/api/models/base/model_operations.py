@@ -42,12 +42,23 @@ class BaseMongoOperations:
             filter_cond (dict): condition to select the docs to be updated
             update_fields: the document fields to be updated
 
-        Returns (int): count of updated documents
+        Returns : PyMongo Update object
         """
         if not filter_cond:
             raise Exception("filter_cond has to be specified")
 
         return self.collection.update_one(filter_cond, {'$set': update_fields})
+
+    def delete_one(self, filter_cond):
+        """Deletes a document from a collection
+
+        Args:
+            filter_cond(dict): condition to select the docs to be updated
+
+        Returns: PyMongo delete object
+
+        """
+        return self.collection.delete_one(filter_cond)
 
 
 class ChainableMongoOperations(BaseMongoOperations):
