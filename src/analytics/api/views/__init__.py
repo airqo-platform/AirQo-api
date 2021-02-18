@@ -9,3 +9,5 @@ from .dashboard import (
     MonitoringSiteLocationResource,
     MonitoringSiteResource,
 )
+
+from .report import DefaultReportTemplateResource
