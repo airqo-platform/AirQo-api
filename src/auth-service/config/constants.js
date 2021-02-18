@@ -1,9 +1,9 @@
 const devConfig = {
   MONGO_URI: "mongodb://localhost",
   DB_NAME: process.env.MONGO_DEV,
-  PWD_RESET: "http://localhost:3000/reset",
-  LOGIN_PAGE: "http://localhost:3000/login",
-  FORGOT_PAGE: "http://localhost:3000/forgot",
+  PWD_RESET: "http://localhost:5000/reset",
+  LOGIN_PAGE: "http://localhost:5000/login",
+  FORGOT_PAGE: "http://localhost:5000/forgot",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,

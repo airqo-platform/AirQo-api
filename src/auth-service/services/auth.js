@@ -1,5 +1,6 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const HTTPStatus = require("http-status");
 const UserSchema = require("../models/User");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
@@ -129,13 +130,13 @@ function login(req, res, next) {
   }
 }
 
-function jwtAuth(req, res, next) {
+function checkTenancy(req, res, next) {
   try {
     if (req.query.tenant) {
       createJWTStrategy(req.query.tenant, req, res, next);
       next();
     } else {
-      res.json({
+      res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
         message:
           "the organization is missing in the query params, please check documentation",
@@ -143,7 +144,9 @@ function jwtAuth(req, res, next) {
     }
   } catch (e) {
     console.log("the error in login is: ", e.message);
-    res.json({ success: false, message: e.message });
+    res
+      .status(HTTPStatus.BAD_GATEWAY)
+      .json({ success: false, message: e.message });
   }
 }
 
@@ -180,7 +183,7 @@ module.exports = {
   login: login,
   authUserLocal: authUserLocal,
   authJWT: authJWT,
-  jwtAuth: jwtAuth,
+  checkTenancy: checkTenancy,
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
   requiresSignIn: requiresSignIn,

@@ -4,7 +4,12 @@ const joinController = require("../controllers/join");
 const candidateController = require("../controllers/candidate");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
-const { jwtAuth, authJWT, login, authUserLocal } = require("../services/auth");
+const {
+  checkTenancy,
+  authJWT,
+  login,
+  authUserLocal,
+} = require("../services/auth");
 const privileges = require("../utils/privileges");
 
 //the middleware function
@@ -29,30 +34,49 @@ const checkAuth = () => {
 
 //************************* users ***************************************************
 router.post("/loginUser", login, authUserLocal, joinController.loginUser);
-router.get("/", jwtAuth, authJWT, joinController.listAll);
+router.get("/", checkTenancy, authJWT, joinController.listAll);
 router.post("/registerUser", joinController.registerUser);
-router.post("/addWithTenant", jwtAuth, authJWT, joinController.addUserByTenant);
-router.get("/email/confirm/", jwtAuth, authJWT, joinController.confirmEmail); //componentDidMount() will handle this one right here....
+router.post(
+  "/addWithTenant",
+  checkTenancy,
+  authJWT,
+  joinController.addUserByTenant
+);
+router.get(
+  "/email/confirm/",
+  checkTenancy,
+  authJWT,
+  joinController.confirmEmail
+); //componentDidMount() will handle this one right here....
 router.put(
   "/updatePasswordViaEmail",
-  jwtAuth,
-  authJWT,
+  checkTenancy,
   joinController.updatePasswordViaEmail
 );
-router.put("/updatePassword", jwtAuth, authJWT, joinController.updatePassword);
-router.get("/reset/you", jwtAuth, authJWT, joinController.resetPassword);
-router.post("/forgotPassword", jwtAuth, joinController.forgotPassword);
-router.put("/", jwtAuth, authJWT, joinController.updateUser);
-router.delete("/", jwtAuth, authJWT, joinController.deleteUser);
-router.put("/defaults/", jwtAuth, authJWT, joinController.updateUserDefaults);
-router.get("/defaults/", jwtAuth, authJWT, joinController.getDefaults);
+router.put(
+  "/updatePassword",
+  checkTenancy,
+  authJWT,
+  joinController.updatePassword
+);
+router.get("/reset/you", checkTenancy, authJWT, joinController.resetPassword);
+router.post("/forgotPassword", checkTenancy, joinController.forgotPassword);
+router.put("/", checkTenancy, authJWT, joinController.updateUser);
+router.delete("/", checkTenancy, authJWT, joinController.deleteUser);
+router.put(
+  "/defaults/",
+  checkTenancy,
+  authJWT,
+  joinController.updateUserDefaults
+);
+router.get("/defaults/", checkTenancy, authJWT, joinController.getDefaults);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
 router.post("/register/new/candidate", candidateController.registerCandidate);
 router.get(
   "/candidates/fetch",
-  jwtAuth,
+  checkTenancy,
   authJWT,
   candidateController.getAllCandidates
 );
