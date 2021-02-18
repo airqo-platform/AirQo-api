@@ -1,8 +1,11 @@
 from .dashboard import (
-    PM25CategoryLocationCount,
-    DownloadCustomisedData,
-    Exceedances,
-    ExceedanceLocations,
-    Divisions,
-    DeviceDailyMeasurements
+    PM25CategoryLocationCountResource,
+    DownloadCustomisedDataResource,
+    ExceedancesResource,
+    ExceedanceLocationsResource,
+    DivisionsResource,
+    DeviceDailyMeasurementsResource,
+    CustomisedChartResource,
+    MonitoringSiteLocationResource,
+    MonitoringSiteResource,
 )

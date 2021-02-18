@@ -2,7 +2,7 @@ from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
 
 
-class MonitoringSite(BasePyMongoModel):
+class MonitoringSiteModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="monitoring_site")
 

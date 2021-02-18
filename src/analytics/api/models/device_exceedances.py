@@ -4,7 +4,7 @@ from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str, str_to_date
 
 
-class DeviceDailyExceedances(BasePyMongoModel):
+class DeviceDailyExceedancesModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="device_daily_exceedences")
 

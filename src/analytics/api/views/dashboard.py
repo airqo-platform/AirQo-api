@@ -9,11 +9,11 @@ from flask import request
 from main import rest_api
 
 from api.models import (
-    PM25LocationCategoryCount,
-    MonitoringSite,
-    DeviceHourlyMeasurement,
-    DeviceDailyExceedances,
-    DeviceDailyHistoricalAverages
+    PM25LocationCategoryCountModel,
+    MonitoringSiteModel,
+    DeviceHourlyMeasurementModel,
+    DeviceDailyExceedancesModel,
+    DeviceDailyHistoricalAveragesModel
 )
 from api.models.constants import CODE_LOCATIONS
 
@@ -30,11 +30,11 @@ from api.utils.pollutants import (
 
 
 @rest_api.route("/dashboard/locations/pm25categorycount")
-class PM25CategoryLocationCount(Resource):
+class PM25CategoryLocationCountResource(Resource):
 
     def get(self):
         tenant = request.args.get("tenant")
-        model = PM25LocationCategoryCount(tenant)
+        model = PM25LocationCategoryCountModel(tenant)
         results = list(model.sort("created_at", ascending=False).limit(1))
 
         response = results and results[0].get('pm25_categories') or []
@@ -43,7 +43,7 @@ class PM25CategoryLocationCount(Resource):
 
 
 @rest_api.route("/data/download")
-class DownloadCustomisedData(Resource):
+class DownloadCustomisedDataResource(Resource):
 
     @validate_request_params('downloadType|required:data')
     @validate_request_json(
@@ -61,8 +61,8 @@ class DownloadCustomisedData(Resource):
         pollutants = json_data["pollutants"]
         org_name = json_data["orgName"]
 
-        ms_model = MonitoringSite(tenant)
-        dhm_model = DeviceHourlyMeasurement(tenant)
+        ms_model = MonitoringSiteModel(tenant)
+        dhm_model = DeviceHourlyMeasurementModel(tenant)
 
         formatted_data = []
 
@@ -157,8 +157,8 @@ class CustomisedChartResource(Resource):
             category_key = 'no2'
             label_key = 'no2'
 
-        ms_model = MonitoringSite(tenant)
-        dhm_model = DeviceHourlyMeasurement(tenant)
+        ms_model = MonitoringSiteModel(tenant)
+        dhm_model = DeviceHourlyMeasurementModel(tenant)
 
         results = {
             "chart_type": chart_type,
@@ -246,7 +246,7 @@ class MonitoringSiteLocationResource(Resource):
         tenant = request.args.get('tenant')
         org_name = request.args.get('orgName') or tenant
 
-        ms_model = MonitoringSite(tenant)
+        ms_model = MonitoringSiteModel(tenant)
 
         org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
 
@@ -262,7 +262,7 @@ class MonitoringSiteResource(Resource):
         org_name = request.args.get('orgName') or tenant
         pm25_category = request.args.get('pm25Category')
 
-        ms_model = MonitoringSite(tenant)
+        ms_model = MonitoringSiteModel(tenant)
 
         org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
 
@@ -273,11 +273,11 @@ class MonitoringSiteResource(Resource):
 
 
 @rest_api.route('/dashboard/historical/daily/devices')
-class DeviceDailyMeasurements(Resource):
+class DeviceDailyMeasurementsResource(Resource):
 
     def get(self):
         tenant = request.args.get('tenant')
-        dha_model = DeviceDailyHistoricalAverages(tenant)
+        dha_model = DeviceDailyHistoricalAveragesModel(tenant)
 
         sites = dha_model.get_last_28_days_measurements()
 
@@ -302,12 +302,12 @@ class DeviceDailyMeasurements(Resource):
 
 
 @rest_api.route('/dashboard/divisions')
-class Divisions(Resource):
+class DivisionsResource(Resource):
 
     def get(self):
         tenant = request.args.get('tenant')
 
-        ms_model = MonitoringSite(tenant)
+        ms_model = MonitoringSiteModel(tenant)
 
         divisions = ms_model.find(
             {},
@@ -318,7 +318,7 @@ class Divisions(Resource):
 
 
 @rest_api.route('/dashboard/exceedances')
-class Exceedances(Resource):
+class ExceedancesResource(Resource):
 
     @validate_request_json('pollutant|required:str', 'standard|required:str')
     def post(self):
@@ -328,7 +328,7 @@ class Exceedances(Resource):
         pollutant = json_data["pollutant"]
         standard = json_data["standard"]
 
-        de_model = DeviceDailyExceedances(tenant)
+        de_model = DeviceDailyExceedancesModel(tenant)
 
         exceedances_data = de_model.get_last_28_days_exceedences(pollutant, standard)
 
@@ -336,6 +336,6 @@ class Exceedances(Resource):
 
 
 @rest_api.route('/dashboard/exceedance_locations')
-class ExceedanceLocations(Resource):
+class ExceedanceLocationsResource(Resource):
     def get(self):
         return list(CODE_LOCATIONS.keys()), Status.HTTP_200_OK

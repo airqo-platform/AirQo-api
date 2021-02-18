@@ -4,7 +4,7 @@ from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str, str_to_date
 
 
-class DeviceDailyHistoricalAverages(BasePyMongoModel):
+class DeviceDailyHistoricalAveragesModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name='device_daily_historical_averages')
 
@@ -23,7 +23,7 @@ class DeviceDailyHistoricalAverages(BasePyMongoModel):
         return list(self.collection.aggregate([query, projection]))
 
 
-class DeviceHourlyMeasurement(BasePyMongoModel):
+class DeviceHourlyMeasurementModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="device_hourly_measurements")
 
