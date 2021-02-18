@@ -1,64 +1,23 @@
+import app
 from datetime import datetime, timedelta
-import pandas as pd
-from pymongo import DESCENDING
 from helpers import convert_dates
 from config import db_connection
+import requests
+import math
+from google.cloud import bigquery
+import pandas as pd
 
 
-class DeviceStatus():
+class NetworkUptimeAnalysisResults():
     """The class contains functionality for retrieving device status .
     Attributes:
         attr1 (str): Description of `attr1`.
         attr2 (:obj:`int`, optional): Description of `attr2`.
     """
 
-    def __init__(self):
+    def __init__(self, tenant):
         """ initialize """
-
-    def get_device_status(self, tenant):
-        """get device status information"""
-        db = db_connection.connect_mongo(tenant)
-        documents = db.device_status.find().sort('created_at', DESCENDING).limit(1)
-        return documents
-
-    @staticmethod
-    def get_device_uptime(tenant, device_name, days):
-        db = db_connection.connect_mongo(tenant)
-        return db.device_uptime.find({'device_name': device_name}).sort('created_at', DESCENDING).limit(days)
-
-    @staticmethod
-    def get_all_devices_uptime(tenant, days):
-        db = db_connection.connect_mongo(tenant)
-        device_count = db.devices.find({'isActive': True}).count()
-        return db.device_uptime.find().sort('created_at', DESCENDING).limit(days * device_count)
-
-
-    @staticmethod
-    def get_network_uptime(tenant, days):
-        db = db_connection.connect_mongo(tenant)
-        return db.network_uptime.find({'network_name': tenant}).sort('created_at', DESCENDING).limit(days)
-
-
-    def get_device_maintenance_log(self, tenant):
-        """# get device maintenance log information"""
-        db = db_connection.connect_mongo(tenant)
-        documents = db.activities.find({"activityType": "maintenance"})
-        return documents
-
-     # get maintenance log for a given device name/id
-    def get_device_name_maintenance_log(self, tenant, device_name):
-        db = db_connection.connect_mongo(tenant)
-        # documents = db.maintenance_log.find({'device': device_name})
-        documents = db.activities.find(
-            {'activityType': 'maintenance', 'device': device_name})
-        return documents
-
-    # get devices status infromation
-    def get_device_power(self, tenant):
-        db = db_connection.connect_mongo(tenant)
-        documents = db.devices.find({'$and': [{'locationID': {'$ne': ""}}, {'status': {'$ne': "Retired"}}, {'power': {'$ne': ""}}]}, {
-            'power': 1, 'name': 1, 'locationID': 1})
-        return documents
+        self.tenant = tenant
 
     def get_all_devices_latest_status(self, tenant):
         """
@@ -89,22 +48,6 @@ class DeviceStatus():
         else:
             result = []
         return result
-
-    def get_all_devices(self, tenant):
-        db = db_connection.connect_mongo(tenant)
-        results = list(db.device_status_summary.find({}, {'_id': 0}))
-        # basic exception handling
-        if len(results) != 0:
-            result = results[0]
-        else:
-            result = []
-        return result
-
-    def str_to_date_find(self, st):
-        """
-        Converts a string of different format to datetime
-        """
-        return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
 
     def get_network_uptime_analysis_results(self, tenant):
         "gets the latest network uptime for the specified hours"
@@ -260,6 +203,12 @@ class DeviceStatus():
                 "message": "device battery voltage data not available for the specified device", "success": False}
         return uptime_result
 
+    def save_device_uptime(self, value):
+        tenant = self.tenant
+        db = db_connection.connect_mongo(tenant)
+        results = db.network_uptime_analysis_results.insert_one(value)
+        return results
+
     def get_device_sensor_correlation_results(self, tenant, filter_param):
         "gets the latest device sensor correlations for the device with the specifided channel id"
         db = db_connection.connect_mongo(tenant)
@@ -302,7 +251,3 @@ class DeviceStatus():
             uptime_result = {
                 "message": "device sensor correlation data not available for the specified device", "success": False}
         return uptime_result
-
-
-if __name__ == "__main__":
-    dx = DeviceStatus()

@@ -3,10 +3,16 @@ import pathlib
 import os
 import sys
 from dotenv import load_dotenv
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+print("BASE_DIR", BASE_DIR)
 
 
 class Config:
-    dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+    dotenv_path = os.path.join(BASE_DIR, '.env')
+    print("dotenv", dotenv_path)
     load_dotenv(dotenv_path)
     DEBUG = False
     TESTING = False
