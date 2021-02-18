@@ -3,3 +3,4 @@ from .monitoring_site import MonitoringSiteModel
 from .device_measurements import DeviceHourlyMeasurementModel, DeviceDailyHistoricalAveragesModel
 from .device_exceedances import DeviceDailyExceedancesModel
 from .collection import Collection
+from .report_template import ReportTemplateModel
