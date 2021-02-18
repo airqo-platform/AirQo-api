@@ -172,6 +172,7 @@ UserSchema.methods = {
         email: this.email,
         privilege: this.privilege,
         profilePicture: this.profilePicture,
+        phoneNumber: this.phoneNumber,
       },
       constants.JWT_SECRET
     );
@@ -198,6 +199,7 @@ UserSchema.methods = {
       category: this.category,
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
+      phoneNumber: this.phoneNumber,
     };
   },
 };
