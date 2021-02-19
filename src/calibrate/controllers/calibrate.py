@@ -43,8 +43,6 @@ def calibrate():
         data = request.get_json()
         datetime = data.get('datetime')
         raw_values = data.get('raw_values')
-
-        print('data',type(data))
         
         if (not datetime or not raw_values):
             return jsonify({"message": "Please specify the datetime and raw_values in the body. Refer to the API documentation for details.", "success": False}), 400
