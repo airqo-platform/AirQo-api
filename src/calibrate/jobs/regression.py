@@ -101,10 +101,15 @@ def simple_linear_regression(hourly_combined_dataset):
     regressor_muk = LinearRegression()
     regressor_muk.fit(X_train_muk, y_train_muk)
 
+    y_pred_muk = regressor_muk.predict(X_test_muk)
+    MAE = metrics.mean_absolute_error(y_test_muk, y_pred_muk)
+    RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk)) 
+    r2_score = metrics.r2_score(y_test_muk, y_pred_muk)
+
     intercept = regressor_muk.intercept_
     slope = regressor_muk.coef_
-    # RMSE =  np.sqrt(metrics.mean_squared_error(y_test_muk, y_pred_muk))
-    return slope[0], intercept
+
+    return slope[0], intercept, MAE, RMSE, r2_score
 
 
 def mlr(hourly_combined_dataset):
@@ -116,13 +121,15 @@ def mlr(hourly_combined_dataset):
     regressor_MLR_muk = LinearRegression()  
     regressor_MLR_muk.fit(X_train_MLR_muk, y_train_MLR_muk)
 
-    print('Mean Absolute Error:', metrics.mean_absolute_error(y_test_MLR_muk, y_pred_mlr_muk))   
-    print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk)))
+    y_pred_mlr_muk = regressor_MLR_muk.predict(X_test_MLR_muk)
+    MAE2 = metrics.mean_absolute_error(y_test_MLR_muk, y_pred_mlr_muk)   
+    RMSE2 =  np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))
+    r2_score = metrics.r2_score(y_test_MLR_muk, y_pred_mlr_muk)
 
     intercept = regressor_MLR_muk.intercept_
     slope = regressor_MLR_muk.coef_
     
     # RMSE = np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))    
-    return slope, intercept
+    return slope, intercept, MAE2, RMSE2, r2_score2
 
     
