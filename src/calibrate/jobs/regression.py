@@ -26,9 +26,9 @@ def get_lowcost_data():
     WHERE 
         channel_id = 967600
     AND
-        created_at >="2020-07-15T21:00:00"
+        DATE(created_at) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 1 MONTH) 
     AND 
-        created_at <="2020-07-30T20:59:59"
+        DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)
     GROUP BY 
         created_at
     ORDER BY 
@@ -58,9 +58,9 @@ def get_bam_data():
     WHERE 
         channel_id = -24516
     AND
-        Time >="2020-07-16T00:00:00"
+        DATE(Time) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 1 MONTH) 
     AND 
-        Time <="2020-07-30T23:59:59"
+        DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)
     GROUP BY 
         Time,ConcHR_ug_m3, AT_C, RH
     ORDER BY 
@@ -116,8 +116,13 @@ def mlr(hourly_combined_dataset):
     regressor_MLR_muk = LinearRegression()  
     regressor_MLR_muk.fit(X_train_MLR_muk, y_train_MLR_muk)
 
+    print('Mean Absolute Error:', metrics.mean_absolute_error(y_test_MLR_muk, y_pred_mlr_muk))   
+    print('Root Mean Squared Error:', np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk)))
+
     intercept = regressor_MLR_muk.intercept_
     slope = regressor_MLR_muk.coef_
     
     # RMSE = np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))    
     return slope, intercept
+
+    
