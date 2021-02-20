@@ -3,11 +3,6 @@ const uniqueValidator = require("mongoose-unique-validator");
 
 const eventSchema = new Schema(
   {
-    device: {
-      type: String,
-      required: [true, "The deviceName is required"],
-      trim: true,
-    },
     day: {
       type: Date,
     },
@@ -18,20 +13,126 @@ const eventSchema = new Schema(
     },
     values: [
       {
-        sensor: {
-          type: String,
-          required: [true, "the sensor name is required"],
-          trim: true,
-        },
-        raw: { type: Number, required: [true, "the raw value is required"] },
-        calibratedValue: { type: Number },
-        uncertaintyValue: { type: Number },
-        standardDeviationValue: { type: Number },
+        time: { type: Date, required: [true, "the timestamp is required"] },
         frequency: {
           type: String,
           required: [true, "the frequency is required"],
         },
-        time: { type: Date, required: [true, "the timestamp is required"] },
+        device: {
+          type: String,
+          required: [true, "The deviceName is required"],
+          trim: true,
+        },
+        pm2_5: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+          calibratedValue: { type: Number },
+          uncertaintyValue: { type: Number },
+          standardDeviationValue: { type: Number },
+        },
+        pm10: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+          calibratedValue: { type: Number },
+          uncertaintyValue: { type: Number },
+          standardDeviationValue: { type: Number },
+        },
+        s2_pm10: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+          calibratedValue: { type: Number },
+          uncertaintyValue: { type: Number },
+          standardDeviationValue: { type: Number },
+        },
+        s2_pm2_5: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+          calibratedValue: { type: Number },
+          uncertaintyValue: { type: Number },
+          standardDeviationValue: { type: Number },
+        },
+        battery: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        location: {
+          latitude: {
+            value: {
+              type: Number,
+              required: [true, "the raw value is required"],
+            },
+          },
+          longitude: {
+            value: {
+              type: Number,
+              required: [true, "the raw value is required"],
+            },
+          },
+        },
+        altitude: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        speed: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        satellites: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        hdop: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        internalTemperature: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        internalHumidity: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        externalTemperature: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        ExternalHumidity: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
+        ExternalPressure: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+        },
       },
     ],
   },
@@ -54,13 +155,8 @@ eventSchema.plugin(uniqueValidator, {
 eventSchema.methods = {
   toJSON() {
     return {
-      _id: this._id,
-      createdAt: this.createdAt,
-      device: this.device,
-      values: this.values,
       day: this.day,
-      first: this.first,
-      last: this.last,
+      values: this.values,
     };
   },
 };
