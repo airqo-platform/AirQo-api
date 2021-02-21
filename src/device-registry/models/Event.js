@@ -13,17 +13,42 @@ const eventSchema = new Schema(
     },
     values: [
       {
-        time: { type: Date, required: [true, "the timestamp is required"] },
+        time: {
+          type: Date,
+          required: [true, "the timestamp is required"],
+          unique: true,
+        },
         frequency: {
           type: String,
           required: [true, "the frequency is required"],
         },
         device: {
           type: String,
-          required: [true, "The deviceName is required"],
+          required: [true, "The device name is required"],
           trim: true,
         },
+        channelID: {
+          type: Number,
+          trim: true,
+        },
+        pm1: {
+          value: {
+            type: Number,
+          },
+          calibratedValue: { type: Number },
+          uncertaintyValue: { type: Number },
+          standardDeviationValue: { type: Number },
+        },
         pm2_5: {
+          value: {
+            type: Number,
+            required: [true, "the raw value is required"],
+          },
+          calibratedValue: { type: Number },
+          uncertaintyValue: { type: Number },
+          standardDeviationValue: { type: Number },
+        },
+        s2_pm2_5: {
           value: {
             type: Number,
             required: [true, "the raw value is required"],
@@ -50,10 +75,9 @@ const eventSchema = new Schema(
           uncertaintyValue: { type: Number },
           standardDeviationValue: { type: Number },
         },
-        s2_pm2_5: {
+        no2: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
           calibratedValue: { type: Number },
           uncertaintyValue: { type: Number },
@@ -62,76 +86,62 @@ const eventSchema = new Schema(
         battery: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         location: {
           latitude: {
             value: {
               type: Number,
-              required: [true, "the raw value is required"],
             },
           },
           longitude: {
             value: {
               type: Number,
-              required: [true, "the raw value is required"],
             },
           },
         },
         altitude: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         speed: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         satellites: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         hdop: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         internalTemperature: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         internalHumidity: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         externalTemperature: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         ExternalHumidity: {
           value: {
             type: Number,
-            required: [true, "the raw value is required"],
           },
         },
         ExternalPressure: {
-          value: {
-            type: Number,
-            required: [true, "the raw value is required"],
-          },
+          value: { type: Number },
         },
       },
     ],
