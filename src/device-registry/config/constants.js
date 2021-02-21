@@ -63,7 +63,7 @@ const defaultConfig = {
     field7: "Battery Voltage",
     field8: "GpsData",
   },
-  N_VALUES: 200,
+  N_VALUES: 1440,
 };
 
 function envConfig(env) {
