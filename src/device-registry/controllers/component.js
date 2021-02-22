@@ -14,13 +14,7 @@ const {
   NumberDictionary,
 } = require("unique-names-generator");
 const { getModelByTenant } = require("../utils/multitenancy");
-const {
-  responseAll,
-  responseDateRanges,
-  responseDevice,
-  responseDeviceAndComponent,
-  responseComponent,
-} = require("utils/get-events");
+const { getMeasurements } = require("utils/getMeasurements");
 
 const {
   tryCatchErrors,
@@ -37,6 +31,9 @@ const {
   doesComponentExist,
   doesComponentTypeExist,
 } = require("../utils/componentControllerHelpers");
+
+const transformMeasurements = require("../utils/transformMeasurements");
+const insertMeasurements = require("../utils/insertMeasurements");
 
 const Component = {
   listAll: async (req, res) => {
@@ -443,99 +440,27 @@ const Component = {
     try {
       logText("adding values...");
       const { device, tenant } = req.query;
-
-      const {
-        calibratedValue,
-        raw,
-        frequency,
-        time,
-        uncertaintyValue,
-        standardDeviationValue,
-        sensor,
-      } = req.body;
-
-      if (
-        !isEmpty(raw) &&
-        !isEmpty(device) &&
-        !isEmpty(time) &&
-        !isEmpty(frequency) &&
-        !isEmpty(sensor) &&
-        !isEmpty(tenant)
-      ) {
-        const isComponentPresent = await doesComponentExist(
-          sensor,
+      const measurements = req.body;
+      if (tenant && device && measurements) {
+        const isDevicePresent = await doesDeviceExist(
           device,
           tenant.toLowerCase()
         );
-        logElement("does component exist", isComponentPresent);
-
-        if (isComponentPresent) {
-          const sample = {
-            ...(!isEmpty(raw) && { raw: raw }),
-            ...(!isEmpty(frequency) && { frequency: frequency }),
-            ...(!isEmpty(time) && { time: time }),
-            ...(!isEmpty(calibratedValue) && {
-              calibratedValue: calibratedValue,
-            }),
-            ...(!isEmpty(uncertaintyValue) && {
-              uncertaintyValue: uncertaintyValue,
-            }),
-            ...(!isEmpty(standardDeviationValue) && {
-              standardDeviationValue: standardDeviationValue,
-            }),
-            ...(!isEmpty(sensor) && { sensor: sensor }),
-          };
-          const day = await generateDateFormat(time);
-          const eventBody = {
-            device: device,
-            day: day,
-            nValues: { $lt: constants.N_VALUES },
-          };
-          const options = {
-            $push: { values: sample },
-            $min: { first: sample.time },
-            $max: { last: sample.time },
-            $inc: { nValues: 1 },
-          };
-
-          const addedEvent = await getModelByTenant(
-            tenant.toLowerCase(),
-            "event",
-            EventSchema
-          ).updateOne(eventBody, options, {
-            upsert: true,
+        if (isDevicePresent) {
+          const transformedMeasurements = await transformMeasurements(
+            device,
+            measurements
+          );
+          insertMeasurements(tenant, transformedMeasurements);
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "successfully added these events",
+            values: transformedMeasurements,
           });
-
-          logObject("the inserted document", addedEvent);
-
-          if (addedEvent) {
-            /**
-             * add the component name in the response body
-             */
-            console.log("sample: ", sample);
-            console.log("device: ", device);
-            // const samples = { ...sample };
-            const event = {
-              ...sample,
-              device,
-            };
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "successfully added the device data",
-              event,
-            });
-          } else if (!addedEvent) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: "unable to add events",
-              success: false,
-            });
-          } else {
-            logText("just unable to add events");
-          }
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: `the sensor (${sensor}) does not exist for this device (${device})`,
+            message: `the device (${device}) does not exist on the network`,
           });
         }
       } else {
@@ -546,7 +471,7 @@ const Component = {
         });
       }
     } catch (e) {
-      res.status(HTTPStatus.BAD_REQUEST).json({
+      res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         error: e.message,
         message: "unable to add the values",
@@ -559,20 +484,13 @@ const Component = {
       logText("adding values in bulk...");
       const { device, tenant } = req.query;
       const { values, time } = req.body;
-      logObject("the type of device name", typeof device);
-      if (
-        !isEmpty(time) &&
-        !isEmpty(values) &&
-        !isEmpty(device) &&
-        !isEmpty(tenant)
-      ) {
+      // logObject("the type of device name", typeof device);
+      if (!isEmpty(time) && !isEmpty(device) && !isEmpty(tenant)) {
         const isDevicePresent = await doesDeviceExist(
           device,
           tenant.toLowerCase()
         );
-
-        logElement("does device exist", isDevicePresent);
-
+        // logElement("does device exist", isDevicePresent);
         if (isDevicePresent) {
           const day = await generateDateFormat(time);
           const eventBody = {
@@ -580,15 +498,20 @@ const Component = {
             day: day,
             nValues: { $lt: constants.N_VALUES },
           };
+
           let valuesForExistingSensors = values.filter(async function(el) {
             let isComponentPresent = await doesComponentExist(
               el.sensor,
               device,
               tenant.toLowerCase()
             );
-            logElement("does component exist", isComponentPresent);
-            return (isComponentPresent = true);
+            if (isComponentPresent) {
+              return true;
+            } else {
+              return false;
+            }
           });
+
           const options = {
             $push: { values: valuesForExistingSensors },
             $min: { first: time },
@@ -604,7 +527,7 @@ const Component = {
             upsert: true,
           });
 
-          logObject("the inserted document", addedEvent);
+          logObject("the inserted documents", addedEvent);
 
           if (addedEvent) {
             return res.status(HTTPStatus.OK).json({
@@ -750,11 +673,22 @@ const Component = {
 
   getValues: (req, res) => {
     try {
-      const { device, tenant } = req.query;
-      logText("get values.......");
-      logElement("device name ", device);
-      if (device && tenant) {
-        responseDevice(res, { device: device }, tenant);
+      const {
+        device,
+        tenant,
+        startTime,
+        endTime,
+        limit,
+        skip,
+        key,
+      } = req.query;
+      const limitInt = parseInt(limit, 0);
+      const skipInt = parseInt(skip, 0);
+      logText(".......getting values.......");
+      if (device && tenant && !startTime && !endTime) {
+        getMeasurements(res, startTime, endTime, device, tenant);
+      } else if (device && tenant && startTime && endTime) {
+        getMeasurements(res, startTime, endTime, device, tenant);
       } else {
         missingQueryParams(req, res);
       }
