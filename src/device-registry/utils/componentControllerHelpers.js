@@ -50,14 +50,9 @@ const doesDeviceExist = async (deviceName, tenant) => {
       tenant.toLowerCase(),
       "device",
       DeviceSchema
-    )
-      .find({
-        name: deviceName,
-      })
-      .exec();
-    logElement("device element", device);
-    logObject("device Object", device);
-    logElement("does device exist?", !isEmpty(device));
+    ).find({
+      name: deviceName,
+    });
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {
@@ -77,15 +72,10 @@ const doesComponentExist = async (componentName, deviceName, tenant) => {
       tenant.toLowerCase(),
       "component",
       ComponentSchema
-    )
-      .find({
-        name: componentName,
-        deviceID: deviceName,
-      })
-      .exec();
-    logElement("component element", component);
-    logObject("component Object", component);
-    logElement("does component exist?", !isEmpty(component));
+    ).find({
+      name: componentName,
+      deviceID: deviceName,
+    });
     if (!isEmpty(component)) {
       return true;
     } else if (isEmpty(component)) {
