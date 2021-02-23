@@ -451,12 +451,7 @@ const Component = {
             device,
             measurements
           );
-          insertMeasurements(tenant, transformedMeasurements);
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "successfully added these events",
-            values: transformedMeasurements,
-          });
+          insertMeasurements(res, tenant, transformedMeasurements);
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
