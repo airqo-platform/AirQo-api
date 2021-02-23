@@ -680,8 +680,16 @@ const Component = {
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
       logText(".......getting values.......");
-      if (device && tenant) {
-        getMeasurements(res, startTime, endTime, device, tenant);
+      if (tenant) {
+        getMeasurements(
+          res,
+          startTime,
+          endTime,
+          device,
+          skipInt,
+          limitInt,
+          tenant
+        );
       } else {
         missingQueryParams(req, res);
       }
