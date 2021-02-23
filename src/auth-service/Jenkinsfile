@@ -27,7 +27,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/device-monitoring/Dockerfile.stage.txt" . 
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/auth-service/Dockerfile.stage.txt" . 
                     """
                     withCredentials([file(credentialsId: 'airqo-gcr', variable: 'GC_KEY')]){
                         sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
@@ -62,7 +62,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/device-monitoring/Dockerfile" . 
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/auth-service/Dockerfile" . 
                     """
                     withCredentials([file(credentialsId: 'airqo-gcr', variable: 'GC_KEY')]){
                         sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
@@ -103,7 +103,7 @@ pipeline {
                     // kubernetesDeploy kubeconfigId: 'airqo-k8s-config', configs: 'devops/microservice-1/stage-test-cicd.yaml', enableConfigSubstitution: true
                     withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
                         sh """
-                        kubectl apply -f 'k8s/stage-device-monitor-api.yaml'
+                        kubectl apply -f 'k8s/stage-auth-api.yaml'
                         """
                     }
                 }
@@ -129,7 +129,7 @@ pipeline {
                     // kubernetesDeploy kubeconfigId: 'airqo-k8s-config', configs: 'devops/microservice-1/stage-test-cicd.yaml', enableConfigSubstitution: true
                     withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
                         sh """
-                        kubectl apply -f 'k8s/prod-device-monitor-api.yaml'
+                        kubectl apply -f 'k8s/prod-auth-api.yaml'
                         """
                     }
                 }
