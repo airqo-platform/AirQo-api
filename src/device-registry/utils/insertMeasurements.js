@@ -2,6 +2,7 @@ const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
 const EventSchema = require("../models/Event");
+const HTTPStatus = require("http-status");
 const {
   axiosError,
   tryCatchErrors,
@@ -36,15 +37,13 @@ const insert = (res, tenant, transformedMeasurements) => {
         logText("the events have successfully been added");
         return res.status(HTTPStatus.OK).json({
           success: true,
-          message: "successfully added these events",
-          values: transformedMeasurements,
+          message: "successfully added the event(s)",
+          nAdded: addedEvents.nModified,
         });
       } else if (!addedEvents) {
         logText("unable to add the events ");
-        unclearError(res);
       } else {
         logText("just unable to add events");
-        unclearError(res);
       }
     } catch (e) {
       logElement("there is an error: ", e.message);
