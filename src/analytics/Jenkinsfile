@@ -1,0 +1,155 @@
+pipeline {
+    agent any
+    environment {
+        //environment variables
+        REGISTRY_URI = ${env.REGISTRY_URI}
+        PROJECT_ID = ${env.PROJECT_ID}
+        IMAGE_NAME_PROD = 'airqo-analytics-api'
+        IMAGE_NAME_STAGE = 'airqo-stage-analytics-api'
+        IMAGE_NAME = ""
+        K8S_CONFIG = ${env.K8S_CONFIG}
+        K8S_URL = ${env.K8S_URL}
+    }
+    stages {
+        stage("Start"){
+            steps {
+                slackSend (color: '#1976d2', message: "BUILD STARTED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+            }
+        }
+        stage("Checkout code") {
+            steps {
+                checkout scm
+            }
+        }
+        stage("Build for Staging"){
+            when {branch "staging"}
+                 steps {
+
+                    echo "Docker Build"
+                    sh """
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/analytics/Dockerfile.stage.txt" . 
+                    """
+                    withCredentials([file(credentialsId: 'airqo-gcr', variable: 'GC_KEY')]){
+                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
+                        sh "gcloud auth activate-service-account --key-file='$GC_KEY'"
+                        sh "gcloud auth configure-docker"
+                        /* GLOUD_AUTH = sh (
+                                script: 'gcloud auth print-access-token',
+                                returnStdout: true
+                            ).trim()
+                        */
+                        echo "Pushing image to GCR"
+                        sh """
+                        gcloud container images add-tag ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE} ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"v${env.BUILD_NUMBER}"
+                        docker push ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest"
+                        """
+                    }
+                    }
+                    post{
+                        success{
+                            echo "Build and Push Successfully"
+                            }
+                        failure{
+                            echo "Build and Push Failed"
+                            slackSend (color: '#FF0000', message: "FAILED TO BUILD AND PUSH IMAGE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                            }
+                    }
+
+        }
+        stage("Build for Production"){
+            when {branch "master"}
+                 steps {
+
+                    echo "Docker Build"
+                    sh """
+                    docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/analytics/Dockerfile" . 
+                    """
+                    withCredentials([file(credentialsId: 'airqo-gcr', variable: 'GC_KEY')]){
+                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
+                        sh "gcloud auth activate-service-account --key-file='$GC_KEY'"
+                        sh "gcloud auth configure-docker"
+                        /* GLOUD_AUTH = sh (
+                                script: 'gcloud auth print-access-token',
+                                returnStdout: true
+                            ).trim()
+                        */
+                        echo "Pushing image to GCR"
+                        sh """
+                        gcloud container images add-tag ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD} ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"v${env.BUILD_NUMBER}"
+                        docker push ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest"
+                        """
+                    }
+                    }
+                    post{
+                        success{
+                            echo "Build and Push Successfully"
+                            }
+                        failure{
+                            echo "Build and Push Failed"
+                            echo 'device monitoring service deployed successfully'
+                            slackSend (color: '#FF0000', message: "FAILED TO BUILD AND PUSH IMAGE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                            }
+                    }
+
+        }
+        stage("Deploy to Staging"){
+                when {branch "staging"}
+                steps {
+                    /*sh """
+                    kubectl delete -f 'devops/microservice-1/stage-test-cicd.yaml'
+                    kubectl apply -f ''devops/microservice-1/stage-test-cicd.yaml''
+                    """
+                    */
+                    // kubernetesDeploy kubeconfigId: 'airqo-k8s-config', configs: 'devops/microservice-1/stage-test-cicd.yaml', enableConfigSubstitution: true
+                    withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
+                        sh """
+                        kubectl apply -f 'k8s/stage-analytics-api.yaml'
+                        """
+                    }
+                }
+                post{
+                    success{
+                        echo "Successfully deployed to staging"
+                    }
+                    failure{
+                        echo "Failed deploying to staging"
+                        echo 'device monitoring service deployed successfully'
+                        slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                    }
+                }
+        }
+        stage("Deploy to Production"){
+                when {branch "master"}
+                steps {
+                    /*sh """
+                    kubectl delete -f 'devops/microservice-1/stage-test-cicd.yaml'
+                    kubectl apply -f ''devops/microservice-1/stage-test-cicd.yaml''
+                    """
+                    */
+                    // kubernetesDeploy kubeconfigId: 'airqo-k8s-config', configs: 'devops/microservice-1/stage-test-cicd.yaml', enableConfigSubstitution: true
+                    withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
+                        sh """
+                        kubectl apply -f 'k8s/prod-analytics-api.yaml'
+                        """
+                    }
+                }
+                post{
+                    success{
+                        echo "Successfully deployed to production"
+                    }
+                    failure{
+                        echo "Failed deploying to production"
+                        echo 'device monitoring service deployed successfully'
+                        slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                    }
+                }
+        }
+        stage('Final'){
+            steps {
+                //webhook for your notification channel 
+                echo 'device monitoring service deployed successfully'
+                slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+            }
+        }
+    }    
+}
