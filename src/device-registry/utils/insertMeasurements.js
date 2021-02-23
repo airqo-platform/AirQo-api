@@ -7,6 +7,7 @@ const insert = (tenant, transformedMeasurements) => {
   transformedMeasurements.forEach(async (measurement) => {
     try {
       const eventBody = {
+        "values.time": { $ne: measurement.time },
         day: measurement.day,
         nValues: { $lt: constants.N_VALUES },
       };
@@ -20,7 +21,7 @@ const insert = (tenant, transformedMeasurements) => {
         tenant.toLowerCase(),
         "event",
         EventSchema
-      ).updateMany(eventBody, options, {
+      ).updateOne(eventBody, options, {
         upsert: true,
       });
       if (addedEvents) {
