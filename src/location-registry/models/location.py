@@ -37,9 +37,9 @@ class Location():
                          'landform_90': landform_90, 'landform_270': landform_270, 'distance_from_nearest_road': distance_from_nearest_road,
                          'distance_from_motorway': distance_from_motorway, 'distance_from_residential': distance_from_residential,
                          'distance_from_city': distance_from_city}
-
+        
         client = MongoClient(MONGO_URI)
-        db_name = DB_NAME+tenant_id
+        db_name = f'{DB_NAME}_{tenant_id.lower()}'
         db = client[db_name]
         db.location_registry.insert_one(location_dict)
 
