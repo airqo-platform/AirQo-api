@@ -113,33 +113,69 @@ async function main() {
 
       for (const chunked of chunkedRequestBody) {
         // console.log("the request body: ", requestBody);
-        // if (!isEmpty(chunked)) {
-        const options = {
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity,
-        };
+        if (!isEmpty(chunked)) {
+          const options = {
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          };
 
-        await axios
-          .post(insert_api, chunked, options)
-          .then((result) => {
-            if (result.data.success) {
-              console.log(
-                `finished inserting data for device ${item.name} whose channel ID is ${item.channelID}`
-              );
-            } else {
-              console.log(
-                `unable to insert data for device ${item.name} whose channel ID is ${item.channelID}`
-              );
+          axios.interceptors.request.use(
+            function(config) {
+              // Do something before request is sent
+              return config;
+            },
+            function(error) {
+              // Do something with request error
+              return Promise.reject(error);
             }
-          })
-          .catch((e) => {
-            console.log(
-              `unable to insert data for device ${item.name} whose channel ID is ${item.channelID} because of: ${e.message}`
-            );
-          });
-        // } else {
-        //   continue;
-        // }
+          );
+
+          // Add a response interceptor
+          axios.interceptors.response.use(
+            function(response) {
+              // Do something with response data
+              return response;
+            },
+            function(error) {
+              // Do something with response error
+              return Promise.reject(error);
+            }
+          );
+
+          await axios
+            .post(insert_api, chunked, options)
+            .then((result) => {
+              if (result.data.success) {
+                console.log(
+                  `finished inserting data for device ${item.name} whose channel ID is ${item.channelID}`
+                );
+              } else {
+                console.log(
+                  `unable to insert data for device ${item.name} whose channel ID is ${item.channelID}`
+                );
+              }
+            })
+            .catch((error) => {
+              console.log("....value already logged.....skipping to next.....");
+              // if (error.response) {
+              //   // Request made and server responded
+              //   console.log(error.response.data);
+              //   console.log(error.response.status);
+              //   console.log(error.response.headers);
+              // } else if (error.request) {
+              //   // The request was made but no response was received
+              //   console.log(error.request);
+              // } else {
+              //   // Something happened in setting up the request that triggered an Error
+              //   console.log("Error", error.message);
+              // }
+              // console.log(
+              //   `unable to insert data for device ${item.name} whose channel ID is ${item.channelID} because of: ${e.message}`
+              // );
+            });
+        } else {
+          continue;
+        }
       }
     }
   } catch (e) {
