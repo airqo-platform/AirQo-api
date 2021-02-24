@@ -14,6 +14,7 @@
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'"
     },
     "dependencies": {
+        "@google-cloud/bigquery": "^5.5.0",
         "@google-cloud/iot": "^1.5.0",
         "app-module-path": "^2.2.0",
         "avsc": "^5.4.16",
