@@ -112,7 +112,7 @@ const doesComponentExist = async (componentName, deviceName, tenant) => {
     logElement("does component exist?", !isEmpty(component));
     if (!isEmpty(component)) {
       return true;
-    } else if (isEmpty(ComponentDetails)) {
+    } else if (isEmpty(component)) {
       return false;
     }
   } catch (e) {
