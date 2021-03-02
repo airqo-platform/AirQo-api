@@ -1,0 +1,54 @@
+Example endpoint returning pm2.5 category location count
+---
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+definitions:
+  Response:
+    type: object
+    properties:
+      status:
+        type: string
+      message:
+        type: string
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/Location'
+    example:
+      status: success
+      message: location count successfully fetched
+      data:
+        - locations_with_category_good:
+            - category_name: Good
+              category_count: 0
+              category_locations: []
+        - locations_with_category_UH4SG:
+            - category_name: UH4SG
+              category_count: 4
+              category_locations: [Kawala, Ggaba, Nsambya Central, Mutundwe]
+
+  Location:
+    type: object
+    properties:
+      location_category:
+        type: object
+        properties:
+          category_name:
+            type: string
+          category_count:
+            type: integer
+          category_locations:
+            type: array
+            items:
+              type: string
+responses:
+  200:
+    description: A list of colors (may be filtered by palette)
+    schema:
+      $ref: '#/definitions/Response'
+    examples:
+      rgb: ['red', 'green', 'blue']

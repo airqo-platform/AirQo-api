@@ -1,6 +1,7 @@
 from collections import OrderedDict
 
 # Third-party libraries
+from flasgger import swag_from
 import flask_excel as excel
 from flask_restx import Resource
 from flask import request
@@ -32,6 +33,7 @@ from api.utils.pollutants import (
 @rest_api.route("/dashboard/locations/pm25categorycount")
 class PM25CategoryLocationCountResource(Resource):
 
+    @swag_from('/api/docs/dashboard/get_pm25_location_count.yml')
     def get(self):
         tenant = request.args.get("tenant")
         model = PM25LocationCategoryCountModel(tenant)
