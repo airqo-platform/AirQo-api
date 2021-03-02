@@ -10,11 +10,11 @@ load_dotenv()
 
 _logger = logging.getLogger(__name__)
 app = Flask(__name__)
-app.config.from_object(app_config["development"])
+app.config.from_object(app_config[os.getenv('FLASK_ENV')])
 CORS(app)
 cache.init_app(app)
 #app.config["MONGO_URI"] = os.getenv("MONGO_URI")
-mongo = PyMongo(app)
+#mongo = PyMongo(app)
 app.register_blueprint(location_blueprint)
 
 
