@@ -2,6 +2,7 @@ flask
 flask_excel
 flask-restx
 flask-cors
+flasgger
 pandas
 pymongo
 python-decouple
