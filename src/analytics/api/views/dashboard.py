@@ -17,7 +17,7 @@ from api.models import (
 )
 from api.models.constants import CODE_LOCATIONS
 
-from api.utils.http import Status
+from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_params, validate_request_json
 from api.utils.pollutants import (
     categorise_pm25_values,
@@ -37,9 +37,9 @@ class PM25CategoryLocationCountResource(Resource):
         model = PM25LocationCategoryCountModel(tenant)
         results = list(model.sort("created_at", ascending=False).limit(1))
 
-        response = results and results[0].get('pm25_categories') or []
+        data = results and results[0].get('pm25_categories') or []
 
-        return response, Status.HTTP_200_OK
+        return create_response("location count successfully fetched", data=data), Status.HTTP_200_OK
 
 
 @rest_api.route("/data/download")
@@ -109,15 +109,12 @@ class DownloadCustomisedDataResource(Resource):
             formatted_data.append(dataset)
 
         if download_type == 'json':
-            return {'results': formatted_data}, Status.HTTP_200_OK
+            return create_response("air-quality data download successful", data=formatted_data), Status.HTTP_200_OK
 
         if download_type == 'csv':
             return excel.make_response_from_records(formatted_data, 'csv', file_name=f'airquality-{frequency}-data')
 
-        return {
-                   'status': 'error',
-                   'message': f'unknown data format {download_type}'
-                }, Status.HTTP_400_BAD_REQUEST
+        return create_response(f'unknown data format {download_type}', success=False), Status.HTTP_400_BAD_REQUEST
 
 
 @rest_api.route('/dashboard/customised_chart')
@@ -235,7 +232,7 @@ class CustomisedChartResource(Resource):
             charts.append(chart_data)
 
         results["charts"] = charts
-        return {"results": results}, Status.HTTP_200_OK
+        return create_response("chart data successfully retrieved", data=results), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/monitoring_sites/locations')
@@ -250,7 +247,10 @@ class MonitoringSiteLocationResource(Resource):
 
         org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
 
-        return {"monitoring_sites": org_monitoring_sites}, Status.HTTP_200_OK
+        return create_response(
+            "monitoring site location data successfully fetched",
+            data=org_monitoring_sites
+        ), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/monitoring_sites')
@@ -269,7 +269,10 @@ class MonitoringSiteResource(Resource):
         if pm25_category:
             org_monitoring_sites = categorise_pm25_values(org_monitoring_sites, pm25_category)
 
-        return {"monitoring_sites": org_monitoring_sites}, Status.HTTP_200_OK
+        return create_response(
+            "monitoring site data successfully fetched",
+            data=org_monitoring_sites
+        ), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/historical/daily/devices')
@@ -292,13 +295,14 @@ class DeviceDailyMeasurementsResource(Resource):
             background_colors.append(set_pm25_category_background(site["average_pm25"]))
             results.append(site)
 
-        return {
-            "results": {
+        return create_response(
+            "daily measurements successfully fetched",
+            data={
                 "average_pm25_values": values,
                 "labels": labels,
                 "background_colors": background_colors
             }
-        }, Status.HTTP_200_OK
+        ), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/divisions')
@@ -314,7 +318,10 @@ class DivisionsResource(Resource):
             {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 0}
         )
 
-        return {"divisions": list(divisions)}, Status.HTTP_200_OK
+        return create_response(
+            "division successfully fetched",
+            data={"divisions": list(divisions)}
+        ),  Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/exceedances')
@@ -332,10 +339,16 @@ class ExceedancesResource(Resource):
 
         exceedances_data = de_model.get_last_28_days_exceedences(pollutant, standard)
 
-        return exceedances_data and exceedances_data[0].get('exceedences') or [], Status.HTTP_200_OK
+        return create_response(
+            "exceedance data successfully fetched",
+            data=exceedances_data and exceedances_data[0].get('exceedences') or []
+        ), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/exceedance_locations')
 class ExceedanceLocationsResource(Resource):
     def get(self):
-        return list(CODE_LOCATIONS.keys()), Status.HTTP_200_OK
+        return create_response(
+            "Exceedance location data successfully fetched",
+            data=list(CODE_LOCATIONS.keys())
+        ), Status.HTTP_200_OK

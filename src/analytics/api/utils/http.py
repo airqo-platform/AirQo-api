@@ -73,3 +73,15 @@ class Status:
     @classmethod
     def is_server_error(cls, status_code):
         return 500 <= status_code < 600
+
+
+def create_response(message, data=None, success=True):
+    """Function to create an http response"""
+
+    response = {
+        "status": "success" if success else "error",
+        "message": message,
+        "data": data
+    }
+
+    return response
