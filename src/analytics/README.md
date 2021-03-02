@@ -33,3 +33,24 @@ linux/mac
 
 Run the Flask App
 - `flask run`
+
+# Data sources
+
+The anlytics microservice uses data from the `airqo_analytics` `mongodb` database. The collections in this database are:
+
+| collection | description |
+| --- | --- |
+| candidates | |
+| colabs | |
+| defaults | |
+| device_daily_exceedences | |
+| device_daily_historical_averages | |
+| device_daily_measurements | |
+| device_hourly_measurements | |
+| device_raw_measurements | |
+| devices | |
+| monitoring_site | |
+| pm25_location_categorycount | |
+| report_template | |
+| sessions | |
+| users | |
