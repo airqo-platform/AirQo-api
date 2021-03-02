@@ -38,19 +38,21 @@ Run the Flask App
 
 The anlytics microservice uses data from the `airqo_analytics` `mongodb` database. The collections in this database are:
 
-| collection | description |
-| --- | --- |
-| candidates | |
-| colabs | |
-| defaults | |
-| device_daily_exceedences | |
-| device_daily_historical_averages | |
-| device_daily_measurements | |
-| device_hourly_measurements | |
-| device_raw_measurements | |
-| devices | |
-| monitoring_site | |
-| pm25_location_categorycount | |
-| report_template | |
-| sessions | |
-| users | |
+| collection | data from | used for |
+| --- | --- | --- |
+| candidates | | Not currently used. |
+| colabs | | Not currently used. |
+| defaults | | Not currently used. |
+| device_daily_exceedences | From (externally triggered) "cloud function". | |
+| device_daily_historical_averages | From (externally triggered) "cloud function". | |
+| device_daily_measurements | From "Clarity API". | |
+| device_hourly_measurements | From "Clarity API". | |
+| device_raw_measurements | From "Clarity API". | |
+| devices | | |
+| monitoring_site | | |
+| pm25_location_categorycount | From (externally triggered) "cloud function". | |
+| report_template | Manually entered. | Reporting API. |
+| sessions | No data. | Not currently used. |
+| users | Manually entered. | Not currently used. |
+
+Cloud functions path: `src\analytics\helpers`
