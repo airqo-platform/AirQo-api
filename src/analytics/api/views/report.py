@@ -12,7 +12,7 @@ from api.models import ReportTemplateModel
 
 # Utils
 from api.utils.request_validators import validate_request_params, validate_request_json
-from api.utils.http import Status
+from api.utils.http import create_response, Status
 from api.utils.case_converters import camel_to_snake
 
 
@@ -33,7 +33,7 @@ class DefaultReportTemplateResource(Resource):
         count = report_model.find({"report_type": "default"}).count()
 
         if count > 0:
-            return {"message": "A default template already exist"}, Status.HTTP_400_BAD_REQUEST
+            return create_response("A default template already exist", success=False), Status.HTTP_400_BAD_REQUEST
 
         report_model.insert({
             "user_id": user_id,
@@ -43,7 +43,7 @@ class DefaultReportTemplateResource(Resource):
             "report_body": report_body
         })
 
-        return {"message": "Default Report Template Saved Successfully"}, Status.HTTP_200_OK
+        return create_response("Default Report Template Saved Successfully"), Status.HTTP_201_CREATED
 
     def get(self):
         tenant = request.args.get("tenant")
@@ -68,7 +68,10 @@ class DefaultReportTemplateResource(Resource):
 
         report = default_template[0] if default_template else {}
 
-        return {'report': report}, Status.HTTP_200_OK
+        return create_response(
+            "default report successfully fetched",
+            data={'report': report}
+        ), Status.HTTP_200_OK
 
     @validate_request_json('userId|str', 'reportName|str', 'reportBody|dict')
     def patch(self):
@@ -94,9 +97,12 @@ class DefaultReportTemplateResource(Resource):
         update_result = report_model.update_one(filter_cond={'report_type': 'default'}, update_fields=update_fields)
 
         if update_result.modified_count > 0 or update_result.matched_count > 0:
-            return {"message": "default reporting template updated successfully"}, Status.HTTP_200_OK
+            return create_response("efault reporting template updated successfully"), Status.HTTP_202_ACCEPTED
 
-        return {"message": "could not update default template"}, Status.HTTP_500_INTERNAL_SERVER_ERROR
+        return create_response(
+            "could not update default template",
+            success=False
+        ), Status.HTTP_404_NOT_FOUND
 
 
 @rest_api.route('/report/monthly')
@@ -120,7 +126,7 @@ class MonthlyReportResource(Resource):
             "report_body": report_body
         })
 
-        return {"message": "Monthly Report Saved Successfully"}, Status.HTTP_200_OK
+        return create_response("Monthly Report Saved Successfully"), Status.HTTP_200_OK
 
     @validate_request_params('userId|required:str')
     def get(self):
@@ -147,9 +153,12 @@ class MonthlyReportResource(Resource):
         ))
 
         if report:
-            return {"reports": report}, Status.HTTP_200_OK
+            return create_response(
+                "reports successfully fetched",
+                data={"reports": report}
+            ), Status.HTTP_200_OK
 
-        return {"message": "report(s) not found"}, Status.HTTP_404_NOT_FOUND
+        return create_response("report(s) not found", success=False), Status.HTTP_404_NOT_FOUND
 
 
 @rest_api.route('/report/monthly/<report_name>')
@@ -169,18 +178,19 @@ class MonthlyReportExtraResource(Resource):
                 update_fields[camel_to_snake(key)] = value
 
         if not update_fields:
-            return {
-                       "message": f"the update fields is empty. valid keys are {valid_keys}"
-                   }, Status.HTTP_400_BAD_REQUEST
+            return create_response(
+                f"the update fields is empty. valid keys are {valid_keys}",
+                success=False
+            ), Status.HTTP_400_BAD_REQUEST
 
         report_model = ReportTemplateModel(tenant)
 
         update_result = report_model.update_one(filter_cond={'report_name': report_name}, update_fields=update_fields)
 
         if update_result.modified_count > 0 or update_result.matched_count > 0:
-            return {"message": "default reporting template updated successfully"}, Status.HTTP_200_OK
+            return create_response("default reporting template updated successfully"), Status.HTTP_202_ACCEPTED
 
-        return {"message": "report not found"}, Status.HTTP_404_NOT_FOUND
+        return create_response("report not found", success=False), Status.HTTP_404_NOT_FOUND
 
     def delete(self, report_name):
         tenant = request.args.get("tenant")
@@ -190,6 +200,6 @@ class MonthlyReportExtraResource(Resource):
         delete_result = report_model.delete_one({"report_name": report_name})
 
         if delete_result.deleted_count > 0:
-            return {"message": f"monthly report {report_name} deleted successfully"}, Status.HTTP_200_OK
+            return create_response(f"monthly report {report_name} deleted successfully"), Status.HTTP_200_OK
 
-        return {"message": "report not found"}, Status.HTTP_404_NOT_FOUND
+        return create_response("report not found", success=False), Status.HTTP_404_NOT_FOUND
