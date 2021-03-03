@@ -13,7 +13,7 @@ parameters:
     type: string
     required: false
 definitions:
-  MonitoringSiteLocationResponse:
+  MonitoringSiteResponse:
     type: object
     properties:
       status:
@@ -25,8 +25,8 @@ definitions:
       data:
         type: array
         items:
-           $ref: '#/definitions/MonitoringSiteLocationData'
-  MonitoringSiteLocationData:
+           $ref: '#/definitions/MonitoringSiteData'
+  MonitoringSiteData:
     type: object
     properties:
       DeviceCode:
@@ -61,4 +61,4 @@ responses:
   200:
     description: A successful retrieval of monitoring site location data
     schema:
-      $ref: '#/definitions/MonitoringSiteLocationResponse'
+      $ref: '#/definitions/MonitoringSiteResponse'

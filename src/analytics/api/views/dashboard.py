@@ -261,6 +261,7 @@ class MonitoringSiteLocationResource(Resource):
 @rest_api.route('/dashboard/monitoring_sites')
 class MonitoringSiteResource(Resource):
 
+    @swag_from('/api/docs/dashboard/monitoring_site_get.yml')
     @validate_request_params('orgName|str', 'pm25Category|pmCategory')
     def get(self):
         tenant = request.args.get('tenant')
