@@ -170,6 +170,7 @@ class MonthlyReportResource(Resource):
 @rest_api.route('/report/monthly/<report_name>')
 class MonthlyReportExtraResource(Resource):
 
+    @swag_from('/api/docs/report/monthly_report_extra_post.yml')
     @validate_request_json('userId|str', 'reportName|str', 'reportBody|dict')
     def post(self, report_name):
         tenant = request.args.get("tenant")
@@ -194,10 +195,11 @@ class MonthlyReportExtraResource(Resource):
         update_result = report_model.update_one(filter_cond={'report_name': report_name}, update_fields=update_fields)
 
         if update_result.modified_count > 0 or update_result.matched_count > 0:
-            return create_response("default reporting template updated successfully"), Status.HTTP_202_ACCEPTED
+            return create_response("report updated successfully"), Status.HTTP_202_ACCEPTED
 
         return create_response("report not found", success=False), Status.HTTP_404_NOT_FOUND
 
+    @swag_from('/api/docs/report/monthly_report_extra_delete.yml')
     def delete(self, report_name):
         tenant = request.args.get("tenant")
 
