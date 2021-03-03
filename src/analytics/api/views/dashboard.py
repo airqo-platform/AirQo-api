@@ -335,6 +335,7 @@ class DivisionsResource(Resource):
 @rest_api.route('/dashboard/exceedances')
 class ExceedancesResource(Resource):
 
+    @swag_from('/api/docs/dashboard/exceedances_post.yml')
     @validate_request_json('pollutant|required:str', 'standard|required:str')
     def post(self):
         tenant = request.args.get('tenant')
