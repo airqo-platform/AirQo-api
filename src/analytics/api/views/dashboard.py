@@ -284,6 +284,7 @@ class MonitoringSiteResource(Resource):
 @rest_api.route('/dashboard/historical/daily/devices')
 class DeviceDailyMeasurementsResource(Resource):
 
+    @swag_from('/api/docs/dashboard/device_daily_measurements_get.yml')
     def get(self):
         tenant = request.args.get('tenant')
         dha_model = DeviceDailyHistoricalAveragesModel(tenant)
