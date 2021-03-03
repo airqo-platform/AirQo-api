@@ -1,6 +1,7 @@
 from datetime import datetime
 
 # Third-party libraries
+from flasgger import swag_from
 from flask_restx import Resource
 from flask import request
 
@@ -19,6 +20,7 @@ from api.utils.case_converters import camel_to_snake
 @rest_api.route('/report/default_template')
 class DefaultReportTemplateResource(Resource):
 
+    @swag_from('/api/docs/report/default_report_template_post.yml')
     @validate_request_json('userId|required:str', 'reportName|required:str', 'reportBody|required:dict')
     def post(self):
         tenant = request.args.get("tenant")
@@ -45,6 +47,7 @@ class DefaultReportTemplateResource(Resource):
 
         return create_response("Default Report Template Saved Successfully"), Status.HTTP_201_CREATED
 
+    @swag_from('/api/docs/report/default_report_template_get.yml')
     def get(self):
         tenant = request.args.get("tenant")
         report_model = ReportTemplateModel(tenant)
@@ -73,6 +76,7 @@ class DefaultReportTemplateResource(Resource):
             data={'report': report}
         ), Status.HTTP_200_OK
 
+    @swag_from('/api/docs/report/default_report_template_patch.yml')
     @validate_request_json('userId|str', 'reportName|str', 'reportBody|dict')
     def patch(self):
         tenant = request.args.get("tenant")
@@ -97,7 +101,7 @@ class DefaultReportTemplateResource(Resource):
         update_result = report_model.update_one(filter_cond={'report_type': 'default'}, update_fields=update_fields)
 
         if update_result.modified_count > 0 or update_result.matched_count > 0:
-            return create_response("efault reporting template updated successfully"), Status.HTTP_202_ACCEPTED
+            return create_response("default reporting template updated successfully"), Status.HTTP_202_ACCEPTED
 
         return create_response(
             "could not update default template",
