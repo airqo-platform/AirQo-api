@@ -315,6 +315,7 @@ class DeviceDailyMeasurementsResource(Resource):
 @rest_api.route('/dashboard/divisions')
 class DivisionsResource(Resource):
 
+    @swag_from('/api/docs/dashboard/divisions_get.yml')
     def get(self):
         tenant = request.args.get('tenant')
 

@@ -1,0 +1,43 @@
+Example endpoint for fetching divisions
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+definitions:
+  DivisionResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: division successfully fetched
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/DivisionData'
+  DivisionData:
+    type: object
+    properties:
+      Division:
+        type: string
+        example: Kawempe
+      DeviceCode:
+        type: string
+        example: A743BPWK
+      LocationCode:
+        type: string
+        example: KCCA_KWPE_AQ05
+      Parish:
+        type: string
+        example: Wandegeya
+responses:
+  200:
+    description: A successful retrieval of division data
+    schema:
+      $ref: '#/definitions/DivisionResponse'
