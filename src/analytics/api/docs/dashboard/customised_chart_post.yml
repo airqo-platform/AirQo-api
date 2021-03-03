@@ -1,0 +1,159 @@
+Example endpoint for fetching customised chart data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: body
+    in: body
+    required: true
+    schema:
+      $ref: "#/definitions/CustomisedChartDataBody"
+definitions:
+  CustomisedChartDataBody:
+    type: object
+    properties:
+      locations:
+        required: true
+        type: array
+        items:
+          type: string
+        example: [Kawala]
+      startDate:
+        type: string
+        example: "2021-01-08T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-02-08T21:00:00.000Z"
+      frequency:
+        type: string
+        enum: [hourly, daily, monthly]
+        example: daily
+      pollutant:
+        type: string
+        enum: ["PM 2.5", "PM 10", "NO2"]
+        example: PM 2.5
+      chartType:
+        type: string
+        enum: [ "PM 2.5", "PM 10", "NO2" ]
+        example: pie
+  CustomisedChartDataResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: chart data successfully retrieved
+      data:
+        type: object
+        properties:
+          chart_type:
+            type: string
+            example: pie
+          custom_chart_title:
+            type: string
+            example: Mean Hourly PM 2.5 for Kawala, Kiswa, Wandegeya, Luzira
+          custom_chart_title_second_section:
+            type: string
+            example: "Between 2021-01-08 21:00 and 2021-01-08 21:00"
+          chart_label:
+            type: string
+            example: PM 2.5 (µg/m3)
+          pollutant:
+            type: string
+            example: PM 2.5
+          start_date:
+            type: string
+            example: "2021-01-08T21:00:00.000Z"
+          end_date:
+            type: string
+            example: "2021-02-08T21:00:00.000Z"
+          frequency:
+            type: string
+            example: hourly
+          datasets:
+            type: array
+            items:
+              $ref: '#/definitions/CustomisedChartData'
+            example: [
+              {
+                "pieBackgroundColors": [
+                    "#45e50d",
+                    "#f8fe28",
+                    "#ee8310",
+                    "#fe0000",
+                    "#8639c0",
+                    "#81202e",
+                    "#808080"
+                ],
+                "values": [
+                    0,
+                    35,
+                    144,
+                    380,
+                    34,
+                    0,
+                    593
+                ],
+                "labels": [
+                    "Good",
+                    "Moderate",
+                    "UHFSG",
+                    "Unhealthy",
+                    "VeryUnhealthy",
+                    "Hazardous",
+                    "TOTAL"
+                ],
+                "key_label": "Kiswa PM 2.5",
+                "borderColor": null,
+                "backgroundColor": null,
+                "fill": false
+              }
+            ]
+  CustomisedChartData:
+    type: object
+    properties:
+      division:
+        type: string
+        example: Lubaga
+      location_code:
+        type: string
+        example: KCCA_RBGA_AQ02
+      parish:
+        type: string
+        example: Kawala
+        dataset:
+          type: object
+          properties:
+            pieBackgroundColors:
+              type: array
+              example: []
+            values:
+              type: array
+              example: []
+            labels:
+              type: array
+              example: []
+            key_label:
+              type: string
+              example: Kiswa PM 2.5
+            borderColor:
+              type: string
+              example: null,
+            backgroundColor:
+              type: string
+              example: null,
+            fill:
+              type: bool
+              example: false
+
+responses:
+  200:
+    description: A successful retrieval of chaty data
+    schema:
+      $ref: '#/definitions/CustomisedChartDataResponse'

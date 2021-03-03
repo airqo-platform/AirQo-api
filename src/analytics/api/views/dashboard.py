@@ -123,6 +123,7 @@ class DownloadCustomisedDataResource(Resource):
 @rest_api.route('/dashboard/customised_chart')
 class CustomisedChartResource(Resource):
 
+    @swag_from('/api/docs/dashboard/customised_chart_post.yml')
     @validate_request_json(
         'locations|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
         'frequency|required:str', 'pollutant|required:str', 'chartType|required:str', 'orgName|str'
@@ -137,7 +138,7 @@ class CustomisedChartResource(Resource):
         frequency = json_data["frequency"]
         pollutant = json_data["pollutant"]
         chart_type = json_data["chartType"]
-        org_name = json_data["orgName"] or tenant
+        org_name = json_data.get("orgName") or tenant
 
         custom_chart_title = f'Mean {frequency.capitalize()} {pollutant} for {", ".join(locations)}'
         custom_chart_title_second_section = f'Between {str_date_to_format_str(start_date, frequency)} and ' \
