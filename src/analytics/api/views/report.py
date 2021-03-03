@@ -112,6 +112,7 @@ class DefaultReportTemplateResource(Resource):
 @rest_api.route('/report/monthly')
 class MonthlyReportResource(Resource):
 
+    @swag_from('/api/docs/report/monthly_report_post.yml')
     @validate_request_json('userId|required:str', 'reportName|required:str', 'reportBody|required:dict')
     def post(self):
         tenant = request.args.get("tenant")
@@ -130,8 +131,9 @@ class MonthlyReportResource(Resource):
             "report_body": report_body
         })
 
-        return create_response("Monthly Report Saved Successfully"), Status.HTTP_200_OK
+        return create_response("Monthly Report Saved Successfully"), Status.HTTP_201_CREATED
 
+    @swag_from('/api/docs/report/monthly_report_get.yml')
     @validate_request_params('userId|required:str')
     def get(self):
         tenant = request.args.get("tenant")
