@@ -356,6 +356,8 @@ class ExceedancesResource(Resource):
 
 @rest_api.route('/dashboard/exceedance_locations')
 class ExceedanceLocationsResource(Resource):
+
+    @swag_from('/api/docs/dashboard/exceedances_location_get.yml')
     def get(self):
         return create_response(
             "Exceedance location data successfully fetched",
