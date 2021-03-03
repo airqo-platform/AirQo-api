@@ -1,5 +1,6 @@
 Example endpoint returning pm2.5 category location count
 ---
+tags: [Dashboard]
 parameters:
   - name: tenant
     in: query
@@ -7,7 +8,7 @@ parameters:
     required: true
     default: airqo
 definitions:
-  Response:
+  CategoryLocationCountResponse:
     type: object
     properties:
       status:
@@ -17,7 +18,7 @@ definitions:
       data:
         type: array
         items:
-          $ref: '#/definitions/Location'
+          $ref: '#/definitions/LocationCategory'
     example:
       status: success
       message: location count successfully fetched
@@ -31,7 +32,7 @@ definitions:
               category_count: 4
               category_locations: [Kawala, Ggaba, Nsambya Central, Mutundwe]
 
-  Location:
+  LocationCategory:
     type: object
     properties:
       location_category:
@@ -47,8 +48,6 @@ definitions:
               type: string
 responses:
   200:
-    description: A list of colors (may be filtered by palette)
+    description: A list of pm2.5 category location count
     schema:
-      $ref: '#/definitions/Response'
-    examples:
-      rgb: ['red', 'green', 'blue']
+      $ref: '#/definitions/CategoryLocationCountResponse'

@@ -1,0 +1,103 @@
+Example endpoint for downloading pollutant custom data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: downloadType
+    in: query
+    type: string
+    enum: [json, csv]
+    required: true
+    default: json
+  - name: body
+    in: body
+    required: true
+    schema:
+      $ref: "#/definitions/CustomDownloadDataBody"
+body:
+  content:
+    application/json:
+      schema:
+        type: object
+        properties:
+          color:
+            type: array
+            items:
+              type: string
+definitions:
+  CustomDownloadDataBody:
+    type: object
+    properties:
+      locations:
+        required: true
+        type: array
+        items:
+          type: string
+        example: [Kawala]
+      startDate:
+        type: string
+        example: "2021-01-08T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-02-08T21:00:00.000Z"
+      frequency:
+        type: string
+        enum: [hourly, daily, monthly]
+        example: daily
+      pollutants:
+        type: array
+        items:
+          type: string
+        example: ["PM 2.5", "PM 10", "NO2"]
+  CustomDownloadDataResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: air-quality data download successful
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/PollutantData'
+  PollutantData:
+    type: object
+    properties:
+      datetime:
+        type: string
+        example: "2021-01-09"
+      owner:
+        type: string
+        example: airqo
+      location:
+        type: string
+        example: Kawala
+      division:
+        type: string
+        example: Lubaga
+      frquency:
+        type: string
+        example: daily
+      pm25_value:
+        type: float
+        example: 141.89,
+      pm10_value:
+        type: float
+        example: 189.85,
+      no2_value:
+        type: float
+        example: 16.49,
+      channel_ref:
+        type: string
+        example: "AR2RHV97"
+responses:
+  200:
+    description: A successful downlaod of json data
+    schema:
+      $ref: '#/definitions/CustomDownloadDataResponse'

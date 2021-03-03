@@ -33,7 +33,7 @@ from api.utils.pollutants import (
 @rest_api.route("/dashboard/locations/pm25categorycount")
 class PM25CategoryLocationCountResource(Resource):
 
-    @swag_from('/api/docs/dashboard/get_pm25_location_count.yml')
+    @swag_from('/api/docs/dashboard/pm25_location_count_get.yml')
     def get(self):
         tenant = request.args.get("tenant")
         model = PM25LocationCategoryCountModel(tenant)
@@ -47,6 +47,7 @@ class PM25CategoryLocationCountResource(Resource):
 @rest_api.route("/data/download")
 class DownloadCustomisedDataResource(Resource):
 
+    @swag_from('/api/docs/dashboard/download_custom_data_post.yml')
     @validate_request_params('downloadType|required:data')
     @validate_request_json(
         'locations|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
@@ -61,7 +62,7 @@ class DownloadCustomisedDataResource(Resource):
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
-        org_name = json_data["orgName"]
+        org_name = json_data.get("orgName") or tenant
 
         ms_model = MonitoringSiteModel(tenant)
         dhm_model = DeviceHourlyMeasurementModel(tenant)
