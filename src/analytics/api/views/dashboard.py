@@ -242,6 +242,7 @@ class CustomisedChartResource(Resource):
 @rest_api.route('/dashboard/monitoring_sites/locations')
 class MonitoringSiteLocationResource(Resource):
 
+    @swag_from("/api/docs/dashboard/monitoring_site_location_get.yml")
     @validate_request_params('orgName|str')
     def get(self):
         tenant = request.args.get('tenant')

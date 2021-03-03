@@ -154,6 +154,6 @@ definitions:
 
 responses:
   200:
-    description: A successful retrieval of chaty data
+    description: A successful retrieval of chart data
     schema:
       $ref: '#/definitions/CustomisedChartDataResponse'
