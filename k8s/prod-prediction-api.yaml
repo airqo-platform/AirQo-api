@@ -24,8 +24,8 @@ spec:
             - containerPort: 5000
               name: prediction-api
           env:
-          - name: GET_HOSTS_FROM
-            value: dns
+            - name: GET_HOSTS_FROM
+              value: dns
 
 ---
 kind: Service
