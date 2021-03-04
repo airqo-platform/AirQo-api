@@ -3,8 +3,6 @@ clone project from github.
 
 change directory to the analytics micro-service
 - `cd src/analytics`
-- `git fetch origin <branch-name>`
-- `git checkout <branch-name>`
 
 create local python environment
 
