@@ -14,13 +14,7 @@ const {
   NumberDictionary,
 } = require("unique-names-generator");
 const { getModelByTenant } = require("../utils/multitenancy");
-const {
-  responseAll,
-  responseDateRanges,
-  responseDevice,
-  responseDeviceAndComponent,
-  responseComponent,
-} = require("utils/get-events");
+const { getMeasurements } = require("utils/getMeasurements");
 
 const {
   tryCatchErrors,
@@ -29,124 +23,17 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
-const getApiKeys = async (deviceName, tenant) => {
-  logText("...................................");
-  logText("getting api keys...");
-  const deviceDetails = await getModelByTenant(
-    tenant.toLowerCase(),
-    "component",
-    ComponentSchema
-  )
-    .find({
-      name: deviceName,
-    })
-    .exec();
-  logElement("the write key", deviceDetails.writeKey);
-  logElement("the read key", deviceDetails.readKey);
-  const writeKey = deviceDetails.writeKey;
-  const readKey = deviceDetails.readKey;
-  return { writeKey, readKey };
-};
+const {
+  getApiKeys,
+  getArrayLength,
+  generateDateFormat,
+  doesDeviceExist,
+  doesComponentExist,
+  doesComponentTypeExist,
+} = require("../utils/componentControllerHelpers");
 
-const getArrayLength = async (array, model, event) => {};
-
-const generateDateFormat = async (ISODate) => {
-  date = new Date(ISODate);
-  year = date.getFullYear();
-  month = date.getMonth() + 1;
-  dt = date.getDate();
-
-  if (dt < 10) {
-    dt = "0" + dt;
-  }
-  if (month < 10) {
-    month = "0" + month;
-  }
-
-  return `${year}-${month}-${dt}`;
-};
-
-const doesDeviceExist = async (deviceName, tenant) => {
-  try {
-    logText(".......................................");
-    logText("doesDeviceExist?...");
-    const device = await getModelByTenant(
-      tenant.toLowerCase(),
-      "component",
-      ComponentSchema
-    )
-      .find({
-        name: deviceName,
-      })
-      .exec();
-    logElement("device element", device);
-    logObject("device Object", device);
-    logElement("does device exist?", !isEmpty(device));
-    if (!isEmpty(device)) {
-      return true;
-    } else if (isEmpty(device)) {
-      return false;
-    }
-  } catch (e) {
-    logElement("unable to check device existence in system", e);
-    return false;
-  }
-};
-
-const doesComponentExist = async (componentName, deviceName, tenant) => {
-  try {
-    logText(".......................................");
-    logText("doesComponentExist?...");
-    const component = await getModelByTenant(
-      tenant.toLowerCase(),
-      "component",
-      ComponentSchema
-    )
-      .find({
-        name: componentName,
-        deviceID: deviceName,
-      })
-      .exec();
-    logElement("component element", component);
-    logObject("component Object", component);
-    logElement("does component exist?", !isEmpty(component));
-    if (!isEmpty(component)) {
-      return true;
-    } else if (isEmpty(ComponentDetails)) {
-      return false;
-    }
-  } catch (e) {
-    logElement("unable to check Component existence in system", e);
-    return false;
-  }
-};
-
-const doesComponentTypeExist = async (name, tenant) => {
-  try {
-    logText(".......................................");
-    logText("doesComponentExist?...");
-    const componentType = await getModelByTenant(
-      tenant.toLowerCase(),
-      "componentType",
-      ComponentTypeSchema
-    )
-      .find({
-        name: name,
-      })
-      .exec();
-    logElement("component type element", componentType);
-    logObject("component type Object", componentType);
-    logElement("does component type exist?", !isEmpty(componentType));
-    if (!isEmpty(componentType)) {
-      return true;
-    } else if (isEmpty(componentType)) {
-      return false;
-    }
-  } catch (e) {
-    logElement("unable to check component type existence in system", e);
-    return false;
-  }
-};
+const transformMeasurements = require("../utils/transformMeasurements");
+const insertMeasurements = require("../utils/insertMeasurements");
 
 const Component = {
   listAll: async (req, res) => {
@@ -552,104 +439,23 @@ const Component = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, component, tenant } = req.query;
-
-      const {
-        value,
-        raw,
-        weight,
-        frequency,
-        time,
-        calibratedValue,
-        measurement,
-        uncertaintyValue,
-        standardDeviationValue,
-      } = req.body;
-      logObject("the type of device name", typeof device);
-      if (
-        !isEmpty(value) &&
-        !isEmpty(raw) &&
-        !isEmpty(weight) &&
-        !isEmpty(frequency) &&
-        !isEmpty(device) &&
-        !isEmpty(time) &&
-        !isEmpty(component) &&
-        !isEmpty(calibratedValue) &&
-        !isEmpty(measurement) &&
-        !isEmpty(uncertaintyValue) &&
-        !isEmpty(standardDeviationValue) &&
-        !isEmpty(tenant)
-      ) {
-        const isComponentPresent = await doesComponentExist(
-          component,
+      const { device, tenant } = req.query;
+      const measurements = req.body;
+      if (tenant && device && measurements) {
+        const isDevicePresent = await doesDeviceExist(
           device,
           tenant.toLowerCase()
         );
-        logElement("does component exist", isComponentPresent);
-
-        if (isComponentPresent) {
-          const sample = {
-            value,
-            raw,
-            weight,
-            frequency,
-            time,
-            calibratedValue,
-            measurement,
-            uncertaintyValue,
-            standardDeviationValue,
-          };
-          const day = await generateDateFormat(time);
-          const eventBody = {
-            componentName: component,
-            deviceName: device,
-            day: day,
-            nValues: { $lt: constants.N_VALUES },
-          };
-          const options = {
-            $push: { values: sample },
-            $min: { first: sample.time },
-            $max: { last: sample.time },
-            $inc: { nValues: 1 },
-          };
-
-          const addedEvent = await getModelByTenant(
-            tenant.toLowerCase(),
-            "event",
-            EventSchema
-          ).updateOne(eventBody, options, {
-            upsert: true,
-          });
-
-          logObject("the inserted document", addedEvent);
-
-          if (addedEvent) {
-            /**
-             * add the component name in the response body
-             */
-            const samples = { ...sample };
-            const event = {
-              values: samples,
-              component: component,
-              device: device,
-            };
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "successfully added the device data",
-              event,
-            });
-          } else if (!addedEvent) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: "unable to add events",
-              success: false,
-            });
-          } else {
-            logText("just unable to add events");
-          }
+        if (isDevicePresent) {
+          const transformedMeasurements = await transformMeasurements(
+            device,
+            measurements
+          );
+          insertMeasurements(res, tenant, transformedMeasurements);
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: `the component (${component}) does not exist for this device (${device})`,
+            message: `the device (${device}) does not exist on the network`,
           });
         }
       } else {
@@ -660,7 +466,7 @@ const Component = {
         });
       }
     } catch (e) {
-      res.status(HTTPStatus.BAD_REQUEST).json({
+      res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         error: e.message,
         message: "unable to add the values",
@@ -671,38 +477,41 @@ const Component = {
   addBulk: async (req, res) => {
     try {
       logText("adding values in bulk...");
-      const { device, component, tenant } = req.query;
+      const { device, tenant } = req.query;
       const { values, time } = req.body;
-      logObject("the type of device name", typeof device);
-      if (
-        !isEmpty(time) &&
-        !isEmpty(values) &&
-        !isEmpty(device) &&
-        !isEmpty(component) &&
-        !isEmpty(tenant)
-      ) {
-        const isComponentPresent = await doesComponentExist(
-          component,
+      // logObject("the type of device name", typeof device);
+      if (!isEmpty(time) && !isEmpty(device) && !isEmpty(tenant)) {
+        const isDevicePresent = await doesDeviceExist(
           device,
           tenant.toLowerCase()
         );
-        logElement("does component exist", isComponentPresent);
-
-        if (isComponentPresent) {
-          const samples = values;
-          // const day = new Date(time);
+        // logElement("does device exist", isDevicePresent);
+        if (isDevicePresent) {
           const day = await generateDateFormat(time);
           const eventBody = {
-            componentName: component,
-            deviceName: device,
+            device: device,
             day: day,
             nValues: { $lt: constants.N_VALUES },
           };
+
+          let valuesForExistingSensors = values.filter(async function(el) {
+            let isComponentPresent = await doesComponentExist(
+              el.sensor,
+              device,
+              tenant.toLowerCase()
+            );
+            if (isComponentPresent) {
+              return true;
+            } else {
+              return false;
+            }
+          });
+
           const options = {
-            $push: { values: samples },
+            $push: { values: valuesForExistingSensors },
             $min: { first: time },
             $max: { last: time },
-            $inc: { nValues: samples.length },
+            $inc: { nValues: valuesForExistingSensors.length },
           };
 
           const addedEvent = await getModelByTenant(
@@ -713,28 +522,27 @@ const Component = {
             upsert: true,
           });
 
-          logObject("the inserted document", addedEvent);
+          logObject("the inserted documents", addedEvent);
 
           if (addedEvent) {
             return res.status(HTTPStatus.OK).json({
               success: true,
               message: "successfully added the device data",
-              values: samples,
-              component: component,
+              values: valuesForExistingSensors,
               device: device,
             });
           } else if (!addedEvent) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: "unable to add events",
+              message: "unable to add events in bulk",
               success: false,
             });
           } else {
-            logText("just unable to add events");
+            logText("just unable to add events in bulk");
           }
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
-            message: `the component (${component}) does not exist for this device (${device})`,
+            message: `the device (${device}) does not exist on the network`,
           });
         }
       } else {
@@ -858,24 +666,30 @@ const Component = {
     }
   },
 
-  getValues: async (req, res) => {
+  getValues: (req, res) => {
     try {
-      const { comp, device, tenant } = req.query;
-      logText("get values.......");
-      logElement("device name ", device);
-      logElement("Component name ", comp);
-      if (device && comp && tenant) {
-        responseDeviceAndComponent(
+      const {
+        device,
+        tenant,
+        startTime,
+        endTime,
+        limit,
+        skip,
+        key,
+      } = req.query;
+      const limitInt = parseInt(limit, 0);
+      const skipInt = parseInt(skip, 0);
+      logText(".......getting values.......");
+      if (tenant) {
+        getMeasurements(
           res,
-          filterOptions.bothDeviceAndComponent(device, comp),
+          startTime,
+          endTime,
+          device,
+          skipInt,
+          limitInt,
           tenant
         );
-      } else if (device && !comp && tenant) {
-        responseDevice(res, filterOptions.device(device), tenant);
-      } else if (!device && !comp && tenant) {
-        responseAll(req, res, tenant);
-      } else if (comp && !device && tenant) {
-        responseComponent(res, filterOptions.component(comp), tenant);
       } else {
         missingQueryParams(req, res);
       }

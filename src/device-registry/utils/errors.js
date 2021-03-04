@@ -43,9 +43,16 @@ const callbackErrors = (error, req, res) => {
     .json({ success: false, message: "server error", error: error });
 };
 
+const unclearError = (res) => {
+  res
+    .status(HTTPStatus.BAD_GATEWAY)
+    .json({ success: false, message: "unclear server error" });
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
+  unclearError,
 };

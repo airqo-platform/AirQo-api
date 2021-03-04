@@ -23,6 +23,24 @@ spec:
           ports:
             - containerPort: 4001
               name: sta-locate-api
+          env:
+            - name: GET_HOSTS_FROM
+              value: dns
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: MONGO_GCE_URI
+            - name: DB_NAME_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: PLATFORM_MONGO_PROD
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: SECRET_KEY
 
 ---
 kind: Service
