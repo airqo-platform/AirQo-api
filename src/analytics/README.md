@@ -1,4 +1,8 @@
-fetch branch from github.
+clone project from github.
+- `git clone https://github.com/airqo-platform/AirQo-api.git`
+
+change directory to the analytics micro-service
+- `cd src/analytics`
 - `git fetch origin <branch-name>`
 - `git checkout <branch-name>`
 
