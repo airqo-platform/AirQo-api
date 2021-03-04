@@ -42,9 +42,9 @@ The anlytics microservice uses data from the `airqo_analytics` `mongodb` databas
 
 | collection | data from | used for |
 | --- | --- | --- |
-| candidates | | Not currently used. |
-| colabs | | Not currently used. |
-| defaults | | Not currently used. |
+| candidates | | Not currently used. (Transitioned to other databases for different organisations (AirQo and KCCA)) |
+| colabs | | Not currently used. (Transitioned to other databases for different organisations (AirQo and KCCA)) |
+| defaults | | Not currently used. (Transitioned to other databases for different organisations (AirQo and KCCA)) |
 | device_daily_exceedences | From (externally triggered) "cloud function". | |
 | device_daily_historical_averages | From (externally triggered) "cloud function". | |
 | device_daily_measurements | From "Clarity API". | |
@@ -55,6 +55,6 @@ The anlytics microservice uses data from the `airqo_analytics` `mongodb` databas
 | pm25_location_categorycount | From (externally triggered) "cloud function". | |
 | report_template | Manually entered. | Reporting API. |
 | sessions | No data. | Not currently used. |
-| users | Manually entered. | Not currently used. |
+| users | Manually entered. | Not currently used. (Transitioned to other databases for different organisations (AirQo and KCCA)) |
 
 Cloud functions path: `src\analytics\helpers`
