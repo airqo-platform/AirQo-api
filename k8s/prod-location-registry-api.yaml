@@ -24,6 +24,8 @@ spec:
             - containerPort: 8080
               name: loc-registry
           env:
+            - name: GET_HOSTS_FROM
+              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
@@ -39,16 +41,6 @@ spec:
                 secretKeyRef:
                   name: prod-location-registry-secret
                   key: SECRET_KEY
-            - name: API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: prod-location-registry-secret
-                  key: API_KEY
-            - name: OVERPASS_URL
-              valueFrom:
-                secretKeyRef:
-                  name: prod-location-registry-secret
-                  key: OVERPASS_URL
             - name: SERVICE_ACCOUNT
               valueFrom:
                 secretKeyRef:
@@ -58,7 +50,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: prod-location-registry-secret
-                  key: PRIVATE_KEY
+                  key: CREDENTIALS
 
 ---
 kind: Service

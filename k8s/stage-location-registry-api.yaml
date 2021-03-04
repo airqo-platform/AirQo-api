@@ -24,6 +24,8 @@ spec:
             - containerPort: 8080
               name: sta-loc-reg
           env:
+            - name: GET_HOSTS_FROM
+              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
@@ -58,7 +60,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: stage-location-registry-secret
-                  key: PRIVATE_KEY
+                  key: CREDENTIALS
 
 ---
 kind: Service

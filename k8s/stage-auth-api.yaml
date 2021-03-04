@@ -24,6 +24,8 @@ spec:
             - containerPort: 3000
               name: sta-auth-api
           env:
+            - name: GET_HOSTS_FROM
+              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
