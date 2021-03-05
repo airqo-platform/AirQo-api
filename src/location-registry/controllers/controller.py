@@ -4,12 +4,13 @@ import sys
 import app
 from flask_caching import Cache
 #from flask_cache import Cache
+from http import HTTPStatus
 from routes import api
 from models.location import Location
 import sys
 
 location_blueprint = Blueprint('location_blueprint', __name__)
-location = Location()
+#location = Location()
 
 # cache = Cache(config={
 #     'CACHE_TYPE': 'redis',
@@ -30,9 +31,9 @@ def generate_ref():
     '''
     tenant_id = request.args.get('tenant')
     if not tenant_id:
-        return {'message': 'Tenant id required', 'success': False}, 400
-    elif tenant_id != 'airqo':
-        return {'message': 'Invalid organization', 'success': False}, 400
+        return {'message': 'Tenant id required', 'success': False}, HTTPStatus.BAB_REQUEST
+    elif tenant_id != 'airqo':  # not yet sure what to do here
+        return {'message': 'Invalid organization', 'success': False}, HTTPStatus.BAB_REQUEST
     else:
         return helper.get_location_ref(tenant_id)
 
@@ -46,11 +47,13 @@ def register_location():
     if request.method == 'POST':
         tenant_id = request.args.get('tenant')
         if not tenant_id:
-            return {'message': 'Tenant id required', 'success': False}, 400
+            return {'message': 'Tenant id required', 'success': False}, HTTPStatus.BAB_REQUEST
+
+        location = Location(tenant_id)
 
         json_data = request.get_json()
         if not json_data:
-            return {'message': 'No input data provided', 'success': False}, 400
+            return {'message': 'No input data provided', 'success': False}, HTTPStatus.BAB_REQUEST
         else:
             loc_ref = json_data["locationReference"]
             host_name = json_data["hostName"]
@@ -80,7 +83,7 @@ def register_location():
             if mobility == 'Static':
                 try:
                     region, district, county, subcounty, parish = helper.get_location_details(
-                        longitude, latitude, 'airqo')
+                        longitude, latitude, tenant_id)
                     location_name = helper.get_location_name(
                         parish.capitalize(), district.capitalize())
                 except:
@@ -123,13 +126,13 @@ def register_location():
                 closest_motorway_distance = None
                 nearest_city_distance = None
             try:
-                location.register_location(tenant_id, loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status,
+                location.register_location(loc_ref, host_name, mobility, longitude, latitude, road_intensity, description, road_status,
                                            local_activities, location_name, country, region, district, county, subcounty, parish, altitude, aspect, landform_90,
                                            landform_270, closest_distance, closest_motorway_distance, closest_residential_distance, nearest_city_distance)
                 cache.clear()
-                return {'message': 'Location registered succesfully', 'success': True}, 200
+                return {'message': 'Location registered succesfully', 'success': True}, HTTPStatus.OK
             except:
-                return {'message': 'An error occured. Please try again', 'success': False}, 400
+                return {'message': 'An error occured. Please try again', 'success': False}, HTTPStatus.BAB_REQUEST
 
 
 @location_blueprint.route(api.route['locations'], methods=['GET'])
@@ -140,12 +143,13 @@ def get_all_locations():
     '''
     tenant_id = request.args.get('tenant')
     if not tenant_id:
-        return {'message': 'Tenant id required', 'success': False}, 400
-    locations = location.all_locations(tenant_id)
+        return {'message': 'Tenant id required', 'success': False}, HTTPStatus.BAB_REQUEST
+    location = Location(tenant_id)
+    locations = location.all_locations()
     if type(locations) != list:
         return locations
     elif len(locations) == 0:
-        return {'message': 'Organization does not have any locations'}, 400
+        return {'message': 'Organization does not have any locations'}, HTTPStatus.BAB_REQUEST
     else:
         return jsonify(locations)
 
@@ -160,10 +164,11 @@ def get_location_details():
         loc_ref = request.args.get('loc_ref')
         tenant_id = request.args.get('tenant')
         if not tenant_id:
-            return {'message': 'Tenant id required', 'success': False}, 400
+            return {'message': 'Tenant id required', 'success': False}, HTTPStatus.BAB_REQUEST
         if not loc_ref:
-            return {'message': 'Location reference required', 'success': False}, 400
-        details = location.get_location(tenant_id, loc_ref)
+            return {'message': 'Location reference required', 'success': False}, HTTPStatus.BAB_REQUEST
+        location = Location(tenant_id)
+        details = location.get_location(loc_ref)
         return details
 
 
@@ -177,10 +182,11 @@ def edit_location():
         loc_ref = request.args.get('loc_ref')
         tenant_id = request.args.get('tenant')
         if not tenant_id:
-            return {'message': 'Tenant id required', 'success': False}, 400
+            return {'message': 'Tenant id required', 'success': False}, HTTPStatus.BAB_REQUEST
         if not loc_ref:
-            return {'message': 'Location reference required', 'success': False}, 400
-        details = location.get_location_details_to_edit(tenant_id, loc_ref)
+            return {'message': 'Location reference required', 'success': False}, HTTPStatus.BAB_REQUEST
+        location = Location(tenant_id)
+        details = location.get_location_details_to_edit(loc_ref)
         return details
 
 
@@ -194,10 +200,10 @@ def update_location():
     if request.method == 'PUT':
         tenant_id = request.args.get('tenant')
         if not tenant_id:
-            return {'message': 'Tenant id required'}, 400
+            return {'message': 'Tenant id required'}, HTTPStatus.BAB_REQUEST
         json_data = request.get_json()
         if not json_data:
-            return {'message': 'No input data provided'}, 400
+            return {'message': 'No input data provided'}, HTTPStatus.BAB_REQUEST
         else:
             loc_ref = json_data["locationReference"]
             try:
@@ -211,7 +217,8 @@ def update_location():
             for i in json_data["localActivities"]:
                 local_activities.append(i["value"])
 
+            location = Location(tenant_id)
             message = location.save_edited_location(
-                tenant_id, loc_ref, road_intensity, description, road_status, local_activities)
+                loc_ref, road_intensity, description, road_status, local_activities)
             cache.clear()
             return message
