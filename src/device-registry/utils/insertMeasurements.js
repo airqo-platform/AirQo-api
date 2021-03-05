@@ -14,7 +14,7 @@ const insert = async (res, tenant, transformedMeasurements) => {
     try {
       const eventBody = {
         "values.time": { $ne: measurement.time },
-        day: measurement.day,
+        day: { $ne: measurement.day },
         nValues: { $lt: constants.N_VALUES },
       };
       const options = {
