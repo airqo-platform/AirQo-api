@@ -58,8 +58,8 @@ def get_location_details(lon, lat, tenant_id):
         'properties.Subcounty': 1,
         'properties.Parish': 1
     }
-    db = db_helpers.connect_mongo(tenant_id)
-    records = list(db.locate_map.find(query, projection))
+    db = connect_mongo(tenant_id)
+    records = list(db.parishes.find(query, projection))
     region = records[0]['properties']['Region']
     district = records[0]['properties']['District']
     county = records[0]['properties']['County']
