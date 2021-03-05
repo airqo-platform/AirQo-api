@@ -1,16 +1,11 @@
 from flask import Blueprint, request, jsonify
 import logging
 import datetime as dt
-from helpers.db_helpers import app_configuration
 from bson import json_util, ObjectId
 import json
-from datetime import datetime, timedelta
-from helpers import db_helpers
 from routes import api
 import os
 from http import HTTPStatus
-from dotenv import load_dotenv
-load_dotenv()
 
 
 _logger = logging.getLogger(__name__)
