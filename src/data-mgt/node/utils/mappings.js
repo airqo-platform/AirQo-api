@@ -20,8 +20,8 @@ const positionsAndLabels = {
   6: "internalTemperature",
   7: "internalHumidity",
   8: "externalTemperature",
-  9: "ExternalHumidity",
-  10: "ExternalPressure",
+  9: "externalHumidity",
+  10: "externalPressure",
 };
 
 function getFieldLabel(field) {
