@@ -1,11 +1,10 @@
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 
-const measurementsSchema = new Schema({
+const measurementsSchema = {
   time: {
     type: Date,
     required: [true, "the timestamp is required"],
-    unique: true,
   },
   frequency: {
     type: String,
@@ -132,7 +131,7 @@ const measurementsSchema = new Schema({
   ExternalPressure: {
     value: { type: Number },
   },
-});
+};
 
 const eventSchema = new Schema(
   {
@@ -144,14 +143,14 @@ const eventSchema = new Schema(
     nValues: {
       type: Number,
     },
-    values: [{ type: measurementsSchema, unique: true }],
+    values: [measurementsSchema],
   },
   {
     timestamps: true,
   }
 );
 
-// eventSchema.index({ device: 1 });
+eventSchema.index({ "values.time": 1, day: 1 }, { unique: true });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
