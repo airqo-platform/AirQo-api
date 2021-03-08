@@ -105,8 +105,9 @@ def process_chunk(chunk):
             "pm10": {"value": check_float(row["pm10"])},
             "s2_pm2_5": {"value": check_float(row["s2_pm2_5"])},
             "s2_pm10": {"value": check_float(row["s2_pm10"])},
-            "latitude": {"value": check_float(row["latitude"])},
-            "longitude": {"value": check_float(row["longitude"])},
+            "location" : { "latitude": {"value": check_float(row["latitude"])},
+                           "longitude": {"value": check_float(row["longitude"])}
+                           },
             "battery": {"value": check_float(row["battery"])},
             "altitude": {"value": check_float(row["altitude"])},
             "speed": {"value": check_float(row["speed"])},
