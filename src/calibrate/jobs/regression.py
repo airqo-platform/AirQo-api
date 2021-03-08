@@ -73,8 +73,8 @@ def get_bam_data():
     bam_data.drop_duplicates(subset="TimeStamp", keep='first', inplace=True)
     bam_data = bam_data.set_index('TimeStamp')
     bam_data = bam_data.drop(['Time'], axis=1)
-    
-    bam_hourly_mean = bam_data                        
+    bam_hourly_mean = bam_data.resample('H').mean().round(2)  
+                          
     return  bam_hourly_mean
 
 def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
