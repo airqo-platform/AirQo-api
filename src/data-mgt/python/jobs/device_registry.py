@@ -37,7 +37,6 @@ def single_component_insertion(data, tenant):
         json_data = json.dumps([data])
         # print(json_data)
         headers = {'Content-Type': 'application/json'}
-        print(json_data)
         url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
 
         results = requests.post(url, json_data, headers=headers)
@@ -45,7 +44,9 @@ def single_component_insertion(data, tenant):
         print(results.json())
 
     except Exception as e:
+        print("================ Error Occurred ==================")
         print(e)
+        print("================ Error End ==================")
 
 
 def get_component_type(component, tenant):

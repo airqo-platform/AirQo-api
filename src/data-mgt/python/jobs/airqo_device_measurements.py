@@ -4,6 +4,7 @@ from threading import Thread
 from device_registry import single_component_insertion
 import numpy as np
 import os
+import math
 # from google.cloud import bigquery
 
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
@@ -74,14 +75,14 @@ def process_airqo_data(data):
 
 
 def check_float(string):
-    value = ""
-
+    # formatting all values to float else null
     try:
         value = float(string)
+        if math.isnan(value):
+            return ''
+        return value
     except Exception:
-        pass
-
-    return value
+        return ''
 
 
 def process_chunk(chunk):
