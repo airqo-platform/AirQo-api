@@ -17,7 +17,7 @@ def process_kcca_device_data():
     # get all kcca device measurements
     device_measurements_data = get_kcca_device_data()
 
-    print(device_measurements_data)
+    # print(device_measurements_data)
 
     # process all kcca device measurements
     process_kcca_data(device_measurements_data)
@@ -39,7 +39,7 @@ def get_kcca_device_data():
     # compose a url to get device measurements for all the devices
     api_url = CLARITY_API_BASE_URL + "measurements?startTime=" + date + "&code="
 
-    api_url = CLARITY_API_BASE_URL + "measurements?code="
+    # api_url = CLARITY_API_BASE_URL + "measurements?code="
 
     for code in device_codes:
         api_url = api_url + code + ","
@@ -85,7 +85,7 @@ def process_kcca_data(data):
 
     # process each chuck on a separate thread
     for chunk in chunks:
-        print(chunk)
+        # print(chunk)
         thread = Thread(target=process_chunk, args=(chunk,))
         threads.append(thread)
         thread.start()
@@ -178,7 +178,7 @@ def get_kcca_devices():
         try:
             location = row['location']['coordinates']
             date = datetime.datetime.strptime(row['workingStartAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
-            print(date)
+            # print(date)
             device = dict({
                 "channelID": row['code'],
                 "name": row['code'],

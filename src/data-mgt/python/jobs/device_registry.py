@@ -69,7 +69,7 @@ def get_component_type(component, tenant):
         component_type_results = requests.post(get_component_type_url)
 
         if not component_type_results.json()["doesExist"]:
-            print(component_type_results.json())
+            # print(component_type_results.json())
             raise Exception("failed to create and retrieve component type")
 
         return component_type_results.json()["componentType"][0]["name"]
@@ -122,7 +122,7 @@ def get_component_details(device_code, component, tenant):
         create_component_results = requests.post(create_component_url, add_component_body_json, headers=headers)
 
         if not create_component_results.json()["success"]:
-            print(create_component_results.json())
+            # print(create_component_results.json())
             raise Exception("failed to create and retrieve component")
 
         return create_component_results.json()["component"]
