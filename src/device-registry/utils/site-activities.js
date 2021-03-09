@@ -1,11 +1,11 @@
 const DeviceSchema = require("../models/Device");
 const { getModelByTenant } = require("./multitenancy");
-const LocationSchema = require("../models/Location");
+const SiteSchema = require("../models/Site");
 const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const axios = require("axios");
-const LocationActivitySchema = require("../models/location_activity");
+const SiteActivitySchema = require("../models/SiteActivity");
 const constants = require("../config/constants");
 const {
   clearEventsBody,
@@ -14,14 +14,14 @@ const {
   threeMonthsFromNow,
   getChannelID,
   getApiKeys,
-} = require("./deviceControllerHelpers");
+} = require("./does-device-exist");
 
 const {
   tryCatchErrors,
   axiosError,
   missingQueryParams,
   callbackErrors,
-} = require("../utils/errors");
+} = require("./errors");
 
 const getGpsCoordinates = async (locationName, tenant) => {
   logText("...................................");
@@ -30,7 +30,7 @@ const getGpsCoordinates = async (locationName, tenant) => {
   let location = await getModelByTenant(
     tenant.toLowerCase(),
     "location_registry",
-    LocationSchema
+    SiteSchema
   )
     .find({ name: locationName })
     .exec();
@@ -111,7 +111,7 @@ const doLocationActivity = async (
             const log = getModelByTenant(
               tenant.toLowerCase(),
               "activity",
-              LocationActivitySchema
+              SiteActivitySchema
             ).createLocationActivity(activityBody);
             log.then((log) => {
               return res.status(HTTPStatus.OK).json({
@@ -148,7 +148,7 @@ const doesLocationExist = async (locationName, tenant) => {
   let location = await getModelByTenant(
     tenant.toLowerCase(),
     "location_registry",
-    LocationSchema
+    SiteSchema
   )
     .find({ name: locationName })
     .exec();

@@ -11,7 +11,7 @@ const {
 } = require("./errors");
 
 const { logObject, logElement, logText } = require("./log");
-const { generateFilter } = require("./generateFilter");
+const { generateFilter } = require("./generate-filter");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 

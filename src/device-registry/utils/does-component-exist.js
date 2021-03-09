@@ -1,9 +1,9 @@
 const ComponentSchema = require("../models/Component");
 const DeviceSchema = require("../models/Device");
 const ComponentTypeSchema = require("../models/ComponentType");
-const { logObject, logText, logElement } = require("../utils/log");
+const { logObject, logText, logElement } = require("./log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("./multitenancy");
 
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
