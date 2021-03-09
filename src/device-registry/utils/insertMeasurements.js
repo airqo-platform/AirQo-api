@@ -13,9 +13,13 @@ const insert = async (res, tenant, transformedMeasurements) => {
 
   for (const measurement of transformedMeasurements) {
     try {
+      console.log("the measurement: ", measurement);
       const eventBody = {
-        "values.time": { $ne: measurement.time },
-        day: { $ne: measurement.day },
+        $or: [
+          { "values.time": { $ne: measurement.time } },
+          { "values.device": { $ne: measurement.device } },
+          { day: { $ne: measurement.day } },
+        ],
         day: measurement.day,
         nValues: { $lt: constants.N_VALUES },
       };
