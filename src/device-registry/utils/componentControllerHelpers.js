@@ -26,22 +26,6 @@ const getApiKeys = async (deviceName, tenant) => {
 
 const getArrayLength = async (array, model, event) => {};
 
-const generateDateFormat = async (ISODate) => {
-  date = new Date(ISODate);
-  year = date.getFullYear();
-  month = date.getMonth() + 1;
-  dt = date.getDate();
-
-  if (dt < 10) {
-    dt = "0" + dt;
-  }
-  if (month < 10) {
-    month = "0" + month;
-  }
-
-  return `${year}-${month}-${dt}`;
-};
-
 const doesDeviceExist = async (deviceName, tenant) => {
   try {
     logText(".......................................");
@@ -117,7 +101,6 @@ const doesComponentTypeExist = async (name, tenant) => {
 module.exports = {
   getApiKeys,
   getArrayLength,
-  generateDateFormat,
   doesDeviceExist,
   doesComponentExist,
   doesComponentTypeExist,

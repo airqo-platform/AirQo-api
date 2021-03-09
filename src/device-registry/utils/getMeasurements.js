@@ -27,8 +27,8 @@ const getMeasurements = async (
   try {
     const currentTime = new Date().toISOString();
     logElement("currentTime ", currentTime);
-    const day = await generateDateFormat(currentTime);
-    const dayWithoutHours = await generateDateFormatWithoutHrs(currentTime);
+    const day = generateDateFormatWithoutHrs(currentTime);
+    const dayWithoutHours = generateDateFormatWithoutHrs(currentTime);
     logElement("startTime ", startTime);
     logElement("endTime ", endTime);
     logElement("device ", device);

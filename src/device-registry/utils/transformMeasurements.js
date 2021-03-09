@@ -1,17 +1,10 @@
-const {
-  getApiKeys,
-  getArrayLength,
-  generateDateFormat,
-  doesDeviceExist,
-  doesComponentExist,
-  doesComponentTypeExist,
-} = require("./componentControllerHelpers");
+const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
 const transformMeasurements = (device, measurements) => {
   let promises = measurements.map(async (measurement) => {
     try {
       let time = measurement.time;
-      const day = await generateDateFormat(time);
+      const day = generateDateFormatWithoutHrs(time);
       return {
         device: device,
         day: day,

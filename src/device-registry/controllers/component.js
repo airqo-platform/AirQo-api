@@ -26,7 +26,6 @@ const {
 const {
   getApiKeys,
   getArrayLength,
-  generateDateFormat,
   doesDeviceExist,
   doesComponentExist,
   doesComponentTypeExist,
@@ -487,7 +486,7 @@ const Component = {
         );
         // logElement("does device exist", isDevicePresent);
         if (isDevicePresent) {
-          const day = await generateDateFormat(time);
+          const day = generateDateFormatWithoutHrs(time);
           const eventBody = {
             device: device,
             day: day,
