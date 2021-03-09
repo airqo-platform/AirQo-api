@@ -34,7 +34,7 @@ const {
 const transformMeasurements = require("../utils/transform-measurements");
 const insertMeasurements = require("../utils/insert-measurements");
 
-const Event = {
+const createEvent = {
   addValue: async (req, res) => {
     try {
       logText("add value.......");
@@ -463,4 +463,4 @@ const Event = {
   },
 };
 
-module.exports = Event;
+module.exports = createEvent;
