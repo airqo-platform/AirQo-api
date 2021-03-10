@@ -479,7 +479,7 @@ const device = {
 
   updateThingSettings: async (req, res) => {
     try {
-      let { device, tenant } = req.query;
+      let { device, tenant, photo } = req.query;
 
       if (tenant && device) {
         let isDevicePresent = await doesDeviceExist(device, tenant);
@@ -516,11 +516,14 @@ const device = {
             .then(async (response) => {
               logText(`successfully updated device ${device} in TS`);
               logObject("response from TS", response.data);
+              const options = {
+                $pull: { pictures: { $in: [photo] } },
+              };
               const updatedDevice = await getModelByTenant(
                 tenant.toLowerCase(),
                 "device",
                 DeviceSchema
-              ).findOneAndUpdate(deviceFilter, deviceBody, {
+              ).findOneAndUpdate(deviceFilter, deviceBody, options, {
                 new: true,
               });
               if (updatedDevice) {
