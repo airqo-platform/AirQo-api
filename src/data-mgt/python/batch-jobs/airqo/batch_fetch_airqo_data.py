@@ -117,7 +117,7 @@ class UpdateCollections(luigi.Task):
 
     def run(self):
 
-        device_measurements = pd.read_json('/data/device_measurements.json')
+        device_measurements = pd.read_json('data/device_measurements.json')
 
         for index, data in device_measurements.iterrows():
 
