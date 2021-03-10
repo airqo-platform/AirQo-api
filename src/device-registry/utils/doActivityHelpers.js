@@ -108,15 +108,15 @@ const doLocationActivity = async (
             });
           } else if (updatedDevice) {
             //then log the operation
-            const log = getModelByTenant(
+            const activityLog = getModelByTenant(
               tenant.toLowerCase(),
               "activity",
               LocationActivitySchema
             ).createLocationActivity(activityBody);
-            log.then((log) => {
+            activityLog.then((activityLog) => {
               return res.status(HTTPStatus.OK).json({
                 message: `${type} successfully carried out`,
-                activityBody,
+                activityLog,
                 updatedDevice,
                 success: true,
               });
