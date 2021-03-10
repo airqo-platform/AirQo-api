@@ -54,7 +54,7 @@ class GetDeviceMeasurements(luigi.Task):
 
         start_date = datetime.strptime('2019-09-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
         stop_date = datetime.strptime('2021-01-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
-        stop_date = datetime.strptime('2019-10-30T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
+        # stop_date = datetime.strptime('2019-10-30T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
         end_date = start_date
 
         device_measurements = []
