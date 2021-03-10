@@ -1,14 +1,21 @@
 {
-  "name": "monitoring-service",
-  "version": "1.0.0",
-  "description": "monitoring service",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
-  "author": "martin",
-  "license": "ISC",
-  "dependencies": {
-    "config": "^3.3.6"
-  }
+    "name": "monitoring-service",
+    "version": "1.0.0",
+    "description": "monitoring service",
+    "main": "index.js",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "dev-mac": "NODE_ENV=development nodemon index.js",
+        "prod-mac": "NODE_ENV=production nodemon index.js",
+        "stage-mac": "NODE_ENV=staging nodemon index.js",
+        "dev-pc": "SET NODE_ENV=development&&nodemon index.js",
+        "prod-pc": "SET NODE_ENV=production&&nodemon index.js",
+        "stage-pc": "SET NODE_ENV=staging&&nodemon index.js"
+    },
+    "author": "martin",
+    "license": "ISC",
+    "dependencies": {
+        "config": "^3.3.6",
+        "nodemon": "^2.0.7"
+    }
 }
