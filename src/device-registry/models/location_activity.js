@@ -30,7 +30,7 @@ const activitySchema = new Schema(
 activitySchema.methods = {
   toJSON() {
     return {
-      id: this._id,
+      _id: this._id,
       device: this.device,
       location: this.location,
       date: this.date,
