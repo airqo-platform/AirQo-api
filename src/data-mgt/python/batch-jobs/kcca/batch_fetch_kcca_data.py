@@ -6,10 +6,13 @@ from threading import Thread
 import requests
 import luigi
 import pandas as pd
+import traceback
 
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
+START_DATE_TIME = os.getenv("START_DATE_TIME")
+STOP_DATE_TIME = os.getenv("STOP_DATE_TIME")
 
 
 class GetKccaDevices(luigi.Task):
@@ -46,18 +49,18 @@ def single_component_insertion(data, tenant):
 
         # create a json object of the remaining data and post to events table
         json_data = json.dumps([data])
-        print(json_data)
+        # print(json_data)
         headers = {'Content-Type': 'application/json'}
         url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
 
         results = requests.post(url, json_data, headers=headers)
 
-        print(url)
         print(results.json())
 
     except Exception as e:
         print("================ Error Occurred ==================")
         print(e)
+        traceback.print_exc()
         print("================ Error End ==================")
 
 
@@ -77,9 +80,9 @@ class GetDeviceMeasurements(luigi.Task):
         # get kcca devices
         device_codes = pd.read_json('data/devices.json')
 
-        start_date = datetime.strptime('2019-09-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
-        stop_date = datetime.strptime('2021-01-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
-        stop_date = datetime.strptime('2019-11-30T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
+        start_date = datetime.strptime(START_DATE_TIME, '%Y-%m-%dT%H:%M:%SZ')
+        stop_date = datetime.strptime(STOP_DATE_TIME, '%Y-%m-%dT%H:%M:%SZ')
+
         end_date = start_date
 
         device_measurements = []
@@ -163,7 +166,7 @@ class ProcessMeasurements(luigi.Task):
                         })
                     except Exception as ex:
                         print(ex)
-                        continue
+                        traceback.print_exc()
 
                     if "calibratedValue" in device_components[component_type].keys():
                         data[CONVERSION_UNITS[component_type]]['calibratedValue'] = device_components[component_type][
@@ -177,6 +180,7 @@ class ProcessMeasurements(luigi.Task):
 
             except Exception as ex:
                 print(ex)
+                traceback.print_exc()
 
 
         # wait for all threads to terminate before ending the function
