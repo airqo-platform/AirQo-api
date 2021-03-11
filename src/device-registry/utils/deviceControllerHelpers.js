@@ -109,7 +109,10 @@ const updateThingBodies = (req, res) => {
     isActive,
     tags,
     elevation,
+    pictures,
   } = req.body;
+
+  const { photo } = req.query;
 
   let deviceBody = {
     ...(!isEmpty(name) && { name: name }),
@@ -140,6 +143,15 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(mobility) && { mobility: mobility }),
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+    ...(!isEmpty(pictures) && { pictures }),
+  };
+
+  let options = {
+    ...(!isEmpty(photo) && {
+      $pull: { pictures: { $in: [photo ? photo : ""] } },
+    }),
+    new: true,
+    upsert: true,
   };
 
   let tsBody = {
@@ -152,7 +164,7 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(visibility) && { public_flag: visibility }),
   };
 
-  return { deviceBody, tsBody };
+  return { deviceBody, tsBody, options };
 };
 
 const clearEventsBody = () => {
