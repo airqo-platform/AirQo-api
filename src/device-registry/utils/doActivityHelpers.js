@@ -180,6 +180,7 @@ const locationActivityRequestBodies = (req, res) => {
       tags,
       isPrimaryInLocation,
       isUserForCollocaton,
+      maintenanceType,
     } = req.body;
 
     //location and device body to be used for deploying....
@@ -269,6 +270,7 @@ const locationActivityRequestBodies = (req, res) => {
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
+        maintenanceType: maintenanceType,
         // $addToSet: { tags: { $each: tags } },
         tags: tags,
       };
