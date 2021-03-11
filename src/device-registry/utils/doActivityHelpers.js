@@ -274,12 +274,12 @@ const locationActivityRequestBodies = (req, res) => {
         // $addToSet: { tags: { $each: tags } },
         tags: tags,
       };
-      if (description == "preventive") {
+      if (maintenanceType == "preventive") {
         deviceBody = {
           name: deviceName,
           nextMaintenance: threeMonthsFromNow(date),
         };
-      } else if (description == "corrective") {
+      } else if (maintenanceType == "corrective") {
         deviceBody = {
           name: deviceName,
         };
