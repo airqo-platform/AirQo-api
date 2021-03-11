@@ -10,6 +10,7 @@ from shapely.ops import transform
 from geopy.distance import distance
 import app
 from config import db_connection
+from http import HTTPStatus
 
 ee.Initialize(db_connection.app_configuration.CREDENTIALS)
 # ee.Initialize()
