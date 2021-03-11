@@ -1,6 +1,10 @@
 FROM python:3.8-slim-buster
 MAINTAINER Airqo "airqo"
 
+ARG AIRQO_API_BASE_URL
+ARG FEEDS_BASE_URL
+ARG GOOGLE_APPLICATION_CREDENTIALS_JSON_FILE
+
 RUN apt-get update -y && apt-get install -y python3-pip python3-dev
 
 ENV AIRQO_API_BASE_URL=${AIRQO_API_BASE_URL}

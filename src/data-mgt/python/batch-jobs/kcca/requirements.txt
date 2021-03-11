@@ -20,7 +20,6 @@ mypy-extensions==0.4.3
 numpy==1.20.1
 packaging==20.9
 pandas==1.2.3
-pkg-resources==0.0.0
 proto-plus==1.14.2
 protobuf==3.15.5
 py4j==0.10.9

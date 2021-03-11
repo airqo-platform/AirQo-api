@@ -50,7 +50,7 @@ def single_component_insertion(data, tenant):
         device = data.pop("device")
 
         # create a json object of the remaining data and post to events table
-        json_data = json.dumps(data)
+        json_data = json.dumps([data])
         print(json_data)
         headers = {'Content-Type': 'application/json'}
         url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant

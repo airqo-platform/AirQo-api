@@ -1,6 +1,7 @@
 import json
 import os
 from datetime import timedelta, datetime
+from threading import Thread
 
 import requests
 import luigi
@@ -36,6 +37,30 @@ class GetKccaDevices(luigi.Task):
         return luigi.LocalTarget("data/devices.json")
 
 
+def single_component_insertion(data, tenant):
+
+    try:
+
+        # extract the component name and device id from the data
+        device = data.pop("device")
+
+        # create a json object of the remaining data and post to events table
+        json_data = json.dumps([data])
+        print(json_data)
+        headers = {'Content-Type': 'application/json'}
+        url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
+
+        results = requests.post(url, json_data, headers=headers)
+
+        print(url)
+        print(results.json())
+
+    except Exception as e:
+        print("================ Error Occurred ==================")
+        print(e)
+        print("================ Error End ==================")
+
+
 class GetDeviceMeasurements(luigi.Task):
     """
     Gets the device measurements
@@ -54,7 +79,7 @@ class GetDeviceMeasurements(luigi.Task):
 
         start_date = datetime.strptime('2019-09-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
         stop_date = datetime.strptime('2021-01-01T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
-        # stop_date = datetime.strptime('2019-10-30T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
+        stop_date = datetime.strptime('2019-11-30T00:00:00Z', '%Y-%m-%dT%H:%M:%SZ')
         end_date = start_date
 
         device_measurements = []
@@ -98,6 +123,9 @@ class ProcessMeasurements(luigi.Task):
 
         device_measurements = pd.read_json('data/device_measurements.json')
         processed_measurements = []
+
+        # create a to hold all threads
+        threads = []
 
         for index, row in device_measurements.iterrows():
 
@@ -143,47 +171,20 @@ class ProcessMeasurements(luigi.Task):
 
                 processed_measurements.append(data)
 
+                thread = Thread(target=single_component_insertion, args=(data, "kcca"))
+                threads.append(thread)
+                thread.start()
+
             except Exception as ex:
                 print(ex)
 
 
+        # wait for all threads to terminate before ending the function
+        for thread in threads:
+            thread.join()
+
         with self.output().open('w') as f:
             json.dump(list(processed_measurements), f)
-
-
-class UpdateCollections(luigi.Task):
-
-    def requires(self):
-        return ProcessMeasurements()
-
-    def output(self):
-        pass
-
-    def run(self):
-
-        device_measurements = pd.read_json('data/processed_device_measurements.json')
-
-        for index, data in device_measurements.iterrows():
-
-            try:
-
-                # extract the component name and device id from the data
-                device = data.pop("device")
-
-                # create a json object of the remaining data and post to events table
-                json_data = json.dumps([data.to_dict()])
-                # print(json_data)
-                headers = {'Content-Type': 'application/json'}
-                url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + "kcca"
-
-                results = requests.post(url, json_data, headers=headers)
-
-                print(results.json())
-
-            except Exception as e:
-                print("================ Error Occurred ==================")
-                print(e)
-                print("================ Error End ==================")
 
 
 if __name__ == '__main__':
