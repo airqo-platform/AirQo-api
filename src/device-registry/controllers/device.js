@@ -497,7 +497,7 @@ const device = {
           logElement("the channel ID", channelID);
 
           const deviceFilter = { name: device };
-          let { tsBody, deviceBody } = updateThingBodies(req, res);
+          let { tsBody, deviceBody, options } = updateThingBodies(req, res);
           logObject("TS body", tsBody);
           logObject("device body", deviceBody);
           logElement("the channel ID", channelID);
@@ -516,16 +516,11 @@ const device = {
             .then(async (response) => {
               logText(`successfully updated device ${device} in TS`);
               logObject("response from TS", response.data);
-              const options = {
-                $pull: { pictures: { $in: [photo] } },
-              };
               const updatedDevice = await getModelByTenant(
                 tenant.toLowerCase(),
                 "device",
                 DeviceSchema
-              ).findOneAndUpdate(deviceFilter, deviceBody, options, {
-                new: true,
-              });
+              ).findOneAndUpdate(deviceFilter, deviceBody, options);
               if (updatedDevice) {
                 return res.status(HTTPStatus.OK).json({
                   message: "successfully updated the device settings in DB",
