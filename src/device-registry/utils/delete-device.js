@@ -1,29 +1,45 @@
 const DeviceSchema = require("../models/Device");
+const { logObject, logElement, logText } = require("./log");
+const { getModelByTenant } = require("./multitenancy");
+const {
+  tryCatchErrors,
+  axiosError,
+  missingQueryParams,
+  callbackErrors,
+} = require("./errors");
+const HTTPStatus = require("http-status");
 
-const removeDevice = async (tenant, device) => {
-  const deviceRemovedFromDB = await getModelByTenant(
-    tenant.toLowerCase(),
-    "device",
-    DeviceSchema
-  )
-    .findOneAndRemove({
-      name: device,
-    })
-    .exec();
-  if (deviceRemovedFromDB) {
-    let deviceDeleted = response.data;
-    logText("successfully deleted device from DB");
-    res.status(200).json({
-      message: "successfully deleted the device from DB",
-      success: true,
-      deviceDeleted,
-    });
-  } else if (!deviceRemovedFromDB) {
-    res.status(500).json({
-      message: "unable to the device from DB",
-      success: false,
-      deviceDetails: device,
-    });
+const removeDevice = async (tenant, res, device) => {
+  try {
+    logText("successfully deleted device from TS");
+    // logObject("TS response data", response.data);
+    logText("deleting device from DB.......");
+    const deviceRemovedFromDB = await getModelByTenant(
+      tenant.toLowerCase(),
+      "device",
+      DeviceSchema
+    )
+      .findOneAndRemove({
+        name: device,
+      })
+      .exec();
+    if (deviceRemovedFromDB) {
+      // let deviceDeleted = response.data;
+      logText("successfully deleted device");
+      res.status(HTTPStatus.OK).json({
+        message: "successfully deleted the device",
+        success: true,
+        device,
+      });
+    } else if (!deviceRemovedFromDB) {
+      res.status(HTTPStatus.BAD_GATEWAY).json({
+        message: "unable to delete the device",
+        success: false,
+        device,
+      });
+    }
+  } catch (error) {
+    tryCatchErrors(res, error);
   }
 };
 
