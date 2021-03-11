@@ -1,0 +1,19 @@
+{
+    "microservice": {
+        "config": {
+            "services": [
+                { "address": "http://34.78.78.202", "port": 30000, "name": "auth-service" },
+                { "address": "http://34.78.78.202", "port": 30002, "name": "device-registry" },
+                { "address": "http://34.78.78.202", "port": 30001, "name": "data-mgt" },
+                { "address": "http://34.78.78.202", "port": 30009, "name": "predict" },
+                { "address": "http://34.78.78.202", "port": 30008, "name": "incentives" },
+                { "address": "http://34.78.78.202", "port": 30004, "name": "locate" },
+                { "address": "http://34.78.78.202", "port": 30005, "name": "site-registry" },
+                { "address": "http://34.78.78.202", "port": 30011, "name": "calibrate" },
+                { "address": "http://34.78.78.202", "port": 30003, "name": "analytics" },
+                { "address": "http://34.78.78.202", "port": 30006, "name": "device-monitoring" }
+            ]
+        }
+    }
+
+}

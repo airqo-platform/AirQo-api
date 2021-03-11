@@ -9,7 +9,7 @@
                 { "address": "http://34.78.78.202", "port": 30008, "name": "incentives" },
                 { "address": "http://34.78.78.202", "port": 30004, "name": "locate" },
                 { "address": "http://34.78.78.202", "port": 30005, "name": "site-registry" },
-                { "address": "http://34.78.78.202", "port": "", "name": "calibrate" },
+                { "address": "http://34.78.78.202", "port": 30011, "name": "calibrate" },
                 { "address": "http://34.78.78.202", "port": 30003, "name": "analytics" },
                 { "address": "http://34.78.78.202", "port": 30006, "name": "device-monitoring" }
             ]
