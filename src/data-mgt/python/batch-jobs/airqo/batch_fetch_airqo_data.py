@@ -1,6 +1,7 @@
 import json
 import math
 import os
+from threading import Thread
 
 import requests
 import luigi
@@ -41,6 +42,30 @@ def check_float(string):
         return ''
 
 
+def single_component_insertion(data, tenant):
+
+    try:
+
+        # extract the component name and device id from the data
+        device = data.pop("device")
+
+        # create a json object of the remaining data and post to events table
+        json_data = json.dumps(data)
+        print(json_data)
+        headers = {'Content-Type': 'application/json'}
+        url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
+
+        results = requests.post(url, json_data, headers=headers)
+
+        print(url)
+        print(results.json())
+
+    except Exception as e:
+        print("================ Error Occurred ==================")
+        print(e)
+        print("================ Error End ==================")
+
+
 class GetDeviceMeasurements(luigi.Task):
     """
     Gets the device measurements
@@ -59,6 +84,9 @@ class GetDeviceMeasurements(luigi.Task):
         devices = pd.read_json('data/devices.json')
 
         details = []
+
+        # create a to hold all threads
+        threads = []
 
         for device_index, device_row in devices.iterrows():
 
@@ -100,46 +128,16 @@ class GetDeviceMeasurements(luigi.Task):
 
                 details.append(data)
 
-            # if device_index > 10:
-            #     break
+                thread = Thread(target=single_component_insertion, args=(data, "airqo"))
+                threads.append(thread)
+                thread.start()
+
+        # wait for all threads to terminate before ending the function
+        for thread in threads:
+            thread.join()
 
         with self.output().open('w') as f:
             json.dump(list(details), f)
-
-
-class UpdateCollections(luigi.Task):
-
-    def requires(self):
-        return GetDeviceMeasurements()
-
-    def output(self):
-        pass
-
-    def run(self):
-
-        device_measurements = pd.read_json('data/device_measurements.json')
-
-        for index, data in device_measurements.iterrows():
-
-            try:
-
-                # extract the component name and device id from the data
-                device = data.pop("device")
-
-                # create a json object of the remaining data and post to events table
-                json_data = json.dumps([data.to_dict()])
-                # print(json_data)
-                headers = {'Content-Type': 'application/json'}
-                url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + "airqo"
-
-                results = requests.post(url, json_data, headers=headers)
-
-                print(results.json())
-
-            except Exception as e:
-                print("================ Error Occurred ==================")
-                print(e)
-                print("================ Error End ==================")
 
 
 if __name__ == '__main__':

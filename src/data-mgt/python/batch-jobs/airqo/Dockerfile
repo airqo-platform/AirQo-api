@@ -13,4 +13,4 @@ RUN pip3 install -r requirements.txt
 COPY . /
 
 ENTRYPOINT [ "python3" ]
-CMD [ "-m", "luigi", "--module", "batch_fetch_airqo_data", "UpdateCollections", "--local-scheduler" ]
+CMD [ "-m", "luigi", "--module", "batch_fetch_airqo_data", "GetDeviceMeasurements", "--local-scheduler" ]
