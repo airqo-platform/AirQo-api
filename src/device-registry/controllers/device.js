@@ -59,6 +59,8 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
+const deleteFromCloudinary = require("../utils/delete-cloudinary-image");
+
 const device = {
   createThing: async (req, res) => {
     try {
@@ -501,6 +503,11 @@ const device = {
           logObject("TS body", tsBody);
           logObject("device body", deviceBody);
           logElement("the channel ID", channelID);
+          /***
+           * delete the image from cloudinary also
+           */
+          let imageID = photo ? photo : "";
+          deleteFromCloudinary(imageID, res, req);
           const config = {
             headers: {
               "Content-Type": "application/x-www-form-urlencoded",
