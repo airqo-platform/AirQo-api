@@ -520,7 +520,9 @@ const device = {
                 tenant.toLowerCase(),
                 "device",
                 DeviceSchema
-              ).findOneAndUpdate(deviceFilter, deviceBody, options);
+              )
+                .findOneAndUpdate(deviceFilter, deviceBody, options)
+                .exec();
               if (updatedDevice) {
                 return res.status(HTTPStatus.OK).json({
                   message: "successfully updated the device settings in DB",
