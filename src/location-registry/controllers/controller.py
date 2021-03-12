@@ -23,6 +23,20 @@ location_blueprint = Blueprint('location_blueprint', __name__)
 cache = Cache(config={'CACHE_TYPE': 'simple'})
 
 
+@location_blueprint.route(api.route['root'], methods=['GET', 'POST'])
+def root():
+    if request.method == 'GET':
+        _logger.info('root endpoint OK')
+        return jsonify({"message": "ok", "status": True}), HTTPStatus.OK
+
+
+@location_blueprint.route(api.route['health_check'], methods=['GET', 'POST'])
+def health():
+    if request.method == 'GET':
+        _logger.info('health status OK')
+        return jsonify({"message": "ok", "status": True}), HTTPStatus.OK
+
+
 @location_blueprint.route(api.route['create_id'], methods=['GET'])
 @cache.cached(timeout=5)
 def generate_ref():
