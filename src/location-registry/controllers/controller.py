@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from helpers import location_helpers
 import sys
+import logging
 import app
 from flask_caching import Cache
 #from flask_cache import Cache
@@ -19,6 +20,7 @@ location_blueprint = Blueprint('location_blueprint', __name__)
 #     'CACHE_REDIS_PORT': '6379',
 #     'CACHE_REDIS_URL': 'redis://35.224.67.244:6379:6379'
 # })
+_logger = logging.getLogger(__name__)
 
 cache = Cache(config={'CACHE_TYPE': 'simple'})
 
