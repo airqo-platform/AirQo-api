@@ -134,9 +134,6 @@ class GetDeviceMeasurements(luigi.Task):
                 threads.append(thread)
                 thread.start()
 
-                if index > 3:
-                    break
-
         # wait for all threads to terminate before ending the function
         for thread in threads:
             thread.join()
