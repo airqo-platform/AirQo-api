@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from helpers import helper
+from helpers import location_helpers
 import sys
 import app
 from flask_caching import Cache
