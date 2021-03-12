@@ -18,6 +18,7 @@ const activitySchema = new Schema(
     activityType: { type: String, trim: true },
     tags: [{ type: String }],
     nextMaintenance: { type: Date, default: threeMonthsFromNow },
+    maintenanceType: { type: String },
     createdAt: {
       type: Date,
     },
@@ -36,6 +37,7 @@ activitySchema.methods = {
       date: this.date,
       description: this.description,
       activityType: this.activityType,
+      maintenanceType: this.maintenanceType,
       nextMaintenance: this.nextMaintenance,
       createdAt: this.createdAt,
       tags: this.tags,
