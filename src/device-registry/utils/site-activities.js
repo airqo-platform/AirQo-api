@@ -108,15 +108,15 @@ const doLocationActivity = async (
             });
           } else if (updatedDevice) {
             //then log the operation
-            const log = getModelByTenant(
+            const activityLog = getModelByTenant(
               tenant.toLowerCase(),
               "activity",
               SiteActivitySchema
             ).createLocationActivity(activityBody);
-            log.then((log) => {
+            activityLog.then((activityLog) => {
               return res.status(HTTPStatus.OK).json({
                 message: `${type} successfully carried out`,
-                activityBody,
+                activityLog,
                 updatedDevice,
                 success: true,
               });
@@ -180,6 +180,7 @@ const locationActivityRequestBodies = (req, res) => {
       tags,
       isPrimaryInLocation,
       isUserForCollocaton,
+      maintenanceType,
     } = req.body;
 
     //location and device body to be used for deploying....
@@ -269,15 +270,16 @@ const locationActivityRequestBodies = (req, res) => {
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
+        maintenanceType: maintenanceType,
         // $addToSet: { tags: { $each: tags } },
         tags: tags,
       };
-      if (description == "preventive") {
+      if (maintenanceType == "preventive") {
         deviceBody = {
           name: deviceName,
           nextMaintenance: threeMonthsFromNow(date),
         };
-      } else if (description == "corrective") {
+      } else if (maintenanceType == "corrective") {
         deviceBody = {
           name: deviceName,
         };
