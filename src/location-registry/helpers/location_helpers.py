@@ -31,7 +31,7 @@ def get_location_ref(tenant_id):
             loc_ref = int(ref[4:])+1
             return 'loc_'+str(loc_ref)
         except:
-            return {'message': 'Invalid input'}, HTTPStatus.OK
+            return {'message': 'Invalid input'}, HTTPStatus.BAD_REQUEST
 
 
 def get_location_details(lon, lat, tenant_id):
