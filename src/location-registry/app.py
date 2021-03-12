@@ -33,11 +33,8 @@ def create_app(environment):
 
     # import blueprints
     from controllers.controller import location_blueprint
-    from controllers.helpers import monitor_bp
-
     # register blueprints
     app.register_blueprint(location_blueprint)
-    app.register_blueprint(monitor_bp)
 
     return app
 
