@@ -6,6 +6,8 @@ const HTTPStatus = require("http-status");
 const axios = require("axios");
 const constants = require("../config/constants");
 
+const deleteDevice = require("./delete-device");
+
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
@@ -39,11 +41,7 @@ const getChannelID = async (req, res, deviceName, tenant) => {
     let channeID = deviceDetails[0]._doc.channelID;
     return channeID;
   } catch (e) {
-    return res.status(HTTPStatus.BAD_GATEWAY).json({
-      success: false,
-      message: "unable to get the corresponding TS ID",
-      error: e.message,
-    });
+    deleteDevice(tenant, res, deviceName);
   }
 };
 
