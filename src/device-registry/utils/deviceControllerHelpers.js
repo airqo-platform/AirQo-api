@@ -144,12 +144,12 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
     ...(!isEmpty(pictures) && { pictures }),
-  };
-
-  let options = {
     ...(!isEmpty(photo) && {
       $pull: { pictures: { $in: [photo ? photo : ""] } },
     }),
+  };
+
+  let options = {
     new: true,
     upsert: true,
   };
