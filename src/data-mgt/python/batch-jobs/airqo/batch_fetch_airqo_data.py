@@ -7,6 +7,7 @@ import requests
 import luigi
 import pandas as pd
 from google.cloud import bigquery
+import traceback
 
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
 FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
@@ -51,18 +52,19 @@ def single_component_insertion(data, tenant):
 
         # create a json object of the remaining data and post to events table
         json_data = json.dumps([data])
-        print(json_data)
+        # print(json_data)
         headers = {'Content-Type': 'application/json'}
         url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
 
         results = requests.post(url, json_data, headers=headers)
 
-        print(url)
+        # print(url)
         print(results.json())
 
     except Exception as e:
         print("================ Error Occurred ==================")
         print(e)
+        traceback.print_exc()
         print("================ Error End ==================")
 
 
@@ -131,6 +133,9 @@ class GetDeviceMeasurements(luigi.Task):
                 thread = Thread(target=single_component_insertion, args=(data, "airqo"))
                 threads.append(thread)
                 thread.start()
+
+                if index > 3:
+                    break
 
         # wait for all threads to terminate before ending the function
         for thread in threads:

@@ -14,7 +14,9 @@ ENV GOOGLE_APPLICATION_CREDENTIALS=${GOOGLE_APPLICATION_CREDENTIALS_JSON_FILE}
 COPY requirements.txt /requirements.txt
 WORKDIR /
 RUN pip3 install -r requirements.txt
-COPY . /
+COPY batch_fetch_airqo_data.py /
+COPY ${GOOGLE_APPLICATION_CREDENTIALS_JSON_FILE} /
+RUN mkdir /data
 
 ENTRYPOINT [ "python3" ]
 CMD [ "-m", "luigi", "--module", "batch_fetch_airqo_data", "GetDeviceMeasurements", "--local-scheduler" ]
