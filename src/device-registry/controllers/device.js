@@ -59,6 +59,8 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
+const deleteDevice = require("../utils/delete-device");
+
 const device = {
   createThing: async (req, res) => {
     try {
@@ -302,7 +304,8 @@ const device = {
             success: false,
           });
         }
-        if (doesDeviceExist(device)) {
+        let deviceExist = await doesDeviceExist(device, tenant);
+        if (deviceExist) {
           const channelID = await getChannelID(
             req,
             res,
@@ -314,47 +317,24 @@ const device = {
           await axios
             .delete(constants.DELETE_THING_URL(channelID))
             .then(async (response) => {
-              logText("successfully deleted device from TS");
-              logObject("TS response data", response.data);
-              logText("deleting device from DB.......");
-              const deviceRemovedFromDB = await getModelByTenant(
-                tenant.toLowerCase(),
-                "device",
-                DeviceSchema
-              )
-                .findOneAndRemove({
-                  name: device,
-                })
-                .exec();
-              if (deviceRemovedFromDB) {
-                let deviceDeleted = response.data;
-                logText("successfully deleted device from DB");
-                res.status(200).json({
-                  message: "successfully deleted the device from DB",
-                  success: true,
-                  deviceDeleted,
-                });
-              } else if (!deviceRemovedFromDB) {
-                res.status(500).json({
-                  message: "unable to the device from DB",
-                  success: false,
-                  deviceDetails: device,
-                });
-              }
+              deleteDevice(tenant, res, device);
             })
             .catch(function(error) {
               logElement("unable to delete device from TS", error);
-              res.status(500).json({
-                message: "unable to delete the device from TS",
-                success: false,
-                error,
-              });
+              logElement("this is the error response", error.response.status);
+
+              if (error.response.status == 404) {
+                deleteDevice(tenant, res, device);
+              } else {
+                tryCatchErrors(res, error);
+              }
             });
         } else {
-          logText("device does not exist in DB");
-          res.status(500).json({
-            message: "device does not exist in DB",
+          logText("device does not exist in the network");
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message: "device does not exist in the network",
             success: false,
+            device,
           });
         }
       } else {
@@ -424,7 +404,7 @@ const device = {
             success: false,
           });
         }
-        let isDevicePresent = await doesDeviceExist(device);
+        let isDevicePresent = await doesDeviceExist(device, tenant);
         logElement("isDevicePresent ?", isDevicePresent);
         if (isDevicePresent) {
           //get the thing's channel ID
