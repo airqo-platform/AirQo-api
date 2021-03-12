@@ -59,7 +59,7 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
-const deleteFromCloudinary = require("../utils/delete-cloudinary-image");
+const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const deleteDevice = require("../utils/delete-device");
 
 const device = {
@@ -482,52 +482,67 @@ const device = {
           logObject("TS body", tsBody);
           logObject("device body", deviceBody);
           logElement("the channel ID", channelID);
-          /***
-           * delete the image from cloudinary also
-           */
+          logElement("the photo URL", photo);
           let imageID = photo ? photo : "";
-          deleteFromCloudinary(imageID, res, req);
-          const config = {
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-          };
-          logElement("the url", constants.UPDATE_THING(channelID));
-          await axios
-            .put(
-              constants.UPDATE_THING(channelID),
-              qs.stringify(tsBody),
-              config
-            )
-            .then(async (response) => {
-              logText(`successfully updated device ${device} in TS`);
-              logObject("response from TS", response.data);
-              const updatedDevice = await getModelByTenant(
-                tenant.toLowerCase(),
-                "device",
-                DeviceSchema
-              )
-                .findOneAndUpdate(deviceFilter, deviceBody, options)
-                .exec();
-              if (updatedDevice) {
-                return res.status(HTTPStatus.OK).json({
-                  message: "successfully updated the device settings in DB",
-                  updatedDevice,
-                  success: true,
-                });
-              } else if (!updatedDevice) {
-                return res.status(HTTPStatus.BAD_GATEWAY).json({
-                  message: "unable to update device in DB but updated in TS",
-                  success: false,
-                });
-              } else {
-                logText("just unable to update device in DB but updated in TS");
-              }
-            })
-            .catch(function(error) {
-              logElement("unable to update the device settings in TS", error);
-              callbackErrors(error, req, res);
-            });
+          logElement("the image ID", imageID);
+
+          let responseFromCloudinaryDeletion = await deleteFromCloudinary(
+            imageID
+          );
+
+          logElement("response from deletion", responseFromCloudinaryDeletion);
+
+          // if (responseFromCloudinaryDeletion.success) {
+          //   const config = {
+          //     headers: {
+          //       "Content-Type": "application/x-www-form-urlencoded",
+          //     },
+          //   };
+          //   logElement("the url", constants.UPDATE_THING(channelID));
+          //   await axios
+          //     .put(
+          //       constants.UPDATE_THING(channelID),
+          //       qs.stringify(tsBody),
+          //       config
+          //     )
+          //     .then(async (response) => {
+          //       logText(`successfully updated device ${device} in TS`);
+          //       // logObject("response from TS", response.data);
+          //       const updatedDevice = await getModelByTenant(
+          //         tenant.toLowerCase(),
+          //         "device",
+          //         DeviceSchema
+          //       )
+          //         .findOneAndUpdate(deviceFilter, deviceBody, options)
+          //         .exec();
+          //       if (updatedDevice) {
+          //         return res.status(HTTPStatus.OK).json({
+          //           message: "successfully updated the device settings in DB",
+          //           updatedDevice,
+          //           success: true,
+          //         });
+          //       } else if (!updatedDevice) {
+          //         return res.status(HTTPStatus.BAD_GATEWAY).json({
+          //           message: "unable to update device in DB but updated in TS",
+          //           success: false,
+          //         });
+          //       } else {
+          //         logText(
+          //           "just unable to update device in DB but updated in TS"
+          //         );
+          //       }
+          //     })
+          //     .catch(function(error) {
+          //       logElement("unable to update the device settings in TS", error);
+          //       callbackErrors(error, req, res);
+          //     });
+          // } else {
+          //   return res.status(HTTPStatus.BAD_GATEWAY).json({
+          //     message: responseFromCloudinaryDeletion.message,
+          //     success: false,
+          //     error: responseFromCloudinaryDeletion.error,
+          //   });
+          // }
         } else {
           logText(`device ${device} does not exist in DB`);
           res.status(500).json({

@@ -9,22 +9,32 @@ const {
   callbackErrors,
 } = require("./errors");
 
-const deleteFromCloudinary = (imageID, res, req) => {
+const deleteFromCloudinary = async (imageID) => {
   try {
     logText(".....deleting image from cloudinary......");
-    cloudinary.v2.uploader.destroy(imageID, function(error, result) {
+    cloudinary.uploader.destroy(imageID, function(error, result) {
       if (result) {
-        res.status(HTTPStatus.OK).json({
+        return {
           success: true,
-          message: "image deleted successfully",
-        });
+          message: "image delete successfully",
+        };
       } else if (error) {
-        callbackErrors(error, req, res);
+        logElement("unable to delete", error);
+        return {
+          success: false,
+          message: "unable to delete from cloud",
+          error: error,
+        };
       }
     });
   } catch (error) {
-    tryCatchErrors(res, error);
+    logElement("server error", error.message);
+    return {
+      success: false,
+      message: "server error",
+      error: error.message,
+    };
   }
 };
 
-module.exports = deleteFromCloudinary;
+module.exports = { deleteFromCloudinary };
