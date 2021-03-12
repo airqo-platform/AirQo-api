@@ -37,7 +37,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: ObjectId,
+      type: String,
     },
     description: {
       type: String,
