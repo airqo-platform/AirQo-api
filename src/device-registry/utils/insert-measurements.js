@@ -15,13 +15,13 @@ const insert = async (res, tenant, transformedMeasurements) => {
     try {
       console.log("the measurement: ", measurement);
       const eventBody = {
+        day: measurement.day,
+        nValues: { $lt: constants.N_VALUES },
         $or: [
           { "values.time": { $ne: measurement.time } },
           { "values.device": { $ne: measurement.device } },
           { day: { $ne: measurement.day } },
         ],
-        day: measurement.day,
-        nValues: { $lt: constants.N_VALUES },
       };
       const options = {
         $addToSet: { values: measurement },
