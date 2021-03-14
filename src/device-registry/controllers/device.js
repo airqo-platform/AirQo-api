@@ -486,9 +486,7 @@ const device = {
           let imageID = photo ? photo : "";
           logElement("the image ID", imageID);
 
-          let responseFromCloudinaryDeletion = await deleteFromCloudinary(
-            imageID
-          );
+          let responseFromCloudinaryDeletion = deleteFromCloudinary(imageID);
 
           logElement("response from deletion", responseFromCloudinaryDeletion);
 
