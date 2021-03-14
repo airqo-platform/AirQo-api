@@ -57,10 +57,7 @@ const getMeasurements = async (
 
           const filter = generateFilter(queryStartTime, queryEndTime, device);
           let events = await getModelByTenant(tenant, "event", EventSchema)
-            .find(filter)
-            .sort({ createdAt: -1 })
-            .skip(skipInt)
-            .limit(limitInt)
+            .list(skip, limit, filter)
             .exec();
           redis.set(
             cacheID,
