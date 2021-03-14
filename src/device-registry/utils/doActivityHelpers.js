@@ -345,7 +345,7 @@ const queryFilterOptions = async (req, res) => {
   try {
     const { location, type, device, next, id } = req.query;
 
-    let activityFilter = {
+    let filter = {
       ...(!isEmpty(location) && { location: location }),
       ...(!isEmpty(type) && { type: type }),
       ...(!isEmpty(device) && { device: device }),
@@ -353,7 +353,7 @@ const queryFilterOptions = async (req, res) => {
       ...(!isEmpty(id) && { _id: id }),
       ...!isEmpty(),
     };
-    return { activityFilter };
+    return { filter };
   } catch (e) {
     tryCatchErrors(res, e);
   }
