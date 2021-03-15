@@ -1,4 +1,4 @@
-const generateFilter = (queryStartTime, queryEndTime, device) => {
+const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
   if (queryStartTime && queryEndTime && !device) {
     return {
       day: { $gte: queryStartTime, $lte: queryEndTime },
@@ -35,4 +35,22 @@ const generateFilter = (queryStartTime, queryEndTime, device) => {
   }
 };
 
-module.exports = { generateFilter };
+const generateDeviceFilter = (tenant, name, channel, location) => {
+  if (tenant && name && !channel && !location) {
+    return {
+      name: name,
+    };
+  } else if (tenant && !name && channel && !location) {
+    return {
+      channelID: channel,
+    };
+  } else if (tenant && !name && !channel && location) {
+    return {
+      locationID: location,
+    };
+  } else if (tenant && !name && !channel && !location) {
+    return {};
+  }
+};
+
+module.exports = { generateEventsFilter, generateDeviceFilter };
