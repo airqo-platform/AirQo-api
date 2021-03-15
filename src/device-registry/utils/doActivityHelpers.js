@@ -369,15 +369,17 @@ const bodyFilterOptions = async (req, res) => {
       activityType,
       nextMaintenance,
       tags,
+      maintenanceType,
     } = req.body;
 
     let activityBody = {
-      ...(!isEmpty(location) && { location: location }),
-      ...(!isEmpty(date) && { date: date }),
-      ...(!isEmpty(device) && { device: device }),
-      ...(!isEmpty(description) && { description: description }),
-      ...(!isEmpty(activityType) && { activityType: activityType }),
-      ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+      ...(!isEmpty(location) && { location }),
+      ...(!isEmpty(date) && { date }),
+      ...(!isEmpty(device) && { device }),
+      ...(!isEmpty(description) && { description }),
+      ...(!isEmpty(activityType) && { activityType }),
+      ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
+      ...(!isEmpty(maintenanceType) && { maintenanceType }),
       ...(!isEmpty(tags) && { tags: tags }),
     };
     return { activityBody };
