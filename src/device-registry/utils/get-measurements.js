@@ -11,7 +11,10 @@ const {
 } = require("./errors");
 
 const { logObject, logElement, logText } = require("./log");
-const { generateFilter } = require("./generate-filter");
+const {
+  generateEventsFilter,
+  generateDeviceFilter,
+} = require("./generate-filter");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -55,7 +58,11 @@ const getMeasurements = async (
           const skip = isEmpty(skipInt) ? 0 : skipInt;
           const limit = isEmpty(limitInt) ? 100 : limitInt;
 
-          const filter = generateFilter(queryStartTime, queryEndTime, device);
+          const filter = generateEventsFilter(
+            queryStartTime,
+            queryEndTime,
+            device
+          );
           let events = await getModelByTenant(tenant, "event", EventSchema)
             .list(skip, limit, filter)
             .exec();

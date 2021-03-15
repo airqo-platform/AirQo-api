@@ -161,8 +161,8 @@ deviceSchema.statics = {
     });
   },
 
-  list({ skip = 0, limit = 5 } = {}) {
-    return this.find()
+  list({ skip = 0, limit = 5, filter = {} } = {}) {
+    return this.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);
