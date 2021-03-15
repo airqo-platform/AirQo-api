@@ -44,9 +44,7 @@ router.get("/list/components/types", componentController.getTypes);
 
 /******************* create event *******************************/
 router.post("/events/add", eventController.addValues);
-router.post("/events/add/bulk", eventController.addBulk);
 router.get("/events", eventController.getValues);
-router.post("/events/push/one", eventController.writeToThing);
-router.post("/events/push", eventController.writeToThingJSON);
+router.post("/events/transmit", eventController.transmitValues);
 
 module.exports = router;
