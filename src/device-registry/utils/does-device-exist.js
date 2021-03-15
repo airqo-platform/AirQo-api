@@ -107,6 +107,8 @@ const updateThingBodies = (req, res) => {
     isActive,
     tags,
     elevation,
+    siteName,
+    locationName,
   } = req.body;
 
   let deviceBody = {
@@ -138,6 +140,8 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(mobility) && { mobility: mobility }),
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+    ...(!isEmpty(siteName) && { siteName }),
+    ...(!isEmpty(locationName) && { locationName }),
   };
 
   let tsBody = {
