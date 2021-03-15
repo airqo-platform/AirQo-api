@@ -345,7 +345,7 @@ const queryFilterOptions = async (req, res) => {
   try {
     const { location, type, device, next, id } = req.query;
 
-    let activityFilter = {
+    let filter = {
       ...(!isEmpty(location) && { location: location }),
       ...(!isEmpty(type) && { type: type }),
       ...(!isEmpty(device) && { device: device }),
@@ -353,7 +353,7 @@ const queryFilterOptions = async (req, res) => {
       ...(!isEmpty(id) && { _id: id }),
       ...!isEmpty(),
     };
-    return { activityFilter };
+    return { filter };
   } catch (e) {
     tryCatchErrors(res, e);
   }
@@ -369,15 +369,17 @@ const bodyFilterOptions = async (req, res) => {
       activityType,
       nextMaintenance,
       tags,
+      maintenanceType,
     } = req.body;
 
     let activityBody = {
-      ...(!isEmpty(location) && { location: location }),
-      ...(!isEmpty(date) && { date: date }),
-      ...(!isEmpty(device) && { device: device }),
-      ...(!isEmpty(description) && { description: description }),
-      ...(!isEmpty(activityType) && { activityType: activityType }),
-      ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+      ...(!isEmpty(location) && { location }),
+      ...(!isEmpty(date) && { date }),
+      ...(!isEmpty(device) && { device }),
+      ...(!isEmpty(description) && { description }),
+      ...(!isEmpty(activityType) && { activityType }),
+      ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
+      ...(!isEmpty(maintenanceType) && { maintenanceType }),
       ...(!isEmpty(tags) && { tags: tags }),
     };
     return { activityBody };
