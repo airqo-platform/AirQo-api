@@ -23,24 +23,23 @@ const getMeasurements = async (
   startTime,
   endTime,
   device,
-  skipInt,
-  limitInt,
+  skip,
+  limit,
   tenant
 ) => {
   try {
     const currentTime = new Date().toISOString();
     logElement("currentTime ", currentTime);
     const day = generateDateFormatWithoutHrs(currentTime);
-    const dayWithoutHours = generateDateFormatWithoutHrs(currentTime);
-    logElement("startTime ", startTime);
-    logElement("endTime ", endTime);
-    logElement("device ", device);
-    logElement("tenant ", tenant);
+    // logElement("startTime ", startTime);
+    // logElement("endTime ", endTime);
+    // logElement("device ", device);
+    // logElement("tenant ", tenant);
 
     let cacheID = `get_events_device_${device ? device : "noDevice"}_${day}_${
       startTime ? startTime : "noStartTime"
-    }_${endTime ? endTime : "noEndTime"}_${tenant}_${skipInt ? skipInt : 0}_${
-      limitInt ? limitInt : 100
+    }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
+      limit ? limit : 0
     }`;
 
     logElement("cacheID", cacheID);
@@ -53,16 +52,11 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const queryEndTime = isEmpty(endTime) ? "" : endTime;
-          const queryStartTime = isEmpty(startTime) ? "" : startTime;
-          const skip = isEmpty(skipInt) ? 0 : skipInt;
-          const limit = isEmpty(limitInt) ? 100 : limitInt;
+          const filter = generateEventsFilter(startTime, endTime, device);
+          logObject("filter", filter);
+          logElement("skip ", skip);
+          logElement("limit ", limit);
 
-          const filter = generateEventsFilter(
-            queryStartTime,
-            queryEndTime,
-            device
-          );
           let events = await getModelByTenant(tenant, "event", EventSchema)
             .list(skip, limit, filter)
             .exec();
@@ -75,7 +69,7 @@ const getMeasurements = async (
               measurements: events,
             })
           );
-          redis.expire(cacheID, 120);
+          redis.expire(cacheID, 0);
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,
