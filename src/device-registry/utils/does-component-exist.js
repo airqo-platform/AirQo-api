@@ -1,9 +1,9 @@
 const ComponentSchema = require("../models/Component");
 const DeviceSchema = require("../models/Device");
 const ComponentTypeSchema = require("../models/ComponentType");
-const { logObject, logText, logElement } = require("../utils/log");
+const { logObject, logText, logElement } = require("./log");
 const isEmpty = require("is-empty");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { getModelByTenant } = require("./multitenancy");
 
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
@@ -25,22 +25,6 @@ const getApiKeys = async (deviceName, tenant) => {
 };
 
 const getArrayLength = async (array, model, event) => {};
-
-const generateDateFormat = async (ISODate) => {
-  date = new Date(ISODate);
-  year = date.getFullYear();
-  month = date.getMonth() + 1;
-  dt = date.getDate();
-
-  if (dt < 10) {
-    dt = "0" + dt;
-  }
-  if (month < 10) {
-    month = "0" + month;
-  }
-
-  return `${year}-${month}-${dt}`;
-};
 
 const doesDeviceExist = async (deviceName, tenant) => {
   try {
@@ -117,7 +101,6 @@ const doesComponentTypeExist = async (name, tenant) => {
 module.exports = {
   getApiKeys,
   getArrayLength,
-  generateDateFormat,
   doesDeviceExist,
   doesComponentExist,
   doesComponentTypeExist,
