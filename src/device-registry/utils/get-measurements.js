@@ -28,15 +28,12 @@ const getMeasurements = async (
 ) => {
   try {
     const currentTime = new Date().toISOString();
-    logElement("currentTime ", currentTime);
     const day = generateDateFormatWithoutHrs(currentTime);
     let cacheID = `get_events_device_${device ? device : "noDevice"}_${day}_${
       startTime ? startTime : "noStartTime"
     }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
       limit ? limit : 0
     }`;
-
-    logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
       try {
@@ -47,8 +44,8 @@ const getMeasurements = async (
           callbackErrors(err, req, res);
         } else {
           const filter = generateEventsFilter(startTime, endTime, device);
-          let skipInt = skip ? 0 : skip;
-          let limitInt = limit ? 50 : limit;
+          let skipInt = skip ? skip : 0;
+          let limitInt = limit ? limit : 50;
           let events = await getModelByTenant(
             tenant,
             "event",
@@ -63,7 +60,7 @@ const getMeasurements = async (
               measurements: events,
             })
           );
-          redis.expire(cacheID, 60);
+          redis.expire(cacheID, 30);
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,

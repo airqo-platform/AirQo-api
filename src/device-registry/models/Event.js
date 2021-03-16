@@ -182,14 +182,14 @@ eventSchema.statics = {
       ...args,
     });
   },
-  list({ skip = 0, limit = 50, filter = {} } = {}) {
+  list({ skipInt = 0, limitInt = 50, filter = {} } = {}) {
     return this.aggregate()
       .match(filter)
       .unwind("values")
       .match(filter)
       .sort({ day: -1 })
-      .skip(skip)
-      .limit(limit);
+      .skip(skipInt)
+      .limit(limitInt);
   },
 };
 
