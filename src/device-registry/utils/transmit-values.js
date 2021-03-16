@@ -15,11 +15,19 @@ const createRequestBody = require("../utils/create-request-body");
 
 const getDetail = require("../utils/get-device-details");
 
+const {
+  transformMeasurements,
+  transformMeasurementFields,
+} = require("./transform-measurements");
+
 const transmitOneSensorValue = async (req, res) => {
   try {
-    const { quantity_kind, value, api_key } = req.body;
+    const { quantity_kind, value } = req.body;
     const { tenant } = req.query;
-    if (tenant && quantity_kind && value && api_key) {
+    const deviceDetail = await getDetail(req, res);
+    const api_key = deviceDetail[0]._doc.writeKey;
+
+    if (tenant && quantity_kind && value) {
       await axios
         .get(
           constants.ADD_VALUE(
@@ -54,8 +62,10 @@ const transmitMultipleSensorValues = async (req, res) => {
   try {
     logText("write to thing json.......");
     let { tenant } = req.query;
-
     const requestBody = createRequestBody(req);
+    const deviceDetail = await getDetail(req, res);
+    const api_key = deviceDetail[0]._doc.writeKey;
+    requestBody.api_key = api_key;
 
     if (tenant) {
       await axios
@@ -86,13 +96,18 @@ const transmitMultipleSensorValues = async (req, res) => {
 const bulkTransmitMultipleSensorValues = async (req, res) => {
   try {
     logText("bulk write to thing.......");
-    let { tenant, name, type } = req.query;
-    let { api_key, updates } = req.body;
+    let { tenant, type } = req.query;
+    let { updates } = req.body;
     const deviceDetail = await getDetail(req, res);
     const channel = deviceDetail[0]._doc.channelID;
-    if (api_key && updates && tenant && name && type) {
+    const api_key = deviceDetail[0]._doc.writeKey;
+    if (updates && tenant && type) {
+      let transformedUpdates = await transformMeasurementFields(updates);
+      let requestObject = {};
+      requestObject.write_api_key = api_key;
+      requestObject.updates = transformedUpdates;
       await axios
-        .post(constants.BULK_ADD_VALUES_JSON(channel), updates)
+        .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
           console.log(response.data);
           let output = response.data;
