@@ -1,64 +1,162 @@
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
+const { logObject, logElement, logText } = require("../utils/log");
+
+const measurementsSchema = [
+  {
+    time: {
+      type: Date,
+      required: [true, "the timestamp is required"],
+    },
+    frequency: {
+      type: String,
+      required: [true, "the frequency is required"],
+    },
+    device: {
+      type: String,
+      required: [true, "The device name is required"],
+      trim: true,
+    },
+    channelID: {
+      type: Number,
+      trim: true,
+    },
+    pm1: {
+      value: {
+        type: Number,
+      },
+      calibratedValue: { type: Number },
+      uncertaintyValue: { type: Number },
+      standardDeviationValue: { type: Number },
+    },
+    pm2_5: {
+      value: {
+        type: Number,
+        required: [true, "the raw value is required"],
+      },
+      calibratedValue: { type: Number },
+      uncertaintyValue: { type: Number },
+      standardDeviationValue: { type: Number },
+    },
+    s2_pm2_5: {
+      value: {
+        type: Number,
+        required: [true, "the raw value is required"],
+      },
+      calibratedValue: { type: Number },
+      uncertaintyValue: { type: Number },
+      standardDeviationValue: { type: Number },
+    },
+    pm10: {
+      value: {
+        type: Number,
+        required: [true, "the raw value is required"],
+      },
+      calibratedValue: { type: Number },
+      uncertaintyValue: { type: Number },
+      standardDeviationValue: { type: Number },
+    },
+    s2_pm10: {
+      value: {
+        type: Number,
+        required: [true, "the raw value is required"],
+      },
+      calibratedValue: { type: Number },
+      uncertaintyValue: { type: Number },
+      standardDeviationValue: { type: Number },
+    },
+    no2: {
+      value: {
+        type: Number,
+      },
+      calibratedValue: { type: Number },
+      uncertaintyValue: { type: Number },
+      standardDeviationValue: { type: Number },
+    },
+    battery: {
+      value: {
+        type: Number,
+      },
+    },
+    location: {
+      latitude: {
+        value: {
+          type: Number,
+        },
+      },
+      longitude: {
+        value: {
+          type: Number,
+        },
+      },
+    },
+    altitude: {
+      value: {
+        type: Number,
+      },
+    },
+    speed: {
+      value: {
+        type: Number,
+      },
+    },
+    satellites: {
+      value: {
+        type: Number,
+      },
+    },
+    hdop: {
+      value: {
+        type: Number,
+      },
+    },
+    internalTemperature: {
+      value: {
+        type: Number,
+      },
+    },
+    internalHumidity: {
+      value: {
+        type: Number,
+      },
+    },
+    externalTemperature: {
+      value: {
+        type: Number,
+      },
+    },
+    externalHumidity: {
+      value: {
+        type: Number,
+      },
+    },
+    externalPressure: {
+      value: { type: Number },
+    },
+  },
+];
 
 const eventSchema = new Schema(
   {
-    deviceName: {
-      type: String,
-      required: [true, "The deviceName is required"],
-      trim: true,
-    },
-    componentName: {
-      type: String,
-      required: [true, "the componentName is required"],
-      trim: true,
-    },
     day: {
-      type: Date,
+      type: String,
     },
     first: { type: Date },
     last: { type: Date },
     nValues: {
       type: Number,
     },
-    values: [
-      {
-        value: { type: Number, required: [true, "the value is required"] },
-        raw: { type: Number },
-        calibratedValue: { type: Number },
-        uncertaintyValue: { type: Number },
-        standardDeviationValue: { type: Number },
-        weight: { type: Number },
-        frequency: {
-          type: String,
-          required: [true, "the frequency is required"],
-        },
-        time: { type: Date },
-        measurement: {
-          quantityKind: {
-            type: String,
-            required: [true, "The quantity kind is required"],
-          },
-          measurementUnit: {
-            type: String,
-            required: [true, "The unit is required"],
-          },
-        },
-      },
-    ],
+    values: { type: [measurementsSchema], default: [measurementsSchema] },
   },
   {
     timestamps: true,
   }
 );
 
-eventSchema.index({ deviceName: 1, componentName: 1 });
-
-eventSchema.index({ componentName: 1 });
-
-eventSchema.index({ deviceName: 1 });
-
-eventSchema.index({ values: 1 });
+eventSchema.index(
+  { "values.time": 1, "values.device": 1, day: 1 },
+  { unique: true }
+);
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
@@ -72,14 +170,8 @@ eventSchema.plugin(uniqueValidator, {
 eventSchema.methods = {
   toJSON() {
     return {
-      _id: this._id,
-      createdAt: this.createdAt,
-      deviceName: this.deviceName,
-      componentName: this.componentName,
-      values: this.values,
       day: this.day,
-      first: this.first,
-      last: this.last,
+      values: this.values,
     };
   },
 };
@@ -90,11 +182,14 @@ eventSchema.statics = {
       ...args,
     });
   },
-  list({ skip = 0, limit = 5 } = {}) {
-    return this.find()
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+  list({ skipInt = 0, limitInt = 50, filter = {} } = {}) {
+    return this.aggregate()
+      .match(filter)
+      .unwind("values")
+      .match(filter)
+      .sort({ day: -1 })
+      .skip(skipInt)
+      .limit(limitInt);
   },
 };
 

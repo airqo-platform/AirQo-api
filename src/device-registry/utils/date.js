@@ -1,18 +1,41 @@
-const generateDateFormat = async (ISODate) => {
-  date = new Date(ISODate);
-  year = date.getFullYear();
-  month = date.getMonth() + 1;
-  dt = date.getDate();
-  hrs = date.getHours();
+const generateDateFormat = (ISODate) => {
+  try {
+    let date = new Date(ISODate);
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    let day = date.getUTCDate();
+    let hrs = date.getHours();
 
-  if (dt < 10) {
-    dt = "0" + dt;
+    if (day < 10) {
+      day = "0" + day;
+    }
+    if (month < 10) {
+      month = "0" + month;
+    }
+    return `${year}-${month}-${day}-${hrs}`;
+  } catch (e) {
+    console.log("server side error: ", e.message);
   }
-  if (month < 10) {
-    month = "0" + month;
-  }
-
-  return `${year}-${month}-${dt}-${hrs}`;
 };
 
-module.exports = { generateDateFormat };
+const generateDateFormatWithoutHrs = (ISODate) => {
+  try {
+    let date = new Date(ISODate);
+    let year = date.getFullYear();
+    let month = date.getMonth() + 1;
+    let day = date.getUTCDate();
+
+    if (day < 10) {
+      day = "0" + day;
+    }
+    if (month < 10) {
+      month = "0" + month;
+    }
+
+    return `${year}-${month}-${day}`;
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
+module.exports = { generateDateFormat, generateDateFormatWithoutHrs };

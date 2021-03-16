@@ -23,6 +23,9 @@ spec:
           ports:
             - containerPort: 5000
               name: analytics-api
+          env:
+            - name: GET_HOSTS_FROM
+              value: dns
 
 ---
 kind: Service
