@@ -1,5 +1,6 @@
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
+const { logObject, logElement, logText } = require("../utils/log");
 
 const measurementsSchema = [
   {
@@ -181,7 +182,7 @@ eventSchema.statics = {
       ...args,
     });
   },
-  list({ skip = 0, limit = 5, filter = {} } = {}) {
+  list({ skip = 0, limit = 50, filter = {} } = {}) {
     return this.aggregate()
       .match(filter)
       .unwind("values")

@@ -48,7 +48,7 @@ const getMeasurements = async (
         } else {
           const filter = generateEventsFilter(startTime, endTime, device);
           let skipInt = skip ? 0 : skip;
-          let limitInt = limit ? 5 : limit;
+          let limitInt = limit ? 50 : limit;
           let events = await getModelByTenant(
             tenant,
             "event",
