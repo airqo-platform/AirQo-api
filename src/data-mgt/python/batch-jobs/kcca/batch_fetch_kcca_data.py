@@ -40,14 +40,11 @@ class GetKccaDevices(luigi.Task):
         return luigi.LocalTarget("data/devices.json")
 
 
-def single_component_insertion(data, tenant):
+def events_collection_insertion(data, tenant):
 
     try:
-
-        # extract the component name and device id from the data
         device = data.pop("device")
 
-        # create a json object of the remaining data and post to events table
         json_data = json.dumps([data])
         # print(json_data)
         headers = {'Content-Type': 'application/json'}
@@ -174,14 +171,13 @@ class ProcessMeasurements(luigi.Task):
 
                 processed_measurements.append(data)
 
-                thread = Thread(target=single_component_insertion, args=(data, "kcca"))
+                thread = Thread(target=events_collection_insertion, args=(data, "kcca"))
                 threads.append(thread)
                 thread.start()
 
             except Exception as ex:
                 print(ex)
                 traceback.print_exc()
-
 
         # wait for all threads to terminate before ending the function
         for thread in threads:

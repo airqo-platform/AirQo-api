@@ -10,15 +10,14 @@ from google.cloud import bigquery
 import traceback
 
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
-FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
 
-
+"""
+Luigi task to fetch all airqo devices
+"""
 class GetAirqoDevices(luigi.Task):
 
     def run(self):
-        """
-        gets all airqo devices
-        """
+
         api_url = AIRQO_API_BASE_URL + "devices?tenant=airqo"
 
         results = requests.get(api_url)
@@ -32,25 +31,26 @@ class GetAirqoDevices(luigi.Task):
         return luigi.LocalTarget("data/devices.json")
 
 
+"""
+formatting all values to float else null
+"""
 def check_float(string):
-    # formatting all values to float else null
+
     try:
         value = float(string)
         if math.isnan(value):
-            return ''
+            return 'null'
         return value
     except Exception:
-        return ''
+        return 'null'
 
 
-def single_component_insertion(data, tenant):
+def events_collection_insertion(data, tenant):
 
     try:
 
-        # extract the component name and device id from the data
         device = data.pop("device")
 
-        # create a json object of the remaining data and post to events table
         json_data = json.dumps([data])
         # print(json_data)
         headers = {'Content-Type': 'application/json'}
@@ -58,7 +58,6 @@ def single_component_insertion(data, tenant):
 
         results = requests.post(url, json_data, headers=headers)
 
-        # print(url)
         print(results.json())
 
     except Exception as e:
@@ -69,9 +68,6 @@ def single_component_insertion(data, tenant):
 
 
 class GetDeviceMeasurements(luigi.Task):
-    """
-    Gets the device measurements
-    """
 
     def requires(self):
         return GetAirqoDevices()
@@ -130,7 +126,7 @@ class GetDeviceMeasurements(luigi.Task):
 
                 details.append(data)
 
-                thread = Thread(target=single_component_insertion, args=(data, "airqo"))
+                thread = Thread(target=events_collection_insertion, args=(data, "airqo"))
                 threads.append(thread)
                 thread.start()
 

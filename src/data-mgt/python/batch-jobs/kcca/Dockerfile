@@ -15,10 +15,10 @@ ENV CLARITY_API_KEY=${CLARITY_API_KEY}
 ENV START_DATE_TIME=${START_DATE_TIME}
 ENV STOP_DATE_TIME=${STOP_DATE_TIME}
 
-COPY requirements.txt /requirements.txt
+ADD requirements.txt /
 WORKDIR /
 RUN pip3 install -r requirements.txt
-COPY batch_fetch_kcca_data.py /
+ADD batch_fetch_kcca_data.py /
 RUN mkdir /data
 
 ENTRYPOINT [ "python3" ]
