@@ -1,7 +1,10 @@
 import pandas as pd
 import requests
 from threading import Thread
-from device_registry import events_collection_insertion
+
+from pandas import Series
+
+from events import measurements_insertion
 import numpy as np
 import os
 import math
@@ -10,7 +13,11 @@ AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
 FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
 
 
-def process_airqo_device_data():
+class ParameterConstants:
+    PM_25 = "PM_25"
+
+
+def get_airqo_device_measurements():
     # get all airqo devices
     device_data = get_airqo_devices()
 
@@ -29,6 +36,8 @@ def get_feeds(device_codes):
     devices = pd.DataFrame(device_codes)
 
     data = []
+
+    print(ParameterConstants.PM_25)
 
     for index, row in devices.iterrows():
 
@@ -82,6 +91,26 @@ def check_float(string):
         return 'null'
 
 
+def add_calibrated_values(data, tenant):
+    """
+       gets all airqo devices
+       :return: list of devices
+    """
+
+    data_series = Series(data=data)
+
+    json_array = []
+    api_url = AIRQO_API_BASE_URL + "calibrate?tenant=" + tenant
+
+    results = requests.post(api_url, data=data)
+
+    response_data = results.json()
+
+    devices = response_data["devices"]
+
+    return devices
+
+
 def process_chunk(chunk):
     # create a dataframe to hold the chunk
     data = pd.DataFrame(chunk)
@@ -91,8 +120,6 @@ def process_chunk(chunk):
 
     # loop through the devices in the chunk
     for index, row in data.iterrows():
-
-        # print(row.keys())
 
         data = dict({
             "device": row['device'],
@@ -114,9 +141,11 @@ def process_chunk(chunk):
             "internalHumidity": {"value": check_float(row["internalHumidity"])},
         })
 
+        data = add_calibrated_values(data, "airqo")
+
         # post the component data to events table using a separate thread
         # :function: single_component_insertion(args=(component data, tenant))
-        thread = Thread(target=events_collection_insertion, args=(data, "airqo",))
+        thread = Thread(target=measurements_insertion, args=(data, "airqo",))
         threads.append(thread)
         thread.start()
 
@@ -144,6 +173,6 @@ def get_airqo_devices():
 
 
 if __name__ == "__main__":
-    process_airqo_device_data()
+    get_airqo_device_measurements()
 
 

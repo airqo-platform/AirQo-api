@@ -8,9 +8,9 @@ Each function must have the same name as the cloud function
 
 
 def get_airqo_device_measurements(event, context):
-    airqo_device_measurements.process_airqo_device_data()
+    airqo_device_measurements.get_airqo_device_measurements()
 
 
 def get_kcca_device_measurements(event, context):
-    kcca_device_measurements.process_kcca_device_data()
+    kcca_device_measurements.get_kcca_device_measurements()
 

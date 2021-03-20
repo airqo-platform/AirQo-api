@@ -5,7 +5,7 @@ import requests
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
 
 
-def events_collection_insertion(data, tenant):
+def measurements_insertion(data, tenant):
 
     """
     inserts device measurements data into the events collection

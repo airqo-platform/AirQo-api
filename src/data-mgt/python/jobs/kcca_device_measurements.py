@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 from threading import Thread
 import json
-from device_registry import events_collection_insertion
+from events import measurements_insertion
 from date import date_to_str2
 import numpy as np
 from datetime import datetime, timedelta
@@ -11,8 +11,12 @@ from datetime import datetime, timedelta
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
 
+"""
+:Api Documentation: https://api-guide.clarity.io/
+"""
 
-def process_kcca_device_data():
+
+def get_kcca_device_measurements():
 
     # get all kcca device measurements
     device_measurements_data = get_kcca_device_data()
@@ -38,8 +42,6 @@ def get_kcca_device_data():
 
     # compose a url to get device measurements for all the devices
     api_url = CLARITY_API_BASE_URL + "measurements?startTime=" + date + "&code="
-
-    # api_url = CLARITY_API_BASE_URL + "measurements?code="
 
     for code in device_codes:
         api_url = api_url + code + ","
@@ -105,8 +107,6 @@ def process_chunk(chunk):
     # loop through the devices in the chunk
     for index, row in data.iterrows():
 
-        # device_code = row["deviceCode"]
-        # device_time = row["time"]
         location = row["location"]["coordinates"]
 
         data = dict({
@@ -123,7 +123,7 @@ def process_chunk(chunk):
         # loop through each component on the device
         for component_type in device_components.keys():
 
-            CONVERSION_UNITS = dict({
+            conversion_units = dict({
                 "temperature": "internalTemperature",
                 "relHumid": "internalHumidity",
                 "pm10ConcMass": "pm10",
@@ -135,21 +135,21 @@ def process_chunk(chunk):
 
             try:
 
-                data[CONVERSION_UNITS[component_type]] = dict({
-                    'value': device_components[component_type]["value"]
+                data[conversion_units[component_type]] = dict({
+                    'value': device_components[component_type]["raw"]
                 })
 
-            except Exception as ex:
-                print(ex)
+            except KeyError:
                 continue
 
             if "calibratedValue" in device_components[component_type].keys():
-                data[CONVERSION_UNITS[component_type]]['calibratedValue'] = device_components[component_type]["calibratedValue"]
-
+                data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["calibratedValue"]
+            else:
+                data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["value"]
 
         # post the component data to events table using a separate thread
         # :function: single_component_insertion(args=(component data, tenant))
-        thread = Thread(target=events_collection_insertion, args=(data, "kcca",))
+        thread = Thread(target=measurements_insertion, args=(data, "kcca",))
         threads.append(thread)
         thread.start()
 
@@ -161,7 +161,7 @@ def process_chunk(chunk):
 def get_kcca_devices():
     """
     gets all kcca devices
-    :return: list of device codes
+    :return: list of devices
     """
     headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
     api_url = CLARITY_API_BASE_URL + "devices"
@@ -175,8 +175,7 @@ def get_kcca_devices():
 
         try:
             location = row['location']['coordinates']
-            date = datetime.datetime.strptime(row['workingStartAt'], '%Y-%m-%dT%H:%M:%S.%fZ')
-            # print(date)
+
             device = dict({
                 "channelID": row['code'],
                 "name": row['code'],
@@ -201,4 +200,4 @@ def get_kcca_devices():
 
 
 if __name__ == "__main__":
-    process_kcca_device_data()
+    get_kcca_device_measurements()
