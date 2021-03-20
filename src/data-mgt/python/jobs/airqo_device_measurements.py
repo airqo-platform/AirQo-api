@@ -1,11 +1,10 @@
 import pandas as pd
 import requests
 from threading import Thread
-from device_registry import single_component_insertion
+from device_registry import events_collection_insertion
 import numpy as np
 import os
 import math
-# from google.cloud import bigquery
 
 AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
 FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
@@ -38,8 +37,6 @@ def get_feeds(device_codes):
         api_url = FEEDS_BASE_URL + "data/feeds/transform/recent?channel={}".format(channel_id)
 
         results = requests.get(api_url)
-
-        # print(str(channel_id) + " : " + str(results.status_code))
 
         if results.status_code != 200:
             continue
@@ -79,10 +76,10 @@ def check_float(string):
     try:
         value = float(string)
         if math.isnan(value):
-            return ''
+            return 'null'
         return value
     except Exception:
-        return ''
+        return 'null'
 
 
 def process_chunk(chunk):
@@ -119,7 +116,7 @@ def process_chunk(chunk):
 
         # post the component data to events table using a separate thread
         # :function: single_component_insertion(args=(component data, tenant))
-        thread = Thread(target=single_component_insertion, args=(data, "airqo",))
+        thread = Thread(target=events_collection_insertion, args=(data, "airqo",))
         threads.append(thread)
         thread.start()
 
@@ -144,29 +141,6 @@ def get_airqo_devices():
     devices = response_data["devices"]
 
     return devices
-
-
-# def get_data_from_big_query():
-#
-#     # Construct a BigQuery client object.
-#     client = bigquery.Client()
-#
-#  #    query = """
-#  #  SELECT created_at as time, pm2_5, pm10 , s2_pm2_5,
-#  #  s2_pm10, temperature as internalTemperature, humidity as internalHumidity, voltage as battery, altitude, no_sats as satellites, hdope as hdop, wind as speed FROM \`airqo-250220.thingspeak.clean_feeds_pms\` WHERE channel_id=${channelID} ORDER BY created_at ASC
-#  #    """
-#
-#     query = """
-#     SELECT created_at as time, pm2_5, pm10 , s2_pm2_5,
-#      s2_pm10, temperature as internalTemperature, humidity as internalHumidity, voltage as battery, altitude, no_sats as satellites, hdope as hdop, wind as speed FROM airqo-250220.thingspeak.clean_feeds_pms WHERE channel_id=689532 ORDER BY created_at ASC
-#        """
-#     query_job = client.query(query)  # Make an API request.
-#
-#     print("The query data:")
-#     for row in query_job:
-#         # Row values can be accessed by field name or index.
-#         print(row)
-#         break
 
 
 if __name__ == "__main__":

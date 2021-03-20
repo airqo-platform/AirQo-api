@@ -1,0 +1,12 @@
+{
+  "type": "service_account",
+  "project_id": "airqo-250220",
+  "private_key_id": "484bbcd4898dfcde5e9536db93d75fd1e510f433",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCZkp75l8YD3fV+\n1LSD/7/S+ai9YytHdd7wPLc96/aexBoZEZnTiv5LyCiVYYevlqtNl2qFiEGzN8i4\nQolms5jkCITOcenvyw+jSRG2cIXogtu4yFA7ETmKDT1zgdldZPgVhJq4NVDp+2Uh\nwZwd63Q+r6bQkFis7cwErowPClEERWC2BGVpKxuYnlZLX0+T4w1NShv+gjlseE5U\nI2nJJpZpl9o/ZGpOjgSDrIC0U533gcm77M4Rj36OjDHpDluhydrrn8HKLMhns/pd\n9VejKEcw9am/sM0KsrkfbnpId9HzAsCg4FeFgzLOka5do223GUvnslzFSob2p/NN\nJ2eYpqvlAgMBAAECggEAFxZ16VbUoYGIW4L63dq11K/38FECZqyP0aovGj4T8OvR\nHfJeypuGKOUfRNCe0i+38o2lqWGXZFbUnu78h9YkUX6pCKho38YKxHpDEXHP5T7B\nwwFKc+GJDE96l5eZPXM6i3GeGRIwPJ0GJ+cFjhyhzfLLr2X5ZDYeiphQh3T+Qm04\nFn2iV66F4gEirogMrPbh3sUSjtSXtnIDXUJIiekWf5bkWSVSK10Fe8vIxnPiKpHM\nICaTY9QL9WB0isfUohRrh4liDYU/ek9KuBW7ERRSeO2UwxI7OTBPF55yayxx/s2u\nMANIm7uRW74/TF34ekrgTALPYghgkgcJNjq4axZomQKBgQDJkx1U/jL+s0USRDqN\ncgsxEG04Q4RfsiQCseW5mSt3zjOziC23KH7VnZViICmn2skNxWzcGtk5GjLYmMYP\nAyTgjRUeNijQPx4qB9nuCKgf5qhLlfN3vYRxNU7QOnOSvjKGakPycJA6LgPlFibC\naVp93i55gmGOidcchMdnZjMhYwKBgQDDCZpBLev21+XVDihCuIU2mQIP/YeY5lV+\n35qtZMDJQwflg+FWi6N0KkDra83cuU/0Fk1F9t1+WsD83omMeHCOChdNo2F/trVh\n1seUUMb6GYFOjnDDSwuGo5D7ppCyapJT8bxNjLU+CVgYlITgBk8ztfpH+8Z79PVo\nbUOBvCxkFwKBgAyprj0JnwB7GIq2OItsL6HMa2AOdcFhOnvk2w6WvbFQBdVwZ5bK\n93TJ6nl4lcVSrDCuR1Foal7481rB9ic5RlbI5hu4wUWbwXRYe+tFJfKjFc1xxRKv\nmCNYevP/yATe5+Ojx1LymUzeWSZKBvNNlP61N2wwsZo3tIi5GqG3PN0LAoGAdrom\nu9zPktF0qJDYs10OQuE73y4P2GUG0Jgf2cPGk/4JFY+FoiCZHQMHyAg1JlNst4LI\nAXo49U0bxBNYGjnLErxT2UBG/u7jVa7giYnuxpq2G3Mcc9YAKzLw9DA+T04Oy6kR\nXwfz4NLhXP00MgfFOQ5jUGSVPCovJiW1fYlmYHsCgYAWAZTDt/ffycwKpwoNIdHD\nJENXLrxSRxAffwAbGjv98cDUSqccJzwQfUXOqJekb8+/eD7DwRmirLHPnjOFk0Bt\nJEdIZE3qn8Fpyok1a8azYb2qUQx/F67yMP31RsbygNqqQ1RZTWA0EzKTenEu77+K\n2e2vXyGTsED51zA3lJkOKQ==\n-----END PRIVATE KEY-----\n",
+  "client_email": "noah-data-engineering@airqo-250220.iam.gserviceaccount.com",
+  "client_id": "113112595334615456072",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/noah-data-engineering%40airqo-250220.iam.gserviceaccount.com"
+}

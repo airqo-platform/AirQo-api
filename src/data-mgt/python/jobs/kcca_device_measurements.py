@@ -3,8 +3,8 @@ import pandas as pd
 import requests
 from threading import Thread
 import json
-from device_registry import single_component_insertion
-from helpers import date_to_str2
+from device_registry import events_collection_insertion
+from date import date_to_str2
 import numpy as np
 from datetime import datetime, timedelta
 
@@ -45,7 +45,6 @@ def get_kcca_device_data():
         api_url = api_url + code + ","
 
     api_url = api_url[:-1]
-
 
     # get the device measurements
     headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
@@ -150,8 +149,7 @@ def process_chunk(chunk):
 
         # post the component data to events table using a separate thread
         # :function: single_component_insertion(args=(component data, tenant))
-
-        thread = Thread(target=single_component_insertion, args=(data, "kcca",))
+        thread = Thread(target=events_collection_insertion, args=(data, "kcca",))
         threads.append(thread)
         thread.start()
 
