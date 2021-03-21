@@ -29,7 +29,7 @@ spec:
           ports:
             - containerPort: 4001
               name: calibrate
-          # readynessProbe:
+          # readinessProbe:
           #   httpGet:
           #     path: /health
           #     port: 4001

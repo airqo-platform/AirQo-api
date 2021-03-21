@@ -29,7 +29,7 @@ spec:
           ports:
             - containerPort: 5000
               name: analytics-api
-          # readynessProbe:
+          # readinessProbe:
           #   httpGet:
           #     path: /health
           #     port: 5000
