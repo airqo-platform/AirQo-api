@@ -29,6 +29,13 @@ spec:
           ports:
             - containerPort: 4001
               name: calibrate
+          # readynessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 4001
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
             - name: GET_HOSTS_FROM
               value: dns

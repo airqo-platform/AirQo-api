@@ -29,6 +29,13 @@ spec:
           ports:
             - containerPort: 5000
               name: analytics-api
+          # readynessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 5000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
             - name: GET_HOSTS_FROM
               value: dns
