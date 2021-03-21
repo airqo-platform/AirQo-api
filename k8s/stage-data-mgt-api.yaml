@@ -37,7 +37,7 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-          # readynessProbe:
+          # readinessProbe:
           #   httpGet:
           #     path: /health
           #     port: 3000

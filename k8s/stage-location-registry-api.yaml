@@ -29,7 +29,7 @@ spec:
           ports:
             - containerPort: 8080
               name: sta-loc-reg
-          # readynessProbe:
+          # readinessProbe:
           #   httpGet:
           #     path: /health
           #     port: 8080
