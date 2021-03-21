@@ -37,6 +37,13 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
+          # readynessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
             - name: GET_HOSTS_FROM
               value: dns

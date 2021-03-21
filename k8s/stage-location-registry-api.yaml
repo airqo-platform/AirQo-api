@@ -29,6 +29,13 @@ spec:
           ports:
             - containerPort: 8080
               name: sta-loc-reg
+          # readynessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 8080
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
             - name: GET_HOSTS_FROM
               value: dns
