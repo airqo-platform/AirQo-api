@@ -1,5 +1,9 @@
-`docker build -t kcca-batch --build-arg AIRQO_API_BASE_URL=<airqo base url> --build-arg CLARITY_API_BASE_URL=<clarity base url> --build-arg CLARITY_API_KEY=<api key> --build-arg START_DATE_TIME=<start date (yyyy-MM-ddTHH:mm:ssZ)> --build-arg STOP_DATE_TIME=<stop date (yyyy-MM-ddTHH:mm:ssZ) .`
+Build the image
+`docker build -t kcca-batch .`
 
-`docker run --rm kcca-batch`
+[env.kcca.batch file](https://airqo.slack.com/archives/GTHGHCB4G/p1616436451001100)
 
-On localhost include : `--network="host"`
+Create and start a container
+`docker run --rm --env-file env.kcca.batch kcca-batch`
+
+If you are testing with device registry microservice running locally, include `--network="host"` i.e. `docker run --network="host" --env-file env.kcca.batch --rm kcca-batch`

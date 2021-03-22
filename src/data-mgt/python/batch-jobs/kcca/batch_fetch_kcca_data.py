@@ -8,7 +8,7 @@ import luigi
 import pandas as pd
 import traceback
 
-AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
+DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
 START_DATE_TIME = os.getenv("START_DATE_TIME")
@@ -48,7 +48,7 @@ def events_collection_insertion(data, tenant):
         json_data = json.dumps([data])
 
         headers = {'Content-Type': 'application/json'}
-        url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
+        url = DEVICE_REGISTRY_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
 
         results = requests.post(url, json_data, headers=headers, verify=False)
 
