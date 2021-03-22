@@ -46,17 +46,16 @@ def events_collection_insertion(data, tenant):
         device = data.pop("device")
 
         json_data = json.dumps([data])
-        # print(json_data)
+
         headers = {'Content-Type': 'application/json'}
         url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
 
-        results = requests.post(url, json_data, headers=headers)
+        results = requests.post(url, json_data, headers=headers, verify=False)
 
         print(results.json())
 
-    except Exception as e:
+    except Exception:
         print("================ Error Occurred ==================")
-        print(e)
         traceback.print_exc()
         print("================ Error End ==================")
 
@@ -147,7 +146,7 @@ class ProcessMeasurements(luigi.Task):
                 # loop through each component on the device
                 for component_type in device_components.keys():
 
-                    CONVERSION_UNITS = dict({
+                    conversion_units = dict({
                         "temperature": "internalTemperature",
                         "relHumid": "internalHumidity",
                         "pm10ConcMass": "pm10",
@@ -158,16 +157,20 @@ class ProcessMeasurements(luigi.Task):
                     })
 
                     try:
-                        data[CONVERSION_UNITS[component_type]] = dict({
-                            'value': device_components[component_type]["value"]
-                        })
-                    except Exception as ex:
-                        print(ex)
-                        traceback.print_exc()
 
-                    if "calibratedValue" in device_components[component_type].keys():
-                        data[CONVERSION_UNITS[component_type]]['calibratedValue'] = device_components[component_type][
-                            "calibratedValue"]
+                        data[conversion_units[component_type]] = dict({
+                            'value': device_components[component_type]["raw"]
+                        })
+
+                        if "calibratedValue" in device_components[component_type].keys():
+                            data[conversion_units[component_type]]['calibratedValue'] = \
+                                device_components[component_type]["calibratedValue"]
+                        else:
+                            data[conversion_units[component_type]]['calibratedValue'] = \
+                                device_components[component_type]["value"]
+
+                    except KeyError:
+                        pass
 
                 processed_measurements.append(data)
 
