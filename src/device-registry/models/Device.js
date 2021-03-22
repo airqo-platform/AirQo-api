@@ -59,6 +59,12 @@ const deviceSchema = new mongoose.Schema(
     ISP: {
       type: String,
     },
+    siteName: {
+      type: String,
+    },
+    locationName: {
+      type: String,
+    },
     phoneNumber: {
       type: Number,
     },
@@ -133,6 +139,8 @@ deviceSchema.methods = {
       writeKey: this.writeKey,
       readKey: this.readKey,
       pictures: this.pictures,
+      siteName: this.siteName,
+      locationName: this.locationName,
     };
   },
 
@@ -149,6 +157,8 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUserForCollocaton: this.isUsedForCollocation,
       updatedAt: this.updatedAt,
+      siteName: this.siteName,
+      locationName: this.locationName,
     };
   },
 };
@@ -161,8 +171,8 @@ deviceSchema.statics = {
     });
   },
 
-  list({ skip = 0, limit = 5 } = {}) {
-    return this.find()
+  list({ skip = 0, limit = 5, filter = {} } = {}) {
+    return this.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

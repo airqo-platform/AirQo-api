@@ -108,6 +108,8 @@ const updateThingBodies = (req, res) => {
     tags,
     elevation,
     pictures,
+    siteName,
+    locationName,
   } = req.body;
 
   const { photo } = req.query;
@@ -145,6 +147,8 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(photo) && {
       $pull: { pictures: { $in: [photo ? photo : ""] } },
     }),
+    ...(!isEmpty(siteName) && { siteName }),
+    ...(!isEmpty(locationName) && { locationName }),
   };
 
   let options = {

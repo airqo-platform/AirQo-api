@@ -1,7 +1,7 @@
 const ComponentSchema = require("../models/Component");
 const DeviceSchema = require("../models/Device");
-const LocationActivitySchema = require("../models/location_activity");
-const Location = require("../models/Location");
+const LocationActivitySchema = require("../models/SiteActivity");
+const Location = require("../models/Site");
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
 const isEmpty = require("is-empty");
@@ -41,7 +41,7 @@ const {
   doesLocationExist,
   queryFilterOptions,
   bodyFilterOptions,
-} = require("../utils/doActivityHelpers");
+} = require("../utils/site-activities");
 
 const {
   clearEventsBody,
@@ -50,7 +50,7 @@ const {
   threeMonthsFromNow,
   getChannelID,
   getApiKeys,
-} = require("../utils/deviceControllerHelpers");
+} = require("../utils/does-device-exist");
 
 const {
   tryCatchErrors,
@@ -61,6 +61,12 @@ const {
 
 const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const deleteDevice = require("../utils/delete-device");
+const {
+  generateEventsFilter,
+  generateDeviceFilter,
+} = require("../utils/generate-filter");
+
+const getDetail = require("../utils/get-device-details");
 
 const device = {
   createThing: async (req, res) => {
@@ -77,11 +83,6 @@ const device = {
         let isDevicePresent = await doesDeviceExist(name, tenant.toLowerCase());
         logElement("isDevicePresent ?", isDevicePresent);
         if (!isDevicePresent) {
-          /***
-           * when creating for AirQo, make call to TS
-           * As for other organisations, just make a different call or just ignore
-           * will put this function in a separate place as a util of sorts
-           */
           logText("adding device on TS...");
           let channel;
           if (tenant.toLowerCase() === "airqo") {
@@ -96,7 +97,6 @@ const device = {
               tenant.toLowerCase()
             );
           } else {
-            //just create the device locally
             createOnClarity(tenant.toLowerCase(), req, res);
           }
         } else {
@@ -106,7 +106,6 @@ const device = {
           });
         }
       } else {
-        //missing params
         return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message:
@@ -117,183 +116,6 @@ const device = {
       tryCatchErrors(res, e);
     }
   },
-
-  doActivity: async (req, res) => {
-    try {
-      const { type, tenant } = req.query;
-      if (tenant && type) {
-        const { deviceName } = req.body;
-
-        const deviceExists = await doesDeviceExist(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const isNotDeployed = await isDeviceNotDeployed(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const isNotRecalled = await isDeviceNotRecalled(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const {
-          locationActivityBody,
-          deviceBody,
-        } = locationActivityRequestBodies(req, res);
-
-        doLocationActivity(
-          res,
-          deviceBody,
-          locationActivityBody,
-          deviceName,
-          type,
-          deviceExists,
-          isNotDeployed,
-          isNotRecalled,
-          tenant.toLowerCase()
-        );
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-
-  deleteActivity: async (req, res) => {
-    try {
-      const { tenant, id } = req.query;
-      if (tenant && id) {
-        const Activity = await getModelByTenant(
-          tenant.toLowerCase(),
-          "activity",
-          LocationActivitySchema
-        );
-        let filter = { _id: id };
-
-        Activity.findOneAndDelete(filter)
-          .exec()
-          .then((deletedActivity) => {
-            if (!isEmpty(deletedActivity)) {
-              return res.status(HTTPStatus.OK).json({
-                success: true,
-                message: "the log has successfully been deleted",
-                deletedActivity,
-              });
-            } else if (isEmpty(deletedActivity)) {
-              return res.status(HTTPStatus.BAD_REQUEST).json({
-                success: false,
-                message: `there is no log by that id (${id}), please crosscheck`,
-              });
-            }
-          })
-          .catch((error) => {
-            callbackErrors(error, req, res);
-          });
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-
-  updateActivity: async (req, res) => {
-    try {
-      const { tenant, id } = req.query;
-      logElement("tenant", tenant);
-      logElement("id", id);
-      if (tenant && id) {
-        const { activityBody } = await bodyFilterOptions(req, res);
-        let filter = { _id: id };
-
-        logObject("activity body", activityBody);
-
-        const updatedActivity = await getModelByTenant(
-          tenant.toLowerCase(),
-          "activity",
-          LocationActivitySchema
-        ).findOneAndUpdate(filter, activityBody, {
-          new: true,
-        });
-
-        if (!isEmpty(updatedActivity)) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "Activity updated successfully",
-            updatedActivity,
-          });
-        } else if (isEmpty(updatedActivity)) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: `An activity log by this ID (${id}) could be missing, please crosscheck`,
-          });
-        }
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-
-  getActivities: async (req, res) => {
-    try {
-      logText(".....getting logs......................");
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
-      const { tenant, device, type, location, next, id } = req.query;
-      logElement("the tenant", tenant);
-
-      const { activityFilter } = await queryFilterOptions(req, res);
-      logObject("activity filter", activityFilter);
-
-      if (tenant) {
-        if (!device && !type && !location && !next && !id) {
-          const locationActivities = await getModelByTenant(
-            tenant.toLowerCase(),
-            "activity",
-            LocationActivitySchema
-          ).list({
-            limit,
-            skip,
-          });
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "Activities fetched successfully",
-            locationActivities,
-          });
-        } else {
-          const activities = await getModelByTenant(
-            tenant.toLowerCase(),
-            "activity",
-            LocationActivitySchema
-          ).find(activityFilter);
-
-          if (!isEmpty(activities)) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "Activities fetched successfully",
-              activities,
-            });
-          } else if (isEmpty(activities)) {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: `Your query filters have no results for this organisation (${tenant.toLowerCase()})`,
-            });
-          }
-        }
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-
   deleteThing: async (req, res) => {
     try {
       const { device, tenant } = req.query;
@@ -408,8 +230,6 @@ const device = {
         let isDevicePresent = await doesDeviceExist(device, tenant);
         logElement("isDevicePresent ?", isDevicePresent);
         if (isDevicePresent) {
-          //get the thing's channel ID
-          //lets first get the channel ID
           const channelID = await getChannelID(
             req,
             res,
@@ -429,14 +249,12 @@ const device = {
                 success: true,
                 updatedDevice,
               });
-              //will clear data from Events table
             })
             .catch(function(error) {
               console.log(error);
               res.status(500).json({
                 message: `unable to clear the device data, device ${device} does not exist`,
                 success: false,
-                //   error,
               });
             });
         } else {
@@ -557,93 +375,22 @@ const device = {
     }
   },
 
-  /*********************** integration neutral CRUD operations  ******************/
   listAll: async (req, res) => {
     try {
-      //..
       logText(".....................................");
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name, chid } = req.query;
-
+      const { tenant } = req.query;
       if (tenant) {
-        logElement("the channel ID", chid);
-        logElement("the device name", name);
-        if (tenant.toLowerCase() && name && !chid) {
-          logElement("the tenant", tenant);
-          logElement("the name", name);
-          const device = await getModelByTenant(
-            tenant.toLowerCase(),
-            "device",
-            DeviceSchema
-          ).findOne({ name: name });
-          logObject("the device", device);
-          if (!isEmpty(device)) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "Device fetched successfully",
-              device,
-            });
-          } else if (isEmpty(device)) {
-            return res.json({
-              success: false,
-              message: `this organisation (${tenant}) does not have this device or they do not exist, please crosscheck`,
-            });
-          }
-        } else if (tenant && chid && !name) {
-          logElement("the tenant", tenant);
-          logElement("the channel ID", chid);
-          const device = await getModelByTenant(
-            tenant.toLowerCase(),
-            "device",
-            DeviceSchema
-          ).findOne({ channelID: chid });
-          logObject("the device", device);
-          if (!isEmpty(device)) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "Device fetched successfully",
-              device,
-            });
-          } else if (isEmpty(device)) {
-            return res.json({
-              success: false,
-              message: `this organisation (${tenant.toLowerCase()}) does not have this device or they do not exist, please crosscheck`,
-            });
-          }
-        } else if (tenant && !name && !chid) {
-          // const devices = await DeviceModel(tenant).list({ limit, skip });
-          // return res.status(HTTPStatus.OK).json(devices);
-          const devices = await getModelByTenant(
-            tenant.toLowerCase(),
-            "device",
-            DeviceSchema
-          ).list({ limit, skip });
-          if (!isEmpty(devices)) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "Devices fetched successfully",
-              devices,
-            });
-          } else if (isEmpty(devices)) {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: `this organisation (${tenant.toLowerCase()}) does not have devices or it does not exist, please crosscheck`,
-            });
-          }
-        } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message:
-              "request is missing the required query params, please crosscheck",
-          });
-        }
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
+        const devices = await getDetail(req, res);
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "Devices fetched successfully",
+          devices,
         });
+      } else {
+        missingQueryParams(req, res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
@@ -677,6 +424,7 @@ const device = {
       tryCatchErrors(res, e);
     }
   },
+
   updateDevice: async (req, res) => {
     try {
       const { tenant } = req.query;
@@ -696,10 +444,7 @@ const device = {
 
         return res.status(HTTPStatus.OK).json(await device.save());
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
+        missingQueryParams(req, res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
@@ -723,10 +468,7 @@ const device = {
         await device.remove();
         return res.sendStatus(HTTPStatus.OK);
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
+        missingQueryParams(req, res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
@@ -744,17 +486,12 @@ const device = {
         ).findById(req.params.id);
         return res.status(HTTPStatus.OK).json(device);
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
+        missingQueryParams(req, res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
     }
   },
-
-  /**************************** using GCP **************************** */
 
   createOneGcp: (req, res) => {
     const formattedParent = client.registryPath(
@@ -780,7 +517,6 @@ const device = {
         console.error(err);
         return res.status(HTTPStatus.BAD_REQUEST).json(err);
       });
-    //connect the device to Cloud IoT core using MQTT bridge
   },
 
   listAllGcp: (req, res) => {
@@ -791,17 +527,10 @@ const device = {
     );
     const options = { autoPaginate: false };
     const callback = (responses) => {
-      // The actual resources in a response.
       const resources = responses[0];
-      // The next request if the response shows that there are more responses.
       const nextRequest = responses[1];
-      // The actual response object, if necessary.
-      // var rawResponse = responses[2];
-      for (let i = 0; i < resources.length; i += 1) {
-        // doThingsWith(resources[i]);
-      }
+      for (let i = 0; i < resources.length; i += 1) {}
       if (nextRequest) {
-        // Fetch the next page.
         return client.listDeviceModels(nextRequest, options).then(callback);
       }
       let response = responses[0];
@@ -842,7 +571,6 @@ const device = {
       .getDevice({ name: formattedName })
       .then((responses) => {
         var response = responses[0];
-        // doThingsWith(response)
         return res.status(HTTPStatus.OK).json(response);
       })
       .catch((err) => {

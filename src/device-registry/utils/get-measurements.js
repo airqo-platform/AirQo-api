@@ -1,7 +1,6 @@
-const EventSchema = require("models/Event");
+const EventSchema = require("../models/Event");
 const HTTPStatus = require("http-status");
-const { getModelByTenant } = require("utils/multitenancy");
-const isEmpty = require("is-empty");
+const { getModelByTenant } = require("./multitenancy");
 const redis = require("../config/redis");
 const {
   axiosError,
@@ -11,7 +10,10 @@ const {
 } = require("./errors");
 
 const { logObject, logElement, logText } = require("./log");
-const { generateFilter } = require("./generateFilter");
+const {
+  generateEventsFilter,
+  generateDeviceFilter,
+} = require("./generate-filter");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -20,27 +22,18 @@ const getMeasurements = async (
   startTime,
   endTime,
   device,
-  skipInt,
-  limitInt,
+  skip,
+  limit,
   tenant
 ) => {
   try {
     const currentTime = new Date().toISOString();
-    logElement("currentTime ", currentTime);
-    const day = await generateDateFormat(currentTime);
-    const dayWithoutHours = await generateDateFormatWithoutHrs(currentTime);
-    logElement("startTime ", startTime);
-    logElement("endTime ", endTime);
-    logElement("device ", device);
-    logElement("tenant ", tenant);
-
+    const day = generateDateFormatWithoutHrs(currentTime);
     let cacheID = `get_events_device_${device ? device : "noDevice"}_${day}_${
       startTime ? startTime : "noStartTime"
-    }_${endTime ? endTime : "noEndTime"}_${tenant}_${skipInt ? skipInt : 0}_${
-      limitInt ? limitInt : 100
+    }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
+      limit ? limit : 0
     }`;
-
-    logElement("cacheID", cacheID);
 
     redis.get(cacheID, async (err, result) => {
       try {
@@ -50,18 +43,14 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const queryEndTime = isEmpty(endTime) ? "" : endTime;
-          const queryStartTime = isEmpty(startTime) ? "" : startTime;
-          const skip = isEmpty(skipInt) ? 0 : skipInt;
-          const limit = isEmpty(limitInt) ? 100 : limitInt;
-
-          const filter = generateFilter(queryStartTime, queryEndTime, device);
-          let events = await getModelByTenant(tenant, "event", EventSchema)
-            .find(filter)
-            .sort({ createdAt: -1 })
-            .skip(skipInt)
-            .limit(limitInt)
-            .exec();
+          const filter = generateEventsFilter(startTime, endTime, device);
+          let skipInt = skip ? skip : 0;
+          let limitInt = limit ? limit : 50;
+          let events = await getModelByTenant(
+            tenant,
+            "event",
+            EventSchema
+          ).list({ skipInt, limitInt, filter });
           redis.set(
             cacheID,
             JSON.stringify({
@@ -71,7 +60,7 @@ const getMeasurements = async (
               measurements: events,
             })
           );
-          redis.expire(cacheID, 86400);
+          redis.expire(cacheID, 30);
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,

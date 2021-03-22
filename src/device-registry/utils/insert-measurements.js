@@ -3,6 +3,7 @@ const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
 const EventSchema = require("../models/Event");
 const HTTPStatus = require("http-status");
+const componentSchema = require("../models/Component");
 
 const insert = async (res, tenant, transformedMeasurements) => {
   let nAdded = 0;
@@ -12,10 +13,15 @@ const insert = async (res, tenant, transformedMeasurements) => {
 
   for (const measurement of transformedMeasurements) {
     try {
+      console.log("the measurement: ", measurement);
       const eventBody = {
-        "values.time": { $ne: measurement.time },
         day: measurement.day,
         nValues: { $lt: constants.N_VALUES },
+        $or: [
+          { "values.time": { $ne: measurement.time } },
+          { "values.device": { $ne: measurement.device } },
+          { day: { $ne: measurement.day } },
+        ],
       };
       const options = {
         $addToSet: { values: measurement },
