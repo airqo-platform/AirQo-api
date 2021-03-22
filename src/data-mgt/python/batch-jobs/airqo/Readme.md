@@ -1,5 +1,7 @@
-`docker build -t airqo-batch --build-arg AIRQO_API_BASE_URL=<airqo base url> --build-arg FEEDS_BASE_URL=<feeds base url> --build-arg GOOGLE_APPLICATION_CREDENTIALS_JSON_FILE=<bigquery service account file>.json  .`
+Build the image
+`docker build -t airqo-batch .`
 
-`docker run --rm airqo-batch`
+Create and start a container
+`docker run --rm --env DEVICE_REGISTRY_BASE_URL=<device registry base url> airqo-batch`
 
-On localhost include : `--network="host"`
+If you are testing with device registry microservice running locally, include `--network="host"` i.e. `docker run --network="host" --env DEVICE_REGISTRY_BASE_URL=http://localhost:3000/api/v1/ --rm airqo-batch`

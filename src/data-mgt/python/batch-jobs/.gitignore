@@ -1,5 +1,5 @@
 */data
-airqo-bigquery.json
+*.json
 env.kcca.batch
 env.airqo.batch
 venv

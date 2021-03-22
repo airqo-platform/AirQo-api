@@ -9,7 +9,8 @@ import pandas as pd
 from google.cloud import bigquery
 import traceback
 
-AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
+DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
 """
 Luigi task to fetch all airqo devices
@@ -18,7 +19,7 @@ class GetAirqoDevices(luigi.Task):
 
     def run(self):
 
-        api_url = AIRQO_API_BASE_URL + "devices?tenant=airqo"
+        api_url = DEVICE_REGISTRY_BASE_URL + "devices?tenant=airqo"
 
         results = requests.get(api_url)
 
@@ -39,10 +40,10 @@ def check_float(string):
     try:
         value = float(string)
         if math.isnan(value):
-            return 'null'
+            return None
         return value
     except Exception:
-        return 'null'
+        return None
 
 
 def events_collection_insertion(data, tenant):
@@ -52,17 +53,16 @@ def events_collection_insertion(data, tenant):
         device = data.pop("device")
 
         json_data = json.dumps([data])
-        # print(json_data)
-        headers = {'Content-Type': 'application/json'}
-        url = AIRQO_API_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
 
-        results = requests.post(url, json_data, headers=headers)
+        headers = {'Content-Type': 'application/json'}
+        url = DEVICE_REGISTRY_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
+
+        results = requests.post(url, json_data, headers=headers, verify=False)
 
         print(results.json())
 
-    except Exception as e:
+    except Exception:
         print("================ Error Occurred ==================")
-        print(e)
         traceback.print_exc()
         print("================ Error End ==================")
 
