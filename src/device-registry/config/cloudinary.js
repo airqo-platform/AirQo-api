@@ -1,7 +1,4 @@
-const cloudinary = require("cloudinary");
-// const dotenv = require("dotenv");
-
-// dotenv.config();
+const cloudinary = require("cloudinary").v2;
 console.log("cloud name", process.env.CLOUD_NAME);
 
 cloudinary.config({
