@@ -36,8 +36,8 @@ const getChannelID = async (req, res, deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    logObject("the device details", deviceDetails);
-    logElement("the channel ID", deviceDetails[0]._doc.channelID);
+    // logObject("the device details", deviceDetails);
+    // logElement("the channel ID", deviceDetails[0]._doc.channelID);
     let channeID = deviceDetails[0]._doc.channelID;
     return channeID;
   } catch (e) {
@@ -56,9 +56,9 @@ const doesDeviceExist = async (deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    logElement("device element", device);
-    logObject("device Object", device);
-    logElement("does device exist?", !isEmpty(device));
+    // logElement("device element", device);
+    // logObject("device Object", device);
+    // logElement("does device exist?", !isEmpty(device));
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {
@@ -144,12 +144,19 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
     ...(!isEmpty(pictures) && { pictures }),
-    ...(!isEmpty(photo) && {
-      $pull: { pictures: { $in: [photo ? photo : ""] } },
-    }),
     ...(!isEmpty(siteName) && { siteName }),
     ...(!isEmpty(locationName) && { locationName }),
   };
+
+  if (photo) {
+    delete deviceBody.pictures;
+    deviceBody = {
+      ...deviceBody,
+      ...(!isEmpty(photo) && {
+        $pull: { pictures: { $in: [photo ? photo : ""] } },
+      }),
+    };
+  }
 
   let options = {
     new: true,
