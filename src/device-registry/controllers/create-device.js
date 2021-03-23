@@ -52,6 +52,8 @@ const {
   getApiKeys,
 } = require("../utils/does-device-exist");
 
+const updateDeviceUtil = require("../utils/update-device");
+
 const {
   tryCatchErrors,
   axiosError,
@@ -282,7 +284,7 @@ const device = {
 
       if (tenant && device) {
         let isDevicePresent = await doesDeviceExist(device, tenant);
-        logElement("isDevicePresent ?", isDevicePresent);
+        logElement("isDevicePresent?", isDevicePresent);
 
         if (isDevicePresent) {
           const channelID = await getChannelID(
@@ -293,75 +295,48 @@ const device = {
           );
           logText(".............................................");
           logText("updating the thing.......");
-          logElement("the channel ID", channelID);
-
           const deviceFilter = { name: device };
           let { tsBody, deviceBody, options } = updateThingBodies(req, res);
           logObject("TS body", tsBody);
           logObject("device body", deviceBody);
           logElement("the channel ID", channelID);
           logElement("the photo URL", photo);
-          let imageID = photo ? photo : "";
-          logElement("the image ID", imageID);
+          if (photo) {
+            let deleteFromCloudinaryPromise = deleteFromCloudinary(photo);
+            let updateDevicePromise = updateDeviceUtil(
+              req,
+              res,
+              channelID,
+              device,
+              deviceBody,
+              tsBody,
+              deviceFilter,
+              tenant,
+              options
+            );
 
-          let responseFromCloudinaryDeletion = deleteFromCloudinary(imageID);
-
-          logElement("response from deletion", responseFromCloudinaryDeletion);
-
-          // if (responseFromCloudinaryDeletion.success) {
-          //   const config = {
-          //     headers: {
-          //       "Content-Type": "application/x-www-form-urlencoded",
-          //     },
-          //   };
-          //   logElement("the url", constants.UPDATE_THING(channelID));
-          //   await axios
-          //     .put(
-          //       constants.UPDATE_THING(channelID),
-          //       qs.stringify(tsBody),
-          //       config
-          //     )
-          //     .then(async (response) => {
-          //       logText(`successfully updated device ${device} in TS`);
-          //       // logObject("response from TS", response.data);
-          //       const updatedDevice = await getModelByTenant(
-          //         tenant.toLowerCase(),
-          //         "device",
-          //         DeviceSchema
-          //       )
-          //         .findOneAndUpdate(deviceFilter, deviceBody, options)
-          //         .exec();
-          //       if (updatedDevice) {
-          //         return res.status(HTTPStatus.OK).json({
-          //           message: "successfully updated the device settings in DB",
-          //           updatedDevice,
-          //           success: true,
-          //         });
-          //       } else if (!updatedDevice) {
-          //         return res.status(HTTPStatus.BAD_GATEWAY).json({
-          //           message: "unable to update device in DB but updated in TS",
-          //           success: false,
-          //         });
-          //       } else {
-          //         logText(
-          //           "just unable to update device in DB but updated in TS"
-          //         );
-          //       }
-          //     })
-          //     .catch(function(error) {
-          //       logElement("unable to update the device settings in TS", error);
-          //       callbackErrors(error, req, res);
-          //     });
-          // } else {
-          //   return res.status(HTTPStatus.BAD_GATEWAY).json({
-          //     message: responseFromCloudinaryDeletion.message,
-          //     success: false,
-          //     error: responseFromCloudinaryDeletion.error,
-          //   });
-          // }
+            Promise.all([
+              deleteFromCloudinaryPromise,
+              updateDevicePromise,
+            ]).then((values) => {
+              console.log(values);
+            });
+          } else {
+            await updateDeviceUtil(
+              req,
+              res,
+              channelID,
+              device,
+              deviceBody,
+              tsBody,
+              deviceFilter,
+              tenant,
+              options
+            );
+          }
         } else {
           logText(`device ${device} does not exist in DB`);
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             message: `device ${device} does not exist`,
             success: false,
           });
