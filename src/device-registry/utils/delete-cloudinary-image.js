@@ -7,12 +7,12 @@ const {
   callbackErrors,
 } = require("./errors");
 
-const deleteFromCloudinary = (imageID) => {
+const deleteFromCloudinary = async (imageID) => {
   try {
     logText(".....deleting image from cloudinary......");
-    cloudinary.uploader.destroy(imageID, function(error, result) {
+    cloudinary.uploader.destroy(imageID, (error, result) => {
       if (result) {
-        logText("we have gotten the result we want");
+        logObject("we have gotten the result we want", result);
         return {
           success: true,
           message: "image delete successfully",
