@@ -24,20 +24,22 @@ spec:
             - containerPort: 4001
               name: sta-dev-monitor
           env:
+            - name: GET_HOSTS_FROM
+              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
-                  name: device-monitor-secret
+                  name: stage-device-monitor-secret
                   key: MONGO_GCE_URI
             - name: DB_NAME_STAGE
               valueFrom:
                 secretKeyRef:
-                  name: device-monitor-secret
+                  name: stage-device-monitor-secret
                   key: PLATFORM_MONGO_STAGE
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: device-monitor-secret
+                  name: stage-device-monitor-secret
                   key: SECRET_KEY
 
 ---

@@ -7,7 +7,7 @@ const queryParam = {
 
 const filterOptions = {
   device: (device) => {
-    return { deviceName: device };
+    return { device: device };
   },
 
   component: (comp) => {
