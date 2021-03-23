@@ -1,3 +1,6 @@
-from .pm25_models import PM25LocationCategoryCount
-from .monitoring_site import MonitoringSite
-from .device_measurements import DeviceHourlyMeasurement
+from .pm25_models import PM25LocationCategoryCountModel
+from .monitoring_site import MonitoringSiteModel
+from .device_measurements import DeviceHourlyMeasurementModel, DeviceDailyHistoricalAveragesModel
+from .device_exceedances import DeviceDailyExceedancesModel
+from .collection import Collection
+from .report_template import ReportTemplateModel

@@ -3,7 +3,9 @@
 # System libraries
 
 # Third-Party libraries
+from flasgger import Swagger
 from flask import Flask, jsonify
+from flask_excel import init_excel
 from flask_restx import Api
 from flask_cors import CORS
 from decouple import config as env_config
@@ -17,7 +19,7 @@ from api.middlewares.base_validator import ValidationError
 from config import config
 
 config_name = env_config('FLASK_ENV', 'production')
-rest_api = Api(prefix='/api/v1/analytics', doc='/apidocs')
+rest_api = Api(prefix='/api/v1/analytics', doc=False)
 
 
 def initialize_blueprints(application):
@@ -31,8 +33,10 @@ def create_app(rest_api, config=config[config_name]):
 
     app = Flask(__name__)
     rest_api.init_app(app)
+    init_excel(app)
     CORS(app)
     app.config.from_object(config)
+    Swagger(app)
 
     # Initialize error handlers
     initialize_blueprints(app)

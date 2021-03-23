@@ -1,6 +1,7 @@
 """Module Application entry point"""
 
 # Third-Party libraries
+from flasgger import swag_from
 from flask import jsonify
 from decouple import config as env_config
 
@@ -26,6 +27,7 @@ def check_tenant_param():
 
 
 @app.route('/health')
+@swag_from('/api/docs/status.yml')
 def index():
     return jsonify(dict(message=f'App status - OK.'))
 
