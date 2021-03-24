@@ -15,7 +15,9 @@ MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client['airqo_analytics']
 
-
+"""
+we need to get these codes from the DB and not have them static here
+"""
 code_locations_dict = {'Luzira': 'A9WLJS5F', 'Kawala': 'AR2RHV97', 'Nakulabye': 'AMBD741S', 'Namirembe': 'ARBL6HVZ',
                        'Kiswa': 'APYZC5J7', 'Civic Centre': 'A95X5F9T', 'Ggaba': 'AKSLS0FP', 'Kazo Angola': 'AW66FF7V', 'Kisugu': 'APZ80RTM',
                        'Kisenyi II': 'AY2J2Q7Z', 'Kyebando': 'ALS2LCWY',  'Mutundwe': 'AZB4PFV4', 'Bwaise II': 'ANQ16PZJ',
@@ -52,6 +54,11 @@ def resample_timeseries_data(data, frequency, datetime_field, decimal_places):
 
 
 def calculate_exceedences_for_last_28_days():
+    """
+    we also need to include multitenancy here accordingly.
+    And utilise the respective collections in that DB accordingly
+    We could even move some of this functionality to the models collections accordingly
+    """
     monitoring_sites = list(db.monitoring_site.find(
         {}, {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 0}))
 
@@ -136,10 +143,12 @@ def get_filtered_dataX(device_code, start_date=None, end_date=None, frequency='d
                                    'pollutant_value': {'$round': ['$characteristics.pm2_5ConcMass.value', 2]}}}
 
     if frequency == 'hourly':
+        # shall just query from the Events collection accordingly.
         records = db.device_hourly_measurements.aggregate([query, projection])
     elif frequency == 'monthly':
         results = list(
             db.device_daily_measurements.aggregate([query, projection]))
+        # because of the way data is stored, there will be no need to resample
         records = resample_timeseries_data(results, 'M', 'time', 2)
     else:
         records = db.device_daily_measurements.aggregate([query, projection])
@@ -149,6 +158,7 @@ def get_filtered_dataX(device_code, start_date=None, end_date=None, frequency='d
 
 def save_device_daily_exceedences(data):
     """
+    # this ones moves to the exceedances model/entity
     """
     for i in data:
         db.device_daily_exceedences.insert_one(i)
@@ -157,6 +167,7 @@ def save_device_daily_exceedences(data):
 def get_filtered_data(device_code, start_date=None, end_date=None, frequency='daily', pollutant='PM 2.5'):
     """
     returns the data of a certain device with specified parameters
+    this can also be part of the Events entity
     """
 
     if start_date == None:
