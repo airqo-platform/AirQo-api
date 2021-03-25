@@ -70,6 +70,8 @@ const {
 
 const getDetail = require("../utils/get-device-details");
 
+const getLastPath = require("../utils/get-last-path");
+
 const device = {
   createThing: async (req, res) => {
     try {
@@ -442,8 +444,13 @@ const device = {
             tenant.toLowerCase()
           );
           const deviceFilter = { name: device };
-          logObject("the photos", photos);
-          let deleteFromCloudinaryPromise = deleteFromCloudinary(photos);
+          let photoNameWithoutExtension = [];
+          photos.forEach((photo) => {
+            photoNameWithoutExtension.push(getLastPath(photo));
+          });
+          let deleteFromCloudinaryPromise = deleteFromCloudinary(
+            photoNameWithoutExtension
+          );
           let updateDevicePromise = updateDeviceUtil(
             req,
             res,
