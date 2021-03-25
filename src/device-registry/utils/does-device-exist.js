@@ -110,6 +110,7 @@ const updateThingBodies = (req, res) => {
     pictures,
     siteName,
     locationName,
+    photos,
   } = req.body;
 
   const { photo } = req.query;
@@ -148,12 +149,12 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(locationName) && { locationName }),
   };
 
-  if (photo) {
+  if (photos) {
     delete deviceBody.pictures;
     deviceBody = {
       ...deviceBody,
-      ...(!isEmpty(photo) && {
-        $pull: { pictures: { $in: [photo ? photo : ""] } },
+      ...(!isEmpty(photos) && {
+        $pullAll: { pictures: photos },
       }),
     };
   }
