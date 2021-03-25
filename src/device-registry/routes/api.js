@@ -23,6 +23,7 @@ router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
 router.get("/by/location", deviceController.listAllByLocation);
 router.post("/", deviceController.createOne);
+router.delete("/photos", deviceController.deletePhotos);
 
 /****************** manage site *************************/
 router.post("/ts/activity", siteController.doActivity);
