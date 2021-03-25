@@ -10,4 +10,4 @@ ADD bigquery.json /
 RUN mkdir /data
 
 ENTRYPOINT [ "python" ]
-CMD [ "-m", "luigi", "--module", "batch_fetch_airqo_data", "GetDeviceMeasurements", "--local-scheduler" ]
+CMD [ "-m", "luigi", "--module", "batch_fetch_airqo_data", "AddValuesToEventsCollection" ]
