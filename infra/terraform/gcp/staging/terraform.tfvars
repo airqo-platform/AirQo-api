@@ -1,0 +1,5 @@
+region          = "europe-west2"
+gcp_project     = "airqo-250220"
+credentials     = "credentials.json"
+vpc_name        = "airqo-staging"
+subnet_cidr     = "10.241.0.0/24"
