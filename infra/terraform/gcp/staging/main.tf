@@ -1,37 +1,80 @@
-// Configure the Google Cloud provider
-provider "google" {
-  credentials = file("${var.credentials}")
-  project     = var.gcp_project
-  region      = var.region
-}
+resource "google_compute_instance" "airqo-controller-instance" {
 
-// Create VPC
-resource "google_compute_network" "vpc" {
-  name                    = "${var.name}-vpc"
-  auto_create_subnetworks = "false"
-}
+  ## for a setup having multiple instances of the same type, you can do
+  ## the following, there would be 2 instances of the same configuration
+  ## provisioned
+  #count        = 2
+  #name         = "${var.instance-name}-${count.index}"
+  name         = var.controller-node-instance-name
+  machine_type = var.vm_type["1point7gig"]
 
-// Create Subnet
-resource "google_compute_subnetwork" "subnet" {
-  name          = "${var.name}-subnet"
-  ip_cidr_range = var.subnet_cidr
-  network       = "${var.name}-vpc"
-  depends_on    = ["google_compute_network.vpc"]
-  region        = var.region
-}
-// VPC firewall configuration
-resource "google_compute_firewall" "firewall" {
-  name    = "${var.name}-firewall"
-  network = google_compute_network.vpc.name
+  zone = var.region
 
-  allow {
-    protocol = "icmp"
+  tags = [
+    "${var.network}-firewall-ssh",
+    "${var.network}-firewall-http",
+    "${var.network}-firewall-https",
+    "${var.network}-firewall-icmp",
+    "${var.network}-firewall-tcps",
+    "${var.network}-firewall-secure-forward",
+  ]
+
+  boot_disk {
+    initialize_params {
+      image = var.os["ubuntu-1804"]
+      size  = var.disk_size["tiny"]
+    }
   }
 
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
+  metadata = {
+    hostname = "airqo-staging-controller.airqo.net"
   }
 
-  source_ranges = ["0.0.0.0/0"]
+  network_interface {
+    subnetwork = google_compute_subnetwork.airqo_staging_network_subnetwork.name
+
+    access_config {
+      // Ephemeral IP
+    }
+  }
+}
+
+resource "google_compute_instance" "airqo-staging-worker-instance" {
+
+  ## for a setup having multiple instances of the same type, you can do
+  ## the following, there would be 2 instances of the same configuration
+  ## provisioned
+  count        = 1
+  name         = "${var.worker-nodes-instance-name}-${count.index}"
+  machine_type = var.vm_type["7point5gig"]
+
+  zone = var.region
+
+  tags = [
+    "${var.network}-firewall-ssh",
+    "${var.network}-firewall-http",
+    "${var.network}-firewall-https",
+    "${var.network}-firewall-icmp",
+    "${var.network}-firewall-tcps",
+    "${var.network}-firewall-secure-forward",
+  ]
+
+  boot_disk {
+    initialize_params {
+      image = var.os["ubuntu-1804"]
+      size  = var.disk_size["tiny"]
+    }
+  }
+
+  metadata = {
+    hostname = "airqo-staging-worker-${count.index}.airqo.net"
+  }
+
+  network_interface {
+    subnetwork = google_compute_subnetwork.airqo_staging_network_subnetwork.name
+
+    access_config {
+      // Ephemeral IP
+    }
+  }
 }
