@@ -1,2 +1,6 @@
 kafka_2.13-2.6.0
 strimzi-0.20.0
+airqo-terraform.json
+.terraform
+.terraform.lock.hcl
+terraform.tfstate.backup
