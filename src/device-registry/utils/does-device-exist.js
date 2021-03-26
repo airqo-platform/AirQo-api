@@ -113,8 +113,6 @@ const updateThingBodies = (req, res) => {
     photos,
   } = req.body;
 
-  const { photo } = req.query;
-
   let deviceBody = {
     ...(!isEmpty(name) && { name: name }),
     ...(!isEmpty(readKey) && { readKey: readKey }),

@@ -12,16 +12,16 @@ const deleteFromCloudinary = async (imageIDs) => {
     logText(".....deleting image from cloudinary......");
     cloudinary.api.delete_resources(imageIDs, (error, result) => {
       if (result) {
-        logObject("we have gotten the result we want", result);
+        logObject("response from cloudinary", result);
         return {
           success: true,
           message: "image delete successfully",
         };
       } else if (error) {
-        logObject("unable to delete in cloud", error);
+        logObject("unable to delete from cloudinary", error);
         return {
           success: false,
-          message: "unable to delete from cloud",
+          message: "unable to delete from cloudinary",
           error: error,
         };
       } else {
