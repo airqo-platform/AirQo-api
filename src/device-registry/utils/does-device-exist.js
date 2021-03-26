@@ -142,9 +142,9 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(mobility) && { mobility: mobility }),
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
-    ...(!isEmpty(pictures) && { pictures }),
     ...(!isEmpty(siteName) && { siteName }),
     ...(!isEmpty(locationName) && { locationName }),
+    ...(!isEmpty(pictures) && { $addToSet: { pictures: pictures } }),
   };
 
   if (photos) {
