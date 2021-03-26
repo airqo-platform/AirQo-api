@@ -52,6 +52,8 @@ const {
   getApiKeys,
 } = require("../utils/does-device-exist");
 
+const updateDeviceUtil = require("../utils/update-device");
+
 const {
   tryCatchErrors,
   axiosError,
@@ -59,6 +61,7 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
+const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const deleteDevice = require("../utils/delete-device");
 const {
   generateEventsFilter,
@@ -66,6 +69,8 @@ const {
 } = require("../utils/generate-filter");
 
 const getDetail = require("../utils/get-device-details");
+
+const getLastPath = require("../utils/get-last-path");
 
 const device = {
   createThing: async (req, res) => {
@@ -120,7 +125,7 @@ const device = {
       const { device, tenant } = req.query;
       if (tenant) {
         if (!device) {
-          res.status(400).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             message:
               "please use the correct query parameter, check API documentation",
             success: false,
@@ -278,9 +283,10 @@ const device = {
   updateThingSettings: async (req, res) => {
     try {
       let { device, tenant } = req.query;
+
       if (tenant && device) {
         let isDevicePresent = await doesDeviceExist(device, tenant);
-        logElement("isDevicePresent ?", isDevicePresent);
+        logElement("isDevicePresent?", isDevicePresent);
 
         if (isDevicePresent) {
           const channelID = await getChannelID(
@@ -291,57 +297,25 @@ const device = {
           );
           logText(".............................................");
           logText("updating the thing.......");
-          logElement("the channel ID", channelID);
-
           const deviceFilter = { name: device };
-          let { tsBody, deviceBody } = updateThingBodies(req, res);
+          let { tsBody, deviceBody, options } = updateThingBodies(req, res);
           logObject("TS body", tsBody);
           logObject("device body", deviceBody);
           logElement("the channel ID", channelID);
-          const config = {
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-          };
-          logElement("the url", constants.UPDATE_THING(channelID));
-          await axios
-            .put(
-              constants.UPDATE_THING(channelID),
-              qs.stringify(tsBody),
-              config
-            )
-            .then(async (response) => {
-              logText(`successfully updated device ${device} in TS`);
-              logObject("response from TS", response.data);
-              const updatedDevice = await getModelByTenant(
-                tenant.toLowerCase(),
-                "device",
-                DeviceSchema
-              ).findOneAndUpdate(deviceFilter, deviceBody, {
-                new: true,
-              });
-              if (updatedDevice) {
-                return res.status(HTTPStatus.OK).json({
-                  message: "successfully updated the device settings in DB",
-                  updatedDevice,
-                  success: true,
-                });
-              } else if (!updatedDevice) {
-                return res.status(HTTPStatus.BAD_GATEWAY).json({
-                  message: "unable to update device in DB but updated in TS",
-                  success: false,
-                });
-              } else {
-                logText("just unable to update device in DB but updated in TS");
-              }
-            })
-            .catch(function(error) {
-              logElement("unable to update the device settings in TS", error);
-              callbackErrors(error, req, res);
-            });
+          await updateDeviceUtil(
+            req,
+            res,
+            channelID,
+            device,
+            deviceBody,
+            tsBody,
+            deviceFilter,
+            tenant,
+            options
+          );
         } else {
           logText(`device ${device} does not exist in DB`);
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             message: `device ${device} does not exist`,
             success: false,
           });
@@ -451,6 +425,68 @@ const device = {
         missingQueryParams(req, res);
       }
     } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+
+  deletePhotos: async (req, res) => {
+    try {
+      const { device, tenant } = req.query;
+      const { photos } = req.body;
+      if (tenant && device && photos) {
+        let deviceExist = await doesDeviceExist(device, tenant);
+        if (deviceExist) {
+          let { tsBody, deviceBody, options } = updateThingBodies(req, res);
+          const channelID = await getChannelID(
+            req,
+            res,
+            device,
+            tenant.toLowerCase()
+          );
+          const deviceFilter = { name: device };
+          let photoNameWithoutExtension = [];
+          photos.forEach((photo) => {
+            if (photo) {
+              photoNameWithoutExtension.push(getLastPath(photo));
+            }
+          });
+          let deleteFromCloudinaryPromise = deleteFromCloudinary(
+            photoNameWithoutExtension
+          );
+          let updateDevicePromise = updateDeviceUtil(
+            req,
+            res,
+            channelID,
+            device,
+            deviceBody,
+            tsBody,
+            deviceFilter,
+            tenant,
+            options
+          );
+
+          Promise.all([deleteFromCloudinaryPromise, updateDevicePromise]).then(
+            (values) => {
+              logElement("the values", values);
+            }
+          );
+        } else {
+          logText("device does not exist in the network");
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message: "device does not exist in the network",
+            success: false,
+            device,
+          });
+        }
+      } else {
+        missingQueryParams(req, res);
+      }
+    } catch (e) {
+      logElement(
+        "unable to carry out the entire deletion of device",
+        e.message
+      );
+      logObject("unable to carry out the entire deletion of device", e.message);
       tryCatchErrors(res, e);
     }
   },
