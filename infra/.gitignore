@@ -4,4 +4,16 @@ airqo-terraform.json
 .terraform
 .terraform.lock.hcl
 terraform.tfstate.backup
-terraform.tfstate
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
