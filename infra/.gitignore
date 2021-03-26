@@ -4,3 +4,4 @@ airqo-terraform.json
 .terraform
 .terraform.lock.hcl
 terraform.tfstate.backup
+terraform.tfstate
