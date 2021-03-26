@@ -446,7 +446,9 @@ const device = {
           const deviceFilter = { name: device };
           let photoNameWithoutExtension = [];
           photos.forEach((photo) => {
-            photoNameWithoutExtension.push(getLastPath(photo));
+            if (photo) {
+              photoNameWithoutExtension.push(getLastPath(photo));
+            }
           });
           let deleteFromCloudinaryPromise = deleteFromCloudinary(
             photoNameWithoutExtension
