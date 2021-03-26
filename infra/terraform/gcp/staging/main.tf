@@ -32,6 +32,7 @@ resource "google_compute_instance" "airqo-controller-instance" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.airqo_staging_network_subnetwork.name
+    network_ip = "10.241.0.11"
 
     access_config {
       // Ephemeral IP
@@ -72,6 +73,7 @@ resource "google_compute_instance" "airqo-staging-worker-instance" {
 
   network_interface {
     subnetwork = google_compute_subnetwork.airqo_staging_network_subnetwork.name
+    network_ip = "10.241.0.2${count.index}"
 
     access_config {
       // Ephemeral IP
