@@ -10,7 +10,7 @@ variable "subnetwork-region" {
 }
 
 variable "network" {
-  default = "airqo-production-cluster"
+  default = "airqo-staging-cluster"
 }
 
 variable "vm_type" {
@@ -22,10 +22,10 @@ variable "vm_type" {
 }
 
 variable "worker-nodes-instance-name" {
-  default = "airqo-production-worker"
+  default = "airqo-staging-worker"
 }
 variable "controller-node-instance-name" {
-  default = "airqo-production-contoller"
+  default = "airqo-staging-contoller"
 }
 
 variable "os" {
