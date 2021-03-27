@@ -4,5 +4,4 @@
 > `docker build -t airqo-batch .`
 >
 > Create and start a container
->
 >`docker run --network="host" --env-file env.airqo.batch --rm airqo-batch`

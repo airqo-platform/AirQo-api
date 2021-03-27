@@ -3,6 +3,8 @@
 > `docker build -t luigi-central-schedular .`
 > 
 > `docker run -d -p 8082:8082 luigi-central-schedular`
+> 
+> Browse http://localhost:8082 to view the luigi dashboard
 
 > For KCCA
 > 
