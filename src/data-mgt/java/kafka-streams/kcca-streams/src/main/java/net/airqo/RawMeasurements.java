@@ -9,8 +9,8 @@ public class RawMeasurements {
     private String time;
     private String device;
     private String deviceCode;
-    private HashMap<String, Float> location;
-    private ArrayList<HashMap<String, HashMap<String, Float>>> measurements;
+    private HashMap<String, Double> location;
+    private ArrayList<HashMap<String, HashMap<String, Double>>> measurements;
 
     public String getId() {
         return id;
@@ -44,19 +44,19 @@ public class RawMeasurements {
         this.deviceCode = deviceCode;
     }
 
-    public HashMap<String, Float> getLocation() {
+    public HashMap<String, Double> getLocation() {
         return location;
     }
 
-    public void setLocation(HashMap<String, Float> location) {
+    public void setLocation(HashMap<String, Double> location) {
         this.location = location;
     }
 
-    public ArrayList<HashMap<String, HashMap<String, Float>>> getMeasurements() {
+    public ArrayList<HashMap<String, HashMap<String, Double>>> getMeasurements() {
         return measurements;
     }
 
-    public void setMeasurements(ArrayList<HashMap<String, HashMap<String, Float>>> measurements) {
+    public void setMeasurements(ArrayList<HashMap<String, HashMap<String, Double>>> measurements) {
         this.measurements = measurements;
     }
 }

@@ -8,8 +8,8 @@ public class TransformedMeasurements {
     private String frequency;
     private String time;
     private String device;
-    private HashMap<String, Float> location;
-    private ArrayList<HashMap<String, HashMap<String, Float>>> measurements;
+    private HashMap<String, Double> location;
+    private ArrayList<HashMap<String, HashMap<String, Double>>> measurements;
 
     public String getFrequency() {
         return frequency;
@@ -35,19 +35,19 @@ public class TransformedMeasurements {
         this.device = device;
     }
 
-    public HashMap<String, Float> getLocation() {
+    public HashMap<String, Double> getLocation() {
         return location;
     }
 
-    public void setLocation(HashMap<String, Float> location) {
+    public void setLocation(HashMap<String, Double> location) {
         this.location = location;
     }
 
-    public ArrayList<HashMap<String, HashMap<String, Float>>> getMeasurements() {
+    public ArrayList<HashMap<String, HashMap<String, Double>>> getMeasurements() {
         return measurements;
     }
 
-    public void setMeasurements(ArrayList<HashMap<String, HashMap<String, Float>>> measurements) {
+    public void setMeasurements(ArrayList<HashMap<String, HashMap<String, Double>>> measurements) {
         this.measurements = measurements;
     }
 }

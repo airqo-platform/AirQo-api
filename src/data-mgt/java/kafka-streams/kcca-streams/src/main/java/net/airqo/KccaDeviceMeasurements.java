@@ -17,14 +17,14 @@ import java.util.concurrent.CountDownLatch;
 
 public class KccaDeviceMeasurements {
 
-    private static String INPUT_TOPIC;
-    private static String OUTPUT_TOPIC;
+    public static String INPUT_TOPIC;
+    public static String OUTPUT_TOPIC;
 
-    static Properties getStreamsConfig() {
+    static Properties getStreamsConfig(String propertiesFile) {
 
         final Properties props = new Properties();
 
-        try (InputStream input = KccaDeviceMeasurements.class.getClassLoader().getResourceAsStream("app.properties")) {
+        try (InputStream input = KccaDeviceMeasurements.class.getClassLoader().getResourceAsStream(propertiesFile)) {
 
             props.load(input);
 
@@ -62,15 +62,15 @@ public class KccaDeviceMeasurements {
         transformedMeasurements.setLocation(rawMeasurements.getLocation());
         transformedMeasurements.setTime(rawMeasurements.getTime());
 
-        ArrayList<HashMap<String, HashMap<String, Float>>> measurements = new ArrayList<>();
+        ArrayList<HashMap<String, HashMap<String, Double>>> measurements = new ArrayList<>();
 
-       for(HashMap<String, HashMap<String, Float>> components : rawMeasurements.getMeasurements()){
+       for(HashMap<String, HashMap<String, Double>> components : rawMeasurements.getMeasurements()){
 
            Set<String> componentsKeys = components.keySet();
 
-           for (String key: componentsKeys) {
+           HashMap<String, HashMap<String, Double>> hashMap = new HashMap<>();
 
-               HashMap<String, HashMap<String, Float>> hashMap = new HashMap<>();
+           for (String key: componentsKeys) {
 
                switch (key){
                    case "temperature":
@@ -130,7 +130,7 @@ public class KccaDeviceMeasurements {
 
     public static void main(final String[] args) {
 
-        final Properties props = getStreamsConfig();
+        final Properties props = getStreamsConfig("app.properties");
 
         final StreamsBuilder builder = new StreamsBuilder();
         createMeasurementsStream(builder);
