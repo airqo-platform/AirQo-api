@@ -1,7 +1,6 @@
 import json
 import os
 from datetime import timedelta, datetime
-from threading import Thread
 
 import requests
 import luigi
@@ -110,7 +109,7 @@ class GetDeviceMeasurements(luigi.Task):
             json.dump(list(device_measurements), f)
 
 
-class ProcessMeasurements(luigi.Task):
+class TransformMeasurements(luigi.Task):
 
     def requires(self):
         return GetDeviceMeasurements()
@@ -121,10 +120,7 @@ class ProcessMeasurements(luigi.Task):
     def run(self):
 
         device_measurements = pd.read_json('data/device_measurements.json')
-        processed_measurements = []
-
-        # create a to hold all threads
-        threads = []
+        transformed_measurements = []
 
         for index, row in device_measurements.iterrows():
 
@@ -132,7 +128,7 @@ class ProcessMeasurements(luigi.Task):
 
                 location = row["location"]["coordinates"]
 
-                data = dict({
+                transformed_data = dict({
                     'frequency': "day",
                     'time': row["time"],
                     'device': row["deviceCode"],
@@ -158,36 +154,29 @@ class ProcessMeasurements(luigi.Task):
 
                     try:
 
-                        data[conversion_units[component_type]] = dict({
+                        transformed_data[conversion_units[component_type]] = dict({
                             'value': device_components[component_type]["raw"]
                         })
 
                         if "calibratedValue" in device_components[component_type].keys():
-                            data[conversion_units[component_type]]['calibratedValue'] = \
+                            transformed_data[conversion_units[component_type]]['calibratedValue'] = \
                                 device_components[component_type]["calibratedValue"]
                         else:
-                            data[conversion_units[component_type]]['calibratedValue'] = \
+                            transformed_data[conversion_units[component_type]]['calibratedValue'] = \
                                 device_components[component_type]["value"]
 
                     except KeyError:
                         pass
 
-                processed_measurements.append(data)
+                transformed_measurements.append(transformed_data)
 
-                thread = Thread(target=events_collection_insertion, args=(data, "kcca"))
-                threads.append(thread)
-                thread.start()
+                events_collection_insertion(transformed_data, "kcca")
 
-            except Exception as ex:
-                print(ex)
+            except Exception:
                 traceback.print_exc()
 
-        # wait for all threads to terminate before ending the function
-        for thread in threads:
-            thread.join()
-
         with self.output().open('w') as f:
-            json.dump(list(processed_measurements), f)
+            json.dump(list(transformed_measurements), f)
 
 
 if __name__ == '__main__':

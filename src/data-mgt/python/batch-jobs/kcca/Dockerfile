@@ -9,4 +9,4 @@ ADD batch_fetch_kcca_data.py /
 RUN mkdir /data
 
 ENTRYPOINT [ "python" ]
-CMD [ "-m", "luigi", "--module", "batch_fetch_kcca_data", "ProcessMeasurements" ]
+CMD [ "-m", "luigi", "--module", "batch_fetch_kcca_data", "TransformMeasurements" ]
