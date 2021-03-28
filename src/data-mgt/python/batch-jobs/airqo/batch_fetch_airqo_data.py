@@ -87,7 +87,7 @@ class GetDeviceMeasurements(luigi.Task):
 
         devices = pd.read_json('data/devices.json')
 
-        details = []
+        transformed_data = []
 
         for device_index, device_row in devices.iterrows():
 
@@ -97,14 +97,14 @@ class GetDeviceMeasurements(luigi.Task):
              no_sats as satellites, hdope as hdop, wind as speed FROM airqo-250220.thingspeak.clean_feeds_pms WHERE
              channel_id={0} AND created_at BETWEEN '{1}' AND '{2}' ORDER BY created_at 
                """.format(int(device_row["channelID"]), str_to_date(START_DATE_TIME), str_to_date(STOP_DATE_TIME))
-            GetDeviceMeasurements
+
             dataframe = (
                 client.query(query).result().to_dataframe()
             )
 
             for index, row in dataframe.iterrows():
 
-                data = dict({
+                device_data = dict({
 
                     DataConstants.DEVICE: device_row['name'],
                     DataConstants.CHANNEL_ID: device_row["channelID"],
@@ -128,10 +128,10 @@ class GetDeviceMeasurements(luigi.Task):
                     DataConstants.INTERNAL_HUM: {"value": check_float(row["internalHumidity"])},
                 })
 
-                details.append(data)
+                transformed_data.append(device_data)
 
         with self.output().open('w') as f:
-            json.dump(list(details), f)
+            json.dump(list(transformed_data), f)
 
 
 def get_calibrated_value(channel_id, time, value):
