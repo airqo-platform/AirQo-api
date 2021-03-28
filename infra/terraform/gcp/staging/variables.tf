@@ -21,11 +21,14 @@ variable "vm_type" {
   }
 }
 
-variable "worker-nodes-instance-name" {
-  default = "airqo-staging-worker"
-}
-variable "controller-node-instance-name" {
-  default = "airqo-staging-contoller"
+variable "instance-name" {
+  default = {
+    "controller"   = "airqo-staging-controller"
+    "worker"       = "airqo-staging-worker"
+    "loadbalancer" = "airqo-staging-haproxy"
+    "db"           = "airqo-staging-db"
+    "devops"       = "airqo-staging-devops"
+  }
 }
 
 variable "os" {
