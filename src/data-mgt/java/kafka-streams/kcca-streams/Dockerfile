@@ -13,7 +13,8 @@ FROM maven:3.6.1-jdk-8-alpine as build
 COPY src /home/app/src
 COPY pom.xml /home/app
 COPY app.properties /home/app/src/main/resources/
-RUN mvn -f /home/app/pom.xml assembly:assembly
+RUN mvn '-Dtest=net.airqo.*Test' test
+RUN mvn -f /home/app/pom.xml assembly:assembly -DskipTest
 FROM openjdk:8-jre-alpine3.9
 COPY --from=build /home/app/target/kcca-device-measurements-1.0-SNAPSHOT-jar-with-dependencies.jar /usr/local/lib/kcca.jar
 ENTRYPOINT ["java","-jar","/usr/local/lib/kcca.jar"]
