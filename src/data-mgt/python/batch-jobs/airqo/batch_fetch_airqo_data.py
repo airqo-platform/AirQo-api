@@ -1,6 +1,7 @@
 import json
 import math
 import os
+from datetime import datetime
 
 import requests
 import luigi
@@ -11,6 +12,8 @@ import traceback
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
+START_DATE_TIME = os.getenv("START_DATE_TIME")
+STOP_DATE_TIME = os.getenv("STOP_DATE_TIME")
 
 
 class DataConstants:
@@ -66,6 +69,10 @@ def check_float(string):
         return None
 
 
+def str_to_date(string):
+    return datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ').isoformat()
+
+
 class GetDeviceMeasurements(luigi.Task):
 
     def requires(self):
@@ -88,9 +95,9 @@ class GetDeviceMeasurements(luigi.Task):
             SELECT created_at as time, pm2_5, pm10 , s2_pm2_5,
              s2_pm10, temperature as internalTemperature, humidity as internalHumidity, voltage as battery, altitude,
              no_sats as satellites, hdope as hdop, wind as speed FROM airqo-250220.thingspeak.clean_feeds_pms WHERE
-             channel_id={0} ORDER BY created_at
-               """.format(int(device_row["channelID"]))
-
+             channel_id={0} AND created_at BETWEEN '{1}' AND '{2}' ORDER BY created_at 
+               """.format(int(device_row["channelID"]), str_to_date(START_DATE_TIME), str_to_date(STOP_DATE_TIME))
+            GetDeviceMeasurements
             dataframe = (
                 client.query(query).result().to_dataframe()
             )
