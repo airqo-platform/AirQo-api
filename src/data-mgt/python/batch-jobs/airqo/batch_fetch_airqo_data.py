@@ -206,13 +206,13 @@ def events_collection_insertion(data, tenant):
 class AddValuesToEventsCollection(luigi.Task):
 
     def requires(self):
-        return AddCalibratedValues()
+        return GetDeviceMeasurements()
 
     def output(self):
         return luigi.LocalTarget("data/output.json")
 
     def run(self):
-        device_measurements = pd.read_json('data/device_measurements_with_calibrated_values.json')
+        device_measurements = pd.read_json('data/device_measurements.json')
 
         for index, row in device_measurements.iterrows():
             events_collection_insertion(row.to_dict(), "airqo")
