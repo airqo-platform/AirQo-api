@@ -7,7 +7,6 @@ from helpers.utils import get_hourly_met_forecasts, get_location_hourly_weather_
 from helpers.utils import checkKey, get_closest_channel, convert_local_string_date_to_tz_aware_datetime, string_to_hourly_datetime
 from helpers.utils import get_gp_predictions, str_to_date
 
-
 def test_good_get_closest_channel():
     assert get_closest_channel(-0.2, 29.9)== 672528
 
