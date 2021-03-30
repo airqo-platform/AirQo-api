@@ -13,7 +13,7 @@ def test_good_get_closest_channel():
 
 def test_raises_exception_on_non_numerical_args():
     with pytest.raises(TypeError):
-        get_closest_channel('cinder', 'rella')
+        get_closest_channel('cinder', 'ella')
 
 def test_raises_exception_on_no_of_args():
     with pytest.raises(TypeError):
