@@ -2,6 +2,7 @@ import json
 import math
 import os
 from datetime import datetime
+from threading import Thread
 
 import requests
 import luigi
@@ -12,6 +13,7 @@ import traceback
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
+os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 START_DATE_TIME = os.getenv("START_DATE_TIME")
 STOP_DATE_TIME = os.getenv("STOP_DATE_TIME")
 
@@ -159,7 +161,7 @@ def get_calibrated_value(channel_id, time, value):
     return calibrated_value
 
 
-class AddCalibratedValues(luigi.Task):
+class AddValuesToEventsCollection(luigi.Task):
 
     def requires(self):
         return GetDeviceMeasurements()
@@ -168,6 +170,8 @@ class AddCalibratedValues(luigi.Task):
         return luigi.LocalTarget("data/device_measurements_with_calibrated_values.json")
 
     def run(self):
+
+        threads = []
 
         device_measurements = pd.read_json('data/device_measurements.json')
 
@@ -184,6 +188,14 @@ class AddCalibratedValues(luigi.Task):
             data[DataConstants.PM2_5]["calibratedValue"] = calibrated_value
 
             calibrated_data.append(data)
+
+            # Add Values To Events Collection
+            thread = Thread(target=events_collection_insertion, args=(data, "airqo"))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
 
         with self.output().open('w') as f:
             json.dump(list(calibrated_data), f)
@@ -202,6 +214,7 @@ def events_collection_insertion(data, tenant):
 
         results = requests.post(url, json_data, headers=headers, verify=False)
 
+        print("\n")
         print(results.json())
 
     except Exception:
@@ -209,23 +222,25 @@ def events_collection_insertion(data, tenant):
         traceback.print_exc()
         print("================ Error End =======================")
 
-
-class AddValuesToEventsCollection(luigi.Task):
-
-    def requires(self):
-        return GetDeviceMeasurements()
-
-    def output(self):
-        return luigi.LocalTarget("data/output.json")
-
-    def run(self):
-        device_measurements = pd.read_json('data/device_measurements.json')
-
-        for index, row in device_measurements.iterrows():
-            events_collection_insertion(row.to_dict(), "airqo")
-
-        with self.output().open('w') as f:
-            json.dump(list([]), f)
+# Insertions have been transferred to the the above class since the time it takes to get
+# calibrated values is equal or less to the time it takes to insert measurements
+#
+# class AddValuesToEventsCollection(luigi.Task):
+#
+#     def requires(self):
+#         return AddCalibratedValues()
+#
+#     def output(self):
+#         return luigi.LocalTarget("data/output.json")
+#
+#     def run(self):
+#         device_measurements = pd.read_json('data/device_measurements_with_calibrated_values.json')
+#
+#         for index, row in device_measurements.iterrows():
+#             events_collection_insertion(row.to_dict(), "airqo")
+#
+#         with self.output().open('w') as f:
+#             json.dump(list([]), f)
 
 
 if __name__ == '__main__':
