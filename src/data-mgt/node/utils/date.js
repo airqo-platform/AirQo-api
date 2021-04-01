@@ -1,4 +1,4 @@
-const generateDateFormat = async (ISODate) => {
+const generateDateFormat = (ISODate) => {
   date = new Date(ISODate);
   year = date.getFullYear();
   month = date.getMonth() + 1;

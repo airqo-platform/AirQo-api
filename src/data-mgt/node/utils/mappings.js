@@ -1,3 +1,6 @@
+const { logElement, logText, logObject } = require("../utils/log");
+const isEmpty = require("is-empty");
+
 const fieldsAndLabels = {
   field1: "pm2_5",
   field2: "pm10",
@@ -64,6 +67,10 @@ const transformMeasurement = async (measurement) => {
     let newObj = await Object.entries(measurement).reduce(
       (newObj, [field, value]) => {
         let transformedField = getFieldLabel(field);
+        /**
+         * in case value is null, then ignore
+         *
+         */
 
         return {
           ...newObj,
@@ -72,10 +79,37 @@ const transformMeasurement = async (measurement) => {
       },
       {}
     );
+    logObject("the transformed object", newObj);
     return newObj;
   } catch (e) {
     console.log(e.message);
   }
+};
+
+const availableMeasurements = (measurement) => {
+  const {
+    field1,
+    field2,
+    field3,
+    field4,
+    field5,
+    field6,
+    field7,
+    field8,
+    created_at,
+  } = measurement;
+
+  return {
+    ...(!isEmpty(field1) && { field1: field1 }),
+    ...(!isEmpty(field2) && { field2: field2 }),
+    ...(!isEmpty(field3) && { field3: field3 }),
+    ...(!isEmpty(field4) && { field4: field4 }),
+    ...(!isEmpty(field5) && { field5: field5 }),
+    ...(!isEmpty(field6) && { field6: field6 }),
+    ...(!isEmpty(field7) && { field7: field7 }),
+    ...(!isEmpty(field8) && { field8: field8 }),
+    ...(!isEmpty(created_at) && { created_at: created_at }),
+  };
 };
 
 module.exports = {
@@ -84,4 +118,5 @@ module.exports = {
   trasformFieldValues,
   getPositionLabel,
   getFieldByLabel,
+  availableMeasurements,
 };
