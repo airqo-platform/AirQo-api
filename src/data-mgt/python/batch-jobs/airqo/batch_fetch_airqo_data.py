@@ -149,8 +149,11 @@ def get_calibrated_value(channel_id, time, value):
     }
 
     post_request = requests.post(url=CALIBRATE_URL, json=data)
-    response = post_request.json()
 
+    if post_request.status_code != 200:
+        return None
+
+    response = post_request.json()
     calibrated_value = None
 
     for result in response:
