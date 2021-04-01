@@ -2,30 +2,25 @@ import pandas as pd
 import requests
 from threading import Thread
 
-from pandas import Series
-
 from events import measurements_insertion
 import numpy as np
 import os
 import math
 
-AIRQO_API_BASE_URL = os.getenv("AIRQO_API_BASE_URL")
+DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
-
-
-class ParameterConstants:
-    PM_25 = "PM_25"
+CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 
 
 def get_airqo_device_measurements():
     # get all airqo devices
-    device_data = get_airqo_devices()
+    devices = get_airqo_devices()
 
-    # get feeds
-    feeds = get_feeds(device_data)
+    # get feeds for the devices
+    feeds = get_feeds(devices)
 
     # transform feeds and insert into netmanager
-    process_airqo_data(feeds)
+    transform_airqo_data(feeds)
 
 
 def get_feeds(device_codes):
@@ -36,8 +31,6 @@ def get_feeds(device_codes):
     devices = pd.DataFrame(device_codes)
 
     data = []
-
-    print(ParameterConstants.PM_25)
 
     for index, row in devices.iterrows():
 
@@ -59,7 +52,7 @@ def get_feeds(device_codes):
     return data
 
 
-def process_airqo_data(data):
+def transform_airqo_data(data):
 
     # create a dataframe to hold all the data
     raw_data = pd.DataFrame(data)
@@ -71,7 +64,7 @@ def process_airqo_data(data):
 
     # process each chuck on a separate thread
     for chunk in chunks:
-        thread = Thread(target=process_chunk, args=(chunk,))
+        thread = Thread(target=transform_chunk, args=(chunk,))
         threads.append(thread)
         thread.start()
 
@@ -81,37 +74,46 @@ def process_airqo_data(data):
 
 
 def check_float(string):
-    # formatting all values to float else null
+    # formatting all values to float else None
     try:
         value = float(string)
         if math.isnan(value):
-            return 'null'
+            return None
         return value
     except Exception:
-        return 'null'
+        return None
 
 
-def add_calibrated_values(data, tenant):
-    """
-       gets all airqo devices
-       :return: list of devices
-    """
+def get_calibrated_value(channel_id, time, value):
 
-    data_series = Series(data=data)
+    data = {
+        "datetime": time,
+        "raw_values": [
+            {
+                "raw_value": value,
+                "sensor_id": channel_id
+            }
+        ]
+    }
 
-    json_array = []
-    api_url = AIRQO_API_BASE_URL + "calibrate?tenant=" + tenant
+    post_request = requests.post(url=CALIBRATE_URL, json=data)
 
-    results = requests.post(api_url, data=data)
+    if post_request.status_code != 200:
+        return None
 
-    response_data = results.json()
+    response = post_request.json()
 
-    devices = response_data["devices"]
+    calibrated_value = None
 
-    return devices
+    for result in response:
+        if "calibrated_value" in result:
+            calibrated_value = result["calibrated_value"]
+            break
+
+    return calibrated_value
 
 
-def process_chunk(chunk):
+def transform_chunk(chunk):
     # create a dataframe to hold the chunk
     data = pd.DataFrame(chunk)
 
@@ -141,17 +143,20 @@ def process_chunk(chunk):
             "internalHumidity": {"value": check_float(row["internalHumidity"])},
         })
 
-        data = add_calibrated_values(data, "airqo")
+        # add calibrated value
+        calibrated_value = None
 
-        # post the component data to events table using a separate thread
-        # :function: single_component_insertion(args=(component data, tenant))
+        if data["pm2_5"]["value"] is not None:
+            calibrated_value = get_calibrated_value(data["channelID"], data["time"], data["pm2_5"]["value"])
+        
+        data["pm2_5"]["calibratedValue"] = calibrated_value
+
+        # insert device measurements into events collection using a separate thread
         thread = Thread(target=measurements_insertion, args=(data, "airqo",))
         threads.append(thread)
         thread.start()
 
-        # print(data)
-
-    # wait for all threads to terminate before ending the function
+    # wait for all threads to terminate
     for thread in threads:
         thread.join()
 
@@ -161,7 +166,7 @@ def get_airqo_devices():
     gets all airqo devices
     :return: list of devices
     """
-    api_url = AIRQO_API_BASE_URL + "devices?tenant=airqo"
+    api_url = DEVICE_REGISTRY_BASE_URL + "devices?tenant=airqo"
 
     results = requests.get(api_url)
 

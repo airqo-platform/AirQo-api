@@ -21,10 +21,8 @@ def get_kcca_device_measurements():
     # get all kcca device measurements
     device_measurements_data = get_kcca_device_data()
 
-    # print(device_measurements_data)
-
     # process all kcca device measurements
-    process_kcca_data(device_measurements_data)
+    transform_kcca_data(device_measurements_data)
 
 
 def get_kcca_device_data():
@@ -74,7 +72,7 @@ def get_kcca_devices_codes():
     return device_codes
 
 
-def process_kcca_data(data):
+def transform_kcca_data(data):
 
     # create a dataframe to hold all the device measurements
     raw_data = pd.DataFrame(data)
@@ -86,8 +84,7 @@ def process_kcca_data(data):
 
     # process each chuck on a separate thread
     for chunk in chunks:
-        # print(chunk)
-        thread = Thread(target=process_chunk, args=(chunk,))
+        thread = Thread(target=transform_chunk, args=(chunk,))
         threads.append(thread)
         thread.start()
 
@@ -96,7 +93,7 @@ def process_kcca_data(data):
         thread.join()
 
 
-def process_chunk(chunk):
+def transform_chunk(chunk):
 
     # create a dataframe to hold the chunk
     data = pd.DataFrame(chunk)
@@ -147,8 +144,7 @@ def process_chunk(chunk):
             else:
                 data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["value"]
 
-        # post the component data to events table using a separate thread
-        # :function: single_component_insertion(args=(component data, tenant))
+        # send the device measurements to the device registry microservice
         thread = Thread(target=measurements_insertion, args=(data, "kcca",))
         threads.append(thread)
         thread.start()
