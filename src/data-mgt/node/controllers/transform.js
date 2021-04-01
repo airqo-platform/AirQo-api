@@ -16,7 +16,7 @@ const {
 } = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 const constants = require("../config/constants");
-const { gpsCheck, getGPSFromDB } = require("../utils/gps-check");
+const { handleInaccurate } = require("../utils/gps-check");
 const {
   axiosError,
   tryCatchErrors,
@@ -187,30 +187,42 @@ const data = {
               .get(constants.GENERATE_LAST_ENTRY(channel))
               .then(async (response) => {
                 let readings = response.data;
-
                 let lastEntryId = readings.channel.last_entry_id;
                 let recentReadings = await readings.feeds.filter((item) => {
                   return item.entry_id === lastEntryId;
                 });
                 let responseData = recentReadings[0];
                 //check the GPS values
-                let gpsCods = gpsCheck(responseData, req, res);
-                // responseData.field5 = gpsCods.latitude;
-                // responseData.field6 = gpsCods.longitude;
+                // if (responseData.field6 == 0.0 || responseData.field5 == 0.0) {
+                //   let location = await handleInaccurate(responseData, req, res);
+                //   console.log("the location object: ", location);
+                //   responseData.field5 = location.latitude;
+                //   responseJSON.field6 = location.longitude;
+                // }
+                // if (
+                //   responseData.field6 == 1000.0 ||
+                //   responseData.field5 == 1000.0
+                // ) {
+                //   let location = await handleInaccurate(responseData, req, res);
+                //   console.log("the location object: ", location);
+                //   responseData.field5 = location.latitude;
+                //   responseData.field6 = location.longitude;
+                // }
 
                 delete responseData.entry_id;
-
                 let transformedData = await transformMeasurement(responseData);
+
                 let otherData = transformedData.other_data;
                 let transformedField = await trasformFieldValues(otherData);
-                delete transformedData.other_data;
-                let newResp = { ...transformedData, ...transformedField };
 
+                delete transformedData.other_data;
+                let newResp = { ...transformedField, ...transformedData };
                 redis.set(
                   cacheID,
                   JSON.stringify({ isCache: true, ...newResp })
                 );
-                redis.expire(cacheID, 86400);
+
+                redis.expire(cacheID, 120);
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
                   ...newResp,
