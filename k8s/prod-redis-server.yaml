@@ -14,7 +14,12 @@ spec:
   selector:
     matchLabels:
       io.kompose.service: airqo-redis-server
-  strategy: {}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       annotations:
