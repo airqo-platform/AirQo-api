@@ -6,11 +6,16 @@ from datetime import datetime, timedelta
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 import traceback
+from dotenv import load_dotenv
+
+env_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(env_path)
 
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
 KAFKA_TOPIC = os.getenv("KAFKA_TOPIC")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS")
+INTERVAL = os.getenv("INTERVAL")
 
 """
 :Clarity Api Documentation: https://api-guide.clarity.io/
@@ -77,7 +82,7 @@ def get_devices_measurements(devices_codes):
 
     # get current date and time 5 minutes ago : %Y-%m-%dT%H:%M:%SZ
     # the cron job must be scheduled to run as the time interval stated here
-    date = date_to_str(datetime.now() - timedelta(hours=5, minutes=0))
+    date = date_to_str(datetime.now() - timedelta(hours=0, minutes=float(INTERVAL)))
 
     # compose a url to get device measurements for all the devices
     api_url = CLARITY_API_BASE_URL + "measurements?startTime=" + date + "&code="
@@ -100,8 +105,8 @@ def send_to_kafka(data):
         producer = KafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
                                  value_serializer=lambda m: json.dumps(m).encode('utf-8'))
         producer.send(KAFKA_TOPIC, data)
-    except KafkaError:
-        traceback.print_exc()
+    except KafkaError as ex:
+        print(ex)
 
 
 def get_devices_codes():
