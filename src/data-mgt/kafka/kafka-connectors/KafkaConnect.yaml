@@ -1,0 +1,16 @@
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaConnect
+metadata:
+  name: kcca-cluster-connect
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  image: localhost:5000/kcca-kafka-source-connector-test
+  replicas: 1
+  bootstrapServers: <BOOTSTRAP_SERVERS>
+  config:
+    group.id: strimzi-connect-cluster
+    offset.storage.topic: mongo-connect-cluster-offsets
+    config.storage.topic: mongo-connect-cluster-configs
+    status.storage.topic: mongo-connect-cluster-status
+
