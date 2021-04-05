@@ -2,3 +2,8 @@ venv/
 .idea/
 .env
 __pycache__/
+env/
+venv/
+envs/
+KccaDeviceMeasurements/
+KafkaKccaDeviceMeasurements/
