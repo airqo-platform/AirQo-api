@@ -348,7 +348,7 @@ const data = {
               const responseJSON = response.data;
               let count = Object.keys(responseJSON).length;
               redis.set(`${cacheID}`, JSON.stringify({ isCache: true, count }));
-              redis.expire(cacheID, 3600);
+              redis.expire(cacheID, 300);
               // Send JSON response to redis
               return res.status(200).json({ isCache: false, count });
             })
