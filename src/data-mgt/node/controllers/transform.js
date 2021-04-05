@@ -52,7 +52,7 @@ const data = {
                 cacheID,
                 JSON.stringify({ isCache: true, ...responseJSON })
               );
-              redis.expire(cacheID, 3600);
+              redis.expire(cacheID, 300);
               return res
                 .status(HTTPStatus.OK)
                 .json({ isCache: false, ...responseJSON });
