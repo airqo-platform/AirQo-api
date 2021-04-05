@@ -52,7 +52,7 @@ const data = {
                 cacheID,
                 JSON.stringify({ isCache: true, ...responseJSON })
               );
-              redis.expire(cacheID, 86400);
+              redis.expire(cacheID, 3600);
               return res
                 .status(HTTPStatus.OK)
                 .json({ isCache: false, ...responseJSON });
@@ -103,7 +103,7 @@ const data = {
                   cacheID,
                   JSON.stringify({ isCache: true, ...responseData })
                 );
-                redis.expire(cacheID, 86400);
+                redis.expire(cacheID, 30);
 
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
@@ -148,7 +148,7 @@ const data = {
                   cacheID,
                   JSON.stringify({ isCache: true, ...responseJSON })
                 );
-                redis.expire(cacheID, 86400);
+                redis.expire(cacheID, 3600);
                 return res
                   .status(HTTPStatus.OK)
                   .json({ isCache: false, ...responseJSON });
@@ -210,7 +210,7 @@ const data = {
                   cacheID,
                   JSON.stringify({ isCache: true, ...newResp })
                 );
-                redis.expire(cacheID, 86400);
+                redis.expire(cacheID, 30);
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
                   ...newResp,
@@ -255,7 +255,7 @@ const data = {
                   ...responseJSON,
                 })
               );
-              redis.expire(cacheID, 86400);
+              redis.expire(cacheID, 30);
               return res.status(HTTPStatus.OK).json({
                 isCache: false,
                 ...responseJSON,
@@ -303,7 +303,7 @@ const data = {
                   cacheID,
                   JSON.stringify({ isCache: true, ...responseJSON })
                 );
-                redis.expire(cacheID, 86400);
+                redis.expire(cacheID, 30);
 
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
@@ -348,7 +348,7 @@ const data = {
               const responseJSON = response.data;
               let count = Object.keys(responseJSON).length;
               redis.set(`${cacheID}`, JSON.stringify({ isCache: true, count }));
-              redis.expire(cacheID, 86400);
+              redis.expire(cacheID, 3600);
               // Send JSON response to redis
               return res.status(200).json({ isCache: false, count });
             })
