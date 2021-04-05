@@ -38,7 +38,12 @@ def get_feeds(device_codes):
 
         api_url = FEEDS_BASE_URL + "data/feeds/transform/recent?channel={}".format(channel_id)
 
-        results = requests.get(api_url)
+        try:
+            results = requests.get(api_url)
+        except Exception as ex:
+            print("Feeds Url returned an error")
+            print(ex)
+            continue
 
         if results.status_code != 200:
             continue
@@ -96,7 +101,12 @@ def get_calibrated_value(channel_id, time, value):
         ]
     }
 
-    post_request = requests.post(url=CALIBRATE_URL, json=data)
+    try:
+        post_request = requests.post(url=CALIBRATE_URL, json=data)
+    except Exception as ex:
+        print("Calibrate Url returned an error")
+        print(ex)
+        return None
 
     if post_request.status_code != 200:
         return None
@@ -148,8 +158,9 @@ def transform_chunk(chunk):
 
         if data["pm2_5"]["value"] is not None:
             calibrated_value = get_calibrated_value(data["channelID"], data["time"], data["pm2_5"]["value"])
-        
-        data["pm2_5"]["calibratedValue"] = calibrated_value
+
+        if calibrated_value is not None:
+            data["pm2_5"]["calibratedValue"] = calibrated_value
 
         # insert device measurements into events collection using a separate thread
         thread = Thread(target=measurements_insertion, args=(data, "airqo",))
