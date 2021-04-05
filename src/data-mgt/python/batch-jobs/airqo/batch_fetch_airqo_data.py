@@ -12,10 +12,10 @@ import traceback
 
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 START_DATE_TIME = os.getenv("START_DATE_TIME")
 STOP_DATE_TIME = os.getenv("STOP_DATE_TIME")
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
+os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 
 class DataConstants:
@@ -46,9 +46,13 @@ class GetAirqoDevices(luigi.Task):
 
         api_url = DEVICE_REGISTRY_BASE_URL + "devices?tenant=airqo"
 
-        results = requests.get(api_url)
-
-        devices_data = results.json()["devices"]
+        try:
+            results = requests.get(api_url)
+            devices_data = results.json()["devices"]
+        except Exception as ex:
+            print("Devices Url returned an error")
+            print(ex)
+            devices_data = {}
 
         with self.output().open('w') as f:
             json.dump(list(devices_data), f)
@@ -148,7 +152,12 @@ def get_calibrated_value(channel_id, time, value):
         ]
     }
 
-    post_request = requests.post(url=CALIBRATE_URL, json=data)
+    try:
+        post_request = requests.post(url=CALIBRATE_URL, json=data)
+    except Exception as ex:
+        print("Calibrate Url returned an error")
+        print(ex)
+        return None
 
     if post_request.status_code != 200:
         return None
@@ -188,7 +197,8 @@ class AddValuesToEventsCollection(luigi.Task):
                                                     row[DataConstants.TIME],
                                                     row[DataConstants.PM2_5]["value"])
 
-            data[DataConstants.PM2_5]["calibratedValue"] = calibrated_value
+            if calibrated_value is not None:
+                data[DataConstants.PM2_5]["calibratedValue"] = calibrated_value
 
             calibrated_data.append(data)
 
