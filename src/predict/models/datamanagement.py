@@ -79,7 +79,7 @@ def save_weather_forecasts(weather_forecasts):
 
 def get_channel_data_raw(channel_id:int):
     channel_id = str(channel_id)
-    client = bigquery.Client(project='airqo-250220') #delete
+    client = bigquery.Client()
     sql_query = """
             SELECT created_at as time,channel_id,field1 as pm2_5
             FROM `airqo-250220.thingspeak.raw_feeds_pms` 
@@ -101,7 +101,7 @@ def get_channel_data_raw(channel_id:int):
 
 
 def save_predictions(predictions): #not unit testable. Need to pass table and client as parameters
-    client = bigquery.Client(project='airqo-250220')#delete
+    client = bigquery.Client()
     dataset_ref = client.dataset('thingspeak','airqo-250220')
     table_ref = dataset_ref.table('model_predictions')
     table = client.get_table(table_ref)
@@ -115,7 +115,7 @@ def save_predictions(predictions): #not unit testable. Need to pass table and cl
       
 
 def get_channel_best_configurations(channel_id:int):
-    client = bigquery.Client(project='airqo-250220') #delete
+    client = bigquery.Client()
     sql_query = """
             SELECT channel_id, number_of_days_to_use, considered_hours
             FROM `airqo-250220.thingspeak.model_configuration` 
@@ -274,7 +274,7 @@ def get_channel_id(latitude:str, longitude:str) -> int:
     
     value1 = lat
     value2 = lon 
-    client = bigquery.Client(project='airqo-250220')
+    client = bigquery.Client()
 
     query = """
         SELECT channel_id
@@ -305,7 +305,7 @@ def get_channel_id(latitude:str, longitude:str) -> int:
 
 
 def get_all_coordinates():
-    client = bigquery.Client(project= 'airqo-250220') #delete
+    client = bigquery.Client() 
 
     query = """
         SELECT channel_id, latitude, longitude
