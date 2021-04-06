@@ -29,7 +29,7 @@ def test_raises_exception_on_incorrect_int():
     with pytest.raises(ValueError):
         get_channel_data_raw(123)
 
-def test_save_predictions(mocker):
+#def test_save_predictions(mocker):
     #model_predictions = [('test_model', 82, 'bwaise', 0.32, 32.1, 10.3, datetime(2020, 2, 1, 0, 0, 0), datetime(2020, 2, 1, 0, 0, 0), 
     #0.3, 20.3, datetime(2020, 2, 1, 0, 0, 0))]
     #mock_table = mocker.patch('google.cloud.bigquery.Table', autospec=True)

@@ -100,7 +100,7 @@ def get_channel_data_raw(channel_id:int):
     return time_indexed_data 
 
 
-def save_predictions(predictions):
+def save_predictions(predictions): #not unit testable. Need to pass table and client as parameters
     client = bigquery.Client(project='airqo-250220')#delete
     dataset_ref = client.dataset('thingspeak','airqo-250220')
     table_ref = dataset_ref.table('model_predictions')
