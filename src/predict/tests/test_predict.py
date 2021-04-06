@@ -47,8 +47,6 @@ def test_avg_raises_exception_on_too_many_args():
         make_prediction_using_averages('718028', datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"), '0.3075', '32.6206', 'additional_arg')
 
 def test_fill_gaps_and_set_datetime(data):
-    #hourly_df = calculate_hourly_averages(get_channel_data_raw(689761))
-    #clean_df = fill_gaps_and_set_datetime(hourly_df)
     clean_df = fill_gaps_and_set_datetime(data)
     assert clean_df['pm2_5'].isna().sum() ==0 and clean_df.index[0].hour
 
@@ -62,18 +60,9 @@ def test_gaps_raises_exception_on_wrong_arg():
 
 def test_gaps_raises_exception_on_too_many_args(data):
     with pytest.raises(TypeError):
-        #hourly_df = calculate_hourly_averages(get_channel_data_raw(689761))
-        #clean_df = fill_gaps_and_set_datetime(hourly_df, pd.DataFrame())
         clean_df = fill_gaps_and_set_datetime(data, pd.DataFrame())
 
 def test_simple_forecast_ci(clean_data):
-    #hourly_df = calculate_hourly_averages(get_channel_data_raw(718028))
-    #clean_df = fill_gaps_and_set_datetime(hourly_df)
-
-    #data = {'data':clean_df.values,
-    #'number_of_days':7, 
-    #'considered_hours': 24
-    #}
     test_forecast = simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours']) 
     assert type(test_forecast) == tuple and len(test_forecast)==3
 
