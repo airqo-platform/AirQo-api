@@ -10,6 +10,7 @@ def test_connect_mongo():
 
 def test_make_prediction_using_averages():
     pass
+    #make_prediction_using_averages(entered_chan, entered_time, entered_latitude, entered_longitude)
     
 
 

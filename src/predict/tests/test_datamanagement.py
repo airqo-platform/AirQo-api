@@ -24,7 +24,7 @@ def test_raises_exception_on_wrong_type_arg():
 def test_raises_exception_on_too_many_args():
     with pytest.raises(TypeError):
         get_channel_data_raw(689761, 689761)
-
+#5
 def test_raises_exception_on_incorrect_int():
     with pytest.raises(ValueError):
         get_channel_data_raw(123)
@@ -38,7 +38,7 @@ def test_raises_exception_on_incorrect_int():
 
     #mock_table.assert_called_with('project.dataset.blahblahbloo', schema=schema)
     #mock_client().create_table.assert_called_with(mock_table.return_value)
-    pass
+    #pass
 
 
 
@@ -57,7 +57,7 @@ def test_config_raises_exception_on_wrong_type_arg():
 def test_config_raises_exception_on_too_many_args():
     with pytest.raises(TypeError):
        get_channel_best_configurations(689761, 689761)
-
+#10
 def test_config_raises_exception_on_incorrect_int():
     with pytest.raises(ValueError):
         get_channel_best_configurations(123)
@@ -77,7 +77,7 @@ def test_avg_raises_exception_on_wrong_type_arg():
 def test_avg_raises_exception_on_too_many_args():
     with pytest.raises(TypeError):
        calculate_hourly_averages(sample_df, pd.DataFrame())
-
+#15
 def test_avg_raises_exception_on_empty_df():
     with pytest.raises(ValueError):
         calculate_hourly_averages(pd.DataFrame())
@@ -96,7 +96,7 @@ def test_id_raises_exception_on_wrong_args():
 def test_id_raises_exception_on_too_many_args():
     with pytest.raises(TypeError):
        get_channel_id('0.314', '32.59', '28.3')
-
+#20
 def test_id_raises_exception_on_wrong_types():
     with pytest.raises(TypeError):
         get_channel_id([1,2,3], ['a', 'b', 'c'])
@@ -106,5 +106,3 @@ def test_get_all_coordinates():
     assert type(coords) == list and list(coords[0].keys()) == ['channel_id', 'latitude', 'longitude']
 
 
-if __name__=='__main__':
-    pass
