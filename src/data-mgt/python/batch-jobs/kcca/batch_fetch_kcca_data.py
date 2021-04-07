@@ -51,12 +51,13 @@ def events_collection_insertion(data, tenant):
 
         results = requests.post(url, json_data, headers=headers, verify=False)
 
-        print(results.json())
+        if results.status_code == 200:
+            print(results.json())
+        else:
+            print("Device registry failed to insert values. Status Code : " + str(results.status_code))
 
-    except Exception:
-        print("================ Error Occurred ==================")
-        traceback.print_exc()
-        print("================ Error End ==================")
+    except Exception as ex:
+        print("Error Occurred while inserting measurements: " + str(ex))
 
 
 class GetDeviceMeasurements(luigi.Task):

@@ -50,8 +50,7 @@ class GetAirqoDevices(luigi.Task):
             results = requests.get(api_url)
             devices_data = results.json()["devices"]
         except Exception as ex:
-            print("Devices Url returned an error")
-            print(ex)
+            print("Devices Url returned an error : " + str(ex))
             devices_data = {}
 
         with self.output().open('w') as f:
@@ -155,8 +154,7 @@ def get_calibrated_value(channel_id, time, value):
     try:
         post_request = requests.post(url=CALIBRATE_URL, json=data)
     except Exception as ex:
-        print("Calibrate Url returned an error")
-        print(ex)
+        print("Calibrate Url returned an error : " + str(ex))
         return None
 
     if post_request.status_code != 200:
@@ -227,13 +225,13 @@ def events_collection_insertion(data, tenant):
 
         results = requests.post(url, json_data, headers=headers, verify=False)
 
-        print("\n")
-        print(results.json())
+        if results.status_code == 200:
+            print(results.json())
+        else:
+            print("Device registry failed to insert values. Status Code : " + str(results.status_code))
 
-    except Exception:
-        print("================ Error Occurred ==================")
-        traceback.print_exc()
-        print("================ Error End =======================")
+    except Exception as ex:
+        print("Error Occurred while inserting measurements: " + str(ex))
 
 # Insertions have been transferred to the the above class since the time it takes to get
 # calibrated values is equal or less to the time it takes to insert measurements
