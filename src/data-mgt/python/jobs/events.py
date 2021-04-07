@@ -5,7 +5,7 @@ from threading import Thread
 import traceback
 import requests
 
-DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
+DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
 DEVICE_REGISTRY_PRODUCTION_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
 
 

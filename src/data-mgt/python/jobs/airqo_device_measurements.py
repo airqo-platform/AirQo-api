@@ -7,7 +7,7 @@ import numpy as np
 import os
 import math
 
-DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
+DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
 FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 
@@ -181,11 +181,13 @@ def get_airqo_devices():
 
     results = requests.get(api_url)
 
-    response_data = results.json()
-
-    devices = response_data["devices"]
-
-    return devices
+    if results.status_code == 200:
+        response_data = results.json()
+        devices = response_data["devices"]
+        return devices
+    else:
+        print("Device Registry failed to return airqo devices. Status Code : " + str(results.status_code))
+        return {}
 
 
 if __name__ == "__main__":
