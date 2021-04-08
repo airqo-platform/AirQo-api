@@ -6,6 +6,8 @@ const HTTPStatus = require("http-status");
 const axios = require("axios");
 const constants = require("../config/constants");
 
+const deleteDevice = require("./delete-device");
+
 const getApiKeys = async (deviceName, tenant) => {
   logText("...................................");
   logText("getting api keys...");
@@ -34,16 +36,12 @@ const getChannelID = async (req, res, deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    logObject("the device details", deviceDetails);
-    logElement("the channel ID", deviceDetails[0]._doc.channelID);
+    // logObject("the device details", deviceDetails);
+    // logElement("the channel ID", deviceDetails[0]._doc.channelID);
     let channeID = deviceDetails[0]._doc.channelID;
     return channeID;
   } catch (e) {
-    return res.status(HTTPStatus.BAD_GATEWAY).json({
-      success: false,
-      message: "unable to get the corresponding TS ID",
-      error: e.message,
-    });
+    deleteDevice(tenant, res, deviceName);
   }
 };
 
@@ -58,9 +56,9 @@ const doesDeviceExist = async (deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    logElement("device element", device);
-    logObject("device Object", device);
-    logElement("does device exist?", !isEmpty(device));
+    // logElement("device element", device);
+    // logObject("device Object", device);
+    // logElement("does device exist?", !isEmpty(device));
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {
@@ -109,6 +107,10 @@ const updateThingBodies = (req, res) => {
     isActive,
     tags,
     elevation,
+    pictures,
+    siteName,
+    locationName,
+    photos,
   } = req.body;
 
   let deviceBody = {
@@ -140,6 +142,24 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(mobility) && { mobility: mobility }),
     ...(!isEmpty(locationID) && { locationID: locationID }),
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+    ...(!isEmpty(siteName) && { siteName }),
+    ...(!isEmpty(locationName) && { locationName }),
+    ...(!isEmpty(pictures) && { $addToSet: { pictures: pictures } }),
+  };
+
+  if (photos) {
+    delete deviceBody.pictures;
+    deviceBody = {
+      ...deviceBody,
+      ...(!isEmpty(photos) && {
+        $pullAll: { pictures: photos },
+      }),
+    };
+  }
+
+  let options = {
+    new: true,
+    upsert: true,
   };
 
   let tsBody = {
@@ -152,7 +172,7 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(visibility) && { public_flag: visibility }),
   };
 
-  return { deviceBody, tsBody };
+  return { deviceBody, tsBody, options };
 };
 
 const clearEventsBody = () => {

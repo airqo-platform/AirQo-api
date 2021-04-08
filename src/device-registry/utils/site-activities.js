@@ -1,11 +1,11 @@
 const DeviceSchema = require("../models/Device");
 const { getModelByTenant } = require("./multitenancy");
-const LocationSchema = require("../models/Location");
+const SiteSchema = require("../models/Site");
 const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const axios = require("axios");
-const LocationActivitySchema = require("../models/location_activity");
+const SiteActivitySchema = require("../models/SiteActivity");
 const constants = require("../config/constants");
 const {
   clearEventsBody,
@@ -14,14 +14,14 @@ const {
   threeMonthsFromNow,
   getChannelID,
   getApiKeys,
-} = require("./deviceControllerHelpers");
+} = require("./does-device-exist");
 
 const {
   tryCatchErrors,
   axiosError,
   missingQueryParams,
   callbackErrors,
-} = require("../utils/errors");
+} = require("./errors");
 
 const getGpsCoordinates = async (locationName, tenant) => {
   logText("...................................");
@@ -30,7 +30,7 @@ const getGpsCoordinates = async (locationName, tenant) => {
   let location = await getModelByTenant(
     tenant.toLowerCase(),
     "location_registry",
-    LocationSchema
+    SiteSchema
   )
     .find({ name: locationName })
     .exec();
@@ -108,15 +108,15 @@ const doLocationActivity = async (
             });
           } else if (updatedDevice) {
             //then log the operation
-            const log = getModelByTenant(
+            const activityLog = getModelByTenant(
               tenant.toLowerCase(),
               "activity",
-              LocationActivitySchema
+              SiteActivitySchema
             ).createLocationActivity(activityBody);
-            log.then((log) => {
+            activityLog.then((activityLog) => {
               return res.status(HTTPStatus.OK).json({
                 message: `${type} successfully carried out`,
-                activityBody,
+                activityLog,
                 updatedDevice,
                 success: true,
               });
@@ -148,7 +148,7 @@ const doesLocationExist = async (locationName, tenant) => {
   let location = await getModelByTenant(
     tenant.toLowerCase(),
     "location_registry",
-    LocationSchema
+    SiteSchema
   )
     .find({ name: locationName })
     .exec();
@@ -180,6 +180,7 @@ const locationActivityRequestBodies = (req, res) => {
       tags,
       isPrimaryInLocation,
       isUserForCollocaton,
+      maintenanceType,
     } = req.body;
 
     //location and device body to be used for deploying....
@@ -269,15 +270,16 @@ const locationActivityRequestBodies = (req, res) => {
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
+        maintenanceType: maintenanceType,
         // $addToSet: { tags: { $each: tags } },
         tags: tags,
       };
-      if (description == "preventive") {
+      if (maintenanceType == "preventive") {
         deviceBody = {
           name: deviceName,
           nextMaintenance: threeMonthsFromNow(date),
         };
-      } else if (description == "corrective") {
+      } else if (maintenanceType == "corrective") {
         deviceBody = {
           name: deviceName,
         };
@@ -343,7 +345,7 @@ const queryFilterOptions = async (req, res) => {
   try {
     const { location, type, device, next, id } = req.query;
 
-    let activityFilter = {
+    let filter = {
       ...(!isEmpty(location) && { location: location }),
       ...(!isEmpty(type) && { type: type }),
       ...(!isEmpty(device) && { device: device }),
@@ -351,7 +353,7 @@ const queryFilterOptions = async (req, res) => {
       ...(!isEmpty(id) && { _id: id }),
       ...!isEmpty(),
     };
-    return { activityFilter };
+    return { filter };
   } catch (e) {
     tryCatchErrors(res, e);
   }
@@ -367,15 +369,17 @@ const bodyFilterOptions = async (req, res) => {
       activityType,
       nextMaintenance,
       tags,
+      maintenanceType,
     } = req.body;
 
     let activityBody = {
-      ...(!isEmpty(location) && { location: location }),
-      ...(!isEmpty(date) && { date: date }),
-      ...(!isEmpty(device) && { device: device }),
-      ...(!isEmpty(description) && { description: description }),
-      ...(!isEmpty(activityType) && { activityType: activityType }),
-      ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
+      ...(!isEmpty(location) && { location }),
+      ...(!isEmpty(date) && { date }),
+      ...(!isEmpty(device) && { device }),
+      ...(!isEmpty(description) && { description }),
+      ...(!isEmpty(activityType) && { activityType }),
+      ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
+      ...(!isEmpty(maintenanceType) && { maintenanceType }),
       ...(!isEmpty(tags) && { tags: tags }),
     };
     return { activityBody };

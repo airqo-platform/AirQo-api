@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 
-const locationSchema = new mongoose.Schema(
+const siteSchema = new mongoose.Schema(
   {
     loc_ref: {
       type: String,
@@ -93,11 +93,11 @@ const locationSchema = new mongoose.Schema(
   }
 );
 
-locationSchema.plugin(uniqueValidator, {
+siteSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-locationSchema.methods = {
+siteSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
@@ -120,7 +120,7 @@ locationSchema.methods = {
 };
 
 // I will add the check for the user after setting up the communications between services
-locationSchema.statics = {
+siteSchema.statics = {
   createLocation(args) {
     return this.create({
       ...args,
@@ -135,4 +135,4 @@ locationSchema.statics = {
   },
 };
 
-module.exports = locationSchema;
+module.exports = siteSchema;

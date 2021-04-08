@@ -11,6 +11,12 @@ spec:
     matchLabels:
       app: sta-device-reg-api
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       labels:
@@ -23,46 +29,55 @@ spec:
           ports:
             - containerPort: 3000
               name: sta-dev-reg-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
+            - name: GET_HOSTS_FROM
+              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: MONGO_GCE_URI
             - name: MONGO_PROD
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: MONGO_PROD
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: JWT_SECRET
             - name: MONGO_DEV
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: MONGO_DEV
             - name: MONGO_STAGE
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: MONGO_STAGE
             - name: MAIL_PASS
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: MAIL_PASS
             - name: MAIL_USER
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: MAIL_USER
             - name: LOCAL_DB
               valueFrom:
                 secretKeyRef:
-                  name: device-reg-secret
+                  name: stage-device-reg-secret
                   key: LOCAL_DB
 
 ---
