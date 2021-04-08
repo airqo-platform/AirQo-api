@@ -387,19 +387,17 @@ const device = {
 
   updateDevice: async (req, res) => {
     try {
-      const { tenant } = req.query;
+      const { tenant, device } = req.query;
       const deviceBody = req.body;
-      const name = deviceBody.name;
-      logElement("name", name);
       const deviceFilter = {
-        name,
+        name: device,
       };
       let options = {
         new: true,
         upsert: true,
       };
-      if (tenant && name) {
-        let deviceExist = await doesDeviceExist(name, tenant);
+      if (tenant && device) {
+        let deviceExist = await doesDeviceExist(device, tenant);
         if (deviceExist) {
           await softUpdateDevice(
             res,
@@ -410,9 +408,9 @@ const device = {
             options
           );
         } else {
-          logText(`device ${name} does not exist in the system`);
-          res.status(500).json({
-            message: `device ${name} does not exist in the system`,
+          logText(`device ${device} does not exist in the system`);
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message: `device ${device} does not exist in the system`,
             success: false,
           });
         }
