@@ -27,6 +27,7 @@ const { logObject, logElement, logText } = require("../utils/log");
 const qs = require("qs");
 const redis = require("../config/redis");
 const { getModelByTenant } = require("../utils/multitenancy");
+const softUpdateDevice = require("../utils/soft-update-device");
 const {
   createOnThingSpeak,
   createOnClarity,
@@ -382,21 +383,34 @@ const device = {
   updateDevice: async (req, res) => {
     try {
       const { tenant } = req.query;
-      if (tenant) {
-        const device = await getModelByTenant(
-          tenant.toLowerCase(),
-          "device",
-          DeviceSchema
-        ).findById(req.params.id);
-        if (!device.device.equals(req.device._id)) {
-          return res.sendStatus(HTTPStatus.UNAUTHORIZED);
+      const deviceBody = req.body;
+      const name = deviceBody.name;
+      logElement("name", name);
+      const deviceFilter = {
+        name,
+      };
+      let options = {
+        new: true,
+        upsert: true,
+      };
+      if (tenant && name) {
+        let deviceExist = await doesDeviceExist(name, tenant);
+        if (deviceExist) {
+          await softUpdateDevice(
+            res,
+            device,
+            deviceBody,
+            deviceFilter,
+            tenant,
+            options
+          );
+        } else {
+          logText(`device ${name} does not exist in the system`);
+          res.status(500).json({
+            message: `device ${name} does not exist in the system`,
+            success: false,
+          });
         }
-
-        Object.keys(req.body).forEach((key) => {
-          device[key] = req.body[key];
-        });
-
-        return res.status(HTTPStatus.OK).json(await device.save());
       } else {
         missingQueryParams(req, res);
       }
@@ -407,20 +421,25 @@ const device = {
 
   delete: async (req, res) => {
     try {
-      const { tenant } = req.query;
-      if (tenant) {
-        const device = await getModelByTenant(
-          tenant.toLowerCase(),
-          "device",
-          DeviceSchema
-        ).findById(req.params.id);
-
-        if (!device.device.equals(req.device._id)) {
-          return res.sendStatus(HTTPStatus.UNAUTHORIZED);
+      const { device, tenant } = req.query;
+      if (tenant && device) {
+        if (!device) {
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message:
+              "please use the correct query parameter, check API documentation",
+            success: false,
+          });
         }
-
-        await device.remove();
-        return res.sendStatus(HTTPStatus.OK);
+        let deviceExist = await doesDeviceExist(device, tenant);
+        if (deviceExist) {
+          deleteDevice(tenant, res, device);
+        } else {
+          logText(`device ${device} does not exist in the system`);
+          res.status(500).json({
+            message: `device ${device} does not exist in the system`,
+            success: false,
+          });
+        }
       } else {
         missingQueryParams(req, res);
       }
@@ -563,13 +582,17 @@ const device = {
   createOne: async (req, res) => {
     try {
       const { tenant } = req.query;
-      console.log("creating one device....");
-      const device = await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).createDevice(req.body);
-      return res.status(HTTPStatus.CREATED).json(device);
+      if (tenant) {
+        console.log("creating one device....");
+        const device = await getModelByTenant(
+          tenant.toLowerCase(),
+          "device",
+          DeviceSchema
+        ).createDevice(req.body);
+        return res.status(HTTPStatus.CREATED).json(device);
+      } else {
+        missingQueryParams(req, res);
+      }
     } catch (e) {
       tryCatchErrors(res, e);
     }
