@@ -124,53 +124,58 @@ const device = {
   deleteThing: async (req, res) => {
     try {
       const { device, tenant } = req.query;
-      if (tenant) {
-        if (!device) {
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          });
-        }
-        let deviceExist = await doesDeviceExist(device, tenant);
-        if (deviceExist) {
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
-          logText("deleting device from TS.......");
-          logElement("the channel ID", channelID);
-          await axios
-            .delete(constants.DELETE_THING_URL(channelID))
-            .then(async (response) => {
-              deleteDevice(tenant, res, device);
-            })
-            .catch(function(error) {
-              logElement("unable to delete device from TS", error);
-              logElement("this is the error response", error.response.status);
+      res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
+        message: "endpoint temporarily disabled",
+        success: false,
+        device,
+      });
+      // if (tenant) {
+      //   if (!device) {
+      //     res.status(HTTPStatus.BAD_REQUEST).json({
+      //       message:
+      //         "please use the correct query parameter, check API documentation",
+      //       success: false,
+      //     });
+      //   }
+      //   let deviceExist = await doesDeviceExist(device, tenant);
+      //   if (deviceExist) {
+      //     const channelID = await getChannelID(
+      //       req,
+      //       res,
+      //       device,
+      //       tenant.toLowerCase()
+      //     );
+      //     logText("deleting device from TS.......");
+      //     logElement("the channel ID", channelID);
+      //     await axios
+      //       .delete(constants.DELETE_THING_URL(channelID))
+      //       .then(async (response) => {
+      //         deleteDevice(tenant, res, device);
+      //       })
+      //       .catch(function(error) {
+      //         logElement("unable to delete device from TS", error);
+      //         logElement("this is the error response", error.response.status);
 
-              if (error.response.status == 404) {
-                deleteDevice(tenant, res, device);
-              } else {
-                tryCatchErrors(res, error);
-              }
-            });
-        } else {
-          logText("device does not exist in the network");
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message: "device does not exist in the network",
-            success: false,
-            device,
-          });
-        }
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
-      }
+      //         if (error.response.status == 404) {
+      //           deleteDevice(tenant, res, device);
+      //         } else {
+      //           tryCatchErrors(res, error);
+      //         }
+      //       });
+      //   } else {
+      //     logText("device does not exist in the network");
+      //     res.status(HTTPStatus.BAD_REQUEST).json({
+      //       message: "device does not exist in the network",
+      //       success: false,
+      //       device,
+      //     });
+      //   }
+      // } else {
+      //   return res.status(HTTPStatus.BAD_REQUEST).json({
+      //     success: false,
+      //     message: "missing query params, please check documentation",
+      //   });
+      // }
     } catch (e) {
       logElement(
         "unable to carry out the entire deletion of device",
