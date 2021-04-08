@@ -5,6 +5,7 @@ flask-cors
 flasgger
 pandas
 pymongo
+flask_pymongo
 python-decouple
 python-dotenv
 marshmallow
