@@ -1,0 +1,5 @@
+*/data
+*.json
+env.kcca.batch
+env.airqo.batch
+venv
