@@ -1,4 +1,4 @@
-from config import app_config
+from config import config as app_config
 from flask import Flask
 import os
 import logging
