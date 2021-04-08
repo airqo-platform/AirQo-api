@@ -50,4 +50,16 @@ If you wish to delete a test setup/infrasturcture, simply run the command below:
 ```
 terraform destroy
 ```
+## Ansible
+**Development:**
+
+To setup up k8s on your local machine, make sure you have Vagrant, Ansible and Virtualbox are installed properly on you machine.
+- [Installing Vagrant](https://www.vagrantup.com/docs/installation)
+- [Installing Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html)
+- [Installing VirtualBox](https://www.virtualbox.org/wiki/Downloads)
+
+Check out this code and `cd` to `AirQo-api/infra/ansible/development`. Afterwards, run `vagrant up`. 
+
+If all goes well, you will have a k8s cluster with 1 master and 2 worker nodes up and running. You can run `vagrant ssh master` to access the master node. Then run `kubectl get nodes` to view all active worker nodes.
+
 
