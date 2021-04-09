@@ -27,6 +27,7 @@ const { logObject, logElement, logText } = require("../utils/log");
 const qs = require("qs");
 const redis = require("../config/redis");
 const { getModelByTenant } = require("../utils/multitenancy");
+const softUpdateDevice = require("../utils/soft-update-device");
 const {
   createOnThingSpeak,
   createOnClarity,
@@ -104,7 +105,7 @@ const device = {
             createOnClarity(tenant.toLowerCase(), req, res);
           }
         } else {
-          res.status(400).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: `device "${name}" already exists!`,
           });
@@ -123,92 +124,58 @@ const device = {
   deleteThing: async (req, res) => {
     try {
       const { device, tenant } = req.query;
-      if (tenant) {
-        if (!device) {
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          });
-        }
-        let deviceExist = await doesDeviceExist(device, tenant);
-        if (deviceExist) {
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
-          logText("deleting device from TS.......");
-          logElement("the channel ID", channelID);
-          await axios
-            .delete(constants.DELETE_THING_URL(channelID))
-            .then(async (response) => {
-              deleteDevice(tenant, res, device);
-            })
-            .catch(function(error) {
-              logElement("unable to delete device from TS", error);
-              logElement("this is the error response", error.response.status);
+      res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
+        message: "endpoint temporarily disabled",
+        success: false,
+        device,
+      });
+      // if (tenant) {
+      //   if (!device) {
+      //     res.status(HTTPStatus.BAD_REQUEST).json({
+      //       message:
+      //         "please use the correct query parameter, check API documentation",
+      //       success: false,
+      //     });
+      //   }
+      //   let deviceExist = await doesDeviceExist(device, tenant);
+      //   if (deviceExist) {
+      //     const channelID = await getChannelID(
+      //       req,
+      //       res,
+      //       device,
+      //       tenant.toLowerCase()
+      //     );
+      //     logText("deleting device from TS.......");
+      //     logElement("the channel ID", channelID);
+      //     await axios
+      //       .delete(constants.DELETE_THING_URL(channelID))
+      //       .then(async (response) => {
+      //         deleteDevice(tenant, res, device);
+      //       })
+      //       .catch(function(error) {
+      //         logElement("unable to delete device from TS", error);
+      //         logElement("this is the error response", error.response.status);
 
-              if (error.response.status == 404) {
-                deleteDevice(tenant, res, device);
-              } else {
-                tryCatchErrors(res, error);
-              }
-            });
-        } else {
-          logText("device does not exist in the network");
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message: "device does not exist in the network",
-            success: false,
-            device,
-          });
-        }
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
-      }
-    } catch (e) {
-      logElement(
-        "unable to carry out the entire deletion of device",
-        e.message
-      );
-      logObject("unable to carry out the entire deletion of device", e.message);
-      tryCatchErrors(res, e);
-    }
-  },
-
-  deleteChannel: async (channel, req, res, error) => {
-    try {
-      if (!channel) {
-        res.status(400).json({
-          message: "the channel is missing in the request body",
-          success: false,
-        });
-      }
-      logText("deleting device from TS.......");
-      logElement("the channel ID", channel);
-      await axios
-        .delete(constants.DELETE_THING_URL(channel))
-        .then(async (response) => {
-          logText("successfully deleted device from TS");
-          logObject("TS response data", response.data);
-          res.status(500).json({
-            message: "unable to create device on platform",
-            success: false,
-            error: error,
-          });
-        })
-        .catch(function(error) {
-          logElement("unable to delete device from TS", error);
-          res.status(500).json({
-            message: "unable to delete the device from TS",
-            success: false,
-            error,
-          });
-        });
+      //         if (error.response.status == 404) {
+      //           deleteDevice(tenant, res, device);
+      //         } else {
+      //           tryCatchErrors(res, error);
+      //         }
+      //       });
+      //   } else {
+      //     logText("device does not exist in the network");
+      //     res.status(HTTPStatus.BAD_REQUEST).json({
+      //       message: "device does not exist in the network",
+      //       success: false,
+      //       device,
+      //     });
+      //   }
+      // } else {
+      //   return res.status(HTTPStatus.BAD_REQUEST).json({
+      //     success: false,
+      //     message: "missing query params, please check documentation",
+      //   });
+      // }
     } catch (e) {
       logElement(
         "unable to carry out the entire deletion of device",
@@ -225,7 +192,7 @@ const device = {
 
       if (tenant) {
         if (!device) {
-          res.status(400).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             message:
               "please use the correct query parameter, check API documentation",
             success: false,
@@ -248,7 +215,7 @@ const device = {
             .then(async (response) => {
               logText("successfully cleared the device in TS");
               logObject("response from TS", response.data);
-              res.status(200).json({
+              res.status(HTTPStatus.OK).json({
                 message: `successfully cleared the data for device ${device}`,
                 success: true,
                 updatedDevice,
@@ -256,14 +223,14 @@ const device = {
             })
             .catch(function(error) {
               console.log(error);
-              res.status(500).json({
+              res.status(HTTPStatus.BAD_GATEWAY).json({
                 message: `unable to clear the device data, device ${device} does not exist`,
                 success: false,
               });
             });
         } else {
           logText(`device ${device} does not exist in the system`);
-          res.status(500).json({
+          res.status(HTTPStatus.OK).json({
             message: `device ${device} does not exist in the system`,
             success: false,
           });
@@ -381,22 +348,33 @@ const device = {
 
   updateDevice: async (req, res) => {
     try {
-      const { tenant } = req.query;
-      if (tenant) {
-        const device = await getModelByTenant(
-          tenant.toLowerCase(),
-          "device",
-          DeviceSchema
-        ).findById(req.params.id);
-        if (!device.device.equals(req.device._id)) {
-          return res.sendStatus(HTTPStatus.UNAUTHORIZED);
+      const { tenant, device } = req.query;
+      const deviceBody = req.body;
+      const deviceFilter = {
+        name: device,
+      };
+      let options = {
+        new: true,
+        upsert: true,
+      };
+      if (tenant && device) {
+        let deviceExist = await doesDeviceExist(device, tenant);
+        if (deviceExist) {
+          await softUpdateDevice(
+            res,
+            device,
+            deviceBody,
+            deviceFilter,
+            tenant,
+            options
+          );
+        } else {
+          logText(`device ${device} does not exist in the system`);
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message: `device ${device} does not exist in the system`,
+            success: false,
+          });
         }
-
-        Object.keys(req.body).forEach((key) => {
-          device[key] = req.body[key];
-        });
-
-        return res.status(HTTPStatus.OK).json(await device.save());
       } else {
         missingQueryParams(req, res);
       }
@@ -407,20 +385,25 @@ const device = {
 
   delete: async (req, res) => {
     try {
-      const { tenant } = req.query;
-      if (tenant) {
-        const device = await getModelByTenant(
-          tenant.toLowerCase(),
-          "device",
-          DeviceSchema
-        ).findById(req.params.id);
-
-        if (!device.device.equals(req.device._id)) {
-          return res.sendStatus(HTTPStatus.UNAUTHORIZED);
+      const { device, tenant } = req.query;
+      if (tenant && device) {
+        if (!device) {
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message:
+              "please use the correct query parameter, check API documentation",
+            success: false,
+          });
         }
-
-        await device.remove();
-        return res.sendStatus(HTTPStatus.OK);
+        let deviceExist = await doesDeviceExist(device, tenant);
+        if (deviceExist) {
+          deleteDevice(tenant, res, device);
+        } else {
+          logText(`device ${device} does not exist in the system`);
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message: `device ${device} does not exist in the system`,
+            success: false,
+          });
+        }
       } else {
         missingQueryParams(req, res);
       }
@@ -563,13 +546,17 @@ const device = {
   createOne: async (req, res) => {
     try {
       const { tenant } = req.query;
-      console.log("creating one device....");
-      const device = await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).createDevice(req.body);
-      return res.status(HTTPStatus.CREATED).json(device);
+      if (tenant) {
+        console.log("creating one device....");
+        const device = await getModelByTenant(
+          tenant.toLowerCase(),
+          "device",
+          DeviceSchema
+        ).createDevice(req.body);
+        return res.status(HTTPStatus.CREATED).json(device);
+      } else {
+        missingQueryParams(req, res);
+      }
     } catch (e) {
       tryCatchErrors(res, e);
     }
