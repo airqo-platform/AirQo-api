@@ -105,7 +105,7 @@ const device = {
             createOnClarity(tenant.toLowerCase(), req, res);
           }
         } else {
-          res.status(400).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: `device "${name}" already exists!`,
           });
@@ -189,7 +189,7 @@ const device = {
   deleteChannel: async (channel, req, res, error) => {
     try {
       if (!channel) {
-        res.status(400).json({
+        res.status(HTTPStatus.BAD_REQUEST).json({
           message: "the channel is missing in the request body",
           success: false,
         });
@@ -201,7 +201,7 @@ const device = {
         .then(async (response) => {
           logText("successfully deleted device from TS");
           logObject("TS response data", response.data);
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             message: "unable to create device on platform",
             success: false,
             error: error,
@@ -209,7 +209,7 @@ const device = {
         })
         .catch(function(error) {
           logElement("unable to delete device from TS", error);
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             message: "unable to delete the device from TS",
             success: false,
             error,
@@ -231,7 +231,7 @@ const device = {
 
       if (tenant) {
         if (!device) {
-          res.status(400).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             message:
               "please use the correct query parameter, check API documentation",
             success: false,
@@ -254,7 +254,7 @@ const device = {
             .then(async (response) => {
               logText("successfully cleared the device in TS");
               logObject("response from TS", response.data);
-              res.status(200).json({
+              res.status(HTTPStatus.OK).json({
                 message: `successfully cleared the data for device ${device}`,
                 success: true,
                 updatedDevice,
@@ -262,14 +262,14 @@ const device = {
             })
             .catch(function(error) {
               console.log(error);
-              res.status(500).json({
+              res.status(HTTPStatus.BAD_GATEWAY).json({
                 message: `unable to clear the device data, device ${device} does not exist`,
                 success: false,
               });
             });
         } else {
           logText(`device ${device} does not exist in the system`);
-          res.status(500).json({
+          res.status(HTTPStatus.OK).json({
             message: `device ${device} does not exist in the system`,
             success: false,
           });
@@ -438,7 +438,7 @@ const device = {
           deleteDevice(tenant, res, device);
         } else {
           logText(`device ${device} does not exist in the system`);
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_REQUEST).json({
             message: `device ${device} does not exist in the system`,
             success: false,
           });
