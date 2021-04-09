@@ -113,7 +113,33 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
+deviceSchema.pre("save", function(next) {
+  if (this.isModified("name")) {
+    this.name = this._removeOnlySpaces(this.name);
+  }
+  return next();
+});
+
+deviceSchema.pre("update", function(next) {
+  if (this.isModified("name")) {
+    this.name = this._removeOnlySpaces(this.name);
+  }
+  return next();
+});
+
+deviceSchema.pre("findByIdAndUpdate", function(next) {
+  this.options.runValidators = true;
+  if (this.isModified("name")) {
+    this.name = this._removeOnlySpaces(this.name);
+  }
+  return next();
+});
+
 deviceSchema.methods = {
+  _removeOnlySpaces(name) {
+    let transformedName = name.replace(/\s\s+/g, " ");
+    return transformedName;
+  },
   toJSON() {
     return {
       id: this.id,
