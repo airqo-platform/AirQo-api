@@ -68,7 +68,7 @@ const getDetail = async (req, res) => {
     const skip = parseInt(req.query.skip, 0);
     const { tenant, name, chid, loc } = req.query;
     const filter = generateDeviceFilter(tenant.toLowerCase(), name, chid, loc);
-    logElement("the filter", filter);
+    logObject("the filter object", filter);
     const devices = await getModelByTenant(
       tenant.toLowerCase(),
       "device",

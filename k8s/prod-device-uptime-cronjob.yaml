@@ -11,6 +11,12 @@ metadata:
   name: prod-device-uptime-job
   namespace: production
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1
   jobTemplate:

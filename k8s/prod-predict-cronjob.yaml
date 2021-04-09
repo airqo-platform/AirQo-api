@@ -13,6 +13,12 @@ metadata:
   selfLink: /apis/batch/v1beta1/namespaces/default/cronjobs/airqo-predict-job
   uid: 9b71a693-43e2-4559-aff2-d821fc3bfe80
 spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1
   jobTemplate:
