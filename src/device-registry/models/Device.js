@@ -115,14 +115,18 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    this.name = this._removeOnlySpaces(this.name);
+    this.name = this._transformDeviceName(this.name);
+    let n = this.name;
+    console.log({ n });
   }
   return next();
 });
 
 deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
-    this.name = this._removeOnlySpaces(this.name);
+    this.name = this._transformDeviceName(this.name);
+    let n = this.name;
+    console.log({ n });
   }
   return next();
 });
@@ -130,15 +134,16 @@ deviceSchema.pre("update", function(next) {
 deviceSchema.pre("findByIdAndUpdate", function(next) {
   this.options.runValidators = true;
   if (this.isModified("name")) {
-    this.name = this._removeOnlySpaces(this.name);
+    this.name = this._transformDeviceName(this.name);
   }
   return next();
 });
 
 deviceSchema.methods = {
-  _removeOnlySpaces(name) {
-    let transformedName = name.replace(/\s\s+/g, " ");
-    return transformedName;
+  _transformDeviceName(name) {
+    let removedOnlySpaces = name.replace(/\s+/g, "_").toLowerCase();
+    let enforcedNamingConvention = removedOnlySpaces.replace(/airqo/, "aq");
+    return enforcedNamingConvention;
   },
   toJSON() {
     return {
