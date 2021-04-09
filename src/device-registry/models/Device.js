@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
+const tranformDeviceName = require("../utils/transform-device-name");
 
 const deviceSchema = new mongoose.Schema(
   {
@@ -141,9 +142,8 @@ deviceSchema.pre("findByIdAndUpdate", function(next) {
 
 deviceSchema.methods = {
   _transformDeviceName(name) {
-    let removedOnlySpaces = name.replace(/\s+/g, "_").toLowerCase();
-    let enforcedNamingConvention = removedOnlySpaces.replace(/airqo/, "aq");
-    return enforcedNamingConvention;
+    let transformedName = tranformDeviceName(name);
+    return transformedName;
   },
   toJSON() {
     return {
