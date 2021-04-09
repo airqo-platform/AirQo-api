@@ -186,45 +186,6 @@ const device = {
     }
   },
 
-  deleteChannel: async (channel, req, res, error) => {
-    try {
-      if (!channel) {
-        res.status(HTTPStatus.BAD_REQUEST).json({
-          message: "the channel is missing in the request body",
-          success: false,
-        });
-      }
-      logText("deleting device from TS.......");
-      logElement("the channel ID", channel);
-      await axios
-        .delete(constants.DELETE_THING_URL(channel))
-        .then(async (response) => {
-          logText("successfully deleted device from TS");
-          logObject("TS response data", response.data);
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            message: "unable to create device on platform",
-            success: false,
-            error: error,
-          });
-        })
-        .catch(function(error) {
-          logElement("unable to delete device from TS", error);
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            message: "unable to delete the device from TS",
-            success: false,
-            error,
-          });
-        });
-    } catch (e) {
-      logElement(
-        "unable to carry out the entire deletion of device",
-        e.message
-      );
-      logObject("unable to carry out the entire deletion of device", e.message);
-      tryCatchErrors(res, e);
-    }
-  },
-
   clearThing: async (req, res) => {
     try {
       const { device, tenant } = req.query;
