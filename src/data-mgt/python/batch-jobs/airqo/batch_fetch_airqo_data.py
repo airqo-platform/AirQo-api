@@ -1,8 +1,9 @@
+import copy
+import glob
 import json
 import math
 import os
 from datetime import datetime
-from threading import Thread
 
 import requests
 import luigi
@@ -10,10 +11,12 @@ import pandas as pd
 from google.cloud import bigquery
 import traceback
 
-DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 START_DATE_TIME = os.getenv("START_DATE_TIME")
 STOP_DATE_TIME = os.getenv("STOP_DATE_TIME")
+DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
+DEVICE_REGISTRY_PRODUCTION_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
+INSERTION_ENVIRONMENT = os.getenv("INSERTION_ENVIRONMENT")
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
@@ -37,6 +40,70 @@ class DataConstants:
     INTERNAL_HUM = "internalHumidity"
 
 
+class Environment:
+    STAGING = "staging"
+    PRODUCTION = "production"
+    BOTH = "both"
+
+
+class DeviceRegistry:
+
+    def __init__(self, measurements):
+        self.__measurements = measurements
+        self.__tenant = "airqo"
+
+        if INSERTION_ENVIRONMENT == Environment.STAGING:
+            self.__url = DEVICE_REGISTRY_STAGING_URL
+        elif INSERTION_ENVIRONMENT == Environment.PRODUCTION:
+            self.__url = DEVICE_REGISTRY_PRODUCTION_URL
+        elif INSERTION_ENVIRONMENT == Environment.BOTH:
+            self.__url = None
+        else:
+            raise Exception("Environment not specified")
+
+    def insert_measurements(self):
+
+        if self.__url is None:
+
+            self.__add_to_events_collection(DEVICE_REGISTRY_PRODUCTION_URL)
+            self.__add_to_events_collection(DEVICE_REGISTRY_STAGING_URL)
+
+        else:
+            self.__add_to_events_collection(None)
+
+    def __add_to_events_collection(self, base_endpoint):
+
+        data = copy.deepcopy(self.__measurements)
+
+        if base_endpoint is None:
+            base_url = self.__url
+        else:
+            base_url = base_endpoint
+
+        try:
+            device = data.pop("device")
+
+            json_data = json.dumps([data])
+
+            headers = {'Content-Type': 'application/json'}
+
+            base_url = base_url + "devices/events/add?device=" + device + "&tenant=" + self.__tenant
+
+            results = requests.post(base_url, json_data, headers=headers, verify=False)
+
+            if results.status_code == 200:
+                print(results.json())
+            else:
+                print("Device registry failed to insert values. Status Code : " + str(results.status_code)
+                      + ", Url : " + base_url
+                      + ", Data : " + json_data
+                      + "\n")
+
+        except Exception as ex:
+            traceback.print_exc()
+            print("Error Occurred while inserting measurements: " + str(ex))
+
+
 class GetAirqoDevices(luigi.Task):
     """
     Luigi task to fetch all airqo devices
@@ -44,7 +111,10 @@ class GetAirqoDevices(luigi.Task):
 
     def run(self):
 
-        api_url = DEVICE_REGISTRY_BASE_URL + "devices?tenant=airqo"
+        if INSERTION_ENVIRONMENT == Environment.PRODUCTION:
+            api_url = DEVICE_REGISTRY_PRODUCTION_URL + "devices?tenant=airqo"
+        else:
+            api_url = DEVICE_REGISTRY_STAGING_URL + "devices?tenant=airqo"
 
         try:
             results = requests.get(api_url)
@@ -181,77 +251,92 @@ class AddValuesToEventsCollection(luigi.Task):
 
     def run(self):
 
-        threads = []
-
         device_measurements = pd.read_json('data/device_measurements.json')
-
-        calibrated_data = []
 
         for index, row in device_measurements.iterrows():
 
             data = row.to_dict()
 
-            calibrated_value = get_calibrated_value(row[DataConstants.CHANNEL_ID],
-                                                    row[DataConstants.TIME],
-                                                    row[DataConstants.PM2_5]["value"])
-
-            if calibrated_value is not None:
-                data[DataConstants.PM2_5]["calibratedValue"] = calibrated_value
-
-            calibrated_data.append(data)
+            # calibrated_value = get_calibrated_value(row[DataConstants.CHANNEL_ID],
+            #                                         row[DataConstants.TIME],
+            #                                         row[DataConstants.PM2_5]["value"])
+            #
+            # if calibrated_value is not None:
+            #     data[DataConstants.PM2_5]["calibratedValue"] = calibrated_value
 
             # Add Values To Events Collection
-            thread = Thread(target=events_collection_insertion, args=(data, "airqo"))
-            threads.append(thread)
-            thread.start()
-
-        for thread in threads:
-            thread.join()
+            device_registry = DeviceRegistry(data)
+            device_registry.insert_measurements()
 
         with self.output().open('w') as f:
-            json.dump(list(calibrated_data), f)
+            json.dump(list([]), f)
 
 
-def events_collection_insertion(data, tenant):
+class AddExistingValuesToEventsCollection(luigi.Task):
 
-    try:
+    def requires(self):
+        return GetAirqoDevices()
 
-        device = data.pop(DataConstants.DEVICE)
+    def output(self):
+        return luigi.LocalTarget("data/output/output.json")
 
-        json_data = json.dumps([data])
+    def run(self):
 
-        headers = {'Content-Type': 'application/json'}
-        url = DEVICE_REGISTRY_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
+        device_measurements_files = glob.glob('data/measurements/*.csv')
 
-        results = requests.post(url, json_data, headers=headers, verify=False)
+        devices = pd.read_json('data/devices.json')
 
-        if results.status_code == 200:
-            print(results.json())
-        else:
-            print("Device registry failed to insert values. Status Code : " + str(results.status_code))
+        for filename in device_measurements_files:
 
-    except Exception as ex:
-        print("Error Occurred while inserting measurements: " + str(ex))
+            device_measurements = pd.read_csv(filename, index_col=None, header=0)
 
-# Insertions have been transferred to the the above class since the time it takes to get
-# calibrated values is equal or less to the time it takes to insert measurements
-#
-# class AddValuesToEventsCollection(luigi.Task):
-#
-#     def requires(self):
-#         return AddCalibratedValues()
-#
-#     def output(self):
-#         return luigi.LocalTarget("data/output.json")
-#
-#     def run(self):
-#         device_measurements = pd.read_json('data/device_measurements_with_calibrated_values.json')
-#
-#         for index, row in device_measurements.iterrows():
-#             events_collection_insertion(row.to_dict(), "airqo")
-#
-#         with self.output().open('w') as f:
-#             json.dump(list([]), f)
+            for index, row in device_measurements.iterrows():
+
+                device_name = None
+                device_location = dict({
+                    "latitude": None,
+                    "longitude": None
+                })
+
+                for device_index, device_row in devices.iterrows():
+                    if str(device_row['channelID']) == str(row["channel_id"]):
+                        device_name = device_row['name']
+                        if "latitude" in device_row.keys() and "longitude" in device_row.keys():
+                            device_location["latitude"] = device_row["latitude"]
+                            device_location["longitude"] = device_row["longitude"]
+                        break
+
+                if device_name is None:
+                    continue
+
+                device_data = dict({
+                    DataConstants.DEVICE: device_name,
+                    DataConstants.CHANNEL_ID: row["channel_id"],
+                    DataConstants.LOCATION: {"latitude":
+                                                 {"value": check_float(device_location.get("latitude"))},
+                                             "longitude":
+                                                 {"value": check_float(device_location.get("longitude"))}
+                                             },
+                    DataConstants.FREQUENCY: "minute",
+                    DataConstants.TIME: pd.Timestamp(row["created_at"]).isoformat(),
+                    DataConstants.PM2_5: {"value": check_float(row["pm2_5"])},
+                    DataConstants.PM10: {"value": check_float(row["pm10"])},
+                    DataConstants.S2_PM2_5: {"value": check_float(row["s2_pm2_5"])},
+                    DataConstants.S2_PM10: {"value": check_float(row["s2_pm10"])},
+                    DataConstants.BATTERY: {"value": check_float(row["voltage"])},
+                    DataConstants.ALTITUDE: {"value": check_float(row["altitude"])},
+                    DataConstants.SPEED: {"value": check_float(row["wind"])},
+                    DataConstants.SATELLITES: {"value": check_float(row["no_sats"])},
+                    DataConstants.HDOP: {"value": check_float(row["hdope"])},
+                    DataConstants.INTERNAL_TEMP: {"value": check_float(row["temperature"])},
+                    DataConstants.INTERNAL_HUM: {"value": check_float(row["humidity"])},
+                })
+
+                device_registry = DeviceRegistry(device_data)
+                device_registry.insert_measurements()
+
+        with self.output().open('w') as f:
+            json.dump(list([]), f)
 
 
 if __name__ == '__main__':
