@@ -35,11 +35,42 @@ const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
   }
 };
 
+const extractSecondStringElement = (item) => {
+  const str = item;
+  const slicingStart = 0;
+  const secondItem = str
+    .slice(slicingStart)
+    .trim()
+    .split(" ")[1];
+  return secondItem;
+};
+
+const generateRegexExpressionFromStringElement = (element) => {
+  let regex = `/${element}$/`;
+  let slicedSecondRegex = regex.slice(1, -1);
+  return slicedSecondRegex;
+};
+
+const hasWhiteSpace = (string) => {
+  return string.indexOf(" ") >= 0;
+};
+
 const generateDeviceFilter = (tenant, name, channel, location) => {
   if (tenant && name && !channel && !location) {
-    return {
-      name: name,
-    };
+    let filter = {};
+    let doesHaveWhiteSpace = hasWhiteSpace(name);
+    if (doesHaveWhiteSpace) {
+      let extractedDeviceName = extractSecondStringElement(name);
+      let regexExpression = generateRegexExpressionFromStringElement(
+        extractedDeviceName
+      );
+      filter = {
+        name: { $regex: regexExpression, $options: "i" },
+      };
+    } else {
+      filter = { name };
+    }
+    return filter;
   } else if (tenant && !name && channel && !location) {
     return {
       channelID: channel,

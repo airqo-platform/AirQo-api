@@ -5,6 +5,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const axios = require("axios");
 const constants = require("../config/constants");
+const tranformDeviceName = require("../utils/transform-device-name");
 
 const deleteDevice = require("./delete-device");
 
@@ -36,8 +37,8 @@ const getChannelID = async (req, res, deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    logObject("the device details", deviceDetails);
-    logElement("the channel ID", deviceDetails[0]._doc.channelID);
+    // logObject("the device details", deviceDetails);
+    // logElement("the channel ID", deviceDetails[0]._doc.channelID);
     let channeID = deviceDetails[0]._doc.channelID;
     return channeID;
   } catch (e) {
@@ -56,9 +57,9 @@ const doesDeviceExist = async (deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    logElement("device element", device);
-    logObject("device Object", device);
-    logElement("does device exist?", !isEmpty(device));
+    // logElement("device element", device);
+    // logObject("device Object", device);
+    // logElement("does device exist?", !isEmpty(device));
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {
@@ -107,8 +108,10 @@ const updateThingBodies = (req, res) => {
     isActive,
     tags,
     elevation,
+    pictures,
     siteName,
     locationName,
+    photos,
   } = req.body;
 
   let deviceBody = {
@@ -142,10 +145,28 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
     ...(!isEmpty(siteName) && { siteName }),
     ...(!isEmpty(locationName) && { locationName }),
+    ...(!isEmpty(pictures) && { $addToSet: { pictures: pictures } }),
   };
 
+  if (photos) {
+    delete deviceBody.pictures;
+    deviceBody = {
+      ...deviceBody,
+      ...(!isEmpty(photos) && {
+        $pullAll: { pictures: photos },
+      }),
+    };
+  }
+
+  let options = {
+    new: true,
+    upsert: true,
+  };
+
+  let transformedName = tranformDeviceName(name);
+
   let tsBody = {
-    ...(!isEmpty(name) && { name: name }),
+    ...(!isEmpty(name) && { name: transformedName }),
     ...(!isEmpty(elevation) && { elevation: elevation }),
     ...(!isEmpty(tags) && { tags: tags }),
     ...(!isEmpty(latitude) && { latitude: latitude }),
@@ -154,7 +175,7 @@ const updateThingBodies = (req, res) => {
     ...(!isEmpty(visibility) && { public_flag: visibility }),
   };
 
-  return { deviceBody, tsBody };
+  return { deviceBody, tsBody, options };
 };
 
 const clearEventsBody = () => {
