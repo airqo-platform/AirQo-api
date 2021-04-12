@@ -1,11 +1,15 @@
-package net.airqo;
+package net.airqo.connectors.models;
 
-import java.util.ArrayList;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+
+import java.io.Serializable;
 import java.util.HashMap;
 
-public class RawMeasurements {
+public class RawMeasurements implements Serializable {
 
     private String _id;
+    private String recId;
     private String time;
     private String device;
     private String deviceCode;
@@ -18,6 +22,14 @@ public class RawMeasurements {
 
     public void set_id(String _id) {
         this._id = _id;
+    }
+
+    public String getRecId() {
+        return recId;
+    }
+
+    public void setRecId(String recId) {
+        this.recId = recId;
     }
 
     public String getTime() {

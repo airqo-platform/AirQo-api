@@ -1,0 +1,18 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaConnector
+metadata:
+  name: kcca-source-connector
+  labels:
+    strimzi.io/cluster: kcca-source-connector-cluster
+spec:
+  class: net.airqo.connectors.KccaSourceConnector
+  tasksMax: 2
+  config:
+    topic: INPUT_TOPIC
+    clarityApiKey: CLARITY_API_KEY
+    clarityApiBaseUrl: CLARITY_BASE_URL
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+

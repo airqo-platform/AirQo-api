@@ -1,5 +1,6 @@
 package net.airqo;
 
+import com.google.gson.reflect.TypeToken;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -8,12 +9,15 @@ import org.apache.kafka.streams.StreamsBuilder;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
-import org.apache.kafka.streams.kstream.Produced;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Type;
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
+
+import com.google.gson.Gson;
+import org.apache.kafka.streams.kstream.Produced;
 
 public class KccaDeviceMeasurements {
 
@@ -40,7 +44,6 @@ public class KccaDeviceMeasurements {
         }
         catch (IOException ex){
             System.err.println(ex.getMessage());
-//            ex.printStackTrace();
             System.exit(1);
         }
 
@@ -53,79 +56,106 @@ public class KccaDeviceMeasurements {
 
     }
 
-    public static TransformedMeasurements transformMeasurements(RawMeasurements rawMeasurements) {
+    public static List<TransformedMeasurements> transformMeasurements(String rawMeasurements) {
 
-        TransformedMeasurements transformedMeasurements = new TransformedMeasurements();
+        if(rawMeasurements.startsWith("\""))
+            rawMeasurements = rawMeasurements.replaceFirst("\"", "");
 
-        transformedMeasurements.setDevice(rawMeasurements.getDeviceCode());
-        transformedMeasurements.setFrequency("daily");
-        transformedMeasurements.setLocation(rawMeasurements.getLocation());
-        transformedMeasurements.setTime(rawMeasurements.getTime());
+        if(rawMeasurements.endsWith("\""))
+            rawMeasurements = rawMeasurements.substring(0, rawMeasurements.length() - 1);
 
-        ArrayList<HashMap<String, HashMap<String, Double>>> measurements = new ArrayList<>();
+        rawMeasurements = rawMeasurements.replace("\\\"", "\"");
+        Gson gson = new Gson();
 
-       for(HashMap<String, HashMap<String, Double>> components : rawMeasurements.getMeasurements()){
+        Type listType = new TypeToken<List<RawMeasurements>>() {}.getType();
+        List<RawMeasurements> deviceMeasurements = gson.fromJson(rawMeasurements, listType);
 
-           Set<String> componentsKeys = components.keySet();
+        List<TransformedMeasurements> transformedMeasurements = new ArrayList<>();
 
-           HashMap<String, HashMap<String, Double>> hashMap = new HashMap<>();
+        deviceMeasurements.forEach(rawMeasurement -> {
 
-           for (String key: componentsKeys) {
+            TransformedMeasurements transformedMeasurement = new TransformedMeasurements();
 
-               switch (key){
-                   case "temperature":
-                       hashMap.put("internalTemperature", components.get(key));
-                       break;
+            transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
+            transformedMeasurement.setFrequency("daily");
+            transformedMeasurement.setTime(rawMeasurement.getTime());
 
-                   case "relHumid":
-                       hashMap.put("internalHumidity", components.get(key));
-                       break;
+            ArrayList<Double> coordinates  = (ArrayList<Double>) rawMeasurement.getLocation().get("coordinates");
+            transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Double>>(){{
+                put("latitude", new HashMap<String, Double>(){{
+                    put("value", coordinates.get(0));
+                }});
+                put("longitude", new HashMap<String, Double>(){{
+                    put("value", coordinates.get(1));
+                }});
+            }});
 
-                   case "pm10ConcMass":
-                       hashMap.put("pm10", components.get(key));
-                       break;
+            for (String key: rawMeasurement.getCharacteristics().keySet()) {
 
-                   case "pm2_5ConcMass":
-                       hashMap.put("pm2_5", components.get(key));
-                       break;
+                double rawValue = rawMeasurement.getCharacteristics().get(key).get("raw");
+                double calibrateValue;
 
-                   case "no2Conc":
-                       hashMap.put("no2", components.get(key));
-                       break;
+                if(rawMeasurement.getCharacteristics().get(key).containsKey("calibratedValue"))
+                    calibrateValue = rawMeasurement.getCharacteristics().get(key).get("calibratedValue");
+                else
+                    calibrateValue = rawMeasurement.getCharacteristics().get(key).get("value");
 
-                   case "pm1ConcMass":
-                       hashMap.put("pm1", components.get(key));
-                       break;
+                HashMap<String, Double> values = new HashMap<String, Double>(){{
+                    put("value", rawValue);
+                    put("calibratedValue", calibrateValue);
 
-                   default:
-                       hashMap = null;
-                       break;
+                }};
 
-               }
 
-               if(hashMap != null)
-                   measurements.add(hashMap);
+                switch (key){
+                    case "temperature":
+                        transformedMeasurement.setInternalTemperature(values);
+                        break;
 
-           }
+                    case "relHumid":
+                        transformedMeasurement.setInternalHumidity(values);
+                        break;
 
-       }
+                    case "pm10ConcMass":
+                        transformedMeasurement.setPm10(values);
+                        break;
 
-       transformedMeasurements.setMeasurements(measurements);
+                    case "pm2_5ConcMass":
+                        transformedMeasurement.setPm2_5(values);
+                        break;
 
-       return transformedMeasurements;
+                    case "no2Conc":
+                        transformedMeasurement.setNo2(values);
+                        break;
+
+                    case "pm1ConcMass":
+                        transformedMeasurement.setPm1(values);
+                        break;
+
+                    default:
+                        break;
+
+                }
+            }
+
+            transformedMeasurements.add(transformedMeasurement);
+
+        });
+
+        return transformedMeasurements;
 
 
     }
 
     static void createMeasurementsStream(final StreamsBuilder builder) {
 
-        final KStream<String, RawMeasurements> source = builder
-                .stream(INPUT_TOPIC, Consumed.with(Serdes.String(), CustomSerdes.RawMeasurements()));
+        final KStream<String, String> source = builder
+                .stream(INPUT_TOPIC, Consumed.with(Serdes.String(), Serdes.String()));
 
-        final KStream<String, TransformedMeasurements> transformed = source
-                .map((key, rawMeasurements) -> new KeyValue<>(rawMeasurements.getId(), transformMeasurements(rawMeasurements)));
+        final KStream<String, List<TransformedMeasurements>> transformedList = source
+                .map((key, value) -> new KeyValue<>("", transformMeasurements(value)));
 
-        transformed.to(OUTPUT_TOPIC, Produced.with(Serdes.String(), CustomSerdes.ProcessedMeasurements()));
+        transformedList.to(OUTPUT_TOPIC);
     }
 
     public static void main(final String[] args) {
@@ -157,3 +187,79 @@ public class KccaDeviceMeasurements {
     }
 
 }
+
+
+//    public static TransformedMeasurements transformMeasurements(RawMeasurements rawMeasurements) {
+//
+//        TransformedMeasurements transformedMeasurements = new TransformedMeasurements();
+//
+//        transformedMeasurements.setDevice(rawMeasurements.getDeviceCode());
+//        transformedMeasurements.setFrequency("daily");
+//        transformedMeasurements.setLocation(rawMeasurements.getLocation());
+//        transformedMeasurements.setTime(rawMeasurements.getTime());
+//
+//        ArrayList<HashMap<String, HashMap<String, Double>>> measurements = new ArrayList<>();
+//
+//       for(HashMap<String, HashMap<String, Double>> components : rawMeasurements.getMeasurements()){
+//
+//           Set<String> componentsKeys = components.keySet();
+//
+//           HashMap<String, HashMap<String, Double>> hashMap = new HashMap<>();
+//
+//           for (String key: componentsKeys) {
+//
+//               switch (key){
+//                   case "temperature":
+//                       hashMap.put("internalTemperature", components.get(key));
+//                       break;
+//
+//                   case "relHumid":
+//                       hashMap.put("internalHumidity", components.get(key));
+//                       break;
+//
+//                   case "pm10ConcMass":
+//                       hashMap.put("pm10", components.get(key));
+//                       break;
+//
+//                   case "pm2_5ConcMass":
+//                       hashMap.put("pm2_5", components.get(key));
+//                       break;
+//
+//                   case "no2Conc":
+//                       hashMap.put("no2", components.get(key));
+//                       break;
+//
+//                   case "pm1ConcMass":
+//                       hashMap.put("pm1", components.get(key));
+//                       break;
+//
+//                   default:
+//                       hashMap = null;
+//                       break;
+//
+//               }
+//
+//               if(hashMap != null)
+//                   measurements.add(hashMap);
+//
+//           }
+//
+//       }
+//
+//       transformedMeasurements.setMeasurements(measurements);
+//
+//       return transformedMeasurements;
+//
+//
+//    }
+//
+//    static void createMeasurementsStream(final StreamsBuilder builder) {
+//
+//        final KStream<String, RawMeasurements> source = builder
+//                .stream(INPUT_TOPIC, Consumed.with(Serdes.String(), CustomSerdes.RawMeasurements()));
+//
+//        final KStream<String, TransformedMeasurements> transformed = source
+//                .map((key, rawMeasurements) -> new KeyValue<>(rawMeasurements.get_id(), transformMeasurements(rawMeasurements)));
+//
+//        transformed.to(OUTPUT_TOPIC, Produced.with(Serdes.String(), CustomSerdes.TransformedMeasurements()));
+//    }
