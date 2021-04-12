@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 from datetime import timedelta, datetime
@@ -7,11 +8,20 @@ import luigi
 import pandas as pd
 import traceback
 
-DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
 START_DATE_TIME = os.getenv("START_DATE_TIME")
 STOP_DATE_TIME = os.getenv("STOP_DATE_TIME")
+DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
+DEVICE_REGISTRY_PRODUCTION_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
+INSERTION_ENVIRONMENT = os.getenv("INSERTION_ENVIRONMENT")
+os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
+
+
+class Environment:
+    STAGING = "staging"
+    PRODUCTION = "production"
+    BOTH = "both"
 
 
 class GetKccaDevices(luigi.Task):
@@ -39,25 +49,62 @@ class GetKccaDevices(luigi.Task):
         return luigi.LocalTarget("data/devices.json")
 
 
-def events_collection_insertion(data, tenant):
+class DeviceRegistry:
 
-    try:
-        device = data.pop("device")
+    def __init__(self, measurements):
+        self.__measurements = measurements
+        self.__tenant = "kcca"
 
-        json_data = json.dumps([data])
-
-        headers = {'Content-Type': 'application/json'}
-        url = DEVICE_REGISTRY_BASE_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
-
-        results = requests.post(url, json_data, headers=headers, verify=False)
-
-        if results.status_code == 200:
-            print(results.json())
+        if INSERTION_ENVIRONMENT == Environment.STAGING:
+            self.__url = DEVICE_REGISTRY_STAGING_URL
+        elif INSERTION_ENVIRONMENT == Environment.PRODUCTION:
+            self.__url = DEVICE_REGISTRY_PRODUCTION_URL
+        elif INSERTION_ENVIRONMENT == Environment.BOTH:
+            self.__url = None
         else:
-            print("Device registry failed to insert values. Status Code : " + str(results.status_code))
+            raise Exception("Environment not specified")
 
-    except Exception as ex:
-        print("Error Occurred while inserting measurements: " + str(ex))
+    def insert_measurements(self):
+
+        if self.__url is None:
+
+            self.__add_to_events_collection(DEVICE_REGISTRY_PRODUCTION_URL)
+            self.__add_to_events_collection(DEVICE_REGISTRY_STAGING_URL)
+
+        else:
+            self.__add_to_events_collection(None)
+
+    def __add_to_events_collection(self, base_endpoint):
+
+        data = copy.deepcopy(self.__measurements)
+
+        if base_endpoint is None:
+            base_url = self.__url
+        else:
+            base_url = base_endpoint
+
+        try:
+            device = data.pop("device")
+
+            json_data = json.dumps([data])
+
+            headers = {'Content-Type': 'application/json'}
+
+            base_url = base_url + "devices/events/add?device=" + device + "&tenant=" + self.__tenant
+
+            results = requests.post(base_url, json_data, headers=headers, verify=False)
+
+            if results.status_code == 200:
+                print(results.json())
+            else:
+                print("Device registry failed to insert values. Status Code : " + str(results.status_code)
+                      + ", Url : " + base_url
+                      + ", Data : " + json_data
+                      + "\n")
+
+        except Exception as ex:
+            traceback.print_exc()
+            print("Error Occurred while inserting measurements: " + str(ex))
 
 
 class GetDeviceMeasurements(luigi.Task):
@@ -171,7 +218,8 @@ class TransformMeasurements(luigi.Task):
 
                 transformed_measurements.append(transformed_data)
 
-                events_collection_insertion(transformed_data, "kcca")
+                device_registry = DeviceRegistry(transformed_data)
+                device_registry.insert_measurements()
 
             except Exception:
                 traceback.print_exc()
