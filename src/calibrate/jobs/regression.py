@@ -5,11 +5,6 @@ import datetime
 from sklearn.linear_model import LinearRegression
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-import scipy.stats
-import joblib
-from scipy.optimize import curve_fit
-import uncertainties.unumpy as unp
-import uncertainties as unc
 import google.auth
 from google.cloud import bigquery
 
@@ -26,7 +21,7 @@ def get_lowcost_data():
     WHERE 
         channel_id = 967600
     AND
-        DATE(created_at) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 2 MONTH) 
+        DATE(created_at) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 3 MONTH) 
     AND 
         DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)
     GROUP BY 
@@ -58,7 +53,7 @@ def get_bam_data():
     WHERE 
         channel_id = -24516
     AND
-        DATE(Time) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 2 MONTH) 
+        DATE(Time) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 3 MONTH) 
     AND 
         DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)
     GROUP BY 
