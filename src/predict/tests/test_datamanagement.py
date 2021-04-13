@@ -1,13 +1,51 @@
 import pytest
+import mongomock
+from unittest.mock import patch 
 import sys
 sys.path.append('./')
 from models.datamanagement import get_channel_data_raw, save_predictions, get_channel_best_configurations
 from models.datamanagement import calculate_hourly_averages, get_channel_id, get_all_coordinates
 import pandas as pd
+from google.cloud import bigquery
+
+schema = [ #raw_feeds_pms
+    bigquery.SchemaField("created_at", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("entry_id", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field1", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field2", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field3", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field4", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field5", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field6", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field7", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("field8", "STRING", mode="NULLABLE"),
+    bigquery.SchemaField("channel_id", "STRING", mode="NULLABLE")
+]
+
+
+class MockDf:
+    def to_dataframe(self):
+        return pd.DataFrame()
+
+class MockClient:
+    def query(self, *args, **kwargs):
+        return #return instance of mock df
+class MockQuery:
+    pass
+
+
 
 @pytest.fixture
 def sample_df():
+
     return get_channel_data_raw(689761)
+
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_using_mocking(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
+    get_channel_data_raw(689761)
 
 
 def test_get_channel_data_raw(sample_df):
@@ -104,5 +142,10 @@ def test_id_raises_exception_on_wrong_types():
 def test_get_all_coordinates():
     coords = get_all_coordinates()
     assert type(coords) == list and list(coords[0].keys()) == ['channel_id', 'latitude', 'longitude']
+
+if __name__=='__main__':
+    sample_df()
+    #print(df.head())
+
 
 
