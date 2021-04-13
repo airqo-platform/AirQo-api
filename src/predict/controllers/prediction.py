@@ -213,7 +213,7 @@ def predict_channel_next_24_hours():
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
-@cache.cached(timeout=3600)
+#@cache.cached(timeout=3600)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
