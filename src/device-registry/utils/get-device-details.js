@@ -29,6 +29,8 @@ const redis = require("../config/redis");
 const { getModelByTenant } = require("./multitenancy");
 const { createOnThingSpeak, createOnClarity } = require("./integrations");
 
+const jsonify = require("./jsonify");
+
 const {
   isDeviceNotDeployed,
   isDeviceNotRecalled,
@@ -62,11 +64,10 @@ const {
   generateDeviceFilter,
 } = require("./generate-filter");
 
-const getDetail = async (req, res) => {
+const getDetail = async (tenant, name, chid, loc, limitValue, skipValue) => {
   try {
-    const limit = parseInt(req.query.limit, 0);
-    const skip = parseInt(req.query.skip, 0);
-    const { tenant, name, chid, loc } = req.query;
+    const limit = parseInt(limitValue, 0);
+    const skip = parseInt(skipValue, 0);
     const filter = generateDeviceFilter(tenant.toLowerCase(), name, chid, loc);
     logObject("the filter object", filter);
     const devices = await getModelByTenant(
@@ -74,7 +75,8 @@ const getDetail = async (req, res) => {
       "device",
       DeviceSchema
     ).list({ skip, limit, filter });
-    return devices;
+    let parsedDevices = jsonify(devices);
+    return parsedDevices;
   } catch (error) {
     tryCatchErrors(res, error);
   }
