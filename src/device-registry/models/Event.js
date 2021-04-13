@@ -154,9 +154,11 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index(
-  { "values.time": 1, "values.device": 1, day: 1 },
+  { "values.time": 1, "values.device": 1, day: 1, "values.frequency": 1 },
   { unique: true }
 );
+
+eventSchema.index({ day: 1 }, { unique: true });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
