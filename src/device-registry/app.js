@@ -8,8 +8,10 @@ require("app-module-path").addPath(__dirname);
 var cookieParser = require("cookie-parser");
 var api = require("./routes/api");
 const { mongodb } = require("./config/database");
+const { kafkaConsumer } = require("./controllers/kafka-consumer");
 
 mongodb;
+kafkaConsumer;
 
 var app = express();
 
