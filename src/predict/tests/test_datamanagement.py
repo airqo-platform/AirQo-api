@@ -13,9 +13,9 @@ class MockIterator:
     def __init__(self):
         self.total_rows = 3
         self.data =  pd.DataFrame([
-            {'channel_id': 689761, 'number_of_days_to_use': 2, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10},
-            {'channel_id': 689761, 'number_of_days_to_use': 5, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10},
-            {'channel_id': 689761, 'number_of_days_to_use': 10, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10}
+            {'channel_id': 123, 'number_of_days_to_use': 2, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10},
+            {'channel_id': 123, 'number_of_days_to_use': 5, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10},
+            {'channel_id': 123, 'number_of_days_to_use': 10, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10}
             ])
         self.index=0
 
@@ -30,14 +30,11 @@ class MockIterator:
         else:
             raise StopIteration
 
-        #for index, row in self.data.iterrows():
-        #    return row
-
 class MockDf:
     def to_dataframe(self):
         data = {'time': ['2019-11-27T17:33:05Z', '2019-11-22T18:08:26Z'], 
         'pm2_5': ['30', '40'],
-        'channel_id': ['689761', '689761']}
+        'channel_id': ['123', '123']}
         return pd.DataFrame(data=data)
 
     def result(self):
@@ -46,7 +43,6 @@ class MockDf:
 class MockDataset:
     def table(self, *args, **kwargs):
         pass
-
 
 class MockClient:
     def query(self, *args, **kwargs):
@@ -62,17 +58,17 @@ class MockClient:
         pass
 
 class MockQuery:
-    pass
-
+    def __init__(self):
+        self.use_legacy_sql =False
 
 
 @pytest.fixture
-def sample_df():
-    data = {'time': ['2019-11-27T17:33:05Z', '2019-11-22T18:08:26Z'], 
-        'pm2_5': ['30', '40'],
-        'channel_id': ['689761', '12345']}
-
-    return calculate_hourly_averages(get_channel_data_raw(718028))
+#def sample_df():
+#    data = {'time': ['2019-11-27T17:33:05Z', '2019-11-22T18:08:26Z'], 
+#        'pm2_5': ['30', '40'],
+#        'channel_id': ['123', '12345']}
+#
+#    return calculate_hourly_averages(get_channel_data_raw(718028))
 
 
 @patch('google.cloud.bigquery.Client')
@@ -80,21 +76,32 @@ def sample_df():
 def test_get_channel_data_raw(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    sample_df = get_channel_data_raw(689761)
+    sample_df = get_channel_data_raw(123)
     assert len(sample_df.shape)==2 and sample_df.shape[0]!=0
     
-
-def test_raises_exception_on_empty_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_raises_exception_on_empty_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_channel_data_raw()
 
-def test_raises_exception_on_wrong_type_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_raises_exception_on_wrong_type_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_channel_data_raw('Snow white')
 
-def test_raises_exception_on_too_many_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_raises_exception_on_too_many_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
-        get_channel_data_raw(689761, 689761)
+        get_channel_data_raw(123, 123)
 
 @patch('google.cloud.bigquery.Client')
 @patch('google.cloud.bigquery.QueryJobConfig')
@@ -110,11 +117,7 @@ def test_save_predictions(mock_client):
     model_predictions = [('test_model', 82, 'bwaise', 0.32, 32.1, 10.3, datetime(2020, 2, 1, 0, 0, 0), datetime(2020, 2, 1, 0, 0, 0), 
     0.3, 20.3, datetime(2020, 2, 1, 0, 0, 0))]
     mock_client.return_value=MockClient()
-    save_predictions(model_predictions) # i need to run this with mocked objects i.e. the client and the table. the two lines below are an example of assert statements ref: https://stackoverflow.com/questions/53700181/python-unit-testing-google-bigquery
-
-    #mock_table.assert_called_with('project.dataset.blahblahbloo', schema=schema)
-    #mock_client().create_table.assert_called_with(mock_table.return_value)
-    #pass
+    save_predictions(model_predictions)
 
 
 @patch('google.cloud.bigquery.Client')
@@ -122,22 +125,38 @@ def test_save_predictions(mock_client):
 def test_get_channel_best_configurations(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    best_config = get_channel_best_configurations(689761)
+    best_config = get_channel_best_configurations(123)
     assert len(best_config)!= 0 and 'number_of_days_to_use' in best_config[0].keys()
 
-def test_config_raises_exception_on_empty_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_config_raises_exception_on_empty_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_channel_best_configurations()
 
-def test_config_raises_exception_on_wrong_type_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_config_raises_exception_on_wrong_type_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_channel_best_configurations('Snow white')
 
-def test_config_raises_exception_on_too_many_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_config_raises_exception_on_too_many_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
-       get_channel_best_configurations(689761, 689761)
-#10
-def test_config_raises_exception_on_incorrect_int():
+       get_channel_best_configurations(123, 123)
+
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_config_raises_exception_on_incorrect_int(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(ValueError):
         get_channel_best_configurations(123)
 
@@ -146,23 +165,39 @@ def test_config_raises_exception_on_incorrect_int():
 def test_calculate_hourly_averages(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    sample_df = get_channel_data_raw(689761)
+    sample_df = get_channel_data_raw(123)
     hourly_df = calculate_hourly_averages(sample_df)
     assert hourly_df.iloc[0]['time'].minute == 0 and hourly_df.iloc[-1]['time'].minute == 0
 
-def test_avg_raises_exception_on_empty_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_empty_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         calculate_hourly_averages()
 
-def test_avg_raises_exception_on_wrong_type_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_wrong_type_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         calculate_hourly_averages(pd.Series())
 
-def test_avg_raises_exception_on_too_many_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_too_many_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
        calculate_hourly_averages(sample_df, pd.DataFrame())
-#15
-def test_avg_raises_exception_on_empty_df():
+
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_empty_df(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(ValueError):
         calculate_hourly_averages(pd.DataFrame())
 
@@ -171,21 +206,37 @@ def test_avg_raises_exception_on_empty_df():
 def test_get_channel_id(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    assert get_channel_id('0.314', '32.59') ==689761
+    assert get_channel_id('0.314', '32.59') ==123
 
-def test_id_raises_exception_on_empty_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_id_raises_exception_on_empty_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_channel_id()
 
-def test_id_raises_exception_on_wrong_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_id_raises_exception_on_wrong_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(ValueError):
         get_channel_id('Bruce', 'Wayne')
 
-def test_id_raises_exception_on_too_many_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_id_raises_exception_on_too_many_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
        get_channel_id('0.314', '32.59', '28.3')
-#20
-def test_id_raises_exception_on_wrong_types():
+
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_id_raises_exception_on_wrong_types(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_channel_id([1,2,3], ['a', 'b', 'c'])
 
