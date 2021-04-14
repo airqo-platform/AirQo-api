@@ -8,48 +8,33 @@ from models.datamanagement import calculate_hourly_averages, get_channel_id, get
 import pandas as pd
 from google.cloud import bigquery
 
-schema = [ #raw_feeds_pms
-    bigquery.SchemaField("created_at", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("entry_id", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field1", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field2", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field3", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field4", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field5", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field6", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field7", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("field8", "STRING", mode="NULLABLE"),
-    bigquery.SchemaField("channel_id", "STRING", mode="NULLABLE")
-]
-
 
 class MockDf:
     def to_dataframe(self):
-        return pd.DataFrame()
+        data = {'time': ['2019-11-27T17:33:05Z', '2019-11-22T18:08:26Z'], 
+        'pm2_5': ['30', '40'],
+        'channel_id': ['689761', '12345']}
+        return pd.DataFrame(data=data)
+
+    def result(self):
+        pass
 
 class MockClient:
     def query(self, *args, **kwargs):
-        return #return instance of mock df
+        return MockDf() #return instance of mock df
+
 class MockQuery:
     pass
 
 
-
-@pytest.fixture
-def sample_df():
-
-    return get_channel_data_raw(689761)
-
 @patch('google.cloud.bigquery.Client')
 @patch('google.cloud.bigquery.QueryJobConfig')
-def test_using_mocking(mock_query, mock_client):
+def test_get_channel_data_raw(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    get_channel_data_raw(689761)
-
-
-def test_get_channel_data_raw(sample_df):
+    sample_df = get_channel_data_raw(689761)
     assert len(sample_df.shape)==2 and sample_df.shape[0]!=0
+    
 
 def test_raises_exception_on_empty_arg():
     with pytest.raises(TypeError):
@@ -62,10 +47,15 @@ def test_raises_exception_on_wrong_type_arg():
 def test_raises_exception_on_too_many_args():
     with pytest.raises(TypeError):
         get_channel_data_raw(689761, 689761)
-#5
-def test_raises_exception_on_incorrect_int():
+
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_raises_exception_on_incorrect_int(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(ValueError):
         get_channel_data_raw(123)
+
 
 #def test_save_predictions(mocker):
     #model_predictions = [('test_model', 82, 'bwaise', 0.32, 32.1, 10.3, datetime(2020, 2, 1, 0, 0, 0), datetime(2020, 2, 1, 0, 0, 0), 
@@ -79,7 +69,8 @@ def test_raises_exception_on_incorrect_int():
     #pass
 
 
-
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
 def test_get_channel_best_configurations():
     best_config = get_channel_best_configurations(689761)
     assert len(best_config)!= 0 and 'number_of_days_to_use' in best_config[0].keys()
