@@ -191,7 +191,7 @@ def test_avg_raises_exception_on_too_many_args(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
-       calculate_hourly_averages(sample_df, pd.DataFrame())
+       calculate_hourly_averages(pd.DataFrame(), pd.DataFrame())
 
 @patch('google.cloud.bigquery.Client')
 @patch('google.cloud.bigquery.QueryJobConfig')
@@ -247,10 +247,5 @@ def test_get_all_coordinates(mock_query, mock_client):
     mock_query.return_value=MockQuery()
     coords = get_all_coordinates()
     assert type(coords) == list and list(coords[0].keys()) == ['channel_id', 'latitude', 'longitude']
-
-if __name__=='__main__':
-    sample_df()
-    #print(df.head())
-
 
 
