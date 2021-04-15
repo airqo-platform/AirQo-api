@@ -137,7 +137,9 @@ def test_gaps_raises_exception_on_too_many_args(data):
         clean_df = fill_gaps_and_set_datetime(data, pd.DataFrame())
 
 def test_simple_forecast_ci(clean_data):
+    print (clean_data)
     test_forecast = simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours']) 
+    print(test_forecast)
     assert type(test_forecast) == tuple and len(test_forecast)==3
 
 
@@ -161,4 +163,12 @@ def test_forecast_raises_exception_on_too_many_args(clean_data):
         simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours'], 32) 
 
 if __name__=='__main__':
-    test_fill_gaps_and_set_datetime()
+    df = pd.DataFrame({'time': [datetime(2020, 2, 1, 0, 0, 0), datetime(2020, 2, 1, 0, 0, 0)],
+    'pm2_5': [30.2, 40.2],
+    'channel_id': [123, 123]})
+    clean_df = fill_gaps_and_set_datetime(df)
+    data = {'data':clean_df.values,
+    'number_of_days':7, 
+    'considered_hours': 24
+    }
+    test_simple_forecast_ci(data)
