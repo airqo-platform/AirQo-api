@@ -4,7 +4,7 @@ sys.path.append('./')
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
 
 
-def test_good_validate_inputs():
+def test_validate_inputs():
     test_data = {
         'selected_datetime':'2020-01-24 00:00',
         'latitude':'0.3284992',
