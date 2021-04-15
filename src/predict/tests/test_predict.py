@@ -1,10 +1,19 @@
 import pytest
 import pandas as pd
+from unittest.mock import patch 
 import sys
 from datetime import datetime
 sys.path.append('./')
 from models.predict import connect_mongo, make_prediction_using_averages, fill_gaps_and_set_datetime, simple_forecast_ci
 from models.datamanagement import get_channel_data_raw, calculate_hourly_averages
+
+
+class MockClient:
+    pass
+
+class MockQuery:
+    def __init__(self):
+        self.use_legacy_sql =False
 
 @pytest.fixture
 def data():
@@ -19,17 +28,22 @@ def clean_data(data):
     }
     return data
 
-
-def test_connect_mongo():
+@patch('google.cloud.bigquery.Client')
+def test_connect_mongo(mock_client):
+    mock_client.return_value=MockClient()
     db = connect_mongo()
     assert 'devices' in db.list_collection_names()
 
-def test_make_prediction_using_averages():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_make_prediction_using_averages(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     data = {
-        'chan': '718028',
+        'chan': '123',
         'time':datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"),
-        'lat': '0.3075',
-        'long': '32.6206'
+        'lat': '0.32',
+        'long': '32.10'
         }
     predictions = make_prediction_using_averages(data['chan'], data['time'], data['lat'], data['long'])
     assert list(predictions.keys()) == ['predictions']
