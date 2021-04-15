@@ -38,9 +38,23 @@ class MockDf:
     def result(self):
         return MockIterator()
 
+class MockDataset:
+    def table(self, *args, **kwargs):
+        pass
+
+
 class MockClient:
     def query(self, *args, **kwargs):
         return MockDf()
+
+    def dataset(self, *args, **kwargs):
+        return MockDataset()
+
+    def get_table(self, *args, **kwargs):
+        pass
+
+    def insert_rows(self, *args, **kwargs):
+        pass
 
 class MockQuery:
     def __init__(self):
@@ -72,24 +86,36 @@ def test_make_prediction_using_averages(mock_query, mock_client):
     mock_query.return_value=MockQuery()
     data = {
         'chan': '123',
-        'time':datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"),
+        'time':datetime.strptime('2019-11-27 17:00', "%Y-%m-%d %H:%M"),
         'lat': '0.32',
         'long': '32.10'
         }
     predictions = make_prediction_using_averages(data['chan'], data['time'], data['lat'], data['long'])
     assert list(predictions.keys()) == ['predictions']
 
-def test_avg_raises_exception_on_empty_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_empty_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         make_prediction_using_averages()
 
-def test_avg_raises_exception_on_wrong_arg():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_wrong_arg(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(ValueError):
-        make_prediction_using_averages('wrong_arg', datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"), '0.3075', '32.6206')
+        make_prediction_using_averages('wrong_arg', datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"), '0.32', '32.10')
 
-def test_avg_raises_exception_on_too_many_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_avg_raises_exception_on_too_many_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
-        make_prediction_using_averages('718028', datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"), '0.3075', '32.6206', 'additional_arg')
+        make_prediction_using_averages('123', datetime.strptime('2020-01-24 00:00', "%Y-%m-%d %H:%M"), '0.32', '32.10', 'additional_arg')
 
 def test_fill_gaps_and_set_datetime(data):
     clean_df = fill_gaps_and_set_datetime(data)
