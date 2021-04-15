@@ -154,9 +154,11 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index(
-  { "values.time": 1, "values.device": 1, day: 1 },
+  { "values.time": 1, "values.device": 1, day: 1, "values.frequency": 1 },
   { unique: true }
 );
+
+eventSchema.index({ day: 1 }, { unique: true });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
@@ -184,10 +186,21 @@ eventSchema.statics = {
   },
   list({ skipInt = 0, limitInt = 50, filter = {} } = {}) {
     return this.aggregate()
-      .match(filter)
       .unwind("values")
       .match(filter)
-      .sort({ day: -1 })
+      .project({
+        _id: 0,
+        day: 0,
+        __v: 0,
+        createdAt: 0,
+        first: 0,
+        last: 0,
+        nValues: 0,
+        updatedAt: 0,
+        "values._id": 0,
+      })
+      .replaceRoot("values")
+      .sort({ "values.time": -1, _id: 1 })
       .skip(skipInt)
       .limit(limitInt);
   },
