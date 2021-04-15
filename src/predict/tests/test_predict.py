@@ -7,9 +7,40 @@ sys.path.append('./')
 from models.predict import connect_mongo, make_prediction_using_averages, fill_gaps_and_set_datetime, simple_forecast_ci
 from models.datamanagement import get_channel_data_raw, calculate_hourly_averages
 
+class MockIterator:
+    def __init__(self):
+        self.total_rows = 3
+        self.data =  pd.DataFrame([
+            {'channel_id': 123, 'number_of_days_to_use': 2, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10},
+            {'channel_id': 123, 'number_of_days_to_use': 5, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10},
+            {'channel_id': 123, 'number_of_days_to_use': 10, 'considered_hours': 24, 'latitude': 0.32, 'longitude': 32.10}
+            ])
+        self.index=0
+
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        if self.index < self.data.shape[0]:
+            result = self.data.iloc[self.index]
+            self.index+=1
+            return result
+        else:
+            raise StopIteration
+
+class MockDf:
+    def to_dataframe(self):
+        data = {'time': ['2019-11-27T17:33:05Z', '2019-11-22T18:08:26Z'], 
+        'pm2_5': ['30', '40'],
+        'channel_id': ['123', '123']}
+        return pd.DataFrame(data=data)
+
+    def result(self):
+        return MockIterator()
 
 class MockClient:
-    pass
+    def query(self, *args, **kwargs):
+        return MockDf()
 
 class MockQuery:
     def __init__(self):
