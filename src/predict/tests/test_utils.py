@@ -49,6 +49,9 @@ class MockQuery:
     def __init__(self):
         self.use_legacy_sql =False
 
+class MockMongoClient:
+    pass
+
 
 
 @patch('google.cloud.bigquery.Client')
@@ -74,8 +77,10 @@ def test_raises_exception_on_no_of_args(mock_query, mock_client):
     with pytest.raises(TypeError):
         get_closest_channel(32.1)
 
-def test_get_gp_predictions():
-    assert len(get_gp_predictions()) == 10000
+@patch('pymongo.MongoClient')
+def test_get_gp_predictions(mock_mongo_client):
+    mock_mongo_client = MockMongoClient()
+    assert len(get_gp_predictions()) != 0
 
 def test_str_to_date():
     assert str_to_date('2020-02-01 00:00:00') == datetime(2020, 2, 1, 0, 0, 0)
@@ -87,4 +92,8 @@ def test_raises_exception_on_non_string_args():
 def test_raises_exception_on_incorrect_string_args():
     with pytest.raises(ValueError):
         str_to_date('Cinderella')
+
+
+if __name__=='__main__':
+    test_get_gp_predictions()
 
