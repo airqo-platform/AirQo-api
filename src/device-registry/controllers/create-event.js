@@ -36,7 +36,25 @@ const createEvent = {
             device,
             measurements
           );
-          insertMeasurements(res, tenant, transformedMeasurements);
+          let response = await insertMeasurements(
+            tenant,
+            transformedMeasurements
+          );
+          if (response.success == true) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully added all the events",
+              valuesAdded: response.valuesAdded,
+            });
+          } else if (response.success == false) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: "finished the operation with some errors",
+              errors: response.errors,
+              valuesRejected: response.valuesRejected,
+              valuesAdded: response.valuesAdded,
+            });
+          }
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,

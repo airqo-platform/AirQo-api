@@ -5,7 +5,7 @@ const EventSchema = require("../models/Event");
 const HTTPStatus = require("http-status");
 const componentSchema = require("../models/Component");
 
-const insert = async (res, tenant, transformedMeasurements) => {
+const insert = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
   let eventsAdded = [];
   let eventsRejected = [];
@@ -52,19 +52,19 @@ const insert = async (res, tenant, transformedMeasurements) => {
     }
   }
   if (errors.length > 0) {
-    return res.status(HTTPStatus.BAD_GATEWAY).json({
+    return {
       success: false,
       message: "finished the operation with some errors",
       errors: errors,
       valuesRejected: eventsRejected,
       valuesAdded: eventsAdded,
-    });
+    };
   } else {
-    return res.status(HTTPStatus.OK).json({
+    return {
       success: true,
       message: "successfully added all the events",
       valuesAdded: eventsAdded,
-    });
+    };
   }
 };
 
