@@ -58,7 +58,11 @@ def test_get_closest_channel(mock_query, mock_client):
     mock_query.return_value=MockQuery()
     assert get_closest_channel(0.32, 32.10)== 123
 
-def test_raises_exception_on_non_numerical_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_raises_exception_on_non_numerical_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_closest_channel('cinder', 'ella')
 
