@@ -47,7 +47,7 @@ const createEvent = {
               valuesAdded: response.valuesAdded,
             });
           } else if (response.success == false) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
+            return res.status(HTTPStatus.BAD_REQUEST).json({
               success: false,
               message: "finished the operation with some errors",
               errors: response.errors,
