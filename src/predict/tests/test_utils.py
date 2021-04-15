@@ -94,6 +94,3 @@ def test_raises_exception_on_incorrect_string_args():
         str_to_date('Cinderella')
 
 
-if __name__=='__main__':
-    test_get_gp_predictions()
-
