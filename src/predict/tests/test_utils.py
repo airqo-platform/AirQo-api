@@ -66,7 +66,11 @@ def test_raises_exception_on_non_numerical_args(mock_query, mock_client):
     with pytest.raises(TypeError):
         get_closest_channel('cinder', 'ella')
 
-def test_raises_exception_on_no_of_args():
+@patch('google.cloud.bigquery.Client')
+@patch('google.cloud.bigquery.QueryJobConfig')
+def test_raises_exception_on_no_of_args(mock_query, mock_client):
+    mock_client.return_value=MockClient()
+    mock_query.return_value=MockQuery()
     with pytest.raises(TypeError):
         get_closest_channel(32.1)
 
