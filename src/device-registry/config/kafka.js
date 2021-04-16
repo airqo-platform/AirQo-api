@@ -1,14 +1,16 @@
 const kafka = require('kafka-node');
 //more: https://www.npmjs.com/package/kafka-node#consumer
 //more: https://medium.com/@theotow/event-sourcing-with-kafka-and-nodejs-9787a8e47716
+const { logObject, logElement, logText } = require("../utils/log");
 
-// const client = new kafka.KafkaClient('localhost:2181', 'my-client-id', {
-//     sessionTimeout: 300,
-//     spinDelay: 100,
-//     retries: 2
-// });
+const constants = require("./constants");
+const KAFKA_BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 
-const client = new kafka.KafkaClient('localhost:2181', {
+logElement("Kafka Bootstrap Servers", KAFKA_BOOTSTRAP_SERVERS);
+
+
+const client = new kafka.KafkaClient({
+    kafkaHost: KAFKA_BOOTSTRAP_SERVERS,
     sessionTimeout: 300,
     spinDelay: 100,
     retries: 2

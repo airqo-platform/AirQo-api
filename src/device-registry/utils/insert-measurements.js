@@ -51,21 +51,6 @@ const insert = async (tenant, transformedMeasurements) => {
       errors.push(e.message);
     }
   }
-  // if (errors.length > 0) {
-  //   return res.status(HTTPStatus.BAD_GATEWAY).json({
-  //     success: false,
-  //     message: "finished the operation with some errors",
-  //     errors: errors,
-  //     valuesRejected: eventsRejected,
-  //     valuesAdded: eventsAdded,
-  //   });
-  // } else {
-  //   return res.status(HTTPStatus.OK).json({
-  //     success: true,
-  //     message: "successfully added all the events",
-  //     valuesAdded: eventsAdded,
-  //   });
-  // }
 
   if (errors.length > 0) {
     return {
