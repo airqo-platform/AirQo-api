@@ -74,6 +74,11 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['lowcost_pm2_5'].notna()]
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['bam_pm'].notna()]
+
+    # extract month feature
+    hourly_combined_dataset['month'] = hourly_combined_dataset['Time'].dt.month
+    # extract hour feature
+    hourly_combined_dataset['hour'] = hourly_combined_dataset['Time'].dt.hour
     return hourly_combined_dataset
 
 def simple_linear_regression(hourly_combined_dataset):
@@ -100,7 +105,6 @@ def simple_linear_regression(hourly_combined_dataset):
 
 
 def mlr(hourly_combined_dataset):
-    X_MLRx = hourly_combined_dataset[['lowcost_pm2_5','temperature','humidity','lowcost_pm10']]
     X_MLR_muk = hourly_combined_dataset[['lowcost_pm2_5','temperature','humidity','lowcost_pm10']].values
     y_MLR_muk = hourly_combined_dataset['bam_pm'].values    
 
@@ -117,6 +121,31 @@ def mlr(hourly_combined_dataset):
     slope = regressor_MLR_muk.coef_
     
     # RMSE = np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))    
+    return slope, intercept, MAE2, RMSE2, r2_score2
+
+def random_forest(hourly_combined_dataset):
+    X_MLR_muk = hourly_combined_dataset[['lowcost_pm2_5','temperature','humidity','lowcost_pm10','month','hour']].values
+    y_MLR_muk = hourly_combined_dataset['bam_pm'].values    
+
+    X_train_MLR_muk, X_test_MLR_muk, y_train_MLR_muk, y_test_MLR_muk = train_test_split(X_MLR_muk, y_MLR_muk, test_size=0.2, random_state=0)
+    rf_regressor = RandomForestRegressor() 
+    # Fitting the model 
+    rf_reg = rf_regressor.fit(X_train_MLR_muk, y_train_MLR_muk) 
+    '''RandomForestRegressor(bootstrap=True, ccp_alpha=0.0, criterion='mse', 
+                    max_depth=None, max_features='auto', max_leaf_nodes=None, 
+                    max_samples=None, min_impurity_decrease=0.0, 
+                    min_impurity_split=None, min_samples_leaf=1, 
+                    min_samples_split=2, min_weight_fraction_leaf=0.0, 
+                    n_estimators=100, n_jobs=None, oob_score=False, 
+                    random_state=None, verbose=0, warm_start=False)'''
+
+    y_pred_mlr_muk = rf_regressor.predict(X_test_MLR_muk)
+    MAE2 = metrics.mean_absolute_error(y_test_MLR_muk, y_pred_mlr_muk)   
+    RMSE2 =  np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))
+    r2_score = metrics.r2_score(y_test_MLR_muk, y_pred_mlr_muk)
+
+    intercept = regressor_MLR_muk.intercept_
+    slope = regressor_MLR_muk.coef_  
     return slope, intercept, MAE2, RMSE2, r2_score2
 
     
