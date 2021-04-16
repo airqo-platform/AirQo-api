@@ -2,11 +2,11 @@ const kafka = require('kafka-node');
 const Consumer = kafka.Consumer;
 const KeyedMessage = kafka.KeyedMessage;
 const type = require('../../../models/avro');
-const { logObject } = require("../../../utils/log");
+const { logObject, logElement } = require("../../../utils/log");
 const client = require('../../../config/kafka');
 const constants = require("../../../config/constants");
 
-const { createEvent } = require("../../../services/insert-device-measurements");
+const insertMeasurtements = require("../../../services/insert-device-measurements");
 
 const KAFKA_TOPICS = constants.KAFKA_TOPICS;
 
@@ -27,17 +27,25 @@ let consumer = new Consumer(client, topics, options);
 
 consumer.on('message', function (message) {
 
-    logObject("Kafka Message", message);
+    try {
 
-    const data = message.value.replace(/\'/g, '"');
+        logObject("Kafka Message", message);
 
-    var json_data = JSON.parse(data);
-
-    const response = createEvent.addValues(json_data);
-
-    for(index in response){
-        logObject(index, response[index]);
+        const messageValue = message.value.replace(/\'/g, '"');
+    
+        const json_data = JSON.parse(messageValue);
+    
+        const response = insertMeasurtements.addValuesArray(json_data);
+    
+        for(index in response){
+            logObject(response[index].success, response[index]);
+        }
+        
+    } catch (error) {
+        logElement("Error Occurred in consumer", error);
     }
+
+
 
 
     // let buf = new Buffer(message.value, 'binary');
