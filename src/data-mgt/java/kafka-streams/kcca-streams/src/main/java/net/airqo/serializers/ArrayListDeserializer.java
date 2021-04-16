@@ -1,4 +1,4 @@
-package net.airqo;
+package net.airqo.serializers;
 
 import org.apache.kafka.common.serialization.Deserializer;
 

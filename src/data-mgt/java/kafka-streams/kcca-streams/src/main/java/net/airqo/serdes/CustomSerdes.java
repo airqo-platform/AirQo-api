@@ -1,5 +1,9 @@
-package net.airqo;
+package net.airqo.serdes;
 
+import net.airqo.models.RawMeasurements;
+import net.airqo.models.TransformedMeasurements;
+import net.airqo.serializers.JsonDeserializer;
+import net.airqo.serializers.JsonSerializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 

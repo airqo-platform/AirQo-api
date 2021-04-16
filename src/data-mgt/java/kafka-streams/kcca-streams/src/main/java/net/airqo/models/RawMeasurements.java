@@ -1,4 +1,4 @@
-package net.airqo;
+package net.airqo.models;
 
 import java.util.ArrayList;
 import java.util.HashMap;

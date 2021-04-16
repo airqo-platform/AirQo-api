@@ -1,5 +1,7 @@
-package net.airqo;
+package net.airqo.serdes;
 
+import net.airqo.serializers.ArrayListDeserializer;
+import net.airqo.serializers.ArrayListSerializer;
 import org.apache.kafka.common.serialization.Deserializer;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;

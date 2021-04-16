@@ -1,4 +1,4 @@
-package net.airqo;
+package net.airqo.serializers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.common.errors.SerializationException;

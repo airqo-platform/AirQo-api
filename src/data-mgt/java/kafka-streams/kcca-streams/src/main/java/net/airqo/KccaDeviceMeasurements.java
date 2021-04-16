@@ -1,6 +1,9 @@
 package net.airqo;
 
 import com.google.gson.reflect.TypeToken;
+import net.airqo.models.RawMeasurements;
+import net.airqo.models.TransformedMeasurements;
+import net.airqo.serdes.CustomSerdes;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -17,7 +20,6 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.gson.Gson;
-import org.apache.kafka.streams.kstream.Produced;
 
 public class KccaDeviceMeasurements {
 
@@ -78,6 +80,7 @@ public class KccaDeviceMeasurements {
 
             transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
             transformedMeasurement.setFrequency("daily");
+            transformedMeasurement.setTenant("kcca");
             transformedMeasurement.setTime(rawMeasurement.getTime());
 
             ArrayList<Double> coordinates  = (ArrayList<Double>) rawMeasurement.getLocation().get("coordinates");
@@ -105,7 +108,6 @@ public class KccaDeviceMeasurements {
                     put("calibratedValue", calibrateValue);
 
                 }};
-
 
                 switch (key){
                     case "temperature":

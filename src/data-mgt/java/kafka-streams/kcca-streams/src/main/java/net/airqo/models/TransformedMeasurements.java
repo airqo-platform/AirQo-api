@@ -1,4 +1,4 @@
-package net.airqo;
+package net.airqo.models;
 
 import java.util.HashMap;
 
@@ -6,6 +6,7 @@ public class TransformedMeasurements {
 
     private String frequency;
     private String time;
+    private String tenant;
     private String device;
     private HashMap<String, HashMap<String, Double>> location;
     private HashMap<String, Double> internalTemperature;
@@ -14,6 +15,14 @@ public class TransformedMeasurements {
     private HashMap<String, Double> pm2_5;
     private HashMap<String, Double> no2;
     private HashMap<String, Double> pm1;
+
+    public String getTenant() {
+        return tenant;
+    }
+
+    public void setTenant(String tenant) {
+        this.tenant = tenant;
+    }
 
     public String getFrequency() {
         return frequency;

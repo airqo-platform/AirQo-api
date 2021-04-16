@@ -1,20 +1,18 @@
 package net.airqo;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
+import net.airqo.models.RawMeasurements;
+import net.airqo.models.TransformedMeasurements;
+import net.airqo.serdes.ArrayListSerde;
+import net.airqo.serdes.CustomSerdes;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.streams.*;
 
 import java.util.*;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
-
-import static org.hamcrest.CoreMatchers.*;
-import static org.junit.Assert.*;
 
 public class KccaDeviceMeasurementsTest {
 
