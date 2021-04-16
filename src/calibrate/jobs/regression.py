@@ -20,10 +20,6 @@ def get_lowcost_data():
         `airqo-250220.thingspeak.clean_feeds_pms`
     WHERE 
         channel_id = 967600
-    AND
-        DATE(created_at) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 3 MONTH) 
-    AND 
-        DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)
     GROUP BY 
         created_at
     ORDER BY 
@@ -52,10 +48,6 @@ def get_bam_data():
         `airqo-250220.thingspeak.airqo_bam_data`
     WHERE 
         channel_id = -24516
-    AND
-        DATE(Time) BETWEEN DATE_SUB((DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)), INTERVAL 3 MONTH) 
-    AND 
-        DATE_SUB(DATE_TRUNC(CURRENT_DATE(), MONTH), INTERVAL 1 DAY)
     GROUP BY 
         Time,ConcHR_ug_m3, AT_C, RH
     ORDER BY 
