@@ -15,7 +15,7 @@ client = bigquery.Client.from_service_account_json("jobs/airqo-250220-5149c2aac8
 def get_lowcost_data():
     sql = """
     SELECT 
-        created_at, SUM(pm2_5 + s2_pm2_5)/2 as lowcost_pm
+        created_at, SUM(pm2_5 + s2_pm2_5)/2 as lowcost_pm2_5,SUM(pm10 + s2_pm10)/2 as lowcost_pm10
     FROM 
         `airqo-250220.thingspeak.clean_feeds_pms`
     WHERE 
@@ -26,7 +26,7 @@ def get_lowcost_data():
         created_at
         """
     lowcost_data = client.query(sql).to_dataframe()
-    lowcost_data = lowcost_data[(lowcost_data['lowcost_pm'] > 0)&(lowcost_data['lowcost_pm'] <= 500.4)]
+    lowcost_data = lowcost_data[(lowcost_data['lowcost_pm2_5'] > 0)&(lowcost_data['lowcost_pm2_5'] <= 500.4)]
                                        
     lowcost_data["TimeStamp"] = pd.to_datetime(lowcost_data["created_at"])
     lowcost_data["TimeStamp"] = lowcost_data["TimeStamp"]+datetime.timedelta(hours=3)
@@ -72,13 +72,13 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     bam_hourly_mean["Time"] = bam_hourly_timestamp
 
     hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
-    hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['lowcost_pm'].notna()]
+    hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['lowcost_pm2_5'].notna()]
     hourly_combined_dataset = hourly_combined_dataset[hourly_combined_dataset['bam_pm'].notna()]
     return hourly_combined_dataset
 
 def simple_linear_regression(hourly_combined_dataset):
 
-    X_muk = hourly_combined_dataset['lowcost_pm'].values
+    X_muk = hourly_combined_dataset['lowcost_pm2_5'].values
     X_muk = X_muk.reshape((-1, 1))
     y_muk = hourly_combined_dataset['bam_pm'].values
 
@@ -100,8 +100,8 @@ def simple_linear_regression(hourly_combined_dataset):
 
 
 def mlr(hourly_combined_dataset):
-    X_MLRx = hourly_combined_dataset[['lowcost_pm','temperature','humidity']]
-    X_MLR_muk = hourly_combined_dataset[['lowcost_pm','temperature','humidity']].values
+    X_MLRx = hourly_combined_dataset[['lowcost_pm2_5','temperature','humidity','lowcost_pm10']]
+    X_MLR_muk = hourly_combined_dataset[['lowcost_pm2_5','temperature','humidity','lowcost_pm10']].values
     y_MLR_muk = hourly_combined_dataset['bam_pm'].values    
 
     X_train_MLR_muk, X_test_MLR_muk, y_train_MLR_muk, y_test_MLR_muk = train_test_split(X_MLR_muk, y_MLR_muk, test_size=0.2, random_state=0)
