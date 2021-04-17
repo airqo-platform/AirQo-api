@@ -144,9 +144,7 @@ def random_forest(hourly_combined_dataset):
     MAE2 = metrics.mean_absolute_error(y_test_MLR_muk, y_pred_mlr_muk)   
     RMSE2 =  np.sqrt(metrics.mean_squared_error(y_test_MLR_muk, y_pred_mlr_muk))
     r2_score = metrics.r2_score(y_test_MLR_muk, y_pred_mlr_muk)
-
-    intercept = regressor_MLR_muk.intercept_
-    slope = regressor_MLR_muk.coef_  
-    return slope, intercept, MAE2, RMSE2, r2_score2
+ 
+    return rf_reg, MAE2, RMSE2, r2_score2
 
     
