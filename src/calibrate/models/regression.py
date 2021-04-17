@@ -1,5 +1,6 @@
 import numpy as np
 from jobs import regression as rg
+import pandas as pd
 
 
 class Regression():
@@ -28,13 +29,25 @@ class Regression():
         print('R2_2:', r2_score2) 
         return calibrated_value_mlr
 
-    def random_forest(self, hourly_combined_dataset, raw_value, temp, humidity, lowcost_pm10, month, hour):
-        slope, intercept, MAE2, RMSE2, r2_score2 = rg.mlr(hourly_combined_dataset)
-        calibrated_value_mlr = float(raw_values) * slope[0] + float(temp) * slope[1] + float(humidity) * slope[2] + intercept    
-        print('MAE2:', MAE2)   
-        print('RMSE2:', RMSE2) 
-        print('R2_2:', r2_score2) 
-        return calibrated_value_mlr
+    def random_forest(self, datetime, pm2_5, pm10, temperature,humidity,hourly_combined_dataset):
+        rf_reg, MAE3, RMSE3, r2_score3 = rg.random_forest(hourly_combined_dataset)
+
+        datetime = pd.to_datetime(datetime)
+        # extract month feature
+        month = datetime.month
+        # extract hour feature
+        hour = datetime.hour
+
+        input_variables = pd.DataFrame([[pm2_5, pm10, temperature, humidity, month, hour]],
+                                       columns=['pm2_5','temperature','humidity','pm10','month','hour'],
+                                       dtype='float',
+                                       index=['input'])
+
+        calibrated_value_rf =  rf_reg.predict(input_variables)[0]
+        print('MAE3:', MAE3)   
+        print('RMSE3:', RMSE3) 
+        print('R2_3:', r2_score3) 
+        return calibrated_value_rf
 
 if __name__ == "__main__":
     calibrateInstance = Regression()
