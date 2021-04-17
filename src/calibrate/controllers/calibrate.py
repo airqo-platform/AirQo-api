@@ -43,7 +43,7 @@ def calibrate():
         raw_values = data.get('raw_values')
         
         if (not datetime or not raw_values):
-            return jsonify({"message": "Please specify the datetime and raw_values in the body. Refer to the API documentation for details.", "success": False}), 400
+            return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
     
         rgModel = rg.Regression()
         hourly_combined_dataset = rgModel.hourly_combined_dataset
@@ -52,9 +52,8 @@ def calibrate():
         response = []
         for raw_value in raw_values:
             # value = calibrateModel.calibrate_sensor_raw_data(datetime, raw_value.get('sensor_id'), raw_value.get('raw_value'))
-            value = rgModel.simple_lr(raw_value.get('raw_value'), hourly_combined_dataset)
+            value = rgModel.random_forest(datetime, raw_value.get('pm2.5'),raw_value.get('pm10'),raw_value.get('temperature'),raw_value.get('humidity'),hourly_combined_dataset)
             response.append({'calibrated_value': value})
         return jsonify(response), 200
 
-    
 
