@@ -15,7 +15,7 @@ _logger = logging.getLogger(__name__)
 
 graph_bp = Blueprint('graph', __name__)
 
-@graph_bp.route('/api/v1/device/graph', methods=['GET','POST'])
+@graph_bp.route('/api/v1/analytics/device/graph', methods=['GET','POST'])
 @cross_origin()
 def get_filtered_data():
     if request.method=='POST':
