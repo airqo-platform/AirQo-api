@@ -204,7 +204,6 @@ def make_prediction_using_averages(entered_chan, entered_time, entered_latitude,
     # generating list of hours based on start time
     fcst_hours, start_hour = processing.forecast_hours(start_pred_time)
     selected_channel_id = int(entered_chan)
-    print(selected_channel_id)
     #hourly_data = datamanagement.get_channel_hourly_data(selected_channel_id)
     #data = datamanagement.get_channel_data(selected_channel_id) 
     data = datamanagement.get_channel_data_raw(selected_channel_id) 
@@ -315,7 +314,7 @@ def fill_gaps_and_set_datetime(d):
     # Interpolating gaps within the data
     #d['time'] = pd.to_datetime(d['time'])
     d.time = pd.to_datetime(d.time)
-    #print('datatypes',d.dtypes)
+    print('datatypes',d.dtypes)
     d = d.set_index('time')
     d = d.drop('channel_id', axis=1)
     d_cleaned = d.interpolate(method='time');
@@ -397,11 +396,8 @@ def simple_forecast_ci(history, configs, considered_hours):
         list_of_upper_ci_of_hourly_values.append(upper_ci_of_hourly_values)
 
     forecast = np.around(list_of_mean_hourly_values[::-1], decimals=2)
-    print(f'Forecast: {forecast}')#delete
     lower_ci_forecast = np.around(list_of_lower_ci_of_hourly_values[::-1], decimals=2)
-    print(f'Lower ci: {lower_ci_forecast}')#delete
     upper_ci_forecast = np.around(list_of_upper_ci_of_hourly_values[::-1], decimals=2)
-    print(f'Upper ci: {upper_ci_forecast}')#delete
 
     return forecast, lower_ci_forecast, upper_ci_forecast
 

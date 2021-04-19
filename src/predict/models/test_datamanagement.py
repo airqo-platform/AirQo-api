@@ -61,15 +61,6 @@ class MockQuery:
         self.use_legacy_sql =False
 
 
-@pytest.fixture
-#def sample_df():
-#    data = {'time': ['2019-11-27T17:33:05Z', '2019-11-22T18:08:26Z'], 
-#        'pm2_5': ['30', '40'],
-#        'channel_id': ['123', '12345']}
-#
-#    return calculate_hourly_averages(get_channel_data_raw(718028))
-
-
 @patch('google.cloud.bigquery.Client')
 @patch('google.cloud.bigquery.QueryJobConfig')
 def test_get_channel_data_raw(mock_query, mock_client):

@@ -4,28 +4,6 @@ import sys
 import requests
 sys.path.append('./')
 
-sample_response = {
-  "formatted_results": {
-    "predictions": [
-      {
-        "lower_ci": 66.08,
-        "prediction_time": "Thu, 23 Jan 2020 22:00:00 GMT",
-        "prediction_value": 110.74,
-        "upper_ci": 155.4
-      },
-      
-      {
-        "lower_ci": 55.46,
-        "prediction_time": "Fri, 24 Jan 2020 11:00:00 GMT",
-        "prediction_value": 65.12,
-        "upper_ci": 74.77
-      },
-      
-     
-    ]
-  }
-}
-
 @patch('requests.get')
 def test_get_next_24hr_predictions(mock_get):
     mock_get.return_value.status_code = 201

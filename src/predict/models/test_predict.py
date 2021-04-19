@@ -165,7 +165,3 @@ def test_forecast_raises_exception_on_wrong_arg():
 def test_forecast_raises_exception_on_too_many_args(clean_data):
     with pytest.raises(TypeError):
         simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours'], 32) 
-
-if __name__=='__main__':
-    db = connect_mongo()
-    print(db)
