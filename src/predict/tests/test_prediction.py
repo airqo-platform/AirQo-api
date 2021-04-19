@@ -43,8 +43,9 @@ def test_predict_avgs(mock_post):
     response = requests.post('http://127.0.0.1:5000/api/v1/predict', data=json_data)
     assert response.status_code== 200
 
-@patch('request.post') 
+@patch('requests.post') 
 def test_bad_predict_avgs(mock_post):
+    mock_post.return_value.status_code = 500
     response = requests.post('http://127.0.0.1:5000/api/v1/predict')
     assert response.status_code== 400
 
