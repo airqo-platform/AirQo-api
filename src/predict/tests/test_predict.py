@@ -81,7 +81,7 @@ def clean_data(data):
 
 @patch('pymongo.MongoClient')
 def test_connect_mongo(mock_mongo_client):
-    mock_mongo_client.return_value=MockMongoClient()
+    mock_mongo_client.return_value = MockMongoClient()
     db = connect_mongo()
     assert 'devices' in db.list_collection_names()
 
@@ -141,7 +141,6 @@ def test_gaps_raises_exception_on_too_many_args(data):
 
 def test_simple_forecast_ci(clean_data):
     test_forecast = simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours']) 
-    print(test_forecast)
     assert type(test_forecast) == tuple and len(test_forecast)==3
 
 
@@ -154,13 +153,6 @@ def test_forecast_raises_exception_on_wrong_arg():
         simple_forecast_ci('numpy', 10,  24)
 
 def test_forecast_raises_exception_on_too_many_args(clean_data):
-    #hourly_df = calculate_hourly_averages(get_channel_data_raw(718028))
-    #clean_df = fill_gaps_and_set_datetime(hourly_df)
-    #data = {'data':clean_df.values,
-    #'number_of_days':7, 
-    #'considered_hours': 24
-    #}
-
     with pytest.raises(TypeError):
         simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours'], 32) 
 
