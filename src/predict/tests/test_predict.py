@@ -1,6 +1,8 @@
 import pytest
 import pandas as pd
 from unittest.mock import patch 
+import mongomock
+import pymongo
 import sys
 from datetime import datetime
 sys.path.append('./')
@@ -79,11 +81,19 @@ def clean_data(data):
     }
     return data
 
-@patch('pymongo.MongoClient')
-def test_connect_mongo(mock_mongo_client):
-    mock_mongo_client.return_value = MockMongoClient()
-    db = connect_mongo()
-    assert 'devices' in db.list_collection_names()
+def test_connect_mongo():
+    with patch('pymongo.MongoClient', mongomock.MongoClient()):
+        devices = mongomock.MongoClient().db.collection
+        db = connect_mongo()
+        assert 'devices' in db.list_collection_names()
+
+#@patch('pymongo.MongoClient')
+#def test_connect_mongo():#(mock_mongo_client):
+#    mock_mongo_client.return_value['airqo_netmanager_staging'] = 'devices'
+#    db = connect_mongo()
+#     assert db == 'devices'
+#   #assert 'devices' in db.list_collection_names()
+
 
 @patch('google.cloud.bigquery.Client')
 @patch('google.cloud.bigquery.QueryJobConfig')
@@ -157,12 +167,5 @@ def test_forecast_raises_exception_on_too_many_args(clean_data):
         simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours'], 32) 
 
 if __name__=='__main__':
-    df = pd.DataFrame({'time': [datetime(2020, 2, 1, 0, 0, 0), datetime(2020, 2, 1, 0, 0, 0)],
-    'pm2_5': [30.2, 40.2],
-    'channel_id': [123, 123]})
-    clean_df = fill_gaps_and_set_datetime(df)
-    data = {'data':clean_df.values,
-    'number_of_days':7, 
-    'considered_hours': 24
-    }
-    test_simple_forecast_ci(data)
+    db = connect_mongo()
+    print(db)
