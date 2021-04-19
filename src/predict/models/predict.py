@@ -375,10 +375,15 @@ def simple_forecast_ci(history, configs, considered_hours):
         list_of_hours_to_count = []
         list_of_hourly_values = []
         for day in (np.arange(0, (days))):
-            hours_to_count = -(hour+ day*24)          
+            #print (f'Day: {day}')
+            #print(f'Hour: {hour}')
+            hours_to_count = -(hour+ day*24) 
+            #print(f'Hours to count:{hours_to_count}')       
             hourly_values = series[hours_to_count]
+            #print(f'Hourly values: {hourly_values}')
             list_of_hours_to_count.append(hours_to_count)
             list_of_hourly_values.append(hourly_values)
+            print(f'Hourly values list: {list_of_hourly_values}')
         #print('list of hourly values')
         #print(list_of_hourly_values)
 
@@ -392,8 +397,11 @@ def simple_forecast_ci(history, configs, considered_hours):
         list_of_upper_ci_of_hourly_values.append(upper_ci_of_hourly_values)
 
     forecast = np.around(list_of_mean_hourly_values[::-1], decimals=2)
+    print(f'Forecast: {forecast}')#delete
     lower_ci_forecast = np.around(list_of_lower_ci_of_hourly_values[::-1], decimals=2)
+    print(f'Lower ci: {lower_ci_forecast}')#delete
     upper_ci_forecast = np.around(list_of_upper_ci_of_hourly_values[::-1], decimals=2)
+    print(f'Upper ci: {upper_ci_forecast}')#delete
 
     return forecast, lower_ci_forecast, upper_ci_forecast
 

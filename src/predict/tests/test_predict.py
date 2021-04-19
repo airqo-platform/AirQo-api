@@ -56,6 +56,9 @@ class MockClient:
     def insert_rows(self, *args, **kwargs):
         pass
 
+class MockMongoClient:
+    pass
+
 class MockQuery:
     def __init__(self):
         self.use_legacy_sql =False
@@ -76,9 +79,9 @@ def clean_data(data):
     }
     return data
 
-@patch('google.cloud.bigquery.Client')
-def test_connect_mongo(mock_client):
-    mock_client.return_value=MockClient()
+@patch('pymongo.MongoClient')
+def test_connect_mongo(mock_mongo_client):
+    mock_mongo_client.return_value=MockMongoClient()
     db = connect_mongo()
     assert 'devices' in db.list_collection_names()
 
@@ -137,7 +140,6 @@ def test_gaps_raises_exception_on_too_many_args(data):
         clean_df = fill_gaps_and_set_datetime(data, pd.DataFrame())
 
 def test_simple_forecast_ci(clean_data):
-    print (clean_data)
     test_forecast = simple_forecast_ci(clean_data['data'], clean_data['number_of_days'], clean_data['considered_hours']) 
     print(test_forecast)
     assert type(test_forecast) == tuple and len(test_forecast)==3
