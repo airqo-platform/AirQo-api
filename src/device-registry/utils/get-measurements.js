@@ -17,6 +17,8 @@ const {
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
+const getDetail = require("../utils/get-device-details");
+
 const getMeasurements = async (
   res,
   recent,
@@ -45,8 +47,12 @@ const getMeasurements = async (
           callbackErrors(err, req, res);
         } else {
           const filter = generateEventsFilter(startTime, endTime, device);
+
+          let deviceDetail = await getDetail(tenant);
+          logElement("number of devices", deviceDetail.length);
+
           let skipInt = skip ? skip : 0;
-          let limitInt = limit ? limit : 50;
+          let limitInt = limit ? limit : deviceDetail.length;
 
           let allEvents = await getModelByTenant(
             tenant,
