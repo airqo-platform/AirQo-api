@@ -11,6 +11,12 @@ spec:
     matchLabels:
       app: sta-calibrate
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       labels:
@@ -23,6 +29,16 @@ spec:
           ports:
             - containerPort: 4001
               name: sta-calibrate
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 4001
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          env:
+            - name: GET_HOSTS_FROM
+              value: dns
 
 ---
 kind: Service
