@@ -1,8 +1,8 @@
 pipeline {
     agent any
     environment {
-        IMAGE_NAME_PROD = 'airqo-device-uptime-job'
-        IMAGE_NAME_STAGE = 'airqo-stage-device-uptime-job'
+        IMAGE_NAME_PROD = 'airqo-device-status-job'
+        IMAGE_NAME_STAGE = 'airqo-stage-device-status-job'
     }
     stages {
         stage("Start"){
@@ -21,7 +21,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/device-uptime/Dockerfile.stage.txt" . 
+                    docker build -t ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/device-status/Dockerfile.stage.txt" . 
                     """
                     withCredentials([file(credentialsId: '${env.GCR_CONFIG}', variable: 'GC_KEY')]){
                         sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${env.REGISTRY_URI}"
@@ -51,7 +51,7 @@ pipeline {
 
                     echo "Docker Build"
                     sh """
-                    docker build -t ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/device-uptime/Dockerfile" . 
+                    docker build -t ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/device-status/Dockerfile" . 
                     """
                     withCredentials([file(credentialsId: '${env.GCR_CONFIG}', variable: 'GC_KEY')]){
                         sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${env.REGISTRY_URI}"
@@ -70,7 +70,7 @@ pipeline {
                             }
                         failure{
                             echo "Build and Push Failed"
-                            echo 'device uptime service deployed successfully'
+                            echo 'device status service deployed successfully'
                             slackSend (color: '#FF0000', message: "FAILED TO BUILD AND PUSH IMAGE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
                             }
                     }
@@ -81,7 +81,7 @@ pipeline {
                 steps {
                     withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
                         sh """
-                        kubectl apply -f 'k8s/stage-device-uptime-cronjob.yaml'
+                        kubectl apply -f 'k8s/stage-device-status-cronjob.yaml'
                         """
                     }
                 }
@@ -91,7 +91,7 @@ pipeline {
                     }
                     failure{
                         echo "Failed deploying to staging"
-                        echo 'device uptime service deployment failed on staging'
+                        echo 'device status service deployment failed on staging'
                         slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
                     }
                 }
@@ -101,7 +101,7 @@ pipeline {
                 steps {
                     withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
                         sh """
-                        kubectl apply -f 'k8s/prod-device-uptime-cronjob.yaml'
+                        kubectl apply -f 'k8s/prod-device-status-cronjob.yaml'
                         """
                     }
                 }
@@ -110,14 +110,14 @@ pipeline {
                         echo "Successfully deployed to production"
                     }
                     failure{
-                        echo 'device uptime service deployment failed on production'
+                        echo 'device status service deployment failed on production'
                         slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
                     }
                 }
         }
         stage('Final'){
             steps {
-                echo 'device uptime service deployed successfully'
+                echo 'device status service deployed successfully'
                 slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
             }
         }
