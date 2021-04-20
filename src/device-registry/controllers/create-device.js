@@ -272,9 +272,18 @@ const device = {
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name, chid, loc } = req.query;
+      const { tenant, name, chid, loc, site, map } = req.query;
       if (tenant) {
-        const devices = await getDetail(tenant, name, chid, loc, limit, skip);
+        const devices = await getDetail(
+          tenant,
+          name,
+          chid,
+          loc,
+          site,
+          map,
+          limit,
+          skip
+        );
         logObject("the devices", devices);
         return res.status(HTTPStatus.OK).json({
           success: true,
