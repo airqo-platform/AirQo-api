@@ -1,11 +1,9 @@
 import os
 import pandas as pd
 import requests
-from threading import Thread
 import json
-from events import measurements_insertion
+from events import DeviceRegistry
 from date import date_to_str2
-import numpy as np
 from datetime import datetime, timedelta
 
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
@@ -31,15 +29,15 @@ def get_kcca_device_data():
     :return: current kcca device measurements
     """
 
-    # get current date and time 5 minutes ago : %Y-%m-%dT%H:%M:%SZ
+    # get current date and time an hour ago : %Y-%m-%dT%H:%M:%SZ
     # the cron job must be scheduled to run as the time interval stated here
-    date = date_to_str2(datetime.now() - timedelta(hours=0, minutes=5))
+    date = date_to_str2(datetime.now() - timedelta(hours=1))
 
     # get kcca devices
     device_codes = get_kcca_devices_codes()
 
-    # compose a url to get device measurements for all the devices
-    api_url = CLARITY_API_BASE_URL + "measurements?startTime=" + date + "&code="
+    # compose url to get device measurements for all the devices
+    api_url = CLARITY_API_BASE_URL + "measurements?startTime=" + date + "&average=hour" + "&code="
 
     for code in device_codes:
         api_url = api_url + code + ","
@@ -77,44 +75,37 @@ def transform_kcca_data(data):
     # create a dataframe to hold all the device measurements
     raw_data = pd.DataFrame(data)
 
-    # divide the dataframe into chucks of ten
-    chunks = np.array_split(raw_data, 10)
+    if raw_data.empty:
+        print("No Data at the moment")
+        print(raw_data)
+        return
 
-    threads = []
+    # group data by device names for bulk transform and insertion
+    device_groups = raw_data.groupby('deviceCode')
 
-    # process each chuck on a separate thread
-    for chunk in chunks:
-        thread = Thread(target=transform_chunk, args=(chunk,))
-        threads.append(thread)
-        thread.start()
-
-    # wait for all threads to terminate before ending the function
-    for thread in threads:
-        thread.join()
+    for name, group in device_groups:
+        transform_group(group)
 
 
-def transform_chunk(chunk):
+def transform_group(group):
 
-    # create a dataframe to hold the chunk
-    data = pd.DataFrame(chunk)
+    device_name = group.iloc[0]['deviceCode']
+    transformed_data = []
 
-    # create a to hold all threads
-    threads = []
-
-    # loop through the devices in the chunk
-    for index, row in data.iterrows():
+    # loop through the device measurements, transform and insert
+    for index, row in group.iterrows():
 
         location = row["location"]["coordinates"]
 
-        data = dict({
-            'frequency': "day",
+        row_data = dict({
+            'frequency': "hourly",
             'time': row["time"],
             'device':  row["deviceCode"],
             'location': dict({
                 "longitude": dict({"value":  location[0]}), "latitude": {"value": location[1]}})
         })
 
-        # create a dataframe to hold the device components
+        # create a series to hold the device components
         device_components = pd.Series(row["characteristics"])
 
         # loop through each component on the device
@@ -132,7 +123,7 @@ def transform_chunk(chunk):
 
             try:
 
-                data[conversion_units[component_type]] = dict({
+                row_data[conversion_units[component_type]] = dict({
                     'value': device_components[component_type]["raw"]
                 })
 
@@ -140,18 +131,15 @@ def transform_chunk(chunk):
                 continue
 
             if "calibratedValue" in device_components[component_type].keys():
-                data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["calibratedValue"]
+                row_data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["calibratedValue"]
             else:
-                data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["value"]
+                row_data[conversion_units[component_type]]['calibratedValue'] = device_components[component_type]["value"]
 
-        # send the device measurements to the device registry microservice
-        thread = Thread(target=measurements_insertion, args=(data, "kcca",))
-        threads.append(thread)
-        thread.start()
+            transformed_data.append(row_data)
 
-    # wait for all threads to terminate before ending the function
-    for thread in threads:
-        thread.join()
+    if len(transformed_data) != 0:
+        device_registry = DeviceRegistry(transformed_data, 'kcca', device_name)
+        device_registry.insert_measurements()
 
 
 def get_kcca_devices():

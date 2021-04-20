@@ -1,7 +1,5 @@
-import copy
 import json
 import os
-from threading import Thread
 import traceback
 import requests
 
@@ -36,7 +34,7 @@ class DeviceRegistry:
             if results.status_code == 200:
                 print(results.json())
             else:
-
+                print('\n')
                 print("Device registry failed to insert values. Status Code : " + str(results.status_code)
                       + ", Url : " + base_url
                       + ", Data : " + json_data)
