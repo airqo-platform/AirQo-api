@@ -1,63 +1,25 @@
-const ComponentSchema = require("../models/Component");
-const DeviceSchema = require("../models/Device");
 const SiteActivitySchema = require("../models/SiteActivity");
-const Site = require("../models/Site");
 const HTTPStatus = require("http-status");
-const iot = require("@google-cloud/iot");
 const isEmpty = require("is-empty");
-const client = new iot.v1.DeviceManagerClient();
-const device_registry =
-  "projects/airqo-250220/locations/europe-west1/registries/device-registry";
-const uuidv1 = require("uuid/v1");
-const mqtt = require("mqtt");
-const projectId = "airqo-250220";
-const region = `europe-west1`;
-const registryId = `device-registry`;
-const algorithm = `RS256`;
-// const privateKeyFile = `./rsa_private.pem`;
-const mqttBridgeHostname = `mqtt.googleapis.com`;
-const mqttBridgePort = 8883;
-const messageType = `events`;
-const numMessages = 5;
-const fetch = require("node-fetch");
-const request = require("request");
-const axios = require("axios");
-const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
-const qs = require("qs");
-const redis = require("../config/redis");
 const { getModelByTenant } = require("../utils/multitenancy");
-const {
-  createOnThingSpeak,
-  createOnClarity,
-} = require("../utils/integrations");
 
 const {
-  isDeviceNotDeployed,
-  isDeviceNotRecalled,
-  locationActivityRequestBodies,
+  isDeviceDeployed,
+  isDeviceRecalled,
+  siteActivityRequestBodies,
   doLocationActivity,
-  getGpsCoordinates,
-  doesLocationExist,
   queryFilterOptions,
   bodyFilterOptions,
 } = require("../utils/site-activities");
 
 const {
-  clearEventsBody,
-  doesDeviceExist,
-  updateThingBodies,
-  threeMonthsFromNow,
-  getChannelID,
-  getApiKeys,
-} = require("../utils/does-device-exist");
-
-const {
   tryCatchErrors,
-  axiosError,
   missingQueryParams,
   callbackErrors,
 } = require("../utils/errors");
+
+const getDetail = require("../utils/get-device-details");
 
 const manageSite = {
   doActivity: async (req, res) => {
@@ -66,32 +28,32 @@ const manageSite = {
       if (tenant && type) {
         const { deviceName } = req.body;
 
-        const deviceExists = await doesDeviceExist(
+        const device = await getDetail(tenant, deviceName);
+        const doesDeviceExist = !isEmpty(device);
+        const isDeployed = await isDeviceDeployed(
           deviceName,
           tenant.toLowerCase()
         );
-        const isNotDeployed = await isDeviceNotDeployed(
+        const isRecalled = await isDeviceRecalled(
           deviceName,
           tenant.toLowerCase()
         );
-        const isNotRecalled = await isDeviceNotRecalled(
-          deviceName,
-          tenant.toLowerCase()
+        const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+          req,
+          res
         );
-        const {
-          locationActivityBody,
-          deviceBody,
-        } = locationActivityRequestBodies(req, res);
+        logElement("does the device exist", doesDeviceExist);
+        logElement("is the device deployed", isDeployed);
 
         doLocationActivity(
           res,
           deviceBody,
-          locationActivityBody,
+          siteActivityBody,
           deviceName,
           type,
-          deviceExists,
-          isNotDeployed,
-          isNotRecalled,
+          doesDeviceExist,
+          isDeployed,
+          isRecalled,
           tenant.toLowerCase()
         );
       } else {

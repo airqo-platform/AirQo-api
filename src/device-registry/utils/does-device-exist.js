@@ -57,9 +57,7 @@ const doesDeviceExist = async (deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    // logElement("device element", device);
-    // logObject("device Object", device);
-    // logElement("does device exist?", !isEmpty(device));
+
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {

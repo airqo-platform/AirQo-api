@@ -16,6 +16,10 @@ const {
   getApiKeys,
 } = require("./does-device-exist");
 
+const jsonify = require("./jsonify");
+
+const getDetail = require("./get-device-details");
+
 const {
   tryCatchErrors,
   axiosError,
@@ -57,19 +61,21 @@ const doLocationActivity = async (
   deviceName,
   type,
   deviceExists,
-  isNotDeployed,
-  isNotRecalled,
+  isDeployed,
+  isRecalled,
   tenant
 ) => {
   try {
     const deviceFilter = { name: deviceName };
+    logElement("isRecalled", isRecalled);
+    logElement("isDeployed", isDeployed);
 
     let check = "";
-    if (type == "deploy") {
-      check = isNotDeployed;
-    } else if (type == "recall") {
-      check = isNotRecalled;
-    } else if (type == "maintain") {
+    if (type.toLowerCase() == "deploy") {
+      check = isRecalled;
+    } else if (type.toLowerCase() == "recall") {
+      check = isDeployed;
+    } else if (type.toLowerCase() == "maintain") {
       check = true;
     } else {
       check = false;
@@ -78,9 +84,8 @@ const doLocationActivity = async (
     logText("....................");
     logText("doLocationActivity...");
     logText("activityType", type);
-    logElement("deviceExists", isNotDeployed);
-    logElement("isNotDeployed", isNotDeployed);
-    logElement("isNotRecalled", isNotRecalled);
+    logElement("deviceExists", deviceExists);
+    logElement("isDeployed", isDeployed);
     logObject("activityBody", activityBody);
     logElement("check", check);
     logObject("deviceBody", deviceBody);
@@ -159,17 +164,17 @@ const doesLocationExist = async (locationName, tenant) => {
   }
 };
 
-const locationActivityRequestBodies = (req, res) => {
+const siteActivityRequestBodies = (req, res) => {
   try {
     const type = req.query.type;
     logText("....................");
-    logText("locationActivityRequestBodies...");
+    logText("siteActivityRequestBodies...");
     logElement("activityType", type);
-    let locationActivityBody = {};
+    let siteActivityBody = {};
     let deviceBody = {};
     const {
       deviceName,
-      locationName,
+      siteName,
       height,
       mountType,
       powerType,
@@ -179,66 +184,37 @@ const locationActivityRequestBodies = (req, res) => {
       date,
       tags,
       isPrimaryInLocation,
-      isUserForCollocaton,
+      isUsedForCollocaton,
       maintenanceType,
     } = req.body;
 
-    //location and device body to be used for deploying....
     if (type == "deploy") {
-      locationActivityBody = {
-        // location: locationName,
+      /****** deploy bodies ******/
+      siteActivityBody = {
         device: deviceName,
         date: new Date(date),
         description: "device deployed",
         activityType: "deployment",
       };
 
-      /**
-       * in case we decide to use the location ID to get the latitude and longitude
-       */
-      // if (doesLocationExist(locationName, tenant)) {
-      //   let { lat, lon } = getGpsCoordinates(locationName, tenant);
-      //   deviceBody = {
-      //     name: deviceName,
-      //     locationID: locationName,
-      //     height: height,
-      //     mountType: mountType,
-      //     powerType: powerType,
-      //     isPrimaryInLocation: isPrimaryInLocation,
-      //     isUserForCollocaton: isUserForCollocaton,
-      //     nextMaintenance: threeMonthsFromNow(date),
-      //     isActive: true,
-      //     latitude: lat,
-      //     longitude: lon,
-      //   };
-      // }
-      // {
-      //   res.status(500).json({
-      //     message: "the location does not exist",
-      //     success: false,
-      //   });
-      // }
-
       deviceBody = {
         name: deviceName,
-        // locationID: locationName,
         height: height,
         mountType: mountType,
         powerType: powerType,
         isPrimaryInLocation: isPrimaryInLocation,
-        isUserForCollocaton: isUserForCollocaton,
+        isUsedForCollocaton: isUsedForCollocaton,
         nextMaintenance: threeMonthsFromNow(date),
         isActive: true,
         latitude: latitude,
         longitude: longitude,
       };
-      logObject("locationActivityBody", locationActivityBody);
+      logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
-      return { locationActivityBody, deviceBody };
+      return { siteActivityBody, deviceBody };
     } else if (type == "recall") {
-      /****** recalling bodies */
-      locationActivityBody = {
-        // location: locationName,
+      /****** recalling bodies ******/
+      siteActivityBody = {
         device: deviceName,
         date: new Date(date),
         description: "device recalled",
@@ -251,20 +227,20 @@ const locationActivityRequestBodies = (req, res) => {
         mountType: "",
         powerType: "",
         isPrimaryInLocation: false,
-        isUserForCollocaton: false,
+        isUsedForCollocaton: false,
         nextMaintenance: "",
         longitude: "",
         latitude: "",
         isActive: false,
       };
-      logObject("locationActivityBody", locationActivityBody);
+      logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
-      return { locationActivityBody, deviceBody };
+      return { siteActivityBody, deviceBody };
     } else if (type == "maintain") {
-      /******** maintaining bodies */
+      /******** maintaining bodies *************/
       logObject("the tags", tags);
-      locationActivityBody = {
-        location: locationName,
+      siteActivityBody = {
+        site: siteName,
         device: deviceName,
         date: new Date(date),
         description: description,
@@ -284,58 +260,46 @@ const locationActivityRequestBodies = (req, res) => {
           name: deviceName,
         };
       }
-      logObject("locationActivityBody", locationActivityBody);
+      logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
-      return { locationActivityBody, deviceBody };
+      return { siteActivityBody, deviceBody };
     } else {
       /****incorrect query parameter....... */
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.BAD_REQUEST).json({
         message: "incorrect query parameter",
         success: false,
       });
     }
   } catch (e) {
-    console.log("error" + e);
-  }
-};
-
-const isDeviceNotRecalled = async (deviceName, tenant) => {
-  try {
-    const device = await getModelByTenant(
-      tenant.toLowerCase(),
-      "device",
-      DeviceSchema
-    )
-      .find({ name: deviceName })
-      .exec();
-    logText("....................");
-    logText("checking isDeviceNotRecalled....");
-    logObject("device is here", device[0]._doc);
-    const isNotRecalled = device[0]._doc.isActive == true ? true : false;
-    logElement("isActive", device[0]._doc.isActive);
-    logElement("isNotRecalled", isNotRecalled);
-    return isNotRecalled;
-  } catch (e) {
     logElement("error", e);
   }
 };
 
-const isDeviceNotDeployed = async (deviceName, tenant) => {
+const isDeviceRecalled = async (name, tenant) => {
   try {
-    const device = await getModelByTenant(
-      tenant.toLowerCase(),
-      "device",
-      DeviceSchema
-    )
-      .find({ name: deviceName })
-      .exec();
+    logText("....................");
+    logText("checking isDeviceRecalled....");
+    let device = await getDetail(tenant, name);
+    logObject("device", device);
+    const isRecalled = !device[0].isActive;
+    logElement("locationName", device[0].locationName);
+    logElement("isRecalled", isRecalled);
+    return isRecalled;
+  } catch (e) {
+    logText("error", e);
+  }
+};
+
+const isDeviceDeployed = async (name, tenant) => {
+  try {
     logText("....................");
     logText("checking isDeviceNotDeployed....");
-    logObject("device is here", device[0]._doc);
-    const isNotDeployed = device[0]._doc.isActive == false ? true : false;
-    logElement("locationID", device[0]._doc.locationID);
-    logElement("isNotDeployed", isNotDeployed);
-    return isNotDeployed;
+    let device = await getDetail(tenant, name);
+    logObject("device", device);
+    const isDeployed = device[0].isActive;
+    logElement("locationName", device[0].locationName);
+    logElement("isDeployed", isDeployed);
+    return isDeployed;
   } catch (e) {
     logText("error", e);
   }
@@ -389,9 +353,9 @@ const bodyFilterOptions = async (req, res) => {
 };
 
 module.exports = {
-  isDeviceNotDeployed,
-  isDeviceNotRecalled,
-  locationActivityRequestBodies,
+  isDeviceDeployed,
+  isDeviceRecalled,
+  siteActivityRequestBodies,
   doLocationActivity,
   getGpsCoordinates,
   doesLocationExist,
