@@ -281,7 +281,7 @@ const isDeviceRecalled = async (name, tenant) => {
     logText("checking isDeviceRecalled....");
     let device = await getDetail(tenant, name);
     logObject("device", device);
-    const isRecalled = device[0].isActive == false ? true : false;
+    const isRecalled = !device[0].isActive;
     logElement("locationName", device[0].locationName);
     logElement("isRecalled", isRecalled);
     return isRecalled;
@@ -296,7 +296,7 @@ const isDeviceDeployed = async (name, tenant) => {
     logText("checking isDeviceNotDeployed....");
     let device = await getDetail(tenant, name);
     logObject("device", device);
-    const isDeployed = device[0].isActive == true ? true : false;
+    const isDeployed = device[0].isActive;
     logElement("locationName", device[0].locationName);
     logElement("isDeployed", isDeployed);
     return isDeployed;
