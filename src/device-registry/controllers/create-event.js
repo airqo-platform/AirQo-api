@@ -1,12 +1,14 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const { getMeasurements } = require("../utils/get-measurements");
+const insertMeasurementsService = require("../services/insert-device-measurements");
 
 const {
   tryCatchErrors,
   axiosError,
   missingQueryParams,
   callbackErrors,
+  invalidParamsValue,
 } = require("../utils/errors");
 
 const getDetail = require("../utils/get-device-details");
@@ -120,3 +122,99 @@ const createEvent = {
 };
 
 module.exports = createEvent;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+const createEvent2 = {
+  addValues: async (req, res) => {
+    try {
+
+      logText("adding values...");
+      const { device, tenant } = req.query;
+      const measurements = req.body;
+
+      if (!tenant || !device || !measurements)
+        missingQueryParams(req, res);
+
+      const response = insertMeasurementsService.addDeviceValues(device, tenant, measurements);
+
+      if (response.success == true)
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: (await response).message,
+          valuesAdded: (await response).valuesAdded,
+        });
+
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: (await response).message,
+        errors: (await response).errors,
+        valuesRejected: (await response).valuesRejected,
+        valuesAdded: (await response).valuesAdded,
+      });
+
+    } catch (e) {
+      tryCatchErrors(res, error);
+    }
+  },
+  getValues: (req, res) => {
+    try {
+      const { device,  tenant, startTime, endTime, limit, skip, key, } = req.query;
+      const limitInt = parseInt(limit, 0);
+      const skipInt = parseInt(skip, 0);
+
+      logText(".......getting values.......");
+
+      if(!tenant)
+        missingQueryParams(req, res);
+
+      getMeasurements(res, startTime, endTime, device, skipInt, limitInt, tenant);
+
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+
+  /********************************* trasmit values from device ************************/
+  transmitValues: async (req, res) => {
+    try {
+      const { type, tenant } = req.query;
+
+    if(!tenant || !type)
+      missingQueryParams(req, res);
+    
+    switch (type.toLowerCase()) {
+      case "one":
+        await transmitOneSensorValue(req, res);
+        break;
+      case "many":
+        await transmitMultipleSensorValues(req, res);
+        break;
+      case "bulk":
+        await bulkTransmitMultipleSensorValues(req, res, tenant);
+        break;
+      default:
+        invalidParamsValue(req, res);
+        break;
+    }
+
+
+    } catch (error) {
+      tryCatchErrors(res, error);
+    }
+  },
+};

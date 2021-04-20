@@ -15,7 +15,7 @@ const insertDeviceMeasurements = {
 
         try {
 
-            for (index in array_data) {
+            for (let index in array_data) {
 
                 const data = array_data[index];
 
@@ -77,10 +77,8 @@ const insertDeviceMeasurements = {
             });
 
         }
-        finally{
 
-            return returnResponse;
-        }
+        return returnResponse;
 
     },
 
@@ -113,7 +111,7 @@ const insertDeviceMeasurements = {
                     transformedMeasurements
                 );
 
-                if(response.success == false){
+                if(response.success === false){
                     return {
                         success: false,
                         message: "finished the operation with some errors",
