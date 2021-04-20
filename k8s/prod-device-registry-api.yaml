@@ -47,6 +47,11 @@ spec:
                 secretKeyRef:
                   name: prod-device-reg-secret
                   key: MONGO_PROD
+            - name: MONGO_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: MONGO_STAGE
             - name: REDIS_SERVER
               valueFrom:
                 secretKeyRef:
