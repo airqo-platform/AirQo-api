@@ -36,8 +36,7 @@ class DeviceRegistry:
             else:
                 print('\n')
                 print("Device registry failed to insert values. Status Code : " + str(results.status_code)
-                      + ", Url : " + base_url
-                      + ", Data : " + json_data)
+                      + ", Url : " + base_url)
                 print(results.content)
                 print('\n')
 

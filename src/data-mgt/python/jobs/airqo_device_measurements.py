@@ -2,7 +2,7 @@ import pandas as pd
 import requests
 from threading import Thread
 
-from events import measurements_insertion
+from events import DeviceRegistry
 import numpy as np
 import os
 import math
@@ -127,11 +127,10 @@ def transform_chunk(chunk):
     # create a dataframe to hold the chunk
     data = pd.DataFrame(chunk)
 
-    # create a to hold all threads
-    threads = []
-
     # loop through the devices in the chunk
     for index, row in data.iterrows():
+
+        device_name = row['device']
 
         data = dict({
             "device": row['device'],
@@ -154,22 +153,17 @@ def transform_chunk(chunk):
         })
 
         # add calibrated value
-        calibrated_value = None
+        # calibrated_value = None
+        #
+        # if data["pm2_5"]["value"] is not None:
+        #     calibrated_value = get_calibrated_value(data["channelID"], data["time"], data["pm2_5"]["value"])
+        #
+        # if calibrated_value is not None:
+        #     data["pm2_5"]["calibratedValue"] = calibrated_value
 
-        if data["pm2_5"]["value"] is not None:
-            calibrated_value = get_calibrated_value(data["channelID"], data["time"], data["pm2_5"]["value"])
-
-        if calibrated_value is not None:
-            data["pm2_5"]["calibratedValue"] = calibrated_value
-
-        # insert device measurements into events collection using a separate thread
-        thread = Thread(target=measurements_insertion, args=(data, "airqo",))
-        threads.append(thread)
-        thread.start()
-
-    # wait for all threads to terminate
-    for thread in threads:
-        thread.join()
+        # insert device measurements into events collection
+        device_registry = DeviceRegistry([data], "airqo", device_name)
+        device_registry.insert_measurements()
 
 
 def get_airqo_devices():
