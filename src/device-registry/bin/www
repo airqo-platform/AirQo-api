@@ -10,6 +10,7 @@ const middlewareConfig = require("../config/app.middleware");
 var debug = require("debug")("device-registry:server");
 var http = require("http");
 var isEmpty = require("is-empty");
+const { kafkaMeasurementsConsumer } = require("../controllers/kafka/consumers/raw-device-measurements-consumer");
 
 /****
  * pass the app instance to the middleware configuration
@@ -104,4 +105,5 @@ Running on ${ENV}`);
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
+    kafkaMeasurementsConsumer;
 }

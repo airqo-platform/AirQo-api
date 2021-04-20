@@ -2,6 +2,7 @@ apiVersion: kafka.strimzi.io/v1alpha1
 kind: KafkaConnector
 metadata:
   name: kcca-source-connector
+  namespace: staging
   labels:
     strimzi.io/cluster: kcca-source-connector-cluster
 spec:
