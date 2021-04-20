@@ -9,87 +9,40 @@ DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
 DEVICE_REGISTRY_PRODUCTION_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
 
 
-def measurements_insertion(data, tenant):
+class DeviceRegistry:
 
-    threads = []
+    def __init__(self, measurements, tenant, device_name):
+        self.__measurements = measurements
+        self.__tenant = tenant
+        self.__device_name = device_name
 
-    staging_data = copy.deepcopy(data)
+    def insert_measurements(self):
 
-    # production
-    thread_production = Thread(target=production_insertion, args=(data, tenant,))
-    threads.append(thread_production)
-    thread_production.start()
+        self.__add_to_events_collection(DEVICE_REGISTRY_PRODUCTION_URL)
+        self.__add_to_events_collection(DEVICE_REGISTRY_STAGING_URL)
 
-    # staging
-    thread_staging = Thread(target=staging_insertion, args=(staging_data, tenant,))
-    threads.append(thread_staging)
-    thread_staging.start()
+    def __add_to_events_collection(self, base_url):
 
-    # wait for all threads to terminate
-    for thread in threads:
-        thread.join()
+        try:
 
+            json_data = json.dumps(self.__measurements)
 
-def staging_insertion(data, tenant):
+            headers = {'Content-Type': 'application/json'}
 
-    """
-    sends device measurements to device registry microservice on staging environment
-    :param data: device measurements (includes device name to reduce on function args)
-    :param tenant: organisation eg airqo
-    :return: none
-    """
+            base_url = base_url + "devices/events/add?device=" + self.__device_name + "&tenant=" + self.__tenant
 
-    try:
+            results = requests.post(base_url, json_data, headers=headers, verify=False)
 
-        # obtain the device from the data
-        device = data.pop("device")
+            if results.status_code == 200:
+                print(results.json())
+            else:
 
-        # create a json object of the remaining data and post to device registry
-        json_data = json.dumps([data])
+                print("Device registry failed to insert values. Status Code : " + str(results.status_code)
+                      + ", Url : " + base_url
+                      + ", Data : " + json_data)
+                print(results.content)
+                print('\n')
 
-        headers = {'Content-Type': 'application/json'}
-        url = DEVICE_REGISTRY_STAGING_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
-
-        results = requests.post(url, json_data, headers=headers)
-
-        if results.status_code == 200:
-            print(results.json())
-        else:
-            raise Exception("Device Registry staging failed to insert values. Status Code : " + str(results.status_code))
-
-    except Exception as e:
-        # traceback.print_exc()
-        print(e)
-
-
-def production_insertion(data, tenant):
-
-    """
-    sends device measurements to device registry microservice on production environment
-    :param data: device measurements (includes device name to reduce on function args)
-    :param tenant: organisation eg airqo
-    :return: none
-    """
-
-    try:
-
-        # obtain the device from the data
-        device = data.pop("device")
-
-        # create a json object of the remaining data and post to device registry
-        json_data = json.dumps([data])
-
-        headers = {'Content-Type': 'application/json'}
-        url = DEVICE_REGISTRY_PRODUCTION_URL + "devices/events/add?device=" + device + "&tenant=" + tenant
-
-        results = requests.post(url, json_data, headers=headers)
-
-        if results.status_code == 200:
-            print(results.json())
-        else:
-            raise Exception("Device Registry production failed to insert values. Status Code : " + str(results.status_code))
-
-        print(results.json())
-
-    except Exception as e:
-        print(e)
+        except Exception as ex:
+            traceback.print_exc()
+            print("Error Occurred while inserting measurements: " + str(ex))
