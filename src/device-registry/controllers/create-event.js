@@ -80,6 +80,7 @@ const createEvent = {
         limit,
         skip,
         key,
+        recent,
       } = req.query;
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
@@ -87,6 +88,7 @@ const createEvent = {
       if (tenant) {
         getMeasurements(
           res,
+          recent,
           startTime,
           endTime,
           device,

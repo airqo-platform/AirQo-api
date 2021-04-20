@@ -184,10 +184,14 @@ eventSchema.statics = {
       ...args,
     });
   },
-  list({ skipInt = 0, limitInt = 50, filter = {} } = {}) {
+
+  list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
+    logObject("the filter", filter);
     return this.aggregate()
       .unwind("values")
       .match(filter)
+      .replaceRoot("values")
+      .sort({ time: -1 })
       .project({
         _id: 0,
         day: 0,
@@ -197,10 +201,39 @@ eventSchema.statics = {
         last: 0,
         nValues: 0,
         updatedAt: 0,
-        "values._id": 0,
       })
+      .skip(skipInt)
+      .limit(limitInt);
+  },
+  listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
+    logObject("the filter", filter);
+    return this.aggregate()
+      .unwind("values")
+      .match(filter)
       .replaceRoot("values")
-      .sort({ "values.time": -1, _id: 1 })
+      .sort({ time: -1 })
+      .group({
+        _id: "$device",
+        channelID: { $first: "$channelID" },
+        time: { $first: "$time" },
+        pm2_5: { $first: "$pm2_5" },
+        s2_pm2_5: { $first: "$s2_pm2_5" },
+        pm10: { $first: "$pm10" },
+        s2_pm10: { $first: "$s2_pm10" },
+        frequency: { $first: "$frequency" },
+        battery: { $first: "$battery" },
+        location: { $first: "$location" },
+        altitude: { $first: "$altitude" },
+        speed: { $first: "$speed" },
+        satellites: { $first: "$satellites" },
+        hdop: { $first: "$hdop" },
+        internalTemperature: { $first: "$internalTemperature" },
+        externalTemperature: { $first: "$externalTemperature" },
+        internalHumidity: { $first: "$internalHumidity" },
+        externalHumidity: { $first: "$externalHumidity" },
+        pm1: { $first: "$pm1" },
+        no2: { $first: "$no2" },
+      })
       .skip(skipInt)
       .limit(limitInt);
   },

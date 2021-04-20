@@ -11,11 +11,27 @@ const {
   generateDeviceFilter,
 } = require("./generate-filter");
 
-const getDetail = async (tenant, name, chid, loc, limitValue, skipValue) => {
+const getDetail = async (
+  tenant,
+  name,
+  chid,
+  loc,
+  site,
+  map,
+  limitValue,
+  skipValue
+) => {
   try {
     const limit = parseInt(limitValue, 0);
     const skip = parseInt(skipValue, 0);
-    const filter = generateDeviceFilter(tenant.toLowerCase(), name, chid, loc);
+    const filter = generateDeviceFilter(
+      tenant.toLowerCase(),
+      name,
+      chid,
+      loc,
+      site,
+      map
+    );
     logObject("the filter object", filter);
     const devices = await getModelByTenant(
       tenant.toLowerCase(),
