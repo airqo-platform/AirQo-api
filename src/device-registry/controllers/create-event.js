@@ -1,21 +1,6 @@
-const ComponentSchema = require("../models/Component");
-const DeviceSchema = require("../models/Device");
-const ComponentTypeSchema = require("../models/ComponentType");
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
-const constants = require("../config/constants");
-const isEmpty = require("is-empty");
-const EventSchema = require("../models/Event");
-const axios = require("axios");
-const { queryParam, filterOptions } = require("../utils/mappings");
-const writeToThingMappings = require("../utils/writeToThingMappings");
-const {
-  uniqueNamesGenerator,
-  NumberDictionary,
-} = require("unique-names-generator");
-const { getModelByTenant } = require("../utils/multitenancy");
 const { getMeasurements } = require("../utils/get-measurements");
-const generateFieldValues = require("../utils/generate-fields-values");
 
 const {
   tryCatchErrors,
@@ -24,13 +9,9 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
-const {
-  getApiKeys,
-  getArrayLength,
-  doesDeviceExist,
-  doesComponentExist,
-  doesComponentTypeExist,
-} = require("../utils/does-component-exist");
+const getDetail = require("../utils/get-device-details");
+
+const isEmpty = require("is-empty");
 
 const { transformMeasurements } = require("../utils/transform-measurements");
 const insertMeasurements = require("../utils/insert-measurements");
@@ -47,16 +28,33 @@ const createEvent = {
       const { device, tenant } = req.query;
       const measurements = req.body;
       if (tenant && device && measurements) {
-        const isDevicePresent = await doesDeviceExist(
-          device,
-          tenant.toLowerCase()
-        );
-        if (isDevicePresent) {
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+
+        if (doesDeviceExist) {
           const transformedMeasurements = await transformMeasurements(
             device,
             measurements
           );
-          insertMeasurements(res, tenant, transformedMeasurements);
+          let response = await insertMeasurements(
+            tenant,
+            transformedMeasurements
+          );
+          if (response.success == true) {
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "successfully added all the events",
+              valuesAdded: response.valuesAdded,
+            });
+          } else if (response.success == false) {
+            return res.status(HTTPStatus.BAD_REQUEST).json({
+              success: false,
+              message: "finished the operation with some errors",
+              errors: response.errors,
+              valuesRejected: response.valuesRejected,
+              valuesAdded: response.valuesAdded,
+            });
+          }
         } else {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
@@ -80,6 +78,7 @@ const createEvent = {
         limit,
         skip,
         key,
+        recent,
       } = req.query;
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
@@ -87,6 +86,7 @@ const createEvent = {
       if (tenant) {
         getMeasurements(
           res,
+          recent,
           startTime,
           endTime,
           device,
