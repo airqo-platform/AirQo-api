@@ -1,0 +1,125 @@
+pipeline {
+    agent any
+    environment {
+        IMAGE_NAME_PROD = 'airqo-incentives-api'
+        IMAGE_NAME_STAGE = 'airqo-stage-incentives-api'
+    }
+    stages {
+        stage("Start"){
+            steps {
+                slackSend (color: '#1976d2', message: "BUILD STARTED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+            }
+        }
+        stage("Checkout code") {
+            steps {
+                checkout scm
+            }
+        }
+        stage("Build for Staging"){
+            when {branch "staging"}
+                 steps {
+
+                    echo "Docker Build"
+                    sh """
+                    docker build -t ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/incentives/Dockerfile.stage.txt" . 
+                    """
+                    withCredentials([file(credentialsId: '${env.GCR_CONFIG}', variable: 'GC_KEY')]){
+                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${env.REGISTRY_URI}"
+                        sh "gcloud auth activate-service-account --key-file='$GC_KEY'"
+                        sh "gcloud auth configure-docker"
+                        echo "Pushing image to GCR"
+                        sh """
+                        gcloud container images add-tag ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_STAGE} ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_STAGE}:"v${env.BUILD_NUMBER}"
+                        docker push ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest"
+                        """
+                    }
+                    }
+                    post{
+                        success{
+                            echo "Build and Push Successfully"
+                            }
+                        failure{
+                            echo "Build and Push Failed"
+                            slackSend (color: '#FF0000', message: "FAILED TO BUILD AND PUSH IMAGE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                            }
+                    }
+
+        }
+        stage("Build for Production"){
+            when {branch "master"}
+                 steps {
+
+                    echo "Docker Build"
+                    sh """
+                    docker build -t ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/incentives/Dockerfile" . 
+                    """
+                    withCredentials([file(credentialsId: '${env.GCR_CONFIG}', variable: 'GC_KEY')]){
+                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${env.REGISTRY_URI}"
+                        sh "gcloud auth activate-service-account --key-file='$GC_KEY'"
+                        sh "gcloud auth configure-docker"
+                        echo "Pushing image to GCR"
+                        sh """
+                        gcloud container images add-tag ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_PROD} ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_PROD}:"v${env.BUILD_NUMBER}"
+                        docker push ${env.REGISTRY_URI}/${env.PROJECT_ID}/${IMAGE_NAME_PROD}:"latest"
+                        """
+                    }
+                    }
+                    post{
+                        success{
+                            echo "Build and Push Successfully"
+                            }
+                        failure{
+                            echo "Build and Push Failed"
+                            echo 'incentives service deployed successfully'
+                            slackSend (color: '#FF0000', message: "FAILED TO BUILD AND PUSH IMAGE: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                            }
+                    }
+
+        }
+        stage("Deploy to Staging"){
+                when {branch "staging"}
+                steps {
+                    withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
+                        sh """
+                        kubectl apply -f 'k8s/stage-incentives-api.yaml'
+                        """
+                    }
+                }
+                post{
+                    success{
+                        echo "Successfully deployed to staging"
+                    }
+                    failure{
+                        echo "Failed deploying to staging"
+                        echo 'incentives service deployment failed on staging'
+                        slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                    }
+                }
+        }
+        stage("Deploy to Production"){
+                when {branch "master"}
+                steps {
+                    withKubeConfig([credentialsId: '${env.K8S_CONFIG}']) {
+                        sh """
+                        kubectl apply -f 'k8s/prod-incentives-api.yaml'
+                        """
+                    }
+                }
+                post{
+                    success{
+                        echo "Successfully deployed to production"
+                    }
+                    failure{
+                        echo 'incentives service deployment failed on production'
+                        slackSend (color: '#FF0000', message: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+                    }
+                }
+        }
+        stage('Final'){
+            steps {
+                echo 'incentives service deployed successfully'
+                slackSend (color: '#00FF00', message: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+            }
+        }
+    }    
+}
