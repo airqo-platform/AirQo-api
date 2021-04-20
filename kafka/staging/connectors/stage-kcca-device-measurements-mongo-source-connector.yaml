@@ -1,0 +1,20 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaConnector
+metadata:
+  name: kcca-mongodb-source-connector
+  labels:
+    strimzi.io/cluster: kcca-mongodb-connector-cluster
+spec:
+  class: io.debezium.connector.mongodb.MongoDbConnector
+  tasksMax: 2
+  config:
+    name: kcca-mongodb-source-connector
+    mongodb.hosts: MONGO_HOST:PORT
+    connector.class: io.debezium.connector.mongodb.MongoDbConnector
+    mongodb.name: MONGO_HOST:PORT
+    mongodb.user: MONGO_USER
+    mongodb.password: MONGO_PASSWORD
+    tasksMax: 2
+    database.include.list: MONGO_DATABASE
+    collection.include.list: MONGO_COLLECTION
+
