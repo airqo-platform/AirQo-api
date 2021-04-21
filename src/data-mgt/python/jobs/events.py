@@ -27,7 +27,7 @@ class DeviceRegistry:
 
             headers = {'Content-Type': 'application/json'}
 
-            base_url = base_url + "devices/events/add?device=" + self.__device_name + "&tenant=" + self.__tenant
+            base_url = f"{base_url}devices/events/add?device={self.__device_name}&tenant={self.__tenant}"
 
             results = requests.post(base_url, json_data, headers=headers, verify=False)
 
@@ -35,11 +35,10 @@ class DeviceRegistry:
                 print(results.json())
             else:
                 print('\n')
-                print("Device registry failed to insert values. Status Code : " + str(results.status_code)
-                      + ", Url : " + base_url)
+                print(f"Device registry failed to insert values. Status Code : {str(results.status_code)}, Url : {base_url}")
                 print(results.content)
                 print('\n')
 
         except Exception as ex:
             traceback.print_exc()
-            print("Error Occurred while inserting measurements: " + str(ex))
+            print(f"Error Occurred while inserting measurements: {str(ex)}")

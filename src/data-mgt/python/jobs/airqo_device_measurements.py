@@ -36,7 +36,7 @@ def get_feeds(device_codes):
 
         channel_id = row['channelID']
 
-        api_url = FEEDS_BASE_URL + "data/feeds/transform/recent?channel={}".format(channel_id)
+        api_url = f"{FEEDS_BASE_URL}data/feeds/transform/recent?channel={channel_id}"
 
         try:
             results = requests.get(api_url)
@@ -184,7 +184,7 @@ def get_airqo_devices():
         devices = response_data["devices"]
         return devices
     else:
-        print("Device Registry failed to return airqo devices. Status Code : " + str(results.status_code))
+        print(f"Device Registry failed to return airqo devices. Status Code : {str(results.status_code)}")
         return {}
 
 
