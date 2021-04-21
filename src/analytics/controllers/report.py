@@ -1,18 +1,13 @@
 from flask import Blueprint, request, jsonify
 import logging
-import app
-import json
-from helpers import mongo_helpers
-from helpers import helpers 
 from models import report
-from flask_cors import CORS
 
 _logger = logging.getLogger(__name__)
 
 report_bp = Blueprint('report', __name__)
 
 
-@report_bp.route('/api/v1/report/save_default_report_template', methods=['POST'])
+@report_bp.route('/api/v1/analytics/report/save_default_report_template', methods=['POST'])
 def save_default_report_template():
     '''
     Save default report template
@@ -41,7 +36,7 @@ def save_default_report_template():
     return jsonify({"message": "Default Report Template Saved Successfully", "success": True}), 200
 
 # get previously saved planning space by the current user
-@report_bp.route('/api/v1/report/get_default_report_template', methods=['GET'])
+@report_bp.route('/api/v1/analytics/report/get_default_report_template', methods=['GET'])
 def get_default_report_template():
     '''
     Get default report template
@@ -59,7 +54,7 @@ def get_default_report_template():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 # save report
-@report_bp.route('/api/v1/report/save_monthly_report', methods=['POST'])
+@report_bp.route('/api/v1/analytics/report/save_monthly_report', methods=['POST'])
 def save_monthly_report():
     '''
     Save monthly report
@@ -91,7 +86,7 @@ def save_monthly_report():
         return jsonify({"message": "Invalid request method", "success": False}), 400
 
 # get previously saved planning space by the current user
-@report_bp.route('/api/v1/report/get_monthly_report/<user_id>', methods=['GET'])
+@report_bp.route('/api/v1/analytics/report/get_monthly_report/<user_id>', methods=['GET'])
 def get_monthly_report(user_id):
     '''
     Get monthly report
@@ -114,7 +109,7 @@ def get_monthly_report(user_id):
 
 
 # Update default report template
-@report_bp.route('/api/v1/report/update_default_report_template', methods=['POST'])
+@report_bp.route('/api/v1/analytics/report/update_default_report_template', methods=['POST'])
 def update_default_report_template():
     '''
     updates default reporting template
@@ -146,7 +141,7 @@ def update_default_report_template():
 
 
 # Update previously saved planning space
-@report_bp.route('/api/v1/report/update_monthly_report/<report_name>', methods=['POST'])
+@report_bp.route('/api/v1/analytics/report/update_monthly_report/<report_name>', methods=['POST'])
 def update_monthly_report(report_name):
     '''
     updates a previously saved report
@@ -177,7 +172,7 @@ def update_monthly_report(report_name):
         return jsonify({"message": "error occured while trying to update report", "success": False}), 500
 
 # Delete previously saved planning space
-@report_bp.route('/api/v1/report/delete_monthly_report/<report_name>', methods=['DELETE'])
+@report_bp.route('/api/v1/analytics/report/delete_monthly_report/<report_name>', methods=['DELETE'])
 def delete_monthly_report(report_name):
     '''
     deletes a previously saved report
