@@ -1,0 +1,56 @@
+Example endpoint for fetching exceedances data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: body
+    in: body
+    type: object
+    properties:
+      pollutant:
+        type: string
+        example: PM 2.5
+      standard:
+        type: string
+        example: AQI
+definitions:
+  ExceedanceResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: exceedance data successfully fetched
+      data:
+        type: array
+        items:
+          $ref: '#/definitions/ExceedanceData'
+  ExceedanceData:
+    type: object
+    properties:
+      location:
+        type: string
+        example: Luzira
+      UH4SG:
+        type: integer
+        example: 6
+      Unhealthy:
+        type: integer
+        example: 21
+      VeryUnhealthy:
+        type: integer
+        example: 0
+      Hazardous:
+        type: integer
+        example: 0
+responses:
+  200:
+    description: A successful retrieval of exceedances data
+    schema:
+      $ref: '#/definitions/ExceedanceResponse'

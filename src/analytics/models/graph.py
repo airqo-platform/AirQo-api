@@ -14,8 +14,9 @@ class Graph():
 
     """
 
-    def __init__(self):
+    def __init__(self, tenant):
         """ initialize """
+        self.tenant = tenant
 
     def get_all_devices_past_28_days_exceedences(self, pollutant='PM 2.5', standard='AQI'):
         """
@@ -28,6 +29,8 @@ class Graph():
         Returns:
             A list of the number of daily exceedences for the specified pollutant and standard in the past 28 days.
         """
+
+        db = mongo_helpers.connect_mongo(self.tenant)
         created_at = helpers.str_to_date(
             helpers.date_to_str(datetime.now().date()))
         # print(created_at)
@@ -35,15 +38,15 @@ class Graph():
                             'pollutant': pollutant, 'standard': standard}}
         projection = {'$project': {'_id': 0}}
         results = list(
-            app.mongo.db.device_daily_exceedences.aggregate([query, projection]))
+            db.device_daily_exceedences.aggregate([query, projection]))
         return results
 
-    def get_piechart_data(self, device_code, start_date, end_date, frequency, pollutant):
+    def get_piechart_data(self, device_code, start_date, end_date, frequency, pollutant, tenant):
         '''
         returns the data to generate a pie chart given specific parameters
         '''
         records = self.get_filtered_data(
-            device_code, start_date, end_date, frequency, pollutant)
+            device_code, start_date, end_date, frequency, pollutant, tenant)
         if records:
             if pollutant == 'PM 2.5':
                 good_sum = sum(1 for i in range(len(
@@ -78,7 +81,7 @@ class Graph():
                                    records[i]['pollutant_value'] > 604)
             else:
                 records = self.get_filtered_data(
-                    device_code, start_date, end_date, frequency, pollutant)
+                    device_code, start_date, end_date, frequency, pollutant, tenant)
                 good_sum = sum(1 for i in range(len(
                     records)) if records[i]['pollutant_value'] > 0 and records[i]['pollutant_value'] <= 53)
                 moderate_sum = sum(1 for i in range(len(records)) if records[i]['pollutant_value'] > 53 and
@@ -146,6 +149,7 @@ class Graph():
         the specified start date and end date for the specified time frequency.
 
         """
+        db = mongo_helpers.connect_mongo(self.tenant)
         if start_date == None:
             start = helpers.str_to_date_find('2019-06-01T00:00:00Z')
         else:
@@ -180,14 +184,14 @@ class Graph():
                                        'pollutant_value': {'$round': ['$characteristics.pm2_5ConcMass.value', 2]}}}
 
         if frequency == 'hourly':
-            records = app.mongo.db.device_hourly_measurements.aggregate(
+            records = db.device_hourly_measurements.aggregate(
                 [query, projection, sort_order])
         elif frequency == 'monthly':
-            results = list(app.mongo.db.device_daily_measurements.aggregate(
+            results = list(db.device_daily_measurements.aggregate(
                 [query, projection, sort_order]))
             records = self.resample_timeseries_data(results, 'M', 'time', 2)
         else:
-            records = app.mongo.db.device_daily_measurements.aggregate(
+            records = db.device_daily_measurements.aggregate(
                 [query, projection, sort_order])
 
         return list(records)

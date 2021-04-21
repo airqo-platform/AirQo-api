@@ -1,0 +1,64 @@
+Example endpoint for fetching monitoring site location data
+---
+tags: [Dashboard]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: orgName
+    description: organisation name incase it's different from the tenant value (compatibility reasons)
+    in: query
+    type: string
+    required: false
+definitions:
+  MonitoringSiteLocationResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: monitoring site location data successfully fetched
+      data:
+        type: array
+        items:
+           $ref: '#/definitions/MonitoringSiteLocationData'
+  MonitoringSiteLocationData:
+    type: object
+    properties:
+      DeviceCode:
+        type: string
+        example: A743BPWK
+      Parish:
+        type: string
+        example: Wandegeya
+      Division:
+        type: string
+        example: Kawempe
+      Last_Hour_PM25_Value:
+        type: float
+        example: 49
+      Latitude:
+        type: float
+        example: 0.331732
+      Longitude:
+        type: float
+        example: 32.57455
+      LocationCode:
+        type: string
+        example: KCCA_KWPE_AQ05
+      LastHour:
+        type: string
+        example: "2021-03-03 11:00"
+      _id:
+        type: string
+        example: 5e78a8e66a7e115ad4a4e6c6
+
+responses:
+  200:
+    description: A successful retrieval of monitoring site location data
+    schema:
+      $ref: '#/definitions/MonitoringSiteLocationResponse'

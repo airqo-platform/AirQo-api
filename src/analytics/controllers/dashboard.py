@@ -15,8 +15,12 @@ dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/api/v1/dashboard/locations/pm25categorycount', methods=['GET'])
 def get_pm25categorycount_for_locations():
-    ms = monitoring_site.MonitoringSite()
-    d = dashboard.Dashboard()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
+    ms = monitoring_site.MonitoringSite(tenant)
+    d = dashboard.Dashboard(tenant)
     if request.method == 'GET':
         org_name = request.args.get('organisation_name')
         if org_name:
@@ -91,11 +95,15 @@ def get_pm25categorycount_for_locations():
 
 @dashboard_bp.route('/api/v1/data/download', methods=['POST', 'GET', 'PUT', 'DELETE', 'PATCH'])
 def download_customised_data():
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
     # create an instance of the MonitoringSite class
-    ms = monitoring_site.MonitoringSite()
+    ms = monitoring_site.MonitoringSite(tenant)
 
     # create an instance of the Graph class
-    gr = graph.Graph()
+    gr = graph.Graph(tenant)
     if request.method != 'POST':
         return {'message': 'Method not allowed. The method is not allowed for the requested URL'}, 400
     else:
@@ -217,8 +225,12 @@ def download_customised_data():
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods=['GET'])
 def get_random_location_hourly_customised_chart_data_2():
-    ms = monitoring_site.MonitoringSite()
-    gr = graph.Graph()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
+    ms = monitoring_site.MonitoringSite(tenant)
+    gr = graph.Graph(tenant)
     device_code = 'A743BPWK'
     start_date = '2020-04-09T07:00:00.000000Z'
     end_date = '2020-05-12T07:00:00.000000Z'
@@ -262,8 +274,12 @@ def get_random_location_hourly_customised_chart_data_2():
 
 @dashboard_bp.route('/api/v1/dashboard/customisedchart/random', methods=['GET'])
 def get_random_location_hourly_customised_chart_data():
-    ms = monitoring_site.MonitoringSite()
-    gr = graph.Graph()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
+    ms = monitoring_site.MonitoringSite(tenant)
+    gr = graph.Graph(tenant)
     device_code = 'ANQ16PZJ'
     start_date = '2020-04-12T07:00:00.000000Z'
     end_date = '2020-04-14T07:00:00.000000Z'
@@ -280,31 +296,39 @@ def get_random_location_hourly_customised_chart_data():
     custom_chart_title = 'Mean ' + frequency.capitalize() + ' ' + \
         pollutant + '  for '
     locations_names = parish
-    custom_chart_title = custom_chart_title +  locations_names  
-    custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
-    values =[]
-    labels =[]    
-    device_results={}
-    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+    custom_chart_title = custom_chart_title + locations_names
+    custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(
+        start_date), frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date), frequency)
+    values = []
+    labels = []
+    device_results = {}
+    filtered_data = gr.get_filtered_data(
+        device_code, start_date, end_date, frequency, pollutant)
     if filtered_data:
         for data in filtered_data:
             values.append(data['pollutant_value'])
             labels.append(data['time'])
-        device_results= {'pollutant_values':values, 'labels':labels}
-        color = colors.pop() 
-        dataset = {'data':values, 'label':parish + ' '+ pollutant,'borderColor' :color,'backgroundColor':color ,'fill':False} 
-        datasets.append(dataset)          
-                                                                            
-        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
-            'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-            'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results})
+        device_results = {'pollutant_values': values, 'labels': labels}
+        color = colors.pop()
+        dataset = {'data': values, 'label': parish + ' ' + pollutant,
+                   'borderColor': color, 'backgroundColor': color, 'fill': False}
+        datasets.append(dataset)
 
-    return jsonify({'results':custom_chat_data, 'datasets':datasets,'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
+        custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
+                                 'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
+                                 'location_code': location_code, 'chart_type': chart_type, 'chart_data': device_results})
 
-@dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
+    return jsonify({'results': custom_chat_data, 'datasets': datasets, 'custom_chart_title': custom_chart_title, 'custom_chart_title_second_section': custom_chart_title_second_section})
+
+
+@dashboard_bp.route('/api/v1/dashboard/customisedchart', methods=['POST'])
 def generate_customised_chart_data():
-    ms = monitoring_site.MonitoringSite()
-    gr = graph.Graph()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
+    ms = monitoring_site.MonitoringSite(tenant)
+    gr = graph.Graph(tenant)
     if request.method == 'POST':
         json_data = request.get_json()
         if not json_data:
@@ -321,24 +345,28 @@ def generate_customised_chart_data():
         chart_type = json_data["chartType"]
         organisation_name = json_data["organisation_name"]
         custom_chat_data = []
-        datasets = [] #displaying multiple locations
-        locations_devices =[]
-        colors =['#7F7F7F','#E377C2', '#17BECF', '#BCBD22','#3f51b5']
-        custom_chart_title= 'Mean ' + frequency.capitalize() + ' '+ pollutant + '  for ' 
-        locations_names = ','.join([str(location['label']) for location in locations])        
-        custom_chart_title = custom_chart_title +  locations_names 
-        custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(start_date),frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date),frequency)
-        for location in locations:            
-            devices = ms.get_location_devices_code( organisation_name, location['label'])
+        datasets = []  # displaying multiple locations
+        locations_devices = []
+        colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']
+        custom_chart_title = 'Mean ' + frequency.capitalize() + ' ' + \
+            pollutant + '  for '
+        locations_names = ','.join([str(location['label'])
+                                    for location in locations])
+        custom_chart_title = custom_chart_title + locations_names
+        custom_chart_title_second_section = ' Between ' + helpers.convert_date_to_formated_str(helpers.str_to_date(
+            start_date), frequency) + ' and ' + helpers.convert_date_to_formated_str(helpers.str_to_date(end_date), frequency)
+        for location in locations:
+            devices = ms.get_location_devices_code(
+                organisation_name, location['label'])
             for device in devices:
                 device_code = device['DeviceCode']
                 division = device['Division']
                 parish = device['Parish']
-                location_code= device['LocationCode']                
-                values =[]
-                labels =[] 
-                background_colors= []   
-                device_results={}               
+                location_code = device['LocationCode']
+                values = []
+                labels = []
+                background_colors = []
+                device_results = {}
                 if chart_type == 'pie':
                     filtered_data = gr.get_piechart_data(
                         device_code, start_date, end_date, frequency, pollutant)
@@ -354,12 +382,13 @@ def generate_customised_chart_data():
                         dataset = {'data': values, 'label': parish + ' ' +
                                    pollutant, 'backgroundColor': background_colors}
                         datasets.append(dataset)
-                        custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
-                        'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                        'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 'datasets':datasets, 'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})    
-                                        
-                else:                    
-                    filtered_data =  gr.get_filtered_data(device_code, start_date, end_date, frequency, pollutant)
+                        custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
+                                                 'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
+                                                 'location_code': location_code, 'chart_type': chart_type, 'chart_data': device_results, 'datasets': datasets, 'custom_chart_title': custom_chart_title, 'custom_chart_title_second_section': custom_chart_title_second_section})
+
+                else:
+                    filtered_data = gr.get_filtered_data(
+                        device_code, start_date, end_date, frequency, pollutant)
                     if filtered_data:
                         for data in filtered_data:
                             values.append(data['pollutant_value'])
@@ -372,25 +401,29 @@ def generate_customised_chart_data():
                         datasets.append(dataset)
                     measurement_units = '(µg/m3)'
                     if pollutant == 'NO2':
-                        measurement_units = ' Concentration'    
-                    chart_label = pollutant + measurement_units                              
-                    
-                    custom_chat_data.append({'start_date':start_date, 'end_date':end_date, 'division':division, 
-                    'parish':parish,'frequency':frequency, 'pollutant':pollutant, 
-                    'location_code':location_code, 'chart_type':chart_type,'chart_data':device_results, 
-                    'datasets':datasets, 'custom_chart_title':custom_chart_title, 'chart_label':chart_label,  'custom_chart_title_second_section':custom_chart_title_second_section})
+                        measurement_units = ' Concentration'
+                    chart_label = pollutant + measurement_units
 
-                locations_devices.append(devices)                     
-            
-        return jsonify({'results':custom_chat_data, 'datasets':datasets, 'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
-        
-        #else:            
-            #return jsonify({'inputs': json_data,'errors': errors})
+                    custom_chat_data.append({'start_date': start_date, 'end_date': end_date, 'division': division,
+                                             'parish': parish, 'frequency': frequency, 'pollutant': pollutant,
+                                             'location_code': location_code, 'chart_type': chart_type, 'chart_data': device_results,
+                                             'datasets': datasets, 'custom_chart_title': custom_chart_title, 'chart_label': chart_label,  'custom_chart_title_second_section': custom_chart_title_second_section})
+
+                locations_devices.append(devices)
+
+        return jsonify({'results': custom_chat_data, 'datasets': datasets, 'custom_chart_title': custom_chart_title, 'custom_chart_title_second_section': custom_chart_title_second_section})
+
+        # else:
+        # return jsonify({'inputs': json_data,'errors': errors})
 
 
 @dashboard_bp.route('/api/v1/dashboard/monitoringsites/locations', methods=['GET'])
 def get_organisation_monitoring_site_locations():
-    ms = monitoring_site.MonitoringSite()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
+    ms = monitoring_site.MonitoringSite(tenant)
     if request.method == 'GET':
         org_name = request.args.get('organisation_name')
         if org_name:
@@ -408,7 +441,12 @@ def get_organisation_monitoring_site_locations():
 
 @dashboard_bp.route('/api/v1/dashboard/monitoringsites', methods=['GET'])
 def get_organisation_monitoring_site():
-    ms = monitoring_site.MonitoringSite()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+        # db = mongo_helpers.connect_mongo(tenant)
+
+    ms = monitoring_site.MonitoringSite(tenant)
     if request.method == 'GET':
         org_name = request.args.get('organisation_name')
         pm25_category = request.args.get('pm25_category')
@@ -473,7 +511,10 @@ def categorise_locations(records, pm25_category):
 
 @dashboard_bp.route('/api/v1/dashboard/historical/daily/devices', methods=['GET'])
 def get_all_device_past_28_days_measurements():
-    ms = monitoring_site.MonitoringSite()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+    ms = monitoring_site.MonitoringSite(tenant)
     if request.method == 'GET':
         results = []
         values = []
@@ -494,8 +535,12 @@ def get_all_device_past_28_days_measurements():
 
 @dashboard_bp.route('/api/v1/dashboard/divisions', methods=['GET'])
 def get_divisions():
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+    db = mongo_helpers.connect_mongo(tenant)
     divisions = []
-    division_cursor = app.mongo.db.monitoring_site.find(
+    division_cursor = db.monitoring_site.find(
         {}, {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 0})
     # app.mongo.db.division.find()
     for division in division_cursor:
@@ -507,7 +552,10 @@ def get_divisions():
 
 @dashboard_bp.route('/api/v1/dashboard/exceedances', methods=['POST'])
 def get_exceedances():
-    gr = graph.Graph()
+    tenant = request.args.get('tenant')
+    if not tenant:
+        return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
+    gr = graph.Graph(tenant)
     if request.method == 'POST':
         json_data = request.get_json()
         if not json_data:
