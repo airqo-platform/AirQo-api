@@ -53,7 +53,7 @@ def calibrate():
         for raw_value in raw_values:
             # value = calibrateModel.calibrate_sensor_raw_data(datetime, raw_value.get('sensor_id'), raw_value.get('raw_value'))
             device_id = raw_value.get('device_id')
-            pm25 = raw_value.get('pm25')
+            pm25 = raw_value.get('pm2.5')
             pm10 = raw_value.get('pm10')
             temperature = raw_value.get('temperature')
             humidity = raw_value.get('humidity')
