@@ -53,11 +53,15 @@ def calibrate():
         for raw_value in raw_values:
             # value = calibrateModel.calibrate_sensor_raw_data(datetime, raw_value.get('sensor_id'), raw_value.get('raw_value'))
             device_id = raw_value.get('device_id')
-            value = rgModel.random_forest(datetime, raw_value.get('pm2.5'),raw_value.get('pm10'),raw_value.get('temperature'),raw_value.get('humidity'),hourly_combined_dataset)
+            pm25 = raw_value.get('pm25')
+            pm10 = raw_value.get('pm10')
+            temperature = raw_value.get('temperature')
+            humidity = raw_value.get('humidity')
+
+            if (not device_id or not pm25  or not pm10 or not temperature or not humidity):
+                return jsonify({"message": "Please specify the device_id, datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
             
-            
-            if (not device_id or not value):
-                return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
+            value = rgModel.random_forest(datetime, pm25, pm10, temperature, humidity, hourly_combined_dataset)           
             
             response.append({'device_id': device_id, 'calibrated_value': value})
         return jsonify(response), 200
