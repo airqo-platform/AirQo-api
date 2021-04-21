@@ -177,6 +177,10 @@ def get_airqo_devices():
 
     if results.status_code == 200:
         response_data = results.json()
+
+        if "devices" not in response_data:
+            print("Error : Device Registry didnt return any devices")
+            return {}
         devices = response_data["devices"]
         return devices
     else:
