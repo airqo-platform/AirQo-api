@@ -15,6 +15,8 @@ public class ArrayListDeserializer<T> implements Deserializer<ArrayList<T>> {
         this.valueDeserializer = valueDeserializer;
     }
 
+    private Class<T> tClass;
+
     @Override
     public void configure(Map<String, ?> configs, boolean isKey) {
         // do nothing

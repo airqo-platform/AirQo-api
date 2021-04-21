@@ -9,12 +9,14 @@ import java.util.Map;
 public class KccaSourceConnectorConfig extends AbstractConfig {
 
     public static final String TOPIC_CONFIG = "topic";
+    public static final String POLL_INTERVAL = "pollInterval";
     public static final String CLARITY_API_KEY = "clarityApiKey";
     public static final String CLARITY_API_BASE_URL = "clarityApiBaseUrl";
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "The topic to publish data to")
             .define(CLARITY_API_KEY, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Api key")
+            .define(POLL_INTERVAL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Pool Interval")
             .define(CLARITY_API_BASE_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Api Base url");
 
 

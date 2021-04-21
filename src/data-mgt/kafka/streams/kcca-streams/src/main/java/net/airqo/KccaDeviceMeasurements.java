@@ -67,8 +67,8 @@ public class KccaDeviceMeasurements {
             rawMeasurements = rawMeasurements.substring(0, rawMeasurements.length() - 1);
 
         rawMeasurements = rawMeasurements.replace("\\\"", "\"");
-        Gson gson = new Gson();
 
+        Gson gson = new Gson();
         Type listType = new TypeToken<List<RawMeasurements>>() {}.getType();
         List<RawMeasurements> deviceMeasurements = gson.fromJson(rawMeasurements, listType);
 
@@ -79,7 +79,7 @@ public class KccaDeviceMeasurements {
             TransformedMeasurements transformedMeasurement = new TransformedMeasurements();
 
             transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
-            transformedMeasurement.setFrequency("daily");
+            transformedMeasurement.setFrequency("hourly");
             transformedMeasurement.setTenant("kcca");
             transformedMeasurement.setTime(rawMeasurement.getTime());
 
@@ -96,16 +96,16 @@ public class KccaDeviceMeasurements {
             for (String key: rawMeasurement.getCharacteristics().keySet()) {
 
                 double rawValue = rawMeasurement.getCharacteristics().get(key).get("raw");
-                double calibrateValue;
+                double calibratedValue;
 
                 if(rawMeasurement.getCharacteristics().get(key).containsKey("calibratedValue"))
-                    calibrateValue = rawMeasurement.getCharacteristics().get(key).get("calibratedValue");
+                    calibratedValue = rawMeasurement.getCharacteristics().get(key).get("calibratedValue");
                 else
-                    calibrateValue = rawMeasurement.getCharacteristics().get(key).get("value");
+                    calibratedValue = rawMeasurement.getCharacteristics().get(key).get("value");
 
                 HashMap<String, Double> values = new HashMap<String, Double>(){{
                     put("value", rawValue);
-                    put("calibratedValue", calibrateValue);
+                    put("calibratedValue", calibratedValue);
 
                 }};
 
@@ -143,6 +143,9 @@ public class KccaDeviceMeasurements {
             transformedMeasurements.add(transformedMeasurement);
 
         });
+
+        String string = gson.toJson(transformedMeasurements);
+        System.err.println(string);
 
         return transformedMeasurements;
     }
@@ -187,79 +190,3 @@ public class KccaDeviceMeasurements {
     }
 
 }
-
-
-//    public static TransformedMeasurements transformMeasurements(RawMeasurements rawMeasurements) {
-//
-//        TransformedMeasurements transformedMeasurements = new TransformedMeasurements();
-//
-//        transformedMeasurements.setDevice(rawMeasurements.getDeviceCode());
-//        transformedMeasurements.setFrequency("daily");
-//        transformedMeasurements.setLocation(rawMeasurements.getLocation());
-//        transformedMeasurements.setTime(rawMeasurements.getTime());
-//
-//        ArrayList<HashMap<String, HashMap<String, Double>>> measurements = new ArrayList<>();
-//
-//       for(HashMap<String, HashMap<String, Double>> components : rawMeasurements.getMeasurements()){
-//
-//           Set<String> componentsKeys = components.keySet();
-//
-//           HashMap<String, HashMap<String, Double>> hashMap = new HashMap<>();
-//
-//           for (String key: componentsKeys) {
-//
-//               switch (key){
-//                   case "temperature":
-//                       hashMap.put("internalTemperature", components.get(key));
-//                       break;
-//
-//                   case "relHumid":
-//                       hashMap.put("internalHumidity", components.get(key));
-//                       break;
-//
-//                   case "pm10ConcMass":
-//                       hashMap.put("pm10", components.get(key));
-//                       break;
-//
-//                   case "pm2_5ConcMass":
-//                       hashMap.put("pm2_5", components.get(key));
-//                       break;
-//
-//                   case "no2Conc":
-//                       hashMap.put("no2", components.get(key));
-//                       break;
-//
-//                   case "pm1ConcMass":
-//                       hashMap.put("pm1", components.get(key));
-//                       break;
-//
-//                   default:
-//                       hashMap = null;
-//                       break;
-//
-//               }
-//
-//               if(hashMap != null)
-//                   measurements.add(hashMap);
-//
-//           }
-//
-//       }
-//
-//       transformedMeasurements.setMeasurements(measurements);
-//
-//       return transformedMeasurements;
-//
-//
-//    }
-//
-//    static void createMeasurementsStream(final StreamsBuilder builder) {
-//
-//        final KStream<String, RawMeasurements> source = builder
-//                .stream(INPUT_TOPIC, Consumed.with(Serdes.String(), CustomSerdes.RawMeasurements()));
-//
-//        final KStream<String, TransformedMeasurements> transformed = source
-//                .map((key, rawMeasurements) -> new KeyValue<>(rawMeasurements.get_id(), transformMeasurements(rawMeasurements)));
-//
-//        transformed.to(OUTPUT_TOPIC, Produced.with(Serdes.String(), CustomSerdes.TransformedMeasurements()));
-//    }

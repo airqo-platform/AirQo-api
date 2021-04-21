@@ -25,5 +25,6 @@ public class CustomSerdes {
         return new CustomSerdes.RawMeasurementsSerde();
     }
 
-    public static Serde<TransformedMeasurements> TransformedMeasurements() { return new TransformedMeasurementsSerde(); }
+    public static Serde<TransformedMeasurements> TransformedMeasurements() {
+        return new CustomSerdes.TransformedMeasurementsSerde(); }
 }

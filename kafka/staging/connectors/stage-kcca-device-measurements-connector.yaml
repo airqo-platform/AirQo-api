@@ -10,8 +10,9 @@ spec:
   tasksMax: 2
   config:
     topic: kcca-raw-device-measurements-topic
-    clarityApiKey: CLARITY_API_KEY
-    clarityApiBaseUrl: CLARITY_BASE_URL
+    clarityApiKey: CALRITY_API_KEY
+    clarityApiBaseUrl: CLARITY_URL
+    pollInterval: 3600000
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter

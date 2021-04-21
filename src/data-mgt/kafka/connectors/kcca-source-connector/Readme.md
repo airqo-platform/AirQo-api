@@ -5,4 +5,4 @@
 > `mvn assembly:assembly -DskipTest`
 > 
 >Build the image
->`docker build -t localhost:5000/kafka-kcca-deivce-measurements-connect-image .`
+>`docker build -t localhost:49155/airqo-stage-kcca-deivce-measurements-connect .`

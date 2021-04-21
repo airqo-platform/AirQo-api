@@ -6,10 +6,10 @@ metadata:
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: us.gcr.io/airqo-250220/airqo-stage-kcca-deivce-measurements-connect:latest
+  image: localhost:5000/airqo-stage-kcca-deivce-measurements-connect:latest
   imagePullPolicy: Always
   replicas: 1
-  bootstrapServers: BOOTSTRAP_SERVERS
+  bootstrapServers: 192.168.49.2:32431
   config:
     group.id: kcca-source-connector-cluster
     offset.storage.topic: kcca-source-connector-cluster-offsets

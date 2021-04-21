@@ -33,20 +33,11 @@ public class KccaSourceTask extends SourceTask {
     public static final String DEVICE_CODES = "device_codes";
 
     private String topic;
-    private String deviceCodes;
     private String apiKey;
     private String clarityBaseUrl;
 
-    public static final Schema RawMeasurementsSchema = SchemaBuilder.struct()
-//            .name(RawMeasurements.class.getSimpleName())
-            .field("location", SchemaBuilder.map(Schema.STRING_SCHEMA, SchemaBuilder.array(Schema.OPTIONAL_FLOAT64_SCHEMA)).build())
-            .field("characteristics", SchemaBuilder.map(Schema.STRING_SCHEMA, SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.OPTIONAL_FLOAT64_SCHEMA)).build())
-            .field("_id", Schema.STRING_SCHEMA)
-            .field("recId", Schema.STRING_SCHEMA)
-            .field("time", Schema.STRING_SCHEMA)
-            .field("device", Schema.STRING_SCHEMA)
-            .field("deviceCode", Schema.STRING_SCHEMA)
-            .build();
+    private Long interval;
+    private Long last_execution = 0L;
 
     @Override
     public String version() {
@@ -64,108 +55,85 @@ public class KccaSourceTask extends SourceTask {
         topic = props.get(KccaSourceConnectorConfig.TOPIC_CONFIG);
         apiKey = props.get(KccaSourceConnectorConfig.CLARITY_API_KEY);
         clarityBaseUrl = props.get(KccaSourceConnectorConfig.CLARITY_API_BASE_URL);
+        interval = Long.parseLong(props.get(KccaSourceConnectorConfig.POLL_INTERVAL));
 
     }
 
     @Override
     public List<SourceRecord> poll() throws InterruptedException {
+        ArrayList<SourceRecord> records = new ArrayList<SourceRecord>();
 
-        try {
+        if (System.currentTimeMillis() > (last_execution + interval)) {
 
-            ArrayList<SourceRecord> records = new ArrayList<SourceRecord>();
+            last_execution = System.currentTimeMillis();
 
-            if(this.deviceCodes == null || this.deviceCodes.trim().equals(""))
-                this.deviceCodes = getDeviceCodes();
+            try {
 
-            log.info("\n***************** Fetching Data *************\n");
+                log.info("\n***************** Fetching Data *************\n");
 
-            Date currentTime = new Date(System.currentTimeMillis() - 14400 * 1000 );
+//                Date currentTime = new Date(System.currentTimeMillis() - 3600 * 1000 );
+                Date lastExecutionTime = new Date(last_execution - interval);
 
-            SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
-            SimpleDateFormat simpleTimeFormat = new SimpleDateFormat("HH:mm:ss");
-
-
-            String startTime = simpleDateFormat.format(currentTime) + "T" + simpleTimeFormat.format(currentTime) + "Z";
-
-            String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&code=" + deviceCodes + "&limit=" + 2;
-
-            URL url = new URL(urlString);
-
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("x-api-key", apiKey);
+                SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd");
+                SimpleDateFormat simpleTimeFormat = new SimpleDateFormat("HH:mm");
 
 
-            conn.connect();
+                String startTime = simpleDateFormat.format(lastExecutionTime) + "T" + simpleTimeFormat.format(lastExecutionTime) + ":00Z";
 
-            int responseCode = conn.getResponseCode();
+//                String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&average=hour" + "&code=" + deviceCodes + "&limit=" + 2;
+                String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&average=hour" + "&limit=" + 2;
 
-            if(responseCode == 200){
+                URL url = new URL(urlString);
 
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream()));
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("x-api-key", apiKey);
 
-                StringBuilder sb = new StringBuilder();
-//                Gson gson = new Gson();
-                String line;
 
-                while ((line = in.readLine()) != null) {
-                    sb.append(line);
+                conn.connect();
 
-                    Map sourcePartition = buildSourcePartition();
-                    Map sourceOffset = buildSourceOffset(currentTime.toString(), deviceCodes);
-                    records.add(new SourceRecord(sourcePartition, sourceOffset, topic, Schema.STRING_SCHEMA, line ));
+                int responseCode = conn.getResponseCode();
+
+                if(responseCode == 200){
+
+                    BufferedReader in = new BufferedReader(
+                            new InputStreamReader(conn.getInputStream()));
+
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+
+                    while ((line = in.readLine()) != null) {
+                        sb.append(line);
+
+                        Map sourcePartition = buildSourcePartition();
+                        Map sourceOffset = buildSourceOffset(lastExecutionTime.toString(), urlString);
+                        records.add(new SourceRecord(sourcePartition, sourceOffset, topic, Schema.STRING_SCHEMA, line ));
+                    }
+
+                    conn.disconnect();
+
+                    if(records.isEmpty()){
+                        return new ArrayList<>();
+                    }
+                    else{
+                        return records;
+                    }
+
                 }
-
-
-//                while ((line = in.readLine()) != null) {
-//                    sb.append(line);
-//                }
-//
-//                JSONArray jsonArray = new JSONArray(sb.toString());
-//
-//                try {
-//                    System.out.println("=====================111111=====================");
-//                    Type listType = new TypeToken<List<RawMeasurements>>() {}.getType();
-//                    List<RawMeasurements> deviceMeasurements = gson.fromJson(String.valueOf(jsonArray), listType);
-//                    System.out.println("=====================2222222=====================");
-//                    for (RawMeasurements measurement: deviceMeasurements){
-//
-//                        Map sourcePartition = buildSourcePartition();
-//                        Map sourceOffset = buildSourceOffset(currentTime.toString(), deviceCodes);
-//
-//                        System.out.println(measurement);
-//                        System.out.println("=====================333333=====================");
-//                        records.add(new SourceRecord(sourcePartition, sourceOffset, topic, Schema.STRING_SCHEMA, measurement));
-//
-//                        System.out.println("=====================Success=====================");
-//                    }
-//                }
-//                catch (Exception ex){
-//                    ex.printStackTrace();
-//                }
 
                 conn.disconnect();
 
-                if(records.isEmpty()){
-                    return new ArrayList<>();
-                }
-                else{
-                    System.out.println("=====================Posting Data=====================");
-//                    System.out.println(records);
-                    return records;
-                }
-
+            }
+            catch (IOException e) {
+                e.printStackTrace();
             }
 
-            conn.disconnect();
-
-        }
-        catch (IOException e) {
-            e.printStackTrace();
         }
 
+        else{
+            log.info("\n***************** Time is less *************\n");
+        }
         return new ArrayList<>();
     }
 
