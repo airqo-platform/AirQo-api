@@ -130,7 +130,10 @@ def transform_chunk(chunk):
     # loop through the devices in the chunk
     for index, row in data.iterrows():
 
-        device_name = row['device']
+        device_name = row.get('device', None)
+
+        if device_name is None:
+            continue
 
         data = dict({
             "device": row['device'],

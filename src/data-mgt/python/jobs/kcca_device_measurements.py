@@ -31,7 +31,7 @@ def get_kcca_device_data():
 
     # get current date and time an hour ago : %Y-%m-%dT%H:%M:%SZ
     # the cron job must be scheduled to run as the time interval stated here
-    date = date_to_str2(datetime.now() - timedelta(hours=5))
+    date = date_to_str2(datetime.now() - timedelta(hours=1))
 
     # get kcca devices
     device_codes = get_kcca_devices_codes()
@@ -137,7 +137,7 @@ def transform_group(group):
 
             transformed_data.append(row_data)
 
-    if len(transformed_data) != 0:
+    if transformed_data:
         device_registry = DeviceRegistry(transformed_data, 'kcca', device_name)
         device_registry.insert_measurements()
 
