@@ -42,8 +42,8 @@ const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
       "values.device": device,
     };
   } else {
-    let threeMonthsBack = threeMonthsBehind();
-    let startTime = generateDateFormatWithoutHrs(threeMonthsBack);
+    let oneMonthBack = oneMonthBehind();
+    let startTime = generateDateFormatWithoutHrs(oneMonthBack);
     logElement("startTime", startTime);
     return {
       day: { $gte: startTime },
