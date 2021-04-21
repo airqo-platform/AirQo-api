@@ -75,7 +75,7 @@ spec:
             - name: REDIS_SERVER
               valueFrom:
                 secretKeyRef:
-                  name: prod-device-monitor-secret
+                  name: prod-locate-secret
                   key: REDIS_SERVER
             - name: REDIS_PORT
               valueFrom:

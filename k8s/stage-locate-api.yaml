@@ -75,7 +75,7 @@ spec:
             - name: REDIS_SERVER
               valueFrom:
                 secretKeyRef:
-                  name: stage-device-monitor-secret
+                  name: stage-locate-secret
                   key: REDIS_SERVER
             - name: REDIS_PORT
               valueFrom:
