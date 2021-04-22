@@ -82,6 +82,7 @@ pipeline {
                     withKubeConfig([credentialsId: "${K8S_CONFIG}"]) {
                         sh """
                         kubectl apply -f 'k8s/stage-site-registry-api.yaml'
+                        kubectl rollout restart deployment/${IMAGE_NAME_STAGE} -n staging
                         """
                     }
                 }
@@ -102,6 +103,7 @@ pipeline {
                     withKubeConfig([credentialsId: "${K8S_CONFIG}"]) {
                         sh """
                         kubectl apply -f 'k8s/prod-site-registry-api.yaml'
+                        kubectl rollout restart deployment/${IMAGE_NAME_PROD} -n production
                         """
                     }
                 }
