@@ -1,3 +1,14 @@
+const {
+  generateDateFormat,
+  generateDateFormatWithoutHrs,
+  threeMonthsBehind,
+  twoMonthsBehind,
+  oneMonthBehind,
+  threeMonthsInfront,
+} = require("./date");
+
+const { logObject, logElement, logText } = require("./log");
+
 const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
   if (queryStartTime && queryEndTime && !device) {
     return {
@@ -31,23 +42,82 @@ const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
       "values.device": device,
     };
   } else {
-    return {};
+    let oneMonthBack = oneMonthBehind();
+    let startTime = generateDateFormatWithoutHrs(oneMonthBack);
+    logElement("startTime", startTime);
+    return {
+      day: { $gte: startTime },
+    };
   }
 };
 
-const generateDeviceFilter = (tenant, name, channel, location) => {
-  if (tenant && name && !channel && !location) {
-    return {
-      name: name,
+const generateRegexExpressionFromStringElement = (element) => {
+  let regex = `${element}`;
+  return regex;
+};
+
+const generateDeviceFilter = (
+  tenant,
+  name,
+  channel,
+  location,
+  siteName,
+  mapAddress
+) => {
+  if (tenant && name && !channel && !location && !siteName && !mapAddress) {
+    let regexExpression = generateRegexExpressionFromStringElement(name);
+    let filter = {
+      name: { $regex: regexExpression, $options: "i" },
     };
-  } else if (tenant && !name && channel && !location) {
+    return filter;
+  } else if (
+    tenant &&
+    !name &&
+    channel &&
+    !location &&
+    !siteName &&
+    !mapAddress
+  ) {
     return {
       channelID: channel,
     };
-  } else if (tenant && !name && !channel && location) {
+  } else if (
+    tenant &&
+    !name &&
+    !channel &&
+    location &&
+    !siteName &&
+    !mapAddress
+  ) {
     return {
       locationID: location,
     };
+  } else if (
+    tenant &&
+    !name &&
+    !channel &&
+    !location &&
+    siteName &&
+    !mapAddress
+  ) {
+    let regexExpression = generateRegexExpressionFromStringElement(siteName);
+    let filter = {
+      siteName: { $regex: regexExpression, $options: "i" },
+    };
+    return filter;
+  } else if (
+    tenant &&
+    !name &&
+    !channel &&
+    !location &&
+    !siteName &&
+    mapAddress
+  ) {
+    let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
+    let filter = {
+      locationName: { $regex: regexExpression, $options: "i" },
+    };
+    return filter;
   } else if (tenant && !name && !channel && !location) {
     return {};
   }

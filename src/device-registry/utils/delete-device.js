@@ -8,11 +8,8 @@ const {
   callbackErrors,
 } = require("./errors");
 const HTTPStatus = require("http-status");
-
 const removeDevice = async (tenant, res, device) => {
   try {
-    logText("successfully deleted device from TS");
-    // logObject("TS response data", response.data);
     logText("deleting device from DB.......");
     const deviceRemovedFromDB = await getModelByTenant(
       tenant.toLowerCase(),

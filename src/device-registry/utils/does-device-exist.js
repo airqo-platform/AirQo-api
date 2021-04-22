@@ -5,6 +5,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const axios = require("axios");
 const constants = require("../config/constants");
+const tranformDeviceName = require("../utils/transform-device-name");
 
 const deleteDevice = require("./delete-device");
 
@@ -56,9 +57,7 @@ const doesDeviceExist = async (deviceName, tenant) => {
     )
       .find({ name: deviceName })
       .exec();
-    // logElement("device element", device);
-    // logObject("device Object", device);
-    // logElement("does device exist?", !isEmpty(device));
+
     if (!isEmpty(device)) {
       return true;
     } else if (isEmpty(device)) {
@@ -162,8 +161,10 @@ const updateThingBodies = (req, res) => {
     upsert: true,
   };
 
+  let transformedName = tranformDeviceName(name);
+
   let tsBody = {
-    ...(!isEmpty(name) && { name: name }),
+    ...(!isEmpty(name) && { name: transformedName }),
     ...(!isEmpty(elevation) && { elevation: elevation }),
     ...(!isEmpty(tags) && { tags: tags }),
     ...(!isEmpty(latitude) && { latitude: latitude }),

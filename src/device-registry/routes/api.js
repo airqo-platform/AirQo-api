@@ -2,12 +2,8 @@ const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/manage-site");
-const { authJWT } = require("../services/auth");
 const middlewareConfig = require("../config/router.middleware");
-const deviceValidation = require("../utils/validations");
 const validate = require("express-validation");
-const mqttBridge = require("../controllers/mqtt-bridge");
-const httpBridge = require("../controllers/http-bridge");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
 const imageUpload = require("../utils/multer");
@@ -24,6 +20,8 @@ router.put("/ts/update", deviceController.updateThingSettings);
 router.get("/by/location", deviceController.listAllByLocation);
 router.post("/", deviceController.createOne);
 router.delete("/photos", deviceController.deletePhotos);
+router.delete("/delete", deviceController.delete);
+router.put("/update", deviceController.updateDevice);
 
 /****************** manage site *************************/
 router.post("/ts/activity", siteController.doActivity);

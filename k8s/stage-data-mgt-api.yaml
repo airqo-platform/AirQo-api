@@ -15,7 +15,12 @@ spec:
   selector:
     matchLabels:
       io.kompose.service: airqo-stage-data-mgt-api
-  strategy: {}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       annotations:
@@ -32,6 +37,13 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
             - name: GET_HOSTS_FROM
               value: dns
