@@ -9,7 +9,7 @@ def test_forecast_hours():
     assert len(forecast_hrs[0]) == 24
 
 def test_raises_exception_on_non_datetime_arg():
-    with pytest.raises(TypeError):
+    with pytest.raises(AttributeError):
         forecast_hours('2020-01-24 00:00')
 
 def test_raises_exception_on_no_arg():

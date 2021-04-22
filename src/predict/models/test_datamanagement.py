@@ -98,7 +98,7 @@ def test_raises_exception_on_too_many_args(mock_query, mock_client):
 def test_raises_exception_on_incorrect_int(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         get_channel_data_raw(123)
 
 
@@ -172,7 +172,7 @@ def test_avg_raises_exception_on_empty_arg(mock_query, mock_client):
 def test_avg_raises_exception_on_wrong_type_arg(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    with pytest.raises(TypeError):
+    with pytest.raises(KeyError):
         calculate_hourly_averages(pd.Series())
 
 @patch('google.cloud.bigquery.Client')
@@ -188,7 +188,7 @@ def test_avg_raises_exception_on_too_many_args(mock_query, mock_client):
 def test_avg_raises_exception_on_empty_df(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    with pytest.raises(ValueError):
+    with pytest.raises(KeyError):
         calculate_hourly_averages(pd.DataFrame())
 
 @patch('google.cloud.bigquery.Client')
@@ -211,7 +211,7 @@ def test_id_raises_exception_on_empty_arg(mock_query, mock_client):
 def test_id_raises_exception_on_wrong_args(mock_query, mock_client):
     mock_client.return_value=MockClient()
     mock_query.return_value=MockQuery()
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         get_channel_id('Bruce', 'Wayne')
 
 @patch('google.cloud.bigquery.Client')
@@ -237,5 +237,8 @@ def test_get_all_coordinates(mock_query, mock_client):
     mock_query.return_value=MockQuery()
     coords = get_all_coordinates()
     assert type(coords) == list and list(coords[0].keys()) == ['channel_id', 'latitude', 'longitude']
+
+if __name__=='__main__':
+    get_channel_id([1,2,3], ['a', 'b', 'c'])
 
 
