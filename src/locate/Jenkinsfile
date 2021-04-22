@@ -24,7 +24,7 @@ pipeline {
                     docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_STAGE}:"latest" -f "src/locate/Dockerfile.stage.txt" . 
                     """
                     withCredentials([file(credentialsId: "${GCR_CONFIG}", variable: 'GC_KEY')]){
-                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${env.REGISTRY_URI}"
+                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
                         sh "gcloud auth activate-service-account --key-file='$GC_KEY'"
                         sh "gcloud auth configure-docker"
                         echo "Pushing image to GCR"
@@ -54,7 +54,7 @@ pipeline {
                     docker build -t ${REGISTRY_URI}/${PROJECT_ID}/${IMAGE_NAME_PROD}:"latest" -f "src/locate/Dockerfile" . 
                     """
                     withCredentials([file(credentialsId: "${GCR_CONFIG}", variable: 'GC_KEY')]){
-                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${env.REGISTRY_URI}"
+                        sh "cat '$GC_KEY' | docker login -u _json_key --password-stdin ${REGISTRY_URI}"
                         sh "gcloud auth activate-service-account --key-file='$GC_KEY'"
                         sh "gcloud auth configure-docker"
                         echo "Pushing image to GCR"
@@ -82,6 +82,7 @@ pipeline {
                     withKubeConfig([credentialsId: "${K8S_CONFIG}"]) {
                         sh """
                         kubectl apply -f 'k8s/stage-locate-api.yaml'
+                        kubectl rollout restart deployment/${IMAGE_NAME_STAGE} -n staging
                         """
                     }
                 }
@@ -102,6 +103,7 @@ pipeline {
                     withKubeConfig([credentialsId: "${K8S_CONFIG}"]) {
                         sh """
                         kubectl apply -f 'k8s/prod-locate-api.yaml'
+                        kubectl rollout restart deployment/${IMAGE_NAME_PROD} -n production
                         """
                     }
                 }
