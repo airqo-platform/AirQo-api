@@ -1,11 +1,9 @@
 > To run tests
 > `mvn '-Dtest=net.airqo.*Test' test`
-> 
-> [app.properties](https://airqo.slack.com/archives/GTHGHCB4G/p1616436451001100)
 >
 >Build the image
->`docker build -t kafka-kcca-deivces .`
+>`docker build -t kafka-kcca-measurements-stream .`
 >
 >
 >Create and start a container
->`docker run --network="host" --rm kafka-kcca-deivces`
+>`docker run --network="host" --rm kafka-kcca-measurements-stream`
