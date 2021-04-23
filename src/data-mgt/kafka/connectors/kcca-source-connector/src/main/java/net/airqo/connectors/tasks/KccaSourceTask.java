@@ -81,7 +81,7 @@ public class KccaSourceTask extends SourceTask {
                 String startTime = simpleDateFormat.format(lastExecutionTime) + "T" + simpleTimeFormat.format(lastExecutionTime) + ":00Z";
 
 //                String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&average=hour" + "&code=" + deviceCodes + "&limit=" + 2;
-                String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&average=hour" + "&limit=" + 2;
+                String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&average=hour";
 
                 URL url = new URL(urlString);
 
@@ -131,9 +131,9 @@ public class KccaSourceTask extends SourceTask {
 
         }
 
-        else{
-            log.info("\n***************** Time is less *************\n");
-        }
+//        else{
+//            log.info("\n***************** Time is less *************\n");
+//        }
         return new ArrayList<>();
     }
 

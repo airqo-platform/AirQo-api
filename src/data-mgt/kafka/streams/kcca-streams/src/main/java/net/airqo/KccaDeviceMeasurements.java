@@ -20,11 +20,15 @@ import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 import com.google.gson.Gson;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class KccaDeviceMeasurements {
 
     public static String INPUT_TOPIC;
     public static String OUTPUT_TOPIC;
+
+    private static Logger log = LoggerFactory.getLogger(KccaDeviceMeasurements.class);
 
     static Properties getStreamsConfig(String propertiesFile) {
 
@@ -144,8 +148,8 @@ public class KccaDeviceMeasurements {
 
         });
 
-        String string = gson.toJson(transformedMeasurements);
-        System.err.println(string);
+        log.info(new Date( System.currentTimeMillis()).toString());
+        log.info("Records got : " + String.valueOf(transformedMeasurements.size()));
 
         return transformedMeasurements;
     }
@@ -164,6 +168,9 @@ public class KccaDeviceMeasurements {
     public static void main(final String[] args) {
 
         final Properties props = getStreamsConfig("app.properties");
+
+        log.info("Started Connector");
+        log.info(new Date( System.currentTimeMillis()).toString());
 
         final StreamsBuilder builder = new StreamsBuilder();
         createMeasurementsStream(builder);
