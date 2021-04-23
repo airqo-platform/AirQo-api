@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import json
 from events import DeviceRegistry
-from date import date_to_str2
+from date import date_to_str2, date_to_str_hours
 from datetime import datetime, timedelta
 
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
@@ -29,20 +29,11 @@ def get_kcca_device_data():
     :return: current kcca device measurements
     """
 
-    # get current date and time an hour ago : %Y-%m-%dT%H:%M:%SZ
-    # the cron job must be scheduled to run as the time interval stated here
-    date = date_to_str2(datetime.now() - timedelta(hours=1))
-
-    # get kcca devices
-    device_codes = get_kcca_devices_codes()
+    # get current date and time an hour ago : %Y-%m-%dT%H:00:00Z
+    start_time = date_to_str_hours(datetime.now() - timedelta(hours=2))
 
     # compose url to get device measurements for all the devices
-    api_url = f"{CLARITY_API_BASE_URL}measurements?startTime={date}&average=hour&code="
-
-    for code in device_codes:
-        api_url = f"{api_url}{code},"
-
-    api_url = api_url[:-1]
+    api_url = f"{CLARITY_API_BASE_URL}measurements?startTime={start_time}&average=hour"
 
     # get the device measurements
     headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
