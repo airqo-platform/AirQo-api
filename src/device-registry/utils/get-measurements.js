@@ -17,8 +17,11 @@ const {
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
+const getDetail = require("../utils/get-device-details");
+
 const getMeasurements = async (
   res,
+  recent,
   startTime,
   endTime,
   device,
@@ -33,7 +36,7 @@ const getMeasurements = async (
       startTime ? startTime : "noStartTime"
     }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
       limit ? limit : 0
-    }`;
+    }_${recent ? recent : "noRecent"}`;
 
     redis.get(cacheID, async (err, result) => {
       try {
@@ -44,13 +47,27 @@ const getMeasurements = async (
           callbackErrors(err, req, res);
         } else {
           const filter = generateEventsFilter(startTime, endTime, device);
+
+          let deviceDetail = await getDetail(tenant);
+          logElement("number of devices", deviceDetail.length);
+
           let skipInt = skip ? skip : 0;
-          let limitInt = limit ? limit : 50;
-          let events = await getModelByTenant(
+          let limitInt = limit ? limit : deviceDetail.length;
+
+          let allEvents = await getModelByTenant(
             tenant,
             "event",
             EventSchema
           ).list({ skipInt, limitInt, filter });
+
+          let recentEvents = await getModelByTenant(
+            tenant,
+            "event",
+            EventSchema
+          ).listRecent({ skipInt, limitInt, filter });
+
+          let events = recent ? recentEvents : allEvents;
+
           redis.set(
             cacheID,
             JSON.stringify({

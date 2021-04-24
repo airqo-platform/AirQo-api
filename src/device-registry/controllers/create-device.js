@@ -1,48 +1,18 @@
-const ComponentSchema = require("../models/Component");
 const DeviceSchema = require("../models/Device");
-const LocationActivitySchema = require("../models/SiteActivity");
-const Location = require("../models/Site");
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
 const isEmpty = require("is-empty");
 const client = new iot.v1.DeviceManagerClient();
-const device_registry =
-  "projects/airqo-250220/locations/europe-west1/registries/device-registry";
-const uuidv1 = require("uuid/v1");
-const mqtt = require("mqtt");
-const projectId = "airqo-250220";
-const region = `europe-west1`;
-const registryId = `device-registry`;
-const algorithm = `RS256`;
 // const privateKeyFile = `./rsa_private.pem`;
-const mqttBridgeHostname = `mqtt.googleapis.com`;
-const mqttBridgePort = 8883;
-const messageType = `events`;
-const numMessages = 5;
-const fetch = require("node-fetch");
-const request = require("request");
 const axios = require("axios");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
-const qs = require("qs");
-const redis = require("../config/redis");
 const { getModelByTenant } = require("../utils/multitenancy");
 const softUpdateDevice = require("../utils/soft-update-device");
 const {
   createOnThingSpeak,
   createOnClarity,
-} = require("../utils/integrations");
-
-const {
-  isDeviceNotDeployed,
-  isDeviceNotRecalled,
-  locationActivityRequestBodies,
-  doLocationActivity,
-  getGpsCoordinates,
-  doesLocationExist,
-  queryFilterOptions,
-  bodyFilterOptions,
-} = require("../utils/site-activities");
+} = require("../utils/create-device");
 
 const {
   clearEventsBody,
@@ -64,13 +34,7 @@ const {
 
 const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const deleteDevice = require("../utils/delete-device");
-const {
-  generateEventsFilter,
-  generateDeviceFilter,
-} = require("../utils/generate-filter");
-
 const getDetail = require("../utils/get-device-details");
-
 const getLastPath = require("../utils/get-last-path");
 
 const device = {
@@ -85,19 +49,20 @@ const device = {
           ...tsBody,
           ...constants.DEVICE_CREATION,
         };
-        let isDevicePresent = await doesDeviceExist(name, tenant.toLowerCase());
-        logElement("isDevicePresent ?", isDevicePresent);
-        if (!isDevicePresent) {
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (!doesDeviceExist) {
           logText("adding device on TS...");
           let channel;
           if (tenant.toLowerCase() === "airqo") {
-            createOnThingSpeak(
+            await createOnThingSpeak(
               req,
               res,
               baseUrl,
               prepBodyTS,
               channel,
-              device,
+              name,
               deviceBody,
               tenant.toLowerCase()
             );
@@ -137,8 +102,10 @@ const device = {
       //       success: false,
       //     });
       //   }
-      //   let deviceExist = await doesDeviceExist(device, tenant);
-      //   if (deviceExist) {
+      //  const deviceDetails = await getDetail(tenant, device);
+      //  const doesDeviceExist = !isEmpty(deviceDetails);
+      //  logElement("isDevicePresent ?", doesDeviceExist);
+      //   if (doesDeviceExist) {
       //     const channelID = await getChannelID(
       //       req,
       //       res,
@@ -198,9 +165,10 @@ const device = {
             success: false,
           });
         }
-        let isDevicePresent = await doesDeviceExist(device, tenant);
-        logElement("isDevicePresent ?", isDevicePresent);
-        if (isDevicePresent) {
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (doesDeviceExist) {
           const channelID = await getChannelID(
             req,
             res,
@@ -252,10 +220,12 @@ const device = {
       let { device, tenant } = req.query;
 
       if (tenant && device) {
-        let isDevicePresent = await doesDeviceExist(device, tenant);
-        logElement("isDevicePresent?", isDevicePresent);
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
 
-        if (isDevicePresent) {
+        logElement("isDevicePresent?", doesDeviceExist);
+
+        if (doesDeviceExist) {
           const channelID = await getChannelID(
             req,
             res,
@@ -302,9 +272,19 @@ const device = {
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant } = req.query;
+      const { tenant, name, chid, loc, site, map } = req.query;
       if (tenant) {
-        const devices = await getDetail(req, res);
+        const devices = await getDetail(
+          tenant,
+          name,
+          chid,
+          loc,
+          site,
+          map,
+          limit,
+          skip
+        );
+        logObject("the devices", devices);
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: "Devices fetched successfully",
@@ -358,8 +338,10 @@ const device = {
         upsert: true,
       };
       if (tenant && device) {
-        let deviceExist = await doesDeviceExist(device, tenant);
-        if (deviceExist) {
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (doesDeviceExist) {
           await softUpdateDevice(
             res,
             device,
@@ -394,8 +376,10 @@ const device = {
             success: false,
           });
         }
-        let deviceExist = await doesDeviceExist(device, tenant);
-        if (deviceExist) {
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (doesDeviceExist) {
           deleteDevice(tenant, res, device);
         } else {
           logText(`device ${device} does not exist in the system`);
@@ -417,8 +401,10 @@ const device = {
       const { device, tenant } = req.query;
       const { photos } = req.body;
       if (tenant && device && photos) {
-        let deviceExist = await doesDeviceExist(device, tenant);
-        if (deviceExist) {
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (doesDeviceExist) {
           let { tsBody, deviceBody, options } = updateThingBodies(req, res);
           const channelID = await getChannelID(
             req,
