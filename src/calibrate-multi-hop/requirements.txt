@@ -25,7 +25,7 @@ google-auth
 google-auth-oauthlib     
 google-cloud-bigquery-storage
 networkx
-matplotlib
+matplotlib==3.2
 -e git+https://github.com/lionfish0/download_airnow_web#egg=download_airnow_web
 pyproj==3.0.0.post1
 -e git://github.com/airqo-platform/calibration.git@update-calibration#egg=calibration
