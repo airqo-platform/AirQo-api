@@ -1,3 +1,14 @@
+const {
+  generateDateFormat,
+  generateDateFormatWithoutHrs,
+  threeMonthsBehind,
+  twoMonthsBehind,
+  oneMonthBehind,
+  threeMonthsInfront,
+} = require("./date");
+
+const { logObject, logElement, logText } = require("./log");
+
 const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
   if (queryStartTime && queryEndTime && !device) {
     return {
@@ -31,7 +42,12 @@ const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
       "values.device": device,
     };
   } else {
-    return {};
+    let oneMonthBack = oneMonthBehind();
+    let startTime = generateDateFormatWithoutHrs(oneMonthBack);
+    logElement("startTime", startTime);
+    return {
+      day: { $gte: startTime },
+    };
   }
 };
 

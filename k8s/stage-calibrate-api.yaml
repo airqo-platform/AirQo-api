@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-stage-calibrate
+  name: airqo-stage-calibrate-api
   namespace: staging
 spec:
   selector:

@@ -37,23 +37,51 @@ spec:
           #   periodSeconds: 3
           #   successThreshold: 1
           env:
-            - name: GET_HOSTS_FROM
-              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
                   name: stage-locate-secret
                   key: MONGO_GCE_URI
+            - name: DB_NAME_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: DB_NAME_STAGE
             - name: DB_NAME_PROD
               valueFrom:
                 secretKeyRef:
                   name: stage-locate-secret
-                  key: PLATFORM_MONGO_PROD
+                  key: DB_NAME_PROD
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
                   name: stage-locate-secret
                   key: SECRET_KEY
+            - name: FLASK_APP
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: FLASK_APP
+            - name: FLASK_ENV
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: FLASK_ENV
+            - name: FLASK_RUN_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: FLASK_RUN_PORT
+            - name: REDIS_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: REDIS_SERVER
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: stage-locate-secret
+                  key: REDIS_PORT
 
 ---
 kind: Service

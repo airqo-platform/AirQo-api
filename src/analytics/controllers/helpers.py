@@ -15,7 +15,7 @@ analytics_app = Blueprint('analytics_app', __name__)
 
 
 
-@analytics_app.route('/api/v1/device/codes', methods =['GET'])
+@analytics_app.route('/api/v1/analytics/device/codes', methods =['GET'])
 def get_device_codes():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     devices_codes_list=[]
@@ -26,7 +26,7 @@ def get_device_codes():
     return jsonify({'device codes':devices_codes_list }), 200
 
 
-@analytics_app.route('/api/v1/device/measurements/daily/save', methods =['GET'])
+@analytics_app.route('/api/v1/analytics/device/measurements/daily/save', methods =['GET'])
 def get_and_save_daily_measurements():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
@@ -36,7 +36,7 @@ def get_and_save_daily_measurements():
     return jsonify({'response': 'all daily measurements saved'}), 200
 
 
-@analytics_app.route('/api/v1/device/measurements/daily/update', methods =['GET'])
+@analytics_app.route('/api/v1/analytics/device/measurements/daily/update', methods =['GET'])
 def update_device_daily_measurements():
     clarity_api = ClarityApi() 
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
@@ -46,7 +46,8 @@ def update_device_daily_measurements():
         clarity_api.update_device_daily_measurements(code,average)
     return jsonify({'response': 'all new hourly measurements saved'}), 200  
 
-@analytics_app.route('/api/v1/device/measurements/hourly/save', methods =['GET'])
+
+@analytics_app.route('/api/v1/analytics/device/measurements/hourly/save', methods =['GET'])
 def get_and_save_hourly_measurements():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
@@ -55,7 +56,8 @@ def get_and_save_hourly_measurements():
         clarity_api.save_clarity_device_hourly_measurements_v2(average, code['code'])
     return jsonify({'response': 'all hourly measurements saved'}), 200
 
-@analytics_app.route('/api/v1/device/measurements/hourly/update', methods =['GET'])
+
+@analytics_app.route('/api/v1/analytics/device/measurements/hourly/update', methods =['GET'])
 def update_device_hourly_measurements():
     clarity_api = ClarityApi() 
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
@@ -66,7 +68,7 @@ def update_device_hourly_measurements():
     return jsonify({'response': 'all new hourly measurements saved'}), 200  
         
    
-@analytics_app.route('/api/v1/device/measurements', methods=['GET'])
+@analytics_app.route('/api/v1/analytics/device/measurements', methods=['GET'])
 def get_and_save_device_measurements():
     if request.method == 'GET':
         code= request.args.get('code')
@@ -82,7 +84,7 @@ def get_and_save_device_measurements():
             clarity_api.save_clarity_device_daily_measurements(average,code,startTime, limit)
             return jsonify({'response':'device daily measurements saved'}),200
 
-@analytics_app.route('/api/v1/device/measurements/raw', methods =['GET'])
+@analytics_app.route('/api/v1/analytics/device/measurements/raw', methods =['GET'])
 def get_and_save_raw_measurements():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
@@ -90,7 +92,7 @@ def get_and_save_raw_measurements():
         clarity_api.save_clarity_raw_device_measurements(code)
     return jsonify({'response': 'all raw measurements saved'}), 200
 
-@analytics_app.route('/api/v1/device/measurements/raw/update', methods =['GET'])
+@analytics_app.route('/api/v1/analytics/device/measurements/raw/update', methods =['GET'])
 def update_raw_measurements():
     devices_codes =  list(mongo.db.devices.find({},{"code": 1, "_id": 0}))
     clarity_api = ClarityApi()
@@ -98,7 +100,7 @@ def update_raw_measurements():
         clarity_api.update_clarity_data(code)
     return jsonify({'response': 'all new raw measurements saved'}), 200
 
-@analytics_app.route('/api/v1/device/graph', methods = ['GET'])
+@analytics_app.route('/api/v1/analytics/device/graph', methods = ['GET'])
 def get_filtered_data():
     device_code = request.args.get('device_code')
     start_date = request.args.get('start_date')
@@ -107,14 +109,14 @@ def get_filtered_data():
     pollutant = request.arg.get('pollutant')
     return mongo_helpers.get_filtered_data(device_code, start_date, end_date, frequency, pollutant )
 
-@analytics_app.route('/api/v1/save_devices', methods=['GET'])
+@analytics_app.route('/api/v1/analytics/save_devices', methods=['GET'])
 def get_and_save_devices():
     if request.method == 'GET':
         clarity_api = ClarityApi()
         clarity_api.save_clarity_devices()
     return jsonify({'response':'devices saved'}),200
 
-@analytics_app.route('/api/v1/divisions', methods=['GET'])
+@analytics_app.route('/api/v1/analytics/divisions', methods=['GET'])
 def get_divisions():
     divisions=[]
     division_cursor =  mongo.db.division.find()
@@ -124,7 +126,7 @@ def get_divisions():
     results = json.loads(json_util.dumps(divisions))
     return jsonify({"divisions":results}), 200
 
-@analytics_app.route('/api/v1/devices', methods=['GET'])
+@analytics_app.route('/api/v1/analytics/devices', methods=['GET'])
 def get_devices():
     if request.method == 'GET':
         clarity_api = ClarityApi()
@@ -133,7 +135,7 @@ def get_devices():
 
        
         
-@analytics_app.route('/health', methods=['GET'])
+@analytics_app.route('/api/v1/analytics/health', methods=['GET'])
 def health():
     if request.method == 'GET':
         _logger.info('health status OK')
