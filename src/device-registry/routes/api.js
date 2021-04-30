@@ -18,7 +18,7 @@ router.delete("/ts/delete", deviceController.deleteThing);
 router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
 router.get("/by/location", deviceController.listAllByLocation);
-router.get("/by/coordinates", deviceController.listAllByCoordinates);
+router.get("/by/nearest-coordinates", deviceController.listAllByNearestCoordinates);
 router.post("/", deviceController.createOne);
 router.delete("/photos", deviceController.deletePhotos);
 router.delete("/delete", deviceController.delete);

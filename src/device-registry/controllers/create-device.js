@@ -328,7 +328,7 @@ const device = {
     }
   },
 
-  listAllByCoordinates: async (req, res) => {
+  listAllByNearestCoordinates: async (req, res) => {
     try {
       const { tenant, latitude, longitude } = req.query;
 

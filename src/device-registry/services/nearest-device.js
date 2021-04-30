@@ -38,7 +38,7 @@ const nearestDevices = {
         latitude2 = nearestDevices.degreesToRadians(latitude2);
   
         // Applying Haversine formula
-        a = Math.pow(
+        haversine = Math.pow(
           Math.sin(latitudeDisatnce / 2), 2) + 
           Math.pow(Math.sin(longitudeDisatnce / 2), 2) * 
           Math.cos(latitude1) * 
@@ -47,7 +47,7 @@ const nearestDevices = {
         // Earth's radius in kilometers
         var radius = 6371;
   
-        var c = 2 *Math.asin(Math.sqrt(a));
+        var c = 2 *Math.asin(Math.sqrt(haversine));
         return radius * c;
     },
 
