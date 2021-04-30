@@ -2,7 +2,7 @@ const { logElement } = require("../utils/log");
 
 const nearestDevices = {
 
-    findNearestDevices: ( devices, lat, lng ) => {
+    findNearestDevices: ( devices, latitude, longitude ) => {
         
         try {
 
@@ -11,7 +11,7 @@ const nearestDevices = {
             devices.forEach(device => {
 
                 if ('latitude' in device && 'longitude' in device && device['isActive'] == true) {
-                    distance = nearestDevices.calculateDistance(lat, lng, device['latitude'], device['longitude']);
+                    distance = nearestDevices.calculateDistance(latitude, longitude, device['latitude'], device['longitude']);
 
                     if (distance < 1) {
                         logElement("Found a node ", distance);
@@ -27,22 +27,22 @@ const nearestDevices = {
         }
     },
 
-    calculateDistance: ( lat1, lng1, lat2, lng2) => {
+    calculateDistance: ( latitude1, longitude1, latitude2, longitude2) => {
         
         // distance between latitudes and longitudes
-        var latitudeDisatnce = nearestDevices.degreesToRadians(lat2 - lat1);
-        var longitudeDisatnce = nearestDevices.degreesToRadians(lng2 - lng1);
+        var latitudeDisatnce = nearestDevices.degreesToRadians(latitude2 - latitude1);
+        var longitudeDisatnce = nearestDevices.degreesToRadians(longitude2 - longitude1);
   
         // convert to radians
-        lat1 = nearestDevices.degreesToRadians(lat1);
-        lat2 = nearestDevices.degreesToRadians(lat2);
+        latitude1 = nearestDevices.degreesToRadians(latitude1);
+        latitude2 = nearestDevices.degreesToRadians(latitude2);
   
         // Applying Haversine formula
         a = Math.pow(
           Math.sin(latitudeDisatnce / 2), 2) + 
           Math.pow(Math.sin(longitudeDisatnce / 2), 2) * 
-          Math.cos(lat1) * 
-          Math.cos(lat2);
+          Math.cos(latitude1) * 
+          Math.cos(latitude2);
   
         // Earth's radius in kilometers
         var radius = 6371;
