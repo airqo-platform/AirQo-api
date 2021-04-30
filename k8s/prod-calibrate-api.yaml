@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-prod-calibrate
+  name: airqo-prod-calibrate-api
   namespace: production
 spec:
   selector:

@@ -235,7 +235,8 @@ eventSchema.statics = {
         no2: { $first: "$no2" },
       })
       .skip(skipInt)
-      .limit(limitInt);
+      .limit(limitInt)
+      .allowDiskUse(true);
   },
 };
 
