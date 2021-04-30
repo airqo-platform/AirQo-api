@@ -1,23 +1,23 @@
 import os
 import pandas as pd
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime
 
-DEVICE_REGISTRY_PRODUCTION_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
+DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
 
 
 def transform_data():
 
     device_measurements_data = get_airqo_devices_data()
 
-    transform_data(device_measurements_data)
+    get_hourly_measurements(device_measurements_data)
 
 
 def get_airqo_devices_data():
 
     start_date = datetime.strftime(datetime.now(), '%Y-%m-%d')
 
-    api_url = f"{DEVICE_REGISTRY_PRODUCTION_URL}devices/events?tenant=airqo&startTime={start_date}&limit=30"
+    api_url = f"{DEVICE_REGISTRY_STAGING_URL}devices/events?tenant=airqo&startTime={start_date}&limit=30"
 
     results = requests.get(api_url)
 
@@ -34,7 +34,7 @@ def get_hourly_measurements(measurements_data):
 
         location = dict(group.iloc[0]['location'])
         device = group.iloc[0]['device']
-        channelID = group.iloc[0]['channelID']
+        channel_id = group.iloc[0]['channelID']
         frequency = "hourly"
 
         measurements = []
@@ -59,17 +59,16 @@ def get_hourly_measurements(measurements_data):
         measurements = pd.DataFrame(measurements)
         measurements.fillna(0)
         measurements['time'] = pd.to_datetime(measurements['time'])
-        
-       
+
         measurements = measurements.set_index('time').resample('60min').mean().round(2)
 
         for hourly_index, hourly_row in measurements.iterrows():
  
             hourly_data = dict({
                 "device": device,
-                "channelID": channelID,
+                "channelID": channel_id,
                 "frequency": frequency,
-                "time": datetime.strftime(hourly_index, '%Y-%m-%dT%H:%M:%SZ') ,
+                "time": datetime.strftime(hourly_index, '%Y-%m-%dT%H:%M:%SZ'),
                 "pm2_5": {"value": hourly_row["pm2_5"]},
                 "pm10": {"value": hourly_row["pm10"]},
                 "s2_pm2_5": {"value": hourly_row["s2_pm2_5"]},

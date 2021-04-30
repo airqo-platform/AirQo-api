@@ -1,0 +1,47 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  creationTimestamp: "2021-04-30T11:00:00Z"
+  managedFields:
+    - apiVersion: batch/v1beta1
+      manager: kubectl
+      operation: Update
+      time: "2021-04-30T11:00:00Z"
+  name: stage-airqo-hourly-measurements-job
+  namespace: staging
+  selfLink: /apis/batch/v1beta1/namespaces/default/cronjobs/airqo-hourly-measurements-job
+  uid: 9b71a693-43e2-4559-aff2-d821fc3bfe80
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      creationTimestamp: null
+      name: stage-airqo-hourly-measurements-job
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+        spec:
+          containers:
+            - image: us.gcr.io/airqo-250220/airqo-stage-hourly-measurements-job:latest
+              imagePullPolicy: Always
+              name: stage-airqo-hourly-measurements-job
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+  schedule: 58 23 * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false
+status: {}
