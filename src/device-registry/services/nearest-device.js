@@ -2,7 +2,7 @@ const { logElement } = require("../utils/log");
 
 const nearestDevices = {
 
-    findNearestDevices: ( devices, latitude, longitude ) => {
+    findNearestDevices: ( devices, radius, latitude, longitude ) => {
         
         try {
 
@@ -13,7 +13,7 @@ const nearestDevices = {
                 if ('latitude' in device && 'longitude' in device && device['isActive'] == true) {
                     distance = nearestDevices.calculateDistance(latitude, longitude, device['latitude'], device['longitude']);
 
-                    if (distance < 1) {
+                    if (distance < radius) {
                         logElement("Found a node ", distance);
                         nearest_devices.push(device);
                     }

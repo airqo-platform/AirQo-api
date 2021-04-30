@@ -330,11 +330,11 @@ const device = {
 
   listAllByNearestCoordinates: async (req, res) => {
     try {
-      const { tenant, latitude, longitude } = req.query;
+      const { tenant, latitude, longitude, radius } = req.query;
 
       try {
 
-        if (!tenant || !latitude || !longitude){
+        if (!tenant || !latitude || !longitude || !radius){
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: "missing query params, please check documentation",
@@ -344,9 +344,9 @@ const device = {
         logElement("latitude ", latitude);
         logElement("longitude ", longitude);
 
-        const devices = await getDetail(tenant,);
+        const devices = await getDetail(tenant);
 
-        const nearest_devices = nearestDevices.findNearestDevices(devices, latitude, longitude);
+        const nearest_devices = nearestDevices.findNearestDevices(devices, radius, latitude, longitude);
 
         return res.status(HTTPStatus.OK).json(nearest_devices);
 
