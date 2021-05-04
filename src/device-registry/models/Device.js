@@ -24,7 +24,6 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       required: [true, "Device name is required!"],
       trim: true,
-      unique: true,
     },
     visibility: {
       type: Boolean,
@@ -94,9 +93,9 @@ const deviceSchema = new mongoose.Schema(
     nextMaintenance: {
       type: Date,
     },
-    channelID: {
+    deviceCode: {
       type: Number,
-      required: [true, "Channel ID is required!"],
+      required: [true, "the device code is required!"],
       trim: true,
       unique: true,
     },
@@ -162,7 +161,7 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
-      channelID: this.channelID,
+      deviceCode: this.deviceCode,
       powerType: this.powerType,
       mountType: this.mountType,
       locationID: this.locationID,
@@ -177,8 +176,8 @@ deviceSchema.methods = {
 
   toUpdateJSON() {
     return {
-      deviceName: this.deviceName,
-      locationID: this.locationName,
+      deviceName: this.name,
+      locationID: this.locationID,
       height: this.height,
       mountType: this.mountType,
       powerType: this.powerType,
