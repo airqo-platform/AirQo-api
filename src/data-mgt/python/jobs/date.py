@@ -41,6 +41,13 @@ def date_to_str2(date):
     return datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
 
 
+def date_to_str_hours(date):
+    """
+    Converts datetime to a string
+    """
+    return datetime.strftime(date, '%Y-%m-%dT%H:00:00Z')
+
+
 def str_to_date_find(st):
     """
     Converts a string of different format to datetime

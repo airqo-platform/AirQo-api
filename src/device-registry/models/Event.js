@@ -203,7 +203,8 @@ eventSchema.statics = {
         updatedAt: 0,
       })
       .skip(skipInt)
-      .limit(limitInt);
+      .limit(limitInt)
+      .allowDiskUse(true);
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
