@@ -211,6 +211,12 @@ eventSchema.statics = {
       .unwind("values")
       .match(filter)
       .replaceRoot("values")
+      .lookup({
+        from: "devices",
+        localField: "device",
+        foreignField: "name",
+        as: "deviceDetails",
+      })
       .sort({ time: -1 })
       .group({
         _id: "$device",
@@ -233,6 +239,7 @@ eventSchema.statics = {
         externalHumidity: { $first: "$externalHumidity" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
+        deviceDetails: { $first: "$deviceDetails" },
       })
       .skip(skipInt)
       .limit(limitInt)
