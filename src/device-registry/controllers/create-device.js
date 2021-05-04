@@ -285,11 +285,19 @@ const device = {
           skip
         );
         logObject("the devices", devices);
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: "Devices fetched successfully",
-          devices,
-        });
+        if (devices.length) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Devices fetched successfully",
+            devices,
+          });
+        } else {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Device(s) not available",
+            devices,
+          });
+        }
       } else {
         missingQueryParams(req, res);
       }
