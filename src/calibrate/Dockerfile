@@ -7,7 +7,7 @@ COPY . /app/
 WORKDIR /app/
 
 # Install the Flask package via pip
-RUN pip install -r requirements/prod.txt
+RUN pip install -r requirements.txt
 # Set "python" as the entry point
 # Set environment variables
 ENV FLASK_APP=app.py
