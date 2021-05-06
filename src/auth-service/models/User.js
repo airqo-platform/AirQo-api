@@ -63,7 +63,12 @@ const UserSchema = new Schema({
       message: "{VALUE} is not a valid password!",
     },
   },
-  privilege: { type: String, required: [true, "the role is required!"] },
+  privilege: {
+    type: String,
+    default: "user",
+    required: [true, "the role is required!"],
+    enum: ["user", "admin", "super", "netmanager"],
+  },
   isActive: { type: Boolean },
   duration: { type: Date, default: oneMonthFromNow },
   organization: {

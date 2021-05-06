@@ -34,7 +34,13 @@ const checkAuth = () => {
 
 //************************* users ***************************************************
 router.post("/loginUser", login, authUserLocal, joinController.loginUser);
-router.get("/", checkTenancy, authJWT, joinController.listAll);
+router.get(
+  "/",
+  checkTenancy,
+  authJWT,
+  grantAccess("readAny", "users"),
+  joinController.listAll
+);
 router.post("/registerUser", joinController.registerUser);
 router.post(
   "/addWithTenant",
@@ -78,6 +84,7 @@ router.get(
   "/candidates/fetch",
   checkTenancy,
   authJWT,
+  grantAccess("readAny", "users"),
   candidateController.getAllCandidates
 );
 
