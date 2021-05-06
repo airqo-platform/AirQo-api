@@ -305,7 +305,7 @@ def get_channel_id(latitude:str, longitude:str) -> int:
 
 
 def get_all_coordinates():
-    client = bigquery.Client()
+    client = bigquery.Client() 
 
     query = """
         SELECT channel_id, latitude, longitude

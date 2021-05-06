@@ -215,7 +215,6 @@ def make_prediction_using_averages(entered_chan, entered_time, entered_latitude,
         return results
     else:
         all_channel_data_clean = fill_gaps_and_set_datetime(all_channel_data)
-        
         if not current_best_config:
             best_number_of_days_back = ast.literal_eval(current_best_config[0])[0] 
             config_to_use = ast.literal_eval(current_best_config[0])
@@ -232,7 +231,6 @@ def make_prediction_using_averages(entered_chan, entered_time, entered_latitude,
 
         # generating mean, lower ci, upper ci
         yhat_24, lower_ci, upper_ci = simple_forecast_ci(data_to_use, best_number_of_days_back, considered_hours)
-        
         model_predictions = []
         model_name  =  'simple_average_prediction'
         channel_id =  selected_channel_id   
@@ -376,15 +374,20 @@ def simple_forecast_ci(history, configs, considered_hours):
         list_of_hours_to_count = []
         list_of_hourly_values = []
         for day in (np.arange(0, (days))):
-            hours_to_count = -(hour+ day*24)            
+            #print (f'Day: {day}')
+            #print(f'Hour: {hour}')
+            hours_to_count = -(hour+ day*24) 
+            #print(f'Hours to count:{hours_to_count}')       
             hourly_values = series[hours_to_count]
+            #print(f'Hourly values: {hourly_values}')
             list_of_hours_to_count.append(hours_to_count)
             list_of_hourly_values.append(hourly_values)
-        print('list of hourly values')
-        print(list_of_hourly_values)
+            print(f'Hourly values list: {list_of_hourly_values}')
+        #print('list of hourly values')
+        #print(list_of_hourly_values)
 
-        print('list of hours to count')
-        print(list_of_hours_to_count)
+        #print('list of hours to count')
+        #print(list_of_hours_to_count)
         mean_of_hourly_values, lower_ci_of_hourly_values, upper_ci_of_hourly_values = processing.mean_confidence_interval(list_of_hourly_values, confidence=0.95)
 
         
