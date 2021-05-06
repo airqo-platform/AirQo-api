@@ -1,11 +1,8 @@
 import pandas as pd
 from pymongo import MongoClient
 from dotenv import load_dotenv
-import os 
-
-load_dotenv()
-MONGO_URI = os.getenv('MONGO_URI')
-#_config.MONGO_URI
+import os
+from helpers import db_helpers
 
 class Map():
     '''
@@ -18,12 +15,11 @@ class Map():
     def __init__(self):
         ''' initialize ''' 
 
-    def save_locate_map(self, user_id, space_name, plan):
+    def save_locate_map(self, tenant, user_id, space_name, plan):
         '''
         Saves current planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         db.locate_map.insert({
             "user_id": user_id,
             "space_name": space_name,
@@ -31,32 +27,37 @@ class Map():
         })
 
 
-    def get_locate_map(self, user_id):
+    def get_locate_map(self, tenant, user_id):
         '''
         Retrieves previously saved planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         documents = db.locate_map.find({"user_id": str(user_id)})
         return documents
 
+    def plan_space_exist(self, tenant, user_id, space_name):
+        '''
+        check if planning space name already exits for a given user. Avoid duplicates
+        '''
+        db = db_helpers.connect_mongo(tenant)
+        documents = db.locate_map.find({"$and": [{"user_id":str(user_id)}, {"space_name":space_name}]})
+        return documents.count()
 
-    def update_locate_map(self, space_name, updated_plan):
+
+    def update_locate_map(self, tenant, user_id, space_name, updated_plan):
         '''
         Updates previously saved planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
+        db = db_helpers.connect_mongo(tenant)
         response = db.locate_map.update_one(
-            {"space_name": space_name}, {'$set': {'plan': updated_plan}})
+            {"$and": [{'user_id': user_id}, {'space_name': space_name}]}, {'$set': {'plan': updated_plan}})
         return response
 
 
-    def delete_locate_map(self, space_name):
+    def delete_locate_map(self, tenant, user_id, space_name):
         '''
         Deletes previously sved planning space
         '''
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
-        response = db.locate_map.delete_one({'space_name': space_name})
+        db = db_helpers.connect_mongo(tenant)
+        response = db.locate_map.delete_one({"$and": [{'user_id': user_id}, {'space_name': space_name}]})
         return response
