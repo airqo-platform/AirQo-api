@@ -1,3 +1,5 @@
+import traceback
+
 import pandas as pd
 import requests
 from threading import Thread
@@ -7,7 +9,7 @@ import numpy as np
 import os
 import math
 
-DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
+DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
 FEEDS_BASE_URL = os.getenv("FEEDS_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 
@@ -89,14 +91,17 @@ def check_float(string):
         return None
 
 
-def get_calibrated_value(channel_id, time, value):
+def get_calibrated_value(device_id, time, pm2_5, pm10, temperature, humidity):
 
     data = {
         "datetime": time,
         "raw_values": [
             {
-                "raw_value": value,
-                "sensor_id": channel_id
+                "device_id": device_id,
+                "pm2.5": pm2_5,
+                "pm10": pm10,
+                "temperature": temperature,
+                "humidity": humidity
             }
         ]
     }
@@ -104,23 +109,35 @@ def get_calibrated_value(channel_id, time, value):
     try:
         post_request = requests.post(url=CALIBRATE_URL, json=data)
     except Exception as ex:
-        print("Calibrate Url returned an error")
-        print(ex)
+        traceback.print_exc()
+        print(f"Calibrate Url returned an error: {str(ex)}")
         return None
 
     if post_request.status_code != 200:
+        print('\n')
+        print(f"Calibrate failed to return values. Status Code : "
+              f"{str(post_request.status_code)}, Url : {CALIBRATE_URL}, Body: {data}")
+        print(post_request.content)
+        print('\n')
+
         return None
 
-    response = post_request.json()
+    try:
+        response = post_request.json()
 
-    calibrated_value = None
+        calibrated_value = None
 
-    for result in response:
-        if "calibrated_value" in result:
-            calibrated_value = result["calibrated_value"]
-            break
+        for result in response:
+            if "calibrated_value" in result:
+                calibrated_value = result["calibrated_value"]
+                break
 
-    return calibrated_value
+        return calibrated_value
+
+    except Exception as ex:
+        traceback.print_exc()
+        print(f"Error processing calibrate response: {str(ex)}")
+        return None
 
 
 def transform_chunk(chunk):
@@ -156,11 +173,15 @@ def transform_chunk(chunk):
         })
 
         # add calibrated value
-        # calibrated_value = None
-        #
-        # if data["pm2_5"]["value"] is not None:
-        #     calibrated_value = get_calibrated_value(data["channelID"], data["time"], data["pm2_5"]["value"])
-        #
+        calibrated_value = None
+
+        if data["pm2_5"]["value"] is not None:
+            calibrated_value = get_calibrated_value(data["device"], data["time"], data["pm2_5"]["value"],
+                                                    data["pm10"]["value"], data["internalTemperature"]["value"],
+                                                    data["internalHumidity"]["value"])
+
+        data["pm2_5"]["calibratedValue"] = calibrated_value
+
         # if calibrated_value is not None:
         #     data["pm2_5"]["calibratedValue"] = calibrated_value
 
