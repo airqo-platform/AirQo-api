@@ -235,7 +235,9 @@ const join = {
       });
     }
   },
-  //invoked when the user visits the confirmation url on the client
+  /**
+   * invoked when the user visits the confirmation url on the client
+   */
   confirmEmail: async (req, res) => {
     console.log("inside confirm email");
     try {
@@ -269,6 +271,27 @@ const join = {
     }
   },
 
+  resendConfirmEmailToken: async (req, res) => {
+    const mailOptions = {
+      from: `airqo.analytics@gmail.com`,
+      to: `${req.body.email}`,
+      subject: "Account Verification Token",
+      text: msgs.emailVerification,
+    };
+
+    console.log("the values we are sending");
+    console.dir(req.body);
+    const token = crypto.randomBytes(20).toString("hex");
+
+    let userBody = {
+      ...req.body,
+      emailVerificationToken: token,
+      emailVerficationExpires: Date.now() + 3600000,
+    };
+
+    register(req, res, mailOptions, userBody, User);
+  },
+
   loginUser: (req, res, next) => {
     logText("..................................");
     logText("user login......");
@@ -278,8 +301,15 @@ const join = {
       if (!isValid) {
         return res.status(400).json(errors);
       }
-      res.status(200).json(req.user.toAuthJSON());
-      return next();
+      if (req.user.isEmailVerified) {
+        return res.status(401).json({
+          success: false,
+          message: "Your email address is not verified",
+        });
+      } else {
+        res.status(200).json(req.user.toAuthJSON());
+        return next();
+      }
     } catch (e) {
       res.json({ success: false, message: e.message });
     }

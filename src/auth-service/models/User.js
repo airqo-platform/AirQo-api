@@ -31,7 +31,7 @@ const UserSchema = new Schema({
       message: "{VALUE} is not a valid email!",
     },
   },
-  emailConfirmed: {
+  isEmailVerified: {
     type: Boolean,
     default: false,
   },
@@ -126,13 +126,60 @@ UserSchema.pre("update", function (next) {
   return next();
 });
 
-UserSchema.pre("findByIdAndUpdate", function (next) {
-  this.options.runValidators = true;
-  if (this.isModified("password")) {
-    this.password = this._hashPassword(this.password);
-  }
-  return next();
-});
+UserSchema.methods = {
+  _hashPassword(password) {
+    // bcrypt.hash(password, saltRounds).then(function (hash) {
+    //     return hash;
+    // })
+    return bcrypt.hashSync(password, saltRounds);
+  },
+  authenticateUser(password) {
+    // bcrypt.compare(password, this.password).then(function (res) {
+    //     return res;
+    // })
+    return bcrypt.compareSync(password, this.password);
+  },
+  createToken() {
+    return jwt.sign(
+      {
+        _id: this._id,
+        firstName: this.firstName,
+        lastName: this.lastName,
+        email: this.email,
+        pref_locations: this.pref_locations,
+        privilege: this.privilege,
+      },
+      constants.JWT_SECRET
+    );
+  },
+  toAuthJSON() {
+    return {
+      _id: this._id,
+      userName: this.userName,
+      token: `JWT ${this.createToken()}`,
+      email: this.email,
+    };
+  },
+  toJSON() {
+    return {
+      _id: this._id,
+      userName: this.userName,
+      email: this.email,
+      firstName: this.firstName,
+      lastName: this.lastName,
+      graph_defaults: this.graph_defaults,
+      pref_locations: this.pref_locations,
+      privilege: this.privilege,
+      phoneNumber: this.phoneNumber,
+    };
+  },
+};
+
+const user = mongoose.model("user", UserSchema);
+
+module.exports = user;
+
+// module.exports = tenantModel("user", UserSchema);
 
 UserSchema.statics = {
   createUser(args) {

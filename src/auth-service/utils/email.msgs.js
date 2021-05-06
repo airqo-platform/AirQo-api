@@ -2,7 +2,7 @@ const constants = require("../config/constants");
 
 module.exports = {
   confirm: "Email sent, please check your inbox to confirm",
-  confirmed: "Your email is confirmed!",
+  confirmed: "Your email is confirmed! Please go ahead and login",
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
@@ -34,6 +34,13 @@ module.exports = {
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
     );
   },
+  emailVerification:
+    "Hello,\n\n" +
+    "Please verify your account by clicking the link: \nhttp://" +
+    req.headers.host +
+    "/confirmation/" +
+    token.token +
+    ".\n",
   welcome_general: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
