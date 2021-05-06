@@ -9,37 +9,47 @@ const {
 
 const { logObject, logElement, logText } = require("./log");
 
-const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
-  if (queryStartTime && queryEndTime && !device) {
+const generateEventsFilter = (
+  queryStartTime,
+  queryEndTime,
+  device,
+  frequency
+) => {
+  if (queryStartTime && queryEndTime && !device && !frequency) {
     return {
       day: { $gte: queryStartTime, $lte: queryEndTime },
     };
-  } else if (queryStartTime && queryEndTime && device) {
+  } else if (queryStartTime && queryEndTime && device && frequency) {
     return {
       day: { $gte: queryStartTime, $lte: queryEndTime },
       "values.device": device,
+      "values.frequency": frequency,
     };
-  } else if (!queryStartTime && !queryEndTime && device) {
+  } else if (!queryStartTime && !queryEndTime && device && frequency) {
     return {
       "values.device": device,
+      "values.frequency": frequency,
     };
-  } else if (queryStartTime && !queryEndTime && !device) {
+  } else if (queryStartTime && !queryEndTime && !device && !frequency) {
     return {
       day: { $gte: queryStartTime },
+      "values.frequency": frequency,
     };
-  } else if (!queryStartTime && queryEndTime && !device) {
+  } else if (!queryStartTime && queryEndTime && !device && !frequency) {
     return {
       day: { $lte: queryEndTime },
     };
-  } else if (!queryStartTime && queryEndTime && device) {
+  } else if (!queryStartTime && queryEndTime && device && frequency) {
     return {
       day: { $lte: queryEndTime },
       "values.device": device,
+      "values.frequency": frequency,
     };
-  } else if (queryStartTime && !queryEndTime && device) {
+  } else if (queryStartTime && !queryEndTime && device && frequency) {
     return {
       day: { $gte: queryStartTime },
       "values.device": device,
+      "values.frequency": frequency,
     };
   } else {
     let oneMonthBack = oneMonthBehind();
