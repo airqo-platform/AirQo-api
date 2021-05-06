@@ -35,6 +35,13 @@ const missingQueryParams = (req, res) => {
   });
 };
 
+const invalidParamsValue = (req, res) => {
+  res.status(HTTPStatus.BAD_REQUEST).send({
+    success: false,
+    message: "Invalid request parameter value, please check documentation",
+  });
+};
+
 const callbackErrors = (error, req, res) => {
   res
     .status(HTTPStatus.BAD_GATEWAY)
@@ -53,4 +60,5 @@ module.exports = {
   missingQueryParams,
   callbackErrors,
   unclearError,
+  invalidParamsValue
 };

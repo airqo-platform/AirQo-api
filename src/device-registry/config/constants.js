@@ -5,12 +5,16 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV,
+  KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD,
+  KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
 };
 
 const stageConfig = {
@@ -18,6 +22,8 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE,
+  KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
 };
 
 const defaultConfig = {

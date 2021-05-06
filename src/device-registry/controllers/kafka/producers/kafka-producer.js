@@ -1,7 +1,7 @@
 const kafka = require('kafka-node');
 const HighLevelProducer = kafka.HighLevelProducer;
-const client = require('../config/kafka');
-const type = require('../models/avro');
+const client = require('../../../config/kafka');
+const type = require('../../../models/avro');
 
 
 const producer = new HighLevelProducer(client);

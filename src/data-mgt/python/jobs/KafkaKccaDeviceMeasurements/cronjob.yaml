@@ -1,0 +1,19 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: kcca-job
+spec:
+  schedule: "* * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+        spec:
+          containers:
+            - image: localhost:5000/kcca-kafka-test:latest
+              imagePullPolicy: Always
+              name: kcca-job
+          restartPolicy: OnFailure
+          terminationGracePeriodSeconds: 30
+status: {}

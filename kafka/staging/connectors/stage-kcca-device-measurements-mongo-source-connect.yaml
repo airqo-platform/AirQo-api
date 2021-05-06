@@ -1,0 +1,21 @@
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaConnect
+metadata:
+  name: kcca-mongodb-connector-cluster
+  namespace: staging
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  image: us.gcr.io/airqo-250220/airqo-stage-kcca-deivce-measurements-mongodb-source-connect:latest
+  imagePullPolicy: Always
+  replicas: 1
+  bootstrapServers: BOOTSTRAP_SERVERS
+  config:
+    group.id: kcca-mongodb-connector-cluster
+    offset.storage.topic: kcca-mongodb-connector-cluster-offsets
+    config.storage.topic: kcca-mongodb-connector-cluster-configs
+    status.storage.topic: kcca-mongodb-connector-cluster-status
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
