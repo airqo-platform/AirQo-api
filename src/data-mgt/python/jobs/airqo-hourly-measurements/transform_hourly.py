@@ -1,14 +1,21 @@
+import json
 import os
+import traceback
+
 import pandas as pd
 import requests
 from datetime import datetime
 
-DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL")
 
 
 def transform_data():
 
     device_measurements_data = get_airqo_devices_data()
+
+    if len(device_measurements_data) == 0:
+        print(f"measurements not available")
+        return
 
     get_hourly_measurements(device_measurements_data)
 
@@ -17,11 +24,26 @@ def get_airqo_devices_data():
 
     start_date = datetime.strftime(datetime.now(), '%Y-%m-%d')
 
-    api_url = f"{DEVICE_REGISTRY_STAGING_URL}devices/events?tenant=airqo&startTime={start_date}&limit=30"
+    api_url = f"{DEVICE_REGISTRY_URL}devices/events?tenant=airqo&startTime={start_date}"
 
-    results = requests.get(api_url)
+    try:
+        results = requests.get(api_url)
 
-    return results.json()['measurements']
+        if results.status_code != 200:
+            print(f"Device Url returned error code : ${str(results.status_code)}, Content : ${str(results.content)}")
+            return []
+
+        return results.json()['measurements']
+
+    except Exception as ex:
+        print(f"Device Url returned an error : ${str(ex)}")
+        return []
+
+
+def check_null(value):
+    if value is None:
+        return 0
+    return value
 
 
 def get_hourly_measurements(measurements_data):
@@ -34,7 +56,7 @@ def get_hourly_measurements(measurements_data):
 
         location = dict(group.iloc[0]['location'])
         device = group.iloc[0]['device']
-        channel_id = group.iloc[0]['channelID']
+        channel_id = int(group.iloc[0]['channelID'])
         frequency = "hourly"
 
         measurements = []
@@ -43,15 +65,15 @@ def get_hourly_measurements(measurements_data):
         for index, row in group.iterrows():
 
             measurement = dict({
-                's2_pm2_5': row.get('s2_pm2_5').get('value'),
-                's2_pm10': row.get('s2_pm10').get('value'),
+                's2_pm2_5': check_null(row.get('s2_pm2_5').get('value')),
+                's2_pm10': check_null(row.get('s2_pm10').get('value')),
                 'time': row.get('time'),
-                'pm2_5': row.get('pm2_5').get('value'),
-                'pm10': row.get('pm10').get('value'),
-                'internalTemperature': row.get('internalTemperature').get('value'),
-                'internalHumidity': row.get('internalHumidity').get('value'),
-                'hdop': row.get('hdop').get('value'),
-                'speed': row.get('speed').get('value')
+                'pm2_5': check_null(row.get('pm2_5').get('value')),
+                'pm10': check_null(row.get('pm10').get('value')),
+                'internalTemperature': check_null(row.get('internalTemperature').get('value')),
+                'internalHumidity': check_null(row.get('internalHumidity').get('value')),
+                'hdop': check_null(row.get('hdop').get('value')),
+                'speed': check_null(row.get('speed').get('value'))
             })
 
             measurements.append(measurement)
@@ -83,7 +105,38 @@ def get_hourly_measurements(measurements_data):
             hourly_measurements.append(hourly_data)
 
         if hourly_measurements:
-            print(hourly_measurements)
+            for i in range(0, len(hourly_measurements), 200):
+                chunk = hourly_measurements[i:i + 200]
+
+                print(chunk)
+
+                add_to_events_collection(chunk, device)
+
+
+def add_to_events_collection(measurements, device_name):
+
+    try:
+
+        json_data = json.dumps(list(measurements))
+
+        headers = {'Content-Type': 'application/json'}
+
+        base_url = f"{DEVICE_REGISTRY_URL}devices/events/add?device={device_name}&tenant=airqo"
+
+        results = requests.post(base_url, json_data, headers=headers, verify=False)
+
+        if results.status_code == 200:
+            print(results.json())
+        else:
+            print('\n')
+            print(f"Device registry failed to insert values. Status Code : {str(results.status_code)},"
+                  f" Url : {base_url}")
+            print(results.content)
+            print('\n')
+
+    except Exception as ex:
+        traceback.print_exc()
+        print(f"Error Occurred while inserting measurements: {str(ex)}")
 
 
 if __name__ == "__main__":
