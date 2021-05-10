@@ -7,20 +7,33 @@ import requests
 from datetime import datetime
 
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL")
+FREQUENCY = os.getenv("FREQUENCY")
+
+
+def get_frequency_value(frequency):
+
+    if str(frequency).lower() == 'hourly':
+        return '60min'
+    elif str(frequency).lower() == 'minute':
+        return '1min'
+    elif str(frequency).lower() == 'daily':
+        return '1440min'
+    else:
+        raise Exception('Invalid Frequency.')
 
 
 def transform_data():
 
-    device_measurements_data = get_airqo_devices_data()
+    measurements = get_measurements()
 
-    if len(device_measurements_data) == 0:
+    if len(measurements) == 0:
         print(f"measurements not available")
         return
 
-    get_hourly_measurements(device_measurements_data)
+    compute_frequency(measurements)
 
 
-def get_airqo_devices_data():
+def get_measurements():
 
     start_date = datetime.strftime(datetime.now(), '%Y-%m-%d')
 
@@ -46,7 +59,7 @@ def check_null(value):
     return value
 
 
-def get_hourly_measurements(measurements_data):
+def compute_frequency(measurements_data):
 
     data = pd.DataFrame(measurements_data)
 
@@ -57,10 +70,10 @@ def get_hourly_measurements(measurements_data):
         location = dict(group.iloc[0]['location'])
         device = group.iloc[0]['device']
         channel_id = int(group.iloc[0]['channelID'])
-        frequency = "hourly"
+        frequency = str(FREQUENCY)
 
         measurements = []
-        hourly_measurements = []
+        frequency_measurements = []
 
         for index, row in group.iterrows():
 
@@ -82,7 +95,7 @@ def get_hourly_measurements(measurements_data):
         measurements.fillna(0)
         measurements['time'] = pd.to_datetime(measurements['time'])
 
-        measurements = measurements.set_index('time').resample('60min').mean().round(2)
+        measurements = measurements.set_index('time').resample(get_frequency_value(FREQUENCY)).mean().round(2)
 
         for hourly_index, hourly_row in measurements.iterrows():
  
@@ -102,11 +115,11 @@ def get_hourly_measurements(measurements_data):
                 "internalHumidity": {"value": hourly_row["internalHumidity"]},
             })
 
-            hourly_measurements.append(hourly_data)
+            frequency_measurements.append(hourly_data)
 
-        if hourly_measurements:
-            for i in range(0, len(hourly_measurements), 200):
-                chunk = hourly_measurements[i:i + 200]
+        if frequency_measurements:
+            for i in range(0, len(frequency_measurements), 200):
+                chunk = frequency_measurements[i:i + 200]
 
                 print(chunk)
 

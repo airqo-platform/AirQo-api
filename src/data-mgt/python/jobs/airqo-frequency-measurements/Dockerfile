@@ -5,8 +5,9 @@ ADD requirements.txt /
 WORKDIR /
 
 RUN pip install -r requirements.txt
-ADD transform_hourly.py /
+ADD calculate_measurements_by_frequency.py /
 
 ENV DEVICE_REGISTRY_URL=http
+ENV FREQUENCY=hourly
 
-CMD [ "python", "transform_hourly.py" ]
+CMD [ "python", "calculate_measurements_by_frequency.py" ]
