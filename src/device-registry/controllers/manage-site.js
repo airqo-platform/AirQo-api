@@ -49,6 +49,43 @@ const manageSite = {
     )
 
   },
+  deploymentFields: [
+      "height",
+      "mountType",
+      "powerType",
+      "date",
+      "latitude",
+      "longitude",
+      "isPrimaryInLocation",
+      "isUserForCollocaton"
+  ],
+  deployDevice: async (req, res) => {
+    const {tenant, deviceName} = req.query;
+
+    const isDeployed = await isDeviceDeployed(
+        deviceName,
+        tenant.toLowerCase()
+    );
+
+    if (isDeployed) {
+      return res.status(HTTPStatus.CONFLICT).json({
+        success: false,
+        message: `Device ${deviceName} already deployed`,
+      })
+    }
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "deploy");
+    return await carryOutActivity(
+        res,
+        tenant,
+        deviceName,
+        deviceBody,
+        siteActivityBody,
+        {
+          successMsg: `Successfully deployed device ${deviceName}`,
+          errorMsg: `Failed to deploy device ${deviceName}`,
+        }
+    )
+  },
   doActivity: async (req, res) => {
     try {
       const { type, tenant } = req.query;
