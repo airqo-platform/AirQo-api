@@ -47,8 +47,6 @@ router.post(
     validateRequestBody(siteController.maintenanceField),
     siteController.maintainDevice
 );
-router.post("/ts/activity", siteController.doActivity);
-router.post("/ts/activity", siteController.doActivity);
 router.get("/ts/activity", siteController.getActivities);
 router.put("/ts/activity/update", siteController.updateActivity);
 router.delete("/ts/activity/delete", siteController.deleteActivity);

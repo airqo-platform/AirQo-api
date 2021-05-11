@@ -101,101 +101,6 @@ const carryOutActivity = async (res, tenant, deviceName, deviceBody, activityBod
 
 }
 
-const doLocationActivity = async (
-  res,
-  deviceBody,
-  activityBody,
-  deviceName,
-  type,
-  deviceExists,
-  isDeployed,
-  isRecalled,
-  tenant
-) => {
-  try {
-    const deviceFilter = { name: deviceName };
-    logElement("isRecalled", isRecalled);
-    logElement("isDeployed", isDeployed);
-
-    let check = "";
-    if (type.toLowerCase() == "deploy") {
-      check = isRecalled;
-    } else if (type.toLowerCase() == "recall") {
-      check = isDeployed;
-    } else if (type.toLowerCase() == "maintain") {
-      check = true;
-    } else {
-      check = false;
-    }
-
-    logText("....................");
-    logText("doLocationActivity...");
-    logText("activityType", type);
-    logElement("deviceExists", deviceExists);
-    logElement("isDeployed", isDeployed);
-    logObject("activityBody", activityBody);
-    logElement("check", check);
-    logObject("deviceBody", deviceBody);
-
-    logText("....................");
-
-    if (check) {
-      //first update device body
-      await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).findOneAndUpdate(
-        deviceFilter,
-        deviceBody,
-        {
-          new: true,
-        },
-        (error, updatedDevice) => {
-          if (error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: `unable to ${type} `,
-              error,
-              success: false,
-            });
-          } else if (updatedDevice) {
-            //then log the operation
-            const activityLog = getModelByTenant(
-              tenant.toLowerCase(),
-              "activity",
-              SiteActivitySchema
-            ).createLocationActivity(activityBody);
-            activityLog.then((activityLog) => {
-              return res.status(HTTPStatus.OK).json({
-                message: `${type} successfully carried out`,
-                activityLog,
-                updatedDevice,
-                success: true,
-              });
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              message: `device does not exist, please first create the device you are trying to ${type} `,
-              success: false,
-            });
-          }
-        }
-      );
-    } else {
-      return res.status(HTTPStatus.BAD_REQUEST).json({
-        message: `The ${type} activity was already done for this device, please crosscheck `,
-        success: false,
-      });
-    }
-  } catch (e) {
-    logElement("error", e);
-    return res.status(HTTPStatus.BAD_GATEWAY).json({
-      message: `Server Error`,
-      success: false,
-    });
-  }
-};
-
 const doesLocationExist = async (locationName, tenant) => {
   let location = await getModelByTenant(
     tenant.toLowerCase(),
@@ -394,7 +299,6 @@ module.exports = {
   isDeviceDeployed,
   isDeviceRecalled,
   siteActivityRequestBodies,
-  doLocationActivity,
   getGpsCoordinates,
   doesLocationExist,
   queryFilterOptions,

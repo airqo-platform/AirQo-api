@@ -108,51 +108,6 @@ const manageSite = {
     )
 
   },
-  doActivity: async (req, res) => {
-    try {
-      const { type, tenant } = req.query;
-      if (tenant && type) {
-        const { deviceName } = req.body;
-
-        const device = await getDetail(tenant, deviceName);
-        const doesDeviceExist = !isEmpty(device);
-        const isDeployed = await isDeviceDeployed(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const isRecalled = await isDeviceRecalled(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-          req,
-          res
-        );
-        logElement("does the device exist", doesDeviceExist);
-        logElement("is the device deployed", isDeployed);
-
-        doLocationActivity(
-          res,
-          deviceBody,
-          siteActivityBody,
-          deviceName,
-          type,
-          doesDeviceExist,
-          isDeployed,
-          isRecalled,
-          tenant.toLowerCase()
-        );
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-
   deleteActivity: async (req, res) => {
     try {
       const { tenant, id } = req.query;
