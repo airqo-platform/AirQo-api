@@ -40,6 +40,13 @@ router.post(
     validateRequestBody(siteController.deploymentFields),
     siteController.deployDevice
 );
+router.post(
+    "/ts/activity/maintain",
+    checkTenancy,
+    validateRequestQuery(['deviceName']),
+    validateRequestBody(siteController.maintenanceField),
+    siteController.maintainDevice
+);
 router.post("/ts/activity", siteController.doActivity);
 router.post("/ts/activity", siteController.doActivity);
 router.get("/ts/activity", siteController.getActivities);

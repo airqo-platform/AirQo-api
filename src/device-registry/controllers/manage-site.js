@@ -86,6 +86,28 @@ const manageSite = {
         }
     )
   },
+  maintenanceField: [
+    "date",
+    "tags",
+    "maintenanceType",
+    "description"
+  ],
+  maintainDevice: async (req, res) => {
+    const {tenant, deviceName} = req.query;
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "maintain");
+    return await carryOutActivity(
+        res,
+        tenant,
+        deviceName,
+        deviceBody,
+        siteActivityBody,
+        {
+          successMsg: `Successfully maintained device ${deviceName}`,
+          errorMsg: `Failed to maintained device ${deviceName}`,
+        }
+    )
+
+  },
   doActivity: async (req, res) => {
     try {
       const { type, tenant } = req.query;
