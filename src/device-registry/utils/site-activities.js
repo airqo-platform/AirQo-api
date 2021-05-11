@@ -238,14 +238,13 @@ const siteActivityRequestBodies = (req, res, type = null) => {
     if (type === "deploy") {
       /****** deploy bodies ******/
       siteActivityBody = {
-        device: deviceName,
-        date: new Date(date),
+        device: deviceName || req.query.deviceName,
+        date: date && new Date(date) || new Date(),
         description: "device deployed",
         activityType: "deployment",
       };
 
       deviceBody = {
-        name: deviceName,
         height: height,
         mountType: mountType,
         powerType: powerType,
@@ -262,15 +261,13 @@ const siteActivityRequestBodies = (req, res, type = null) => {
     } else if (type === "recall") {
       /****** recalling bodies ******/
       siteActivityBody = {
-        device: deviceName,
-        date: new Date(date),
+        device: deviceName || req.query.deviceName,
+        date: new Date(),
         description: "device recalled",
         activityType: "recallment",
       };
       deviceBody = {
-        name: deviceName,
-        locationID: "",
-        height: "",
+        height: 0,
         mountType: "",
         powerType: "",
         isPrimaryInLocation: false,
@@ -288,25 +285,18 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       logObject("the tags", tags);
       siteActivityBody = {
         site: siteName,
-        device: deviceName,
-        date: new Date(date),
+        device: deviceName || req.query.deviceName,
+        date: date && new Date(date) || new Date(),
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
         maintenanceType: maintenanceType,
-        // $addToSet: { tags: { $each: tags } },
         tags: tags,
       };
-      if (maintenanceType === "preventive") {
-        deviceBody = {
-          name: deviceName,
-          nextMaintenance: threeMonthsFromNow(date),
-        };
-      } else if (maintenanceType === "corrective") {
-        deviceBody = {
-          name: deviceName,
-        };
-      }
+      deviceBody = {
+        nextMaintenance: threeMonthsFromNow(date),
+      };
+
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
