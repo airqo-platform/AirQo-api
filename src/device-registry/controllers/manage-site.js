@@ -5,6 +5,7 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 
 const {
+  carryOutActivity,
   isDeviceDeployed,
   isDeviceRecalled,
   siteActivityRequestBodies,
@@ -22,6 +23,32 @@ const {
 const getDetail = require("../utils/get-device-details");
 
 const manageSite = {
+  recallDevice: async  (req, res) => {
+    const { tenant, deviceName } = req.query;
+    const isRecalled = await isDeviceRecalled(
+        deviceName,
+        tenant.toLowerCase()
+    );
+    if (isRecalled) {
+      return res.status(HTTPStatus.CONFLICT).json({
+      success: false,
+      message: `Device ${deviceName} already recalled`,
+    })
+    }
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "recall");
+    return await carryOutActivity(
+        res,
+        tenant,
+        deviceName,
+        deviceBody,
+        siteActivityBody,
+        {
+          successMsg: `Successfully recalled device ${deviceName}`,
+          errorMsg: `Failed to recall device ${deviceName}`,
+        }
+    )
+
+  },
   doActivity: async (req, res) => {
     try {
       const { type, tenant } = req.query;
