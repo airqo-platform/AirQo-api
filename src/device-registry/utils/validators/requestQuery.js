@@ -4,7 +4,7 @@ const _ = require("underscore");
 const validateRequestQuery = (paramsArr) => (req, res, next) =>  {
     const error = {};
     paramsArr.map(param => {
-        if (!req.query[param]) {
+        if (!(param in req.query)) {
             error[param] = "This is a required request query parameter";
         }
     })
