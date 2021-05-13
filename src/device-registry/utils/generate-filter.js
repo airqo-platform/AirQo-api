@@ -51,6 +51,44 @@ const generateEventsFilter = (
       "values.device": device,
       "values.frequency": frequency,
     };
+  } else if (queryStartTime && queryEndTime && !device && frequency) {
+    return {
+      day: { $gte: queryStartTime, $lte: queryEndTime },
+      "values.frequency": frequency,
+    };
+  } else if (queryStartTime && queryEndTime && device && !frequency) {
+    return {
+      day: { $gte: queryStartTime, $lte: queryEndTime },
+      "values.device": device,
+    };
+  } else if (!queryStartTime && !queryEndTime && device && !frequency) {
+    return {
+      "values.device": device,
+    };
+  } else if (queryStartTime && !queryEndTime && !device && frequency) {
+    return {
+      day: { $gte: queryStartTime },
+      "values.frequency": frequency,
+    };
+  } else if (!queryStartTime && queryEndTime && !device && frequency) {
+    return {
+      day: { $lte: queryEndTime },
+      "values.frequency": frequency,
+    };
+  } else if (!queryStartTime && queryEndTime && device && !frequency) {
+    return {
+      day: { $lte: queryEndTime },
+      "values.device": device,
+    };
+  } else if (queryStartTime && !queryEndTime && device && !frequency) {
+    return {
+      day: { $gte: queryStartTime },
+      "values.device": device,
+    };
+  } else if (!queryStartTime && !queryEndTime && !device && frequency) {
+    return {
+      "values.frequency": frequency,
+    };
   } else {
     let oneMonthBack = oneMonthBehind();
     let startTime = generateDateFormatWithoutHrs(oneMonthBack);
