@@ -1,10 +1,10 @@
 const kafka = require('kafka-node');
 const Consumer = kafka.Consumer;
-const { logObject, logElement } = require("../../../utils/log");
-const client = require('../../../config/kafka');
-const constants = require("../../../config/constants");
+const { logObject, logElement } = require("../../utils/log");
+const client = require('../../config/kafka');
+const constants = require("../../config/constants");
 
-const insertMeasurtements = require("../../../services/insert-device-measurements");
+const insertMeasurtements = require("../../services/insert-device-measurements");
 
 const KAFKA_TOPICS = constants.KAFKA_TOPICS;
 
