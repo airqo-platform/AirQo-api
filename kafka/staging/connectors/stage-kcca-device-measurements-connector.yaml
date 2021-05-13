@@ -12,7 +12,7 @@ spec:
     topic: kcca-raw-device-measurements-topic
     clarityApiKey: CALRITY_API_KEY
     clarityApiBaseUrl: CLARITY_URL
-    pollInterval: 3600000
+    pollInterval: 86400000
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter

@@ -9,7 +9,7 @@ spec:
   image: localhost:5000/airqo-stage-kcca-deivce-measurements-connect:latest
   imagePullPolicy: Always
   replicas: 1
-  bootstrapServers: 192.168.49.2:32431
+  bootstrapServers: 192.168.49.2:31303
   config:
     group.id: kcca-source-connector-cluster
     offset.storage.topic: kcca-source-connector-cluster-offsets
