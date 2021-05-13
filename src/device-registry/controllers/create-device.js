@@ -49,10 +49,11 @@ const device = {
           ...tsBody,
           ...constants.DEVICE_CREATION,
         };
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
+        const deviceDetails = await getDetail(tenant, name);
+        logObject("deviceDetails", deviceDetails);
+        const doesDeviceExist = isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
-        if (!doesDeviceExist) {
+        if (doesDeviceExist) {
           logText("adding device on TS...");
           let channel;
           if (tenant.toLowerCase() === "airqo") {
