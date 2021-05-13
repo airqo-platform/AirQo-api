@@ -112,8 +112,11 @@ const updateThingBodies = (req, res) => {
     photos,
   } = req.body;
 
+  let transformedName = tranformDeviceName(name);
+
   let deviceBody = {
-    ...(!isEmpty(name) && { name: name }),
+    ...(!isEmpty(name) && { name: transformedName }),
+    ...(!isEmpty(name) && { descriptiveName: name }),
     ...(!isEmpty(readKey) && { readKey: readKey }),
     ...(!isEmpty(writeKey) && { writeKey: writeKey }),
     ...(!isEmpty(host) && { host: host }),
@@ -161,10 +164,8 @@ const updateThingBodies = (req, res) => {
     upsert: true,
   };
 
-  let transformedName = tranformDeviceName(name);
-
   let tsBody = {
-    ...(!isEmpty(name) && { name: transformedName }),
+    ...(!isEmpty(name) && { name: name }),
     ...(!isEmpty(elevation) && { elevation: elevation }),
     ...(!isEmpty(tags) && { tags: tags }),
     ...(!isEmpty(latitude) && { latitude: latitude }),

@@ -1,6 +1,8 @@
 const transformDeviceName = (name) => {
-  let removedOnlySpaces = name.replace(/\s+/g, "_").toLowerCase();
-  let enforcedNamingConvention = removedOnlySpaces.replace(/airqo/, "aq");
+  let firstElement = name.split(" ").slice(0, 1);
+  let removedOnlySpaces = firstElement[0].replace(/\s+/g, "_").toLowerCase();
+  let removeHyphens = removedOnlySpaces.replace(/\-+/g, "_").toLowerCase();
+  let enforcedNamingConvention = removeHyphens.replace(/airqo/, "aq");
   return enforcedNamingConvention;
 };
 
