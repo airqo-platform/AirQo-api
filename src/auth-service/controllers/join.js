@@ -135,7 +135,7 @@ const join = {
 
       if (!query.email) {
         return res
-          .status(400)
+          .status(HTTPStatus.BAD_REQUEST)
           .json({ success: false, message: "email field is required" });
       }
       let updateDetails = {
@@ -150,7 +150,9 @@ const join = {
         updateDetails,
         (error, response) => {
           if (error) {
-            return res.status(400).json({ message: "Email does not exist" });
+            return res
+              .status(HTTPStatus.BAD_GATEWAY)
+              .json({ message: "Email does not exist" });
           } else if (response) {
             const mailOptions = {
               from: constants.EMAIL,
@@ -166,15 +168,18 @@ const join = {
             transporter.sendMail(mailOptions, (err, response) => {
               if (err) {
                 console.error("there was an error: ", err);
-                return res.status(500).json({ email: "unable to send email" });
+                return res
+                  .status(HTTPStatus.BAD_GATEWAY)
+                  .json({ email: "unable to send email" });
               } else {
                 console.log("here is the res: ", response);
-                return res.status(200).json({ message: "recovery email sent" });
+                return res
+                  .status(HTTPStatus.OK)
+                  .json({ message: "recovery email sent" });
               }
             });
-            //return res.status(HTTPStatus.OK).json(response);
           } else {
-            return res.status(400).json({
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
               message:
                 "unable to send email. Please crosscheck the organisation and email information provided.",
             });
@@ -190,7 +195,7 @@ const join = {
       const { errors, isValid } = validateRegisterInput(req.body);
       if (!isValid) {
         return res
-          .status(400)
+          .status(HTTPStatus.BAD_REQUEST)
           .json({ success: false, errors, message: "validation error" });
       }
 
@@ -228,7 +233,7 @@ const join = {
       );
     } catch (e) {
       logElement("the error", e);
-      return res.status(500).json({
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: "unable to register user",
         error: e.message,
@@ -260,7 +265,7 @@ const join = {
         })
         .catch((err) => console.log(err));
     } catch (e) {
-      return res.status(500).json({
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         e,
         message: "unable to confirm email",
@@ -276,9 +281,9 @@ const join = {
       const { errors, isValid } = validateLoginInput(req.body);
 
       if (!isValid) {
-        return res.status(400).json(errors);
+        return res.status(HTTPStatus.BAD_REQUEST).json(errors);
       }
-      res.status(200).json(req.user.toAuthJSON());
+      res.status(HTTPStatus.OK).json(req.user.toAuthJSON());
       return next();
     } catch (e) {
       res.json({ success: false, message: e.message });
@@ -290,18 +295,18 @@ const join = {
     const { tenant, id } = req.query;
     UserModel(tenant.toLowerCase()).findByIdAndRemove(id, (err, user) => {
       if (err) {
-        return res.status(400).json({
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: "unable to remove User",
           error: err,
         });
       } else if (user) {
-        return res.status(200).json({
+        return res.status(HTTPStatus.OK).json({
           success: true,
           message: user.userName + " deleted successfully",
         });
       } else {
-        return res.status(500).json({
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: "unable to delete the user due to a server error",
         });
@@ -367,13 +372,13 @@ const join = {
           .exec();
 
         if (doc) {
-          res.status(200).json({
+          res.status(HTTPStatus.OK).json({
             success: true,
             message: "updated/created the user defaults",
             doc,
           });
         } else {
-          res.status(500).json({
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: "unable to create/update these defaults",
           });
@@ -455,7 +460,7 @@ const join = {
       if (error) {
         response.success = false;
         response.message = "Internal Server Error";
-        res.status(500).json(response);
+        res.status(HTTPStatus.BAD_GATEWAY).json(response);
       } else if (user.length) {
         let location = new LocationModel(tenant.toLowerCase())(req.body);
         location.user = user[0]._id;
@@ -463,7 +468,7 @@ const join = {
           if (error) {
             response.success = false;
             response.message = "Internal Server Error";
-            res.status(500).json(response);
+            res.status(HTTPStatus.BAD_GATEWAY).json(response);
           } else {
             UserModel(tenant.toLowerCase()).findByIdAndUpdate(
               req.params.id,
@@ -473,9 +478,9 @@ const join = {
                 if (err) {
                   response.success = false;
                   response.message = "Internal Server Error";
-                  res.status(500).json(response);
+                  res.status(HTTPStatus.BAD_GATEWAY).json(response);
                 } else {
-                  res.status(200).json({
+                  res.status(HTTPStatus.OK).json({
                     message: "Sucessfully added the locations to the user",
                     success: true,
                     updatedUser,
@@ -507,7 +512,7 @@ const join = {
             .status(HTTPStatus.BAD_REQUEST)
             .json({ message: "password reset link is invalid or has expired" });
         } else if (result) {
-          res.status(200).send({
+          res.status(HTTPStatus.OK).json({
             userName: result.userName,
             message: "password reset link a-ok",
           });

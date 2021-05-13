@@ -7,11 +7,12 @@ const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
-const localOpts = {
-  usernameField: "userName",
+
+const localOptions = {
+  usernameField: "email",
   passwordField: "password",
 };
-const isEmpty = require("is-empty");
+
 const { getModelByTenant } = require("../utils/multitenancy");
 
 const UserModel = (tenant) => {
@@ -24,20 +25,18 @@ const jwtOpts = {
 };
 
 const userLocalStrategy = (tenant, req, res, next) =>
-  new LocalStrategy(localOpts, async (userName, password, done) => {
+  new LocalStrategy(localOptions, async (email, password, done) => {
     try {
       const user = await UserModel(tenant.toLowerCase())
-        .findOne({
-          userName,
-        })
+        .findOne({ email })
         .exec();
       if (!user) {
-        return res.status(401).json({
+        return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message: `username or password does not exist in this organisation (${tenant})`,
         });
       } else if (!user.authenticateUser(password)) {
-        return res.status(401).json({
+        return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           message: "incorrect username or password",
         });
@@ -45,7 +44,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
       return done(null, user);
     } catch (e) {
       logElement("error in services/auth/userLocalStrategy", e.message);
-      return res.status(500).json({
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: "Server Error",
         error: e.message,
@@ -61,20 +60,11 @@ const jwtStrategy = (tenant, req, res, next) =>
         .exec();
       if (!user) {
         return done(null, false);
-        // return res.status(401).json({
-        //   success: false,
-        //   message: "authentication failed",
-        // });
       }
       return done(null, user);
     } catch (e) {
       logElement("error in services/auth/jwtStrategy", e.message);
       return done(e, false);
-      // return res.status(500).json({
-      //   success: false,
-      //   message: "organization does not exist",
-      //   error: e.message,
-      // });
     }
   });
 
@@ -86,14 +76,10 @@ const createJWTStrategy = (tenant, req, res, next) => {
   passport.use("jwt", jwtStrategy(tenant, req, res, next));
 };
 
-// passport.use(jwtStrategy);
-
 passport.serializeUser((user, cb) => {
   if (privileges.isUser(user)) {
     cb(null, user._id);
-    // serialize user
   } else if (privileges.isCollab(user)) {
-    // serialize collaborator
     cb(null, user._id);
   }
 });
@@ -103,9 +89,7 @@ passport.deserializeUser((id, cb) => {
     User.findById(id)
       .then((user) => cb(null, user))
       .catch((err) => cb(err));
-    // serialize user
   } else if (privileges.isCollab(user)) {
-    // serialize collaborator
     Collaborator.findById(id)
       .then((user) => cb(null, user))
       .catch((err) => cb(err));
@@ -152,8 +136,6 @@ function checkTenancy(req, res, next) {
 
 const authUserLocal = passport.authenticate("user-local", {
   session: false,
-  // successFlash: "Welcome!",
-  // failureMessage: "Invalid username or password.",
   failureFlash: true,
 });
 
