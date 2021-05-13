@@ -47,6 +47,7 @@ const generateCacheID = (
   tenant,
   skip,
   limit,
+  frequency,
   recent
 ) => {
   return `get_events_device_${device ? device : "noDevice"}_${day}_${
@@ -82,6 +83,7 @@ const getMeasurements = async (
   device,
   skip,
   limit,
+  frequency,
   tenant
 ) => {
   try {
@@ -95,6 +97,7 @@ const getMeasurements = async (
       tenant,
       skip,
       limit,
+      frequency,
       recent
     );
 
@@ -106,7 +109,12 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const filter = generateEventsFilter(startTime, endTime, device);
+          const filter = generateEventsFilter(
+            startTime,
+            endTime,
+            device,
+            frequency
+          );
 
           let devicesCount = await getDevicesCount(tenant);
 

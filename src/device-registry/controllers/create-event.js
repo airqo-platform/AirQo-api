@@ -92,6 +92,7 @@ const createEvent = {
           device,
           skipInt,
           limitInt,
+          frequency,
           tenant
         );
       } else {
