@@ -28,7 +28,6 @@ const isRecentTrue = (recent) => {
   if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
     return true;
   } else if (recent.toLowerCase() == "no" && isRecentEmpty == false) {
-    logText("the value of recent is false");
     return false;
   }
 };
