@@ -79,6 +79,7 @@ const createEvent = {
         skip,
         key,
         recent,
+        frequency,
       } = req.query;
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
