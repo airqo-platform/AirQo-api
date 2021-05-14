@@ -1,3 +1,5 @@
+const { logText, logObject, logElement } = require("./log");
+
 const generateDateFormat = (ISODate) => {
   try {
     let date = new Date(ISODate);
@@ -38,50 +40,65 @@ const generateDateFormatWithoutHrs = (ISODate) => {
   }
 };
 
-const threeMonthsBehind = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() - 3;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0);
+const addMonthsToProvidedDate = (date, number) => {
+  try {
+    let year = date.split("-")[0];
+    let month = date.split("-")[1];
+    let day = date.split("-")[2];
+    let newMonth = parseInt(month, 10) + number;
+    let modifiedMonth = "0" + newMonth;
+    return `${year}-${modifiedMonth}-${day}`;
+  } catch (e) {
+    console.log("server side error: ", e.message);
   }
-  return d;
 };
 
-const twoMonthsBehind = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() - 2;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0);
+const removeMonthsFromProvidedDate = (date, number) => {
+  try {
+    let year = date.split("-")[0];
+    let month = date.split("-")[1];
+    let day = date.split("-")[2];
+    let newMonth = parseInt(month, 10) - number;
+    let modifiedMonth = "0" + newMonth;
+    return `${year}-${modifiedMonth}-${day}`;
+  } catch (e) {
+    console.log("server side error: ", e.message);
   }
-  return d;
 };
 
-const oneMonthBehind = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() - 1;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0);
+const monthsBehind = (number) => {
+  try {
+    var d = new Date();
+    var targetMonth = d.getMonth() - number;
+    d.setMonth(targetMonth);
+    if (d.getMonth() !== targetMonth % 12) {
+      d.setDate(0);
+    }
+    return d;
+  } catch (e) {
+    console.log("server side error: ", e.message);
   }
-  return d;
 };
-const threeMonthsInfront = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() + 3;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0);
+
+const monthsInfront = (number) => {
+  try {
+    var d = new Date();
+    var targetMonth = d.getMonth() + number;
+    d.setMonth(targetMonth);
+    if (d.getMonth() !== targetMonth % 12) {
+      d.setDate(0);
+    }
+    return d;
+  } catch (e) {
+    console.log("server side error: ", e.message);
   }
-  return d;
 };
 
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  threeMonthsBehind,
-  twoMonthsBehind,
-  oneMonthBehind,
-  threeMonthsInfront,
+  removeMonthsFromProvidedDate,
+  addMonthsToProvidedDate,
+  monthsBehind,
+  monthsInfront,
 };
