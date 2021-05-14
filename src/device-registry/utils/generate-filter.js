@@ -1,10 +1,10 @@
 const {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  threeMonthsBehind,
-  twoMonthsBehind,
-  oneMonthBehind,
-  threeMonthsInfront,
+  monthsBehind,
+  monthsInfront,
+  removeMonthsFromProvidedDate,
+  addMonthsToProvidedDate,
 } = require("./date");
 
 const { logObject, logElement, logText } = require("./log");
@@ -15,6 +15,13 @@ const generateEventsFilter = (
   device,
   frequency
 ) => {
+  let oneMonthBack = monthsBehind(1);
+  let oneMonthInfront = monthsInfront(1);
+  let defaultStartTime = generateDateFormatWithoutHrs(oneMonthBack);
+  let defaultEndTime = generateDateFormatWithoutHrs(oneMonthInfront);
+  logElement("defaultStartTime", defaultStartTime);
+  logElement("defaultEndTime", defaultEndTime);
+
   if (queryStartTime && queryEndTime && !device && !frequency) {
     return {
       day: { $gte: queryStartTime, $lte: queryEndTime },
@@ -29,25 +36,37 @@ const generateEventsFilter = (
     return {
       "values.device": device,
       "values.frequency": frequency,
+      day: { $gte: defaultStartTime },
     };
   } else if (queryStartTime && !queryEndTime && !device && !frequency) {
     return {
-      day: { $gte: queryStartTime },
-      "values.frequency": frequency,
+      day: {
+        $gte: queryStartTime,
+        $lte: addMonthsToProvidedDate(queryStartTime, 1),
+      },
     };
   } else if (!queryStartTime && queryEndTime && !device && !frequency) {
     return {
-      day: { $lte: queryEndTime },
+      day: {
+        $lte: queryEndTime,
+        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
+      },
     };
   } else if (!queryStartTime && queryEndTime && device && frequency) {
     return {
-      day: { $lte: queryEndTime },
+      day: {
+        $lte: queryEndTime,
+        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
+      },
       "values.device": device,
       "values.frequency": frequency,
     };
   } else if (queryStartTime && !queryEndTime && device && frequency) {
     return {
-      day: { $gte: queryStartTime },
+      day: {
+        $gte: queryStartTime,
+        $lte: addMonthsToProvidedDate(queryStartTime, 1),
+      },
       "values.device": device,
       "values.frequency": frequency,
     };
@@ -64,37 +83,48 @@ const generateEventsFilter = (
   } else if (!queryStartTime && !queryEndTime && device && !frequency) {
     return {
       "values.device": device,
+      day: { $gte: defaultStartTime, $lte: defaultEndTime },
     };
   } else if (queryStartTime && !queryEndTime && !device && frequency) {
     return {
-      day: { $gte: queryStartTime },
+      day: {
+        $gte: queryStartTime,
+        $lte: addMonthsToProvidedDate(queryStartTime, 1),
+      },
       "values.frequency": frequency,
     };
   } else if (!queryStartTime && queryEndTime && !device && frequency) {
     return {
-      day: { $lte: queryEndTime },
+      day: {
+        $lte: queryEndTime,
+        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
+      },
       "values.frequency": frequency,
     };
   } else if (!queryStartTime && queryEndTime && device && !frequency) {
     return {
-      day: { $lte: queryEndTime },
+      day: {
+        $lte: queryEndTime,
+        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
+      },
       "values.device": device,
     };
   } else if (queryStartTime && !queryEndTime && device && !frequency) {
     return {
-      day: { $gte: queryStartTime },
+      day: {
+        $gte: queryStartTime,
+        $lte: addMonthsToProvidedDate(queryStartTime, 1),
+      },
       "values.device": device,
     };
   } else if (!queryStartTime && !queryEndTime && !device && frequency) {
     return {
       "values.frequency": frequency,
+      day: { $gte: defaultStartTime },
     };
   } else {
-    let oneMonthBack = oneMonthBehind();
-    let startTime = generateDateFormatWithoutHrs(oneMonthBack);
-    logElement("startTime", startTime);
     return {
-      day: { $gte: startTime },
+      day: { $gte: defaultStartTime },
     };
   }
 };
