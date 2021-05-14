@@ -53,7 +53,7 @@ const generateCacheID = (
     startTime ? startTime : "noStartTime"
   }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
     limit ? limit : 0
-  }_${recent ? recent : "noRecent"}`;
+  }_${recent ? recent : "noRecent"}_${frequency ? frequency : "noFrequency"}`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
