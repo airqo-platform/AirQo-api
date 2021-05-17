@@ -24,12 +24,6 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       required: [true, "Device name is required!"],
       trim: true,
-      unique: true,
-    },
-    descriptiveName: {
-      type: String,
-      required: [true, "Descriptive name is required!"],
-      trim: true,
     },
     visibility: {
       type: Boolean,
@@ -123,9 +117,14 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
+/**
+ * uncomment section in "pre" hook functions below in case
+ * you want to enforce naming convention for device name
+ */
+
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
     console.log({ n });
   }
@@ -134,7 +133,7 @@ deviceSchema.pre("save", function(next) {
 
 deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
     console.log({ n });
   }
@@ -144,7 +143,7 @@ deviceSchema.pre("update", function(next) {
 deviceSchema.pre("findByIdAndUpdate", function(next) {
   this.options.runValidators = true;
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
   }
   return next();
 });
@@ -158,7 +157,6 @@ deviceSchema.methods = {
     return {
       id: this.id,
       name: this.name,
-      descriptiveName: this.descriptiveName,
       latitude: this.latitude,
       longitude: this.longitude,
       createdAt: this.createdAt,
@@ -188,7 +186,7 @@ deviceSchema.methods = {
 
   toUpdateJSON() {
     return {
-      descriptiveName: this.descriptiveName,
+      name: this.name,
       locationID: this.locationID,
       height: this.height,
       mountType: this.mountType,
@@ -197,7 +195,7 @@ deviceSchema.methods = {
       latitude: this.latitude,
       longitude: this.longitude,
       isPrimaryInLocation: this.isPrimaryInLocation,
-      isUserForCollocaton: this.isUsedForCollocation,
+      isUsedForCollocaton: this.isUsedForCollocation,
       updatedAt: this.updatedAt,
       siteName: this.siteName,
       locationName: this.locationName,
