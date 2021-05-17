@@ -1,9 +1,7 @@
 const DeviceSchema = require("../models/Device");
-const iot = require("@google-cloud/iot");
 // const privateKeyFile = `./rsa_private.pem`;
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
-
 const jsonify = require("./jsonify");
 
 const {

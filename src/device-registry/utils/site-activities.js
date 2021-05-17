@@ -4,28 +4,12 @@ const SiteSchema = require("../models/Site");
 const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const axios = require("axios");
 const SiteActivitySchema = require("../models/SiteActivity");
-const constants = require("../config/constants");
-const {
-  clearEventsBody,
-  doesDeviceExist,
-  updateThingBodies,
-  threeMonthsFromNow,
-  getChannelID,
-  getApiKeys,
-} = require("./does-device-exist");
-
-const jsonify = require("./jsonify");
+const { threeMonthsFromNow } = require("./does-device-exist");
 
 const getDetail = require("./get-device-details");
 
-const {
-  tryCatchErrors,
-  axiosError,
-  missingQueryParams,
-  callbackErrors,
-} = require("./errors");
+const { tryCatchErrors } = require("./errors");
 
 const getGpsCoordinates = async (locationName, tenant) => {
   logText("...................................");

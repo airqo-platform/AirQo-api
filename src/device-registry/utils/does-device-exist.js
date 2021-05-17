@@ -2,10 +2,6 @@ const DeviceSchema = require("../models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
-const HTTPStatus = require("http-status");
-const axios = require("axios");
-const constants = require("../config/constants");
-const tranformDeviceName = require("../utils/transform-device-name");
 
 const deleteDevice = require("./delete-device");
 
@@ -112,11 +108,8 @@ const updateThingBodies = (req, res) => {
     photos,
   } = req.body;
 
-  let transformedName = tranformDeviceName(name);
-
   let deviceBody = {
-    ...(!isEmpty(name) && { name: transformedName }),
-    ...(!isEmpty(name) && { descriptiveName: name }),
+    ...(!isEmpty(name) && { name: name }),
     ...(!isEmpty(readKey) && { readKey: readKey }),
     ...(!isEmpty(writeKey) && { writeKey: writeKey }),
     ...(!isEmpty(host) && { host: host }),
