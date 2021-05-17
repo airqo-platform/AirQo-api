@@ -64,9 +64,9 @@ const generateDeviceFilter = (
   location,
   siteName,
   mapAddress,
-  primaryInLocation
+  primary
 ) => {
-  if (tenant && name && !channel && !location && !siteName && !mapAddress && !primaryInLocation) {
+  if (tenant && name && !channel && !location && !siteName && !mapAddress && !primary) {
     let regexExpression = generateRegexExpressionFromStringElement(name);
     let filter = {
       name: { $regex: regexExpression, $options: "i" },
@@ -79,7 +79,7 @@ const generateDeviceFilter = (
     !location &&
     !siteName &&
     !mapAddress &&
-    !primaryInLocation
+    !primary
   ) {
     return {
       channelID: channel,
@@ -93,15 +93,15 @@ const generateDeviceFilter = (
     !location &&
     !siteName &&
     !mapAddress &&
-    primaryInLocation
+    primary
   ) { 
     
-    if(primaryInLocation == 'true'){
+    if(primary == 'yes'){
       return {
         isPrimaryInLocation: true,
       }
     }
-    else if(primaryInLocation == 'false'){
+    else if(primary == 'no'){
       return {
         isPrimaryInLocation: false,
       }
@@ -121,7 +121,7 @@ const generateDeviceFilter = (
     location &&
     !siteName &&
     !mapAddress &&
-    !primaryInLocation
+    !primary
   ) {
     return {
       locationID: location,
@@ -133,7 +133,7 @@ const generateDeviceFilter = (
     !location &&
     siteName &&
     !mapAddress &&
-    !primaryInLocation
+    !primary
   ) {
     let regexExpression = generateRegexExpressionFromStringElement(siteName);
     let filter = {
@@ -147,7 +147,7 @@ const generateDeviceFilter = (
     !location &&
     !siteName &&
     mapAddress &&
-    !primaryInLocation
+    !primary
   ) {
     let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
     let filter = {

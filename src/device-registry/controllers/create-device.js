@@ -272,7 +272,7 @@ const device = {
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name, chid, loc, site, map, primaryInLocation } = req.query;
+      const { tenant, name, chid, loc, site, map, primary } = req.query;
       if (tenant) {
         const devices = await getDetail(
           tenant,
@@ -281,7 +281,7 @@ const device = {
           loc,
           site,
           map,
-          primaryInLocation,
+          primary,
           limit,
           skip
         );
