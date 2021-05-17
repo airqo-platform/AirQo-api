@@ -1,3 +1,4 @@
+const { boolean } = require("joi");
 const {
   generateDateFormat,
   generateDateFormatWithoutHrs,
@@ -62,9 +63,10 @@ const generateDeviceFilter = (
   channel,
   location,
   siteName,
-  mapAddress
+  mapAddress,
+  primaryInLocation
 ) => {
-  if (tenant && name && !channel && !location && !siteName && !mapAddress) {
+  if (tenant && name && !channel && !location && !siteName && !mapAddress && !primaryInLocation) {
     let regexExpression = generateRegexExpressionFromStringElement(name);
     let filter = {
       name: { $regex: regexExpression, $options: "i" },
@@ -76,18 +78,50 @@ const generateDeviceFilter = (
     channel &&
     !location &&
     !siteName &&
-    !mapAddress
+    !mapAddress &&
+    !primaryInLocation
   ) {
     return {
       channelID: channel,
     };
-  } else if (
+  } 
+  
+  else if (
+    tenant &&
+    !name &&
+    !channel &&
+    !location &&
+    !siteName &&
+    !mapAddress &&
+    primaryInLocation
+  ) { 
+    
+    if(primaryInLocation == 'true'){
+      return {
+        isPrimaryInLocation: true,
+      }
+    }
+    else if(primaryInLocation == 'false'){
+      return {
+        isPrimaryInLocation: false,
+      }
+    }
+    else{
+      return {
+  
+      };
+    }
+
+  }
+  
+  else if (
     tenant &&
     !name &&
     !channel &&
     location &&
     !siteName &&
-    !mapAddress
+    !mapAddress &&
+    !primaryInLocation
   ) {
     return {
       locationID: location,
@@ -98,7 +132,8 @@ const generateDeviceFilter = (
     !channel &&
     !location &&
     siteName &&
-    !mapAddress
+    !mapAddress &&
+    !primaryInLocation
   ) {
     let regexExpression = generateRegexExpressionFromStringElement(siteName);
     let filter = {
@@ -111,7 +146,8 @@ const generateDeviceFilter = (
     !channel &&
     !location &&
     !siteName &&
-    mapAddress
+    mapAddress &&
+    !primaryInLocation
   ) {
     let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
     let filter = {
