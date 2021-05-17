@@ -21,6 +21,10 @@ const measurementsSchema = [
       type: Number,
       trim: true,
     },
+    deviceCode: {
+      type: String,
+      trim: true,
+    },
     pm1: {
       value: {
         type: Number,
