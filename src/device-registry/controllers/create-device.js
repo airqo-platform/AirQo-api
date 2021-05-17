@@ -14,14 +14,7 @@ const {
   createOnClarity,
 } = require("../utils/create-device");
 
-const {
-  clearEventsBody,
-  doesDeviceExist,
-  updateThingBodies,
-  threeMonthsFromNow,
-  getChannelID,
-  getApiKeys,
-} = require("../utils/does-device-exist");
+const { createDeviceRequestBodies } = require("../utils/create-request-body");
 
 const updateDeviceUtil = require("../utils/update-device");
 
@@ -44,7 +37,7 @@ const device = {
       if (tenant) {
         const baseUrl = constants.CREATE_THING_URL;
         let { name } = req.body;
-        let { tsBody, deviceBody } = updateThingBodies(req, res);
+        let { tsBody, deviceBody } = createDeviceRequestBodies(req, res);
         let prepBodyTS = {
           ...tsBody,
           ...constants.DEVICE_CREATION,
@@ -90,60 +83,64 @@ const device = {
   deleteThing: async (req, res) => {
     try {
       const { device, tenant } = req.query;
+      /**
+       * ************************************************
+       * Just comment out this temporary redirect in order to enable this logic
+       * for device deletion
+       */
       res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
         message: "endpoint temporarily disabled",
         success: false,
         device,
       });
-      // if (tenant) {
-      //   if (!device) {
-      //     res.status(HTTPStatus.BAD_REQUEST).json({
-      //       message:
-      //         "please use the correct query parameter, check API documentation",
-      //       success: false,
-      //     });
-      //   }
-      //  const deviceDetails = await getDetail(tenant, device);
-      //  const doesDeviceExist = !isEmpty(deviceDetails);
-      //  logElement("isDevicePresent ?", doesDeviceExist);
-      //   if (doesDeviceExist) {
-      //     const channelID = await getChannelID(
-      //       req,
-      //       res,
-      //       device,
-      //       tenant.toLowerCase()
-      //     );
-      //     logText("deleting device from TS.......");
-      //     logElement("the channel ID", channelID);
-      //     await axios
-      //       .delete(constants.DELETE_THING_URL(channelID))
-      //       .then(async (response) => {
-      //         deleteDevice(tenant, res, device);
-      //       })
-      //       .catch(function(error) {
-      //         logElement("unable to delete device from TS", error);
-      //         logElement("this is the error response", error.response.status);
+      /**
+       * *************************************************
+       */
+      if (tenant) {
+        if (!device) {
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message:
+              "please use the correct query parameter, check API documentation",
+            success: false,
+          });
+        }
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (doesDeviceExist) {
+          const channelID = deviceDetails[0].channelID;
+          logElement("the channel ID", channelID);
+          logText("deleting device from TS.......");
+          logElement("the channel ID", channelID);
+          await axios
+            .delete(constants.DELETE_THING_URL(channelID))
+            .then(async (response) => {
+              deleteDevice(tenant, res, device);
+            })
+            .catch(function(error) {
+              logElement("unable to delete device from TS", error);
+              logElement("this is the error response", error.response.status);
 
-      //         if (error.response.status == 404) {
-      //           deleteDevice(tenant, res, device);
-      //         } else {
-      //           tryCatchErrors(res, error);
-      //         }
-      //       });
-      //   } else {
-      //     logText("device does not exist in the network");
-      //     res.status(HTTPStatus.BAD_REQUEST).json({
-      //       message: "device does not exist in the network",
-      //       success: false,
-      //       device,
-      //     });
-      //   }
-      // } else {
-      //   return res.status(HTTPStatus.BAD_REQUEST).json({
-      //     success: false,
-      //     message: "missing query params, please check documentation",
-      //   });
-      // }
+              if (error.response.status == 404) {
+                deleteDevice(tenant, res, device);
+              } else {
+                tryCatchErrors(res, error);
+              }
+            });
+        } else {
+          logText("device does not exist in the network");
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message: "device does not exist in the network",
+            success: false,
+            device,
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
+        });
+      }
     } catch (e) {
       logElement(
         "unable to carry out the entire deletion of device",
@@ -170,12 +167,10 @@ const device = {
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
         if (doesDeviceExist) {
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
+          const channelID = deviceDetails[0].channelID;
+          const deviceID = deviceDetails[0].id;
+          logElement("the channel ID", channelID);
+          logElement("the device ID", deviceID);
           logText("...................................");
           logText("clearing the Thing....");
           logElement("url", constants.CLEAR_THING_URL(channelID));
@@ -187,7 +182,8 @@ const device = {
               res.status(HTTPStatus.OK).json({
                 message: `successfully cleared the data for device ${device}`,
                 success: true,
-                updatedDevice,
+                channelID,
+                deviceID,
               });
             })
             .catch(function(error) {
@@ -227,16 +223,15 @@ const device = {
         logElement("isDevicePresent?", doesDeviceExist);
 
         if (doesDeviceExist) {
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
+          const channelID = deviceDetails[0].channelID;
+          logElement("the channel ID", channelID);
           logText(".............................................");
           logText("updating the thing.......");
           const deviceFilter = { name: device };
-          let { tsBody, deviceBody, options } = updateThingBodies(req, res);
+          let { tsBody, deviceBody, options } = createDeviceRequestBodies(
+            req,
+            res
+          );
           logObject("TS body", tsBody);
           logObject("device body", deviceBody);
           logElement("the channel ID", channelID);
@@ -414,13 +409,12 @@ const device = {
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
         if (doesDeviceExist) {
-          let { tsBody, deviceBody, options } = updateThingBodies(req, res);
-          const channelID = await getChannelID(
+          let { tsBody, deviceBody, options } = createDeviceRequestBodies(
             req,
-            res,
-            device,
-            tenant.toLowerCase()
+            res
           );
+          const channelID = deviceDetails[0].channelID;
+          logElement("the channel ID", channelID);
           const deviceFilter = { name: device };
           let photoNameWithoutExtension = [];
           photos.forEach((photo) => {

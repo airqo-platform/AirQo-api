@@ -11,7 +11,9 @@ const {
 } = require("../utils/errors");
 const httpStatus = require("http-status");
 
-const createRequestBody = require("../utils/create-request-body");
+const {
+  transmitMeasurementsRequestBody,
+} = require("../utils/create-request-body");
 
 const getDetail = require("../utils/get-device-details");
 
@@ -62,7 +64,7 @@ const transmitMultipleSensorValues = async (req, res) => {
   try {
     logText("write to thing json.......");
     let { tenant } = req.query;
-    const requestBody = createRequestBody(req);
+    const requestBody = transmitMeasurementsRequestBody(req);
     const deviceDetail = await getDetail(req, res);
     const api_key = deviceDetail[0]._doc.writeKey;
     requestBody.api_key = api_key;
