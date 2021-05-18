@@ -280,7 +280,6 @@ const device = {
           limit,
           skip
         );
-        logObject("the devices", devices);
         if (devices.length) {
           return res.status(HTTPStatus.OK).json({
             success: true,
