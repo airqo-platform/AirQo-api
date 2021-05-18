@@ -122,15 +122,22 @@ def predict_model(m):
     locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
     pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
     mean, var = m.predict_f(pred_set)
-
+    
     means = mean.numpy().flatten()
     variances = var.numpy().flatten()
+    std_dev = math.sqrt(variances)
+    # calculate prediction interval
+    interval = 1.96 * stdev
+    lower, upper = means - interval,means + interval
+
     result = []
     for i in range(pred_set.shape[0]):
         result.append({'latitude':locations_flat[i][1],
                       'longitude':locations_flat[i][0],
                       'predicted_value': means[i],
-                      'variance':variances[i]})
+                      'variance':variances[i],
+                      'upper_bound':upper[i],
+                      'lower_bound':lower[i]})
 
     try:
         client = MongoClient(MONGO_URI)
