@@ -240,7 +240,7 @@ eventSchema.statics = {
         externalHumidity: { $first: "$externalHumidity" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
-        deviceDetails: { $first: "$deviceDetails" },
+        deviceDetails: { $first: {$arrayElemAt: [ "$deviceDetails", 0 ]} },
       })
       .skip(skipInt)
       .limit(limitInt)
