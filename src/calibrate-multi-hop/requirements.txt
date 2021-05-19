@@ -1,4 +1,4 @@
-pandas>=1.2.4
+pandas
 numpy
 pymongo>=3.11.3
 Flask_Cors>=3.0.10
