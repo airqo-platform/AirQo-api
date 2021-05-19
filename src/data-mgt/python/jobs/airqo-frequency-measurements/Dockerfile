@@ -9,5 +9,6 @@ ADD calculate_measurements_by_frequency.py /
 
 ENV DEVICE_REGISTRY_URL=http
 ENV FREQUENCY=hourly
+ENV START_TIME=hourly
 
 CMD [ "python", "calculate_measurements_by_frequency.py" ]

@@ -6,41 +6,51 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL")
-FREQUENCY = os.getenv("FREQUENCY")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
+FREQUENCY = os.getenv("FREQUENCY", "hourly")
+START_TIME = os.getenv("START_TIME", datetime.strftime(datetime.now(), '%Y-%m-%d'))
+os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 
 def get_frequency_value(frequency):
 
-    if str(frequency).lower() == 'hourly':
-        return '60min'
-    elif str(frequency).lower() == 'minute':
+    if str(frequency).lower() == 'minute':
         return '1min'
+    elif str(frequency).lower() == 'hourly':
+        return '60min'
     elif str(frequency).lower() == 'daily':
         return '1440min'
+    elif str(frequency).lower() == 'weekly':
+        return '10080min'
+    elif str(frequency).lower() == 'monthly':
+        return '43800min'
     else:
         raise Exception('Invalid Frequency.')
 
 
 def transform_data():
 
-    measurements = get_measurements()
+    measurements = get_measurements(START_TIME, DEVICE_REGISTRY_URL)
 
-    if len(measurements) == 0:
+    if not measurements:
         print(f"measurements not available")
         return
 
-    compute_frequency(measurements)
+    measurements_with_frequency = compute_frequency(measurements, FREQUENCY)
+
+    if measurements_with_frequency:
+        add_to_events_collection(measurements_with_frequency)
 
 
-def get_measurements():
-
-    start_date = datetime.strftime(datetime.now(), '%Y-%m-%d')
-
-    api_url = f"{DEVICE_REGISTRY_URL}devices/events?tenant=airqo&startTime={start_date}"
+def get_measurements(start_time, device_registry_url):
 
     try:
-        results = requests.get(api_url)
+
+        start_date = datetime.strptime(start_time, '%Y-%m-%d').strftime('%Y-%m-%d')
+
+        api_url = f"{device_registry_url}devices/events?tenant=airqo&startTime={start_date}"
+
+        results = requests.get(api_url, verify=False)
 
         if results.status_code != 200:
             print(f"Device Url returned error code : ${str(results.status_code)}, Content : ${str(results.content)}")
@@ -54,26 +64,26 @@ def get_measurements():
 
 
 def check_null(value):
-    if value is None:
+    if value is None or str(value).strip().lower() == 'null':
         return 0
     return value
 
 
-def compute_frequency(measurements_data):
+def compute_frequency(measurements_data, frequency):
 
-    data = pd.DataFrame(measurements_data)
+    raw_measurements_df = pd.DataFrame(measurements_data)
 
-    groups = data.groupby('channelID')
+    groups = raw_measurements_df.groupby('channelID')
+
+    measurements_with_frequency = []
 
     for name, group in groups:
 
         location = dict(group.iloc[0]['location'])
-        device = group.iloc[0]['device']
+        device = group.iloc[0]['deviceDetails']['name']
         channel_id = int(group.iloc[0]['channelID'])
-        frequency = str(FREQUENCY)
 
         measurements = []
-        frequency_measurements = []
 
         for index, row in group.iterrows():
 
@@ -95,61 +105,69 @@ def compute_frequency(measurements_data):
         measurements.fillna(0)
         measurements['time'] = pd.to_datetime(measurements['time'])
 
-        measurements = measurements.set_index('time').resample(get_frequency_value(FREQUENCY)).mean().round(2)
+        measurements = measurements.set_index('time').resample(get_frequency_value(frequency)).mean().round(2)
 
-        for hourly_index, hourly_row in measurements.iterrows():
+        for index, row in measurements.iterrows():
  
-            hourly_data = dict({
+            data = dict({
                 "device": device,
                 "channelID": channel_id,
                 "frequency": frequency,
-                "time": datetime.strftime(hourly_index, '%Y-%m-%dT%H:%M:%SZ'),
-                "pm2_5": {"value": hourly_row["pm2_5"]},
-                "pm10": {"value": hourly_row["pm10"]},
-                "s2_pm2_5": {"value": hourly_row["s2_pm2_5"]},
-                "s2_pm10": {"value": hourly_row["s2_pm10"]},
+                "time": datetime.strftime(index, '%Y-%m-%dT%H:%M:%SZ'),
+                "pm2_5": {"value": row["pm2_5"]},
+                "pm10": {"value": row["pm10"]},
+                "s2_pm2_5": {"value": row["s2_pm2_5"]},
+                "s2_pm10": {"value": row["s2_pm10"]},
                 "location": location,
-                "speed": {"value": hourly_row["speed"]},
-                "hdop": {"value": hourly_row["hdop"]},
-                "internalTemperature": {"value": hourly_row["internalTemperature"]},
-                "internalHumidity": {"value": hourly_row["internalHumidity"]},
+                "speed": {"value": row["speed"]},
+                "hdop": {"value": row["hdop"]},
+                "internalTemperature": {"value": row["internalTemperature"]},
+                "internalHumidity": {"value": row["internalHumidity"]},
             })
 
-            frequency_measurements.append(hourly_data)
+            measurements_with_frequency.append(data)
 
-        if frequency_measurements:
-            for i in range(0, len(frequency_measurements), 200):
-                chunk = frequency_measurements[i:i + 200]
-
-                print(chunk)
-
-                add_to_events_collection(chunk, device)
+    return measurements_with_frequency
 
 
-def add_to_events_collection(measurements, device_name):
+def add_to_events_collection(measurements):
+    if measurements:
 
-    try:
+        data = pd.DataFrame(measurements)
 
-        json_data = json.dumps(list(measurements))
+        if 'device' not in data.columns:
+            raise Exception("device is missing")
 
-        headers = {'Content-Type': 'application/json'}
+        groups = data.groupby('device')
 
-        base_url = f"{DEVICE_REGISTRY_URL}devices/events/add?device={device_name}&tenant=airqo"
+        for name, group in groups:
 
-        results = requests.post(base_url, json_data, headers=headers, verify=False)
+            device = group.iloc[0]['device']
 
-        if results.status_code == 200:
-            print(results.json())
-        else:
-            print('\n')
-            print(f"Device registry failed to insert values. Status Code : {str(results.status_code)},"
-                  f" Url : {base_url}")
-            print(results.content)
-            print('\n')
+            data = group.to_dict()
 
-    except Exception as ex:
-        traceback.print_exc()
-        print(f"Error Occurred while inserting measurements: {str(ex)}")
+            try:
+
+                json_data = json.dumps(data)
+
+                headers = {'Content-Type': 'application/json'}
+
+                base_url = f"{DEVICE_REGISTRY_URL}devices/events/add?device={device}&tenant=airqo"
+
+                results = requests.post(base_url, json_data, headers=headers, verify=False)
+
+                if results.status_code == 200:
+                    print(results.json())
+                else:
+                    print('\n')
+                    print(f"Device registry failed to insert values. Status Code : {str(results.status_code)},"
+                          f" Url : {base_url}")
+                    print(results.content)
+                    print('\n')
+
+            except Exception as ex:
+                traceback.print_exc()
+                print(f"Error Occurred while inserting measurements: {str(ex)}")
 
 
 if __name__ == "__main__":
