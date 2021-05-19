@@ -18,7 +18,8 @@ const getDetail = async (
   loc,
   site,
   map,
-  primaryInLocation,
+  primary,
+  active,
   limitValue,
   skipValue
 ) => {
@@ -32,7 +33,8 @@ const getDetail = async (
       loc,
       site,
       map,
-      primaryInLocation
+      primary,
+      active
     );
     logObject("the filter object", filter);
     const devices = await getModelByTenant(

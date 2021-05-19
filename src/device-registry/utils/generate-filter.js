@@ -64,99 +64,73 @@ const generateDeviceFilter = (
   location,
   siteName,
   mapAddress,
-  primary
+  primary,
+  active
 ) => {
-  if (tenant && name && !channel && !location && !siteName && !mapAddress && !primary) {
+
+  if(!tenant){
+    return {}
+  }
+
+  let filter = {};
+
+  if(name){
     let regexExpression = generateRegexExpressionFromStringElement(name);
-    let filter = {
-      name: { $regex: regexExpression, $options: "i" },
-    };
-    return filter;
-  } else if (
-    tenant &&
-    !name &&
-    channel &&
-    !location &&
-    !siteName &&
-    !mapAddress &&
-    !primary
-  ) {
-    return {
-      channelID: channel,
-    };
-  } 
-  
-  else if (
-    tenant &&
-    !name &&
-    !channel &&
-    !location &&
-    !siteName &&
-    !mapAddress &&
-    primary
-  ) { 
+    filter['name'] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if(channel){
+    filter['channelID'] = channel;
+  }
+
+  if(location){
+    filter['locationID'] = location;
+  }
+
+  if(siteName){
+    let regexExpression = generateRegexExpressionFromStringElement(siteName);
+    filter['siteName'] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if(mapAddress){
+    let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
+    filter['locationName'] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (primary) { 
+
+    const primaryStr = primary + "";
     
-    if(primary == 'yes'){
-      return {
-        isPrimaryInLocation: true,
-      }
+    if(primaryStr.toLowerCase() == 'yes'){
+      filter['isPrimaryInLocation'] = true;
     }
-    else if(primary == 'no'){
-      return {
-        isPrimaryInLocation: false,
-      }
+    else if(primaryStr.toLowerCase() == 'no'){
+      filter['isPrimaryInLocation'] = false;
     }
     else{
-      return {
-  
-      };
+
     }
 
   }
-  
-  else if (
-    tenant &&
-    !name &&
-    !channel &&
-    location &&
-    !siteName &&
-    !mapAddress &&
-    !primary
-  ) {
-    return {
-      locationID: location,
-    };
-  } else if (
-    tenant &&
-    !name &&
-    !channel &&
-    !location &&
-    siteName &&
-    !mapAddress &&
-    !primary
-  ) {
-    let regexExpression = generateRegexExpressionFromStringElement(siteName);
-    let filter = {
-      siteName: { $regex: regexExpression, $options: "i" },
-    };
-    return filter;
-  } else if (
-    tenant &&
-    !name &&
-    !channel &&
-    !location &&
-    !siteName &&
-    mapAddress &&
-    !primary
-  ) {
-    let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
-    let filter = {
-      locationName: { $regex: regexExpression, $options: "i" },
-    };
-    return filter;
-  } else if (tenant && !name && !channel && !location) {
-    return {};
+
+  if (active) { 
+
+    const activeStr = active + "";
+    
+    if(activeStr.toLowerCase() == 'yes'){
+      filter['isActive'] = true;
+    }
+    else if(activeStr.toLowerCase() == 'no'){
+      filter['isActive'] = false;
+    }
+    else{
+
+    }
+
   }
+
+  return filter;
+
 };
 
 module.exports = { generateEventsFilter, generateDeviceFilter };
