@@ -1,7 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const tranformDeviceName = require("../utils/transform-device-name");
+const { transformDeviceName } = require("../utils/update-device");
 
 const deviceSchema = new mongoose.Schema(
   {
@@ -58,6 +58,9 @@ const deviceSchema = new mongoose.Schema(
     },
     ISP: {
       type: String,
+    },
+    siteID: {
+      type: ObjectId,
     },
     siteName: {
       type: String,
@@ -150,12 +153,12 @@ deviceSchema.pre("findByIdAndUpdate", function(next) {
 
 deviceSchema.methods = {
   _transformDeviceName(name) {
-    let transformedName = tranformDeviceName(name);
+    let transformedName = transformDeviceName(name);
     return transformedName;
   },
   toJSON() {
     return {
-      id: this.id,
+      id: this._id,
       name: this.name,
       latitude: this.latitude,
       longitude: this.longitude,
@@ -186,6 +189,7 @@ deviceSchema.methods = {
 
   toUpdateJSON() {
     return {
+      id: this._id,
       name: this.name,
       locationID: this.locationID,
       height: this.height,

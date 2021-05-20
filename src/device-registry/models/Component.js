@@ -1,4 +1,4 @@
-const { Schema, model } = require("mongoose");
+const { Schema } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const ObjectId = Schema.Types.ObjectId;
 
@@ -8,7 +8,6 @@ const componentSchema = new Schema(
       type: String,
       required: [true, "The name is required"],
       trim: true,
-      unique: true,
     },
     measurement: [
       {
@@ -30,20 +29,27 @@ const componentSchema = new Schema(
       trim: true,
     },
     deviceID: {
-      type: String,
+      type: ObjectId,
       required: [true, "the device is required"],
     },
-    calibration: {
-      enabled: false,
-      valueMax: {
-        sensorValue: { type: Number, default: 0 },
-        realValue: { type: Number, default: 0 },
+    calibration: [
+      {
+        quantityKind: {
+          type: String,
+          required: [true, "The quantity kind is required"],
+          trim: true,
+        },
+        enabled: false,
+        valueMax: {
+          sensorValue: { type: Number, default: 0 },
+          realValue: { type: Number, default: 0 },
+        },
+        valueMin: {
+          sensorValue: { type: Number, default: 0 },
+          realValue: { type: Number, default: 0 },
+        },
       },
-      valueMin: {
-        sensorValue: { type: Number, default: 0 },
-        realValue: { type: Number, default: 0 },
-      },
-    },
+    ],
   },
   {
     timestamps: true,
