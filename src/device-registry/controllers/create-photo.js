@@ -65,18 +65,18 @@ const processImage = {
           );
           const channelID = deviceDetails[0].channelID;
           logElement("the channel ID", channelID);
-          const deviceFilter = { name: device };
+          const deviceFilter = { _id: device };
           let photoNameWithoutExtension = [];
           photos.forEach((photo) => {
             if (photo) {
               photoNameWithoutExtension.push(getLastPath(photo));
             }
           });
-          let deleteFromCloudinaryPromise = deleteFromCloudinary(
+          let responseFromDeleteOnCloudinary = await deleteFromCloudinary(
             photoNameWithoutExtension
           );
 
-          let responseFromUpdateDevice = updateDevice(
+          let responseFromUpdateDevice = await updateDevice(
             channelID,
             deviceBody,
             tsBody,
@@ -85,52 +85,41 @@ const processImage = {
             options
           );
 
-          // if (responseFromUpdateDevice.success === true) {
-          //   return res.status(HTTPStatus.OK).json({
-          //     message: responseFromUpdateDevice.message,
-          //     updatedDevice: responseFromUpdateDevice.updatedDevice,
-          //     success: true,
-          //   });
-          // } else if (responseFromUpdateDevice.success === false) {
-          //   if (responseFromUpdateDevice.error) {
-          //     return res.status(HTTPStatus.BAD_GATEWAY).json({
-          //       message: responseFromUpdateDevice.message,
-          //       success: false,
-          //       error: error,
-          //     });
-          //   } else {
-          //     return res.status(HTTPStatus.BAD_GATEWAY).json({
-          //       message: responseFromUpdateDevice.message,
-          //       success: false,
-          //     });
-          //   }
-          // }
-
-          // let updateDevicePromise = updateDeviceUtil(
-          //   req,
-          //   res,
-          //   channelID,
-          //   device,
-          //   deviceBody,
-          //   tsBody,
-          //   deviceFilter,
-          //   tenant,
-          //   options
-          // );
-
-          Promise.all([
-            deleteFromCloudinaryPromise,
-            responseFromUpdateDevice,
-          ]).then((values) => {
-            logElement("the values", values);
-          });
-        } else {
-          logText("device does not exist in the network");
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message: "device does not exist in the network",
-            success: false,
-            device,
-          });
+          if (responseFromDeleteOnCloudinary.success === true) {
+            if (responseFromUpdateDevice.success === true) {
+              return res.status(HTTPStatus.OK).json({
+                message: responseFromUpdateDevice.message,
+                updatedDevice: responseFromUpdateDevice.updatedDevice,
+                success: true,
+              });
+            } else if (responseFromUpdateDevice.success === false) {
+              if (responseFromUpdateDevice.error) {
+                return res.status(HTTPStatus.BAD_GATEWAY).json({
+                  message: responseFromUpdateDevice.message,
+                  success: false,
+                  error: error,
+                });
+              } else {
+                return res.status(HTTPStatus.BAD_GATEWAY).json({
+                  message: responseFromUpdateDevice.message,
+                  success: false,
+                });
+              }
+            }
+          } else if ((responseFromDeleteOnCloudinary.success = false)) {
+            if (responseFromDeleteOnCloudinary.error) {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                message: responseFromDeleteOnCloudinary.message,
+                success: false,
+                error: error,
+              });
+            } else {
+              return res.status(HTTPStatus.BAD_GATEWAY).json({
+                message: responseFromDeleteOnCloudinary.message,
+                success: false,
+              });
+            }
+          }
         }
       } else {
         missingQueryParams(req, res);
