@@ -19,7 +19,7 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
-const getDetail = require("../utils/get-device-details");
+const { getDetailsOnPlatform } = require("../utils/get-device-details");
 
 const manageSite = {
   doActivity: async (req, res) => {
@@ -28,7 +28,7 @@ const manageSite = {
       if (tenant && type) {
         const { deviceName } = req.body;
 
-        const device = await getDetail(tenant, deviceName);
+        const device = await getDetailsOnPlatform(tenant, deviceName);
         const doesDeviceExist = !isEmpty(device);
         const isDeployed = await isDeviceDeployed(
           deviceName,

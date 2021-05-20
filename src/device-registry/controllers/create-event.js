@@ -1,34 +1,26 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
-const { getMeasurements } = require("../utils/get-measurements");
-
-const {
-  tryCatchErrors,
-  axiosError,
-  missingQueryParams,
-  callbackErrors,
-} = require("../utils/errors");
-
-const getDetail = require("../utils/get-device-details");
-
+const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
+const { getDetailsOnPlatform } = require("../utils/get-device-details");
 const isEmpty = require("is-empty");
-
-const { transformMeasurements } = require("../utils/transform-measurements");
-const insertMeasurements = require("../utils/insert-measurements");
 const {
-  transmitOneSensorValue,
-  transmitMultipleSensorValues,
-  bulkTransmitMultipleSensorValues,
-} = require("../utils/transmit-values");
+  createEventsOnPlatform,
+  createOneSensorEventOnThingSpeak,
+  createDeviceEventsOnThingSpeak,
+  createMultipleDeviceEventsOnThingSpeak,
+} = require("../utils/create-event");
+
+const { transformMeasurements } = require("../utils/update-event");
+const { getMeasurements } = require("../utils/get-event-details");
 
 const createEvent = {
-  addValues: async (req, res) => {
+  createEvents: async (req, res) => {
     try {
       logText("adding values...");
       const { device, tenant } = req.query;
       const measurements = req.body;
       if (tenant && device && measurements) {
-        const deviceDetails = await getDetail(tenant, device);
+        const deviceDetails = await getDetailsOnPlatform(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
 
         if (doesDeviceExist) {
@@ -36,7 +28,7 @@ const createEvent = {
             device,
             measurements
           );
-          let response = await insertMeasurements(
+          let response = await createEventsOnPlatform(
             tenant,
             transformedMeasurements
           );
@@ -68,7 +60,7 @@ const createEvent = {
       tryCatchErrors(res, error);
     }
   },
-  getValues: (req, res) => {
+  getEvents: (req, res) => {
     try {
       const {
         device,
@@ -103,15 +95,15 @@ const createEvent = {
   },
 
   /********************************* trasmit values from device *******************************/
-  transmitValues: async (req, res) => {
+  transmitEvents: async (req, res) => {
     try {
       const { type, tenant } = req.query;
       if (type == "one" && tenant) {
-        await transmitOneSensorValue(req, res);
+        await createOneSensorEventOnThingSpeak(req, res);
       } else if (type == "many" && tenant) {
-        await transmitMultipleSensorValues(req, res);
+        await createDeviceEventsOnThingSpeak(req, res);
       } else if (type == "bulk" && tenant) {
-        await bulkTransmitMultipleSensorValues(req, res, tenant);
+        await createMultipleDeviceEventsOnThingSpeak(req, res, tenant);
       } else {
         missingQueryParams(req, res);
       }
@@ -119,6 +111,8 @@ const createEvent = {
       tryCatchErrors(res, error);
     }
   },
+
+  clearEvents: async (req, res) => {},
 };
 
 module.exports = createEvent;
