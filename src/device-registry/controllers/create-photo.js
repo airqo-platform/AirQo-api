@@ -2,12 +2,19 @@ const { upload, uploads } = require("../utils/create-photo");
 const fs = require("fs");
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
+const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
+const { deleteFromCloudinary } = require("../utils/delete-photo");
+const getLastPath = require("../utils/get-last-path");
+const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { createDeviceRequestBodies } = require("../utils/create-request-body");
 const {
-  axiosError,
-  tryCatchErrors,
-  missingQueryParams,
-  callbackErrors,
-} = require("../utils/errors");
+  updateDevice,
+  updateOnThingSpeak,
+  updateOnPlatform,
+  updateOnClarity,
+  updateOnGCP,
+  transformDeviceName,
+} = require("../utils/update-device");
 
 const processImage = {
   create: (req, res) => {},
@@ -18,7 +25,7 @@ const processImage = {
 
       if (tenant) {
         const uploader = async (path) => {
-          await uploadImages.uploads(path, "Images");
+          await uploads.uploads(path, "Images");
         };
         const urls = [];
         const files = req.files;
