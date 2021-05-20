@@ -1,0 +1,4 @@
+Collecting setuptools
+  Downloading https://files.pythonhosted.org/packages/d0/15/5041473f5d142ee93bf1593deb8f932e27a078f6f04e2020cf44044f72c5/setuptools-56.2.0-py3-none-any.whl (785kB)
+Installing collected packages: setuptools
+Successfully installed setuptools-56.2.0
