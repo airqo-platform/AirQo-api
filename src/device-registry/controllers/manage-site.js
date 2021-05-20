@@ -5,10 +5,10 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 
 const {
+  carryOutActivity,
   isDeviceDeployed,
   isDeviceRecalled,
   siteActivityRequestBodies,
-  doLocationActivity,
   queryFilterOptions,
   bodyFilterOptions,
 } = require("../utils/site-activities");
@@ -22,51 +22,90 @@ const {
 const { getDetailsOnPlatform } = require("../utils/get-device-details");
 
 const manageSite = {
-  doActivity: async (req, res) => {
-    try {
-      const { type, tenant } = req.query;
-      if (tenant && type) {
-        const { deviceName } = req.body;
-
-        const device = await getDetailsOnPlatform(tenant, deviceName);
-        const doesDeviceExist = !isEmpty(device);
-        const isDeployed = await isDeviceDeployed(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const isRecalled = await isDeviceRecalled(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-          req,
-          res
-        );
-        logElement("does the device exist", doesDeviceExist);
-        logElement("is the device deployed", isDeployed);
-
-        doLocationActivity(
-          res,
-          deviceBody,
-          siteActivityBody,
-          deviceName,
-          type,
-          doesDeviceExist,
-          isDeployed,
-          isRecalled,
-          tenant.toLowerCase()
-        );
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
+  recallDevice: async (req, res) => {
+    const { tenant, deviceName } = req.query;
+    const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
+    if (isRecalled) {
+      return res.status(HTTPStatus.CONFLICT).json({
+        success: false,
+        message: `Device ${deviceName} already recalled`,
+      });
     }
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+      req,
+      res,
+      "recall"
+    );
+    return await carryOutActivity(
+      res,
+      tenant,
+      deviceName,
+      deviceBody,
+      siteActivityBody,
+      {
+        successMsg: `Successfully recalled device ${deviceName}`,
+        errorMsg: `Failed to recall device ${deviceName}`,
+      }
+    );
   },
+  deploymentFields: [
+    "height",
+    "mountType",
+    "powerType",
+    "date",
+    "latitude",
+    "longitude",
+    "isPrimaryInLocation",
+    "isUsedForCollocation",
+  ],
+  deployDevice: async (req, res) => {
+    const { tenant, deviceName } = req.query;
 
+    const isDeployed = await isDeviceDeployed(deviceName, tenant.toLowerCase());
+
+    if (isDeployed) {
+      return res.status(HTTPStatus.CONFLICT).json({
+        success: false,
+        message: `Device ${deviceName} already deployed`,
+      });
+    }
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+      req,
+      res,
+      "deploy"
+    );
+    return await carryOutActivity(
+      res,
+      tenant,
+      deviceName,
+      deviceBody,
+      siteActivityBody,
+      {
+        successMsg: `Successfully deployed device ${deviceName}`,
+        errorMsg: `Failed to deploy device ${deviceName}`,
+      }
+    );
+  },
+  maintenanceField: ["date", "tags", "maintenanceType", "description"],
+  maintainDevice: async (req, res) => {
+    const { tenant, deviceName } = req.query;
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+      req,
+      res,
+      "maintain"
+    );
+    return await carryOutActivity(
+      res,
+      tenant,
+      deviceName,
+      deviceBody,
+      siteActivityBody,
+      {
+        successMsg: `Successfully maintained device ${deviceName}`,
+        errorMsg: `Failed to maintained device ${deviceName}`,
+      }
+    );
+  },
   deleteActivity: async (req, res) => {
     try {
       const { tenant, id } = req.query;

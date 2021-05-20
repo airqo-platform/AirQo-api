@@ -9,104 +9,63 @@ const { generateMonthsInfront } = require(".../date");
 const { getDetailsOnPlatform } = require("./get-device-details");
 const { tryCatchErrors } = require("./errors");
 
-const doLocationActivity = async (
+const carryOutActivity = async (
   res,
+  tenant,
+  deviceName,
   deviceBody,
   activityBody,
-  deviceName,
-  type,
-  deviceExists,
-  isDeployed,
-  isRecalled,
-  tenant
+  options
 ) => {
-  try {
-    const deviceFilter = { name: deviceName };
-    logElement("isRecalled", isRecalled);
-    logElement("isDeployed", isDeployed);
+  const deviceFilter = { name: deviceName };
+  return getModelByTenant(
+    tenant.toLowerCase(),
+    "device",
+    DeviceSchema
+  ).findOneAndUpdate(
+    deviceFilter,
+    deviceBody,
+    { new: true },
+    async (error, updatedDevice) => {
+      if (error) {
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          message: (options && options.errorMsg) || "Operation failed",
+          error,
+          success: false,
+        });
+      }
 
-    let check = "";
-    if (type.toLowerCase() == "deploy") {
-      check = isRecalled;
-    } else if (type.toLowerCase() == "recall") {
-      check = isDeployed;
-    } else if (type.toLowerCase() == "maintain") {
-      check = true;
-    } else {
-      check = false;
-    }
+      if (updatedDevice) {
+        //then log the operation
+        let createdActivity = {};
+        await getModelByTenant(
+          tenant.toLowerCase(),
+          "activity",
+          SiteActivitySchema
+        )
+          .createLocationActivity(activityBody)
+          .then((log) => (createdActivity = log));
 
-    logText("....................");
-    logText("doLocationActivity...");
-    logText("activityType", type);
-    logElement("deviceExists", deviceExists);
-    logElement("isDeployed", isDeployed);
-    logObject("activityBody", activityBody);
-    logElement("check", check);
-    logObject("deviceBody", deviceBody);
-
-    logText("....................");
-
-    if (check) {
-      //first update device body
-      await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).findOneAndUpdate(
-        deviceFilter,
-        deviceBody,
-        {
-          new: true,
-        },
-        (error, updatedDevice) => {
-          if (error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: `unable to ${type} `,
-              error,
-              success: false,
-            });
-          } else if (updatedDevice) {
-            //then log the operation
-            const activityLog = getModelByTenant(
-              tenant.toLowerCase(),
-              "activity",
-              SiteActivitySchema
-            ).createLocationActivity(activityBody);
-            activityLog.then((activityLog) => {
-              return res.status(HTTPStatus.OK).json({
-                message: `${type} successfully carried out`,
-                activityLog,
-                updatedDevice,
-                success: true,
-              });
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              message: `device does not exist, please first create the device you are trying to ${type} `,
-              success: false,
-            });
-          }
-        }
-      );
-    } else {
-      return res.status(HTTPStatus.BAD_REQUEST).json({
-        message: `The ${type} activity was already done for this device, please crosscheck `,
+        return res.status(HTTPStatus.OK).json({
+          message:
+            (options && options.successMsg) ||
+            "Operation successfully carried out",
+          createdActivity,
+          updatedDevice,
+          success: true,
+        });
+      }
+      return res.status(HTTPStatus.NOT_FOUND).json({
+        message: `device does not exist, please first create the device`,
         success: false,
       });
     }
-  } catch (e) {
-    logElement("error", e);
-    return res.status(HTTPStatus.BAD_GATEWAY).json({
-      message: `Server Error`,
-      success: false,
-    });
-  }
+  );
 };
 
 const siteActivityRequestBodies = (req, res) => {
   try {
-    const type = req.query.type;
+    type = req.query.type || type;
     logText("....................");
     logText("siteActivityRequestBodies...");
     logElement("activityType", type);
@@ -124,21 +83,20 @@ const siteActivityRequestBodies = (req, res) => {
       date,
       tags,
       isPrimaryInLocation,
-      isUsedForCollocaton,
+      isUsedForCollocation,
       maintenanceType,
     } = req.body;
 
-    if (type == "deploy") {
+    if (type === "deploy") {
       /****** deploy bodies ******/
       siteActivityBody = {
-        device: deviceName,
-        date: new Date(date),
+        device: deviceName || req.query.deviceName,
+        date: (date && new Date(date)) || new Date(),
         description: "device deployed",
         activityType: "deployment",
       };
 
       deviceBody = {
-        name: deviceName,
         height: height,
         mountType: mountType,
         powerType: powerType,
@@ -152,22 +110,20 @@ const siteActivityRequestBodies = (req, res) => {
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
-    } else if (type == "recall") {
+    } else if (type === "recall") {
       /****** recalling bodies ******/
       siteActivityBody = {
-        device: deviceName,
-        date: new Date(date),
+        device: deviceName || req.query.deviceName,
+        date: new Date(),
         description: "device recalled",
         activityType: "recallment",
       };
       deviceBody = {
-        name: deviceName,
-        locationID: "",
-        height: "",
+        height: 0,
         mountType: "",
         powerType: "",
         isPrimaryInLocation: false,
-        isUsedForCollocaton: false,
+        isUsedForCollocation: false,
         nextMaintenance: "",
         longitude: "",
         latitude: "",
@@ -176,18 +132,17 @@ const siteActivityRequestBodies = (req, res) => {
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
-    } else if (type == "maintain") {
+    } else if (type === "maintain") {
       /******** maintaining bodies *************/
       logObject("the tags", tags);
       siteActivityBody = {
         site: siteName,
-        device: deviceName,
-        date: new Date(date),
+        device: deviceName || req.query.deviceName,
+        date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
         nextMaintenance: generateMonthsInfront(date, 3),
         maintenanceType: maintenanceType,
-        // $addToSet: { tags: { $each: tags } },
         tags: tags,
       };
       if (maintenanceType == "preventive") {
@@ -293,6 +248,7 @@ const bodyFilterOptions = async (req, res) => {
 };
 
 module.exports = {
+  carryOutActivity,
   isDeviceDeployed,
   isDeviceRecalled,
   siteActivityRequestBodies,

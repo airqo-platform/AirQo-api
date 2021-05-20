@@ -8,6 +8,9 @@ const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
 const { upload, uploads } = require("../utils/create-photo");
 const photoController = require("../controllers/create-photo");
+const { checkTenancy } = require("../utils/validators/auth");
+const { validateRequestQuery } = require("../utils/validators/requestQuery");
+const { validateRequestBody } = require("../utils/validators/requestBody");
 
 middlewareConfig(router);
 
@@ -21,7 +24,26 @@ router.delete("/soft", deviceController.deleteOnPlatformOnly);
 router.put("/soft", deviceController.updateOnPlatformOnly);
 
 /****************** manage site *************************/
-router.post("/ts/activity", siteController.doActivity);
+router.post(
+  "/ts/activity/recall",
+  checkTenancy,
+  validateRequestQuery(["deviceName"]),
+  siteController.recallDevice
+);
+router.post(
+  "/ts/activity/deploy",
+  checkTenancy,
+  validateRequestQuery(["deviceName"]),
+  validateRequestBody(siteController.deploymentFields),
+  siteController.deployDevice
+);
+router.post(
+  "/ts/activity/maintain",
+  checkTenancy,
+  validateRequestQuery(["deviceName"]),
+  validateRequestBody(siteController.maintenanceField),
+  siteController.maintainDevice
+);
 router.get("/ts/activity", siteController.getActivities);
 router.put("/ts/activity/update", siteController.updateActivity);
 router.delete("/ts/activity/delete", siteController.deleteActivity);
