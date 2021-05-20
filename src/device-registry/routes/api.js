@@ -6,45 +6,44 @@ const middlewareConfig = require("../config/router.middleware");
 const validate = require("express-validation");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
-const imageUpload = require("../utils/multer");
-const imageController = require("../controllers/process-image");
+const { upload, uploads } = require("../utils/create-photo");
+const photoController = require("../controllers/create-photo");
 
 middlewareConfig(router);
 
 /******************* create device ***************************/
-router.get("/", deviceController.listAll);
-router.post("/ts", deviceController.createThing);
-router.delete("/ts/delete", deviceController.deleteThing);
-router.delete("/ts/clear", deviceController.clearThing);
-router.put("/ts/update", deviceController.updateThingSettings);
-router.get("/by/location", deviceController.listAllByLocation);
-router.post("/", deviceController.createOne);
-router.delete("/photos", deviceController.deletePhotos);
-router.delete("/delete", deviceController.delete);
-router.put("/update", deviceController.updateDevice);
+router.get("/", deviceController.list);
+router.post("/", deviceController.create);
+router.delete("/", deviceController.delete);
+router.put("/", deviceController.update);
+router.post("/soft", deviceController.createOnPlatformOnly);
+router.delete("/soft", deviceController.deleteOnPlatformOnly);
+router.put("/soft", deviceController.updateOnPlatformOnly);
 
 /****************** manage site *************************/
 router.post("/ts/activity", siteController.doActivity);
 router.get("/ts/activity", siteController.getActivities);
 router.put("/ts/activity/update", siteController.updateActivity);
 router.delete("/ts/activity/delete", siteController.deleteActivity);
+
+/******************** create photos *********************/
+router.delete("/photos", photoController.delete);
 router.post(
   "/upload-images",
-  imageUpload.array("image"),
-  imageController.uploadMany
+  upload.array("image"),
+  photoController.uploadMany
 );
 
 /******************* create component **************************/
-router.get("/list/components/", componentController.listAll);
-router.post("/add/components/", componentController.addComponent);
-router.delete("/delete/components/", componentController.deleteComponent);
-router.put("/update/components/", componentController.updateComponent);
-router.post("/add/components/types", componentController.createType);
-router.get("/list/components/types", componentController.getTypes);
+router.get("/components", componentController.list);
+router.post("/components", componentController.create);
+router.delete("/components", componentController.delete);
+router.put("/components", componentController.update);
 
 /******************* create event *******************************/
-router.post("/events/add", eventController.addValues);
-router.get("/events", eventController.getValues);
-router.post("/events/transmit", eventController.transmitValues);
+router.post("/events/add", eventController.createEvents);
+router.get("/events", eventController.getEvents);
+router.post("/events/transmit", eventController.transmitEvents);
+router.delete("/events/clear", eventController.clearEvents);
 
 module.exports = router;
