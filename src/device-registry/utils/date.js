@@ -38,9 +38,9 @@ const generateDateFormatWithoutHrs = (ISODate) => {
   }
 };
 
-const threeMonthsBehind = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() - 3;
+const generateMonthsInfront = (date, number) => {
+  var d = new Date(date);
+  var targetMonth = d.getMonth() + number;
   d.setMonth(targetMonth);
   if (d.getMonth() !== targetMonth % 12) {
     d.setDate(0);
@@ -48,28 +48,9 @@ const threeMonthsBehind = () => {
   return d;
 };
 
-const twoMonthsBehind = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() - 2;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0);
-  }
-  return d;
-};
-
-const oneMonthBehind = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() - 1;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0);
-  }
-  return d;
-};
-const threeMonthsInfront = () => {
-  var d = new Date();
-  var targetMonth = d.getMonth() + 3;
+const generateMonthsBehind = (date, number) => {
+  var d = new Date(date);
+  var targetMonth = d.getMonth() - number;
   d.setMonth(targetMonth);
   if (d.getMonth() !== targetMonth % 12) {
     d.setDate(0);
@@ -80,8 +61,6 @@ const threeMonthsInfront = () => {
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  threeMonthsBehind,
-  twoMonthsBehind,
-  oneMonthBehind,
-  threeMonthsInfront,
+  generateMonthsBehind,
+  generateMonthsInfront,
 };

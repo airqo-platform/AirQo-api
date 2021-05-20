@@ -1,13 +1,25 @@
 const {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  threeMonthsBehind,
-  twoMonthsBehind,
-  oneMonthBehind,
-  threeMonthsInfront,
+  generateMonthsBehind,
+  generateMonthsInfront,
 } = require("./date");
 
 const { logObject, logElement, logText } = require("./log");
+
+const generateComponentsFilter = (id, device) => {
+  if (id && !device) {
+    return {
+      _id: id,
+    };
+  } else if (!id && device) {
+    return {
+      deviceID: device,
+    };
+  } else {
+    return {};
+  }
+};
 
 const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
   if (queryStartTime && queryEndTime && !device) {
@@ -42,7 +54,8 @@ const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
       "values.device": device,
     };
   } else {
-    let oneMonthBack = oneMonthBehind();
+    let date = Date.now();
+    let oneMonthBack = generateMonthsBehind(date, 1);
     let startTime = generateDateFormatWithoutHrs(oneMonthBack);
     logElement("startTime", startTime);
     return {
@@ -58,21 +71,20 @@ const generateRegexExpressionFromStringElement = (element) => {
 
 const generateDeviceFilter = (
   tenant,
-  name,
+  id,
   channel,
   location,
   siteName,
   mapAddress
 ) => {
-  if (tenant && name && !channel && !location && !siteName && !mapAddress) {
-    let regexExpression = generateRegexExpressionFromStringElement(name);
+  if (tenant && id && !channel && !location && !siteName && !mapAddress) {
     let filter = {
-      name: { $regex: regexExpression, $options: "i" },
+      _id: id,
     };
     return filter;
   } else if (
     tenant &&
-    !name &&
+    !id &&
     channel &&
     !location &&
     !siteName &&
@@ -83,7 +95,7 @@ const generateDeviceFilter = (
     };
   } else if (
     tenant &&
-    !name &&
+    !id &&
     !channel &&
     location &&
     !siteName &&
@@ -94,7 +106,7 @@ const generateDeviceFilter = (
     };
   } else if (
     tenant &&
-    !name &&
+    !id &&
     !channel &&
     !location &&
     siteName &&
@@ -107,7 +119,7 @@ const generateDeviceFilter = (
     return filter;
   } else if (
     tenant &&
-    !name &&
+    !id &&
     !channel &&
     !location &&
     !siteName &&
@@ -118,9 +130,14 @@ const generateDeviceFilter = (
       locationName: { $regex: regexExpression, $options: "i" },
     };
     return filter;
-  } else if (tenant && !name && !channel && !location) {
+  } else if (tenant && !id && !channel && !location) {
     return {};
   }
 };
 
-module.exports = { generateEventsFilter, generateDeviceFilter };
+module.exports = {
+  generateEventsFilter,
+  generateDeviceFilter,
+  generateComponentsFilter,
+  generateComponentTypesFilter,
+};

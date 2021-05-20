@@ -47,10 +47,25 @@ const unclearError = (res) => {
     .json({ success: false, message: "unclear server error" });
 };
 
+const itemAlreadyExists = (item, res) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({
+    success: false,
+    message: `"${item}" already exists!`,
+  });
+};
+
+const itemDoesNotExist = (item, res) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({
+    success: false,
+    message: `"${item}" does not exist`,
+  });
+};
 module.exports = {
   axiosError,
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
   unclearError,
+  itemAlreadyExists,
+  itemDoesNotExist,
 };

@@ -5,38 +5,9 @@ const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const SiteActivitySchema = require("../models/SiteActivity");
-const { threeMonthsFromNow } = require("./does-device-exist");
-
-const getDetail = require("./get-device-details");
-
+const { generateMonthsInfront } = require(".../date");
+const { getDetailsOnPlatform } = require("./get-device-details");
 const { tryCatchErrors } = require("./errors");
-
-const getGpsCoordinates = async (locationName, tenant) => {
-  logText("...................................");
-  logText("Getting the GPS coordinates...");
-
-  let location = await getModelByTenant(
-    tenant.toLowerCase(),
-    "location_registry",
-    SiteSchema
-  )
-    .find({ name: locationName })
-    .exec();
-  if (location) {
-    const lat = `${location.latitude}`;
-    const lon = `${location.longitude}`;
-    if (lat && lon) {
-      logText(
-        "Successfully retrieved the GPS coordinates from the location..."
-      );
-      return { lat, lon };
-    } else {
-      logText("Unable to retrieve the GPS coordinates from location...");
-    }
-  } else {
-    logText(`Unable to find location ${locationName}`);
-  }
-};
 
 const doLocationActivity = async (
   res,
@@ -133,21 +104,6 @@ const doLocationActivity = async (
   }
 };
 
-const doesLocationExist = async (locationName, tenant) => {
-  let location = await getModelByTenant(
-    tenant.toLowerCase(),
-    "location_registry",
-    SiteSchema
-  )
-    .find({ name: locationName })
-    .exec();
-  if (location) {
-    return true;
-  } else {
-    return false;
-  }
-};
-
 const siteActivityRequestBodies = (req, res) => {
   try {
     const type = req.query.type;
@@ -188,7 +144,7 @@ const siteActivityRequestBodies = (req, res) => {
         powerType: powerType,
         isPrimaryInLocation: isPrimaryInLocation,
         isUsedForCollocaton: isUsedForCollocaton,
-        nextMaintenance: threeMonthsFromNow(date),
+        nextMaintenance: generateMonthsInfront(date, 3),
         isActive: true,
         latitude: latitude,
         longitude: longitude,
@@ -229,7 +185,7 @@ const siteActivityRequestBodies = (req, res) => {
         date: new Date(date),
         description: description,
         activityType: "maintenance",
-        nextMaintenance: threeMonthsFromNow(date),
+        nextMaintenance: generateMonthsInfront(date, 3),
         maintenanceType: maintenanceType,
         // $addToSet: { tags: { $each: tags } },
         tags: tags,
@@ -237,7 +193,7 @@ const siteActivityRequestBodies = (req, res) => {
       if (maintenanceType == "preventive") {
         deviceBody = {
           name: deviceName,
-          nextMaintenance: threeMonthsFromNow(date),
+          nextMaintenance: generateMonthsInfront(date, 3),
         };
       } else if (maintenanceType == "corrective") {
         deviceBody = {
@@ -263,7 +219,7 @@ const isDeviceRecalled = async (name, tenant) => {
   try {
     logText("....................");
     logText("checking isDeviceRecalled....");
-    let device = await getDetail(tenant, name);
+    let device = await getDetailsOnPlatform(tenant, name);
     logObject("device", device);
     const isRecalled = !device[0].isActive;
     logElement("locationName", device[0].locationName);
@@ -278,7 +234,7 @@ const isDeviceDeployed = async (name, tenant) => {
   try {
     logText("....................");
     logText("checking isDeviceNotDeployed....");
-    let device = await getDetail(tenant, name);
+    let device = await getDetailsOnPlatform(tenant, name);
     logObject("device", device);
     const isDeployed = device[0].isActive;
     logElement("locationName", device[0].locationName);
@@ -341,8 +297,6 @@ module.exports = {
   isDeviceRecalled,
   siteActivityRequestBodies,
   doLocationActivity,
-  getGpsCoordinates,
-  doesLocationExist,
   queryFilterOptions,
   bodyFilterOptions,
 };

@@ -126,7 +126,9 @@ const createDeviceRequestBodies = (req, res) => {
     ...(!isEmpty(visibility) && { public_flag: visibility }),
   };
 
-  return { deviceBody, tsBody, options };
+  let clarityBody = {};
+
+  return { deviceBody, tsBody, clarityBody, options };
 };
 
 module.exports = {
