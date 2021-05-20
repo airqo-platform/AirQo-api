@@ -15,7 +15,7 @@ const nearestDevices = {
 
                     if (distance < radius) {
                         logElement("Found a node ", distance);
-                        device['distance'] = radius;
+                        device['distance'] = distance;
                         nearest_devices.push(device);
                     }
                 }
