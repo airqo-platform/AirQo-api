@@ -136,7 +136,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       date,
       tags,
       isPrimaryInLocation,
-      isUsedForCollocaton,
+      isUsedForCollocation,
       maintenanceType,
     } = req.body;
 
@@ -154,7 +154,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         mountType: mountType,
         powerType: powerType,
         isPrimaryInLocation: isPrimaryInLocation,
-        isUsedForCollocaton: isUsedForCollocaton,
+        isUsedForCollocation: isUsedForCollocation,
         nextMaintenance: threeMonthsFromNow(date),
         isActive: true,
         latitude: latitude,
@@ -176,7 +176,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         mountType: "",
         powerType: "",
         isPrimaryInLocation: false,
-        isUsedForCollocaton: false,
+        isUsedForCollocation: false,
         nextMaintenance: "",
         longitude: "",
         latitude: "",

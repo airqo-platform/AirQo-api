@@ -57,7 +57,7 @@ const manageSite = {
       "latitude",
       "longitude",
       "isPrimaryInLocation",
-      "isUserForCollocaton"
+      "isUsedForCollocation"
   ],
   deployDevice: async (req, res) => {
     const {tenant, deviceName} = req.query;
