@@ -1,4 +1,5 @@
 const cloudinary = require("../config/cloudinary");
+const multer = require("multer");
 
 const uploads = (file, folder) => {
   return new Promise((resolve) => {
@@ -17,8 +18,6 @@ const uploads = (file, folder) => {
     );
   });
 };
-
-const multer = require("multer");
 
 const storage = multer.diskStorage({
   destination: function(req, file, cb) {
@@ -44,4 +43,16 @@ const upload = multer({
   fileFilter: fileFilter,
 });
 
-module.exports = { upload, uploads };
+const createPhoto = () => {};
+
+const createPhotoOnCloudinaryOnly = () => {};
+
+const createPhotoOnPlatformOnly = () => {};
+
+module.exports = {
+  upload,
+  uploads,
+  createPhoto,
+  createPhotoOnCloudinaryOnly,
+  createPhotoOnPlatformOnly,
+};
