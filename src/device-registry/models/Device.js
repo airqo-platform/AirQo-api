@@ -172,6 +172,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       siteName: this.siteName,
       locationName: this.locationName,
+      height: this.height,
     };
   },
 
