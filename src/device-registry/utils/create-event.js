@@ -2,6 +2,9 @@ const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const EventSchema = require("../models/Event");
 const { getModelByTenant } = require("./multitenancy");
+const { transmitMeasurementsRequestBody } = require("./create-request-body");
+const { getDetailsOnPlatform } = require("./get-device-details");
+const { transformMeasurementFields } = require("./update-event");
 
 const createEventsOnPlatform = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
@@ -68,10 +71,11 @@ const createEventsOnPlatform = async (tenant, transformedMeasurements) => {
 
 const createOneSensorEventOnThingSpeak = async (req, res) => {
   try {
-    const { quantity_kind, value } = req.body;
+    const { quantity_kind, value, name } = req.body;
     const { tenant } = req.query;
-    const deviceDetail = await getDetailsOnPlatform(req, res);
-    const api_key = deviceDetail[0]._doc.writeKey;
+    const deviceDetail = await getDetailsOnPlatform(tenant, name);
+    logObject("the device detail", deviceDetail);
+    const api_key = deviceDetail[0].writeKey;
 
     if (tenant && quantity_kind && value) {
       await axios
@@ -107,10 +111,11 @@ const createOneSensorEventOnThingSpeak = async (req, res) => {
 const createDeviceEventsOnThingSpeak = async (req, res) => {
   try {
     logText("write to thing json.......");
-    let { tenant } = req.query;
+    let { tenant, name } = req.query;
     const requestBody = transmitMeasurementsRequestBody(req);
-    const deviceDetail = await getDetailsOnPlatform(req, res);
-    const api_key = deviceDetail[0]._doc.writeKey;
+    const deviceDetail = await getDetailsOnPlatform(tenant, name);
+    logObject("the device detail", deviceDetail);
+    const api_key = deviceDetail[0].writeKey;
     requestBody.api_key = api_key;
 
     if (tenant) {
@@ -142,11 +147,12 @@ const createDeviceEventsOnThingSpeak = async (req, res) => {
 const createMultipleDeviceEventsOnThingSpeak = async (req, res) => {
   try {
     logText("bulk write to thing.......");
-    let { tenant, type } = req.query;
+    let { tenant, type, name } = req.query;
     let { updates } = req.body;
-    const deviceDetail = await getDetailsOnPlatform(req, res);
-    const channel = deviceDetail[0]._doc.channelID;
-    const api_key = deviceDetail[0]._doc.writeKey;
+    const deviceDetail = await getDetailsOnPlatform(tenant, name);
+    logObject("the device detail", deviceDetail);
+    const channel = deviceDetail[0].channelID;
+    const api_key = deviceDetail[0].writeKey;
     if (updates && tenant && type) {
       let transformedUpdates = await transformMeasurementFields(updates);
       let requestObject = {};
