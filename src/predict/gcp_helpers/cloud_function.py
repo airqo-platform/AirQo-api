@@ -130,9 +130,7 @@ def predict_model(m):
     # calculate prediction interval
     interval = 1.96 * std_dev
     lower, upper = means - interval, means + interval
-    print('try',80)
-    print('lower',lower)
-    
+        
     result = []
     for i in range(pred_set.shape[0]):
         result.append({'latitude':locations_flat[i][1],
