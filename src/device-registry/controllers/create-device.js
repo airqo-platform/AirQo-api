@@ -6,39 +6,20 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { createDeviceRequestBodies } = require("../utils/create-request-body");
 const {
   tryCatchErrors,
-  axiosError,
   missingQueryParams,
-  callbackErrors,
   itemAlreadyExists,
-  itemDoesNotExist,
 } = require("../utils/errors");
-
-const {
-  deleteOnExternalSystem,
-  deleteOnPlatform,
-  deleteOnThingSpeak,
-  deleteOnClarity,
-  deleteDevice,
-} = require("../utils/delete-device");
-
+const { deleteOnPlatform, deleteDevice } = require("../utils/delete-device");
 const {
   createDevice,
   createDeviceOnPlatform,
-  createDeviceOnThingSpeak,
-  createDeviceOnClarity,
 } = require("../utils/create-device");
-
 const {
   updateDevice,
-  updateOnThingSpeak,
-  updateOnPlatform,
-  updateOnClarity,
+  updateDeviceOnPlatform,
 } = require("../utils/update-device");
 
-const {
-  getDetailsOnPlatform,
-  getDetailsOnGCP,
-} = require("../utils/get-device-details");
+const { getDetailsOnPlatform } = require("../utils/get-device-details");
 
 const device = {
   create: async (req, res) => {
@@ -302,7 +283,7 @@ const device = {
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
         if (doesDeviceExist) {
-          let responseFromPlatform = await updateOnPlatform(
+          let responseFromPlatform = await updateDeviceOnPlatform(
             deviceBody,
             deviceFilter,
             tenant,

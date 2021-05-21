@@ -7,18 +7,23 @@ const { deleteFromCloudinary } = require("../utils/delete-photo");
 const getLastPath = require("../utils/get-last-path");
 const { getDetailsOnPlatform } = require("../utils/get-device-details");
 const { createDeviceRequestBodies } = require("../utils/create-request-body");
-const {
-  updateDevice,
-  updateOnThingSpeak,
-  updateOnPlatform,
-  updateOnClarity,
-  updateOnGCP,
-  transformDeviceName,
-} = require("../utils/update-device");
+const { updateDeviceOnPlatform } = require("../utils/update-device");
 
 const processImage = {
-  create: (req, res) => {},
-  update: (req, res) => {},
+  create: (req, res) => {
+    /**
+     * each photo is associated with a unique pair of
+     * coordinates which represents an AirQo Site
+     * These unique pair of coordinates also represent
+     * a device
+     */
+  },
+  update: (req, res) => {
+    /**
+     * this is when you are updating the details associated
+     * with a device accordingly
+     */
+  },
   uploadMany: async (req, res) => {
     try {
       const { tenant } = req.query;
@@ -76,10 +81,8 @@ const processImage = {
             photoNameWithoutExtension
           );
 
-          let responseFromUpdateDevice = await updateDevice(
-            channelID,
+          let responseFromUpdateDevice = await updateDeviceOnPlatform(
             deviceBody,
-            tsBody,
             deviceFilter,
             tenant,
             options
@@ -125,11 +128,6 @@ const processImage = {
         missingQueryParams(req, res);
       }
     } catch (e) {
-      logElement(
-        "unable to carry out the entire deletion of device",
-        e.message
-      );
-      logObject("unable to carry out the entire deletion of device", e.message);
       tryCatchErrors(res, e);
     }
   },
