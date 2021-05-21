@@ -116,7 +116,7 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
     console.log({ n });
   }
@@ -125,7 +125,7 @@ deviceSchema.pre("save", function(next) {
 
 deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
     console.log({ n });
   }
