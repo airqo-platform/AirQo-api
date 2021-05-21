@@ -28,7 +28,6 @@ const generateEventsFilter = (
   };
 
   if (queryStartTime && !queryEndTime) {
-    filter["day"]["$gte"] = queryStartTime;
     filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartTime, 1);
   }
 
@@ -42,7 +41,6 @@ const generateEventsFilter = (
 
   if (!queryStartTime && queryEndTime) {
     filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndTime, 1);
-    filter["day"]["$lte"] = queryEndTime;
   }
 
   if (device) {
@@ -62,7 +60,6 @@ const generateRegexExpressionFromStringElement = (element) => {
 };
 
 const generateDeviceFilter = (
-  tenant,
   name,
   channel,
   location,
@@ -71,70 +68,52 @@ const generateDeviceFilter = (
   primary,
   active
 ) => {
-
-  if(!tenant){
-    return {}
-  }
-
   let filter = {};
 
-  if(name){
+  if (name) {
     let regexExpression = generateRegexExpressionFromStringElement(name);
-    filter['name'] = { $regex: regexExpression, $options: "i" };
+    filter["name"] = { $regex: regexExpression, $options: "i" };
   }
 
-  if(channel){
-    filter['channelID'] = channel;
+  if (channel) {
+    filter["channelID"] = channel;
   }
 
-  if(location){
-    filter['locationID'] = location;
+  if (location) {
+    filter["locationID"] = location;
   }
 
-  if(siteName){
+  if (siteName) {
     let regexExpression = generateRegexExpressionFromStringElement(siteName);
-    filter['siteName'] = { $regex: regexExpression, $options: "i" };
+    filter["siteName"] = { $regex: regexExpression, $options: "i" };
   }
 
-  if(mapAddress){
+  if (mapAddress) {
     let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
-    filter['locationName'] = { $regex: regexExpression, $options: "i" };
+    filter["locationName"] = { $regex: regexExpression, $options: "i" };
   }
 
-  if (primary) { 
-
+  if (primary) {
     const primaryStr = primary + "";
-    
-    if(primaryStr.toLowerCase() == 'yes'){
-      filter['isPrimaryInLocation'] = true;
+    if (primaryStr.toLowerCase() == "yes") {
+      filter["isPrimaryInLocation"] = true;
+    } else if (primaryStr.toLowerCase() == "no") {
+      filter["isPrimaryInLocation"] = false;
+    } else {
     }
-    else if(primaryStr.toLowerCase() == 'no'){
-      filter['isPrimaryInLocation'] = false;
-    }
-    else{
-
-    }
-
   }
 
-  if (active) { 
-
+  if (active) {
     const activeStr = active + "";
-    
-    if(activeStr.toLowerCase() == 'yes'){
-      filter['isActive'] = true;
+    if (activeStr.toLowerCase() == "yes") {
+      filter["isActive"] = true;
+    } else if (activeStr.toLowerCase() == "no") {
+      filter["isActive"] = false;
+    } else {
     }
-    else if(activeStr.toLowerCase() == 'no'){
-      filter['isActive'] = false;
-    }
-    else{
-
-    }
-
   }
 
   return filter;
-
 };
 
 module.exports = { generateEventsFilter, generateDeviceFilter };
