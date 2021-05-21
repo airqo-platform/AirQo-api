@@ -22,111 +22,37 @@ const generateEventsFilter = (
   logElement("defaultStartTime", defaultStartTime);
   logElement("defaultEndTime", defaultEndTime);
 
-  if (queryStartTime && queryEndTime && !device && !frequency) {
-    return {
-      day: { $gte: queryStartTime, $lte: queryEndTime },
-    };
-  } else if (queryStartTime && queryEndTime && device && frequency) {
-    return {
-      day: { $gte: queryStartTime, $lte: queryEndTime },
-      "values.device": device,
-      "values.frequency": frequency,
-    };
-  } else if (!queryStartTime && !queryEndTime && device && frequency) {
-    return {
-      "values.device": device,
-      "values.frequency": frequency,
-      day: { $gte: defaultStartTime },
-    };
-  } else if (queryStartTime && !queryEndTime && !device && !frequency) {
-    return {
-      day: {
-        $gte: queryStartTime,
-        $lte: addMonthsToProvidedDate(queryStartTime, 1),
-      },
-    };
-  } else if (!queryStartTime && queryEndTime && !device && !frequency) {
-    return {
-      day: {
-        $lte: queryEndTime,
-        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
-      },
-    };
-  } else if (!queryStartTime && queryEndTime && device && frequency) {
-    return {
-      day: {
-        $lte: queryEndTime,
-        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
-      },
-      "values.device": device,
-      "values.frequency": frequency,
-    };
-  } else if (queryStartTime && !queryEndTime && device && frequency) {
-    return {
-      day: {
-        $gte: queryStartTime,
-        $lte: addMonthsToProvidedDate(queryStartTime, 1),
-      },
-      "values.device": device,
-      "values.frequency": frequency,
-    };
-  } else if (queryStartTime && queryEndTime && !device && frequency) {
-    return {
-      day: { $gte: queryStartTime, $lte: queryEndTime },
-      "values.frequency": frequency,
-    };
-  } else if (queryStartTime && queryEndTime && device && !frequency) {
-    return {
-      day: { $gte: queryStartTime, $lte: queryEndTime },
-      "values.device": device,
-    };
-  } else if (!queryStartTime && !queryEndTime && device && !frequency) {
-    return {
-      "values.device": device,
-      day: { $gte: defaultStartTime, $lte: defaultEndTime },
-    };
-  } else if (queryStartTime && !queryEndTime && !device && frequency) {
-    return {
-      day: {
-        $gte: queryStartTime,
-        $lte: addMonthsToProvidedDate(queryStartTime, 1),
-      },
-      "values.frequency": frequency,
-    };
-  } else if (!queryStartTime && queryEndTime && !device && frequency) {
-    return {
-      day: {
-        $lte: queryEndTime,
-        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
-      },
-      "values.frequency": frequency,
-    };
-  } else if (!queryStartTime && queryEndTime && device && !frequency) {
-    return {
-      day: {
-        $lte: queryEndTime,
-        $gte: removeMonthsFromProvidedDate(queryEndTime, 1),
-      },
-      "values.device": device,
-    };
-  } else if (queryStartTime && !queryEndTime && device && !frequency) {
-    return {
-      day: {
-        $gte: queryStartTime,
-        $lte: addMonthsToProvidedDate(queryStartTime, 1),
-      },
-      "values.device": device,
-    };
-  } else if (!queryStartTime && !queryEndTime && !device && frequency) {
-    return {
-      "values.frequency": frequency,
-      day: { $gte: defaultStartTime },
-    };
-  } else {
-    return {
-      day: { $gte: defaultStartTime },
-    };
+  let filter = {
+    day: { $gte: defaultStartTime, $lte: defaultEndTime },
+  };
+
+  if (queryStartTime && !queryEndTime) {
+    filter["day"]["$gte"] = queryStartTime;
+    filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartTime, 1);
   }
+
+  if (queryStartTime) {
+    filter["day"]["$gte"] = queryStartTime;
+  }
+
+  if (queryEndTime) {
+    filter["day"]["$lte"] = queryEndTime;
+  }
+
+  if (!queryStartTime && queryEndTime) {
+    filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndTime, 1);
+    filter["day"]["$lte"] = queryEndTime;
+  }
+
+  if (device) {
+    filter["values.device"] = device;
+  }
+
+  if (frequency) {
+    filter["values.frequency"] = frequency;
+  }
+
+  return filter;
 };
 
 const generateRegexExpressionFromStringElement = (element) => {
