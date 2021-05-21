@@ -68,8 +68,8 @@ const removeMonthsFromProvidedDate = (date, number) => {
 
 const monthsBehind = (number) => {
   try {
-    var d = new Date();
-    var targetMonth = d.getMonth() - number;
+    let d = new Date();
+    let targetMonth = d.getMonth() - number;
     d.setMonth(targetMonth);
     if (d.getMonth() !== targetMonth % 12) {
       d.setDate(0);
@@ -82,8 +82,8 @@ const monthsBehind = (number) => {
 
 const monthsInfront = (number) => {
   try {
-    var d = new Date();
-    var targetMonth = d.getMonth() + number;
+    let d = new Date();
+    let targetMonth = d.getMonth() + number;
     d.setMonth(targetMonth);
     if (d.getMonth() !== targetMonth % 12) {
       d.setDate(0);
