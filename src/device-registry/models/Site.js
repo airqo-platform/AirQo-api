@@ -4,23 +4,14 @@ const uniqueValidator = require("mongoose-unique-validator");
 
 const siteSchema = new mongoose.Schema(
   {
-    loc_ref: {
+    name: {
       type: String,
-      trim: true,
     },
     latitude: {
       type: Number,
     },
     longitude: {
       type: Number,
-    },
-    location_name: {
-      type: String,
-      trim: true,
-    },
-    host: {
-      type: String,
-      trim: true,
     },
     description: {
       type: String,
@@ -46,27 +37,27 @@ const siteSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
-    road_status: {
+    roadStatus: {
       type: String,
       trim: true,
     },
-    distance_from_nearest_road: {
+    distanceFromNearestRoad: {
       type: Number,
     },
-    road_intensity: {
+    roadIntensity: {
       type: Number,
     },
 
-    distance_from_motorway: {
+    distanceFromMotorway: {
       type: Number,
     },
-    distance_from_residential: {
+    distanceFromResidential: {
       type: Number,
     },
-    distance_from_city: {
+    distanceFromCity: {
       type: Number,
     },
-    local_activities: {
+    localActivities: {
       type: String,
     },
     region: {
@@ -81,10 +72,10 @@ const siteSchema = new mongoose.Schema(
     aspect: {
       type: String,
     },
-    landform_90: {
+    landform90: {
       type: String,
     },
-    landform_270: {
+    landform270: {
       type: String,
     },
   },
@@ -107,11 +98,11 @@ siteSchema.methods = {
       county: this.county,
       subcounty: this.subcounty,
       parish: this.parish,
-      road_intensity: this.road_intensity,
-      distance_from_motorway: this.distance_from_motorway,
-      distance_from_residential: this.distance_from_residential,
-      distance_from_city: this.distance_from_city,
-      distance_from_nearest_road: this.distance_from_nearest_road,
+      roadIntensity: this.roadIntensity,
+      distanceFromMotorway: this.distanceFromMotorway,
+      distanceFromResidential: this.distanceFromResidential,
+      distanceFromCity: this.distanceFromCity,
+      distanceFromNearest_road: this.distanceFromNearestRoad,
       host: this.host,
       latitude: this.latitude,
       longitude: this.longitude,

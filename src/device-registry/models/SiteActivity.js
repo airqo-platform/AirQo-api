@@ -1,23 +1,17 @@
 const { Schema, model } = require("mongoose");
-function threeMonthsFromNow() {
-  var d = new Date();
-  var targetMonth = d.getMonth() + 3;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0); // last day of previous month
-  }
-  return d;
-}
+const { generateMonthsInfront } = require("../utils/date");
+
+const today = Date.now();
 
 const activitySchema = new Schema(
   {
     device: { type: String, trim: true },
-    location: { type: String, trim: true },
+    site: { type: String, trim: true },
     date: { type: Date },
     description: { type: String, trim: true },
     activityType: { type: String, trim: true },
     tags: [{ type: String }],
-    nextMaintenance: { type: Date, default: threeMonthsFromNow },
+    nextMaintenance: { type: Date, default: generateMonthsInfront(today, 3) },
     maintenanceType: { type: String },
     createdAt: {
       type: Date,
