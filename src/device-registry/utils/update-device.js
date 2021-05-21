@@ -14,7 +14,7 @@ const updateOnExternalSystem = async (
   clarityBody
 ) => {
   if (tenant.toLowerCase() === "airqo") {
-    let responseFromUpdateOnThingSpeak = await updateOnThingSpeak(
+    let responseFromUpdateOnThingSpeak = await updateDeviceOnThingSpeak(
       channelID,
       tsBody
     );
@@ -34,7 +34,7 @@ const updateOnExternalSystem = async (
       }
     }
   } else if (tenant.toLowerCase() === "kcca") {
-    let responseFromUpdateOnClarity = await updateOnClarity(
+    let responseFromUpdateOnClarity = await updateDeviceOnClarity(
       clarityID,
       clarityBody
     );
@@ -78,7 +78,7 @@ const updateDevice = async (
       clarityBody
     );
     if (responseFromUpdateOnExternalSystem.success === true) {
-      let responseFromPlatform = await updateOnPlatform(
+      let responseFromPlatform = await updateDeviceOnPlatform(
         deviceBody,
         deviceFilter,
         tenant,
@@ -128,7 +128,12 @@ const updateDevice = async (
   }
 };
 
-const updateOnPlatform = async (deviceBody, deviceFilter, tenant, options) => {
+const updateDeviceOnPlatform = async (
+  deviceBody,
+  deviceFilter,
+  tenant,
+  options
+) => {
   try {
     const updatedDevice = await getModelByTenant(
       tenant.toLowerCase(),
@@ -163,14 +168,14 @@ const updateOnPlatform = async (deviceBody, deviceFilter, tenant, options) => {
   }
 };
 
-const updateOnClarity = async (deviceCode, clarityBody) => {
+const updateDeviceOnClarity = async (deviceCode, clarityBody) => {
   return {
     success: true,
     message: "coming soon",
   };
 };
 
-const updateOnThingSpeak = async (channelID, tsBody) => {
+const updateDeviceOnThingSpeak = async (channelID, tsBody) => {
   try {
     const config = {
       headers: {
@@ -209,7 +214,7 @@ const updateOnThingSpeak = async (channelID, tsBody) => {
   }
 };
 
-const updateOnGCP = (req, res) => {
+const updateDeviceOnGCP = (req, res) => {
   let device = req.params.name;
   const formattedName = client.devicePath(
     "airqo-250220",
@@ -253,9 +258,9 @@ const transformDeviceName = (name) => {
 
 module.exports = {
   updateDevice,
-  updateOnThingSpeak,
-  updateOnPlatform,
-  updateOnClarity,
-  updateOnGCP,
+  updateDeviceOnThingSpeak,
+  updateDeviceOnPlatform,
+  updateDeviceOnClarity,
+  updateDeviceOnGCP,
   transformDeviceName,
 };
