@@ -11,6 +11,8 @@ const getDetailsOnPlatform = async (
   loc,
   site,
   map,
+  primary,
+  active,
   limitValue,
   skipValue
 ) => {
@@ -23,7 +25,9 @@ const getDetailsOnPlatform = async (
       chid,
       loc,
       site,
-      map
+      map,
+      primary,
+      active
     );
     logObject("the filter object", filter);
     const devices = await getModelByTenant(

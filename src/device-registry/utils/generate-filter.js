@@ -1,3 +1,4 @@
+const { boolean } = require("joi");
 const {
   generateDateFormat,
   generateDateFormatWithoutHrs,
@@ -75,64 +76,62 @@ const generateDeviceFilter = (
   channel,
   location,
   siteName,
-  mapAddress
+  mapAddress,
+  primary,
+  active
 ) => {
-  if (tenant && id && !channel && !location && !siteName && !mapAddress) {
-    let filter = {
-      _id: id,
-    };
-    return filter;
-  } else if (
-    tenant &&
-    !id &&
-    channel &&
-    !location &&
-    !siteName &&
-    !mapAddress
-  ) {
-    return {
-      channelID: channel,
-    };
-  } else if (
-    tenant &&
-    !id &&
-    !channel &&
-    location &&
-    !siteName &&
-    !mapAddress
-  ) {
-    return {
-      locationID: location,
-    };
-  } else if (
-    tenant &&
-    !id &&
-    !channel &&
-    !location &&
-    siteName &&
-    !mapAddress
-  ) {
-    let regexExpression = generateRegexExpressionFromStringElement(siteName);
-    let filter = {
-      siteName: { $regex: regexExpression, $options: "i" },
-    };
-    return filter;
-  } else if (
-    tenant &&
-    !id &&
-    !channel &&
-    !location &&
-    !siteName &&
-    mapAddress
-  ) {
-    let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
-    let filter = {
-      locationName: { $regex: regexExpression, $options: "i" },
-    };
-    return filter;
-  } else if (tenant && !id && !channel && !location) {
+  if (!tenant) {
     return {};
   }
+
+  let filter = {};
+
+  if (name) {
+    let regexExpression = generateRegexExpressionFromStringElement(name);
+    filter["name"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (channel) {
+    filter["channelID"] = channel;
+  }
+
+  if (location) {
+    filter["locationID"] = location;
+  }
+
+  if (siteName) {
+    let regexExpression = generateRegexExpressionFromStringElement(siteName);
+    filter["siteName"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (mapAddress) {
+    let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
+    filter["locationName"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (primary) {
+    const primaryStr = primary + "";
+
+    if (primaryStr.toLowerCase() == "yes") {
+      filter["isPrimaryInLocation"] = true;
+    } else if (primaryStr.toLowerCase() == "no") {
+      filter["isPrimaryInLocation"] = false;
+    } else {
+    }
+  }
+
+  if (active) {
+    const activeStr = active + "";
+
+    if (activeStr.toLowerCase() == "yes") {
+      filter["isActive"] = true;
+    } else if (activeStr.toLowerCase() == "no") {
+      filter["isActive"] = false;
+    } else {
+    }
+  }
+
+  return filter;
 };
 
 module.exports = {
