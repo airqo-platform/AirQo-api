@@ -4,7 +4,7 @@ const { getModelByTenant } = require("./multitenancy");
 const jsonify = require("./jsonify");
 const { generateDeviceFilter } = require("./generate-filter");
 
-const getDetailsOnPlatform = async (
+const getDeviceDetailsOnPlatform = async (
   tenant,
   id,
   chid,
@@ -42,7 +42,7 @@ const getDetailsOnPlatform = async (
   }
 };
 
-const getDetailsOnGCP = (device) => {
+const getDeviceDetailsOnGCP = (device) => {
   const formattedName = client.devicePath(
     "airqo-250220",
     "europe-west1",
@@ -79,4 +79,4 @@ const getDetailsOnGCP = (device) => {
   }
 };
 
-module.exports = { getDetailsOnPlatform, getDetailsOnGCP };
+module.exports = { getDeviceDetailsOnPlatform, getDeviceDetailsOnGCP };

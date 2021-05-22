@@ -1,5 +1,5 @@
 const ComponentSchema = require("../models/Component");
-const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { getDeviceDetailsOnPlatform } = require("../utils/get-device-details");
 const { getComponentDetails } = require("../utils/get-component-details");
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
@@ -66,7 +66,7 @@ const Component = {
         deviceID: device,
       };
       if (device && measurement && description && tenant) {
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         logObject("deviceDetails", deviceDetails);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent?", doesDeviceExist);

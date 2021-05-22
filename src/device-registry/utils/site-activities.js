@@ -6,7 +6,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const SiteActivitySchema = require("../models/SiteActivity");
 const { generateMonthsInfront } = require(".../date");
-const { getDetailsOnPlatform } = require("./get-device-details");
+const { getDeviceDetailsOnPlatform } = require("./get-device-details");
 const { tryCatchErrors } = require("./errors");
 
 const carryOutActivity = async (
@@ -174,7 +174,7 @@ const isDeviceRecalled = async (name, tenant) => {
   try {
     logText("....................");
     logText("checking isDeviceRecalled....");
-    let device = await getDetailsOnPlatform(tenant, name);
+    let device = await getDeviceDetailsOnPlatform(tenant, name);
     logObject("device", device);
     const isRecalled = !device[0].isActive;
     logElement("locationName", device[0].locationName);
@@ -189,7 +189,7 @@ const isDeviceDeployed = async (name, tenant) => {
   try {
     logText("....................");
     logText("checking isDeviceNotDeployed....");
-    let device = await getDetailsOnPlatform(tenant, name);
+    let device = await getDeviceDetailsOnPlatform(tenant, name);
     logObject("device", device);
     const isDeployed = device[0].isActive;
     logElement("locationName", device[0].locationName);

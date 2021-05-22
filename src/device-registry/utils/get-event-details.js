@@ -12,7 +12,7 @@ const {
 } = require("./errors");
 const { generateEventsFilter } = require("./generate-filter");
 const { generateDateFormatWithoutHrs } = require("./date");
-const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { getDeviceDetailsOnPlatform } = require("../utils/get-device-details");
 
 const isRecentTrue = (recent) => {
   let isRecentEmpty = isEmpty(recent);
@@ -28,7 +28,7 @@ const isRecentTrue = (recent) => {
 };
 
 const getDevicesCount = async (tenant) => {
-  let deviceDetail = await getDetailsOnPlatform(tenant);
+  let deviceDetail = await getDeviceDetailsOnPlatform(tenant);
   logElement("number of devices", deviceDetail.length);
   return deviceDetail.length;
 };

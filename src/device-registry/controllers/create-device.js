@@ -19,7 +19,7 @@ const {
   updateDeviceOnPlatform,
 } = require("../utils/update-device");
 
-const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { getDeviceDetailsOnPlatform } = require("../utils/get-device-details");
 
 const device = {
   create: async (req, res) => {
@@ -37,7 +37,7 @@ const device = {
           ...tsBody,
           ...constants.DEVICE_CREATION,
         };
-        const deviceDetails = await getDetailsOnPlatform(tenant, name);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, name);
         logObject("deviceDetails", deviceDetails);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent?", doesDeviceExist);
@@ -104,7 +104,7 @@ const device = {
             success: false,
           });
         }
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
         if (doesDeviceExist) {
@@ -155,7 +155,7 @@ const device = {
     try {
       let { device, tenant } = req.query;
       if (tenant && device) {
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent?", doesDeviceExist);
         if (doesDeviceExist) {
@@ -235,7 +235,7 @@ const device = {
       const skip = parseInt(req.query.skip, 0);
       const { tenant, name, chid, loc, site, map, primary, active } = req.query;
       if (tenant) {
-        const devices = await getDetailsOnPlatform(
+        const devices = await getDeviceDetailsOnPlatform(
           tenant,
           id,
           chid,
@@ -280,7 +280,7 @@ const device = {
         upsert: true,
       };
       if (tenant && device) {
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         logObject("device details", deviceDetails);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
@@ -338,7 +338,7 @@ const device = {
             success: false,
           });
         }
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
         if (doesDeviceExist) {

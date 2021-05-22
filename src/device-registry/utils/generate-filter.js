@@ -138,5 +138,4 @@ module.exports = {
   generateEventsFilter,
   generateDeviceFilter,
   generateComponentsFilter,
-  generateComponentTypesFilter,
 };

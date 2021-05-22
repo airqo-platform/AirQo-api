@@ -1,7 +1,7 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
-const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { getDeviceDetailsOnPlatform } = require("../utils/get-device-details");
 const isEmpty = require("is-empty");
 const {
   createEventsOnPlatform,
@@ -20,7 +20,7 @@ const createEvent = {
       const { device, tenant } = req.query;
       const measurements = req.body;
       if (tenant && device && measurements) {
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
 
         if (doesDeviceExist) {

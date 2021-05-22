@@ -19,7 +19,7 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
-const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { getDeviceDetailsOnPlatform } = require("../utils/get-device-details");
 
 const manageSite = {
   recallDevice: async (req, res) => {

@@ -105,7 +105,7 @@ const clearDataOnThingSpeak = async (req, res) => {
           success: false,
         });
       }
-      const deviceDetails = await getDetailsOnPlatform(tenant, device);
+      const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
       const doesDeviceExist = !isEmpty(deviceDetails);
       logElement("isDevicePresent ?", doesDeviceExist);
       if (doesDeviceExist) {

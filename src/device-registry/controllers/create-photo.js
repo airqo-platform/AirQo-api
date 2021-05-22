@@ -5,7 +5,7 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
 const { deleteFromCloudinary } = require("../utils/delete-photo");
 const getLastPath = require("../utils/get-last-path");
-const { getDetailsOnPlatform } = require("../utils/get-device-details");
+const { getDeviceDetailsOnPlatform } = require("../utils/get-device-details");
 const { createDeviceRequestBodies } = require("../utils/create-request-body");
 const { updateDeviceOnPlatform } = require("../utils/update-device");
 
@@ -60,7 +60,7 @@ const processImage = {
       const { device, tenant } = req.query;
       const { photos } = req.body;
       if (tenant && device && photos) {
-        const deviceDetails = await getDetailsOnPlatform(tenant, device);
+        const deviceDetails = await getDeviceDetailsOnPlatform(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent?", doesDeviceExist);
         if (doesDeviceExist) {

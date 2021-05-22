@@ -3,7 +3,7 @@ const { logObject, logElement, logText } = require("./log");
 const EventSchema = require("../models/Event");
 const { getModelByTenant } = require("./multitenancy");
 const { transmitMeasurementsRequestBody } = require("./create-request-body");
-const { getDetailsOnPlatform } = require("./get-device-details");
+const { getDeviceDetailsOnPlatform } = require("./get-device-details");
 const { transformMeasurementFields } = require("./update-event");
 
 const createEventsOnPlatform = async (tenant, transformedMeasurements) => {
@@ -73,7 +73,7 @@ const createOneSensorEventOnThingSpeak = async (req, res) => {
   try {
     const { quantity_kind, value, name } = req.body;
     const { tenant } = req.query;
-    const deviceDetail = await getDetailsOnPlatform(tenant, name);
+    const deviceDetail = await getDeviceDetailsOnPlatform(tenant, name);
     logObject("the device detail", deviceDetail);
     const api_key = deviceDetail[0].writeKey;
 
@@ -113,7 +113,7 @@ const createDeviceEventsOnThingSpeak = async (req, res) => {
     logText("write to thing json.......");
     let { tenant, name } = req.query;
     const requestBody = transmitMeasurementsRequestBody(req);
-    const deviceDetail = await getDetailsOnPlatform(tenant, name);
+    const deviceDetail = await getDeviceDetailsOnPlatform(tenant, name);
     logObject("the device detail", deviceDetail);
     const api_key = deviceDetail[0].writeKey;
     requestBody.api_key = api_key;
@@ -149,7 +149,7 @@ const createMultipleDeviceEventsOnThingSpeak = async (req, res) => {
     logText("bulk write to thing.......");
     let { tenant, type, name } = req.query;
     let { updates } = req.body;
-    const deviceDetail = await getDetailsOnPlatform(tenant, name);
+    const deviceDetail = await getDeviceDetailsOnPlatform(tenant, name);
     logObject("the device detail", deviceDetail);
     const channel = deviceDetail[0].channelID;
     const api_key = deviceDetail[0].writeKey;
