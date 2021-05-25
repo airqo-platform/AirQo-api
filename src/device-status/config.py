@@ -51,7 +51,7 @@ app_config = {
     "staging": TestingConfig
 }
 
-environment = os.getenv("FLASK_ENV")
+environment = os.getenv("ENV")
 configuration = app_config.get(environment, ProductionConfig)
 
 
