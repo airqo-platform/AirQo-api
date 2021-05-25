@@ -25,6 +25,8 @@ const {
 
 const updateDeviceUtil = require("../utils/update-device");
 
+const nearestDevices = require("../utils/nearest-device");
+
 const {
   tryCatchErrors,
   axiosError,
@@ -328,6 +330,36 @@ const device = {
             message: "missing query params, please check documentation",
           });
         }
+      } catch (e) {
+        return res.status(HTTPStatus.BAD_REQUEST).json(e);
+      }
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+
+  listAllByNearestCoordinates: async (req, res) => {
+    try {
+      const { tenant, latitude, longitude, radius } = req.query;
+
+      try {
+
+        if (!(tenant && latitude && longitude && radius)){
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "missing query params, please check documentation",
+          });
+        }
+
+        logElement("latitude ", latitude);
+        logElement("longitude ", longitude);
+
+        const devices = await getDetail(tenant);
+
+        const nearest_devices = nearestDevices.findNearestDevices(devices, radius, latitude, longitude);
+
+        return res.status(HTTPStatus.OK).json(nearest_devices);
+
       } catch (e) {
         return res.status(HTTPStatus.BAD_REQUEST).json(e);
       }
