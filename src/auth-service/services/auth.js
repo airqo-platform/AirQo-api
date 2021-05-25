@@ -7,6 +7,14 @@ const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
+const {
+  axiosError,
+  tryCatchErrors,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
+
+const chooseLocalOptions = () => {};
 
 const localOptions = {
   usernameField: "email",
@@ -24,7 +32,7 @@ const jwtOpts = {
   secretOrKey: constants.JWT_SECRET,
 };
 
-const userLocalStrategy = (tenant, req, res, next) =>
+const useLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(localOptions, async (email, password, done) => {
     try {
       const user = await UserModel(tenant.toLowerCase())
@@ -43,7 +51,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
       }
       return done(null, user);
     } catch (e) {
-      logElement("error in services/auth/userLocalStrategy", e.message);
+      logElement("error in services/auth/useLocalStrategy", e.message);
       return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: "Server Error",
@@ -52,7 +60,7 @@ const userLocalStrategy = (tenant, req, res, next) =>
     }
   });
 
-const jwtStrategy = (tenant, req, res, next) =>
+const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
       const user = await UserModel(tenant.toLowerCase())
@@ -63,17 +71,17 @@ const jwtStrategy = (tenant, req, res, next) =>
       }
       return done(null, user);
     } catch (e) {
-      logElement("error in services/auth/jwtStrategy", e.message);
+      logElement("error in services/auth/useJWTStrategy", e.message);
       return done(e, false);
     }
   });
 
-const createStrategy = (tenant, req, res, next) => {
-  passport.use("user-local", userLocalStrategy(tenant, req, res, next));
+const setLocalStrategy = (tenant, req, res, next) => {
+  passport.use("user-local", useLocalStrategy(tenant, req, res, next));
 };
 
-const createJWTStrategy = (tenant, req, res, next) => {
-  passport.use("jwt", jwtStrategy(tenant, req, res, next));
+const setJWTStrategy = (tenant, req, res, next) => {
+  passport.use("jwt", useJWTStrategy(tenant, req, res, next));
 };
 
 passport.serializeUser((user, cb) => {
@@ -96,10 +104,10 @@ passport.deserializeUser((id, cb) => {
   }
 });
 
-function login(req, res, next) {
+function setLocalAuth(req, res, next) {
   try {
     if (req.query.tenant) {
-      createStrategy(req.query.tenant, req, res, next);
+      setLocalStrategy(req.query.tenant, req, res, next);
       next();
     } else {
       res.json({
@@ -109,15 +117,15 @@ function login(req, res, next) {
       });
     }
   } catch (e) {
-    console.log("the error in login is: ", e.message);
+    console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
   }
 }
 
-function checkTenancy(req, res, next) {
+function setJWTAuth(req, res, next) {
   try {
     if (req.query.tenant) {
-      createJWTStrategy(req.query.tenant, req, res, next);
+      setJWTStrategy(req.query.tenant, req, res, next);
       next();
     } else {
       res.status(HTTPStatus.BAD_REQUEST).json({
@@ -127,14 +135,14 @@ function checkTenancy(req, res, next) {
       });
     }
   } catch (e) {
-    console.log("the error in login is: ", e.message);
+    console.log("the error in setLocalAuth is: ", e.message);
     res
       .status(HTTPStatus.BAD_GATEWAY)
       .json({ success: false, message: e.message });
   }
 }
 
-const authUserLocal = passport.authenticate("user-local", {
+const authLocal = passport.authenticate("user-local", {
   session: false,
   failureFlash: true,
 });
@@ -152,7 +160,7 @@ const isLoggedIn = function isLoggedIn(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   } else {
-    return res.redirect("/login");
+    return res.redirect("/setLocalAuth");
   }
 };
 
@@ -162,10 +170,10 @@ const requiresSignIn = expressJwt({
 });
 
 module.exports = {
-  login: login,
-  authUserLocal: authUserLocal,
+  setLocalAuth: setLocalAuth,
+  authLocal: authLocal,
   authJWT: authJWT,
-  checkTenancy: checkTenancy,
+  setJWTAuth: setJWTAuth,
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
   requiresSignIn: requiresSignIn,
