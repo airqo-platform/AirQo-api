@@ -1,4 +1,4 @@
-from config.db_connection import connect_mongo
+from config import connect_mongo
 
 
 class Device:

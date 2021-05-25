@@ -4,7 +4,7 @@ import math
 from models import Device, DeviceStatus as DeviceStatusModel
 import requests
 import logging
-from config.constants import configuration
+from config import configuration
 from utils import str_to_date, date_to_str
 from dataclasses import dataclass
 _logger = logging.getLogger(__name__)

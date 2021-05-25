@@ -1,6 +1,7 @@
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from pymongo import MongoClient
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
@@ -42,6 +43,7 @@ class TestingConfig(Config):
     DB_NAME = os.getenv("DB_NAME_STAGE")
 
 
+
 app_config = {
     "development": DevelopmentConfig,
     "testing": TestingConfig,
@@ -51,3 +53,9 @@ app_config = {
 
 environment = os.getenv("FLASK_ENV")
 configuration = app_config.get(environment, ProductionConfig)
+
+
+def connect_mongo(tenant):
+    client = MongoClient(configuration.MONGO_URI)
+    db = client[f'{configuration.DB_NAME}_{tenant.lower()}']
+    return db
