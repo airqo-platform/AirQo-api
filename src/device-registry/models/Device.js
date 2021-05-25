@@ -116,7 +116,7 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
     console.log({ n });
   }
@@ -125,7 +125,7 @@ deviceSchema.pre("save", function(next) {
 
 deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
     console.log({ n });
   }
@@ -135,7 +135,9 @@ deviceSchema.pre("update", function(next) {
 deviceSchema.pre("findByIdAndUpdate", function(next) {
   this.options.runValidators = true;
   if (this.isModified("name")) {
-    this.name = this._transformDeviceName(this.name);
+    // this.name = this._transformDeviceName(this.name);
+    let n = this.name;
+    console.log({ n });
   }
   return next();
 });
@@ -172,13 +174,14 @@ deviceSchema.methods = {
       pictures: this.pictures,
       siteName: this.siteName,
       locationName: this.locationName,
+      height: this.height,
     };
   },
 
   toUpdateJSON() {
     return {
-      deviceName: this.deviceName,
-      locationID: this.locationName,
+      name: this.name,
+      locationID: this.locationID,
       height: this.height,
       mountType: this.mountType,
       powerType: this.powerType,
@@ -186,7 +189,7 @@ deviceSchema.methods = {
       latitude: this.latitude,
       longitude: this.longitude,
       isPrimaryInLocation: this.isPrimaryInLocation,
-      isUserForCollocaton: this.isUsedForCollocation,
+      isUsedForCollocaton: this.isUsedForCollocation,
       updatedAt: this.updatedAt,
       siteName: this.siteName,
       locationName: this.locationName,

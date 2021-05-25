@@ -203,7 +203,8 @@ eventSchema.statics = {
         updatedAt: 0,
       })
       .skip(skipInt)
-      .limit(limitInt);
+      .limit(limitInt)
+      .allowDiskUse(true);
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
@@ -211,6 +212,12 @@ eventSchema.statics = {
       .unwind("values")
       .match(filter)
       .replaceRoot("values")
+      .lookup({
+        from: "devices",
+        localField: "device",
+        foreignField: "name",
+        as: "deviceDetails",
+      })
       .sort({ time: -1 })
       .group({
         _id: "$device",
@@ -233,6 +240,7 @@ eventSchema.statics = {
         externalHumidity: { $first: "$externalHumidity" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
+        deviceDetails: { $first: {$arrayElemAt: [ "$deviceDetails", 0 ]} },
       })
       .skip(skipInt)
       .limit(limitInt)
