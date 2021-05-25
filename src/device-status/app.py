@@ -1,7 +1,5 @@
 import argparse
 from controllers import status
-from dotenv import load_dotenv
-load_dotenv()
 
 
 if __name__ == '__main__':

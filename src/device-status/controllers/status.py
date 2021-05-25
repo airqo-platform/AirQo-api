@@ -1,12 +1,11 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 import math
-from models.device import Device
-from models.device_status import DeviceStatus as DeviceStatusModel
+from models import Device, DeviceStatus as DeviceStatusModel
 import requests
 import logging
 from config.constants import configuration
-from helpers import convert_dates
+from utils import str_to_date, date_to_str
 from dataclasses import dataclass
 _logger = logging.getLogger(__name__)
 
@@ -125,8 +124,7 @@ def compute_device_channel_status(tenant):
 
     device_status_results = []
 
-    created_at = convert_dates.str_to_date(
-        convert_dates.date_to_str(datetime.now()))
+    created_at = str_to_date(date_to_str(datetime.now()))
     record = {"created_at": created_at,
               "total_active_device_count": len(results),
               "count_of_online_devices": count_of_online_devices,
