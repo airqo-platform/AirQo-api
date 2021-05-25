@@ -1,4 +1,5 @@
 const EventSchema = require("../models/Event");
+const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("./multitenancy");
 const redis = require("../config/redis");
@@ -19,6 +20,60 @@ const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
 const getDetail = require("../utils/get-device-details");
 
+const isRecentTrue = (recent) => {
+  let isRecentEmpty = isEmpty(recent);
+  if (isRecentEmpty == true) {
+    return true;
+  }
+  if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
+    return true;
+  } else if (recent.toLowerCase() == "no" && isRecentEmpty == false) {
+    logText("the value of recent is false");
+    return false;
+  }
+};
+
+const getDevicesCount = async (tenant) => {
+  let deviceDetail = await getDetail(tenant);
+  logElement("number of devices", deviceDetail.length);
+  return deviceDetail.length;
+};
+
+const generateCacheID = (
+  device,
+  day,
+  startTime,
+  endTime,
+  tenant,
+  skip,
+  limit,
+  recent
+) => {
+  return `get_events_device_${device ? device : "noDevice"}_${day}_${
+    startTime ? startTime : "noStartTime"
+  }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
+    limit ? limit : 0
+  }_${recent ? recent : "noRecent"}`;
+};
+
+const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
+  let allEvents = await getModelByTenant(tenant, "event", EventSchema).list({
+    skipInt,
+    limitInt,
+    filter,
+  });
+
+  let recentEvents = await getModelByTenant(
+    tenant,
+    "event",
+    EventSchema
+  ).listRecent({ skipInt, limitInt, filter });
+
+  let events = recentFlag ? recentEvents : allEvents;
+
+  return events;
+};
+
 const getMeasurements = async (
   res,
   recent,
@@ -32,11 +87,16 @@ const getMeasurements = async (
   try {
     const currentTime = new Date().toISOString();
     const day = generateDateFormatWithoutHrs(currentTime);
-    let cacheID = `get_events_device_${device ? device : "noDevice"}_${day}_${
-      startTime ? startTime : "noStartTime"
-    }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
-      limit ? limit : 0
-    }_${recent ? recent : "noRecent"}`;
+    let cacheID = generateCacheID(
+      device,
+      day,
+      startTime,
+      endTime,
+      tenant,
+      skip,
+      limit,
+      recent
+    );
 
     redis.get(cacheID, async (err, result) => {
       try {
@@ -48,25 +108,20 @@ const getMeasurements = async (
         } else {
           const filter = generateEventsFilter(startTime, endTime, device);
 
-          let deviceDetail = await getDetail(tenant);
-          logElement("number of devices", deviceDetail.length);
+          let devicesCount = await getDevicesCount(tenant);
 
           let skipInt = skip ? skip : 0;
-          let limitInt = limit ? limit : deviceDetail.length;
+          let limitInt = limit ? limit : devicesCount;
 
-          let allEvents = await getModelByTenant(
+          let recentFlag = isRecentTrue(recent);
+
+          let events = await getEvents(
             tenant,
-            "event",
-            EventSchema
-          ).list({ skipInt, limitInt, filter });
-
-          let recentEvents = await getModelByTenant(
-            tenant,
-            "event",
-            EventSchema
-          ).listRecent({ skipInt, limitInt, filter });
-
-          let events = recent ? recentEvents : allEvents;
+            recentFlag,
+            skipInt,
+            limitInt,
+            filter
+          );
 
           redis.set(
             cacheID,

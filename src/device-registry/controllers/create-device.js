@@ -54,7 +54,7 @@ const device = {
         const deviceDetails = await getDetail(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
-        if (!doesDeviceExist) {
+        if (doesDeviceExist) {
           logText("adding device on TS...");
           let channel;
           if (tenant.toLowerCase() === "airqo") {
@@ -274,7 +274,7 @@ const device = {
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name, chid, loc, site, map } = req.query;
+      const { tenant, name, chid, loc, site, map, primary, active } = req.query;
       if (tenant) {
         const devices = await getDetail(
           tenant,
@@ -283,15 +283,25 @@ const device = {
           loc,
           site,
           map,
+          primary,
+          active,
           limit,
           skip
         );
         logObject("the devices", devices);
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: "Devices fetched successfully",
-          devices,
-        });
+        if (devices.length) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Devices fetched successfully",
+            devices,
+          });
+        } else {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
+            message: "Device(s) not available",
+            devices,
+          });
+        }
       } else {
         missingQueryParams(req, res);
       }
