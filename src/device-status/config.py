@@ -7,12 +7,10 @@ dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-print("BASE_DIR", BASE_DIR)
 
 
 class Config:
     dotenv_path = os.path.join(BASE_DIR, '.env')
-    print("dotenv", dotenv_path)
     load_dotenv(dotenv_path)
     DEBUG = False
     TESTING = False
@@ -52,6 +50,8 @@ app_config = {
 }
 
 environment = os.getenv("ENV")
+print("ENVIRONMENT", environment or 'production')
+
 configuration = app_config.get(environment, ProductionConfig)
 
 
