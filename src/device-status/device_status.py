@@ -35,7 +35,7 @@ def get_device_status(channel):
     channel_id = channel.get("channelID")
     api_url = f'{configuration.RECENT_FEEDS_URL}?channel={channel_id}'
     if not channel_id:
-        return channel.get("channelID")
+        return DeviceStatus(is_online=False, elapsed_time=-1, channel=channel)
 
     device_status = requests.get(api_url, verify=False)
 
