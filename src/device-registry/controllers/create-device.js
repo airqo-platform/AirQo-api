@@ -25,7 +25,7 @@ const {
 
 const updateDeviceUtil = require("../utils/update-device");
 
-const nearestDevices = require("../services/nearest-device");
+const nearestDevices = require("../utils/nearest-device");
 
 const {
   tryCatchErrors,
@@ -344,7 +344,7 @@ const device = {
 
       try {
 
-        if (!tenant || !latitude || !longitude || !radius){
+        if (!(tenant && latitude && longitude && radius)){
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: "missing query params, please check documentation",
