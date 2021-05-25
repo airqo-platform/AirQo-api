@@ -5,7 +5,7 @@ from models.device import Device
 from models.device_status import DeviceStatus as DeviceStatusModel
 import requests
 import logging
-from config import constants
+from config.constants import configuration
 from helpers import convert_dates
 from dataclasses import dataclass
 _logger = logging.getLogger(__name__)
@@ -27,30 +27,35 @@ def get_all_devices(tenant):
 def get_device_status(channel):
     print("Scheduled querying channel for", channel.get("channelID"))
     channel_id = channel.get("channelID")
-    api_url = '{0}{1}{2}'.format(
-        constants.configuration.BASE_API_URL, 'feeds/recent/', channel_id)
-    latest_device_status_response = requests.get(api_url)
-    if latest_device_status_response.status_code == 200:
-        result = latest_device_status_response.json()
-        try:
-            channel["_id"] = str(channel.get("_id"))
-            if math.isnan(channel.get("longitude")):
-               channel["longitude"] = float(result.get("field6"))
-            if math.isnan(channel.get("latitude")):
-               channel["latitude"] = float(result.get("field5"))
-        except Exception:
-            pass
-        current_datetime = datetime.now()
+    api_url = f'{configuration.RECENT_FEEDS_URL}?channel={channel_id}'
+    if not channel_id:
+        return channel.get("channelID")
 
-        date_time_difference = current_datetime - \
-            datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
-        time_difference = date_time_difference.total_seconds()
-        six_hours = 21600  # in seconds
+    device_status = requests.get(api_url, verify=False)
 
-        if time_difference < six_hours:
-            return DeviceStatus(is_online=True, elapsed_time=time_difference, channel=channel)
-        return DeviceStatus(is_online=False, elapsed_time=time_difference, channel=channel)
-    return DeviceStatus(is_online=False, elapsed_time=-1, channel=channel)
+    if device_status.status_code != 200:
+        return DeviceStatus(is_online=False, elapsed_time=-1, channel=channel)
+
+    result = device_status.json()
+
+    try:
+        channel["_id"] = str(channel.get("_id"))
+        if math.isnan(channel.get("longitude")):
+            channel["longitude"] = float(result.get("field6"))
+        if math.isnan(channel.get("latitude")):
+            channel["latitude"] = float(result.get("field5"))
+    except Exception:
+        pass
+    current_datetime = datetime.now()
+
+    date_time_difference = current_datetime - \
+        datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
+    time_difference = date_time_difference.total_seconds()
+    six_hours = 21600  # in seconds
+
+    if time_difference < six_hours:
+        return DeviceStatus(is_online=True, elapsed_time=time_difference, channel=channel)
+    return DeviceStatus(is_online=False, elapsed_time=time_difference, channel=channel)
 
 
 def compute_device_channel_status(tenant):
