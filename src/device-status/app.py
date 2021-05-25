@@ -1,5 +1,5 @@
 import argparse
-from controllers import status
+from device_status import compute_device_channel_status
 
 
 if __name__ == '__main__':
@@ -8,4 +8,4 @@ if __name__ == '__main__':
                         default="airqo",
                         help='the tenant key is the organisation name')
     args = parser.parse_args()
-    status.compute_device_channel_status(args.tenant)
+    compute_device_channel_status(args.tenant)
