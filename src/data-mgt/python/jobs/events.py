@@ -5,6 +5,7 @@ import requests
 
 DEVICE_REGISTRY_STAGING_URL = os.getenv("DEVICE_REGISTRY_STAGING_URL")
 DEVICE_REGISTRY_PRODUCTION_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "STAGING")
 
 
 class DeviceRegistry:
@@ -16,7 +17,9 @@ class DeviceRegistry:
 
     def insert_measurements(self):
 
-        self.__add_to_events_collection(DEVICE_REGISTRY_PRODUCTION_URL)
+        if ENVIRONMENT == 'PRODUCTION':
+            self.__add_to_events_collection(DEVICE_REGISTRY_PRODUCTION_URL)
+
         self.__add_to_events_collection(DEVICE_REGISTRY_STAGING_URL)
 
     def __add_to_events_collection(self, base_url):

@@ -18,6 +18,8 @@ const getDetail = async (
   loc,
   site,
   map,
+  primary,
+  active,
   limitValue,
   skipValue
 ) => {
@@ -25,12 +27,13 @@ const getDetail = async (
     const limit = parseInt(limitValue, 0);
     const skip = parseInt(skipValue, 0);
     const filter = generateDeviceFilter(
-      tenant.toLowerCase(),
       name,
       chid,
       loc,
       site,
-      map
+      map,
+      primary,
+      active
     );
     logObject("the filter object", filter);
     const devices = await getModelByTenant(
