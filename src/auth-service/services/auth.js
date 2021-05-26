@@ -101,29 +101,24 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ email })
           .exec();
-        logObject("the user", user);
+        req.auth = {};
         if (!user) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: `username or password does not exist in this organisation (${tenant})`,
-          });
+          req.auth.success = false;
+          req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          next();
         } else if (!user.authenticateUser(password)) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: "incorrect username or password",
-          });
+          req.auth.success = false;
+          req.auth.message = "incorrect username or password";
+          next();
         }
+        req.auth.success = true;
+        req.auth.message = "successful login";
         return done(null, user);
       } catch (e) {
-        logElement(
-          "error in services/auth/useEmailWithLocalStrategy",
-          e.message
-        );
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: "Server Error",
-          error: e.message,
-        });
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = e.message;
+        next();
       }
     }
   );
@@ -136,28 +131,24 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         const user = await UserModel(tenant.toLowerCase())
           .findOne({ userName })
           .exec();
+        req.auth = {};
         if (!user) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: `username or password does not exist in this organisation (${tenant})`,
-          });
+          req.auth.success = false;
+          req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          next();
         } else if (!user.authenticateUser(password)) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: "incorrect username or password",
-          });
+          req.auth.success = false;
+          req.auth.message = "incorrect username or password";
+          next();
         }
+        req.auth.success = true;
+        req.auth.message = "successful login";
         return done(null, user);
       } catch (e) {
-        logElement(
-          "error in services/auth/useUsernameWithLocalStrategy",
-          e.message
-        );
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: "Server Error",
-          error: e.message,
-        });
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = e.message;
+        next();
       }
     }
   );
@@ -186,25 +177,25 @@ const setJWTStrategy = (tenant, req, res, next) => {
   passport.use("jwt", useJWTStrategy(tenant, req, res, next));
 };
 
-passport.serializeUser((user, cb) => {
-  if (privileges.isUser(user)) {
-    cb(null, user._id);
-  } else if (privileges.isCollab(user)) {
-    cb(null, user._id);
-  }
-});
+// passport.serializeUser((user, cb) => {
+//   if (privileges.isUser(user)) {
+//     cb(null, user._id);
+//   } else if (privileges.isCollab(user)) {
+//     cb(null, user._id);
+//   }
+// });
 
-passport.deserializeUser((id, cb) => {
-  if (privileges.isUser(id)) {
-    User.findById(id)
-      .then((user) => cb(null, user))
-      .catch((err) => cb(err));
-  } else if (privileges.isCollab(user)) {
-    Collaborator.findById(id)
-      .then((user) => cb(null, user))
-      .catch((err) => cb(err));
-  }
-});
+// passport.deserializeUser((id, cb) => {
+//   if (privileges.isUser(id)) {
+//     User.findById(id)
+//       .then((user) => cb(null, user))
+//       .catch((err) => cb(err));
+//   } else if (privileges.isCollab(user)) {
+//     Collaborator.findById(id)
+//       .then((user) => cb(null, user))
+//       .catch((err) => cb(err));
+//   }
+// });
 
 function setLocalAuth(req, res, next) {
   try {

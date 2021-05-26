@@ -274,19 +274,31 @@ const join = {
     }
   },
 
-  loginUser: (req, res, next) => {
+  loginUser: (req, res) => {
     logText("..................................");
     logText("user login......");
     try {
       const { errors, isValid } = validateLoginInput(req.body);
-
       if (!isValid) {
         return res.status(HTTPStatus.BAD_REQUEST).json(errors);
       }
-      res.status(HTTPStatus.OK).json(req.user.toAuthJSON());
-      return next();
+      if (req.auth.success == true) {
+        res.status(HTTPStatus.OK).json(req.user.toAuthJSON());
+      } else {
+        if (req.auth.error) {
+          res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: req.auth.success,
+            error: req.auth.error,
+            message: req.auth.message,
+          });
+        }
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: req.auth.success,
+          message: req.auth.message,
+        });
+      }
     } catch (e) {
-      res.json({ success: false, message: e.message });
+      tryCatchErrors(res, e);
     }
   },
 
