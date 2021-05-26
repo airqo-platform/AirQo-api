@@ -66,6 +66,30 @@ const removeMonthsFromProvidedDate = (date, number) => {
   }
 };
 
+const removeMonthsFromProvideDateTime = (dateTime, number) => {
+  try {
+    let newDate = new Date(dateTime);
+    let monthsBehindProvidedDateTime = newDate.setMonth(
+      newDate.getMonth() - number
+    );
+    return new Date(monthsBehindProvidedDateTime);
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
+const addMonthsToProvideDateTime = (dateTime, number) => {
+  try {
+    let newDate = new Date(dateTime);
+    let monthsInfrontOfProvidedDateTime = newDate.setMonth(
+      newDate.getMonth() + number
+    );
+    return new Date(monthsInfrontOfProvidedDateTime);
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
 const monthsBehind = (number) => {
   try {
     let d = new Date();
@@ -99,6 +123,8 @@ module.exports = {
   generateDateFormatWithoutHrs,
   removeMonthsFromProvidedDate,
   addMonthsToProvidedDate,
+  removeMonthsFromProvideDateTime,
+  addMonthsToProvideDateTime,
   monthsBehind,
   monthsInfront,
 };

@@ -6,6 +6,8 @@ const {
   monthsInfront,
   removeMonthsFromProvidedDate,
   addMonthsToProvidedDate,
+  removeMonthsFromProvideDateTime,
+  addMonthsToProvideDateTime,
 } = require("./date");
 
 const { logObject, logElement, logText } = require("./log");
@@ -32,31 +34,50 @@ const generateEventsFilter = (
 
   if (queryStartDay && !queryEndDay) {
     filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartDay, 1);
+    delete filter["values.time"];
   }
 
   if (startTime) {
     let start = new Date(startTime);
     filter["values.time"]["$gte"] = start;
+    let day = generateDateFormatWithoutHrs(start);
+    filter["day"]["$gte"] = day;
   }
 
   if (endTime) {
     let end = new Date(endTime);
     filter["values.time"]["$lte"] = end;
+    let day = generateDateFormatWithoutHrs(end);
+    filter["day"]["$lte"] = day;
   }
 
-  if (startTime && endTime) {
+  if (startTime && !endTime) {
+    let start = new Date(startTime);
+    filter["values.time"]["$lte"] = addMonthsToProvideDateTime(start, 1);
+    let day = generateDateFormatWithoutHrs(start);
+    filter["day"]["$lte"] = addMonthsToProvidedDate(day, 1);
+  }
+
+  if (!startTime && endTime) {
+    let end = new Date(endTime);
+    filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(end, 1);
+    let day = generateDateFormatWithoutHrs(end);
+    filter["day"]["$gte"] = removeMonthsFromProvidedDate(day, 1);
   }
 
   if (queryStartDay) {
     filter["day"]["$gte"] = queryStartDay;
+    delete filter["values.time"];
   }
 
   if (queryEndDay) {
     filter["day"]["$lte"] = queryEndDay;
+    delete filter["values.time"];
   }
 
   if (!queryStartDay && queryEndDay) {
     filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndDay, 1);
+    delete filter["values.time"];
   }
 
   if (device) {
