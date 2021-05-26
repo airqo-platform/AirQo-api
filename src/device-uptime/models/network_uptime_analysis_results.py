@@ -1,10 +1,6 @@
-import app
 from datetime import datetime, timedelta
 from helpers import convert_dates
 from config import db_connection
-import requests
-import math
-from google.cloud import bigquery
 import pandas as pd
 
 
