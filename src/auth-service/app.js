@@ -1,4 +1,3 @@
-// require("@google-cloud/debug-agent").start();
 var express = require("express");
 var path = require("path");
 var logger = require("morgan");
