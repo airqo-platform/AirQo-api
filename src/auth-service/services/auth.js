@@ -1,6 +1,7 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const HTTPStatus = require("http-status");
+const Validator = require("validator");
 const UserSchema = require("../models/User");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
@@ -13,18 +14,58 @@ const {
   missingQueryParams,
   callbackErrors,
 } = require("../utils/errors");
+const { getModelByTenant } = require("../utils/multitenancy");
+const UserModel = (tenant) => {
+  return getModelByTenant(tenant, "user", UserSchema);
+};
 
-const chooseLocalOptions = () => {};
+const setLocalOptions = (req) => {
+  try {
+    let authenticationFields = {};
+    if (
+      !Validator.isEmpty(req.body.userName) &&
+      Validator.isEmail(req.body.userName)
+    ) {
+      authenticationFields.usernameField = "email";
+      authenticationFields.passwordField = "password";
+    }
 
-const localOptions = {
+    if (
+      !Validator.isEmpty(req.body.userName) &&
+      !Validator.isEmail(req.body.userName)
+    ) {
+      authenticationFields.usernameField = "userName";
+      authenticationFields.passwordField = "password";
+    }
+
+    if (Validator.isEmpty(req.body.userName)) {
+      return {
+        success: false,
+        message: "the userName field is missing",
+      };
+    }
+
+    return {
+      success: true,
+      message: "the auth fields have been set",
+      authenticationFields,
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: e.message,
+    };
+  }
+};
+
+const authenticateWithEmailOptions = {
   usernameField: "email",
   passwordField: "password",
 };
 
-const { getModelByTenant } = require("../utils/multitenancy");
-
-const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
+const authenticateWithUsernameOptions = {
+  usernameField: "userName",
+  passwordField: "password",
 };
 
 const jwtOpts = {
@@ -32,33 +73,94 @@ const jwtOpts = {
   secretOrKey: constants.JWT_SECRET,
 };
 
-const useLocalStrategy = (tenant, req, res, next) =>
-  new LocalStrategy(localOptions, async (email, password, done) => {
-    try {
-      const user = await UserModel(tenant.toLowerCase())
-        .findOne({ email })
-        .exec();
-      if (!user) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
+const useLocalStrategy = (tenant, req, res, next) => {
+  let localOptions = setLocalOptions(req);
+  logObject("the localOptions", localOptions);
+  if (localOptions.success == true) {
+    logText("success state is true");
+    let { usernameField } = localOptions.authenticationFields;
+    logElement("the username field", usernameField);
+    if (usernameField == "email") {
+      req.body.email = req.body.userName;
+      logText("we are using email");
+      return useEmailWithLocalStrategy(tenant, req, res, next);
+    } else if (usernameField == "userName") {
+      logText("we are using username");
+      return useUsernameWithLocalStrategy(tenant, req, res, next);
+    }
+  } else if (localOptions.success == false) {
+    logText("success state is false");
+    return localOptions;
+  }
+};
+const useEmailWithLocalStrategy = (tenant, req, res, next) =>
+  new LocalStrategy(
+    authenticateWithEmailOptions,
+    async (email, password, done) => {
+      try {
+        const user = await UserModel(tenant.toLowerCase())
+          .findOne({ email })
+          .exec();
+        logObject("the user", user);
+        if (!user) {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: `username or password does not exist in this organisation (${tenant})`,
+          });
+        } else if (!user.authenticateUser(password)) {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "incorrect username or password",
+          });
+        }
+        return done(null, user);
+      } catch (e) {
+        logElement(
+          "error in services/auth/useEmailWithLocalStrategy",
+          e.message
+        );
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
-          message: `username or password does not exist in this organisation (${tenant})`,
-        });
-      } else if (!user.authenticateUser(password)) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "incorrect username or password",
+          message: "Server Error",
+          error: e.message,
         });
       }
-      return done(null, user);
-    } catch (e) {
-      logElement("error in services/auth/useLocalStrategy", e.message);
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "Server Error",
-        error: e.message,
-      });
     }
-  });
+  );
+
+const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
+  new LocalStrategy(
+    authenticateWithUsernameOptions,
+    async (userName, password, done) => {
+      try {
+        const user = await UserModel(tenant.toLowerCase())
+          .findOne({ userName })
+          .exec();
+        if (!user) {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: `username or password does not exist in this organisation (${tenant})`,
+          });
+        } else if (!user.authenticateUser(password)) {
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "incorrect username or password",
+          });
+        }
+        return done(null, user);
+      } catch (e) {
+        logElement(
+          "error in services/auth/useUsernameWithLocalStrategy",
+          e.message
+        );
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: "Server Error",
+          error: e.message,
+        });
+      }
+    }
+  );
 
 const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
