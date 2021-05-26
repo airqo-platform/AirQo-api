@@ -11,36 +11,52 @@ const {
 const { logObject, logElement, logText } = require("./log");
 
 const generateEventsFilter = (
-  queryStartTime,
-  queryEndTime,
+  queryStartDay,
+  queryEndDay,
   device,
-  frequency
+  frequency,
+  startTime,
+  endTime
 ) => {
   let oneMonthBack = monthsBehind(1);
   let oneMonthInfront = monthsInfront(1);
-  let defaultStartTime = generateDateFormatWithoutHrs(oneMonthBack);
-  let defaultEndTime = generateDateFormatWithoutHrs(oneMonthInfront);
-  logElement("defaultStartTime", defaultStartTime);
-  logElement("defaultEndTime", defaultEndTime);
+  let defaultStartDay = generateDateFormatWithoutHrs(oneMonthBack);
+  let defaultEndDay = generateDateFormatWithoutHrs(oneMonthInfront);
+  logElement("defaultStartDay", defaultStartDay);
+  logElement(" defaultEndDay", defaultEndDay);
 
   let filter = {
-    day: { $gte: defaultStartTime, $lte: defaultEndTime },
+    day: { $gte: defaultStartDay, $lte: defaultEndDay },
+    "values.time": { $gte: oneMonthBack, $lte: oneMonthInfront },
   };
 
-  if (queryStartTime && !queryEndTime) {
-    filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartTime, 1);
+  if (queryStartDay && !queryEndDay) {
+    filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartDay, 1);
   }
 
-  if (queryStartTime) {
-    filter["day"]["$gte"] = queryStartTime;
+  if (startTime) {
+    let start = new Date(startTime);
+    filter["values.time"]["$gte"] = start;
   }
 
-  if (queryEndTime) {
-    filter["day"]["$lte"] = queryEndTime;
+  if (endTime) {
+    let end = new Date(endTime);
+    filter["values.time"]["$lte"] = end;
   }
 
-  if (!queryStartTime && queryEndTime) {
-    filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndTime, 1);
+  if (startTime && endTime) {
+  }
+
+  if (queryStartDay) {
+    filter["day"]["$gte"] = queryStartDay;
+  }
+
+  if (queryEndDay) {
+    filter["day"]["$lte"] = queryEndDay;
+  }
+
+  if (!queryStartDay && queryEndDay) {
+    filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndDay, 1);
   }
 
   if (device) {

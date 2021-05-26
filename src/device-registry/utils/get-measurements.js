@@ -41,19 +41,23 @@ const getDevicesCount = async (tenant) => {
 const generateCacheID = (
   device,
   day,
-  startTime,
-  endTime,
+  startDay,
+  endDay,
   tenant,
   skip,
   limit,
   frequency,
-  recent
+  recent,
+  startTime,
+  endTime
 ) => {
   return `get_events_device_${device ? device : "noDevice"}_${day}_${
-    startTime ? startTime : "noStartTime"
-  }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
+    startDay ? startDay : "noStartDay"
+  }_${endDay ? endDay : "noEndDay"}_${tenant}_${skip ? skip : 0}_${
     limit ? limit : 0
-  }_${recent ? recent : "noRecent"}_${frequency ? frequency : "noFrequency"}`;
+  }_${recent ? recent : "noRecent"}_${frequency ? frequency : "noFrequency"}_${
+    endTime ? endTime : "noEndTime"
+  }_${startTime ? startTime : "noStartTime"}`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -77,13 +81,15 @@ const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
 const getMeasurements = async (
   res,
   recent,
-  startTime,
-  endTime,
+  startDay,
+  endDay,
   device,
   skip,
   limit,
   frequency,
-  tenant
+  tenant,
+  startTime,
+  endTime
 ) => {
   try {
     const currentTime = new Date().toISOString();
@@ -91,13 +97,15 @@ const getMeasurements = async (
     let cacheID = generateCacheID(
       device,
       day,
-      startTime,
-      endTime,
+      startDay,
+      endDay,
       tenant,
       skip,
       limit,
       frequency,
-      recent
+      recent,
+      startTime,
+      endTime
     );
 
     redis.get(cacheID, async (err, result) => {
@@ -109,10 +117,12 @@ const getMeasurements = async (
           callbackErrors(err, req, res);
         } else {
           const filter = generateEventsFilter(
-            startTime,
-            endTime,
+            startDay,
+            endDay,
             device,
-            frequency
+            frequency,
+            startTime,
+            endTime
           );
 
           let devicesCount = await getDevicesCount(tenant);
