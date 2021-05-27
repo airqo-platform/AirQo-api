@@ -50,9 +50,9 @@ app_config = {
 }
 
 environment = os.getenv("ENV")
-print("ENVIRONMENT", environment or 'production')
+print("ENVIRONMENT", environment or 'staging')
 
-configuration = app_config.get(environment, ProductionConfig)
+configuration = app_config.get(environment, TestingConfig)
 
 
 def connect_mongo(tenant):
