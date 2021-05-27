@@ -1,10 +1,8 @@
 from datetime import datetime
 import logging
-from helpers.get_device_hourly_records_count import DeviceChannelRecords
-from models.device import Device
-from models import device_uptime
-from models.network_uptime import NetworkUptime
 from concurrent.futures import ThreadPoolExecutor
+from helpers.get_device_hourly_records_count import DeviceChannelRecords
+from models import Device, NetworkUptime, DeviceUptime
 
 
 _logger = logging.getLogger(__name__)
@@ -67,7 +65,7 @@ def save_device_uptime(tenant):
     if records:
         network_uptime = sum(record.get("uptime", 0.0) for record in records) / len(records)
 
-    device_uptime_model = device_uptime.DeviceUptime(tenant)
+    device_uptime_model = DeviceUptime(tenant)
     device_uptime_model.save_device_uptime(records)
 
     network_uptime_record = {
