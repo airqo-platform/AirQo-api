@@ -1,5 +1,5 @@
 import argparse
-from controllers import uptime
+from device_uptime import save_device_uptime
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='save the uptime.')
@@ -7,4 +7,4 @@ if __name__ == '__main__':
                         default="airqo",
                         help='the tenant key is the organisation name')
     args = parser.parse_args()
-    uptime.save_device_uptime(args.tenant)
+    save_device_uptime(args.tenant)
