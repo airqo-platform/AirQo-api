@@ -1,105 +1,107 @@
-import base64
-import datetime as dt
-from flask import Blueprint, request, jsonify
-from bson import json_util, ObjectId
-import json
 from datetime import datetime, timedelta
-from pymongo import MongoClient
-import requests
-import math
-from google.cloud import bigquery
-from flask import Blueprint, request, jsonify
-import logging
 import pandas as pd
-import numpy as np
-from routes import api
-import os
-import logging
-from helpers import convert_dates, calculate_uptime, get_expected_records_count
-from models import network_uptime_analysis_results, device, raw_feeds_pms, device_uptime
+import requests
+import urllib3
+from dataclasses import dataclass
+from config.constants import configuration
+
+# disable tls/ssl warnings
+urllib3.disable_warnings()
+
+
+@dataclass
+class DeviceSensorReadings:
+    sensor_one_pm2_5: list
+    sensor_two_pm2_5: list
+    battery_voltage: list
+    time: list
 
 
 class DeviceChannelRecords:
-    """
-    """
 
-    def __init__(self, channel_id):
+    def __init__(self, tenant, device_name, channel_id):
+        self.tenant = tenant
+        self.device_name = device_name
         self.channel_id = channel_id
-        self.df = self.get_records()
+        self.records = self.get_device_daily_events()
+        self.df = pd.DataFrame(self.flatten_records())
 
-    def get_records(self, hours=24):
-        client = bigquery.Client()
-        today = datetime.now()
-        today_midnight = datetime(
-            year=today.year, month=today.month, day=today.day, hour=0, minute=0, second=0)
-        yesterday = today_midnight-timedelta(days=1)
+    def get_device_daily_events(self):
+        yesterday = datetime.strftime(datetime.now() - timedelta(1), '%Y-%m-%d')
 
-        sql_query = """ 
-               
-                SELECT SAFE_CAST(TIMESTAMP(created_at) as DATETIME) as time, channel_id,field1 as s1_pm2_5,
-                field2 as s1_pm10, field3 as s2_pm2_5, field4 as s2_pm10, field7 as battery_voltage
-                FROM `airqo-250220.thingspeak.raw_feeds_pms` 
-                WHERE channel_id = '{0}' AND CAST(created_at as TIMESTAMP) BETWEEN CAST('{1}' as TIMESTAMP)  AND CAST('{2}' as TIMESTAMP)
-                ORDER BY time DESC           
-                
-            """
-        sql_query = sql_query.format(
-            self.channel_id, yesterday.isoformat(), today_midnight.isoformat())
+        api_url = f'{configuration.DAILY_EVENTS_URL}?tenant={self.tenant}&device={self.device_name}'
+        api_url = f'{api_url}&startTime={yesterday}&endTime={yesterday}&recent=no'
 
-        job_config = bigquery.QueryJobConfig()
-        job_config.use_legacy_sql = False
+        device_events = requests.get(api_url, verify=False)
 
-        # validating the values obtained from the database
-        df = client.query(sql_query, job_config=job_config).to_dataframe()
-        df['time'] = pd.to_datetime(df['time'])
-        df['time'] = df['time']
-        df['s1_pm2_5'] = pd.to_numeric(df['s1_pm2_5'], errors='coerce')
-        df['channel_id'] = pd.to_numeric(df['channel_id'], errors='coerce')
-        df['s1_pm10'] = pd.to_numeric(df['s1_pm10'], errors='coerce')
-        df['s2_pm2_5'] = pd.to_numeric(df['s2_pm2_5'], errors='coerce')
-        df['s2_pm10'] = pd.to_numeric(df['s2_pm10'], errors='coerce')
-        df['s1_s2_average_pm2_5'] = df[[
-            's1_pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
-        df['s1_s2_average_pm10'] = df[[
-            's1_pm10', 's2_pm10']].mean(axis=1).round(2)
-        df['battery_voltage'] = pd.to_numeric(
-            df['battery_voltage'], errors='coerce')
-        return df
+        if device_events.status_code != 200:
+            return []
+
+        return device_events.json().get("measurements", [])
+
+    def flatten_records(self):
+        return [
+            {
+              "time": record["time"],
+              "s1_pm2_5": record["pm2_5"]["value"],
+              "s2_pm2_5": record["s2_pm2_5"]["value"],
+              "voltage": record["battery"]["value"],
+            }
+            for record in self.records
+        ]
 
     def get_sensor_readings(self):
-        # change frequency to days
+        if not self.records:
+            raise Exception(f"Device {self.device_name} has no records")
+
+        self.df['time'] = pd.to_datetime(self.df['time'])
+        time_indexed_data = self.df.set_index('time')
+
+        # change frequency to hours
+        hourly_data = time_indexed_data.resample('H').mean().round(2)
+        daily_data = hourly_data.resample('D').mean().dropna()
+        sensor_one_pm2_5 = daily_data['s1_pm2_5'].tolist()
+        sensor_two_pm2_5 = daily_data['s2_pm2_5'].tolist()
+        battery_voltage = daily_data['voltage'].tolist()
+        time = daily_data.index.tolist()
+
+        return DeviceSensorReadings(
+            time=time,
+            sensor_one_pm2_5=sensor_one_pm2_5,
+            sensor_two_pm2_5=sensor_two_pm2_5,
+            battery_voltage=battery_voltage
+        )
+
+    def get_record_count(self):
 
         time_indexed_data = self.df.set_index('time')
 
-        # change freqeuncy to hours
-        final_hourly_data = time_indexed_data.resample('H').mean().round(2)
-        daily_data = final_hourly_data.resample('D').mean().dropna()
-        sensor_one_pm2_5_readings = daily_data['s1_pm2_5'].tolist()
-        sensor_two_pm2_5_readings = daily_data['s2_pm2_5'].tolist()
-        battery_voltage_readings = daily_data['battery_voltage'].tolist()
-        time_readings = daily_data.index.tolist()
+        # change frequency to hours
+        hourly_data = time_indexed_data.resample('H').mean().round(2)
 
-        return sensor_one_pm2_5_readings, sensor_two_pm2_5_readings, battery_voltage_readings, time_readings
+        return hourly_data.dropna().reset_index().shape[0]
 
-    def get_count(self):
+    @staticmethod
+    def get_expected_records_count(mobility):
         """
-        returns:
-        valid_hourly_records_with_out_null_values_count
-        total_hourly_records_count, 
-        sensor_one_pm2_5_readings, 
-        sensor_two_pm2_5_readings, 
-        battery_voltage_readings, 
-        time_readings
+        We are considering hourly values
+        So that means that in a day, a static device should generate 24 records
+        Mobile devices should generate 12 (half of that)
         """
+        total_records_per_day = 24
+        if str(mobility).lower() == 'mobile' or str(mobility).lower() == "true":
+            return total_records_per_day / 2
+        return total_records_per_day
 
-        time_indexed_data = self.df.set_index('time')
+    def calculate_uptime(self, mobility):
+        percent_100 = 100
+        expected_records = self.get_expected_records_count(mobility)
+        actual_records = self.get_record_count()
+        uptime = round((actual_records / expected_records) * percent_100, 2)
 
-        # change freqeuncy to hours
-        final_hourly_data = time_indexed_data.resample('H').mean().round(2)
+        if uptime > percent_100:
+            uptime = percent_100
 
-        valid_hourly_records_with_out_null_values = final_hourly_data.dropna().reset_index()
+        downtime = percent_100 - uptime
 
-        valid_hourly_records_with_out_null_values_count = valid_hourly_records_with_out_null_values.shape[
-            0]
-
-        return valid_hourly_records_with_out_null_values_count
+        return uptime, downtime
