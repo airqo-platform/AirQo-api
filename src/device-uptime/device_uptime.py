@@ -1,7 +1,7 @@
 from datetime import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from helpers.get_device_hourly_records_count import DeviceChannelRecords
+from utils.device_hourly_records import DeviceChannelRecords
 from models import Device, NetworkUptime, DeviceUptime
 
 
