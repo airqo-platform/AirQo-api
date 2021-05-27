@@ -4,7 +4,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 
 const siteSchema = new mongoose.Schema(
   {
-    loc_ref: {
+    name: {
       type: String,
       trim: true,
     },
@@ -14,78 +14,47 @@ const siteSchema = new mongoose.Schema(
     longitude: {
       type: Number,
     },
-    location_name: {
-      type: String,
-      trim: true,
-    },
-    host: {
-      type: String,
-      trim: true,
-    },
-    description: {
-      type: String,
-      trim: true,
-    },
-    country: {
-      type: String,
-      trim: true,
-    },
-    county: {
-      type: String,
-      trim: true,
-    },
-    region: {
-      type: String,
-      trim: true,
-    },
-    subcounty: {
-      type: String,
-      trim: true,
-    },
-    parish: {
-      type: String,
-      trim: true,
-    },
-    road_status: {
-      type: String,
-      trim: true,
-    },
-    distance_from_nearest_road: {
-      type: Number,
-    },
-    road_intensity: {
-      type: Number,
-    },
-
-    distance_from_motorway: {
-      type: Number,
-    },
-    distance_from_residential: {
-      type: Number,
-    },
-    distance_from_city: {
-      type: Number,
-    },
-    local_activities: {
-      type: String,
-    },
-    region: {
-      type: String,
-    },
-    district: {
-      type: String,
-    },
     altitude: {
       type: Number,
+    },
+    roadDistance: {
+      type: String,
+      trim: true,
+    },
+    terrain: {
+      type: String,
+      trim: true,
+    },
+    landUse: {
+      type: String,
+      trim: true,
+    },
+    roadIntensity: {
+      type: Number,
+    },
+    roadStatus: {
+      type: String,
+    },
+    siteActivities: {
+      type: String,
     },
     aspect: {
       type: String,
     },
-    landform_90: {
-      type: String,
+    landform90: {
+      type: Number,
     },
-    landform_270: {
-      type: String,
+    landform270: {
+      type: Number,
+    },
+    greeness: {
+      type: Number,
+    },
+    trafficFactor: {
+      type: Number,
+    },
+    locationID: {
+      type: ObjectId,
     },
   },
   {
