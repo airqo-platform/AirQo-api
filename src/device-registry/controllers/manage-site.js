@@ -23,90 +23,95 @@ const {
 const getDetail = require("../utils/get-device-details");
 
 const manageSite = {
-  recallDevice: async  (req, res) => {
+  recallDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
-    const isRecalled = await isDeviceRecalled(
-        deviceName,
-        tenant.toLowerCase()
-    );
+    const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
     if (isRecalled) {
       return res.status(HTTPStatus.CONFLICT).json({
-      success: false,
-      message: `Device ${deviceName} already recalled`,
-    })
+        success: false,
+        message: `Device ${deviceName} already recalled`,
+      });
     }
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "recall");
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+      req,
+      res,
+      "recall"
+    );
     return await carryOutActivity(
-        res,
-        tenant,
-        deviceName,
-        deviceBody,
-        siteActivityBody,
-        {
-          successMsg: `Successfully recalled device ${deviceName}`,
-          errorMsg: `Failed to recall device ${deviceName}`,
-        }
-    )
-
+      res,
+      tenant,
+      deviceName,
+      deviceBody,
+      siteActivityBody,
+      {
+        successMsg: `Successfully recalled device ${deviceName}`,
+        errorMsg: `Failed to recall device ${deviceName}`,
+      }
+    );
   },
   deploymentFields: [
-      "height",
-      "mountType",
-      "powerType",
-      "date",
-      "latitude",
-      "longitude",
-      "isPrimaryInLocation",
-      "isUsedForCollocation"
+    "height",
+    "mountType",
+    "powerType",
+    "date",
+    "latitude",
+    "longitude",
+    "siteID",
+    "isPrimaryInLocation",
+    "isUsedForCollocation",
   ],
   deployDevice: async (req, res) => {
-    const {tenant, deviceName} = req.query;
+    const { tenant, deviceName } = req.query;
 
-    const isDeployed = await isDeviceDeployed(
-        deviceName,
-        tenant.toLowerCase()
-    );
+    const isDeployed = await isDeviceDeployed(deviceName, tenant.toLowerCase());
 
     if (isDeployed) {
       return res.status(HTTPStatus.CONFLICT).json({
         success: false,
         message: `Device ${deviceName} already deployed`,
-      })
+      });
     }
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "deploy");
-    return await carryOutActivity(
-        res,
-        tenant,
-        deviceName,
-        deviceBody,
-        siteActivityBody,
-        {
-          successMsg: `Successfully deployed device ${deviceName}`,
-          errorMsg: `Failed to deploy device ${deviceName}`,
-        }
-    )
-  },
-  maintenanceField: [
-    "date",
-    "tags",
-    "maintenanceType",
-    "description"
-  ],
-  maintainDevice: async (req, res) => {
-    const {tenant, deviceName} = req.query;
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "maintain");
-    return await carryOutActivity(
-        res,
-        tenant,
-        deviceName,
-        deviceBody,
-        siteActivityBody,
-        {
-          successMsg: `Successfully maintained device ${deviceName}`,
-          errorMsg: `Failed to maintained device ${deviceName}`,
-        }
-    )
+    /**
+     * from the request body's longitude and latitude lines
+     * check for the nearest Sites for deployment
+     */
 
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+      req,
+      res,
+      "deploy"
+    );
+    return await carryOutActivity(
+      res,
+      tenant,
+      deviceName,
+      deviceBody,
+      siteActivityBody,
+      {
+        successMsg: `Successfully deployed device ${deviceName}`,
+        errorMsg: `Failed to deploy device ${deviceName}`,
+      }
+    );
+  },
+  maintenanceField: ["date", "tags", "maintenanceType", "description"],
+  maintainDevice: async (req, res) => {
+    const { tenant, deviceName } = req.query;
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
+      req,
+      res,
+      "maintain"
+    );
+    return await carryOutActivity(
+      res,
+      tenant,
+      deviceName,
+      deviceBody,
+      siteActivityBody,
+      {
+        successMsg: `Successfully maintained device ${deviceName}`,
+        errorMsg: `Failed to maintained device ${deviceName}`,
+      }
+    );
   },
   deleteActivity: async (req, res) => {
     try {
