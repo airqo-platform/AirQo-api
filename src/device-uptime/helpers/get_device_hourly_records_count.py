@@ -3,7 +3,7 @@ import pandas as pd
 import requests
 import urllib3
 from dataclasses import dataclass
-from config.constants import configuration
+from config import configuration
 
 # disable tls/ssl warnings
 urllib3.disable_warnings()

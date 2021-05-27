@@ -1,4 +1,4 @@
-from config import db_connection
+from config import connect_mongo
 
 
 class Device:
@@ -8,8 +8,7 @@ class Device:
 
     def get_active_devices(self):
         tenant = self.tenant
-        db = db_connection.connect_mongo(tenant)
-        # results = list(db.devices.find({"channelID": {'$ne': ''}}))
+        db = connect_mongo(tenant)
         return db.devices.find(
             {
                 '$and': [{

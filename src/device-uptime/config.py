@@ -1,8 +1,9 @@
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from pymongo import MongoClient
 
-BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
 
@@ -48,3 +49,8 @@ environment = os.getenv("ENV")
 print("ENVIRONMENT", environment or 'production')
 
 configuration = app_config.get(environment, ProductionConfig)
+
+def connect_mongo(tenant):
+    client = MongoClient(configuration.MONGO_URI)
+    db = client[f'{configuration.DB_NAME}_{tenant.lower()}']
+    return db
