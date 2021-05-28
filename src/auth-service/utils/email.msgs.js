@@ -6,11 +6,11 @@ module.exports = {
   resend: "Confirmation email resent, maybe check your spam?",
   couldNotFind: "Could not find you!",
   alreadyConfirmed: "Your email was already confirmed",
-  recovery_email: (token) => {
+  recovery_email: (token, tenant) => {
     return (
       "You are receiving this because you (or someone else) have requested the reset of the password for your account.\n\n" +
       "Please click on the following link, or paste this into your browser to complete the process within one hour of receiving it:\n\n" +
-      `${constants.PWD_RESET}/${token}\n\n` +
+      `${constants.PWD_RESET}?token=${token}&tenant=${tenant}\n\n` +
       "If you did not request this, please ignore this email and your password will remain unchanged.\n"
     );
   },

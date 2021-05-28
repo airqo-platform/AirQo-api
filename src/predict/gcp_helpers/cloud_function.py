@@ -12,9 +12,14 @@ from gpflow import set_trainable
 import tensorflow as tf
 from gpflow.config import default_float
 from pandas import Timestamp
+import pymongo
+from pymongo import MongoClient
+from dotenv import load_dotenv
+load_dotenv()
 
 
 storage_client = storage.Client('AirQo-e37846081569.json')
+MONGO_URI = os.getenv("MONGO_URI")
 
 def get_channels():
     '''
@@ -104,42 +109,40 @@ def train_model(X, Y):
 
     return m
 
+def predict_model(m):
+    '''
+    Makes the predictions and stores them in a database
+    '''
+    time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
+    min_long, max_long, min_lat, max_lat = 32.4, 32.8, 0.1, 0.5
 
-def save_model(m):
-    '''
-    Saves the model to a folder
-    '''
-    print('saving model function')
-    frozen_model = gpflow.utilities.freeze(m)
-    module_to_save = tf.Module()
-    predict_fn = tf.function(frozen_model.predict_f, input_signature=[tf.TensorSpec(shape=[None, 3], dtype=tf.float64)])
-    module_to_save.predict = predict_fn
-    save_dir = 'saved_model'
-    if not os.path.exists(save_dir):
-        os.makedirs(save_dir)
-    tf.saved_model.save(module_to_save, save_dir)
+    longitudes = np.linspace(min_long, max_long, 100)
+    latitudes = np.linspace(min_lat, max_lat, 100)
+    locations = np.meshgrid(longitudes, latitudes)
+    locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
+    pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
+    mean, var = m.predict_f(pred_set)
+
+    means = mean.numpy().flatten()
+    variances = var.numpy().flatten()
+    result = []
+    for i in range(pred_set.shape[0]):
+        result.append({'latitude':locations_flat[i][1],
+                      'longitude':locations_flat[i][0],
+                      'predicted_value': means[i],
+                      'variance':variances[i]})
+
+    try:
+        client = MongoClient(MONGO_URI)
+    except pymongo.errors.ConnectionFailure as e:
+        return {'message':'unable to connect to database', 'success':False}, 400
+    db = client['airqo_netmanager_airqo']
+    collection = db['gp_predictions']
     
-def upload_model(bucket_name, source_folder, destination_folder):
-    '''
-    Uploads saved model to bucket on GCP
-    '''
-    print('uploading model function')
-    bucket = storage_client.bucket(bucket_name)
+    if collection.count_documents({})!= 0:
+        collection.delete_many({})
     
-    for file in glob.glob(source_folder + '/**'):
-        if os.path.isfile(file):
-            remote_path = os.path.join(destination_folder, file[1 + len(source_folder):])
-            remote_path = remote_path.replace('\\','/')
-            blob = bucket.blob(remote_path)
-            blob.upload_from_filename(file)
-        elif len(os.listdir(file)) == 0: 
-            blob = bucket.blob(destination_folder+'/'+os.path.basename(file)+'/')
-            blob.upload_from_string('', content_type='application/x-www-form-urlencoded;charset=UTF-8')
-        else:
-            dir_name = destination_folder+'/'+os.path.basename(file)+'/'
-            blob = bucket.blob(dir_name)
-            blob.upload_from_string('', content_type='application/x-www-form-urlencoded;charset=UTF-8')
-            upload_model(bucket_name, file.replace('\\','/'), dir_name) 
+    collection.insert_many(result)
 
 def periodic_function():
     '''
@@ -161,8 +164,7 @@ def periodic_function():
             X = np.r_[X,Xchan]
             Y = np.r_[Y,Ychan[:, None]]
     m = train_model(X, Y)
-    save_model(m)
-    upload_model('airqo-models-bucket', 'saved_model', 'gp_model')
+    predict_model(m)
 
 
 if __name__ == "__main__":

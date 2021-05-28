@@ -11,6 +11,12 @@ spec:
     matchLabels:
       app: device-monitor-api
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       labels:
@@ -23,22 +29,59 @@ spec:
           ports:
             - containerPort: 4001
               name: dev-monitor-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 4001
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: prod-device-monitor-secret
                   key: MONGO_GCE_URI
+            - name: DB_NAME_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-monitor-secret
+                  key: DB_NAME_STAGE
             - name: DB_NAME_PROD
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
-                  key: PLATFORM_MONGO_PROD
+                  name: prod-device-monitor-secret
+                  key: DB_NAME_PROD
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: airqo-secret
+                  name: prod-device-monitor-secret
                   key: SECRET_KEY
+            - name: FLASK_APP
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-monitor-secret
+                  key: FLASK_APP
+            - name: FLASK_ENV
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-monitor-secret
+                  key: FLASK_ENV
+            - name: FLASK_RUN_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-monitor-secret
+                  key: FLASK_RUN_PORT
+            - name: REDIS_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-monitor-secret
+                  key: REDIS_SERVER
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-monitor-secret
+                  key: REDIS_PORT
 
 ---
 kind: Service
