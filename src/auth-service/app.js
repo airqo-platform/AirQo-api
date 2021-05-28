@@ -1,4 +1,3 @@
-// require("@google-cloud/debug-agent").start();
 var express = require("express");
 var path = require("path");
 var logger = require("morgan");
@@ -13,8 +12,6 @@ console.log = function () {};
 
 var app = express();
 
-// uncomment after placing your favicon in /public
-//app.use(favicon(path.join(__dirname, 'public', 'favicon.ico')));
 app.use(logger("dev"));
 app.use(bodyParser.json());
 app.use(express.json());
@@ -45,10 +42,6 @@ app.use(function (err, req, res, next) {
     error: err.message,
     statusCode: err.statusCode,
   });
-
-  // render the error page
-  // res.status(err.status || 500);
-  // res.json({ error: err });
 });
 
 module.exports = app;
