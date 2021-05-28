@@ -1,4 +1,4 @@
-const cloudinary = require("../config/cloudinary");
+const uploadImages = require("../utils/upload-images");
 const fs = require("fs");
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
@@ -16,7 +16,7 @@ const processImage = {
 
       if (tenant) {
         const uploader = async (path) => {
-          await cloudinary.uploads(path, "Images");
+          await uploadImages.uploads(path, "Images");
         };
         const urls = [];
         const files = req.files;

@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
-@dashboard_bp.route('/api/v1/dashboard/locations/pm25categorycount', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/locations/pm25categorycount', methods=['GET'])
 def get_pm25categorycount_for_locations():
     ms = monitoring_site.MonitoringSite()
     d = dashboard.Dashboard()
@@ -89,7 +89,7 @@ def get_pm25categorycount_for_locations():
 #         return jsonify({'results': custom_chat_data})
 
 
-@dashboard_bp.route('/api/v1/data/download', methods=['POST', 'GET', 'PUT', 'DELETE', 'PATCH'])
+@dashboard_bp.route('/api/v1/analytics/data/download', methods=['POST', 'GET', 'PUT', 'DELETE', 'PATCH'])
 def download_customised_data():
     # create an instance of the MonitoringSite class
     ms = monitoring_site.MonitoringSite()
@@ -215,7 +215,7 @@ def download_customised_data():
             return final_data
 
 
-@dashboard_bp.route('/api/v1/dashboard/customisedchart/random/chartone', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/customisedchart/random/chartone', methods=['GET'])
 def get_random_location_hourly_customised_chart_data_2():
     ms = monitoring_site.MonitoringSite()
     gr = graph.Graph()
@@ -260,7 +260,7 @@ def get_random_location_hourly_customised_chart_data_2():
     return jsonify({'results': custom_chat_data, 'datasets': datasets, 'custom_chart_title': custom_chart_title})
 
 
-@dashboard_bp.route('/api/v1/dashboard/customisedchart/random', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/customisedchart/random', methods=['GET'])
 def get_random_location_hourly_customised_chart_data():
     ms = monitoring_site.MonitoringSite()
     gr = graph.Graph()
@@ -301,7 +301,7 @@ def get_random_location_hourly_customised_chart_data():
 
     return jsonify({'results':custom_chat_data, 'datasets':datasets,'custom_chart_title':custom_chart_title, 'custom_chart_title_second_section':custom_chart_title_second_section})
 
-@dashboard_bp.route('/api/v1/dashboard/customisedchart', methods = ['POST'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/customisedchart', methods = ['POST'])
 def generate_customised_chart_data():
     ms = monitoring_site.MonitoringSite()
     gr = graph.Graph()
@@ -388,7 +388,7 @@ def generate_customised_chart_data():
             #return jsonify({'inputs': json_data,'errors': errors})
 
 
-@dashboard_bp.route('/api/v1/dashboard/monitoringsites/locations', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/monitoringsites/locations', methods=['GET'])
 def get_organisation_monitoring_site_locations():
     ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':
@@ -406,7 +406,7 @@ def get_organisation_monitoring_site_locations():
             return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
 
 
-@dashboard_bp.route('/api/v1/dashboard/monitoringsites', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/monitoringsites', methods=['GET'])
 def get_organisation_monitoring_site():
     ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':
@@ -471,7 +471,7 @@ def categorise_locations(records, pm25_category):
         return locations_with_uncategorised_pm25_levels
 
 
-@dashboard_bp.route('/api/v1/dashboard/historical/daily/devices', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/historical/daily/devices', methods=['GET'])
 def get_all_device_past_28_days_measurements():
     ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':
@@ -492,7 +492,7 @@ def get_all_device_past_28_days_measurements():
         return jsonify({"error msg": "invalid request."})
 
 
-@dashboard_bp.route('/api/v1/dashboard/divisions', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/divisions', methods=['GET'])
 def get_divisions():
     divisions = []
     division_cursor = app.mongo.db.monitoring_site.find(
@@ -505,7 +505,7 @@ def get_divisions():
     return jsonify({"divisions": results}), 200
 
 
-@dashboard_bp.route('/api/v1/dashboard/exceedances', methods=['POST'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/exceedances', methods=['POST'])
 def get_exceedances():
     gr = graph.Graph()
     if request.method == 'POST':
@@ -519,7 +519,7 @@ def get_exceedances():
         return jsonify(exceedances_data[0]['exceedences'])
 
 
-@dashboard_bp.route('/api/v1/dashboard/exceedance_locations', methods=['GET'])
+@dashboard_bp.route('/api/v1/analytics/dashboard/exceedance_locations', methods=['GET'])
 def get_exceedance_locations():
     return jsonify(mongo_helpers.get_locations())
 

@@ -1,6 +1,7 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
+const tranformDeviceName = require("../utils/transform-device-name");
 
 const deviceSchema = new mongoose.Schema(
   {
@@ -37,7 +38,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: ObjectId,
+      type: String,
     },
     description: {
       type: String,
@@ -57,6 +58,12 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
     },
     ISP: {
+      type: String,
+    },
+    siteName: {
+      type: String,
+    },
+    locationName: {
       type: String,
     },
     phoneNumber: {
@@ -107,7 +114,39 @@ deviceSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
+deviceSchema.pre("save", function(next) {
+  if (this.isModified("name")) {
+    // this.name = this._transformDeviceName(this.name);
+    let n = this.name;
+    console.log({ n });
+  }
+  return next();
+});
+
+deviceSchema.pre("update", function(next) {
+  if (this.isModified("name")) {
+    // this.name = this._transformDeviceName(this.name);
+    let n = this.name;
+    console.log({ n });
+  }
+  return next();
+});
+
+deviceSchema.pre("findByIdAndUpdate", function(next) {
+  this.options.runValidators = true;
+  if (this.isModified("name")) {
+    // this.name = this._transformDeviceName(this.name);
+    let n = this.name;
+    console.log({ n });
+  }
+  return next();
+});
+
 deviceSchema.methods = {
+  _transformDeviceName(name) {
+    let transformedName = tranformDeviceName(name);
+    return transformedName;
+  },
   toJSON() {
     return {
       id: this.id,
@@ -133,13 +172,16 @@ deviceSchema.methods = {
       writeKey: this.writeKey,
       readKey: this.readKey,
       pictures: this.pictures,
+      siteName: this.siteName,
+      locationName: this.locationName,
+      height: this.height,
     };
   },
 
   toUpdateJSON() {
     return {
-      deviceName: this.deviceName,
-      locationID: this.locationName,
+      name: this.name,
+      locationID: this.locationID,
       height: this.height,
       mountType: this.mountType,
       powerType: this.powerType,
@@ -147,8 +189,10 @@ deviceSchema.methods = {
       latitude: this.latitude,
       longitude: this.longitude,
       isPrimaryInLocation: this.isPrimaryInLocation,
-      isUserForCollocaton: this.isUsedForCollocation,
+      isUsedForCollocaton: this.isUsedForCollocation,
       updatedAt: this.updatedAt,
+      siteName: this.siteName,
+      locationName: this.locationName,
     };
   },
 };
@@ -161,8 +205,8 @@ deviceSchema.statics = {
     });
   },
 
-  list({ skip = 0, limit = 5 } = {}) {
-    return this.find()
+  list({ skip = 0, limit = 5, filter = {} } = {}) {
+    return this.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit);

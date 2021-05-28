@@ -1,20 +1,71 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
+const HTTPStatus = require("http-status");
+const Validator = require("validator");
 const UserSchema = require("../models/User");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
-const localOpts = {
-  usernameField: "userName",
-  passwordField: "password",
-};
-const isEmpty = require("is-empty");
+const {
+  axiosError,
+  tryCatchErrors,
+  missingQueryParams,
+  callbackErrors,
+} = require("../utils/errors");
 const { getModelByTenant } = require("../utils/multitenancy");
-
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
+};
+
+const setLocalOptions = (req) => {
+  try {
+    let authenticationFields = {};
+    if (
+      !Validator.isEmpty(req.body.userName) &&
+      Validator.isEmail(req.body.userName)
+    ) {
+      authenticationFields.usernameField = "email";
+      authenticationFields.passwordField = "password";
+    }
+
+    if (
+      !Validator.isEmpty(req.body.userName) &&
+      !Validator.isEmail(req.body.userName)
+    ) {
+      authenticationFields.usernameField = "userName";
+      authenticationFields.passwordField = "password";
+    }
+
+    if (Validator.isEmpty(req.body.userName)) {
+      return {
+        success: false,
+        message: "the userName field is missing",
+      };
+    }
+
+    return {
+      success: true,
+      message: "the auth fields have been set",
+      authenticationFields,
+    };
+  } catch (e) {
+    return {
+      success: false,
+      message: e.message,
+    };
+  }
+};
+
+const authenticateWithEmailOptions = {
+  usernameField: "email",
+  passwordField: "password",
+};
+
+const authenticateWithUsernameOptions = {
+  usernameField: "userName",
+  passwordField: "password",
 };
 
 const jwtOpts = {
@@ -22,37 +73,87 @@ const jwtOpts = {
   secretOrKey: constants.JWT_SECRET,
 };
 
-const userLocalStrategy = (tenant, req, res, next) =>
-  new LocalStrategy(localOpts, async (userName, password, done) => {
-    try {
-      const user = await UserModel(tenant.toLowerCase())
-        .findOne({
-          userName,
-        })
-        .exec();
-      if (!user) {
-        return res.status(401).json({
-          success: false,
-          message: `username or password does not exist in this organisation (${tenant})`,
-        });
-      } else if (!user.authenticateUser(password)) {
-        return res.status(401).json({
-          success: false,
-          message: "incorrect username or password",
-        });
-      }
-      return done(null, user);
-    } catch (e) {
-      logElement("error in services/auth/userLocalStrategy", e.message);
-      return res.status(500).json({
-        success: false,
-        message: "Server Error",
-        error: e.message,
-      });
+const useLocalStrategy = (tenant, req, res, next) => {
+  let localOptions = setLocalOptions(req);
+  logObject("the localOptions", localOptions);
+  if (localOptions.success == true) {
+    logText("success state is true");
+    let { usernameField } = localOptions.authenticationFields;
+    logElement("the username field", usernameField);
+    if (usernameField == "email") {
+      req.body.email = req.body.userName;
+      logText("we are using email");
+      return useEmailWithLocalStrategy(tenant, req, res, next);
+    } else if (usernameField == "userName") {
+      logText("we are using username");
+      return useUsernameWithLocalStrategy(tenant, req, res, next);
     }
-  });
+  } else if (localOptions.success == false) {
+    logText("success state is false");
+    return localOptions;
+  }
+};
+const useEmailWithLocalStrategy = (tenant, req, res, next) =>
+  new LocalStrategy(
+    authenticateWithEmailOptions,
+    async (email, password, done) => {
+      try {
+        const user = await UserModel(tenant.toLowerCase())
+          .findOne({ email })
+          .exec();
+        req.auth = {};
+        if (!user) {
+          req.auth.success = false;
+          req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          next();
+        } else if (!user.authenticateUser(password)) {
+          req.auth.success = false;
+          req.auth.message = "incorrect username or password";
+          next();
+        }
+        req.auth.success = true;
+        req.auth.message = "successful login";
+        return done(null, user);
+      } catch (e) {
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = e.message;
+        next();
+      }
+    }
+  );
 
-const jwtStrategy = (tenant, req, res, next) =>
+const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
+  new LocalStrategy(
+    authenticateWithUsernameOptions,
+    async (userName, password, done) => {
+      try {
+        const user = await UserModel(tenant.toLowerCase())
+          .findOne({ userName })
+          .exec();
+        req.auth = {};
+        if (!user) {
+          req.auth.success = false;
+          req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          next();
+        } else if (!user.authenticateUser(password)) {
+          req.auth.success = false;
+          req.auth.message = "incorrect username or password";
+          next();
+        }
+        req.auth.success = true;
+        req.auth.message = "successful login";
+        return done(null, user);
+      } catch (e) {
+        req.auth.success = false;
+        req.auth.message = "Server Error";
+        req.auth.error = e.message;
+        next();
+      }
+    }
+  );
+
+const useJWTStrategy = (tenant, req, res, next) =>
   new JwtStrategy(jwtOpts, async (payload, done) => {
     try {
       const user = await UserModel(tenant.toLowerCase())
@@ -60,61 +161,46 @@ const jwtStrategy = (tenant, req, res, next) =>
         .exec();
       if (!user) {
         return done(null, false);
-        // return res.status(401).json({
-        //   success: false,
-        //   message: "authentication failed",
-        // });
       }
       return done(null, user);
     } catch (e) {
-      logElement("error in services/auth/jwtStrategy", e.message);
+      logElement("error in services/auth/useJWTStrategy", e.message);
       return done(e, false);
-      // return res.status(500).json({
-      //   success: false,
-      //   message: "organization does not exist",
-      //   error: e.message,
-      // });
     }
   });
 
-const createStrategy = (tenant, req, res, next) => {
-  passport.use("user-local", userLocalStrategy(tenant, req, res, next));
+const setLocalStrategy = (tenant, req, res, next) => {
+  passport.use("user-local", useLocalStrategy(tenant, req, res, next));
 };
 
-const createJWTStrategy = (tenant, req, res, next) => {
-  passport.use("jwt", jwtStrategy(tenant, req, res, next));
+const setJWTStrategy = (tenant, req, res, next) => {
+  passport.use("jwt", useJWTStrategy(tenant, req, res, next));
 };
 
-// passport.use(jwtStrategy);
+// passport.serializeUser((user, cb) => {
+//   if (privileges.isUser(user)) {
+//     cb(null, user._id);
+//   } else if (privileges.isCollab(user)) {
+//     cb(null, user._id);
+//   }
+// });
 
-passport.serializeUser((user, cb) => {
-  if (privileges.isUser(user)) {
-    cb(null, user._id);
-    // serialize user
-  } else if (privileges.isCollab(user)) {
-    // serialize collaborator
-    cb(null, user._id);
-  }
-});
+// passport.deserializeUser((id, cb) => {
+//   if (privileges.isUser(id)) {
+//     User.findById(id)
+//       .then((user) => cb(null, user))
+//       .catch((err) => cb(err));
+//   } else if (privileges.isCollab(user)) {
+//     Collaborator.findById(id)
+//       .then((user) => cb(null, user))
+//       .catch((err) => cb(err));
+//   }
+// });
 
-passport.deserializeUser((id, cb) => {
-  if (privileges.isUser(id)) {
-    User.findById(id)
-      .then((user) => cb(null, user))
-      .catch((err) => cb(err));
-    // serialize user
-  } else if (privileges.isCollab(user)) {
-    // serialize collaborator
-    Collaborator.findById(id)
-      .then((user) => cb(null, user))
-      .catch((err) => cb(err));
-  }
-});
-
-function login(req, res, next) {
+function setLocalAuth(req, res, next) {
   try {
     if (req.query.tenant) {
-      createStrategy(req.query.tenant, req, res, next);
+      setLocalStrategy(req.query.tenant, req, res, next);
       next();
     } else {
       res.json({
@@ -124,33 +210,33 @@ function login(req, res, next) {
       });
     }
   } catch (e) {
-    console.log("the error in login is: ", e.message);
+    console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
   }
 }
 
-function jwtAuth(req, res, next) {
+function setJWTAuth(req, res, next) {
   try {
     if (req.query.tenant) {
-      createJWTStrategy(req.query.tenant, req, res, next);
+      setJWTStrategy(req.query.tenant, req, res, next);
       next();
     } else {
-      res.json({
+      res.status(HTTPStatus.BAD_REQUEST).json({
         success: false,
         message:
           "the organization is missing in the query params, please check documentation",
       });
     }
   } catch (e) {
-    console.log("the error in login is: ", e.message);
-    res.json({ success: false, message: e.message });
+    console.log("the error in setLocalAuth is: ", e.message);
+    res
+      .status(HTTPStatus.BAD_GATEWAY)
+      .json({ success: false, message: e.message });
   }
 }
 
-const authUserLocal = passport.authenticate("user-local", {
+const authLocal = passport.authenticate("user-local", {
   session: false,
-  // successFlash: "Welcome!",
-  // failureMessage: "Invalid username or password.",
   failureFlash: true,
 });
 
@@ -167,7 +253,7 @@ const isLoggedIn = function isLoggedIn(req, res, next) {
   if (req.isAuthenticated()) {
     return next();
   } else {
-    return res.redirect("/login");
+    return res.redirect("/setLocalAuth");
   }
 };
 
@@ -177,10 +263,10 @@ const requiresSignIn = expressJwt({
 });
 
 module.exports = {
-  login: login,
-  authUserLocal: authUserLocal,
+  setLocalAuth: setLocalAuth,
+  authLocal: authLocal,
   authJWT: authJWT,
-  jwtAuth: jwtAuth,
+  setJWTAuth: setJWTAuth,
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
   requiresSignIn: requiresSignIn,

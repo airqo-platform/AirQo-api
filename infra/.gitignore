@@ -1,3 +1,24 @@
 kafka_2.13-2.6.0
 strimzi-0.20.0
 setup/airqo-250220-76399bcdf074.json
+airqo-terraform.json
+.terraform
+.terraform.lock.hcl
+terraform.tfstate.backup
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfvars
+# Ignore override files as they are usually used to override resources locally and so
+# are not checked in
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+# Ignore CLI configuration files
+.terraformrc
+terraform.rc
+.vagrant
+.env
+env/
+.ansible
