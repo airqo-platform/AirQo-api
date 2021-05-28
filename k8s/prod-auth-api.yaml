@@ -11,6 +11,12 @@ spec:
     matchLabels:
       app: auth-api
   replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       labels:
@@ -23,29 +29,69 @@ spec:
           ports:
             - containerPort: 3000
               name: auth-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
-            - name: GET_HOSTS_FROM
-              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
                   name: prod-auth-secret
                   key: MONGO_GCE_URI
+            - name: MONGO_GCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_USERNAME
+            - name: MONGO_GCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_PASSWORD
+            - name: MONGO_GCE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_HOST
+            - name: MONGO_GCE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_PORT
             - name: MONGO_PROD
               valueFrom:
                 secretKeyRef:
                   name: prod-auth-secret
                   key: MONGO_PROD
+            - name: MONGO_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_STAGE
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: SESSION_SECRET
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: prod-auth-secret
                   key: JWT_SECRET
-            - name: MONGO_DEV
+            - name: DB_NAME_PROD
               valueFrom:
                 secretKeyRef:
                   name: prod-auth-secret
-                  key: MONGO_DEV
+                  key: DB_NAME_PROD
+            - name: DB_NAME_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: DB_NAME_STAGE
             - name: MONGO_STAGE
               valueFrom:
                 secretKeyRef:
@@ -61,11 +107,11 @@ spec:
                 secretKeyRef:
                   name: prod-auth-secret
                   key: MAIL_USER
-            - name: LOCAL_DB
+            - name: INSTANCE_ID
               valueFrom:
                 secretKeyRef:
                   name: prod-auth-secret
-                  key: LOCAL_DB
+                  key: INSTANCE_ID
 
 ---
 kind: Service

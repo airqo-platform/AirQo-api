@@ -34,10 +34,11 @@ const connectToMongoDB = () => {
 
   process.on("unlimitedRejection", (reason, p) => {
     console.log("Unhandled Rejection at: Promise", p, "reason:", reason);
-    db.close(() => {
-      logText("mongoose is disconnected through the app");
-      process.exit(0);
-    });
+    process.exit(0);
+    // db.close(() => {
+    //   logText("mongoose is disconnected through the app");
+    //   process.exit(0);
+    // });
   });
   return db;
 };
