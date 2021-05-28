@@ -22,7 +22,6 @@ const isRecentTrue = (recent) => {
   if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
     return true;
   } else if (recent.toLowerCase() == "no" && isRecentEmpty == false) {
-    logText("the value of recent is false");
     return false;
   }
 };
@@ -41,13 +40,14 @@ const generateCacheID = (
   tenant,
   skip,
   limit,
+  frequency,
   recent
 ) => {
   return `get_events_device_${device ? device : "noDevice"}_${day}_${
     startTime ? startTime : "noStartTime"
   }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
     limit ? limit : 0
-  }_${recent ? recent : "noRecent"}`;
+  }_${recent ? recent : "noRecent"}_${frequency ? frequency : "noFrequency"}`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -76,6 +76,7 @@ const getMeasurements = async (
   device,
   skip,
   limit,
+  frequency,
   tenant
 ) => {
   try {
@@ -89,6 +90,7 @@ const getMeasurements = async (
       tenant,
       skip,
       limit,
+      frequency,
       recent
     );
 
@@ -100,7 +102,12 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const filter = generateEventsFilter(startTime, endTime, device);
+          const filter = generateEventsFilter(
+            startTime,
+            endTime,
+            device,
+            frequency
+          );
 
           let devicesCount = await getDevicesCount(tenant);
 

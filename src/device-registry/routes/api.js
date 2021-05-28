@@ -22,6 +22,10 @@ router.put("/", deviceController.update);
 router.post("/soft", deviceController.createOnPlatformOnly);
 router.delete("/soft", deviceController.deleteOnPlatformOnly);
 router.put("/soft", deviceController.updateOnPlatformOnly);
+router.get(
+  "/by/nearest-coordinates",
+  deviceController.listAllByNearestCoordinates
+);
 
 /****************** manage site *************************/
 router.post(

@@ -20,7 +20,7 @@ const getDeviceDetailsOnPlatform = async (
     const limit = parseInt(limitValue, 0);
     const skip = parseInt(skipValue, 0);
     const filter = generateDeviceFilter(
-      tenant.toLowerCase(),
+      tenant,
       id,
       chid,
       loc,
