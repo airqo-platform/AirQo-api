@@ -13,7 +13,7 @@ _logger = logging.getLogger(__name__)
 monitoring_site_bp = Blueprint('monitoring_site', __name__)
 
 
-@monitoring_site_bp.route('/api/v1/monitoringsites/', methods=['GET'])
+@monitoring_site_bp.route('/api/v1/analytics/monitoringsites/', methods=['GET'])
 def get_organisation_monitoring_site():
     ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':
@@ -30,7 +30,7 @@ def get_organisation_monitoring_site():
             return jsonify({"error msg": "organisation name wasn't supplied in the query string parameter."})
 
 
-@monitoring_site_bp.route('/api/v1/monitoringsite/historical/daily', methods=['GET'])
+@monitoring_site_bp.route('/api/v1/analytics/monitoringsite/historical/daily', methods=['GET'])
 def get_device_past_28_days_measurements():
     ms = monitoring_site.MonitoringSite()
     gr = graph.Graph()
@@ -54,7 +54,7 @@ def get_device_past_28_days_measurements():
             return jsonify({"error msg": "device code wasn't supplied in the query string parameter."})
 
 
-@monitoring_site_bp.route('/api/v1/monitoringsite/historical/daily/calculate', methods =['GET'])
+@monitoring_site_bp.route('/api/v1/analytics/monitoringsite/historical/daily/calculate', methods =['GET'])
 def calculate_average_daily_measurements_for_last_28_days():
     ms = monitoring_site.MonitoringSite() 
     gr = graph.Graph()    
@@ -96,7 +96,7 @@ def calculate_average_daily_measurements_for_last_28_days():
     return jsonify({'response': 'all new hourly measurements saved'}), 200
 
 
-@monitoring_site_bp.route('/api/v1/monitoringsite/historical/daily/devices', methods=['GET'])
+@monitoring_site_bp.route('/api/v1/analytics/monitoringsite/historical/daily/devices', methods=['GET'])
 def get_all_device_past_28_days_measurements():
     ms = monitoring_site.MonitoringSite()
     if request.method == 'GET':

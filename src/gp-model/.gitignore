@@ -1,0 +1,7 @@
+saved_model
+.env
+AirQo-e37846081569.json
+env/
+__pycache__/
+.vscode
+.DS_Store

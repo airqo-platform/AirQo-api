@@ -15,7 +15,12 @@ spec:
   selector:
     matchLabels:
       io.kompose.service: airqo-stage-data-mgt-api
-  strategy: {}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       annotations:
@@ -32,49 +37,84 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
           env:
-            - name: GET_HOSTS_FROM
-              value: dns
             - name: MONGO_GCE_URI
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
+                  name: stage-data-mgt-secret
                   key: MONGO_GCE_URI
             - name: MONGO_PROD
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
+                  name: stage-data-mgt-secret
                   key: MONGO_PROD
             - name: JWT_SECRET
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
+                  name: stage-data-mgt-secret
                   key: JWT_SECRET
-            - name: MONGO_DEV
+            - name: MONGO_TEST
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
-                  key: MONGO_DEV
+                  name: stage-data-mgt-secret
+                  key: MONGO_TEST
             - name: MONGO_STAGE
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
+                  name: stage-data-mgt-secret
                   key: MONGO_STAGE
-            - name: MAIL_PASS
+            - name: TS_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
-                  key: MAIL_PASS
-            - name: MAIL_USER
+                  name: stage-data-mgt-secret
+                  key: TS_API_KEY
+            - name: LICENSE_ID
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
-                  key: MAIL_USER
-            - name: LOCAL_DB
+                  name: stage-data-mgt-secret
+                  key: LICENSE_ID
+            - name: CHANNEL
               valueFrom:
                 secretKeyRef:
-                  name: data-mgt-secret
-                  key: LOCAL_DB
+                  name: stage-data-mgt-secret
+                  key: CHANNEL
+            - name: NAME
+              valueFrom:
+                secretKeyRef:
+                  name: stage-data-mgt-secret
+                  key: NAME
+            - name: READ
+              valueFrom:
+                secretKeyRef:
+                  name: stage-data-mgt-secret
+                  key: READ
+            - name: WRITE
+              valueFrom:
+                secretKeyRef:
+                  name: stage-data-mgt-secret
+                  key: WRITE
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: stage-data-mgt-secret
+                  key: SESSION_SECRET
+            - name: REDIS_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: stage-data-mgt-secret
+                  key: REDIS_SERVER
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: stage-data-mgt-secret
+                  key: REDIS_PORT
           resources: {}
       restartPolicy: Always
       serviceAccountName: ""

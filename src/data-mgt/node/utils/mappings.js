@@ -22,6 +22,7 @@ const positionsAndLabels = {
   8: "externalTemperature",
   9: "ExternalHumidity",
   10: "ExternalPressure",
+  11: "ExternalAltitude",
 };
 
 function getFieldLabel(field) {
