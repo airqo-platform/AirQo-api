@@ -154,9 +154,11 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index(
-  { "values.time": 1, "values.device": 1, day: 1 },
+  { "values.time": 1, "values.device": 1, day: 1, "values.frequency": 1 },
   { unique: true }
 );
+
+eventSchema.index({ day: 1 }, { unique: true });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
@@ -182,14 +184,67 @@ eventSchema.statics = {
       ...args,
     });
   },
-  list({ skipInt = 0, limitInt = 50, filter = {} } = {}) {
+
+  list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
+    logObject("the filter", filter);
     return this.aggregate()
-      .match(filter)
       .unwind("values")
       .match(filter)
-      .sort({ day: -1 })
+      .replaceRoot("values")
+      .sort({ time: -1 })
+      .project({
+        _id: 0,
+        day: 0,
+        __v: 0,
+        createdAt: 0,
+        first: 0,
+        last: 0,
+        nValues: 0,
+        updatedAt: 0,
+      })
       .skip(skipInt)
-      .limit(limitInt);
+      .limit(limitInt)
+      .allowDiskUse(true);
+  },
+  listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
+    logObject("the filter", filter);
+    return this.aggregate()
+      .unwind("values")
+      .match(filter)
+      .replaceRoot("values")
+      .lookup({
+        from: "devices",
+        localField: "device",
+        foreignField: "name",
+        as: "deviceDetails",
+      })
+      .sort({ time: -1 })
+      .group({
+        _id: "$device",
+        channelID: { $first: "$channelID" },
+        time: { $first: "$time" },
+        pm2_5: { $first: "$pm2_5" },
+        s2_pm2_5: { $first: "$s2_pm2_5" },
+        pm10: { $first: "$pm10" },
+        s2_pm10: { $first: "$s2_pm10" },
+        frequency: { $first: "$frequency" },
+        battery: { $first: "$battery" },
+        location: { $first: "$location" },
+        altitude: { $first: "$altitude" },
+        speed: { $first: "$speed" },
+        satellites: { $first: "$satellites" },
+        hdop: { $first: "$hdop" },
+        internalTemperature: { $first: "$internalTemperature" },
+        externalTemperature: { $first: "$externalTemperature" },
+        internalHumidity: { $first: "$internalHumidity" },
+        externalHumidity: { $first: "$externalHumidity" },
+        pm1: { $first: "$pm1" },
+        no2: { $first: "$no2" },
+        deviceDetails: { $first: {$arrayElemAt: [ "$deviceDetails", 0 ]} },
+      })
+      .skip(skipInt)
+      .limit(limitInt)
+      .allowDiskUse(true);
   },
 };
 

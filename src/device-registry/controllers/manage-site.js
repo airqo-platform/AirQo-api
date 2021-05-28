@@ -1,110 +1,113 @@
-const ComponentSchema = require("../models/Component");
-const DeviceSchema = require("../models/Device");
 const SiteActivitySchema = require("../models/SiteActivity");
-const Site = require("../models/Site");
 const HTTPStatus = require("http-status");
-const iot = require("@google-cloud/iot");
 const isEmpty = require("is-empty");
-const client = new iot.v1.DeviceManagerClient();
-const device_registry =
-  "projects/airqo-250220/locations/europe-west1/registries/device-registry";
-const uuidv1 = require("uuid/v1");
-const mqtt = require("mqtt");
-const projectId = "airqo-250220";
-const region = `europe-west1`;
-const registryId = `device-registry`;
-const algorithm = `RS256`;
-// const privateKeyFile = `./rsa_private.pem`;
-const mqttBridgeHostname = `mqtt.googleapis.com`;
-const mqttBridgePort = 8883;
-const messageType = `events`;
-const numMessages = 5;
-const fetch = require("node-fetch");
-const request = require("request");
-const axios = require("axios");
-const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
-const qs = require("qs");
-const redis = require("../config/redis");
 const { getModelByTenant } = require("../utils/multitenancy");
-const {
-  createOnThingSpeak,
-  createOnClarity,
-} = require("../utils/integrations");
 
 const {
-  isDeviceNotDeployed,
-  isDeviceNotRecalled,
-  locationActivityRequestBodies,
+  carryOutActivity,
+  isDeviceDeployed,
+  isDeviceRecalled,
+  siteActivityRequestBodies,
   doLocationActivity,
-  getGpsCoordinates,
-  doesLocationExist,
   queryFilterOptions,
   bodyFilterOptions,
 } = require("../utils/site-activities");
 
 const {
-  clearEventsBody,
-  doesDeviceExist,
-  updateThingBodies,
-  threeMonthsFromNow,
-  getChannelID,
-  getApiKeys,
-} = require("../utils/does-device-exist");
-
-const {
   tryCatchErrors,
-  axiosError,
   missingQueryParams,
   callbackErrors,
 } = require("../utils/errors");
 
+const getDetail = require("../utils/get-device-details");
+
 const manageSite = {
-  doActivity: async (req, res) => {
-    try {
-      const { type, tenant } = req.query;
-      if (tenant && type) {
-        const { deviceName } = req.body;
-
-        const deviceExists = await doesDeviceExist(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const isNotDeployed = await isDeviceNotDeployed(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const isNotRecalled = await isDeviceNotRecalled(
-          deviceName,
-          tenant.toLowerCase()
-        );
-        const {
-          locationActivityBody,
-          deviceBody,
-        } = locationActivityRequestBodies(req, res);
-
-        doLocationActivity(
-          res,
-          deviceBody,
-          locationActivityBody,
-          deviceName,
-          type,
-          deviceExists,
-          isNotDeployed,
-          isNotRecalled,
-          tenant.toLowerCase()
-        );
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
+  recallDevice: async  (req, res) => {
+    const { tenant, deviceName } = req.query;
+    const isRecalled = await isDeviceRecalled(
+        deviceName,
+        tenant.toLowerCase()
+    );
+    if (isRecalled) {
+      return res.status(HTTPStatus.CONFLICT).json({
+      success: false,
+      message: `Device ${deviceName} already recalled`,
+    })
     }
-  },
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "recall");
+    return await carryOutActivity(
+        res,
+        tenant,
+        deviceName,
+        deviceBody,
+        siteActivityBody,
+        {
+          successMsg: `Successfully recalled device ${deviceName}`,
+          errorMsg: `Failed to recall device ${deviceName}`,
+        }
+    )
 
+  },
+  deploymentFields: [
+      "height",
+      "mountType",
+      "powerType",
+      "date",
+      "latitude",
+      "longitude",
+      "isPrimaryInLocation",
+      "isUsedForCollocation"
+  ],
+  deployDevice: async (req, res) => {
+    const {tenant, deviceName} = req.query;
+
+    const isDeployed = await isDeviceDeployed(
+        deviceName,
+        tenant.toLowerCase()
+    );
+
+    if (isDeployed) {
+      return res.status(HTTPStatus.CONFLICT).json({
+        success: false,
+        message: `Device ${deviceName} already deployed`,
+      })
+    }
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "deploy");
+    return await carryOutActivity(
+        res,
+        tenant,
+        deviceName,
+        deviceBody,
+        siteActivityBody,
+        {
+          successMsg: `Successfully deployed device ${deviceName}`,
+          errorMsg: `Failed to deploy device ${deviceName}`,
+        }
+    )
+  },
+  maintenanceField: [
+    "date",
+    "tags",
+    "maintenanceType",
+    "description"
+  ],
+  maintainDevice: async (req, res) => {
+    const {tenant, deviceName} = req.query;
+    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(req, res, "maintain");
+    return await carryOutActivity(
+        res,
+        tenant,
+        deviceName,
+        deviceBody,
+        siteActivityBody,
+        {
+          successMsg: `Successfully maintained device ${deviceName}`,
+          errorMsg: `Failed to maintained device ${deviceName}`,
+        }
+    )
+
+  },
   deleteActivity: async (req, res) => {
     try {
       const { tenant, id } = req.query;

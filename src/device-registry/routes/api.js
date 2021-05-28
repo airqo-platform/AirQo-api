@@ -2,16 +2,15 @@ const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/manage-site");
-const { authJWT } = require("../services/auth");
 const middlewareConfig = require("../config/router.middleware");
-const deviceValidation = require("../utils/validations");
 const validate = require("express-validation");
-const mqttBridge = require("../controllers/mqtt-bridge");
-const httpBridge = require("../controllers/http-bridge");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
 const imageUpload = require("../utils/multer");
 const imageController = require("../controllers/process-image");
+const { checkTenancy } = require("../utils/validators/auth")
+const { validateRequestQuery } = require("../utils/validators/requestQuery")
+const { validateRequestBody } = require("../utils/validators/requestBody")
 
 middlewareConfig(router);
 
@@ -22,11 +21,33 @@ router.delete("/ts/delete", deviceController.deleteThing);
 router.delete("/ts/clear", deviceController.clearThing);
 router.put("/ts/update", deviceController.updateThingSettings);
 router.get("/by/location", deviceController.listAllByLocation);
+router.get("/by/nearest-coordinates", deviceController.listAllByNearestCoordinates);
 router.post("/", deviceController.createOne);
 router.delete("/photos", deviceController.deletePhotos);
+router.delete("/delete", deviceController.delete);
+router.put("/update", deviceController.updateDevice);
 
 /****************** manage site *************************/
-router.post("/ts/activity", siteController.doActivity);
+router.post(
+    "/ts/activity/recall",
+    checkTenancy,
+    validateRequestQuery(['deviceName']),
+    siteController.recallDevice
+);
+router.post(
+    "/ts/activity/deploy",
+    checkTenancy,
+    validateRequestQuery(['deviceName']),
+    validateRequestBody(siteController.deploymentFields),
+    siteController.deployDevice
+);
+router.post(
+    "/ts/activity/maintain",
+    checkTenancy,
+    validateRequestQuery(['deviceName']),
+    validateRequestBody(siteController.maintenanceField),
+    siteController.maintainDevice
+);
 router.get("/ts/activity", siteController.getActivities);
 router.put("/ts/activity/update", siteController.updateActivity);
 router.delete("/ts/activity/delete", siteController.deleteActivity);

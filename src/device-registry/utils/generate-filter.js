@@ -1,56 +1,119 @@
-const generateEventsFilter = (queryStartTime, queryEndTime, device) => {
-  if (queryStartTime && queryEndTime && !device) {
-    return {
-      day: { $gte: queryStartTime, $lte: queryEndTime },
-    };
-  } else if (queryStartTime && queryEndTime && device) {
-    return {
-      day: { $gte: queryStartTime, $lte: queryEndTime },
-      "values.device": device,
-    };
-  } else if (!queryStartTime && !queryEndTime && device) {
-    return {
-      "values.device": device,
-    };
-  } else if (queryStartTime && !queryEndTime && !device) {
-    return {
-      day: { $gte: queryStartTime },
-    };
-  } else if (!queryStartTime && queryEndTime && !device) {
-    return {
-      day: { $lte: queryEndTime },
-    };
-  } else if (!queryStartTime && queryEndTime && device) {
-    return {
-      day: { $lte: queryEndTime },
-      "values.device": device,
-    };
-  } else if (queryStartTime && !queryEndTime && device) {
-    return {
-      day: { $gte: queryStartTime },
-      "values.device": device,
-    };
-  } else {
-    return {};
+const { boolean } = require("joi");
+const {
+  generateDateFormat,
+  generateDateFormatWithoutHrs,
+  monthsBehind,
+  monthsInfront,
+  removeMonthsFromProvidedDate,
+  addMonthsToProvidedDate,
+} = require("./date");
+
+const { logObject, logElement, logText } = require("./log");
+
+const generateEventsFilter = (
+  queryStartTime,
+  queryEndTime,
+  device,
+  frequency
+) => {
+  let oneMonthBack = monthsBehind(1);
+  let oneMonthInfront = monthsInfront(1);
+  let defaultStartTime = generateDateFormatWithoutHrs(oneMonthBack);
+  let defaultEndTime = generateDateFormatWithoutHrs(oneMonthInfront);
+  logElement("defaultStartTime", defaultStartTime);
+  logElement("defaultEndTime", defaultEndTime);
+
+  let filter = {
+    day: { $gte: defaultStartTime, $lte: defaultEndTime },
+  };
+
+  if (queryStartTime && !queryEndTime) {
+    filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartTime, 1);
   }
+
+  if (queryStartTime) {
+    filter["day"]["$gte"] = queryStartTime;
+  }
+
+  if (queryEndTime) {
+    filter["day"]["$lte"] = queryEndTime;
+  }
+
+  if (!queryStartTime && queryEndTime) {
+    filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndTime, 1);
+  }
+
+  if (device) {
+    filter["values.device"] = device;
+  }
+
+  if (frequency) {
+    filter["values.frequency"] = frequency;
+  }
+
+  return filter;
 };
 
-const generateDeviceFilter = (tenant, name, channel, location) => {
-  if (tenant && name && !channel && !location) {
-    return {
-      name: name,
-    };
-  } else if (tenant && !name && channel && !location) {
-    return {
-      channelID: channel,
-    };
-  } else if (tenant && !name && !channel && location) {
-    return {
-      locationID: location,
-    };
-  } else if (tenant && !name && !channel && !location) {
-    return {};
+const generateRegexExpressionFromStringElement = (element) => {
+  let regex = `${element}`;
+  return regex;
+};
+
+const generateDeviceFilter = (
+  name,
+  channel,
+  location,
+  siteName,
+  mapAddress,
+  primary,
+  active
+) => {
+  let filter = {};
+
+  if (name) {
+    let regexExpression = generateRegexExpressionFromStringElement(name);
+    filter["name"] = { $regex: regexExpression, $options: "i" };
   }
+
+  if (channel) {
+    filter["channelID"] = channel;
+  }
+
+  if (location) {
+    filter["locationID"] = location;
+  }
+
+  if (siteName) {
+    let regexExpression = generateRegexExpressionFromStringElement(siteName);
+    filter["siteName"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (mapAddress) {
+    let regexExpression = generateRegexExpressionFromStringElement(mapAddress);
+    filter["locationName"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (primary) {
+    const primaryStr = primary + "";
+    if (primaryStr.toLowerCase() == "yes") {
+      filter["isPrimaryInLocation"] = true;
+    } else if (primaryStr.toLowerCase() == "no") {
+      filter["isPrimaryInLocation"] = false;
+    } else {
+    }
+  }
+
+  if (active) {
+    const activeStr = active + "";
+    if (activeStr.toLowerCase() == "yes") {
+      filter["isActive"] = true;
+    } else if (activeStr.toLowerCase() == "no") {
+      filter["isActive"] = false;
+    } else {
+    }
+  }
+
+  return filter;
 };
 
 module.exports = { generateEventsFilter, generateDeviceFilter };
