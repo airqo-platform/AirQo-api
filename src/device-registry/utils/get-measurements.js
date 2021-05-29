@@ -41,8 +41,6 @@ const getDevicesCount = async (tenant) => {
 const generateCacheID = (
   device,
   day,
-  startDay,
-  endDay,
   tenant,
   skip,
   limit,
@@ -51,13 +49,13 @@ const generateCacheID = (
   startTime,
   endTime
 ) => {
-  return `get_events_device_${device ? device : "noDevice"}_${day}_${
-    startDay ? startDay : "noStartDay"
-  }_${endDay ? endDay : "noEndDay"}_${tenant}_${skip ? skip : 0}_${
-    limit ? limit : 0
-  }_${recent ? recent : "noRecent"}_${frequency ? frequency : "noFrequency"}_${
-    endTime ? endTime : "noEndTime"
-  }_${startTime ? startTime : "noStartTime"}`;
+  return `get_events_device_${device ? device : "noDevice"}_${tenant}_${
+    skip ? skip : 0
+  }_${limit ? limit : 0}_${recent ? recent : "noRecent"}_${
+    frequency ? frequency : "noFrequency"
+  }_${endTime ? endTime : "noEndTime"}_${
+    startTime ? startTime : "noStartTime"
+  }`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -81,8 +79,6 @@ const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
 const getMeasurements = async (
   res,
   recent,
-  startDay,
-  endDay,
   device,
   skip,
   limit,
@@ -97,8 +93,6 @@ const getMeasurements = async (
     let cacheID = generateCacheID(
       device,
       day,
-      startDay,
-      endDay,
       tenant,
       skip,
       limit,
@@ -117,8 +111,6 @@ const getMeasurements = async (
           callbackErrors(err, req, res);
         } else {
           const filter = generateEventsFilter(
-            startDay,
-            endDay,
             device,
             frequency,
             startTime,

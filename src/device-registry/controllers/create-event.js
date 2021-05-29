@@ -73,8 +73,6 @@ const createEvent = {
       const {
         device,
         tenant,
-        startDay,
-        endDay,
         limit,
         skip,
         key,
@@ -90,8 +88,6 @@ const createEvent = {
         getMeasurements(
           res,
           recent,
-          startDay,
-          endDay,
           device,
           skipInt,
           limitInt,

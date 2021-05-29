@@ -1,83 +1,79 @@
-const { boolean } = require("joi");
 const {
-  generateDateFormat,
-  generateDateFormatWithoutHrs,
   monthsBehind,
   monthsInfront,
-  removeMonthsFromProvidedDate,
-  addMonthsToProvidedDate,
   removeMonthsFromProvideDateTime,
   addMonthsToProvideDateTime,
+  isTimeEmpty,
+  generateDateFormatWithoutHrs,
 } = require("./date");
 
-const { logObject, logElement, logText } = require("./log");
+const { logElement } = require("./log");
 
-const generateEventsFilter = (
-  queryStartDay,
-  queryEndDay,
-  device,
-  frequency,
-  startTime,
-  endTime
-) => {
+const generateEventsFilter = (device, frequency, startTime, endTime) => {
   let oneMonthBack = monthsBehind(1);
   let oneMonthInfront = monthsInfront(1);
-  let defaultStartDay = generateDateFormatWithoutHrs(oneMonthBack);
-  let defaultEndDay = generateDateFormatWithoutHrs(oneMonthInfront);
-  logElement("defaultStartDay", defaultStartDay);
-  logElement(" defaultEndDay", defaultEndDay);
+  logElement("defaultStartTime", oneMonthBack);
+  logElement(" defaultEndTime", oneMonthInfront);
 
   let filter = {
-    day: { $gte: defaultStartDay, $lte: defaultEndDay },
+    day: {
+      $gte: generateDateFormatWithoutHrs(oneMonthBack),
+      $lte: generateDateFormatWithoutHrs(oneMonthInfront),
+    },
     "values.time": { $gte: oneMonthBack, $lte: oneMonthInfront },
   };
 
-  if (queryStartDay && !queryEndDay) {
-    filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartDay, 1);
-    delete filter["values.time"];
-  }
-
   if (startTime) {
-    let start = new Date(startTime);
-    filter["values.time"]["$gte"] = start;
-    let day = generateDateFormatWithoutHrs(start);
-    filter["day"]["$gte"] = day;
+    if (isTimeEmpty(startTime) == false) {
+      let start = new Date(startTime);
+      filter["values.time"]["$gte"] = start;
+    } else {
+      delete filter["values.time"];
+    }
+    filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
   }
 
   if (endTime) {
-    let end = new Date(endTime);
-    filter["values.time"]["$lte"] = end;
-    let day = generateDateFormatWithoutHrs(end);
-    filter["day"]["$lte"] = day;
+    if (isTimeEmpty(endTime) == false) {
+      let end = new Date(endTime);
+      filter["values.time"]["$lte"] = end;
+    } else {
+      delete filter["values.time"];
+    }
+    filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
   }
 
   if (startTime && !endTime) {
-    let start = new Date(startTime);
-    filter["values.time"]["$lte"] = addMonthsToProvideDateTime(start, 1);
-    let day = generateDateFormatWithoutHrs(start);
-    filter["day"]["$lte"] = addMonthsToProvidedDate(day, 1);
+    if (isTimeEmpty(startTime) == false) {
+      filter["values.time"]["$lte"] = addMonthsToProvideDateTime(startTime, 1);
+    } else {
+      delete filter["values.time"];
+    }
+    let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+      startTime,
+      1
+    );
+    filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+      addedOneMonthToProvidedDateTime
+    );
   }
 
   if (!startTime && endTime) {
-    let end = new Date(endTime);
-    filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(end, 1);
-    let day = generateDateFormatWithoutHrs(end);
-    filter["day"]["$gte"] = removeMonthsFromProvidedDate(day, 1);
-  }
-
-  if (queryStartDay) {
-    filter["day"]["$gte"] = queryStartDay;
-    delete filter["values.time"];
-  }
-
-  if (queryEndDay) {
-    filter["day"]["$lte"] = queryEndDay;
-    delete filter["values.time"];
-  }
-
-  if (!queryStartDay && queryEndDay) {
-    filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndDay, 1);
-    delete filter["values.time"];
+    if (isTimeEmpty(endTime) == false) {
+      filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(
+        endTime,
+        1
+      );
+    } else {
+      delete filter["values.time"];
+    }
+    let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+      endTime,
+      1
+    );
+    filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+      removedOneMonthFromProvidedDateTime
+    );
   }
 
   if (device) {
