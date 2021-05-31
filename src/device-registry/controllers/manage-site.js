@@ -9,7 +9,6 @@ const {
   isDeviceDeployed,
   isDeviceRecalled,
   siteActivityRequestBodies,
-  doLocationActivity,
   queryFilterOptions,
   bodyFilterOptions,
 } = require("../utils/site-activities");
@@ -23,6 +22,41 @@ const {
 const getDetail = require("../utils/get-device-details");
 
 const manageSite = {
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   */
+  create: (req, res) => {},
+
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   */
+  delete: (req, res) => {},
+
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   */
+  update: (req, res) => {},
+
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   */
+  findNearestSite: (req, res) => {},
+
+  /**
+   *
+   * @param {*} req
+   * @param {*} res
+   */
+  getSite: (req, res) => {},
+
   recallDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
     const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
