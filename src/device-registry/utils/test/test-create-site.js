@@ -1,0 +1,107 @@
+const chai = require("chai");
+const chaiHttp = require("chai-http");
+const should = chai.should();
+const expect = chai.expect;
+const faker = require("faker");
+const sinon = require("sinon");
+const request = require("request");
+chai.use(chaiHttp);
+const assert = require("assert");
+const SiteModel = require("../../models/Site");
+const SiteUtil = require("../create-site");
+
+const stubValue = {
+  _id: faker.random.uuid(),
+  tenant: "airqo",
+  name: faker.name.findName(),
+  generated_name: faker.internet.siteName(),
+  formatted_name: faker.address.streetAddress(),
+  latitude: faker.address.latitude(),
+  longitude: faker.address.longitude(),
+  createdAt: faker.date.past(),
+  updatedAt: faker.date.past(),
+  description: faker.address.direction(),
+  site_activities: faker.random.words(),
+  county: faker.address.county(),
+  sub_county: faker.address.county(),
+  parish: faker.address.county(),
+  village: faker.address.county(),
+  region: faker.address.country(),
+  district: faker.address.state(),
+  road_intensity: faker.random.float(),
+  distance_to_nearest_motor_way: faker.random.float(),
+  distance_to_nearest_residential_area: faker.random.float(),
+  distance_to_nearest_city: faker.random.float(),
+  distance_to_nearest_road: faker.random.float(),
+};
+
+describe("create-site utils", function() {
+  describe("create", function() {
+    it("should create a new site", async function() {
+      const stub = sinon
+        .stub(SiteModel(stubValue.tenant), "create")
+        .returns(stubValue);
+
+      const site = await SiteUtil.createSite(
+        stubValue.latitude,
+        stubValue.longitude,
+        stubValue.name
+      );
+
+      expect(stub.calledOnce).to.be.true;
+      expect(site._id).to.equal(stubValue._id);
+      expect(site.name).to.equal(stubValue.name);
+      expect(site.generated_name).to.equal(stubValue.generated_name);
+      expect(site.formatted_name).to.equal(stubValue.formatted_name);
+      expect(site.createdAt).to.equal(stubValue.createdAt);
+      expect(site.updatedAt).to.equal(stubValue.updatedAt);
+    });
+  });
+
+  describe("getSite", function() {
+    it("should retrieve a Site that matches the provided ID", async function() {
+      const stub = sinon
+        .stub(SiteModel(stubValue.tenant), "list")
+        .returns(stubValue);
+
+      let filter = { _id: stubValue._id };
+
+      const site = await SiteUtil.getSite(filter);
+      expect(stub.calledOnce).to.be.true;
+      expect(site._id).to.equal(stubValue._id);
+      expect(site.name).to.equal(stubValue.name);
+      expect(site.generated_name).to.equal(stubValue.generated_name);
+      expect(site.formatted_name).to.equal(stubValue.formatted_name);
+      expect(site.createdAt).to.equal(stubValue.createdAt);
+      expect(site.updatedAt).to.equal(stubValue.updatedAt);
+    });
+  });
+});
+
+describe("manage-site controller", function() {});
+
+const validateSiteName = (data) => {};
+
+const formatSiteName = (data) => {};
+
+const reverseGeoCode = (lat, long) => {};
+
+const getDistance = (lat, long) => {};
+
+const getLandform = (lat, long) => {};
+
+const getAltitude = (lat, long) => {};
+
+const getTrafficFactor = (lat, long) => {};
+
+const getGreenness = (lat, long) => {};
+
+const getTerrain = (lat, long) => {};
+
+const getAspect = (lat, long) => {};
+
+const getRoadIntesity = (lat, long) => {};
+
+const getRoadStatus = (lat, long) => {};
+
+const getLandUse = (lat, long) => {};
