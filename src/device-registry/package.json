@@ -11,7 +11,14 @@
         "dev-pc": "SET NODE_ENV=development&&nodemon ./bin/www",
         "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
         "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
-        "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'"
+        "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
+        "dev-test-mac": "NODE_ENV=development nodemon ./bin/www mocha ./**/test/*.js",
+        "stage-test-mac": "NODE_ENV=staging & nodemon ./bin/www & mocha ./**/test/*.js",
+        "prod-test-mac": "NODE_ENV=production & nodemon ./bin/www & mocha ./**/test/*.js",
+        "dev-test-pc": "SET NODE_ENV=development&&mocha ./**/test/*.js",
+        "stage-test-pc": "SET NODE_ENV=staging&&mocha ./**/test/*.js",
+        "prod-test-pc": "SET NODE_ENV=production&&mocha ./**/test/*.js"
+
     },
     "dependencies": {
         "@google-cloud/bigquery": "^5.5.0",
@@ -60,6 +67,7 @@
         "eslint": "^7.18.0",
         "eslint-config-prettier": "^6.4.0",
         "eslint-plugin-prettier": "^3.1.1",
+        "faker": "^5.5.3",
         "gulp": "^4.0.2",
         "gulp-mocha": "^8.0.0",
         "gulp-util": "^3.0.8",
