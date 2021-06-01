@@ -39,7 +39,7 @@ const stubValue = {
 describe("site controller", function() {
   describe("create", function() {
     let status, json, res, siteController, siteUtil;
-    beforeEach(() => {
+    beforeEach(async () => {
       status = sinon.stub();
       json = sinon.spy();
       res = { json, status };
@@ -48,43 +48,87 @@ describe("site controller", function() {
       siteUtil = await siteUtil.createSite(siteModel);
     });
 
-    it("should register a new site", async function() {
-      const stub = sinon
-        .stub(SiteModel(stubValue.tenant), "create")
-        .returns(stubValue);
+    it("should not register a new site if the name parameter is not provided", async function() {
+      const req = { body: { generated_name: faker.name.findName() } };
+      await siteController.create(req, res);
+      //  expect(status.calledOnce).to.be.true;
+      //  expect(status.args\[0\][0]).to.equal(400);
+      //  expect(json.calledOnce).to.be.true;
+      //  expect(json.args\[0\][0].message).to.equal("Invalid Params");
+    });
 
-      const site = await siteController.createSite(
-        stubValue.latitude,
-        stubValue.longitude,
-        stubValue.name
-      );
+    it("should not register a new site if name,latitude and longitude are not provided", async function() {
+      const req = { body: {} };
+      await siteController.create(req, res);
+      expect(status.calledOnce).to.be.true;
+      // expect(status.args\[0\][0]).to.equal(400);
+      // expect(json.calledOnce).to.be.true;
+      // expect(json.args\[0\][0].message).to.equal("Invalid Params");
+    });
 
+    it("should not register a site when latitude and longitude param are not provided", async function() {
+      const req = { body: { name: faker.name.findName() } };
+      await siteController.create(req, res);
+      expect(status.calledOnce).to.be.true;
+      // expect(status.args\[0\][0]).to.equal(400);
+      // expect(json.calledOnce).to.be.true;
+      // expect(json.args\[0\][0].message).to.equal("Invalid Params");
+    });
+
+    it("should register a site when name, lat, long are provided are provided", async function() {
+      const req = {
+        body: {
+          name: faker.name.findName(),
+          latitude: faker.address.latitude(),
+          longitude: faker.address.longitude(),
+        },
+      };
+      const stubValue = {
+        id: faker.random.uuid(),
+        name: faker.name.findName(),
+        longitude: faker.address.longitude(),
+        latitude: faker.address.latitude(),
+        createdAt: faker.date.past(),
+        updatedAt: faker.date.past(),
+      };
+      const stub = sinon.stub(siteUtil, "create").returns(stubValue);
+      await siteController.create(req, res);
       expect(stub.calledOnce).to.be.true;
-      expect(site._id).to.equal(stubValue._id);
-      expect(site.name).to.equal(stubValue.name);
-      expect(site.generated_name).to.equal(stubValue.generated_name);
-      expect(site.formatted_name).to.equal(stubValue.formatted_name);
-      expect(site.createdAt).to.equal(stubValue.createdAt);
-      expect(site.updatedAt).to.equal(stubValue.updatedAt);
+      expect(status.calledOnce).to.be.true;
+      // expect(status.args\[0\][0]).to.equal(201);
+      // expect(json.calledOnce).to.be.true;
+      // expect(json.args\[0\][0].data).to.equal(stubValue);
     });
   });
+});
 
-  describe("getSite", function() {
-    it("should retrieve a Site that matches the provided ID", async function() {
-      const stub = sinon
-        .stub(SiteModel(stubValue.tenant), "list")
-        .returns(stubValue);
-
-      let filter = { _id: stubValue._id };
-
-      const site = await siteController.getSite(filter);
-      expect(stub.calledOnce).to.be.true;
-      expect(site._id).to.equal(stubValue._id);
-      expect(site.name).to.equal(stubValue.name);
-      expect(site.generated_name).to.equal(stubValue.generated_name);
-      expect(site.formatted_name).to.equal(stubValue.formatted_name);
-      expect(site.createdAt).to.equal(stubValue.createdAt);
-      expect(site.updatedAt).to.equal(stubValue.updatedAt);
-    });
+describe("getSite", function() {
+  let req;
+  let res;
+  let siteUtil;
+  beforeEach(() => {
+    req = { params: { id: faker.random.uuid() } };
+    res = { json: function() {} };
+    const SiteModel = sinon.spy();
+  });
+  it("should retrieve a Site that matches the provided ID", async function() {
+    const stubValue = {
+      id: faker.random.uuid(),
+      name: faker.name.findName(),
+      longitude: faker.address.longitude(),
+      latitude: faker.address.latitude(),
+      createdAt: faker.date.past(),
+      updatedAt: faker.date.past(),
+    };
+    const mock = sinon.mock(res);
+    mock
+      .expects("json")
+      .once()
+      .withExactArgs({ data: stubValue });
+    const stub = sinon.stub(userUtil, "getSite").returns(stubValue);
+    userController = new UserController(userService);
+    const site = await siteController.getaSite(req, res);
+    expect(stub.calledOnce).to.be.true;
+    mock.verify();
   });
 });
