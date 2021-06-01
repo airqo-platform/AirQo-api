@@ -1,6 +1,7 @@
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
+const ObjectId = Schema.Types.ObjectId;
 
 const measurementsSchema = [
   {
@@ -17,9 +18,21 @@ const measurementsSchema = [
       required: [true, "The device name is required"],
       trim: true,
     },
+    deviceID: {
+      type: ObjectId,
+      required: [true, "The device ID is required"],
+    },
     channelID: {
       type: Number,
       trim: true,
+    },
+    site: {
+      type: String,
+      required: [true, "the site ID is required"],
+    },
+    siteID: {
+      type: ObjectId,
+      required: [true, "The site ID is required"],
     },
     pm1: {
       value: {
@@ -240,7 +253,7 @@ eventSchema.statics = {
         externalHumidity: { $first: "$externalHumidity" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
-        deviceDetails: { $first: {$arrayElemAt: [ "$deviceDetails", 0 ]} },
+        deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
       })
       .skip(skipInt)
       .limit(limitInt)
