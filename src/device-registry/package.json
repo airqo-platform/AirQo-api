@@ -13,8 +13,8 @@
         "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
         "dev-test-mac": "NODE_ENV=development nodemon ./bin/www mocha ./**/test/*.js",
-        "stage-test-mac": "NODE_ENV=staging & nodemon ./bin/www & mocha ./**/test/*.js",
-        "prod-test-mac": "NODE_ENV=production & nodemon ./bin/www & mocha ./**/test/*.js",
+        "stage-test-mac": "NODE_ENV=staging nodemon ./bin/www  mocha ./**/test/*.js",
+        "prod-test-mac": "NODE_ENV=production nodemon ./bin/www  mocha ./**/test/*.js",
         "dev-test-pc": "SET NODE_ENV=development&&mocha ./**/test/*.js",
         "stage-test-pc": "SET NODE_ENV=staging&&mocha ./**/test/*.js",
         "prod-test-pc": "SET NODE_ENV=production&&mocha ./**/test/*.js"
