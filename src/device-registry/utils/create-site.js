@@ -47,6 +47,8 @@ const getRoadStatus = (lat, long) => {};
 
 const getLandUse = (lat, long) => {};
 
+const generateLatLong = (lat, long) => {};
+
 module.exports = {
   validateSiteName,
 };
