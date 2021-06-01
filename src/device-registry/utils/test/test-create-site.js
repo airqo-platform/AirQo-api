@@ -347,4 +347,15 @@ describe("create Site utils", function() {
       expect(landUse).to.be.a("number");
     });
   });
+
+  describe("generate the lat_long field", function() {
+    it("it should return the lat_long string of the device", function() {
+      let latLong = siteUtil.generateLatLong(
+        stubValue.latitude,
+        stubValue.longitude
+      );
+      expect(latLong).to.not.be.empty;
+      expect(latLong).to.be.a("string");
+    });
+  });
 });
