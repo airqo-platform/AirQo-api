@@ -1,9 +1,9 @@
-const mongoose = require("mongoose");
+const { Schema } = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { getModelByTenant } = require("../utils/multitenancy");
 
-const siteSchema = new mongoose.Schema(
+const siteSchema = new Schema(
   {
     name: {
       type: String,
