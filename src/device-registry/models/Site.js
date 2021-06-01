@@ -1,5 +1,5 @@
 const { Schema } = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { getModelByTenant } = require("../utils/multitenancy");
 
