@@ -3,11 +3,11 @@ const chai = require("chai");
 const chaiHttp = require("chai-http");
 const should = chai.should();
 const expect = chai.expect;
+const assert = chai.assert;
 const faker = require("faker");
 const sinon = require("sinon");
 const request = require("request");
 chai.use(chaiHttp);
-const assert = require("assert");
 const SiteModel = require("../Site");
 
 const stubValue = {
@@ -75,6 +75,41 @@ describe("the Site Model", function() {
       expect(site.formatted_name).to.equal(stubValue.formatted_name);
       expect(site.createdAt).to.equal(stubValue.createdAt);
       expect(site.updatedAt).to.equal(stubValue.updatedAt);
+    });
+  });
+
+  describe("update", function() {
+    it("should update a Site with specific ID", async function() {
+      const stub = sinon
+        .stub(SiteModel(stubValue.tenant), "update")
+        .returns(stubValue);
+      let body = stubValue;
+      delete body._id;
+
+      const updatedSite = await SiteModel(stubValue.tenant).update(
+        stubValue._id,
+        body
+      );
+      expect(stub.calledOnce).to.be.true;
+      expect(updatedSite).to.not.be.empty;
+      expect(updatedSite).to.be.a("object");
+      assert.equal(updatedSite.success, true, "the site has been updated");
+    });
+  });
+
+  describe("delete", function() {
+    it("should delete a Site with specific ID", async function() {
+      const stub = sinon
+        .stub(SiteModel(stubValue.tenant), "delete")
+        .returns(stubValue);
+
+      const updatedSite = await SiteModel(stubValue.tenant).update(
+        stubValue._id
+      );
+      expect(stub.calledOnce).to.be.true;
+      expect(updatedSite).to.not.be.empty;
+      expect(updatedSite).to.be.a("object");
+      assert.equal(updatedSite.success, true, "the site has been deleted");
     });
   });
 });
