@@ -12,8 +12,14 @@ const siteSchema = new Schema(
     generated_name: {
       type: String,
       trim: true,
+      unique: true,
     },
     formatted_name: {
+      type: String,
+      trim: true,
+      unique: true,
+    },
+    lat_long: {
       type: String,
       trim: true,
       unique: true,
