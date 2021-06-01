@@ -21,41 +21,43 @@ const {
 
 const getDetail = require("../utils/get-device-details");
 
+const createSiteUtil = require("../utils/create-site");
+
 const manageSite = {
   /**
    *
    * @param {*} req
    * @param {*} res
    */
-  create: (req, res) => {},
+  create: async (req, res) => {},
 
   /**
    *
    * @param {*} req
    * @param {*} res
    */
-  delete: (req, res) => {},
+  delete: async (req, res) => {},
 
   /**
    *
    * @param {*} req
    * @param {*} res
    */
-  update: (req, res) => {},
+  update: async (req, res) => {},
 
   /**
    *
    * @param {*} req
    * @param {*} res
    */
-  findNearestSite: (req, res) => {},
+  findNearestSite: async (req, res) => {},
 
   /**
    *
    * @param {*} req
    * @param {*} res
    */
-  getSite: (req, res) => {},
+  getSite: async (req, res) => {},
 
   recallDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
