@@ -260,11 +260,6 @@ const manageSite = {
         message: `Device ${deviceName} already deployed`,
       });
     }
-    /**
-     * from the request body's longitude and latitude lines
-     * check for the nearest Sites for deployment
-     */
-
     const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
       req,
       res,
