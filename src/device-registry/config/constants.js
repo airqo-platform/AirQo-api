@@ -22,6 +22,9 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  GET_ADDRESS: (lat, long) => {
+    return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
+  },
   CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
   DELETE_THING_URL: (device) => {
     return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
