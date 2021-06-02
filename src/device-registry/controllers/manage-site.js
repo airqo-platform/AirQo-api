@@ -26,13 +26,75 @@ const createSiteUtil = require("../utils/create-site");
 const manageSite = {
   create: async (req, res) => {
     try {
+      let { long, lat, name } = req.body;
+      let { tenant } = req.query;
+      if (!tenant) {
+        return missingQueryParams(req, res);
+      }
+      let responseFromCreateSiteUtil = await createSiteUtil.createSite(
+        tenant,
+        lat,
+        long,
+        name
+      );
+      if (responseFromCreateSiteUtil.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromCreateSiteUtil.message,
+          site: responseFromCreateSiteUtil.createdSite,
+        });
+      } else {
+        if (responseFromCreateSiteUtil.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromCreateSiteUtil.message,
+            error: responseFromCreateSiteUtil.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromCreateSiteUtil.message,
+          });
+        }
+      }
     } catch (e) {
       logElement("server error", e.message);
+      tryCatchErrors(req, res);
     }
   },
 
   delete: async (req, res) => {
     try {
+      let { tenant, lat_long } = req.query;
+
+      if (!tenant) {
+        return missingQueryParams(req, res);
+      }
+
+      let responseFromCreateSiteUtil = await createSiteUtil.deleteSite(
+        tenant,
+        lat_long
+      );
+      if (responseFromCreateSiteUtil.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromCreateSiteUtil.message,
+          deleted_site: responseFromCreateSiteUtil.deletedSite,
+        });
+      } else {
+        if (responseFromCreateSiteUtil.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromCreateSiteUtil.message,
+            error: responseFromCreateSiteUtil.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromCreateSiteUtil.message,
+          });
+        }
+      }
     } catch (e) {
       logElement("server error", e.message);
     }
@@ -40,8 +102,40 @@ const manageSite = {
 
   update: async (req, res) => {
     try {
+      let { tenant, lat_long } = req.query;
+      let { body } = req;
+
+      if (!tenant) {
+        return missingQueryParams(req, res);
+      }
+      let responseFromCreateSiteUtil = await createSiteUtil.updateSite(
+        tenant,
+        lat_long,
+        body
+      );
+      if (responseFromCreateSiteUtil.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromCreateSiteUtil.message,
+          updated_site: responseFromCreateSiteUtil.updatedSite,
+        });
+      } else {
+        if (responseFromCreateSiteUtil.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromCreateSiteUtil.message,
+            error: responseFromCreateSiteUtil.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromCreateSiteUtil.message,
+          });
+        }
+      }
     } catch (e) {
       logElement("server error", e.message);
+      tryCatchErrors(req, res);
     }
   },
 
@@ -96,7 +190,7 @@ const manageSite = {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromGetSite.message,
-          site_components: responseFromGetSite.siteDetails,
+          sites: responseFromGetSite.siteDetails,
         });
       } else {
         if (responseFromGetSite.error) {
