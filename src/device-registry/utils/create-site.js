@@ -26,8 +26,8 @@ const createSiteUtils = {
 
   validateSiteName: (name) => {
     try {
-      let nameHasWhiteSpace = this.hasWhiteSpace(name);
-      let isValidStringLength = this.checkStringLength(name);
+      let nameHasWhiteSpace = createSiteUtils.hasWhiteSpace(name);
+      let isValidStringLength = createSiteUtils.checkStringLength(name);
       if (!nameHasWhiteSpace && isValidStringLength) {
         return true;
       }
@@ -37,21 +37,52 @@ const createSiteUtils = {
     }
   },
 
-  createSite: async (tenant, lat, long, name) => {
+  getSitesCount: async (tenant) => {
     try {
-      let body = { latitude: lat, longitude: long, name };
-      /**
-       * need to add more data to the request body from here
-       */
-      let createdSite = await getModelByTenant(
+      let sites = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).create(body);
+      ).list();
+      let siteCount = sites.length;
+      return siteCount;
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
+
+  generateName: async (tenant) => {
+    try {
+      let count = await createSiteUtils.getSitesCount(tenant);
+      return `site_${count + 1}`;
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
+
+  createSite: async (tenant, lat, long, name) => {
+    try {
+      let body = { latitude: lat, longitude: long, name };
+      let isNameValid = createSiteUtils.validateSiteName(name);
+      let lat_long = createSiteUtils.generateLatLong(lat, long);
+      body["lat_long"] = lat_long;
+      if (!isNameValid) {
+        return {
+          success: false,
+          message: "site name is invalid, please check documentation",
+        };
+      }
+      let Site = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      );
+      let createdSite = await Site.create(body);
       if (createdSite) {
         return {
           success: true,
           message: "successfully created a site",
+          createdSite,
         };
       } else {
         return {
@@ -72,12 +103,12 @@ const createSiteUtils = {
     try {
       let filter = { lat_long },
         update = body,
-        options = { upsert: true };
+        options = { new: true };
       let updatedSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).update(filter, update, options);
+      ).updateSite({ filter, update, options });
       if (updatedSite) {
         return {
           success: true,
@@ -87,7 +118,7 @@ const createSiteUtils = {
       } else {
         return {
           success: false,
-          message: "unable to update the site",
+          message: "unable to update the site, ensure that this Site exists",
         };
       }
     } catch (e) {
@@ -106,7 +137,8 @@ const createSiteUtils = {
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).delete(filter);
+      ).deleteSite({ filter });
+
       if (deletedSite) {
         return {
           success: true,
@@ -116,7 +148,7 @@ const createSiteUtils = {
       } else {
         return {
           success: false,
-          message: "unable to delete the site",
+          message: "unable to delete the site, ensure that this Site exists",
         };
       }
     } catch (e) {
