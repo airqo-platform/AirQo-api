@@ -1,26 +1,39 @@
 const SiteModel = require("../models/Site");
 const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("./log");
 
 const createSiteUtils = {
   hasWhiteSpace: (name) => {
-    return name.indexOf(" ") >= 0;
+    try {
+      return name.indexOf(" ") >= 0;
+    } catch (e) {
+      logElement("server error", e.message);
+    }
   },
 
   checkStringLength: (name) => {
-    let length = name.length;
-    if (length >= 4 && length <= 15) {
-      return true;
+    try {
+      let length = name.length;
+      if (length >= 4 && length <= 15) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      logElement("server error", e.message);
     }
-    return false;
   },
 
   validateSiteName: (name) => {
-    let nameHasWhiteSpace = this.hasWhiteSpace(name);
-    let isValidStringLength = this.checkStringLength(name);
-    if (!nameHasWhiteSpace && isValidStringLength) {
-      return true;
+    try {
+      let nameHasWhiteSpace = this.hasWhiteSpace(name);
+      let isValidStringLength = this.checkStringLength(name);
+      if (!nameHasWhiteSpace && isValidStringLength) {
+        return true;
+      }
+      return false;
+    } catch (e) {
+      logElement("server error", e.message);
     }
-    return false;
   },
 
   createSite: async (tenant, lat, long, name) => {
@@ -134,7 +147,12 @@ const createSiteUtils = {
     }
   },
 
-  formatSiteName: (name) => {},
+  formatSiteName: (name) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
   transformAddress: (address) => {
     try {
@@ -198,28 +216,82 @@ const createSiteUtils = {
     }
   },
 
-  getDistance: (lat, long) => {},
+  getDistance: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getLandform: (lat, long) => {},
+  getLandform: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getAltitude: (lat, long) => {},
+  getAltitude: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getTrafficFactor: (lat, long) => {},
+  getTrafficFactor: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getGreenness: (lat, long) => {},
+  getGreenness: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getTerrain: (lat, long) => {},
+  getTerrain: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getAspect: (lat, long) => {},
+  getAspect: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getRoadIntesity: (lat, long) => {},
+  getRoadIntesity: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getRoadStatus: (lat, long) => {},
+  getRoadStatus: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  getLandUse: (lat, long) => {},
+  getLandUse: (lat, long) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
   generateLatLong: (lat, long) => {
-    return `${lat}_${long}`;
+    try {
+      return `${lat}_${long}`;
+    } catch (e) {
+      logElement("server error", e.message);
+    }
   },
 };
 
