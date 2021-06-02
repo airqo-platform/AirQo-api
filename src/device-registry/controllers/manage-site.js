@@ -245,7 +245,7 @@ const manageSite = {
     "date",
     "latitude",
     "longitude",
-    "siteID",
+    "site_id",
     "isPrimaryInLocation",
     "isUsedForCollocation",
   ],
