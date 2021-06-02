@@ -19,45 +19,104 @@ const {
   callbackErrors,
 } = require("../utils/errors");
 
-const getDetail = require("../utils/get-device-details");
+const { generateSiteFilter } = require("../utils/generate-filter");
 
 const createSiteUtil = require("../utils/create-site");
 
 const manageSite = {
-  /**
-   *
-   * @param {*} req
-   * @param {*} res
-   */
-  create: async (req, res) => {},
+  create: async (req, res) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  /**
-   *
-   * @param {*} req
-   * @param {*} res
-   */
-  delete: async (req, res) => {},
+  delete: async (req, res) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  /**
-   *
-   * @param {*} req
-   * @param {*} res
-   */
-  update: async (req, res) => {},
+  update: async (req, res) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  /**
-   *
-   * @param {*} req
-   * @param {*} res
-   */
-  findNearestSite: async (req, res) => {},
+  findNearestSite: async (req, res) => {
+    try {
+    } catch (e) {
+      logElement("server error", e.message);
+    }
+  },
 
-  /**
-   *
-   * @param {*} req
-   * @param {*} res
-   */
-  getSite: async (req, res) => {},
+  getSite: async (req, res) => {
+    try {
+      logText("getting sites.......");
+      let {
+        lat_long,
+        id,
+        generated_name,
+        tenant,
+        district,
+        region,
+        city,
+        street,
+        country,
+        parish,
+        name,
+      } = req.query;
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      if (!tenant) {
+        missingQueryParams(req, res);
+      }
+      let filter = generateSiteFilter(
+        lat_long,
+        id,
+        generated_name,
+        district,
+        region,
+        city,
+        street,
+        country,
+        parish,
+        name
+      );
+      logObject("the filter for sites", filter);
+      let responseFromGetSite = await createSiteUtil.getSite(
+        tenant,
+        filter,
+        skip,
+        limit
+      );
+      if (responseFromGetSite.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromGetSite.message,
+          site_components: responseFromGetSite.siteDetails,
+        });
+      } else {
+        if (responseFromGetSite.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromGetSite.message,
+            error: responseFromGetSite.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromGetSite.message,
+          });
+        }
+      }
+    } catch (e) {
+      logElement("server error", e.message);
+      tryCatchErrors(req, res);
+    }
+  },
 
   recallDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
