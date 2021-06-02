@@ -8,14 +8,19 @@ const faker = require("faker");
 const sinon = require("sinon");
 const request = require("request");
 chai.use(chaiHttp);
-const SiteModel = require("../Site");
+const SiteSchema = require("../Site");
+const { getModelByTenant } = require("../../utils/multitenancy");
 
 const stubValue = {
   _id: faker.random.uuid(),
   tenant: "airqo",
   name: faker.name.findName(),
-  generated_name: faker.internet.siteName(),
+  generated_name: faker.internet.name(),
+  lat_long: faker.internet.name(),
   formatted_name: faker.address.streetAddress(),
+  city: faker.address.city(),
+  street: faker.address.streetName(),
+  country: faker.address.country(),
   latitude: faker.address.latitude(),
   longitude: faker.address.longitude(),
   createdAt: faker.date.past(),
@@ -38,11 +43,14 @@ const stubValue = {
 describe("the Site Model", function() {
   describe("create", function() {
     it("should add a new site to the db", async function() {
-      const stub = sinon
-        .stub(SiteModel(stubValue.tenant), "create")
-        .returns(stubValue);
-      const newSite = new SiteModel(stubValue.tenant);
-      const site = await newSite.create(
+      const SiteModel = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      );
+      const stub = sinon.stub(SiteModel, "create").returns(stubValue);
+
+      const site = SiteModel.create(
         stubValue.name,
         stubValue.generated_name,
         stubValue.formatted_name,
@@ -63,11 +71,14 @@ describe("the Site Model", function() {
 
   describe("getSite", function() {
     it("should retrieve a Site with specific ID", async function() {
-      const stub = sinon
-        .stub(SiteModel(stubValue.tenant), "list")
-        .returns(stubValue);
-      let filter = { _id: stubValue._id };
-      const site = await SiteModel(stubValue.tenant).list(filter);
+      const SiteModel = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      );
+      const stub = sinon.stub(SiteModel, "list").returns(stubValue);
+      let filter = { lat_long: stubValue.lat_long };
+      const site = SiteModel.list(filter);
       expect(stub.calledOnce).to.be.true;
       expect(site._id).to.equal(stubValue._id);
       expect(site.name).to.equal(stubValue.name);
@@ -80,16 +91,16 @@ describe("the Site Model", function() {
 
   describe("update", function() {
     it("should update a Site with specific ID", async function() {
-      const stub = sinon
-        .stub(SiteModel(stubValue.tenant), "update")
-        .returns(stubValue);
+      const SiteModel = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      );
+      const stub = sinon.stub(SiteModel, "update").returns(stubValue);
       let body = stubValue;
       delete body._id;
 
-      const updatedSite = await SiteModel(stubValue.tenant).update(
-        stubValue._id,
-        body
-      );
+      const updatedSite = SiteModel.update(stubValue.lat_long, body);
       expect(stub.calledOnce).to.be.true;
       expect(updatedSite).to.not.be.empty;
       expect(updatedSite).to.be.a("object");
@@ -99,17 +110,18 @@ describe("the Site Model", function() {
 
   describe("delete", function() {
     it("should delete a Site with specific ID", async function() {
-      const stub = sinon
-        .stub(SiteModel(stubValue.tenant), "delete")
-        .returns(stubValue);
-
-      const updatedSite = await SiteModel(stubValue.tenant).update(
-        stubValue._id
+      const SiteModel = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
       );
+      const stub = sinon.stub(SiteModel, "delete").returns(stubValue);
+
+      const deletedSite = SiteModel.update(stubValue.lat_long);
       expect(stub.calledOnce).to.be.true;
-      expect(updatedSite).to.not.be.empty;
-      expect(updatedSite).to.be.a("object");
-      assert.equal(updatedSite.success, true, "the site has been deleted");
+      expect(deletedSite).to.not.be.empty;
+      expect(deletedSite).to.be.a("object");
+      assert.equal(deletedSite.success, true, "the site has been deleted");
     });
   });
 });
