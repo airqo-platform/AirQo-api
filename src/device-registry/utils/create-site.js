@@ -1,6 +1,7 @@
-const SiteModel = require("../models/Site");
+const SiteSchema = require("../models/Site");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
+const { getModelByTenant } = require("./multitenancy");
 
 const createSiteUtils = {
   hasWhiteSpace: (name) => {
@@ -42,7 +43,11 @@ const createSiteUtils = {
       /**
        * need to add more data to the request body from here
        */
-      let createdSite = await SiteModel(tenant.toLowerCase()).create(body);
+      let createdSite = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      ).create(body);
       if (createdSite) {
         return {
           success: true,
@@ -68,11 +73,11 @@ const createSiteUtils = {
       let filter = { lat_long },
         update = body,
         options = { upsert: true };
-      let updatedSite = await SiteModel(tenant.toLowerCase()).update(
-        filter,
-        update,
-        options
-      );
+      let updatedSite = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      ).update(filter, update, options);
       if (updatedSite) {
         return {
           success: true,
@@ -97,7 +102,11 @@ const createSiteUtils = {
   deleteSite: async (tenant, lat_long) => {
     try {
       let filter = { lat_long };
-      let deletedSite = await SiteModel(tenant.toLowerCase()).delete(filter);
+      let deletedSite = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      ).delete(filter);
       if (deletedSite) {
         return {
           success: true,
@@ -121,11 +130,13 @@ const createSiteUtils = {
   getSite: async (tenant, filter, skip, limit) => {
     try {
       options = {};
-      let siteDetails = await SiteModel(tenant.toLowerCase()).list(
-        filter,
-        skip,
-        limit
-      );
+      logElement("limit in util", limit);
+      logObject("filter in util", filter);
+      let siteDetails = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      ).list({ skip, limit, filter });
       if (siteDetails) {
         return {
           success: true,
