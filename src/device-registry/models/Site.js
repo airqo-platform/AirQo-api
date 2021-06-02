@@ -148,35 +148,18 @@ siteSchema.methods = {
       _id: this._id,
       name: this.name,
       generated_name: this.generated_name,
-      formatted_name: this.formatted_name,
-      site_id: this.site_id,
+      lat_long: this.lat_long,
       latitude: this.latitude,
       longitude: this.longitude,
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
-      county: this.county,
-      sub_county: this.sub_county,
-      parish: this.parish,
-      village: this.village,
-      region: this.region,
-      district: this.district,
-      road_intensity: this.road_intensity,
-      distance_to_nearest_motor_way: this.distance_to_nearest_motor_way,
-      distance_to_nearest_residential_area: this
-        .distance_to_nearest_residential_area,
-      distance_to_nearest_city: this.distance_to_nearest_city,
-      distance_to_nearest_road: this.distance_to_nearest_road,
     };
   },
-  create(args) {
+  createSite(args) {
     return this.create({
       ...args,
     });
-  },
-  _siteCount() {
-    let query = this.find({});
-    return query.length();
   },
 };
 
@@ -195,11 +178,11 @@ siteSchema.statics = {
       .limit(_limit)
       .allowDiskUse(true);
   },
-  delete({ filter = { lat_long: "23_46" } } = {}) {
-    return this.deleteOne(filter);
+  deleteSite({ filter = {}, options = {} } = {}) {
+    return this.findOneAndRemove(filter, options);
   },
-  update({ filter = {}, update = {}, options = {} } = {}) {
-    return this.update(filter, update, options);
+  updateSite({ filter = {}, update = {}, options = {} } = {}) {
+    return this.findOneAndUpdate(filter, update, options);
   },
 };
 
