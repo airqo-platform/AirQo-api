@@ -35,7 +35,7 @@ const siteSchema = new Schema(
     longitude: {
       type: Number,
     },
-    activities: [
+    site_tags: [
       {
         type: String,
       },
@@ -154,7 +154,7 @@ siteSchema.methods = {
       longitude: this.longitude,
       createdAt: this.createdAt,
       description: this.description,
-      site_activities: this.site_activities,
+      site_tags: this.site_tags,
       county: this.county,
       sub_county: this.sub_county,
       parish: this.parish,
@@ -181,11 +181,19 @@ siteSchema.methods = {
 };
 
 siteSchema.statics = {
-  list({ skip = 0, limit = 30, filter = {} } = {}) {
-    return this.find(filter)
+  list({ _skip = 0, _limit = 50, filter = {} } = {}) {
+    return this.aggregate()
+      .match(filter)
+      .lookup({
+        from: "devices",
+        localField: "lat_long",
+        foreignField: "site_id",
+        as: "devices",
+      })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+      .skip(_skip)
+      .limit(_limit)
+      .allowDiskUse(true);
   },
   delete({ filter = { lat_long: "23_46" } } = {}) {
     return this.deleteOne(filter);

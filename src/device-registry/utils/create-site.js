@@ -127,11 +127,11 @@ const createSiteUtils = {
       };
     }
   },
-  getSite: async (tenant, filter, skip, limit) => {
+  getSite: async (tenant, filter, _skip, _limit) => {
     try {
       options = {};
-      logElement("limit in util", limit);
-      logObject("filter in util", filter);
+      const limit = parseInt(_limit, 0);
+      const skip = parseInt(_skip, 0);
       let siteDetails = await getModelByTenant(
         tenant.toLowerCase(),
         "site",

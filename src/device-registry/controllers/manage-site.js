@@ -67,9 +67,9 @@ const manageSite = {
         country,
         parish,
         name,
+        skip,
+        limit,
       } = req.query;
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
       if (!tenant) {
         missingQueryParams(req, res);
       }

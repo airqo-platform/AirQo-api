@@ -2,6 +2,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
+const { logObject, logElement } = require("../utils/log");
 
 const deviceSchema = new mongoose.Schema(
   {
@@ -205,11 +206,19 @@ deviceSchema.statics = {
     });
   },
 
-  list({ skip = 0, limit = 5, filter = {} } = {}) {
-    return this.find(filter)
+  list({ _skip = 0, _limit = 50, filter = {} } = {}) {
+    return this.aggregate()
+      .match(filter)
+      .lookup({
+        from: "sites",
+        localField: "site_id",
+        foreignField: "lat_long",
+        as: "site",
+      })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+      .skip(_skip)
+      .limit(_limit)
+      .allowDiskUse(true);
   },
 
   listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {
