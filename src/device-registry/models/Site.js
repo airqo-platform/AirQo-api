@@ -1,6 +1,7 @@
 const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
+const { logElement, logObject } = require("../utils/log");
 const { getModelByTenant } = require("../utils/multitenancy");
 
 const siteSchema = new Schema(
@@ -173,10 +174,14 @@ siteSchema.methods = {
       ...args,
     });
   },
+  _siteCount() {
+    let query = this.find({});
+    return query.length();
+  },
 };
 
 siteSchema.statics = {
-  list({ skip = 0, limit = 5, filter = {} } = {}) {
+  list({ skip = 0, limit = 30, filter = {} } = {}) {
     return this.find(filter)
       .sort({ createdAt: -1 })
       .skip(skip)
@@ -192,8 +197,4 @@ siteSchema.statics = {
 
 siteSchema.methods = {};
 
-const siteModel = async (tenant) => {
-  return await getModelByTenant(tenant.toLowerCase(), "site", siteSchema);
-};
-
-module.exports = siteModel;
+module.exports = siteSchema;
