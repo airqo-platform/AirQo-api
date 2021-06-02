@@ -256,6 +256,7 @@ eventSchema.statics = {
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
         externalHumidity: { $first: "$externalHumidity" },
+        externalAltitude: { $first: "$externalAltitude" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
         deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
