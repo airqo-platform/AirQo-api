@@ -146,6 +146,11 @@ const measurementsSchema = [
     externalPressure: {
       value: { type: Number },
     },
+    externalAltitude: {
+      value: {
+        type: Number,
+      },
+    },
   },
 ];
 

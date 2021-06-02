@@ -103,6 +103,22 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    town: {
+      type: String,
+      trim: true,
+    },
+    city: {
+      type: String,
+      trim: true,
+    },
+    street: {
+      type: String,
+      trim: true,
+    },
+    geometry: {
+      type: Object,
+      trim: true,
+    },
     county: {
       type: String,
       trim: true,
@@ -166,14 +182,11 @@ siteSchema.statics = {
       .skip(skip)
       .limit(limit);
   },
-  delete({ filter = {}, options = {} } = {}) {
-    let opts = options;
-    opts[justOne] = true;
-    return this.remove(filter, opts);
+  delete({ filter = { lat_long: "23_46" } } = {}) {
+    return this.deleteOne(filter);
   },
-  update({ filter = {}, options = {} } = {}) {
-    let opts = options;
-    return this.update(filter, opts);
+  update({ filter = {}, update = {}, options = {} } = {}) {
+    return this.update(filter, update, options);
   },
 };
 
