@@ -116,4 +116,75 @@ const generateDeviceFilter = (
   return filter;
 };
 
-module.exports = { generateEventsFilter, generateDeviceFilter };
+const generateSiteFilter = (
+  lat_long,
+  id,
+  generated_name,
+  district,
+  region,
+  city,
+  street,
+  country,
+  parish,
+  name
+) => {
+  let filter = {};
+
+  if (name) {
+    let regexExpression = generateRegexExpressionFromStringElement(name);
+    filter["name"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (lat_long) {
+    filter["lat_long"] = lat_long;
+  }
+
+  if (id) {
+    filter["_id"] = id;
+  }
+
+  if (generated_name) {
+    let regexExpression = generateRegexExpressionFromStringElement(
+      generated_name
+    );
+    filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (district) {
+    let regexExpression = generateRegexExpressionFromStringElement(district);
+    filter["district"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (region) {
+    let regexExpression = generateRegexExpressionFromStringElement(region);
+    filter["region"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (city) {
+    let regexExpression = generateRegexExpressionFromStringElement(city);
+    filter["city"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (street) {
+    let regexExpression = generateRegexExpressionFromStringElement(street);
+    filter["street"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (country) {
+    let regexExpression = generateRegexExpressionFromStringElement(country);
+    filter["country"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  if (parish) {
+    let regexExpression = generateRegexExpressionFromStringElement(parish);
+    filter["parish"] = { $regex: regexExpression, $options: "i" };
+  }
+
+  return filter;
+};
+
+module.exports = {
+  generateEventsFilter,
+  generateDeviceFilter,
+  generateSiteFilter,
+};
