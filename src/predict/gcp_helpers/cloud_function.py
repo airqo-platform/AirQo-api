@@ -129,7 +129,7 @@ def predict_model(m):
     std_dev = np.sqrt(variances)
     # calculate prediction interval
     interval = 1.96 * std_dev
-    lower, upper = means - interval, means + interval
+    # lower, upper = means - interval, means + interval
         
     result = []
     for i in range(pred_set.shape[0]):
@@ -137,8 +137,7 @@ def predict_model(m):
                       'longitude':locations_flat[i][0],
                       'predicted_value': means[i],
                       'variance':variances[i],
-                      'upper_bound':upper[i],
-                      'lower_bound':lower[i]})
+                      'interval':interval[i]})
 
     try:
         client = MongoClient(MONGO_URI)
