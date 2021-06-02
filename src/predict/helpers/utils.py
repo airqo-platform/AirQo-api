@@ -191,7 +191,7 @@ def get_gp_predictions():
 
     db = client['airqo_netmanager_airqo']
     query = {}
-    projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1, 'lower_bound': 1, 'upper_bound': 1}
+    projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1, 'interval': 1}
     records = list(db.gp_predictions.find(query, projection))
     return records
 
