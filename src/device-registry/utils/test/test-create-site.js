@@ -13,9 +13,9 @@ const siteUtil = require("../create-site");
 
 const stubValue = {
   _id: faker.random.uuid(),
-  tenant: "airqo",
+  tenant: "test",
   name: faker.name.findName(),
-  generated_name: faker.internet.siteName(),
+  generated_name: faker.address.secondaryAddress(),
   formatted_name: faker.address.streetAddress(),
   latitude: faker.address.latitude(),
   longitude: faker.address.longitude(),
@@ -35,6 +35,7 @@ const stubValue = {
   distance_to_nearest_residential_area: faker.random.float(),
   distance_to_nearest_city: faker.random.float(),
   distance_to_nearest_road: faker.random.float(),
+  lat_long: `${faker.random.number()}_${faker.random.number()}`,
 };
 
 describe("create Site utils", function() {
@@ -45,6 +46,7 @@ describe("create Site utils", function() {
         .returns(stubValue);
 
       const site = await siteUtil.createSite(
+        stubValue.tenant,
         stubValue.latitude,
         stubValue.longitude,
         stubValue.name
@@ -66,9 +68,9 @@ describe("create Site utils", function() {
         .stub(SiteModel(stubValue.tenant), "list")
         .returns(stubValue);
 
-      let filter = { _id: stubValue._id };
+      let filter = { lat_long: stubValue.lat_long };
 
-      const site = await siteUtil.getSite(filter);
+      const site = await siteUtil.getSite(stubValue.tenant, filter);
       expect(stub.calledOnce).to.be.true;
       expect(site._id).to.equal(stubValue._id);
       expect(site.name).to.equal(stubValue.name);
@@ -86,9 +88,13 @@ describe("create Site utils", function() {
         .returns(stubValue);
 
       let body = stubValue;
-      delete body._id;
+      delete body.lat_long;
 
-      const updatedSite = await siteUtil.updateSite(stubValue._id, body);
+      const updatedSite = await siteUtil.updateSite(
+        stubValue.tenant,
+        stubValue.lat_long,
+        body
+      );
 
       expect(stub.calledOnce).to.be.true;
       expect(updatedSite).to.not.be.empty;
@@ -102,12 +108,15 @@ describe("create Site utils", function() {
         .stub(SiteModel(stubValue.tenant), "delete")
         .returns(stubValue);
 
-      const updatedSite = await siteUtil.delete(stubValue._id);
+      const deletedSite = await siteUtil.deleteSite(
+        stubValue.tenant,
+        stubValue.lat_long
+      );
 
       expect(stub.calledOnce).to.be.true;
-      expect(updatedSite).to.not.be.empty;
-      expect(updatedSite).to.be.a("object");
-      assert.equal(updatedSite.success, true, "the site has been deleted");
+      expect(deletedSite).to.not.be.empty;
+      expect(deletedSite).to.be.a("object");
+      assert.equal(deletedSite.success, true, "the site has been deleted");
     });
   });
   /**
@@ -189,10 +198,14 @@ describe("create Site utils", function() {
 
   describe("reverse geo code", function() {
     it("it should return the details of the site given the GPS coords", function() {
-      let siteDetails = siteUtil.reverseGeoCode(
+      let responseFromReverseGeoCode = siteUtil.reverseGeoCode(
         stubValue.latitude,
         stubValue.longitude
       );
+      let siteDetails = {};
+      if (responseFromReverseGeoCode.success == true) {
+        siteDetails = responseFromReverseGeoCode.address;
+      }
       expect(siteDetails.county).to.be.a("string");
       expect(siteDetail.county).to.not.be.empty;
       expect(siteDetails.country).to.be.a("string");
@@ -349,7 +362,7 @@ describe("create Site utils", function() {
   });
 
   describe("generate the lat_long field", function() {
-    it("it should return the lat_long string of the device", function() {
+    it("it should return the lat_long unique string of the specific site", function() {
       let latLong = siteUtil.generateLatLong(
         stubValue.latitude,
         stubValue.longitude
