@@ -216,6 +216,35 @@ deviceSchema.statics = {
         as: "site",
       })
       .sort({ createdAt: -1 })
+      .project({
+        id: 1,
+        name: 1,
+        latitude: 1,
+        longitude: 1,
+        createdAt: 1,
+        owner: 1,
+        device_manufacturer: 1,
+        product_name: 1,
+        ISP: 1,
+        phoneNumber: 1,
+        visibility: 1,
+        description: 1,
+        isPrimaryInLocation: 1,
+        isUsedForCollocation: 1,
+        nextMaintenance: 1,
+        channelID: 1,
+        powerType: 1,
+        mountType: 1,
+        locationID: 1,
+        isActive: 1,
+        writeKey: 1,
+        readKey: 1,
+        pictures: 1,
+        siteName: 1,
+        locationName: 1,
+        height: 1,
+        site: { $arrayElemAt: ["$site", 0] },
+      })
       .skip(_skip)
       .limit(_limit)
       .allowDiskUse(true);
