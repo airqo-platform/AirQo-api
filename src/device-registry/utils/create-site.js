@@ -137,16 +137,17 @@ const createSiteUtils = {
         "site",
         SiteSchema
       ).list({ skip, limit, filter });
-      if (siteDetails) {
+      if (siteDetails.length) {
         return {
           success: true,
-          message: "successfully listed the site details",
+          message: "successfully listed the site(s)",
           siteDetails,
         };
       } else {
         return {
-          success: false,
-          message: "unable to retrieve site details",
+          success: true,
+          message: "Site(s) not available",
+          siteDetails,
         };
       }
     } catch (e) {
