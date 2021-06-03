@@ -30,6 +30,12 @@ const CandidateSchema = new mongoose.Schema({
   jobTitle: { type: String, required: [true, "jobTitle is required"] },
   category: { type: String, required: [true, "category is required"] },
   website: { type: String, required: [true, "website is required"] },
+  isDenied: {
+    type: Boolean,
+  },
+  status: {
+    type: String,
+  },
 });
 
 CandidateSchema.methods = {
