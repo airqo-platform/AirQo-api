@@ -54,52 +54,59 @@ const getGpsCoordinates = async (locationName, tenant) => {
   }
 };
 
-
-const carryOutActivity = async (res, tenant, deviceName, deviceBody, activityBody, options) => {
+const carryOutActivity = async (
+  res,
+  tenant,
+  deviceName,
+  deviceBody,
+  activityBody,
+  options
+) => {
   const deviceFilter = { name: deviceName };
   return getModelByTenant(
-      tenant.toLowerCase(),
-      "device",
-      DeviceSchema
+    tenant.toLowerCase(),
+    "device",
+    DeviceSchema
   ).findOneAndUpdate(
-      deviceFilter,
-      deviceBody,
-      {new: true},
-       async (error, updatedDevice) => {
-          if (error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: (options && options.errorMsg) || "Operation failed",
-              error,
-              success: false,
-            });
-          }
+    deviceFilter,
+    deviceBody,
+    { new: true },
+    async (error, updatedDevice) => {
+      if (error) {
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          message: (options && options.errorMsg) || "Operation failed",
+          error,
+          success: false,
+        });
+      }
 
-          if (updatedDevice) {
-            //then log the operation
-            let createdActivity = {}
-            await getModelByTenant(
-              tenant.toLowerCase(),
-              "activity",
-              SiteActivitySchema
-            ).createLocationActivity(activityBody)
-            .then(log => createdActivity = log);
+      if (updatedDevice) {
+        //then log the operation
+        let createdActivity = {};
+        await getModelByTenant(
+          tenant.toLowerCase(),
+          "activity",
+          SiteActivitySchema
+        )
+          .createLocationActivity(activityBody)
+          .then((log) => (createdActivity = log));
 
-            return res.status(HTTPStatus.OK).json({
-                message: (options && options.successMsg) || "Operation successfully carried out",
-                createdActivity,
-                updatedDevice,
-                success: true,
-              });
-          }
-          return res.status(HTTPStatus.NOT_FOUND).json({
-            message: `device does not exist, please first create the device`,
-            success: false,
-          });
-
-        }
+        return res.status(HTTPStatus.OK).json({
+          message:
+            (options && options.successMsg) ||
+            "Operation successfully carried out",
+          createdActivity,
+          updatedDevice,
+          success: true,
+        });
+      }
+      return res.status(HTTPStatus.NOT_FOUND).json({
+        message: `device does not exist, please first create the device`,
+        success: false,
+      });
+    }
   );
-
-}
+};
 
 const doesLocationExist = async (locationName, tenant) => {
   let location = await getModelByTenant(
@@ -138,13 +145,14 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       isPrimaryInLocation,
       isUsedForCollocation,
       maintenanceType,
+      site_id,
     } = req.body;
 
     if (type === "deploy") {
       /****** deploy bodies ******/
       siteActivityBody = {
         device: deviceName || req.query.deviceName,
-        date: date && new Date(date) || new Date(),
+        date: (date && new Date(date)) || new Date(),
         description: "device deployed",
         activityType: "deployment",
       };
@@ -159,6 +167,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         isActive: true,
         latitude: latitude,
         longitude: longitude,
+        site_id: site_id,
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
@@ -181,6 +190,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         longitude: "",
         latitude: "",
         isActive: false,
+        site_id: "",
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
@@ -191,7 +201,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       siteActivityBody = {
         site: siteName,
         device: deviceName || req.query.deviceName,
-        date: date && new Date(date) || new Date(),
+        date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
