@@ -75,5 +75,6 @@ router.get(
   authJWT,
   candidateController.getAllCandidates
 );
+router.post("/confirm/new/candidate", candidateController.confirmCandidate);
 
 module.exports = router;
