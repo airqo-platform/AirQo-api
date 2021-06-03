@@ -86,6 +86,9 @@ const deviceSchema = new mongoose.Schema(
       name: String,
       phone: Number,
     },
+    site_id: {
+      type: String,
+    },
     isPrimaryInLocation: {
       type: Boolean,
     },
@@ -174,6 +177,7 @@ deviceSchema.methods = {
       readKey: this.readKey,
       pictures: this.pictures,
       siteName: this.siteName,
+      site_id: this.site_id,
       locationName: this.locationName,
       height: this.height,
     };
@@ -194,6 +198,7 @@ deviceSchema.methods = {
       updatedAt: this.updatedAt,
       siteName: this.siteName,
       locationName: this.locationName,
+      site_id: this.site_id,
     };
   },
 };
