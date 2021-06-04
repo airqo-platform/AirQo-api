@@ -11,7 +11,8 @@
         "dev-pc": "set NODE_ENV=development&&nodemon ./bin/www",
         "stage-pc": "set NODE_ENV=staging&&nodemon ./bin/www",
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin/www",
-        "create-env": "printenv > .env"
+        "create-env": "printenv > .env",
+        "test": "mocha ./**/test/ut_*.js"
     },
     "dependencies": {
         "@google-cloud/datastore": "^5.1.0",
@@ -50,6 +51,10 @@
         "xoauth2": "^1.2.0"
     },
     "devDependencies": {
-        "nodemon": "^1.19.3"
+        "chai": "^4.3.4",
+        "chai-http": "^4.3.0",
+        "faker": "^5.5.3",
+        "nodemon": "^1.19.3",
+        "sinon": "^11.1.1"
     }
 }
