@@ -12,7 +12,7 @@ const SiteModel = require("../../models/Site");
 const siteUtil = require("../create-site");
 
 const stubValue = {
-  _id: faker.random.uuid(),
+  _id: faker.datatype.uuid(),
   tenant: "test",
   name: faker.name.findName(),
   generated_name: faker.address.secondaryAddress(),
@@ -30,12 +30,12 @@ const stubValue = {
   region: faker.address.country(),
   district: faker.address.state(),
   city: faker.address.city(),
-  road_intensity: faker.random.float(),
-  distance_to_nearest_motor_way: faker.random.float(),
-  distance_to_nearest_residential_area: faker.random.float(),
-  distance_to_nearest_city: faker.random.float(),
-  distance_to_nearest_road: faker.random.float(),
-  lat_long: `${faker.random.number()}_${faker.random.number()}`,
+  road_intensity: faker.datatype.float(),
+  distance_to_nearest_motor_way: faker.datatype.float(),
+  distance_to_nearest_residential_area: faker.datatype.float(),
+  distance_to_nearest_city: faker.datatype.float(),
+  distance_to_nearest_road: faker.datatype.float(),
+  lat_long: `${faker.datatype.float()}_${faker.datatype.float()}`,
 };
 
 describe("create Site utils", function() {

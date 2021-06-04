@@ -1,3 +1,5 @@
+process.env.NODE_ENV = "development";
+
 const chai = require("chai");
 const chaiHttp = require("chai-http");
 const should = chai.should();
@@ -12,10 +14,11 @@ const siteController = require("../manage-site");
 const siteUtil = require("../../utils/create-site");
 
 const stubValue = {
-  _id: faker.random.uuid(),
+  _id: faker.datatype.uuid(),
   tenant: "airqo",
   name: faker.name.findName(),
-  generated_name: faker.internet.siteName(),
+  generated_name: faker.address.secondaryAddress(),
+  lat_long: `${faker.datatype.float()}_${faker.datatype.float()}`,
   formatted_name: faker.address.streetAddress(),
   latitude: faker.address.latitude(),
   longitude: faker.address.longitude(),
@@ -29,11 +32,11 @@ const stubValue = {
   village: faker.address.county(),
   region: faker.address.country(),
   district: faker.address.state(),
-  road_intensity: faker.random.float(),
-  distance_to_nearest_motor_way: faker.random.float(),
-  distance_to_nearest_residential_area: faker.random.float(),
-  distance_to_nearest_city: faker.random.float(),
-  distance_to_nearest_road: faker.random.float(),
+  road_intensity: faker.datatype.float(),
+  distance_to_nearest_motor_way: faker.datatype.float(),
+  distance_to_nearest_residential_area: faker.datatype.float(),
+  distance_to_nearest_city: faker.datatype.float(),
+  distance_to_nearest_road: faker.datatype.float(),
 };
 
 describe("site controller", function() {
@@ -84,7 +87,7 @@ describe("site controller", function() {
         },
       };
       const stubValue = {
-        id: faker.random.uuid(),
+        _id: faker.datatype.uuid(),
         name: faker.name.findName(),
         longitude: faker.address.longitude(),
         latitude: faker.address.latitude(),
@@ -107,13 +110,13 @@ describe("getSite", function() {
   let res;
   let siteUtil;
   beforeEach(() => {
-    req = { params: { id: faker.random.uuid() } };
+    req = { params: { _id: faker.datatype.uuid() } };
     res = { json: function() {} };
     const SiteModel = sinon.spy();
   });
   it("should retrieve a Site that matches the provided ID", async function() {
     const stubValue = {
-      id: faker.random.uuid(),
+      _id: faker.datatype.uuid(),
       name: faker.name.findName(),
       longitude: faker.address.longitude(),
       latitude: faker.address.latitude(),

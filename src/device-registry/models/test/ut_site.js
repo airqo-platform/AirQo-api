@@ -1,4 +1,5 @@
-"use-strict";
+process.env.NODE_ENV = "development";
+
 const chai = require("chai");
 const chaiHttp = require("chai-http");
 const should = chai.should();
@@ -12,11 +13,11 @@ const SiteSchema = require("../Site");
 const { getModelByTenant } = require("../../utils/multitenancy");
 
 const stubValue = {
-  _id: faker.random.uuid(),
+  _id: faker.datatype.uuid(),
   tenant: "airqo",
   name: faker.name.findName(),
-  generated_name: faker.internet.name(),
-  lat_long: faker.internet.name(),
+  generated_name: faker.address.secondaryAddress(),
+  lat_long: `${faker.datatype.number()}_${faker.datatype.number()}`,
   formatted_name: faker.address.streetAddress(),
   city: faker.address.city(),
   street: faker.address.streetName(),
@@ -33,11 +34,11 @@ const stubValue = {
   village: faker.address.county(),
   region: faker.address.country(),
   district: faker.address.state(),
-  road_intensity: faker.random.float(),
-  distance_to_nearest_motor_way: faker.random.float(),
-  distance_to_nearest_residential_area: faker.random.float(),
-  distance_to_nearest_city: faker.random.float(),
-  distance_to_nearest_road: faker.random.float(),
+  road_intensity: faker.datatype.float(),
+  distance_to_nearest_motor_way: faker.datatype.float(),
+  distance_to_nearest_residential_area: faker.datatype.float(),
+  distance_to_nearest_city: faker.datatype.float(),
+  distance_to_nearest_road: faker.datatype.float(),
 };
 
 describe("the Site Model", function() {
