@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const joinController = require("../controllers/join");
-const candidateController = require("../controllers/candidate");
+const requestController = require("../controllers/request");
 const validate = require("express-validation");
 const userValidation = require("../utils/validations");
 const {
@@ -68,13 +68,13 @@ router.get("/defaults/", setJWTAuth, authJWT, joinController.getDefaults);
 
 //************************ candidates ***********************************************
 //could this be the one where we just load people with inactive status?
-router.post("/register/new/candidate", candidateController.registerCandidate);
+router.post("/register/new/candidate", requestController.registerCandidate);
 router.get(
   "/candidates/fetch",
   setJWTAuth,
   authJWT,
-  candidateController.getAllCandidates
+  requestController.getAllCandidates
 );
-router.post("/confirm/new/candidate", candidateController.confirmCandidate);
+router.post("/confirm/new/candidate", requestController.confirmCandidate);
 
 module.exports = router;
