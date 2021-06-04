@@ -38,6 +38,14 @@ const CandidateSchema = new mongoose.Schema({
   },
 });
 
+CandidateSchema.statics = {
+  createCandidate(args) {
+    return this.create({
+      ...args,
+    });
+  },
+};
+
 CandidateSchema.methods = {
   toJSON() {
     return {
