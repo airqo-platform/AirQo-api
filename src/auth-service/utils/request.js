@@ -1,7 +1,7 @@
 const { logElement } = require("./log");
 
 const request = {
-  create: (
+  create: async (
     tenant,
     firstName,
     lastName,
@@ -18,21 +18,21 @@ const request = {
     }
   },
 
-  list: (tenant, filter, options) => {
+  list: async (tenant, filter, options) => {
     try {
     } catch (e) {
       logElement("server error", e.message);
     }
   },
 
-  update: (tenant, filter, options) => {
+  update: async (tenant, filter, options) => {
     try {
     } catch (e) {
       logElement("server error", e.message);
     }
   },
 
-  confirm: (tenant, filter, options) => {
+  confirm: async (tenant, email, password, options) => {
     try {
     } catch (e) {
       logElement("server error", e.message);
@@ -46,7 +46,7 @@ const request = {
     }
   },
 
-  delete: () => {
+  delete: async () => {
     try {
     } catch (e) {
       logElement("server error", e.message);
