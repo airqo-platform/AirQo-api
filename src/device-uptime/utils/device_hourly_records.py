@@ -112,5 +112,4 @@ class DeviceChannelRecords:
             uptime = percent_100
 
         downtime = percent_100 - uptime
-        print("device uptime downtime", self.device_name, uptime, downtime)
         return uptime, downtime
