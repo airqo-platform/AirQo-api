@@ -52,7 +52,13 @@ class DeviceChannelRecords:
 
     def get_sensor_readings(self):
         if not self.records:
-            raise Exception(f"Device {self.device_name} has no records")
+            print(f"Device {self.device_name} has no records")
+            return DeviceSensorReadings(
+                time=[datetime.now()],
+                sensor_one_pm2_5=[],
+                sensor_two_pm2_5=[],
+                battery_voltage=[]
+            )
 
         self.df['time'] = pd.to_datetime(self.df['time'])
         time_indexed_data = self.df.set_index('time')
@@ -69,10 +75,13 @@ class DeviceChannelRecords:
             time=time,
             sensor_one_pm2_5=sensor_one_pm2_5,
             sensor_two_pm2_5=sensor_two_pm2_5,
-            battery_voltage=battery_voltage
+            battery_voltage=battery_voltage,
         )
 
     def get_record_count(self):
+
+        if not self.records:
+            return 0
 
         time_indexed_data = self.df.set_index('time')
 
@@ -103,5 +112,5 @@ class DeviceChannelRecords:
             uptime = percent_100
 
         downtime = percent_100 - uptime
-
+        print("device uptime downtime", self.device_name, uptime, downtime)
         return uptime, downtime
