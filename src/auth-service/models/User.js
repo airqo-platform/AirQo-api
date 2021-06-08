@@ -135,10 +135,22 @@ UserSchema.pre("findByIdAndUpdate", function (next) {
 });
 
 UserSchema.statics = {
-  createUser(args) {
-    return this.create({
-      ...args,
-    });
+  register(args) {
+    try {
+      return {
+        success: true,
+        message: "successfully created the user",
+        data: this.create({
+          ...args,
+        }),
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "server error",
+        error: error.message,
+      };
+    }
   },
 };
 
