@@ -27,7 +27,7 @@ const stubValue = {
   profilePicture: faker.image.imageUrl(),
 };
 
-describe("create User utils", function () {
+describe("join util", function () {
   describe("create", function () {
     it("should create a new user", async function () {
       const stub = sinon
@@ -127,6 +127,27 @@ describe("create User utils", function () {
     });
 
     it("should return true if the user name if not shorter than 4 characters", function () {
+      let isValid = joinUtil.validateUserName("134141341");
+      assert.equal(isValid, true, "the user name is longer than 4 characters");
+    });
+  });
+
+  describe("forgot password", function () {
+    it("it should send request to a valid email address", function () {
+      let responseFromForgotPassword = joinUtil.forgotPassword(tenant, email);
+      assert.equal(isValid, true, "the user Name has no spaces");
+    });
+
+    it("should create a password reset token", function () {
+      let isValid = joinUtil.validateUserName("qewr245245wegew");
+      assert.equal(
+        isValid,
+        true,
+        "the user Name is not longer than 15 characters"
+      );
+    });
+
+    it("should proceed with operations if", function () {
       let isValid = joinUtil.validateUserName("134141341");
       assert.equal(isValid, true, "the user name is longer than 4 characters");
     });

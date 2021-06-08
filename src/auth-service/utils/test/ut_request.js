@@ -8,9 +8,19 @@ const assert = chai.assert;
 const faker = require("faker");
 const sinon = require("sinon");
 chai.use(chaiHttp);
-const CandidateModel = require("../../models/Candidate");
-const UserModel = require("../../models/User");
+const UserSchema = require("../../models/User");
+const DefaultsSchema = require("../../models/Defaults");
 const requestUtil = require("../request");
+const { getModelByTenant } = require("../multitenancy");
+const { logObject, logElement, logText } = require("../log");
+
+const UserModel = (tenant) => {
+  return getModelByTenant(tenant, "user", UserSchema);
+};
+
+const CandidateModel = (tenant) => {
+  return getModelByTenant(tenant, "candidate", DefaultsSchema);
+};
 
 const stubValue = {
   _id: faker.datatype.uuid(),
@@ -26,11 +36,12 @@ const stubValue = {
   createdAt: faker.date.past(),
   updatedAt: faker.date.past(),
   password: faker.internet.password(),
+  mailOptions: faker.random.objectElement(),
 };
 
-describe("create Candidate utils", function () {
+describe("request util", function () {
   describe("create", function () {
-    it("should create a new candidate", async function () {
+    it("should create a new candidate when the email is new", async function () {
       const stub = sinon
         .stub(CandidateModel(stubValue.tenant), "create")
         .returns(stubValue);
@@ -44,21 +55,58 @@ describe("create Candidate utils", function () {
         stubValue.jobTitle,
         stubValue.website,
         stubValue.description,
+        stubValue.category,
+        stubValue.mailOptions
+      );
+
+      expect(stub.calledOnce).to.be.true;
+      expect(candidate).to.be.a("object");
+      assert.equal(candidate.success, false, "the candidate has been created");
+
+      // expect(candidate._id).to.equal(stubValue._id);
+      // expect(candidate.firstName).to.equal(stubValue.firstName);
+      // expect(candidate.lastName).to.equal(stubValue.lastName);
+      // expect(candidate.email).to.equal(stubValue.email);
+      // expect(candidate.organization).to.equal(stubValue.organization);
+      // expect(candidate.jobTitle).to.equal(stubValue.jobTitle);
+      // expect(candidate.website).to.equal(stubValue.website);
+      // expect(candidate.description).to.equal(stubValue.description);
+      // expect(candidate.category).to.equal(stubValue.category);
+      // expect(candidate.createdAt).to.equal(stubValue.createdAt);
+      // expect(candidate.updatedAt).to.equal(stubValue.updatedAt);
+    });
+
+    it("should not accept two different requests from the same email address", async function () {
+      const candidate = await requestUtil.create(
+        stubValue.tenant,
+        stubValue.firstName,
+        stubValue.lastName,
+        stubValue.email,
+        stubValue.organization,
+        stubValue.jobTitle,
+        stubValue.website,
+        stubValue.description,
         stubValue.category
       );
 
       expect(stub.calledOnce).to.be.true;
-      expect(candidate._id).to.equal(stubValue._id);
-      expect(candidate.firstName).to.equal(stubValue.firstName);
-      expect(candidate.lastName).to.equal(stubValue.lastName);
-      expect(candidate.email).to.equal(stubValue.email);
-      expect(candidate.organization).to.equal(stubValue.organization);
-      expect(candidate.jobTitle).to.equal(stubValue.jobTitle);
-      expect(candidate.website).to.equal(stubValue.website);
-      expect(candidate.description).to.equal(stubValue.description);
-      expect(candidate.category).to.equal(stubValue.category);
-      expect(candidate.createdAt).to.equal(stubValue.createdAt);
-      expect(candidate.updatedAt).to.equal(stubValue.updatedAt);
+      expect(candidate).to.be.a("object");
+      assert.equal(
+        candidate.success,
+        false,
+        "the candidate has not been created"
+      );
+      // expect(candidate._id).to.equal(stubValue._id);
+      // expect(candidate.firstName).to.equal(stubValue.firstName);
+      // expect(candidate.lastName).to.equal(stubValue.lastName);
+      // expect(candidate.email).to.equal(stubValue.email);
+      // expect(candidate.organization).to.equal(stubValue.organization);
+      // expect(candidate.jobTitle).to.equal(stubValue.jobTitle);
+      // expect(candidate.website).to.equal(stubValue.website);
+      // expect(candidate.description).to.equal(stubValue.description);
+      // expect(candidate.category).to.equal(stubValue.category);
+      // expect(candidate.createdAt).to.equal(stubValue.createdAt);
+      // expect(candidate.updatedAt).to.equal(stubValue.updatedAt);
     });
   });
 

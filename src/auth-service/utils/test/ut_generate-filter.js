@@ -19,7 +19,7 @@ const stubValue = {
   updatedAt: faker.date.past(),
 };
 
-describe("generate filter utils", function () {
+describe("generate-filter util", function () {
   describe("filter candidates", function () {
     it("should filter candidates", async function () {
       const stub = sinon
