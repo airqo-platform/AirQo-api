@@ -1,0 +1,25 @@
+{
+    "namespace": "net.airqo.models",
+    "type": "record",
+    "name": "Kcca Raw Device Measurements",
+    "fields": [
+        {
+            "name": "_id", "type": "string"
+        },
+        {
+            "name": "time", "type": "string"
+        },
+        {
+            "name": "device", "type": "string"
+        },
+        {
+            "name": "deviceCode", "type": "string"
+        },
+        {
+            "name": "location", "type": "string"
+        },
+        {
+            "name": "characteristics", "type": "string"
+        }
+    ]
+}

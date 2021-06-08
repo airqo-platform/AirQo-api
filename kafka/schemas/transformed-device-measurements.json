@@ -1,0 +1,40 @@
+{
+    "namespace": "net.airqo.models",
+    "type": "record",
+    "name": "Transformed Device Measurements",
+    "fields": [
+        {
+            "name": "frequency", "type": "string"
+        },
+        {
+            "name": "time", "type": "string"
+        },
+        {
+            "name": "device", "type": "string"
+        },
+        {
+            "name": "tenant", "type": "string"
+        },
+        {
+            "name": "location", "type": "string"
+        },
+        {
+            "name": "internalTemperature", "type": "string"
+        },
+        {
+            "name": "internalHumidity", "type": "string"
+        },
+        {
+            "name": "pm10", "type": "string"
+        },
+        {
+            "name": "pm2_5", "type": "string"
+        },
+        {
+            "name": "no2", "type": "string"
+        },
+        {
+            "name": "pm1", "type": "string"
+        }
+    ]
+}
