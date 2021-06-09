@@ -8,36 +8,11 @@ import net.airqo.models.TransformedMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.reflect.Type;
-import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.*;
-import java.util.function.UnaryOperator;
 
 public class Utils {
-
-    private static class CalibratedBody {
-        String datetime;
-        HashMap<String, Object> raw_values;
-
-        public String getDatetime() {
-            return datetime;
-        }
-
-        public void setDatetime(String datetime) {
-            this.datetime = datetime;
-        }
-
-        public HashMap<String, Object> getRaw_values() {
-            return raw_values;
-        }
-
-        public void setRaw_values(HashMap<String, Object> raw_values) {
-            this.raw_values = raw_values;
-        }
-    }
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
@@ -55,7 +30,8 @@ public class Utils {
             case "KCCA":
                 return transformKccaMeasurements(rawMeasurements);
             case "AIRQO":
-                return transformAirQoMeasurements(rawMeasurements);
+                List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements);
+                return addAirQoCalibratedValues(transformedMeasurements);
             default:
                 return new ArrayList<>();
         }
@@ -173,66 +149,46 @@ public class Utils {
 
             transformedMeasurement.setInternalTemperature(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
             }});
 
             transformedMeasurement.setInternalHumidity(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
             }});
 
             transformedMeasurement.setPm2_5(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getPm25()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getPm25()));
-
             }});
 
             transformedMeasurement.setPm10(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getPm10()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getPm10()));
-
             }});
 
             transformedMeasurement.setS2_pm2_5(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getS2Pm25()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getS2Pm25()));
-
             }});
 
             transformedMeasurement.setS2_pm10(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getS2Pm10()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getS2Pm10()));
-
             }});
 
             transformedMeasurement.setAltitude(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getAltitude()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getAltitude()));
-
             }});
 
             transformedMeasurement.setSpeed(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getSpeed()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getSpeed()));
-
             }});
 
             transformedMeasurement.setBattery(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getBattery()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getBattery()));
-
             }});
 
             transformedMeasurement.setSatellites(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getSatellites()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getSatellites()));
-
             }});
 
             transformedMeasurement.setHdop(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getHdop()));
-                put("calibratedValue", Utils.stringToDouble(rawMeasurement.getHdop()));
-
             }});
 
 
@@ -246,45 +202,33 @@ public class Utils {
         return transformedMeasurements;
     }
 
-    public static CalibratedBody getCalibratedValue(TransformedMeasurement transformedMeasurement) throws IOException {
+    public static List<TransformedMeasurement> addAirQoCalibratedValues(List<TransformedMeasurement> measurements) {
 
-        CalibratedBody body = new CalibratedBody(){{
-            setDatetime(transformedMeasurement.getTime());
-            setRaw_values(new HashMap<String, Object>(){{
-                put("device_id", transformedMeasurement.getDevice());
-                put("pm2.5", transformedMeasurement.getPm2_5());
-                put("pm10", transformedMeasurement.getPm10());
-                put("temperature", transformedMeasurement.getInternalTemperature());
-                put("humidity", transformedMeasurement.getInternalHumidity());
-            }});
-        }};
+        List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
-        Properties props = loadPropertiesFile(null);
+        measurements.forEach(measurement -> {
 
-        if(!props.containsKey("calibrate.url"))
-            throw new IOException("calibrate.url is missing in application.properties file");
+            HashMap<String, Object>  pm25 = measurement.getPm2_5();
+//            if(pm25.containsKey("calibratedValue"))
+//                pm25.remove("calibratedValue");
 
-        String urlString = props.getProperty("calibrate.url");
+            try {
+                Object calibratedValue = Calibrate.getCalibratedValue(measurement);
+                logger.error((String) calibratedValue);
+                pm25.put("calibratedValue", calibratedValue);
 
-        URL url = new URL(urlString);
+            } catch (IOException e) {
+                logger.error("Calibration Error : {}", e.toString());
+                pm25.put("calibratedValue", "null");
+            }
 
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Accept", "application/json");
+            measurement.setPm2_5(pm25);
 
-        conn.connect();
+            transformedMeasurements.add(measurement);
 
-        int responseCode = conn.getResponseCode();
+        });
 
-        if(responseCode == 200){
-
-            logger.info("connection successful");
-
-        }
-
-        conn.disconnect();
-
-        return body;
+        return transformedMeasurements;
     }
 
     public static Properties loadPropertiesFile(String propertiesFile){
@@ -304,26 +248,24 @@ public class Utils {
         return props;
     }
 
+    public static List<Calibrate.CalibrateResponse> stringToObjectList(String s){
 
-//    public static List<T> stringToObjectList(String s, T t){
-//
-//        Type listType = new TypeToken<List<t>>() {}.getType();
-//
-//        return new Gson().fromJson(s, listType);
-//
-//    }
+        Type listType = new TypeToken<List<Calibrate.CalibrateResponse>>() {}.getType();
+
+        return new Gson().fromJson(s, listType);
+
+    }
 
     public static Object stringToDouble(String s){
 
-        double aDouble = 0.0;
+        double aDouble;
 
         try {
             aDouble = Double.parseDouble(s);
+            return aDouble;
         }
         catch (NumberFormatException ignored){
             return "null";
         }
-
-        return aDouble;
     }
 }
