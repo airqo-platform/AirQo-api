@@ -88,16 +88,24 @@ public class Calibrate {
         }
     }
 
-    public static Object getCalibratedValue(TransformedMeasurement transformedMeasurement) throws IOException {
+    public static Object getCalibratedValue(TransformedMeasurement transformedMeasurement, String propertiesUrlFile) throws IOException {
+
+        if(transformedMeasurement == null)
+            throw new IOException("Invalid Measurements");
+
+        if(propertiesUrlFile == null || propertiesUrlFile.equals(""))
+            propertiesUrlFile = "application.properties";
 
         List<CalibrateResponse> calibrateResponseList = new ArrayList<>();
 
         CalibratedBody body = new CalibratedBody(transformedMeasurement);
 
-        Properties props = Utils.loadPropertiesFile(null);
+
+
+        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
 
         if(!props.containsKey("calibrate.url"))
-            throw new IOException("calibrate.url is missing in application.properties file");
+            throw new IOException("calibrate.url is missing in " + propertiesUrlFile + " file");
 
         String urlString = props.getProperty("calibrate.url");
 

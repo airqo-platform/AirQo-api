@@ -213,8 +213,7 @@ public class Utils {
 //                pm25.remove("calibratedValue");
 
             try {
-                Object calibratedValue = Calibrate.getCalibratedValue(measurement);
-                logger.error((String) calibratedValue);
+                Object calibratedValue = Calibrate.getCalibratedValue(measurement, null);
                 pm25.put("calibratedValue", calibratedValue);
 
             } catch (IOException e) {
@@ -241,8 +240,8 @@ public class Utils {
         try (InputStream input = Utils.class.getClassLoader().getResourceAsStream(propertiesFile)) {
             props.load(input);
         }
-        catch (IOException ex){
-            System.err.println(ex.getMessage());
+        catch (Exception ex){
+            logger.error("Error loading properties file `{}` : {}", propertiesFile, ex.toString());
         }
 
         return props;

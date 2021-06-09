@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Properties;
 
 import static org.junit.Assert.*;
 
@@ -155,6 +156,30 @@ public class UtilsTest {
 
     }
 
+    @Test
+    public void testLoadPropertiesFile(){
+
+        Properties properties = Utils.loadPropertiesFile("invalid.file.properties");
+        assertNotNull(properties);
+
+        properties = Utils.loadPropertiesFile("test.application.properties");
+        assertNotNull(properties.getProperty("properties.test.value"));
+
+        properties = Utils.loadPropertiesFile(null);
+        assertNotNull(properties);
+
+    }
+
+    @Test
+    public void testStringToDouble(){
+
+        Object object = Utils.stringToDouble("invalid double");
+        assertEquals(object, "null");
+
+        object = Utils.stringToDouble("0.0");
+        assertEquals(object, 0.0);
+
+    }
 
     public static List<RawKccaMeasurement> composeKccaInputData(){
         List<RawKccaMeasurement> rawMeasurementsArrayList = new ArrayList<>();
