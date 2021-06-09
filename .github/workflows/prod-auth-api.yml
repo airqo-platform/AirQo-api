@@ -67,5 +67,5 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:latest
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/stage-auth-api.yaml
+          kubectl apply -f k8s/prod-auth-api.yaml
           kubectl rollout restart deployment/airqo-auth-api -n production
