@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-public class RawKccaMeasurements implements Serializable {
+public class RawKccaMeasurement implements Serializable {
 
     private String _id;
     private String time;

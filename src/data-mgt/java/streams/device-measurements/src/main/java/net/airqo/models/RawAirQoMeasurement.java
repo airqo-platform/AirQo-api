@@ -5,7 +5,7 @@ import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
 
-public class RawAirQoMeasurements implements Serializable {
+public class RawAirQoMeasurement implements Serializable {
 
 
     @SerializedName("created_at")

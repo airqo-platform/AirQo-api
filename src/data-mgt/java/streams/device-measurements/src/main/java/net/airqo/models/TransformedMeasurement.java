@@ -2,7 +2,7 @@ package net.airqo.models;
 
 import java.util.HashMap;
 
-public class TransformedMeasurements  {
+public class TransformedMeasurement {
 
     private String frequency;
     private int channelID;

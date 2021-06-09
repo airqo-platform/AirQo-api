@@ -1,16 +1,11 @@
 package net.airqo;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 
-import net.airqo.models.RawAirQoMeasurements;
-import net.airqo.models.RawKccaMeasurements;
-import net.airqo.models.TransformedMeasurements;
-import net.airqo.serdes.ArrayListSerde;
-import net.airqo.serdes.CustomSerdes;
+import net.airqo.models.RawAirQoMeasurement;
+import net.airqo.models.RawKccaMeasurement;
+import net.airqo.models.TransformedMeasurement;
 
-import org.apache.kafka.common.serialization.StringDeserializer;
-import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.kafka.streams.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -29,9 +24,9 @@ public class DeviceMeasurementsTest {
 
     private TopologyTestDriver testDriver;
     private TestInputTopic<String, String> inputTopic;
-    private TestOutputTopic<String, List<TransformedMeasurements>> outputTopic;
-    List<RawAirQoMeasurements> airqoMeasurementsArrayList = new ArrayList<>();
-    List<RawKccaMeasurements> kccaMeasurementsArrayList = new ArrayList<>();
+    private TestOutputTopic<String, List<TransformedMeasurement>> outputTopic;
+    List<RawAirQoMeasurement> airqoMeasurementsArrayList = new ArrayList<>();
+    List<RawKccaMeasurement> kccaMeasurementsArrayList = new ArrayList<>();
 
 //    @After
     public void tearDown() {
@@ -59,13 +54,28 @@ public class DeviceMeasurementsTest {
     }
 
     @Test
+    public void testTransformMeasurements(){
+
+        String measurementsString = new Gson().toJson(airqoMeasurementsArrayList);
+        List<TransformedMeasurement> transformedMeasurements = Utils.transformMeasurements(measurementsString, "airqo");
+        assertFalse(transformedMeasurements.isEmpty());
+
+        measurementsString = new Gson().toJson(kccaMeasurementsArrayList);
+        transformedMeasurements = Utils.transformMeasurements(measurementsString, "kcca");
+        assertFalse(transformedMeasurements.isEmpty());
+
+        transformedMeasurements = Utils.transformMeasurements(measurementsString, "invalid tenant");
+        assertTrue(transformedMeasurements.isEmpty());
+    }
+
+    @Test
     public void testTransformAirQoMeasurements(){
 
         String measurementsString = new Gson().toJson(airqoMeasurementsArrayList);
 
-        RawAirQoMeasurements rawMeasurements = airqoMeasurementsArrayList.get(0);
+        RawAirQoMeasurement rawMeasurements = airqoMeasurementsArrayList.get(0);
 
-        List<TransformedMeasurements> transformedMeasurements = DeviceMeasurements.transformAirQoMeasurements(measurementsString);
+        List<TransformedMeasurement> transformedMeasurements = Utils.transformAirQoMeasurements(measurementsString);
 
         assertEquals(transformedMeasurements.get(0).getTime(), rawMeasurements.getTime());
         assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), "raw");
@@ -98,9 +108,9 @@ public class DeviceMeasurementsTest {
     public void testTransformKccaMeasurements(){
 
         String measurementsString = new Gson().toJson(kccaMeasurementsArrayList);
-        RawKccaMeasurements rawMeasurements = kccaMeasurementsArrayList.get(0);
+        RawKccaMeasurement rawMeasurements = kccaMeasurementsArrayList.get(0);
 
-        List<TransformedMeasurements> transformedMeasurements = DeviceMeasurements.transformKccaMeasurements(measurementsString);
+        List<TransformedMeasurement> transformedMeasurements = Utils.transformKccaMeasurements(measurementsString);
 
         assertEquals(transformedMeasurements.get(0).getTime(), rawMeasurements.getTime());
         assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), "hourly");
@@ -133,13 +143,13 @@ public class DeviceMeasurementsTest {
 //    @Test
     public void testEmptiness() {
 
-        List<RawKccaMeasurements> rawMeasurements = composeKccaInputData();
+        List<RawKccaMeasurement> rawMeasurements = composeKccaInputData();
         Gson gson = new Gson();
         String string = gson.toJson(rawMeasurements);
 
         inputTopic.pipeInput("id", string);
 
-        List<TransformedMeasurements> transformedMeasurements = outputTopic.readValue();
+        List<TransformedMeasurement> transformedMeasurements = outputTopic.readValue();
 
         assertFalse(transformedMeasurements.isEmpty());
     }
@@ -147,9 +157,9 @@ public class DeviceMeasurementsTest {
 //    @Test
     public void testValues() {
 
-        List<RawKccaMeasurements> rawMeasurements = composeKccaInputData();
+        List<RawKccaMeasurement> rawMeasurements = composeKccaInputData();
         inputTopic.pipeInput("id", rawMeasurements.toString());
-        List<TransformedMeasurements> transformedMeasurements = outputTopic.readValue();
+        List<TransformedMeasurement> transformedMeasurements = outputTopic.readValue();
 
         assertThat(transformedMeasurements.get(0).getDevice(), equalTo(rawMeasurements.get(0).getDeviceCode()));
         assertThat(transformedMeasurements.get(0).getTime(), equalTo(rawMeasurements.get(0).getTime()));
@@ -198,9 +208,9 @@ public class DeviceMeasurementsTest {
     }
 
 
-    private List<RawKccaMeasurements> composeKccaInputData(){
-        List<RawKccaMeasurements> rawMeasurementsArrayList = new ArrayList<>();
-        RawKccaMeasurements rawMeasurements = new RawKccaMeasurements();
+    private List<RawKccaMeasurement> composeKccaInputData(){
+        List<RawKccaMeasurement> rawMeasurementsArrayList = new ArrayList<>();
+        RawKccaMeasurement rawMeasurements = new RawKccaMeasurement();
 
 //        JsonArray jsonArray = new JsonArray();
 //        jsonArray.add(0.1);
@@ -261,9 +271,9 @@ public class DeviceMeasurementsTest {
         return rawMeasurementsArrayList;
     }
 
-    private List<RawAirQoMeasurements> composeAirQoInputData(){
-        List<RawAirQoMeasurements> rawMeasurementsArrayList = new ArrayList<>();
-        RawAirQoMeasurements rawMeasurements = new RawAirQoMeasurements();
+    private List<RawAirQoMeasurement> composeAirQoInputData(){
+        List<RawAirQoMeasurement> rawMeasurementsArrayList = new ArrayList<>();
+        RawAirQoMeasurement rawMeasurements = new RawAirQoMeasurement();
 
         rawMeasurements.setDevice("device");
         rawMeasurements.setChannelId("123493");
