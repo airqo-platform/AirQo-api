@@ -1,46 +1,79 @@
-const { boolean } = require("joi");
 const {
-  generateDateFormat,
-  generateDateFormatWithoutHrs,
   monthsBehind,
   monthsInfront,
-  removeMonthsFromProvidedDate,
-  addMonthsToProvidedDate,
+  removeMonthsFromProvideDateTime,
+  addMonthsToProvideDateTime,
+  isTimeEmpty,
+  generateDateFormatWithoutHrs,
 } = require("./date");
 
-const { logObject, logElement, logText } = require("./log");
+const { logElement } = require("./log");
 
-const generateEventsFilter = (
-  queryStartTime,
-  queryEndTime,
-  device,
-  frequency
-) => {
+const generateEventsFilter = (device, frequency, startTime, endTime) => {
   let oneMonthBack = monthsBehind(1);
   let oneMonthInfront = monthsInfront(1);
-  let defaultStartTime = generateDateFormatWithoutHrs(oneMonthBack);
-  let defaultEndTime = generateDateFormatWithoutHrs(oneMonthInfront);
-  logElement("defaultStartTime", defaultStartTime);
-  logElement("defaultEndTime", defaultEndTime);
+  logElement("defaultStartTime", oneMonthBack);
+  logElement(" defaultEndTime", oneMonthInfront);
 
   let filter = {
-    day: { $gte: defaultStartTime, $lte: defaultEndTime },
+    day: {
+      $gte: generateDateFormatWithoutHrs(oneMonthBack),
+      $lte: generateDateFormatWithoutHrs(oneMonthInfront),
+    },
+    "values.time": { $gte: oneMonthBack, $lte: oneMonthInfront },
   };
 
-  if (queryStartTime && !queryEndTime) {
-    filter["day"]["$lte"] = addMonthsToProvidedDate(queryStartTime, 1);
+  if (startTime) {
+    if (isTimeEmpty(startTime) == false) {
+      let start = new Date(startTime);
+      filter["values.time"]["$gte"] = start;
+    } else {
+      delete filter["values.time"];
+    }
+    filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
   }
 
-  if (queryStartTime) {
-    filter["day"]["$gte"] = queryStartTime;
+  if (endTime) {
+    if (isTimeEmpty(endTime) == false) {
+      let end = new Date(endTime);
+      filter["values.time"]["$lte"] = end;
+    } else {
+      delete filter["values.time"];
+    }
+    filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
   }
 
-  if (queryEndTime) {
-    filter["day"]["$lte"] = queryEndTime;
+  if (startTime && !endTime) {
+    if (isTimeEmpty(startTime) == false) {
+      filter["values.time"]["$lte"] = addMonthsToProvideDateTime(startTime, 1);
+    } else {
+      delete filter["values.time"];
+    }
+    let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+      startTime,
+      1
+    );
+    filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+      addedOneMonthToProvidedDateTime
+    );
   }
 
-  if (!queryStartTime && queryEndTime) {
-    filter["day"]["$gte"] = removeMonthsFromProvidedDate(queryEndTime, 1);
+  if (!startTime && endTime) {
+    if (isTimeEmpty(endTime) == false) {
+      filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(
+        endTime,
+        1
+      );
+    } else {
+      delete filter["values.time"];
+    }
+    let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+      endTime,
+      1
+    );
+    filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+      removedOneMonthFromProvidedDateTime
+    );
   }
 
   if (device) {
