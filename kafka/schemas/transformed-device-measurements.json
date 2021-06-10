@@ -1,40 +1,109 @@
 {
     "namespace": "net.airqo.models",
     "type": "record",
-    "name": "Transformed Device Measurements",
+    "name": "TransformedDeviceMeasurements",
     "fields": [
+
         {
-            "name": "frequency", "type": "string"
-        },
-        {
-            "name": "time", "type": "string"
-        },
-        {
-            "name": "device", "type": "string"
-        },
-        {
-            "name": "tenant", "type": "string"
-        },
-        {
-            "name": "location", "type": "string"
-        },
-        {
-            "name": "internalTemperature", "type": "string"
-        },
-        {
-            "name": "internalHumidity", "type": "string"
-        },
-        {
-            "name": "pm10", "type": "string"
-        },
-        {
-            "name": "pm2_5", "type": "string"
-        },
-        {
-            "name": "no2", "type": "string"
-        },
-        {
-            "name": "pm1", "type": "string"
+            "name":"measurements",
+            "type":{
+                "type": "array",  
+                "items":{
+                    "name":"Measurement",
+                    "type":"record",
+                    "fields":[
+                        {
+                            "name": "frequency", "type": "string"
+                        },
+                        {
+                            "name": "time", "type": "string"
+                        },
+                        {
+                            "name": "device", "type": "string"
+                        },
+                        {
+                            "name": "tenant", "type": "string"
+                        },
+                        {
+                            "name": "location",
+                            "type": {
+                                "type": "record", 
+                                "name": "location",
+                                "fields": [
+                                    {"name": "latitude", "type": ["double", "null"]}, 
+                                    {"name": "longitude", "type": ["double", "null"]}
+                                ]
+                        }
+                        },
+                        {
+                            "name": "internalTemperature",
+                            "type": {
+                                "type": "record", 
+                                "name": "internalTemperature",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "internalHumidity",
+                            "type": {
+                                "type": "record", 
+                                "name": "internalHumidity",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "pm10",
+                            "type": {
+                                "type": "record", 
+                                "name": "pm10",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "pm2_5",
+                            "type": {
+                                "type": "record", 
+                                "name": "pm2_5",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "no2",
+                            "type": {
+                                "type": "record", 
+                                "name": "no2",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "pm1",
+                            "type": {
+                                "type": "record", 
+                                "name": "pm1",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
         }
     ]
 }

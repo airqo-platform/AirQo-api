@@ -1,0 +1,58 @@
+{
+    "namespace": "net.airqo.models",
+    "type": "record",
+    "name": "AirQo Raw Device Measurements",
+    "fields": [
+        {
+            "name": "device", "type": "string"
+        },
+        {
+            "name": "channelID", "type": "int"
+        },
+        {
+            "name": "frequency", "type": ["null", "string"], "default": "raw"
+        },
+        {
+            "name": "created_at", "type": "string"
+        },
+        {
+            "name": "pm2_5", "type": ["null", "double"], "default": "null"
+        },
+        {
+            "name": "pm10", "type": ["null", "double"], "default": "null"
+        },
+        {
+            "name": "s2_pm2_5", "type": ["null", "double"], "default": "null"
+        },
+        {
+            "name": "s2_pm10", "type": ["null", "double"], "default": "null"
+        },
+        {
+            "name": "latitude", "type": ["null", "double"], "default": "null"
+        },
+        {
+            "name": "longitude", "type": ["null", "double"], "default": "null"
+        },
+        {
+            "name": "battery", "type": ["null", "string"], "default": "null"
+        },
+        {
+            "name": "altitude", "type": ["null", "string"], "default": "null"
+        },
+        {
+            "name": "speed", "type": ["null", "string"], "default": "null"
+        },
+        {
+            "name": "satellites", "type": ["null", "string"], "default": "null"
+        },
+        {
+            "name": "internalHumidity", "type": ["null", "string"], "default": "null"
+        },
+        {
+            "name": "internalTemperature", "type": ["null", "string"], "default": "null"
+        },
+        {
+            "name": "altitude", "type": ["null", "string"], "default": "null"
+        }
+    ]
+}
