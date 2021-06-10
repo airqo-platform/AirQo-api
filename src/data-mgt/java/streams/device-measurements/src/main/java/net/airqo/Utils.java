@@ -2,9 +2,7 @@ package net.airqo;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import net.airqo.models.RawAirQoMeasurement;
-import net.airqo.models.RawKccaMeasurement;
-import net.airqo.models.TransformedMeasurement;
+import net.airqo.models.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -29,12 +27,65 @@ public class Utils {
         switch (tenant.trim().toUpperCase()){
             case "KCCA":
                 return transformKccaMeasurements(rawMeasurements);
+
             case "AIRQO":
                 List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements);
                 return addAirQoCalibratedValues(transformedMeasurements);
+
             default:
                 return new ArrayList<>();
         }
+    }
+
+    public static TransformedDeviceMeasurements toTransformedDeviceMeasurements(List<TransformedMeasurement> transformedMeasurements) {
+
+
+        List<Measurement> measurements = new ArrayList<>();
+
+        transformedMeasurements.forEach(transformedMeasurement -> {
+
+            Measurement measurement = Measurement.newBuilder()
+                    .setDevice(transformedMeasurement.getDevice())
+                    .setTenant(transformedMeasurement.getTenant())
+                    .setFrequency(transformedMeasurement.getFrequency())
+                    .setTime(transformedMeasurement.getTime())
+                    .setLocation(location.newBuilder()
+                            .setLatitude(objectToDouble(transformedMeasurement.getLocation().get("latitude")))
+                            .setLongitude(objectToDouble(transformedMeasurement.getLocation().get("longitude")))
+                            .build())
+                    .setPm1(pm1.newBuilder()
+                            .setValue(objectToDouble(transformedMeasurement.getPm1().get("value")))
+                            .setCalibratedValue(objectToDouble(transformedMeasurement.getPm1().get("calibratedValue")))
+                            .build())
+                    .setPm25(pm2_5.newBuilder()
+                            .setValue(objectToDouble(transformedMeasurement.getPm2_5().get("value")))
+                            .setCalibratedValue(objectToDouble(transformedMeasurement.getPm2_5().get("calibratedValue")))
+                            .build())
+                    .setPm10(pm10.newBuilder()
+                            .setValue(objectToDouble(transformedMeasurement.getPm10().get("value")))
+                            .setCalibratedValue(objectToDouble(transformedMeasurement.getPm10().get("calibratedValue")))
+                            .build())
+                    .setNo2(no2.newBuilder()
+                            .setValue(objectToDouble(transformedMeasurement.getNo2().get("value")))
+                            .setCalibratedValue(objectToDouble(transformedMeasurement.getNo2().get("calibratedValue")))
+                            .build())
+                    .setInternalHumidity(internalHumidity.newBuilder()
+                            .setValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("value")))
+                            .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("calibratedValue")))
+                            .build())
+                    .setInternalTemperature(internalTemperature.newBuilder()
+                            .setValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("value")))
+                            .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("calibratedValue")))
+                            .build())
+                    .build();
+
+            measurements.add(measurement);
+
+        });
+
+        return TransformedDeviceMeasurements.newBuilder()
+                .setMeasurements(measurements)
+                .build();
     }
 
     public static List<TransformedMeasurement> transformKccaMeasurements(String rawMeasurements) {
@@ -259,4 +310,19 @@ public class Utils {
             return "null";
         }
     }
+
+    public static double objectToDouble(Object o){
+
+        double aDouble;
+
+        try {
+            aDouble = Double.parseDouble(String.valueOf(o));
+            return aDouble;
+        }
+        catch (NumberFormatException ignored){
+            return 0.0;
+        }
+    }
+
+
 }

@@ -19,6 +19,7 @@
         <kafka.version>2.7.0</kafka.version>
         <slf4j.version>1.7.7</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
+        <io.confluent.kafka-streams-avro-serde.version>6.1.1</io.confluent.kafka-streams-avro-serde.version>
     </properties>
 
     <repositories>
@@ -32,6 +33,10 @@
             <snapshots>
                 <enabled>true</enabled>
             </snapshots>
+        </repository>
+        <repository>
+            <id>confluent</id>
+            <url>https://packages.confluent.io/maven/</url>
         </repository>
     </repositories>
 
@@ -69,6 +74,15 @@
             <version>3.3.0</version>
             <type>maven-plugin</type>
         </dependency>
+
+
+        <!-- https://mvnrepository.com/artifact/io.confluent/kafka-streams-avro-serde -->
+        <dependency>
+            <groupId>io.confluent</groupId>
+            <artifactId>kafka-streams-avro-serde</artifactId>
+            <version>${io.confluent.kafka-streams-avro-serde.version}</version>
+        </dependency>
+
 
         <!-- https://mvnrepository.com/artifact/com.google.code.gson/gson -->
         <dependency>
