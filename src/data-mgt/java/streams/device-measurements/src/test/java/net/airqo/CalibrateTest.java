@@ -1,5 +1,6 @@
 package net.airqo;
 
+import com.google.gson.Gson;
 import net.airqo.models.RawAirQoMeasurement;
 import net.airqo.models.RawKccaMeasurement;
 import net.airqo.models.TransformedMeasurement;
@@ -14,7 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 
 public class CalibrateTest {
@@ -32,7 +34,7 @@ public class CalibrateTest {
 
         logger.info("Calibrate tests started");
         transformedMeasurement = new TransformedMeasurement(){{
-            setDevice("device id");
+            setDevice("aq_01");
             setPm2_5(new HashMap<String, Object>(){{
                 put("value", 34.6);
             }});
@@ -86,4 +88,25 @@ public class CalibrateTest {
             logger.error("Calibrate error : {}", e.toString());
         }
     }
+
+    @Test
+    public void testStringToObjectList(){
+
+        Calibrate.CalibrateResponse calibrateResponse = new Calibrate.CalibrateResponse();
+        calibrateResponse.setCalibratedValue(23.0);
+        calibrateResponse.setDevice("device");
+
+        List<Calibrate.CalibrateResponse> list = new ArrayList<>();
+        list.add(calibrateResponse);
+
+        List<Calibrate.CalibrateResponse> object = Calibrate.stringToObjectList(new Gson().toJson(list));
+
+        assertFalse(object.isEmpty());
+        assertEquals(object.get(0).getCalibratedValue(), 23.0);
+        assertEquals(object.get(0).getDevice(), "device");
+
+
+    }
+
 }
+

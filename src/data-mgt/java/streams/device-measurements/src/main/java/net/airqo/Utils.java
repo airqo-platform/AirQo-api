@@ -247,14 +247,6 @@ public class Utils {
         return props;
     }
 
-    public static List<Calibrate.CalibrateResponse> stringToObjectList(String s){
-
-        Type listType = new TypeToken<List<Calibrate.CalibrateResponse>>() {}.getType();
-
-        return new Gson().fromJson(s, listType);
-
-    }
-
     public static Object stringToDouble(String s){
 
         double aDouble;
