@@ -20,6 +20,22 @@ const generateDateFormat = (ISODate) => {
   }
 };
 
+const isTimeEmpty = (dateTime) => {
+  let date = new Date(dateTime);
+  let hrs = date.getUTCHours();
+  let mins = date.getUTCMinutes();
+  let secs = date.getUTCSeconds();
+  let millisecs = date.getUTCMilliseconds();
+  logElement("hrs", hrs);
+  logElement("mins", mins);
+  logElement("secs", secs);
+  logElement("millisecs", millisecs);
+  if (hrs == 00 && mins == 00 && secs == 00 && millisecs == 00) {
+    return true;
+  }
+  return false;
+};
+
 const generateDateFormatWithoutHrs = (ISODate) => {
   try {
     let date = new Date(ISODate);
@@ -42,6 +58,7 @@ const generateDateFormatWithoutHrs = (ISODate) => {
 
 const addMonthsToProvidedDate = (date, number) => {
   try {
+    logElement("the day I am receiving", date);
     let year = date.split("-")[0];
     let month = date.split("-")[1];
     let day = date.split("-")[2];
@@ -55,12 +72,57 @@ const addMonthsToProvidedDate = (date, number) => {
 
 const removeMonthsFromProvidedDate = (date, number) => {
   try {
+    logElement("the day I am receiving", date);
     let year = date.split("-")[0];
     let month = date.split("-")[1];
     let day = date.split("-")[2];
     let newMonth = parseInt(month, 10) - number;
     let modifiedMonth = "0" + newMonth;
     return `${year}-${modifiedMonth}-${day}`;
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
+const addMonthsToProvideDateTime = (dateTime, number) => {
+  try {
+    if (isTimeEmpty(dateTime) == false) {
+      logText("the time is not empty....");
+      let newDate = new Date(dateTime);
+      let monthsInfrontOfProvidedDateTime = newDate.setMonth(
+        newDate.getMonth() + number
+      );
+      logElement(
+        " monthsInfrontOfProvidedDateTime",
+        monthsInfrontOfProvidedDateTime
+      );
+      let modifiedDate = new Date(monthsInfrontOfProvidedDateTime);
+      logElement("modifiedDate", modifiedDate);
+      return new Date(monthsInfrontOfProvidedDateTime);
+    } else {
+      logText("the time is empty now....");
+      let newDate = addMonthsToProvidedDate(dateTime, number);
+      logElement("the new date I am sending", newDate);
+      return newDate;
+    }
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
+const removeMonthsFromProvideDateTime = (dateTime, number) => {
+  try {
+    if (isTimeEmpty(dateTime) == false) {
+      let newDate = new Date(dateTime);
+      let monthsBehindProvidedDateTime = newDate.setMonth(
+        newDate.getMonth() - number
+      );
+      return new Date(monthsBehindProvidedDateTime);
+    } else {
+      let newDate = removeMonthsFromProvidedDate(dateTime, number);
+      logElement("the new date I am sending", newDate);
+      return newDate;
+    }
   } catch (e) {
     console.log("server side error: ", e.message);
   }
@@ -97,8 +159,9 @@ const monthsInfront = (number) => {
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  removeMonthsFromProvidedDate,
-  addMonthsToProvidedDate,
+  removeMonthsFromProvideDateTime,
+  addMonthsToProvideDateTime,
   monthsBehind,
   monthsInfront,
+  isTimeEmpty,
 };
