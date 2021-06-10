@@ -1,12 +1,11 @@
 package net.airqo;
 
 import com.google.gson.Gson;
-import net.airqo.models.RawAirQoMeasurement;
-import net.airqo.models.RawKccaMeasurement;
 import net.airqo.models.TransformedMeasurement;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,8 +14,9 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import static org.junit.Assert.*;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
 public class CalibrateTest {
@@ -55,7 +55,7 @@ public class CalibrateTest {
 
         try {
             Object object = Calibrate.getCalibratedValue(transformedMeasurement, "");
-            assertNotNull(object);
+            Assertions.assertNotNull(object);
 
         } catch (IOException e) {
             logger.error("Calibrate error : {}", e.toString());
@@ -63,30 +63,19 @@ public class CalibrateTest {
 
         try {
             Object object = Calibrate.getCalibratedValue(transformedMeasurement, "invalid.file.properties");
-            assertNotNull(object);
+            Assertions.assertNotNull(object);
 
         } catch (IOException e) {
             logger.error("Calibrate error : {}", e.toString());
         }
 
-        try {
+        assertThrows(IOException.class, () -> {
+            Calibrate.getCalibratedValue(transformedMeasurement, "test.empty.properties");
+        });
 
-            Object object = Calibrate.getCalibratedValue(transformedMeasurement, "test.empty.properties");
-            assertNotNull(object);
-
-
-        } catch (IOException e) {
-            logger.error("Calibrate error : {}", e.toString());
-        }
-
-        try {
-
-            Object object = Calibrate.getCalibratedValue(null, null);
-            assertNotNull(object);
-
-        } catch (IOException e) {
-            logger.error("Calibrate error : {}", e.toString());
-        }
+        assertThrows(IOException.class, () -> {
+            Calibrate.getCalibratedValue(null, null);
+        });
     }
 
     @Test

@@ -1,9 +1,8 @@
 package net.airqo;
 
 import com.google.gson.Gson;
-import net.airqo.models.RawAirQoMeasurement;
-import net.airqo.models.RawKccaMeasurement;
-import net.airqo.models.TransformedMeasurement;
+import net.airqo.models.*;
+import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -20,6 +19,7 @@ public class UtilsTest {
 
     List<RawAirQoMeasurement> airqoMeasurementsArrayList = new ArrayList<>();
     List<RawKccaMeasurement> kccaMeasurementsArrayList = new ArrayList<>();
+    List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
     @After
     public void tearDown() {
@@ -32,6 +32,8 @@ public class UtilsTest {
         logger.info("Utils tests started");
         airqoMeasurementsArrayList = composeAirQoInputData();
         kccaMeasurementsArrayList = composeKccaInputData();
+        transformedMeasurements = composeTransformedMeasurements();
+        
     }
 
     @Test
@@ -49,6 +51,43 @@ public class UtilsTest {
         assertTrue(transformedMeasurements.isEmpty());
     }
 
+    @Test
+    public void testToTransformedDeviceMeasurements(){
+
+        TransformedDeviceMeasurements deviceMeasurements = Utils.toTransformedDeviceMeasurements(transformedMeasurements);
+        assertFalse(deviceMeasurements.getMeasurements().isEmpty());
+        
+        Measurement measurement = deviceMeasurements.getMeasurements().get(0);
+        TransformedMeasurement transformedMeasurement = transformedMeasurements.get(0);
+        
+        assertEquals(measurement.getDevice(), transformedMeasurement.getDevice());
+        assertEquals(measurement.getFrequency(), transformedMeasurement.getFrequency());
+        assertEquals(measurement.getTime(), transformedMeasurement.getTime());
+        assertEquals(measurement.getTenant(), transformedMeasurement.getTenant());
+
+        assertEquals(measurement.getLocation().getLatitude(), transformedMeasurement.getLocation().get("latitude").get("value"));
+        assertEquals(measurement.getLocation().getLongitude(), transformedMeasurement.getLocation().get("longitude").get("value"));
+
+        assertEquals(measurement.getInternalTemperature().getValue(), transformedMeasurement.getInternalTemperature().get("value"));
+        assertEquals(measurement.getInternalTemperature().getCalibratedValue(), transformedMeasurement.getInternalTemperature().get("calibratedValue"));
+
+        assertEquals(measurement.getInternalHumidity().getValue(), transformedMeasurement.getInternalHumidity().get("value"));
+        assertEquals(measurement.getInternalHumidity().getCalibratedValue(), transformedMeasurement.getInternalHumidity().get("calibratedValue"));
+        
+        assertEquals(measurement.getPm10().getValue(), transformedMeasurement.getPm10().get("value"));
+        assertEquals(measurement.getPm10().getCalibratedValue(), transformedMeasurement.getPm10().get("calibratedValue"));
+
+        assertEquals(measurement.getPm25().getValue(), transformedMeasurement.getPm2_5().get("value"));
+        assertEquals(measurement.getPm25().getCalibratedValue(), transformedMeasurement.getPm2_5().get("calibratedValue"));
+
+        assertEquals(measurement.getNo2().getValue(), transformedMeasurement.getNo2().get("value"));
+        assertEquals(measurement.getNo2().getCalibratedValue(), transformedMeasurement.getNo2().get("calibratedValue"));
+
+        assertEquals(measurement.getPm1().getValue(), transformedMeasurement.getPm1().get("value"));
+        assertEquals(measurement.getPm1().getCalibratedValue(), transformedMeasurement.getPm1().get("calibratedValue"));
+
+    }
+    
     @Test
     public void testTransformAirQoMeasurements(){
 
@@ -178,6 +217,100 @@ public class UtilsTest {
 
     }
 
+    @Test
+    public void testObjectToDouble(){
+
+        double aDouble = Utils.objectToDouble("90.0");
+        assertThat(aDouble, CoreMatchers.equalTo(90.0));
+        
+        aDouble = Utils.objectToDouble("invalid double");
+        assertThat(aDouble, CoreMatchers.equalTo(0.0));
+    }
+
+
+    public static List<TransformedMeasurement> composeTransformedMeasurements(){
+        List<TransformedMeasurement> transformedMeasurementArrayList = new ArrayList<>();
+       
+        TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
+        
+        transformedMeasurement.setDevice("device");
+        transformedMeasurement.setFrequency("daily");
+        transformedMeasurement.setChannelID(1);
+        transformedMeasurement.setTenant("airqo");
+        transformedMeasurement.setTime("2020-01-01T00:00:00Z");
+        transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
+            put("latitude", new HashMap<String, Object>(){{
+                put("value", 0.2);
+            }});
+            put("longitude", new HashMap<String, Object>(){{
+                put("value", 0.4);
+            }});
+        }});
+        transformedMeasurement.setInternalTemperature(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setAltitude(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setInternalHumidity(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setBattery(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setSpeed(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setSatellites(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setHdop(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setPm10(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setPm2_5(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setS2_pm2_5(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setS2_pm10(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setNo2(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+        transformedMeasurement.setPm1(new HashMap<String, Object>(){{
+            put("value", 0.2);
+            put("calibratedValue", 0.4);
+        }});
+
+        transformedMeasurementArrayList.add(transformedMeasurement);
+
+
+        TransformedMeasurement transformedMeasurementNull = new TransformedMeasurement();
+        transformedMeasurementNull.setInternalHumidity(new HashMap<>());
+        transformedMeasurementNull.setPm1(new HashMap<>());
+
+        transformedMeasurementArrayList.add(transformedMeasurementNull);
+
+        return transformedMeasurementArrayList;
+    }
+    
     public static List<RawKccaMeasurement> composeKccaInputData(){
         List<RawKccaMeasurement> rawMeasurementsArrayList = new ArrayList<>();
         RawKccaMeasurement rawMeasurements = new RawKccaMeasurement();

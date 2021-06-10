@@ -3,6 +3,7 @@ package net.airqo;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.airqo.models.*;
+import org.apache.avro.AvroRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -44,42 +45,49 @@ public class Utils {
 
         transformedMeasurements.forEach(transformedMeasurement -> {
 
-            Measurement measurement = Measurement.newBuilder()
-                    .setDevice(transformedMeasurement.getDevice())
-                    .setTenant(transformedMeasurement.getTenant())
-                    .setFrequency(transformedMeasurement.getFrequency())
-                    .setTime(transformedMeasurement.getTime())
-                    .setLocation(location.newBuilder()
-                            .setLatitude(objectToDouble(transformedMeasurement.getLocation().get("latitude")))
-                            .setLongitude(objectToDouble(transformedMeasurement.getLocation().get("longitude")))
-                            .build())
-                    .setPm1(pm1.newBuilder()
-                            .setValue(objectToDouble(transformedMeasurement.getPm1().get("value")))
-                            .setCalibratedValue(objectToDouble(transformedMeasurement.getPm1().get("calibratedValue")))
-                            .build())
-                    .setPm25(pm2_5.newBuilder()
-                            .setValue(objectToDouble(transformedMeasurement.getPm2_5().get("value")))
-                            .setCalibratedValue(objectToDouble(transformedMeasurement.getPm2_5().get("calibratedValue")))
-                            .build())
-                    .setPm10(pm10.newBuilder()
-                            .setValue(objectToDouble(transformedMeasurement.getPm10().get("value")))
-                            .setCalibratedValue(objectToDouble(transformedMeasurement.getPm10().get("calibratedValue")))
-                            .build())
-                    .setNo2(no2.newBuilder()
-                            .setValue(objectToDouble(transformedMeasurement.getNo2().get("value")))
-                            .setCalibratedValue(objectToDouble(transformedMeasurement.getNo2().get("calibratedValue")))
-                            .build())
-                    .setInternalHumidity(internalHumidity.newBuilder()
-                            .setValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("value")))
-                            .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("calibratedValue")))
-                            .build())
-                    .setInternalTemperature(internalTemperature.newBuilder()
-                            .setValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("value")))
-                            .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("calibratedValue")))
-                            .build())
-                    .build();
+            Measurement measurement;
+            try {
+                measurement = Measurement.newBuilder()
+                        .setDevice(transformedMeasurement.getDevice())
+                        .setTenant(transformedMeasurement.getTenant())
+                        .setFrequency(transformedMeasurement.getFrequency())
+                        .setTime(transformedMeasurement.getTime())
+                        .setLocation(location.newBuilder()
+                                .setLatitude(objectToDouble(transformedMeasurement.getLocation().get("latitude").get("value")))
+                                .setLongitude(objectToDouble(transformedMeasurement.getLocation().get("longitude").get("value")))
+                                .build())
+                        .setPm1(pm1.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getPm1().get("value")))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm1().get("calibratedValue")))
+                                .build())
+                        .setPm25(pm2_5.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getPm2_5().get("value")))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm2_5().get("calibratedValue")))
+                                .build())
+                        .setPm10(pm10.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getPm10().get("value")))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm10().get("calibratedValue")))
+                                .build())
+                        .setNo2(no2.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getNo2().get("value")))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getNo2().get("calibratedValue")))
+                                .build())
+                        .setInternalHumidity(internalHumidity.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("value")))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("calibratedValue")))
+                                .build())
+                        .setInternalTemperature(internalTemperature.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("value")))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("calibratedValue")))
+                                .build())
+                        .build();
 
-            measurements.add(measurement);
+                measurements.add(measurement);
+
+            }
+            catch (Exception e) {
+                e.printStackTrace();
+            }
 
         });
 
@@ -241,7 +249,6 @@ public class Utils {
             transformedMeasurement.setHdop(new HashMap<String, Object>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getHdop()));
             }});
-
 
             transformedMeasurements.add(transformedMeasurement);
 

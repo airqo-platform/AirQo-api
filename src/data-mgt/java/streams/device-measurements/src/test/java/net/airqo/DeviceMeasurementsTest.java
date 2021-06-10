@@ -80,5 +80,5 @@ public class DeviceMeasurementsTest {
         System.out.println(SCHEMA_REGISTRY_SCOPE);
         logger.info(SCHEMA_REGISTRY_SCOPE);
     }
-    
+
 }
