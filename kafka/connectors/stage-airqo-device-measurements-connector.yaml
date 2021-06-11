@@ -1,0 +1,19 @@
+apiVersion: kafka.strimzi.io/v1alpha1
+kind: KafkaConnector
+metadata:
+  name: airqo-source-connector
+  namespace: staging
+  labels:
+    strimzi.io/cluster: airqo-source-connector-cluster
+spec:
+  class: net.airqo.connectors.AirqoSourceConnector
+  tasksMax: 2
+  config:
+    topic: airqo-raw-device-measurements-topic
+    feedsBaseUrl: http://34.78.78.202:31001/api/v1/
+    airqoBaseUrl: http://staging-platform.airqo.net/api/v1/
+    pollInterval: 30000 # 30 seconds
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
