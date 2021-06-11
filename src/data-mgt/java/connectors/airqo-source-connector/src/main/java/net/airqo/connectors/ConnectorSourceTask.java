@@ -92,6 +92,8 @@ public class ConnectorSourceTask extends SourceTask {
 
             });
 
+            logger.info("\n\n ====> Records Sent : {}\n\n", records);
+
             return records.isEmpty() ? new ArrayList<>() : records;
 
         }
@@ -119,12 +121,14 @@ public class ConnectorSourceTask extends SourceTask {
 
     private List<AirqoDevice> getDevices(){
 
-        logger.info("\n********** Fetching Devices **************\n");
+        logger.info("\n\n********** Fetching Devices **************\n");
 
         List<AirqoDevice> devices = new ArrayList<>();
         try {
 
             String urlString = apiUrl + "devices?tenant=airqo";
+            logger.info("\n ====> Url : {}\n", apiUrl);
+
             java.net.URL url = new URL(urlString);
 
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -162,13 +166,14 @@ public class ConnectorSourceTask extends SourceTask {
             e.printStackTrace();
         }
 
-        logger.info("\nDevices : {}\n", devices);
+        logger.info("\n ====> Devices : {}\n", devices);
         return devices;
     }
 
     private String getMeasurements(String stringUrl){
 
-        logger.info("\n**************** Fetching Measurements *************\n");
+        logger.info("\n\n**************** Fetching Measurements *************\n");
+        logger.info("\n ====> Url : {}\n", stringUrl);
 
         StringBuilder sb = new StringBuilder();
 
@@ -202,6 +207,7 @@ public class ConnectorSourceTask extends SourceTask {
         catch (IOException e) {
             e.printStackTrace();
         }
+        logger.info("\n ====> Measurements : {}\n", sb);
 
         return sb.toString();
     }
