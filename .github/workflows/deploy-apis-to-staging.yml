@@ -1,4 +1,4 @@
-name: deploy-to-staging
+name: deploy-apis-to-staging
 
 on:
   #push:
