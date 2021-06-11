@@ -31,29 +31,45 @@ jobs:
           
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
-
-          echo "::set-output name=run_auth_service::false"
-          echo "::set-output name=run_device_registry::false"
-          echo "::set-output name=run_device_monitoring::false"
-          echo "::set-output name=run_data_mgt::false"
-
+          
           while IFS= read -r file
           do
             echo $file
-            if [[ $file == src/auth-service/* ]]; then
+            if [[ $file != src/auth-service/* ]]; then
+              echo "::set-output name=run_auth_service::false"
+            else
               echo "::set-output name=run_auth_service::true"
+              break
             fi
+          done < files.txt
 
-            if [[ $file == src/device-registry/* ]]; then
+          while IFS= read -r file
+          do
+            if [[ $file != src/device-registry/* ]]; then
+              echo "::set-output name=run_device_registry::false"
+            else
               echo "::set-output name=run_device_registry::true"
+              break
             fi
+          done < files.txt
 
-            if [[ $file == src/device-monitoring/* ]]; then
+          while IFS= read -r file
+          do
+            if [[ $file != src/device-monitoring/* ]]; then
+              echo "::set-output name=run_device_monitoring::false"
+            else
               echo "::set-output name=run_device_monitoring::true"
+              break
             fi
+          done < files.txt
 
-            if [[ $file == src/data-mgt/node/* ]]; then
+          while IFS= read -r file
+          do
+            if [[ $file != src/data-mgt/node/* ]]; then
+              echo "::set-output name=run_data_mgt::false"
+            else
               echo "::set-output name=run_data_mgt::true"
+              break
             fi
           done < files.txt
 
