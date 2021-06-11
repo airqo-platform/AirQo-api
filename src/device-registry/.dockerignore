@@ -3,3 +3,4 @@ npm-debug.log
 .gcloudignore
 Jenkins
 app.yaml
+.gitignore
