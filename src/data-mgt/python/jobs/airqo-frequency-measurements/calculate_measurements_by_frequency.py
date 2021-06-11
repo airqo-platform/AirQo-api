@@ -6,7 +6,9 @@ import pandas as pd
 import requests
 from datetime import datetime
 
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
+from data import flatten_json, measurements_to_json
+
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 FREQUENCY = os.getenv("FREQUENCY", "hourly")
 START_TIME = os.getenv("START_TIME", datetime.strftime(datetime.now(), '%Y-%m-%d'))
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
@@ -39,7 +41,8 @@ def transform_data():
     measurements_with_frequency = compute_frequency(measurements, FREQUENCY)
 
     if measurements_with_frequency:
-        add_to_events_collection(measurements_with_frequency)
+        print(measurements_with_frequency)
+        # add_to_events_collection(measurements_with_frequency)
 
 
 def get_measurements(start_time, device_registry_url):
@@ -87,17 +90,9 @@ def compute_frequency(measurements_data, frequency):
 
         for index, row in group.iterrows():
 
-            measurement = dict({
-                's2_pm2_5': check_null(row.get('s2_pm2_5').get('value')),
-                's2_pm10': check_null(row.get('s2_pm10').get('value')),
-                'time': row.get('time'),
-                'pm2_5': check_null(row.get('pm2_5').get('value')),
-                'pm10': check_null(row.get('pm10').get('value')),
-                'internalTemperature': check_null(row.get('internalTemperature').get('value')),
-                'internalHumidity': check_null(row.get('internalHumidity').get('value')),
-                'hdop': check_null(row.get('hdop').get('value')),
-                'speed': check_null(row.get('speed').get('value'))
-            })
+            json_body = row.to_dict()
+            measurement = flatten_json(json_body)
+            measurement['time'] = row.get('time')
 
             measurements.append(measurement)
 
@@ -108,22 +103,14 @@ def compute_frequency(measurements_data, frequency):
         measurements = measurements.set_index('time').resample(get_frequency_value(frequency)).mean().round(2)
 
         for index, row in measurements.iterrows():
- 
-            data = dict({
-                "device": device,
-                "channelID": channel_id,
-                "frequency": frequency,
-                "time": datetime.strftime(index, '%Y-%m-%dT%H:%M:%SZ'),
-                "pm2_5": {"value": row["pm2_5"]},
-                "pm10": {"value": row["pm10"]},
-                "s2_pm2_5": {"value": row["s2_pm2_5"]},
-                "s2_pm10": {"value": row["s2_pm10"]},
-                "location": location,
-                "speed": {"value": row["speed"]},
-                "hdop": {"value": row["hdop"]},
-                "internalTemperature": {"value": row["internalTemperature"]},
-                "internalHumidity": {"value": row["internalHumidity"]},
-            })
+
+            json_body = row.to_dict()
+            data = measurements_to_json(json_body)
+            data['device'] = device
+            data['channelID'] = channel_id
+            data['frequency'] = frequency
+            data['location'] = location
+            data['time'] = datetime.strftime(index, '%Y-%m-%dT%H:%M:%SZ')
 
             measurements_with_frequency.append(data)
 
@@ -143,7 +130,6 @@ def add_to_events_collection(measurements):
         for name, group in groups:
 
             device = group.iloc[0]['device']
-
             data = group.to_dict()
 
             try:
