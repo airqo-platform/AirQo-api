@@ -1,13 +1,13 @@
 name: deploy-to-staging
 
 on:
-  push:
-  #pull_request:
-    branches: ft-deploy-apis
-    #types: [closed]
+  #push:
+  pull_request:
+    branches: staging
+    types: [closed]
 jobs:
   check:
-    #if: github.event.pull_request.merged == 'true'
+    if: github.event.pull_request.merged == 'true'
     #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
@@ -119,7 +119,6 @@ jobs:
         run: |
           cd src/device-registry/
           docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest -f Dockerfile.stage.txt .
-          gcloud container images add-tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:$(date +'%Y%m%dT%H:%M:%S')
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
       - name: Deploy to K8S
         run: |
