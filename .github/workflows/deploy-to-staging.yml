@@ -61,7 +61,7 @@ jobs:
 
 
   ### auth service ###
-  build:
+  auth-service:
     name: build-push-deploy-auth
     needs: check
     if: needs.check.outputs.run_auth == 'true'
@@ -93,7 +93,7 @@ jobs:
           kubectl rollout restart deployment/airqo-stage-auth-api -n staging
 
   #### Device Registry ######
-  build:
+  device-registry:
     name: build-push-deploy-device-registry
     needs: check
     if: needs.check.outputs.run_device_registry == 'true'
@@ -125,7 +125,7 @@ jobs:
           kubectl rollout restart deployment/airqo-stage-device-registry-api -n staging
   
   ### device monitoring ###
-  build:
+  device-monitoring:
     name: build-push-deploy-device-monitoring
     needs: check
     if: needs.check.outputs.run_device_monitoring == 'true'
@@ -157,7 +157,7 @@ jobs:
           kubectl rollout restart deployment/airqo-stage-device-monitoring-api -n staging
   
   ### data-mgt ###
-  build:
+  data-mgt:
     name: build-push-deploy-data-mgt
     needs: check
     if: needs.check.outputs.run_data_mgt == 'true'
