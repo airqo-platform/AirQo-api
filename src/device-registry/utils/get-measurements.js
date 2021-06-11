@@ -28,7 +28,6 @@ const isRecentTrue = (recent) => {
   if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
     return true;
   } else if (recent.toLowerCase() == "no" && isRecentEmpty == false) {
-    logText("the value of recent is false");
     return false;
   }
 };
@@ -42,18 +41,21 @@ const getDevicesCount = async (tenant) => {
 const generateCacheID = (
   device,
   day,
-  startTime,
-  endTime,
   tenant,
   skip,
   limit,
-  recent
+  frequency,
+  recent,
+  startTime,
+  endTime
 ) => {
-  return `get_events_device_${device ? device : "noDevice"}_${day}_${
+  return `get_events_device_${device ? device : "noDevice"}_${tenant}_${
+    skip ? skip : 0
+  }_${limit ? limit : 0}_${recent ? recent : "noRecent"}_${
+    frequency ? frequency : "noFrequency"
+  }_${endTime ? endTime : "noEndTime"}_${
     startTime ? startTime : "noStartTime"
-  }_${endTime ? endTime : "noEndTime"}_${tenant}_${skip ? skip : 0}_${
-    limit ? limit : 0
-  }_${recent ? recent : "noRecent"}`;
+  }`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -77,12 +79,13 @@ const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
 const getMeasurements = async (
   res,
   recent,
-  startTime,
-  endTime,
   device,
   skip,
   limit,
-  tenant
+  frequency,
+  tenant,
+  startTime,
+  endTime
 ) => {
   try {
     const currentTime = new Date().toISOString();
@@ -90,12 +93,13 @@ const getMeasurements = async (
     let cacheID = generateCacheID(
       device,
       day,
-      startTime,
-      endTime,
       tenant,
       skip,
       limit,
-      recent
+      frequency,
+      recent,
+      startTime,
+      endTime
     );
 
     redis.get(cacheID, async (err, result) => {
@@ -106,7 +110,12 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const filter = generateEventsFilter(startTime, endTime, device);
+          const filter = generateEventsFilter(
+            device,
+            frequency,
+            startTime,
+            endTime
+          );
 
           let devicesCount = await getDevicesCount(tenant);
 

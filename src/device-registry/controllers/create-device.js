@@ -25,6 +25,8 @@ const {
 
 const updateDeviceUtil = require("../utils/update-device");
 
+const nearestDevices = require("../utils/nearest-device");
+
 const {
   tryCatchErrors,
   axiosError,
@@ -52,7 +54,7 @@ const device = {
         const deviceDetails = await getDetail(tenant, device);
         const doesDeviceExist = !isEmpty(deviceDetails);
         logElement("isDevicePresent ?", doesDeviceExist);
-        if (!doesDeviceExist) {
+        if (doesDeviceExist) {
           logText("adding device on TS...");
           let channel;
           if (tenant.toLowerCase() === "airqo") {
@@ -272,7 +274,7 @@ const device = {
       logText("list all devices by tenant...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name, chid, loc, site, map } = req.query;
+      const { tenant, name, chid, loc, site, map, primary, active } = req.query;
       if (tenant) {
         const devices = await getDetail(
           tenant,
@@ -281,6 +283,8 @@ const device = {
           loc,
           site,
           map,
+          primary,
+          active,
           limit,
           skip
         );
@@ -326,6 +330,36 @@ const device = {
             message: "missing query params, please check documentation",
           });
         }
+      } catch (e) {
+        return res.status(HTTPStatus.BAD_REQUEST).json(e);
+      }
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+
+  listAllByNearestCoordinates: async (req, res) => {
+    try {
+      const { tenant, latitude, longitude, radius } = req.query;
+
+      try {
+
+        if (!(tenant && latitude && longitude && radius)){
+          return res.status(HTTPStatus.BAD_REQUEST).json({
+            success: false,
+            message: "missing query params, please check documentation",
+          });
+        }
+
+        logElement("latitude ", latitude);
+        logElement("longitude ", longitude);
+
+        const devices = await getDetail(tenant);
+
+        const nearest_devices = nearestDevices.findNearestDevices(devices, radius, latitude, longitude);
+
+        return res.status(HTTPStatus.OK).json(nearest_devices);
+
       } catch (e) {
         return res.status(HTTPStatus.BAD_REQUEST).json(e);
       }
