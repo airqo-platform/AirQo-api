@@ -11,10 +11,10 @@ jobs:
     #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
     name: check changed microservice(s)
     outputs:
-      run_auth_service: ${{ steps.check_auth.outputs.run_auth_service }} # auth service
-      run_device_registry: ${{ steps.check_device_registry.outputs.run_device_registry }} # device registry
-      run_device_monitoring: ${{ steps.check_device_registry.outputs.run_device_monitoring }} # device monitoring
-      run_data_mgt: ${{ steps.check_device_registry.outputs.run_data_mgt }} # data mgt
+      run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
+      run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
+      run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
+      run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -32,44 +32,28 @@ jobs:
           echo "========== check paths of modified files =========="
           git diff --name-only HEAD^ HEAD > files.txt
           
+          echo "::set-output name=run_auth_service::false"
+          echo "::set-output name=run_device_registry::false"  
+          echo "::set-output name=run_device_monitoring::false" 
+          echo "::set-output name=run_data_mgt::false"
+
           while IFS= read -r file
           do
             echo $file
-            if [[ $file != src/auth-service/* ]]; then
-              echo "::set-output name=run_auth_service::false"
-            else
+            if [[ $file == src/auth-service/* ]]; then
               echo "::set-output name=run_auth_service::true"
-              break
             fi
-          done < files.txt
 
-          while IFS= read -r file
-          do
-            if [[ $file != src/device-registry/* ]]; then
-              echo "::set-output name=run_device_registry::false"
-            else
+            if [[ $file == src/device-registry/* ]]; then
               echo "::set-output name=run_device_registry::true"
-              break
             fi
-          done < files.txt
 
-          while IFS= read -r file
-          do
-            if [[ $file != src/device-monitoring/* ]]; then
-              echo "::set-output name=run_device_monitoring::false"
-            else
+            if [[ $file == src/device-monitoring/* ]]; then
               echo "::set-output name=run_device_monitoring::true"
-              break
             fi
-          done < files.txt
 
-          while IFS= read -r file
-          do
-            if [[ $file != src/data-mgt/node/* ]]; then
-              echo "::set-output name=run_data_mgt::false"
-            else
+            if [[ $file == src/data-mgt/node/* ]]; then
               echo "::set-output name=run_data_mgt::true"
-              break
             fi
           done < files.txt
 
