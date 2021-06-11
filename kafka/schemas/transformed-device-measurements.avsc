@@ -58,6 +58,28 @@
                             }
                         },
                         {
+                            "name": "externalTemperature",
+                            "type": {
+                                "type": "record", 
+                                "name": "externalTemperature",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "externalHumidity",
+                            "type": {
+                                "type": "record", 
+                                "name": "externalHumidity",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
                             "name": "pm10",
                             "type": {
                                 "type": "record", 
@@ -95,6 +117,83 @@
                             "type": {
                                 "type": "record", 
                                 "name": "pm1",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "speed",
+                            "type": {
+                                "type": "record", 
+                                "name": "speed",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "altitude",
+                            "type": {
+                                "type": "record", 
+                                "name": "altitude",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "battery",
+                            "type": {
+                                "type": "record", 
+                                "name": "battery",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "satellites",
+                            "type": {
+                                "type": "record", 
+                                "name": "satellites",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "hdop",
+                            "type": {
+                                "type": "record", 
+                                "name": "hdop",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "s2_pm10",
+                            "type": {
+                                "type": "record", 
+                                "name": "s2_pm10",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] },
+                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                ]
+                            }
+                        },
+                        {
+                            "name": "s2_pm2_5",
+                            "type": {
+                                "type": "record", 
+                                "name": "s2_pm2_5",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
                                     {"name": "calibratedValue", "type": ["null", "double"]}
