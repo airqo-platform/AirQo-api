@@ -1,6 +1,6 @@
 import unittest
 from datetime import datetime, timedelta
-from calculate_measurements_by_frequency import get_frequency_value, get_measurements, check_null, compute_frequency, \
+from calculate_measurements_by_frequency import get_frequency_value, get_measurements, compute_frequency, \
     add_to_events_collection
 
 
@@ -43,19 +43,6 @@ class MyTestCase(unittest.TestCase):
         measurements = get_measurements('Invalid date', self.url)
         self.assertIsNotNone(measurements)
         self.assertFalse(measurements)
-
-    def test_check_null(self):
-        value = check_null(None)
-        self.assertEqual(value, 0)
-
-        value = check_null('?')
-        self.assertEqual(value, '?')
-
-        value = check_null('Null')
-        self.assertEqual(value, 0)
-
-        value = check_null('null')
-        self.assertEqual(value, 0)
 
     def test_compute_frequency(self):
 

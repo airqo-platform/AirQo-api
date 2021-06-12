@@ -13,6 +13,7 @@ def get_value(measurement):
 
 
 def get_calibrated_value(measurement):
+
     if measurement is None:
         return None
 

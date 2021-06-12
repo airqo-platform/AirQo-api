@@ -7,9 +7,16 @@ import requests
 from datetime import datetime
 
 from data import flatten_json, measurements_to_json
+from kafka import Kafka
+from schema import value_schema_str
 
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 FREQUENCY = os.getenv("FREQUENCY", "hourly")
+
+BOOTSTRAP_SERVERS = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
+SCHEMA_REGISTRY_URL = os.getenv("FREQUENCY", "hourly")
+TOPIC = os.getenv("FREQUENCY", "hourly")
+
 START_TIME = os.getenv("START_TIME", datetime.strftime(datetime.now(), '%Y-%m-%d'))
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
@@ -41,8 +48,8 @@ def transform_data():
     measurements_with_frequency = compute_frequency(measurements, FREQUENCY)
 
     if measurements_with_frequency:
-        print(measurements_with_frequency)
-        # add_to_events_collection(measurements_with_frequency)
+        # print(measurements_with_frequency)
+        add_to_events_collection(measurements_with_frequency)
 
 
 def get_measurements(start_time, device_registry_url):
@@ -64,12 +71,6 @@ def get_measurements(start_time, device_registry_url):
     except Exception as ex:
         print(f"Device Url returned an error : ${str(ex)}")
         return []
-
-
-def check_null(value):
-    if value is None or str(value).strip().lower() == 'null':
-        return 0
-    return value
 
 
 def compute_frequency(measurements_data, frequency):
@@ -119,41 +120,53 @@ def compute_frequency(measurements_data, frequency):
 
 def add_to_events_collection(measurements):
     if measurements:
+        data = {
+            "measurements": measurements
+        }
+        kafka = Kafka(
+            boot_strap_servers=BOOTSTRAP_SERVERS,
+            schema_registry_url=SCHEMA_REGISTRY_URL,
+            value_schema_str=value_schema_str,
+            key_schema_str={},
+            topic=TOPIC)
+        kafka.produce("", value=data)
 
-        data = pd.DataFrame(measurements)
-
-        if 'device' not in data.columns:
-            raise Exception("device is missing")
-
-        groups = data.groupby('device')
-
-        for name, group in groups:
-
-            device = group.iloc[0]['device']
-            data = group.to_dict()
-
-            try:
-
-                json_data = json.dumps(data)
-
-                headers = {'Content-Type': 'application/json'}
-
-                base_url = f"{DEVICE_REGISTRY_URL}devices/events/add?device={device}&tenant=airqo"
-
-                results = requests.post(base_url, json_data, headers=headers, verify=False)
-
-                if results.status_code == 200:
-                    print(results.json())
-                else:
-                    print('\n')
-                    print(f"Device registry failed to insert values. Status Code : {str(results.status_code)},"
-                          f" Url : {base_url}")
-                    print(results.content)
-                    print('\n')
-
-            except Exception as ex:
-                traceback.print_exc()
-                print(f"Error Occurred while inserting measurements: {str(ex)}")
+    # if measurements:
+    #
+    #     data = pd.DataFrame(measurements)
+    #
+    #     if 'device' not in data.columns:
+    #         raise Exception("device is missing")
+    #
+    #     groups = data.groupby('device')
+    #
+    #     for name, group in groups:
+    #
+    #         device = group.iloc[0]['device']
+    #         data = group.to_dict()
+    #
+    #         try:
+    #
+    #             json_data = json.dumps(data)
+    #
+    #             headers = {'Content-Type': 'application/json'}
+    #
+    #             base_url = f"{DEVICE_REGISTRY_URL}devices/events/add?device={device}&tenant=airqo"
+    #
+    #             results = requests.post(base_url, json_data, headers=headers, verify=False)
+    #
+    #             if results.status_code == 200:
+    #                 print(results.json())
+    #             else:
+    #                 print('\n')
+    #                 print(f"Device registry failed to insert values. Status Code : {str(results.status_code)},"
+    #                       f" Url : {base_url}")
+    #                 print(results.content)
+    #                 print('\n')
+    #
+    #         except Exception as ex:
+    #             traceback.print_exc()
+    #             print(f"Error Occurred while inserting measurements: {str(ex)}")
 
 
 if __name__ == "__main__":
