@@ -7,7 +7,7 @@ https://kafka.apache.org/quickstart
 ## Start Schema Registry
 
 ```bash
-docker build -t schema-registry .
+docker build --build-arg BOOTSTRAP_SERVERS=127.0.0.1:9092 --build-arg HOST_NAME=schema-registry -t stage-airqo-schema-registry .
 docker run -d --network=host schema-registry
 ```
 
