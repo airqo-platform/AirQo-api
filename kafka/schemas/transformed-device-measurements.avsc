@@ -2,6 +2,7 @@
     "namespace": "net.airqo.models",
     "type": "record",
     "name": "TransformedDeviceMeasurements",
+    "doc": "https://github.com/airqo-platform/AirQo-api/blob/staging/src/device-registry/models/Event.js",
     "fields": [
 
         {
@@ -52,8 +53,7 @@
                                 "type": "record", 
                                 "name": "internalHumidity",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -63,8 +63,7 @@
                                 "type": "record", 
                                 "name": "externalTemperature",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -74,8 +73,17 @@
                                 "type": "record", 
                                 "name": "externalHumidity",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
+                                ]
+                            }
+                        },
+                        {
+                            "name": "externalPressure",
+                            "type": {
+                                "type": "record", 
+                                "name": "externalPressure",
+                                "fields": [
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -86,7 +94,9 @@
                                 "name": "pm10",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "calibratedValue", "type": ["null", "double"]},
+                                    {"name": "uncertaintyValue", "type": ["null", "double"] },
+                                    {"name": "standardDeviationValue", "type": ["null", "double"]}
                                 ]
                             }
                         },
@@ -97,7 +107,9 @@
                                 "name": "pm2_5",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "calibratedValue", "type": ["null", "double"]},
+                                    {"name": "uncertaintyValue", "type": ["null", "double"] },
+                                    {"name": "standardDeviationValue", "type": ["null", "double"]}
                                 ]
                             }
                         },
@@ -108,7 +120,9 @@
                                 "name": "no2",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "calibratedValue", "type": ["null", "double"]},
+                                    {"name": "uncertaintyValue", "type": ["null", "double"] },
+                                    {"name": "standardDeviationValue", "type": ["null", "double"]}
                                 ]
                             }
                         },
@@ -119,7 +133,9 @@
                                 "name": "pm1",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "calibratedValue", "type": ["null", "double"]},
+                                    {"name": "uncertaintyValue", "type": ["null", "double"] },
+                                    {"name": "standardDeviationValue", "type": ["null", "double"]}
                                 ]
                             }
                         },
@@ -129,8 +145,7 @@
                                 "type": "record", 
                                 "name": "speed",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -140,8 +155,7 @@
                                 "type": "record", 
                                 "name": "altitude",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -151,8 +165,7 @@
                                 "type": "record", 
                                 "name": "battery",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -162,8 +175,7 @@
                                 "type": "record", 
                                 "name": "satellites",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -173,8 +185,7 @@
                                 "type": "record", 
                                 "name": "hdop",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
@@ -185,7 +196,9 @@
                                 "name": "s2_pm10",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "calibratedValue", "type": ["null", "double"]},
+                                    {"name": "uncertaintyValue", "type": ["null", "double"] },
+                                    {"name": "standardDeviationValue", "type": ["null", "double"]}
                                 ]
                             }
                         },
@@ -196,7 +209,9 @@
                                 "name": "s2_pm2_5",
                                 "fields": [
                                     {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "calibratedValue", "type": ["null", "double"]},
+                                    {"name": "uncertaintyValue", "type": ["null", "double"] },
+                                    {"name": "standardDeviationValue", "type": ["null", "double"]}
                                 ]
                             }
                         }
@@ -204,5 +219,6 @@
                 }
             }
         }
+        
     ]
 }
