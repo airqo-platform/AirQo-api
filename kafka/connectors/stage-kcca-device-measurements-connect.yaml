@@ -6,7 +6,7 @@ metadata:
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: localhost:5000/stage-kcca-deivce-measurements-connect:latest
+  image: us.gcr.io/airqo-250220/stage-kcca-deivce-measurements-connect:latest
   imagePullPolicy: Always
   replicas: 1
   bootstrapServers: 192.168.49.2:32028

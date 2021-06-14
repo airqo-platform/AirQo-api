@@ -8,4 +8,4 @@ airqoBaseUrl
 feedsBaseUrl
 ```
 ### Building the docker image
-`docker build -t localhost:49155/stage-airqo-deivce-measurements-connect .`
+`docker build -t stage-airqo-deivce-measurements-connect .`
