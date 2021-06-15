@@ -1,5 +1,6 @@
 const Validator = require("validator");
 const isEmpty = require("is-empty");
+const joi = require("joi");
 
 const validation = {
   candidate: (data) => {
@@ -53,15 +54,15 @@ const validation = {
       isValid: isEmpty(errors),
     };
   },
-  forgot: (data) => {
+  forgot: (email) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions
-    data.email = !isEmpty(data.email) ? data.email : "";
+    email = !isEmpty(email) ? email : "";
 
     // Email checks
-    if (Validator.isEmpty(data.email)) {
+    if (Validator.isEmpty(email)) {
       errors.email = "Email field is required";
-    } else if (!Validator.isEmail(data.email)) {
+    } else if (!Validator.isEmail(email)) {
       errors.email = "Email is invalid";
     }
 
@@ -70,10 +71,7 @@ const validation = {
       isValid: isEmpty(errors),
     };
   },
-  passwordReg: () => {
-    let passwordReg = /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/;
-    return passwordReg;
-  },
+  passwordReg: /(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{6,}/,
   login: (data) => {
     let errors = {};
     data.userName = !isEmpty(data.userName) ? data.userName : "";
@@ -98,8 +96,6 @@ const validation = {
     data.firstName = !isEmpty(data.firstName) ? data.firstName : "";
     data.lastName = !isEmpty(data.lastName) ? data.lastName : "";
     data.email = !isEmpty(data.email) ? data.email : "";
-    data.password = !isEmpty(data.password) ? data.password : "";
-    data.password2 = !isEmpty(data.password2) ? data.password2 : "";
     data.privilege = !isEmpty(data.privilege) ? data.privilege : "";
     data.organization = !isEmpty(data.organization) ? data.organization : "";
     // Name checks
@@ -133,46 +129,27 @@ const validation = {
     } else if (!Validator.isEmail(data.email)) {
       errors.email = "Email is invalid";
     }
-    // Password checks
-    if (Validator.isEmpty(data.password)) {
-      errors.password = "Password field is required";
-    }
-    if (Validator.isEmpty(data.password2)) {
-      errors.password2 = "Confirm password field is required";
-    }
-    if (!Validator.isLength(data.password, { min: 6, max: 30 })) {
-      errors.password = "Password must be at least 6 characters";
-    }
-    if (!Validator.equals(data.password, data.password2)) {
-      errors.password2 = "Passwords must match";
-    }
+
     return {
       errors,
       isValid: isEmpty(errors),
     };
   },
-  updateKnownPassword: () => {
+  updateKnownPassword: (data) => {
     let errors = {};
-    // Convert empty fields to an empty string so we can use validator functions
     data.password = !isEmpty(data.password) ? data.password : "";
-    data.password2 = !isEmpty(data.password2) ? data.password2 : "";
-    // Email checks
+    data.old_password = !isEmpty(data.old_password) ? data.old_password : "";
 
-    // Password checks
-    if (Validator.isEmpty(data.password)) {
-      errors.password = "password field is required";
+    if (Validator.isEmpty(data.old_password)) {
+      errors.old_password = "the old password is required";
     }
-    if (Validator.isEmpty(data.password2)) {
-      errors.password2 = "Confirm password field is required";
-    }
-
     if (!Validator.isLength(data.password, { min: 6, max: 30 })) {
       errors.password = "Password must be at least 6 characters";
     }
-
-    if (!Validator.equals(data.password, data.password2)) {
-      errors.password2 = "Passwords must match";
+    if (Validator.isEmpty(data.password)) {
+      errors.password = "password field is required";
     }
+
     return {
       errors,
       isValid: isEmpty(errors),
