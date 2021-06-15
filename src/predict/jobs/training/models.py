@@ -54,7 +54,11 @@ class Events(BaseModel):
                 '$dateToString': {
                     'format': time_format, 'date': '$first', 'timezone': 'Africa/Kampala'
                 }},
-            'values': 1
+            'values': {
+                'pm2_5': 1,
+                'channelID': 1,
+                'time': 1
+            }
         }}
 
         return list(self.db.events.aggregate([query, projection]))
