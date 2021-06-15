@@ -31,9 +31,9 @@ class AbstractDataSource(metaclass=abc.ABCMeta):
         """
         return (
                 (
-                        hasattr(sub, 'get_boundary_layer_data') and callable(sub.get_boundary_layer_datal) and
+                        hasattr(sub, 'get_boundary_layer_data') and callable(sub.get_boundary_layer_data) and
                         hasattr(sub, 'get_meta_data') and callable(sub.get_meta_data) and
-                        hasattr(sub, 'get_forecast_dat') and callable(sub.get_forecast_dat) and
+                        hasattr(sub, 'get_forecast_data') and callable(sub.get_forecast_data) and
                         hasattr(sub, 'get_data') and callable(sub.get_data)
                 )
                 or NotImplemented

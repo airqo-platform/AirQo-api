@@ -1,5 +1,6 @@
 from .abstract_data_source import AbstractDataSource
 from .data_source_csv import CSVDataSource
+from .data_source_mongo import MongoDataSource
 
 
 class DataSourceMeta(type):
@@ -45,3 +46,4 @@ class DataSource(metaclass=DataSourceMeta):
     """
 
     CSV = CSVDataSource
+    MONGO = MongoDataSource
