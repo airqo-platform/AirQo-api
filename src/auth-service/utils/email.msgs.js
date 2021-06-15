@@ -14,10 +14,15 @@ module.exports = {
       "If you did not request this, please ignore this email and your password will remain unchanged.\n"
     );
   },
-  joinRequest:
-    "Your request to join the AirQo platform has been received. We shall get back to you as soon as possible. \n\n" +
-    "Please click the following link to learn more about AirQo. \n" +
-    `https://airqo.net/`,
+  joinRequest: (firstName, lastName) => {
+    return (
+      `Dear ${firstName + " " + lastName} \n\n` +
+      "Your request to join the AirQo platform has been received.\n" +
+      "We shall get back to you as soon as possible. \n\n" +
+      "Please visit our website to learn more about us. \n" +
+      `https://airqo.net/`
+    );
+  },
   welcome_kcca: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
