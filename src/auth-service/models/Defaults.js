@@ -20,9 +20,9 @@ const DefaultsSchema = new mongoose.Schema({
     type: Date,
     required: [true, "endDate is required!"],
   },
-  user: {
+  default: {
     type: ObjectId,
-    required: [true, "user is required!"],
+    required: [true, "default is required!"],
     unique: false,
   },
   chartType: {
@@ -47,7 +47,7 @@ DefaultsSchema.plugin(uniqueValidator);
 DefaultsSchema.index(
   {
     chartTitle: 1,
-    user: 1,
+    default: 1,
   },
   {
     unique: true,
@@ -62,12 +62,113 @@ DefaultsSchema.methods = {
       frequency: this.frequency,
       startDate: this.startDate,
       endDate: this.endDate,
-      user: this.user,
+      default: this.default,
       chartType: this.chartType,
       chartTitle: this.chartTitle,
       locations: this.locations,
       period: this.period,
     };
+  },
+};
+
+DefaultsSchema.statics = {
+  async register(args) {
+    try {
+      return {
+        success: true,
+        data: this.create({
+          ...args,
+        }),
+        message: "default created",
+      };
+    } catch (error) {
+      return {
+        error: error.message,
+        message: "Default model server error",
+        success: false,
+      };
+    }
+  },
+  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+    try {
+      let defaults = await this.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+      let data = jsonify(defaults);
+      return {
+        success: true,
+        data,
+        message: "successfully listed the defaults",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to list the defaults",
+        error: error.message,
+      };
+    }
+  },
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      let options = { new: true };
+      let udpatedDefault = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      let data = jsonify(udpatedDefault);
+      logObject("updatedDefault", data);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the default",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "default does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "model server error",
+        error: error.message,
+      };
+    }
+  },
+  async remove({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+      };
+      let removedDefault = await this.findOneAndRemove(filter, options).exec();
+      logElement("removedDefault", removedDefault);
+      let data = jsonify(removedDefault);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully removed the default",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "default does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "model server error",
+        error: error.message,
+      };
+    }
   },
 };
 

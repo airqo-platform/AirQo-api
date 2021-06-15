@@ -1,6 +1,9 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const jsonify = require("../utils/jsonify");
+const { logObject, logElement } = require("../utils/log");
+const isEmpty = require("is-empty");
 
 const CandidateSchema = new mongoose.Schema({
   email: {
@@ -38,6 +41,8 @@ const CandidateSchema = new mongoose.Schema({
   },
 });
 
+CandidateSchema.index({ email: 1 }, { unique: true });
+
 CandidateSchema.statics = {
   register(args) {
     try {
@@ -56,17 +61,27 @@ CandidateSchema.statics = {
       };
     }
   },
-  list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let data = this.find(filter)
+      let candidates = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit);
-      return {
-        success: true,
-        data,
-        message: "successfully listed the candidates",
-      };
+        .limit(limit)
+        .exec();
+      let data = jsonify(candidates);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "successfully listed the candidates",
+        };
+      } else {
+        return {
+          success: true,
+          message: "no candidates exist",
+          data,
+        };
+      }
     } catch (error) {
       return {
         success: false,
@@ -75,64 +90,65 @@ CandidateSchema.statics = {
       };
     }
   },
-  modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {} } = {}) {
     try {
-      options = { new: true };
-      this.findOneAndUpdate(filter, update, (error, response) => {
-        if (response) {
-          return {
-            success: true,
-            message: "the candidate details have successfully been modified",
-            data: update,
-          };
-        } else if (error) {
-          return {
-            success: false,
-            message: "unable to update the candidate",
-            error,
-          };
-        } else {
-          return {
-            success: false,
-            message: "unable to update the candidate",
-          };
-        }
-      });
+      let options = { new: true };
+      let udpatedCandidate = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      let data = jsonify(udpatedCandidate);
+      logObject("updatedCandidate", data);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the candidate",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "candidate does not exist, please crosscheck",
+        };
+      }
     } catch (error) {
       return {
         success: false,
-        message: "unable to update the candidate",
+        message: "model server error",
         error: error.message,
       };
     }
   },
-  remove({ filter = {} } = {}) {
+  async remove({ filter = {} } = {}) {
     try {
-      let options = { sort: 1 };
-      this.findOneAndRemove(filter, options, (error, response) => {
-        if (response) {
-          return {
-            success: true,
-            message: "successfully removed the candidate",
-            data: response,
-          };
-        } else if (error) {
-          return {
-            success: false,
-            message: "unable to remove the candidate",
-            error,
-          };
-        } else {
-          return {
-            success: false,
-            message: "unable to remove the candidate",
-          };
-        }
-      });
+      let options = {
+        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+      };
+      let removedCandidate = await this.findOneAndRemove(
+        filter,
+        options
+      ).exec();
+      logElement("removedCandidate", removedCandidate);
+      let data = jsonify(removedCandidate);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully removed the candidate",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "candidate does not exist, please crosscheck",
+        };
+      }
     } catch (error) {
       return {
         success: false,
-        message: "unable to remove the candidate",
+        message: "model server error",
         error: error.message,
       };
     }

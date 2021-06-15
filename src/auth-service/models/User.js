@@ -1,12 +1,16 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
-const { passwordReg } = require("../utils/validations");
 const bcrypt = require("bcrypt");
 const saltRounds = 10;
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const jsonify = require("../utils/jsonify");
+const validations = require("../utils/validations");
+const isEmpty = require("is-empty");
+const { log } = require("debug");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -58,9 +62,9 @@ const UserSchema = new Schema({
     minlength: [6, "Password is required"],
     validate: {
       validator(password) {
-        return passwordReg.test(password);
+        return validations.passwordReg.test(password);
       },
-      message: "{VALUE} is not a valid password!",
+      message: "{VALUE} is not a valid password, please check documentation!",
     },
   },
   privilege: { type: String, required: [true, "the role is required!"] },
@@ -134,20 +138,122 @@ UserSchema.pre("findByIdAndUpdate", function (next) {
   return next();
 });
 
+// UserSchema.pre("findOneAndUpdate", async function () {
+//   let that = this;
+//   let docToUpdate = await this.model.findOne(this.getQuery());
+//   let docToUpdateJSON = jsonify(docToUpdate);
+//   logObject("docToUpdateJSON", docToUpdateJSON);
+//   docToUpdate.password = that._hashPassword(docToUpdateJSON.password);
+//   return next();
+// });
+
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ userName: 1 }, { unique: true });
+
 UserSchema.statics = {
-  register(args) {
+  async register(args) {
+    logObject("the args", args);
     try {
       return {
         success: true,
-        message: "successfully created the user",
         data: this.create({
           ...args,
         }),
+        message: "user created",
       };
     } catch (error) {
       return {
+        error: error.message,
+        message: "User model server error",
         success: false,
-        message: "server error",
+      };
+    }
+  },
+  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+    try {
+      let users = await this.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+      let data = jsonify(users);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "successfully listed the users",
+        };
+      } else {
+        return {
+          success: true,
+          message: "no users exist",
+          data,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to list the users",
+        error: error.message,
+      };
+    }
+  },
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      let options = { new: true };
+      let udpatedUser = await this.findOneAndUpdate(
+        filter,
+        update,
+        options
+      ).exec();
+
+      let data = jsonify(udpatedUser);
+      logObject("updatedUser", data);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the user",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "user does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "model server error",
+        error: error.message,
+      };
+    }
+  },
+  async remove({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+      };
+      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      logElement("removedUser", removedUser);
+      let data = jsonify(removedUser);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully removed the user",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "user does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "model server error",
         error: error.message,
       };
     }
@@ -207,6 +313,7 @@ UserSchema.methods = {
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
       phoneNumber: this.phoneNumber,
+      password: this.password,
     };
   },
 };
