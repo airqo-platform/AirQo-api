@@ -1,80 +1,608 @@
+const UserSchema = require("../models/User");
+const { getModelByTenant } = require("../utils/multitenancy");
+const { logObject, logElement, logText } = require("../utils/log");
+const mailer = require("../services/mailer");
+const generatePassword = require("./generate-password");
+const jsonify = require("./jsonify");
+const bcrypt = require("bcrypt");
+const crypto = require("crypto");
+
+const UserModel = (tenant) => {
+  return getModelByTenant(tenant, "user", UserSchema);
+};
+
 const join = {
-  list: () => {
+  list: async (tenant, filter, limit, skip) => {
     try {
+      let responseFromListUser = await UserModel(tenant).list({
+        filter,
+        limit,
+        skip,
+      });
+      if (responseFromListUser.success == true) {
+        return {
+          success: true,
+          message: responseFromListUser.message,
+          data: responseFromListUser.data,
+        };
+      } else if ((responseFromListUser.success = false)) {
+        if (responseFromListUser.error) {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+            error: responseFromListUser.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("list users util", e.message);
+      return {
+        success: false,
+        message: "utils server error",
+        error: e.message,
+      };
     }
   },
-  updateUser: () => {
+  update: async (tenant, filter, update) => {
     try {
+      let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
+        {
+          filter,
+          update,
+        }
+      );
+      logObject("responseFromModifyUser", responseFromModifyUser);
+      if (responseFromModifyUser.success == true) {
+        let user = responseFromModifyUser.data;
+        let responseFromSendEmail = await mailer.update(
+          user.email,
+          user.firstName,
+          user.lastName
+        );
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        if (responseFromSendEmail.success == true) {
+          return {
+            success: true,
+            message: responseFromModifyUser.message,
+            data: responseFromModifyUser.data,
+          };
+        } else if (responseFromSendEmail.success == false) {
+          if (responseFromSendEmail.error) {
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+              error: responseFromSendEmail.error,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+            };
+          }
+        }
+      } else if (responseFromModifyUser.success == false) {
+        if (responseFromModifyUser.error) {
+          return {
+            success: false,
+            message: responseFromModifyUser.message,
+            error: responseFromModifyUser.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromModifyUser.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("update users util", e.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: e.message,
+      };
     }
   },
-  deleteUser: () => {
+  delete: async (tenant, filter) => {
     try {
+      let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
+        {
+          filter,
+        }
+      );
+      if (responseFromRemoveUser.success == true) {
+        return {
+          success: true,
+          message: responseFromRemoveUser.message,
+          data: responseFromRemoveUser.data,
+        };
+      } else if (responseFromRemoveUser.success == false) {
+        if (responseFromRemoveUser.error) {
+          return {
+            success: false,
+            message: responseFromRemoveUser.message,
+            error: responseFromRemoveUser.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromRemoveUser.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
-    }
-  },
-  createUser: () => {
-    try {
-    } catch (e) {
-      logElement("server error", e.message);
-    }
-  },
-  updateUserDefaults: () => {
-    try {
-    } catch (e) {
-      logElement("server error", e.message);
-    }
-  },
-  getUserDefaults: () => {
-    try {
-    } catch (e) {
-      logElement("server error", e.message);
+      logElement("delete users util", e.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: e.message,
+      };
     }
   },
 
-  confirmEmail: () => {
+  create: async (
+    tenant,
+    firstName,
+    lastName,
+    email,
+    organization,
+    privilege
+  ) => {
     try {
+      let response = {};
+      logText("...........create user util...................");
+      let responseFromGeneratePassword = generatePassword();
+      logObject("responseFromGeneratePassword", responseFromGeneratePassword);
+      if (responseFromGeneratePassword.success == true) {
+        let password = responseFromGeneratePassword.data;
+        let requestBody = {
+          firstName,
+          lastName,
+          email,
+          organization,
+          privilege,
+          userName: email,
+          password,
+        };
+
+        let responseFromCreateUser = await UserModel(tenant).register(
+          requestBody
+        );
+        logObject("responseFromCreateUser", responseFromCreateUser);
+        let createdUser = await responseFromCreateUser.data;
+        let jsonifyCreatedUser = jsonify(createdUser);
+
+        logObject("created user in util", jsonifyCreatedUser);
+
+        if (responseFromCreateUser.success == true) {
+          let responseFromSendEmail = await mailer.user(
+            firstName,
+            lastName,
+            email,
+            password,
+            tenant
+          );
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success == true) {
+            return {
+              success: true,
+              message: "user successfully created",
+              data: jsonifyCreatedUser,
+            };
+          } else if (responseFromSendEmail.success == false) {
+            if (responseFromSendEmail.error) {
+              return {
+                success: false,
+                message: responseFromSendEmail.message,
+                error: responseFromSendEmail.error,
+              };
+            } else {
+              return {
+                success: false,
+                message: responseFromSendEmail.message,
+              };
+            }
+          }
+        }
+
+        if (responseFromCreateUser.success == false) {
+          if (responseFromCreateUser.error) {
+            return {
+              success: false,
+              message: responseFromCreateUser.message,
+              error: responseFromCreateUser.error,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromCreateUser.message,
+            };
+          }
+        }
+      }
+
+      if (responseFromGeneratePassword.success == false) {
+        if (responseFromGeneratePassword.error) {
+          return {
+            success: false,
+            message: responseFromGeneratePassword.message,
+            error: responseFromGeneratePassword.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromGeneratePassword.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("create users util", e.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: e.message,
+      };
     }
   },
 
-  loginUser: () => {
+  confirmEmail: (tenant, filter) => {
     try {
-    } catch (e) {
-      logElement("server error", e.message);
+      let responseFromListUser = join.list({ filter });
+      if (responseFromListUser.success == true) {
+        let responseFromUpdateUser = this.update(tenant, filter, update);
+        if (responseFromUpdateUser.success == true) {
+          return {
+            success: true,
+            message: "remail successfully confirmed",
+            data: responseFromUpdateUser.data,
+          };
+        } else if (responseFromUpdateUser.success == false) {
+          if (responseFromUpdateUser.error) {
+            return {
+              success: false,
+              message: responseFromUpdateUser.message,
+              error: responseFromUpdateUser.error,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromUpdateUser.message,
+            };
+          }
+        }
+      } else if (responseFromListUser.success == false) {
+        if (responseFromListUser.error) {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+            error: responseFromListUser.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+          };
+        }
+      }
+    } catch (error) {
+      logElement("confirm email util", error.message);
+      return {
+        success: false,
+        message: "join util server error",
+        error: error.message,
+      };
     }
   },
 
-  forgotPassword: () => {
+  forgotPassword: async (tenant, filter) => {
     try {
+      let responseFromGenerateResetToken = join.generateResetToken();
+      logObject(
+        "responseFromGenerateResetToken",
+        responseFromGenerateResetToken
+      );
+      logObject("filter", filter);
+      if (responseFromGenerateResetToken.success == true) {
+        let token = responseFromGenerateResetToken.data;
+        let update = {
+          resetPasswordToken: token,
+          resetPasswordExpires: Date.now() + 3600000,
+        };
+        let responseFromUpdateUser = await join.update(tenant, filter, update);
+        logObject("responseFromUpdateUser", responseFromUpdateUser);
+        if (responseFromUpdateUser.success == true) {
+          let responseFromSendEmail = await mailer.forgot(
+            filter.email,
+            token,
+            tenant
+          );
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          if (responseFromSendEmail.success == true) {
+            return {
+              success: true,
+              message: "email successfully sent",
+              data: responseFromSendEmail.data,
+            };
+          } else if (responseFromSendEmail.success == false) {
+            if (responseFromSendEmail.error) {
+              return {
+                success: false,
+                error: responseFromSendEmail.error,
+                message: responseFromSendEmail.message,
+              };
+            } else {
+              return {
+                success: false,
+                message: responseFromSendEmail.message,
+              };
+            }
+          }
+        } else if (responseFromUpdateUser.success == false) {
+          if (responseFromUpdateUser.error) {
+            return {
+              success: false,
+              error: responseFromUpdateUser.error,
+              message: responseFromUpdateUser.message,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromUpdateUser.message,
+            };
+          }
+        }
+      } else if (responseFromGenerateResetToken.success == false) {
+        if (responseFromGenerateResetToken.error) {
+          return {
+            success: false,
+            error: responseFromGenerateResetToken.error,
+            message: responseFromGenerateResetToken.message,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromGenerateResetToken.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("forgot password util", e.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: e.message,
+      };
     }
   },
 
-  updateForgottenPassword: () => {
+  updateForgottenPassword: async (tenant, filter, update) => {
     try {
-    } catch (e) {
-      logElement("server error", e.message);
+      let responseFromCheckTokenValidity = await join.isPasswordTokenValid(
+        tenant,
+        filter
+      );
+      if (responseFromCheckTokenValidity.success == true) {
+        let modifiedUpdate = {
+          ...update,
+          resetPasswordToken: null,
+          resetPasswordExpires: null,
+        };
+        let responseFromUpdateUser = join.update(
+          tenant,
+          filter,
+          modifiedUpdate
+        );
+        if (responseFromUpdateUser.success == true) {
+          return {
+            success: true,
+            message: responseFromUpdateUser.message,
+            data: responseFromUpdateUser.data,
+          };
+        } else if (responseFromUpdateUser == false) {
+          if (responseFromUpdateUser.error) {
+            return {
+              success: false,
+              message: responseFromUpdateUser.message,
+              error: responseFromUpdateUser.error,
+            };
+          } else {
+            return {
+              success: true,
+              message: responseFromUpdateUser.message,
+            };
+          }
+        }
+      } else if (responseFromCheckTokenValidity.success == false) {
+        if (responseFromCheckTokenValidity.error) {
+          return {
+            success: false,
+            message: responseFromCheckTokenValidity.message,
+            error: responseFromCheckTokenValidity.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromCheckTokenValidity.message,
+          };
+        }
+      }
+    } catch (error) {
+      logElement("update forgotten password", error.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: error.message,
+      };
     }
   },
 
-  updateKnownPassword: () => {
+  updateKnownPassword: async (tenant, new_pwd, old_pwd, filter) => {
     try {
+      logElement("the tenant", tenant);
+      logElement("the old password", old_pwd);
+      logElement("the new password ", new_pwd);
+      logObject("the filter", filter);
+      let responseFromComparePassword = await join.comparePasswords(
+        filter,
+        tenant,
+        old_pwd
+      );
+      logObject("responseFromComparePassword", responseFromComparePassword);
+      if (responseFromComparePassword.success == true) {
+        let update = {
+          password: new_pwd,
+        };
+
+        let responseFromUpdateUser = await join.update(tenant, filter, update);
+        logObject("responseFromUpdateUser", responseFromUpdateUser);
+        if (responseFromUpdateUser.success == true) {
+          return {
+            success: true,
+            message: responseFromUpdateUser.message,
+            data: responseFromUpdateUser.data,
+          };
+        } else if (responseFromUpdateUser.success == false) {
+          if (responseFromUpdateUser.error) {
+            return {
+              success: false,
+              message: responseFromUpdateUser.message,
+              error: responseFromUpdateUser.error,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromUpdateUser.message,
+            };
+          }
+        }
+      } else if (responseFromComparePassword.success == false) {
+        if (responseFromComparePassword.error) {
+          return {
+            success: false,
+            message: responseFromComparePassword.message,
+            error: responseFromComparePassword.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromComparePassword.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("update known password", e.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: e.message,
+      };
     }
   },
 
-  verifyPasswordResetToken: (tenant, token) => {
+  comparePasswords: async (filter, tenant, old_pwd) => {
     try {
-    } catch (e) {
-      logElement("server error", e.message);
+      let responseFromListUser = await UserModel(tenant).list({
+        filter,
+      });
+      logObject("responseFromListUser", responseFromListUser);
+      if (responseFromListUser.success == true) {
+        let user = responseFromListUser.data[0];
+        logObject("the user", user);
+        logElement("the provided old password", old_pwd);
+        logElement("the actual old password", user.password);
+
+        let responseFromBcrypt = await bcrypt.compare(old_pwd, user.password);
+        logElement("responseFromBcrypt", responseFromBcrypt);
+
+        if (responseFromBcrypt == true) {
+          return {
+            success: true,
+            message: "the passwords match",
+          };
+        } else if (responseFromBcrypt == false) {
+          return {
+            message: "please crosscheck your old password",
+            success: false,
+          };
+        }
+      } else if (responseFromListUser.success == false) {
+        if (responseFromListUser.error) {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+            error: responseFromListUser.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+          };
+        }
+      }
+    } catch (error) {
+      logElement("compare passwords util", error.message);
+      return {
+        success: false,
+        message: "utils server error",
+        error: error.message,
+      };
+    }
+  },
+
+  generateResetToken: () => {
+    try {
+      const token = crypto.randomBytes(20).toString("hex");
+      return {
+        success: true,
+        message: "token generated successfully",
+        data: token,
+      };
+    } catch (error) {
+      logElement("generate reset token util", error.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: error.message,
+      };
+    }
+  },
+
+  isPasswordTokenValid: async (tenant, filter) => {
+    try {
+      let responseFromListUser = await UserModel(tenant.toLowerCase()).list(
+        filter
+      );
+      if (responseFromListUser.success == true) {
+        return {
+          success: true,
+          message: responseFromListUser.message,
+        };
+      } else if (responseFromListUser.success == false) {
+        if (responseFromListUser.error) {
+          return {
+            success: false,
+            message: responseFromListUser.message,
+            error: responseFromListUser.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: "password reset link is invalid or has expired",
+          };
+        }
+      }
+    } catch (error) {
+      logElement("is password token valid", error.message);
+      return {
+        success: false,
+        message: "util server error",
+        error: error.message,
+      };
     }
   },
 };
