@@ -51,6 +51,7 @@ const insert = async (tenant, transformedMeasurements) => {
       errors.push(e.message);
     }
   }
+
   if (errors.length > 0) {
     return {
       success: false,
@@ -66,6 +67,7 @@ const insert = async (tenant, transformedMeasurements) => {
       valuesAdded: eventsAdded,
     };
   }
+
 };
 
 module.exports = insert;
