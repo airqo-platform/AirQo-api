@@ -75,13 +75,13 @@ const createEvent = {
       const {
         device,
         tenant,
-        startTime,
-        endTime,
         limit,
         skip,
         key,
         recent,
         frequency,
+        startTime,
+        endTime,
       } = req.query;
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
@@ -90,13 +90,13 @@ const createEvent = {
         getMeasurements(
           res,
           recent,
-          startTime,
-          endTime,
           device,
           skipInt,
           limitInt,
           frequency,
-          tenant
+          tenant,
+          startTime,
+          endTime
         );
       } else {
         missingQueryParams(req, res);
