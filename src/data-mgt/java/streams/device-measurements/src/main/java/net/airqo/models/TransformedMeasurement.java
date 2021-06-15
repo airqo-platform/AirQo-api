@@ -4,25 +4,39 @@ import java.util.HashMap;
 
 public class TransformedMeasurement {
 
-    private String frequency;
-    private int channelID;
-    private String time;
-    private String tenant;
-    private String device;
-    private HashMap<String, HashMap<String, Object>> location;
-    private HashMap<String, Object> internalTemperature;
-    private HashMap<String, Object> internalHumidity;
-    private HashMap<String, Object> altitude;
-    private HashMap<String, Object> battery;
-    private HashMap<String, Object> speed;
-    private HashMap<String, Object> satellites;
-    private HashMap<String, Object> hdop;
-    private HashMap<String, Object> pm10;
-    private HashMap<String, Object> pm2_5;
-    private HashMap<String, Object> s2_pm10;
-    private HashMap<String, Object> s2_pm2_5;
-    private HashMap<String, Object> no2;
-    private HashMap<String, Object> pm1;
+    private String frequency = "";
+    private int channelID = 0;
+    private String time = "";
+    private String tenant = "";
+    private String device = "";
+    private HashMap<String, HashMap<String, Object>> location = new HashMap<String, HashMap<String, Object>>(){{
+        put("latitude", new HashMap<String, Object>(){{
+            put("value", null);
+        }});
+        put("longitude", new HashMap<String, Object>(){{
+            put("value", null);
+        }});
+    }};
+    private HashMap<String, Object> internalTemperature = setDefaults();
+    private HashMap<String, Object> internalHumidity = setDefaults();
+    private HashMap<String, Object> altitude = setDefaults();
+    private HashMap<String, Object> battery = setDefaults();
+    private HashMap<String, Object> speed = setDefaults();
+    private HashMap<String, Object> satellites = setDefaults();
+    private HashMap<String, Object> hdop = setDefaults();
+    private HashMap<String, Object> pm10 = setDefaults();
+    private HashMap<String, Object> pm2_5 = setDefaults();
+    private HashMap<String, Object> s2_pm10 = setDefaults();
+    private HashMap<String, Object> s2_pm2_5 = setDefaults();
+    private HashMap<String, Object> no2 = setDefaults();
+    private HashMap<String, Object> pm1 = setDefaults();
+
+    private HashMap<String, Object> setDefaults(){
+        return  new HashMap<String, Object>(){{
+            put("calibratedValue", null);
+            put("value", null);
+        }};
+    }
 
     public int getChannelID() {
         return channelID;

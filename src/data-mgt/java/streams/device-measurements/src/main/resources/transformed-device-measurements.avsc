@@ -2,6 +2,7 @@
     "namespace": "net.airqo.models",
     "type": "record",
     "name": "TransformedDeviceMeasurements",
+    "doc": "https://github.com/airqo-platform/AirQo-api/blob/staging/src/device-registry/models/Event.js",
     "fields": [
 
         {
