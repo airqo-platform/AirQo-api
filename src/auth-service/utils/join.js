@@ -498,7 +498,7 @@ const join = {
       logElement("update known password", e.message);
       return {
         success: false,
-        message: "util server error",
+        message: "update known password util server error",
         error: e.message,
       };
     }
@@ -513,6 +513,7 @@ const join = {
       if (responseFromListUser.success == true) {
         let user = responseFromListUser.data[0];
         logObject("the user", user);
+        logObject("the response data", responseFromListUser.data);
         logElement("the provided old password", old_pwd);
         logElement("the actual old password", user.password);
 
@@ -548,7 +549,7 @@ const join = {
       logElement("compare passwords util", error.message);
       return {
         success: false,
-        message: "utils server error",
+        message: "compare passwords utils server error",
         error: error.message,
       };
     }

@@ -171,29 +171,41 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logText("we are listing in the model");
+      logObject("the filter in the model", filter);
+      let response = {};
       let users = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
+
       let data = jsonify(users);
+      logObject("the data", data);
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "successfully listed the users",
         };
-      } else {
+      }
+
+      if (isEmpty(data)) {
         return {
           success: true,
           message: "no users exist",
           data,
         };
       }
+      return {
+        success: true,
+        message: "unable to retrieve users",
+        data,
+      };
     } catch (error) {
       return {
         success: false,
-        message: "unable to list the users",
+        message: "model server error",
         error: error.message,
       };
     }
@@ -201,9 +213,13 @@ UserSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
+      let modifiedUpdate = update;
+      logObject("modifiedUpdate", modifiedUpdate);
+      logObject("update", update);
+      modifiedUpdate.password = this._hashPassword(update.password);
       let udpatedUser = await this.findOneAndUpdate(
         filter,
-        update,
+        modifiedUpdate,
         options
       ).exec();
 
@@ -313,7 +329,6 @@ UserSchema.methods = {
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
       phoneNumber: this.phoneNumber,
-      password: this.password,
     };
   },
 };

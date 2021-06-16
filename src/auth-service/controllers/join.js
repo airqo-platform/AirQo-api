@@ -84,7 +84,11 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error);
+      res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "controller server error",
+        error: error.message,
+      });
     }
   },
 
@@ -581,13 +585,19 @@ const join = {
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
+      /**
+       * check that all needed params are present
+       * check that the user does exist (happen from the util I presume)
+       * if user exists, then check that their old passwords matches
+       * if the old password matches, then perform the password update
+       */
       const { errors, isValid } = validations.updateKnownPassword(req.body);
       if (!isValid) {
         return res.status(400).json(errors);
       }
-      const { tenant } = req.query;
+      const { tenant, id } = req.query;
       const { password, old_password } = req.body;
-      if (!tenant && !password && !old_password) {
+      if (!tenant && !password && !old_password && id) {
         return missingQueryParams(req, res);
       }
 
@@ -635,7 +645,11 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error);
+      res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "controller server error",
+        error: error.message,
+      });
     }
   },
 };
