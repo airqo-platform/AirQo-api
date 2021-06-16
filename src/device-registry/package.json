@@ -16,6 +16,7 @@
     "dependencies": {
         "@google-cloud/bigquery": "^5.5.0",
         "@google-cloud/iot": "^1.5.0",
+        "@kafkajs/confluent-schema-registry": "^3.0.1",
         "app-module-path": "^2.2.0",
         "avsc": "^5.4.16",
         "axios": "^0.21.1",

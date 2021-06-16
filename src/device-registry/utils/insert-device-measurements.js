@@ -1,12 +1,12 @@
-const { transformMeasurements } = require("../utils/transform-measurements");
-const insertMeasurements = require("../utils/insert-measurements");
-const { doesDeviceExist } = require("../utils/does-component-exist");
-const { logObject } = require("../utils/log");
+const { transformMeasurements } = require("./transform-measurements");
+const insertMeasurements = require("./insert-measurements");
+const { doesDeviceExist } = require("./does-component-exist");
+const { logObject } = require("./log");
 
 const insertDeviceMeasurements = {
 
     // Contains modules that provide various ways to insert device measurements.
-    
+
     addValuesArray: async (array_data) => {
 
         try {

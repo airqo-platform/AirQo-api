@@ -3,8 +3,9 @@ const Consumer = kafka.Consumer;
 const { logObject, logElement } = require("../../utils/log");
 const client = require('../../config/kafka');
 const constants = require("../../config/constants");
+var avro = require('avsc');
 
-const insertMeasurtements = require("../../services/insert-device-measurements");
+const insertMeasurtements = require("../../utils/insert-device-measurements");
 
 const KAFKA_TOPICS = constants.KAFKA_TOPICS;
 
@@ -26,6 +27,7 @@ consumer.on('message', function (message) {
 
         logObject("Kafka Message Received", message);
 
+    
         const messageValue = message.value.replace(/\'/g, '"');
     
         const json_data = JSON.parse(messageValue);
