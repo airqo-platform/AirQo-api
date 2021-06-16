@@ -54,6 +54,7 @@ const measurementsSchema = [
       value: {
         type: Number,
         trim: true,
+        default: null,
       },
       calibratedValue: { type: Number, default: null },
       uncertaintyValue: { type: Number, default: null },
@@ -63,6 +64,7 @@ const measurementsSchema = [
       value: {
         type: Number,
         trim: true,
+        default: null,
       },
       calibratedValue: { type: Number, default: null },
       uncertaintyValue: { type: Number, default: null },
