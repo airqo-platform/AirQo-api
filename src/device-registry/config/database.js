@@ -1,5 +1,11 @@
 const mongoose = require("mongoose");
 mongoose.set("useFindAndModify", false);
+mongoose.set("useNewUrlParser", true);
+mongoose.set("useCreateIndex", true);
+mongoose.set("debug", false);
+mongoose.set("serverSelectionTimeoutMS", 3600000);
+mongoose.set("connectTimeoutMS", 1200000);
+mongoose.set("socketTimeoutMS", 600000);
 const constants = require("./constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const URI = constants.MONGO_URI;
@@ -13,8 +19,9 @@ const options = {
   autoIndex: true,
   poolSize: 10,
   bufferMaxEntries: 0,
-  connectTimeoutMS: 10000,
-  socketTimeoutMS: 30000,
+  connectTimeoutMS: 1200000,
+  socketTimeoutMS: 600000,
+  serverSelectionTimeoutMS: 3600000,
   dbName: constants.DB_NAME,
   autoIndex: false,
 };
@@ -29,7 +36,7 @@ const connectToMongoDB = () => {
 
   db.on("error", (err) => {
     logElement("Mongoose connection error" + err);
-    process.exit(0);
+    // process.exit(0);
   });
 
   process.on("unlimitedRejection", (reason, p) => {
