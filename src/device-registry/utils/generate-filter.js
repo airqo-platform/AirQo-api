@@ -21,6 +21,7 @@ const generateEventsFilter = (device, frequency, startTime, endTime) => {
       $lte: generateDateFormatWithoutHrs(oneMonthInfront),
     },
     "values.time": { $gte: oneMonthBack, $lte: oneMonthInfront },
+    "values.device": {},
   };
 
   if (startTime) {
@@ -77,7 +78,7 @@ const generateEventsFilter = (device, frequency, startTime, endTime) => {
   }
 
   if (device) {
-    filter["values.device"] = device;
+    filter["values.device"]["$in"] = device;
   }
 
   if (frequency) {
