@@ -6,9 +6,18 @@ const generatePassword = require("./generate-password");
 const jsonify = require("./jsonify");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
+const constants = require("../config/constants");
+const isEmpty = require("is-empty");
 
 const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
+  try {
+    let users;
+    users = mongoose.model("users");
+    return users;
+  } catch (error) {
+    users = getModelByTenant(tenant, "user", UserSchema);
+    return users;
+  }
 };
 
 const join = {
@@ -43,20 +52,22 @@ const join = {
       logElement("list users util", e.message);
       return {
         success: false,
-        message: "utils server error",
+        message: "list users util server error",
         error: e.message,
       };
     }
   },
   update: async (tenant, filter, update) => {
     try {
+      // logObject("the filter sent to DB", filter);
+      // logObject("the update sent to DB", update);
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
           filter,
           update,
         }
       );
-      logObject("responseFromModifyUser", responseFromModifyUser);
+      // logObject("responseFromModifyUser", responseFromModifyUser);
       if (responseFromModifyUser.success == true) {
         let user = responseFromModifyUser.data;
         let responseFromSendEmail = await mailer.update(
@@ -64,7 +75,7 @@ const join = {
           user.firstName,
           user.lastName
         );
-        logObject("responseFromSendEmail", responseFromSendEmail);
+        // logObject("responseFromSendEmail", responseFromSendEmail);
         if (responseFromSendEmail.success == true) {
           return {
             success: true,
@@ -314,7 +325,10 @@ const join = {
           resetPasswordExpires: Date.now() + 3600000,
         };
         let responseFromUpdateUser = await join.update(tenant, filter, update);
-        logObject("responseFromUpdateUser", responseFromUpdateUser);
+        logObject(
+          "responseFromUpdateUser in forgotPassword",
+          responseFromUpdateUser
+        );
         if (responseFromUpdateUser.success == true) {
           let responseFromSendEmail = await mailer.forgot(
             filter.email,
@@ -383,8 +397,12 @@ const join = {
   updateForgottenPassword: async (tenant, filter, update) => {
     try {
       let responseFromCheckTokenValidity = await join.isPasswordTokenValid(
-        tenant,
+        tenant.toLowerCase(),
         filter
+      );
+      logObject(
+        "responseFromCheckTokenValidity",
+        responseFromCheckTokenValidity
       );
       if (responseFromCheckTokenValidity.success == true) {
         let modifiedUpdate = {
@@ -392,10 +410,14 @@ const join = {
           resetPasswordToken: null,
           resetPasswordExpires: null,
         };
-        let responseFromUpdateUser = join.update(
-          tenant,
+        let responseFromUpdateUser = await join.update(
+          tenant.toLowerCase(),
           filter,
           modifiedUpdate
+        );
+        logObject(
+          "responseFromUpdateUser in update forgotten password",
+          responseFromUpdateUser
         );
         if (responseFromUpdateUser.success == true) {
           return {
@@ -503,23 +525,14 @@ const join = {
       };
     }
   },
-
   comparePasswords: async (filter, tenant, old_pwd) => {
     try {
-      let responseFromListUser = await UserModel(tenant).list({
-        filter,
-      });
-      logObject("responseFromListUser", responseFromListUser);
-      if (responseFromListUser.success == true) {
-        let user = responseFromListUser.data[0];
-        logObject("the user", user);
-        logObject("the response data", responseFromListUser.data);
-        logElement("the provided old password", old_pwd);
-        logElement("the actual old password", user.password);
-
-        let responseFromBcrypt = await bcrypt.compare(old_pwd, user.password);
-        logElement("responseFromBcrypt", responseFromBcrypt);
-
+      let user = await UserModel(tenant).findOne(filter).exec();
+      if (!isEmpty(user)) {
+        let responseFromBcrypt = await bcrypt.compare(
+          old_pwd,
+          user._doc.password
+        );
         if (responseFromBcrypt == true) {
           return {
             success: true,
@@ -531,22 +544,14 @@ const join = {
             success: false,
           };
         }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else {
+        return {
+          success: false,
+          message: "please crosscheck your old password",
+        };
       }
     } catch (error) {
-      logElement("compare passwords util", error.message);
+      logElement("compare passwords util server error", error.message);
       return {
         success: false,
         message: "compare passwords utils server error",
@@ -554,7 +559,6 @@ const join = {
       };
     }
   },
-
   generateResetToken: () => {
     try {
       const token = crypto.randomBytes(20).toString("hex");
@@ -575,14 +579,24 @@ const join = {
 
   isPasswordTokenValid: async (tenant, filter) => {
     try {
-      let responseFromListUser = await UserModel(tenant.toLowerCase()).list(
-        filter
-      );
+      let responseFromListUser = await UserModel(tenant.toLowerCase()).list({
+        filter,
+      });
+      logObject("responseFromListUser", responseFromListUser);
+      // logObject("the filter", filter);
       if (responseFromListUser.success == true) {
-        return {
-          success: true,
-          message: responseFromListUser.message,
-        };
+        if (isEmpty(responseFromListUser.data)) {
+          return {
+            success: false,
+            message: "password reset link is invalid or has expired",
+          };
+        } else {
+          return {
+            success: true,
+            message: responseFromListUser.message,
+            data: responseFromListUser.data,
+          };
+        }
       } else if (responseFromListUser.success == false) {
         if (responseFromListUser.error) {
           return {
@@ -593,7 +607,7 @@ const join = {
         } else {
           return {
             success: false,
-            message: "password reset link is invalid or has expired",
+            message: responseFromListUser.message,
           };
         }
       }

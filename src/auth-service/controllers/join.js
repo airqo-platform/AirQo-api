@@ -1,31 +1,9 @@
-const UserSchema = require("../models/User");
 const HTTPStatus = require("http-status");
-const constants = require("../config/constants");
-const privileges = require("../utils/privileges");
-const transporter = require("../services/mailer");
-const templates = require("../utils/email.templates");
-const msgs = require("../utils/email.msgs");
-const crypto = require("crypto");
 const validations = require("../utils/validations");
-const register = require("../utils/register");
-const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
-const { getModelByTenant } = require("../utils/multitenancy");
-const bcrypt = require("bcrypt");
-const sendEmail = require("../utils/sendEmail");
-const {
-  tryCatchErrors,
-  axiosError,
-  missingQueryParams,
-  callbackErrors,
-} = require("../utils/errors");
-
+const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
 const joinUtil = require("../utils/join");
 const generateFilter = require("../utils/generate-filter");
-
-const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
-};
 
 const join = {
   list: async (req, res) => {
@@ -84,11 +62,7 @@ const join = {
         }
       }
     } catch (error) {
-      res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: error.message,
-      });
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -213,12 +187,7 @@ const join = {
       //   }
       // );
     } catch (error) {
-      // tryCatchErrors(res, error);
-      res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: error.message,
-      });
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -266,7 +235,7 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error);
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -345,7 +314,7 @@ const join = {
       //   .catch((err) => console.log(err));
     } catch (error) {
       logElement("controller server error", error.message);
-      tryCatchErrors(res, error);
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -373,7 +342,7 @@ const join = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error);
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -481,7 +450,7 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error);
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -493,18 +462,26 @@ const join = {
         return missingQueryParams(req, res);
       }
       let responseFromFilter = generateFilter.users(req);
+      // logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success == true) {
         let update = {
           password,
           resetPasswordToken,
         };
         let filter = responseFromFilter.data;
+        // logObject("the filter in controller", filter);
+        // logObject("the update in controller", update);
         let responseFromUpdateForgottenPassword =
           await joinUtil.updateForgottenPassword(tenant, filter, update);
+        logObject(
+          "responseFromUpdateForgottenPassword",
+          responseFromUpdateForgottenPassword
+        );
         if (responseFromUpdateForgottenPassword.success == true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromUpdateForgottenPassword.message,
+            user: responseFromUpdateForgottenPassword.data,
           });
         } else if (responseFromUpdateForgottenPassword.success == false) {
           if (responseFromUpdateForgottenPassword.error) {
@@ -578,7 +555,7 @@ const join = {
       //     }
       //   });
     } catch (error) {
-      tryCatchErrors(res, error);
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -612,9 +589,10 @@ const join = {
           filter
         );
         if (responseFromUpdatePassword.success == true) {
-          return res.status(HTTPStatus).json({
+          return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromUpdatePassword.message,
+            user: responseFromUpdatePassword.data,
           });
         } else if (responseFromUpdatePassword.success == false) {
           if (responseFromUpdatePassword.error) {
@@ -645,11 +623,7 @@ const join = {
         }
       }
     } catch (error) {
-      res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: error.message,
-      });
+      tryCatchErrors(res, error, "join controller");
     }
   },
 };
