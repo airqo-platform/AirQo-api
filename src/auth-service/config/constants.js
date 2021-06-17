@@ -37,6 +37,7 @@ const defaultConfig = {
     lowercase: true,
     strict: true,
   },
+  SALT_ROUNDS: 10,
 };
 
 function envConfig(env) {

@@ -2,7 +2,6 @@ const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
 const bcrypt = require("bcrypt");
-const saltRounds = 10;
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
@@ -11,6 +10,7 @@ const jsonify = require("../utils/jsonify");
 const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
 const { log } = require("debug");
+const saltRounds = constants.SALT_ROUNDS;
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -99,7 +99,7 @@ const UserSchema = new Schema({
 
 UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
-    this.password = this._hashPassword(this.password);
+    this.password = bcrypt.hashSync(this.password, saltRounds);
   }
   return next();
 });
@@ -125,27 +125,10 @@ UserSchema.pre("findOneAndUpdate", function () {
 
 UserSchema.pre("update", function (next) {
   if (this.isModified("password")) {
-    this.password = this._hashPassword(this.password);
+    this.password = bcrypt.hashSync(this.password, saltRounds);
   }
   return next();
 });
-
-UserSchema.pre("findByIdAndUpdate", function (next) {
-  this.options.runValidators = true;
-  if (this.isModified("password")) {
-    this.password = this._hashPassword(this.password);
-  }
-  return next();
-});
-
-// UserSchema.pre("findOneAndUpdate", async function () {
-//   let that = this;
-//   let docToUpdate = await this.model.findOne(this.getQuery());
-//   let docToUpdateJSON = jsonify(docToUpdate);
-//   logObject("docToUpdateJSON", docToUpdateJSON);
-//   docToUpdate.password = that._hashPassword(docToUpdateJSON.password);
-//   return next();
-// });
 
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ userName: 1 }, { unique: true });
@@ -171,17 +154,12 @@ UserSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      logText("we are listing in the model");
-      logObject("the filter in the model", filter);
-      let response = {};
       let users = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
-
       let data = jsonify(users);
-      logObject("the data", data);
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -198,7 +176,7 @@ UserSchema.statics = {
         };
       }
       return {
-        success: true,
+        success: false,
         message: "unable to retrieve users",
         data,
       };
@@ -214,18 +192,13 @@ UserSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-      logObject("modifiedUpdate", modifiedUpdate);
-      logObject("update", update);
-      modifiedUpdate.password = this._hashPassword(update.password);
+      modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       let udpatedUser = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
-
       let data = jsonify(udpatedUser);
-      logObject("updatedUser", data);
-
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -252,7 +225,6 @@ UserSchema.statics = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
       let removedUser = await this.findOneAndRemove(filter, options).exec();
-      logElement("removedUser", removedUser);
       let data = jsonify(removedUser);
       if (!isEmpty(data)) {
         return {
@@ -277,16 +249,7 @@ UserSchema.statics = {
 };
 
 UserSchema.methods = {
-  _hashPassword(password) {
-    // bcrypt.hash(password, saltRounds).then(function (hash) {
-    //     return hash;
-    // })
-    return bcrypt.hashSync(password, saltRounds);
-  },
   authenticateUser(password) {
-    // bcrypt.compare(password, this.password).then(function (res) {
-    //     return res;
-    // })
     return bcrypt.compareSync(password, this.password);
   },
   createToken() {
