@@ -20,14 +20,14 @@ import static net.airqo.connectors.config.KccaSourceConnectorConfig.CONFIG_DEF;
 
 public class KccaSourceConnector extends SourceConnector {
 
-    private static Logger log = LoggerFactory.getLogger(KccaSourceConnector.class);
+    private static final Logger logger = LoggerFactory.getLogger(KccaSourceConnector.class);
 
     private Map<String, String> configProperties;
 
     @Override
     public void start(Map<String, String> props) {
 
-        log.info("Starting up Kcca Source connector");
+        logger.info("Starting up Kcca Source connector");
 
         try {
             configProperties = setupPropertiesWithDefaultsIfMissing(props);
@@ -51,10 +51,9 @@ public class KccaSourceConnector extends SourceConnector {
     @Override
     public List<Map<String, String>> taskConfigs(int maxTasks) {
 
-        ArrayList<Map<String, String>> configs = new ArrayList<Map<String, String>>(maxTasks);
+        ArrayList<Map<String, String>> configs = new ArrayList<>(maxTasks);
 
-        Map<String, String> config = new HashMap<String, String>();
-        config.putAll(configProperties);
+        Map<String, String> config = new HashMap<>(configProperties);
 
         configs.add(config);
         return configs;

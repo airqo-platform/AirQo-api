@@ -194,21 +194,18 @@ public class KccaSourceTask extends SourceTask {
 
             List<RawMeasurements> measurements =  Utils.getMeasurements(urlString, apiKey);
 
+            if(measurements.isEmpty())
+                return new ArrayList<>();
+
             Gson gson = new Gson();
             Type listType = new TypeToken<List<RawMeasurements>>() {}.getType();
-//            JSONArray jsonArray = new JSONArray(measurements);
             String data = gson.toJson(measurements, listType);
 
             Map<String, String> sourcePartition = buildSourcePartition();
             Map<String, Object> sourceOffset = buildSourceOffset(lastExecutionTime.toString(), urlString);
             records.add(new SourceRecord(sourcePartition, sourceOffset, topic, Schema.STRING_SCHEMA, data));
 
-            if(records.isEmpty()){
-                return new ArrayList<>();
-            }
-            else{
-                return records;
-            }
+            return records.isEmpty() ? new ArrayList<>() : records;
         }
 
         return new ArrayList<>();
