@@ -1,4 +1,6 @@
 const { logElement, logObject } = require("./log");
+const mongoose = require("mongoose").set("debug", true);
+const ObjectId = mongoose.Types.ObjectId;
 
 const filter = {
   users: (req) => {
@@ -100,10 +102,14 @@ const filter = {
 
   defaults: (req) => {
     try {
-      let { user, chartTitle } = req.query;
+      let { user, chartTitle } = req.body;
+      let { id } = req.query;
       let filter = {};
       if (user) {
-        filter["user"] = user;
+        filter["user"] = ObjectId(user);
+      }
+      if (id) {
+        filter["user"] = ObjectId(id);
       }
       if (chartTitle) {
         filter["chartTitle"] = chartTitle;

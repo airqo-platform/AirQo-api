@@ -1,4 +1,6 @@
 const DefaultsSchema = require("../models/Defaults");
+const { getModelByTenant } = require("./multitenancy");
+const { logElement, logText, logObject } = require("./log");
 const DefaultModel = (tenant) => {
   return getModelByTenant(tenant, "default", DefaultsSchema);
 };
@@ -6,7 +8,7 @@ const DefaultModel = (tenant) => {
 const defaults = {
   list: async (tenant, filter, limit, skip) => {
     try {
-      let responseFromListDefault = DefaultModel(tenant).list({
+      let responseFromListDefault = await DefaultModel(tenant).list({
         filter,
         limit,
         skip,
@@ -15,7 +17,7 @@ const defaults = {
         return {
           success: true,
           message: responseFromListDefault.message,
-          users: responseFromListDefault.data,
+          data: responseFromListDefault.data,
         };
       } else if ((responseFromListDefault.success = false)) {
         if (responseFromListDefault.error) {
@@ -78,4 +80,4 @@ const defaults = {
   },
 };
 
-modules.exports = defaults;
+module.exports = defaults;

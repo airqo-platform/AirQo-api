@@ -9,6 +9,7 @@ const {
   missingQueryParams,
   callbackErrors,
 } = require("../utils/errors");
+const defaultsUtil = require("../utils/defaults");
 
 const generateFilter = require("../utils/generate-filter");
 
@@ -31,10 +32,7 @@ const defaults = {
       if (responseFromFilter.success == true) {
         let filter = responseFromFilter.data;
         let requestBody = req.body;
-        delete requestBody._id;
-        delete requestBody.chartTitle;
-        delete requestBody.user;
-        let responseFromUpdateDefault = await requestUtil.update(
+        let responseFromUpdateDefault = await defaultsUtil.update(
           tenant,
           filter,
           requestBody
@@ -77,76 +75,67 @@ const defaults = {
         }
       }
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "defaults controller server error",
-        error: error.message,
-      });
+      tryCatchErrors(res, error, "defaults controller");
     }
   },
 
   list: async (req, res) => {
     try {
+      logText(".....................................");
+      logText("list all users by query params provided");
       const { tenant } = req.query;
-
-      if (!tenant) {
-        missingQueryParams(req, res);
-      }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
+      if (!tenant) {
+        return missingQueryParams(req, res);
+      }
       let responseFromFilter = generateFilter.defaults(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success == true) {
-        const responseFromListDefault = await DefaultModel(
-          tenant.toLowerCase()
-        ).list({
-          filter: responseFromFilter.data,
+        let filter = responseFromFilter.data;
+        let responseFromListDefaults = await defaultsUtil.list(
+          tenant,
+          filter,
           limit,
-          skip,
-        });
-        logObject("responseFromListDefault", responseFromListDefault);
-        if (responseFromListDefault.success == true) {
-          return res.status(HTTPStatus.OK).json({
+          skip
+        );
+        logObject("responseFromListDefaults", responseFromListDefaults);
+        if (responseFromListDefaults.success == true) {
+          res.status(HTTPStatus.OK).json({
             success: true,
-            message: responseFromListDefault.message,
-            defaults: responseFromListDefault.data,
+            message: responseFromListDefaults.message,
+            defaults: responseFromListDefaults.data,
           });
-        } else if (responseFromListDefault.success == false) {
-          if (responseFromListDefault.error) {
+        } else if (responseFromListDefaults.success == false) {
+          if (responseFromListDefaults.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
-              message: responseFromListDefault.message,
-              error: responseFromListDefault.error,
+              message: responseFromListDefaults.message,
+              error: responseFromListDefaults.error,
             });
           } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
-              message: responseFromListDefault.message,
+              message: responseFromListDefaults.message,
             });
           }
         }
       } else if (responseFromFilter.success == false) {
         if (responseFromFilter.error) {
-          if (responseFromFilter.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromFilter.message,
-              error: responseFromFilter.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromFilter.message,
-            });
-          }
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromFilter.message,
+            error: responseFromFilter.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromFilter.message,
+          });
         }
       }
-    } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "controller server error",
-        error: e.message,
-      });
+    } catch (error) {
+      tryCatchErrors(res, error, "join controller");
     }
   },
 };

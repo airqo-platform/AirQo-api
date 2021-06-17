@@ -1,6 +1,9 @@
 const mongoose = require("mongoose").set("debug", true);
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
+const { logElement, logText, logObject } = require("../utils/log");
+const isEmpty = require("is-empty");
+const jsonify = require("../utils/jsonify");
 
 const DefaultsSchema = new mongoose.Schema({
   pollutant: {
@@ -20,11 +23,6 @@ const DefaultsSchema = new mongoose.Schema({
     type: Date,
     required: [true, "endDate is required!"],
   },
-  default: {
-    type: ObjectId,
-    required: [true, "default is required!"],
-    unique: false,
-  },
   chartType: {
     type: String,
     required: [true, "chartTyoe is required!"],
@@ -32,7 +30,10 @@ const DefaultsSchema = new mongoose.Schema({
   chartTitle: {
     type: String,
     required: [true, "chartTitle is required!"],
-    unique: false,
+  },
+  user: {
+    type: ObjectId,
+    required: [true, "user is required"],
   },
   locations: [
     {
@@ -47,7 +48,7 @@ DefaultsSchema.plugin(uniqueValidator);
 DefaultsSchema.index(
   {
     chartTitle: 1,
-    default: 1,
+    user: 1,
   },
   {
     unique: true,
@@ -60,9 +61,9 @@ DefaultsSchema.methods = {
       _id: this._id,
       pollutant: this.pollutant,
       frequency: this.frequency,
+      user: this.user,
       startDate: this.startDate,
       endDate: this.endDate,
-      default: this.default,
       chartType: this.chartType,
       chartTitle: this.chartTitle,
       locations: this.locations,
@@ -91,16 +92,32 @@ DefaultsSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logObject("the filter in the defaults", filter);
       let defaults = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
       let data = jsonify(defaults);
+      logObject("the data for defaults", data);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "successfully listed the defaults",
+        };
+      }
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "no defaults exist",
+          data,
+        };
+      }
       return {
-        success: true,
+        success: false,
+        message: "unable to retrieve defaults",
         data,
-        message: "successfully listed the defaults",
       };
     } catch (error) {
       return {
@@ -112,7 +129,7 @@ DefaultsSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
+      let options = { new: true, upsert: true };
       let udpatedDefault = await this.findOneAndUpdate(
         filter,
         update,
@@ -125,13 +142,13 @@ DefaultsSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully modified the default",
+          message: "successfully modified or created the default",
           data,
         };
       } else {
         return {
           success: false,
-          message: "default does not exist, please crosscheck",
+          message: "defaults do not exist, please crosscheck",
         };
       }
     } catch (error) {
