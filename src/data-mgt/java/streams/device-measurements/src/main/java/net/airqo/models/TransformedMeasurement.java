@@ -5,7 +5,7 @@ import java.util.HashMap;
 public class TransformedMeasurement {
 
     private String frequency = "raw";
-    private int channelID = 0;
+    private Integer channelID = null;
     private String time = "";
     private String tenant = "";
     private String device = "";
@@ -67,11 +67,11 @@ public class TransformedMeasurement {
         this.externalHumidity = externalHumidity;
     }
 
-    public int getChannelID() {
+    public Integer getChannelID() {
         return channelID;
     }
 
-    public void setChannelID(int channelID) {
+    public void setChannelID(Integer channelID) {
         this.channelID = channelID;
     }
 

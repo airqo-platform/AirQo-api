@@ -72,6 +72,42 @@ public class RawAirQoMeasurement implements Serializable {
     @Expose
     private String hdop = "null";
 
+    @SerializedName("externalTemperature")
+    @Expose
+    private String externalTemperature = "null";
+
+    @SerializedName("ExternalHumidity")
+    @Expose
+    private String externalHumidity = "null";
+
+    @SerializedName("ExternalPressure")
+    @Expose
+    private String externalPressure = "null";
+
+    public String getExternalTemperature() {
+        return externalTemperature;
+    }
+
+    public void setExternalTemperature(String externalTemperature) {
+        this.externalTemperature = externalTemperature;
+    }
+
+    public String getExternalHumidity() {
+        return externalHumidity;
+    }
+
+    public void setExternalHumidity(String externalHumidity) {
+        this.externalHumidity = externalHumidity;
+    }
+
+    public String getExternalPressure() {
+        return externalPressure;
+    }
+
+    public void setExternalPressure(String externalPressure) {
+        this.externalPressure = externalPressure;
+    }
+
     public String getHdop() {
         return hdop;
     }

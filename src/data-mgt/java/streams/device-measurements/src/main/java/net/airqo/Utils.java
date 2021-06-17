@@ -144,16 +144,16 @@ public class Utils {
             TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
             transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
-            transformedMeasurement.setFrequency("hourly");
             transformedMeasurement.setTenant("kcca");
             transformedMeasurement.setTime(rawMeasurement.getTime());
+            transformedMeasurement.setFrequency(rawMeasurement.getAverage());
 
             ArrayList<Double> coordinates  = (ArrayList<Double>) rawMeasurement.getLocation().get("coordinates");
             transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
-                put("latitude", new HashMap<String, Object>(){{
+                put("longitude", new HashMap<String, Object>(){{
                     put("value", coordinates.get(0));
                 }});
-                put("longitude", new HashMap<String, Object>(){{
+                put("latitude", new HashMap<String, Object>(){{
                     put("value", coordinates.get(1));
                 }});
             }});
@@ -211,7 +211,7 @@ public class Utils {
         });
 
         logger.info(new Date( System.currentTimeMillis()).toString());
-        logger.info("Records got : " + String.valueOf(transformedMeasurements.size()));
+        logger.info("Records got : {}", transformedMeasurements.size());
 
         return transformedMeasurements;
     }
@@ -240,14 +240,6 @@ public class Utils {
                 put("longitude", new HashMap<String, Object>(){{
                     put("value", Utils.stringToDouble(rawMeasurement.getLongitude()));
                 }});
-            }});
-
-            transformedMeasurement.setInternalTemperature(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
-            }});
-
-            transformedMeasurement.setInternalHumidity(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
             }});
 
             transformedMeasurement.setPm2_5(new HashMap<String, Object>(){{
@@ -286,6 +278,26 @@ public class Utils {
                 put("value", Utils.stringToDouble(rawMeasurement.getHdop()));
             }});
 
+            transformedMeasurement.setExternalHumidity(new HashMap<String, Object>(){{
+                put("value", Utils.stringToDouble(rawMeasurement.getExternalHumidity()));
+            }});
+
+            transformedMeasurement.setExternalPressure(new HashMap<String, Object>(){{
+                put("value", Utils.stringToDouble(rawMeasurement.getExternalPressure()));
+            }});
+
+            transformedMeasurement.setExternalTemperature(new HashMap<String, Object>(){{
+                put("value", Utils.stringToDouble(rawMeasurement.getExternalTemperature()));
+            }});
+
+            transformedMeasurement.setInternalTemperature(new HashMap<String, Object>(){{
+                put("value", Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
+            }});
+
+            transformedMeasurement.setInternalHumidity(new HashMap<String, Object>(){{
+                put("value", Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
+            }});
+
             transformedMeasurements.add(transformedMeasurement);
 
         });
@@ -303,8 +315,6 @@ public class Utils {
         measurements.forEach(measurement -> {
 
             HashMap<String, Object>  pm25 = measurement.getPm2_5();
-//            if(pm25.containsKey("calibratedValue"))
-//                pm25.remove("calibratedValue");
 
             try {
                 Object calibratedValue = Calibrate.getCalibratedValue(measurement, null);

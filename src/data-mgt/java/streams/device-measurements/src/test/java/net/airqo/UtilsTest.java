@@ -99,7 +99,6 @@ public class UtilsTest {
         assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), "raw");
         assertEquals(transformedMeasurements.get(0).getDevice(), rawMeasurements.getDevice());
         assertEquals(transformedMeasurements.get(0).getTenant().trim().toLowerCase(), "airqo");
-        assertEquals(transformedMeasurements.get(0).getChannelID(), Integer.parseInt(rawMeasurements.getChannelId()));
 
         assertEquals(transformedMeasurements.get(0).getInternalHumidity().get("value"), Utils.stringToDouble(rawMeasurements.getInternalHumidity()));
         assertEquals(transformedMeasurements.get(0).getInternalTemperature().get("value"), Utils.stringToDouble(rawMeasurements.getInternalTemperature()));
@@ -163,7 +162,7 @@ public class UtilsTest {
         List<TransformedMeasurement> transformedMeasurements = Utils.transformKccaMeasurements(measurementsString);
 
         assertEquals(transformedMeasurements.get(0).getTime(), rawMeasurements.getTime());
-        assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), "hourly");
+        assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), rawMeasurements.getAverage());
         assertEquals(transformedMeasurements.get(0).getDevice(), rawMeasurements.getDeviceCode());
         assertEquals(transformedMeasurements.get(0).getTenant().trim().toLowerCase(), "kcca");
 
@@ -356,7 +355,7 @@ public class UtilsTest {
             }});
         }};
 
-        rawMeasurements.set_id("id");
+        rawMeasurements.setAverage("hour");
         rawMeasurements.setDevice("device");
         rawMeasurements.setLocation(location);
         rawMeasurements.setDeviceCode("deviceCode");
@@ -385,8 +384,13 @@ public class UtilsTest {
         rawMeasurements.setSpeed("45.83");
         rawMeasurements.setSatellites("73.63");
         rawMeasurements.setHdop("25.49");
+        rawMeasurements.setAltitude("677.0");
         rawMeasurements.setInternalHumidity("91.27");
         rawMeasurements.setInternalTemperature("30.40");
+        rawMeasurements.setExternalHumidity("897.27");
+        rawMeasurements.setExternalTemperature("765.40");
+        rawMeasurements.setExternalPressure("344.27");
+
 
         rawMeasurementsArrayList.add(rawMeasurements);
 
