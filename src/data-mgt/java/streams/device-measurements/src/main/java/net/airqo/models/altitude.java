@@ -13,24 +13,24 @@ import org.apache.avro.message.BinaryMessageDecoder;
 import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
-public class internalHumidity extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = -3334385100899939838L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"internalHumidity\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}");
+public class altitude extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
+  private static final long serialVersionUID = -3129076779056580606L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"altitude\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
 
-  private static final BinaryMessageEncoder<internalHumidity> ENCODER =
-      new BinaryMessageEncoder<internalHumidity>(MODEL$, SCHEMA$);
+  private static final BinaryMessageEncoder<altitude> ENCODER =
+      new BinaryMessageEncoder<altitude>(MODEL$, SCHEMA$);
 
-  private static final BinaryMessageDecoder<internalHumidity> DECODER =
-      new BinaryMessageDecoder<internalHumidity>(MODEL$, SCHEMA$);
+  private static final BinaryMessageDecoder<altitude> DECODER =
+      new BinaryMessageDecoder<altitude>(MODEL$, SCHEMA$);
 
   /**
    * Return the BinaryMessageEncoder instance used by this class.
    * @return the message encoder used by this class
    */
-  public static BinaryMessageEncoder<internalHumidity> getEncoder() {
+  public static BinaryMessageEncoder<altitude> getEncoder() {
     return ENCODER;
   }
 
@@ -38,7 +38,7 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
    * Return the BinaryMessageDecoder instance used by this class.
    * @return the message decoder used by this class
    */
-  public static BinaryMessageDecoder<internalHumidity> getDecoder() {
+  public static BinaryMessageDecoder<altitude> getDecoder() {
     return DECODER;
   }
 
@@ -47,12 +47,12 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
    * @param resolver a {@link SchemaStore} used to find schemas by fingerprint
    * @return a BinaryMessageDecoder instance for this class backed by the given SchemaStore
    */
-  public static BinaryMessageDecoder<internalHumidity> createDecoder(SchemaStore resolver) {
-    return new BinaryMessageDecoder<internalHumidity>(MODEL$, SCHEMA$, resolver);
+  public static BinaryMessageDecoder<altitude> createDecoder(SchemaStore resolver) {
+    return new BinaryMessageDecoder<altitude>(MODEL$, SCHEMA$, resolver);
   }
 
   /**
-   * Serializes this internalHumidity to a ByteBuffer.
+   * Serializes this altitude to a ByteBuffer.
    * @return a buffer holding the serialized data for this instance
    * @throws java.io.IOException if this instance could not be serialized
    */
@@ -61,12 +61,12 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   }
 
   /**
-   * Deserializes a internalHumidity from a ByteBuffer.
+   * Deserializes a altitude from a ByteBuffer.
    * @param b a byte buffer holding serialized data for an instance of this class
-   * @return a internalHumidity instance decoded from the given buffer
+   * @return a altitude instance decoded from the given buffer
    * @throws java.io.IOException if the given bytes could not be deserialized into an instance of this class
    */
-  public static internalHumidity fromByteBuffer(
+  public static altitude fromByteBuffer(
       java.nio.ByteBuffer b) throws java.io.IOException {
     return DECODER.decode(b);
   }
@@ -78,13 +78,13 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
    * to their default values from the schema.  If that is desired then
    * one should use <code>newBuilder()</code>.
    */
-  public internalHumidity() {}
+  public altitude() {}
 
   /**
    * All-args constructor.
    * @param value The new value for value
    */
-  public internalHumidity(java.lang.Double value) {
+  public altitude(java.lang.Double value) {
     this.value = value;
   }
 
@@ -125,45 +125,45 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   }
 
   /**
-   * Creates a new internalHumidity RecordBuilder.
-   * @return A new internalHumidity RecordBuilder
+   * Creates a new altitude RecordBuilder.
+   * @return A new altitude RecordBuilder
    */
-  public static net.airqo.models.internalHumidity.Builder newBuilder() {
-    return new net.airqo.models.internalHumidity.Builder();
+  public static net.airqo.models.altitude.Builder newBuilder() {
+    return new net.airqo.models.altitude.Builder();
   }
 
   /**
-   * Creates a new internalHumidity RecordBuilder by copying an existing Builder.
+   * Creates a new altitude RecordBuilder by copying an existing Builder.
    * @param other The existing builder to copy.
-   * @return A new internalHumidity RecordBuilder
+   * @return A new altitude RecordBuilder
    */
-  public static net.airqo.models.internalHumidity.Builder newBuilder(net.airqo.models.internalHumidity.Builder other) {
+  public static net.airqo.models.altitude.Builder newBuilder(net.airqo.models.altitude.Builder other) {
     if (other == null) {
-      return new net.airqo.models.internalHumidity.Builder();
+      return new net.airqo.models.altitude.Builder();
     } else {
-      return new net.airqo.models.internalHumidity.Builder(other);
+      return new net.airqo.models.altitude.Builder(other);
     }
   }
 
   /**
-   * Creates a new internalHumidity RecordBuilder by copying an existing internalHumidity instance.
+   * Creates a new altitude RecordBuilder by copying an existing altitude instance.
    * @param other The existing instance to copy.
-   * @return A new internalHumidity RecordBuilder
+   * @return A new altitude RecordBuilder
    */
-  public static net.airqo.models.internalHumidity.Builder newBuilder(net.airqo.models.internalHumidity other) {
+  public static net.airqo.models.altitude.Builder newBuilder(net.airqo.models.altitude other) {
     if (other == null) {
-      return new net.airqo.models.internalHumidity.Builder();
+      return new net.airqo.models.altitude.Builder();
     } else {
-      return new net.airqo.models.internalHumidity.Builder(other);
+      return new net.airqo.models.altitude.Builder(other);
     }
   }
 
   /**
-   * RecordBuilder for internalHumidity instances.
+   * RecordBuilder for altitude instances.
    */
   @org.apache.avro.specific.AvroGenerated
-  public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<internalHumidity>
-    implements org.apache.avro.data.RecordBuilder<internalHumidity> {
+  public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<altitude>
+    implements org.apache.avro.data.RecordBuilder<altitude> {
 
     private java.lang.Double value;
 
@@ -176,7 +176,7 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
      * Creates a Builder by copying an existing Builder.
      * @param other The existing Builder to copy.
      */
-    private Builder(net.airqo.models.internalHumidity.Builder other) {
+    private Builder(net.airqo.models.altitude.Builder other) {
       super(other);
       if (isValidValue(fields()[0], other.value)) {
         this.value = data().deepCopy(fields()[0].schema(), other.value);
@@ -185,10 +185,10 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
     }
 
     /**
-     * Creates a Builder by copying an existing internalHumidity instance
+     * Creates a Builder by copying an existing altitude instance
      * @param other The existing instance to copy.
      */
-    private Builder(net.airqo.models.internalHumidity other) {
+    private Builder(net.airqo.models.altitude other) {
       super(SCHEMA$);
       if (isValidValue(fields()[0], other.value)) {
         this.value = data().deepCopy(fields()[0].schema(), other.value);
@@ -210,7 +210,7 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
       * @param value The value of 'value'.
       * @return This builder.
       */
-    public net.airqo.models.internalHumidity.Builder setValue(java.lang.Double value) {
+    public net.airqo.models.altitude.Builder setValue(java.lang.Double value) {
       validate(fields()[0], value);
       this.value = value;
       fieldSetFlags()[0] = true;
@@ -230,7 +230,7 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
       * Clears the value of the 'value' field.
       * @return This builder.
       */
-    public net.airqo.models.internalHumidity.Builder clearValue() {
+    public net.airqo.models.altitude.Builder clearValue() {
       value = null;
       fieldSetFlags()[0] = false;
       return this;
@@ -238,9 +238,9 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
 
     @Override
     @SuppressWarnings("unchecked")
-    public internalHumidity build() {
+    public altitude build() {
       try {
-        internalHumidity record = new internalHumidity();
+        altitude record = new altitude();
         record.value = fieldSetFlags()[0] ? this.value : (java.lang.Double) defaultValue(fields()[0]);
         return record;
       } catch (org.apache.avro.AvroMissingFieldException e) {
@@ -252,8 +252,8 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   }
 
   @SuppressWarnings("unchecked")
-  private static final org.apache.avro.io.DatumWriter<internalHumidity>
-    WRITER$ = (org.apache.avro.io.DatumWriter<internalHumidity>)MODEL$.createDatumWriter(SCHEMA$);
+  private static final org.apache.avro.io.DatumWriter<altitude>
+    WRITER$ = (org.apache.avro.io.DatumWriter<altitude>)MODEL$.createDatumWriter(SCHEMA$);
 
   @Override public void writeExternal(java.io.ObjectOutput out)
     throws java.io.IOException {
@@ -261,8 +261,8 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   }
 
   @SuppressWarnings("unchecked")
-  private static final org.apache.avro.io.DatumReader<internalHumidity>
-    READER$ = (org.apache.avro.io.DatumReader<internalHumidity>)MODEL$.createDatumReader(SCHEMA$);
+  private static final org.apache.avro.io.DatumReader<altitude>
+    READER$ = (org.apache.avro.io.DatumReader<altitude>)MODEL$.createDatumReader(SCHEMA$);
 
   @Override public void readExternal(java.io.ObjectInput in)
     throws java.io.IOException {

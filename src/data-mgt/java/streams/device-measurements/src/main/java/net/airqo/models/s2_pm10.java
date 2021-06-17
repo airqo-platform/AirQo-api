@@ -13,24 +13,24 @@ import org.apache.avro.message.BinaryMessageDecoder;
 import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
-public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = -5765176459723701962L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"pm1\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}");
+public class s2_pm10 extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
+  private static final long serialVersionUID = 5402681596500762121L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"s2_pm10\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
 
-  private static final BinaryMessageEncoder<pm1> ENCODER =
-      new BinaryMessageEncoder<pm1>(MODEL$, SCHEMA$);
+  private static final BinaryMessageEncoder<s2_pm10> ENCODER =
+      new BinaryMessageEncoder<s2_pm10>(MODEL$, SCHEMA$);
 
-  private static final BinaryMessageDecoder<pm1> DECODER =
-      new BinaryMessageDecoder<pm1>(MODEL$, SCHEMA$);
+  private static final BinaryMessageDecoder<s2_pm10> DECODER =
+      new BinaryMessageDecoder<s2_pm10>(MODEL$, SCHEMA$);
 
   /**
    * Return the BinaryMessageEncoder instance used by this class.
    * @return the message encoder used by this class
    */
-  public static BinaryMessageEncoder<pm1> getEncoder() {
+  public static BinaryMessageEncoder<s2_pm10> getEncoder() {
     return ENCODER;
   }
 
@@ -38,7 +38,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
    * Return the BinaryMessageDecoder instance used by this class.
    * @return the message decoder used by this class
    */
-  public static BinaryMessageDecoder<pm1> getDecoder() {
+  public static BinaryMessageDecoder<s2_pm10> getDecoder() {
     return DECODER;
   }
 
@@ -47,12 +47,12 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
    * @param resolver a {@link SchemaStore} used to find schemas by fingerprint
    * @return a BinaryMessageDecoder instance for this class backed by the given SchemaStore
    */
-  public static BinaryMessageDecoder<pm1> createDecoder(SchemaStore resolver) {
-    return new BinaryMessageDecoder<pm1>(MODEL$, SCHEMA$, resolver);
+  public static BinaryMessageDecoder<s2_pm10> createDecoder(SchemaStore resolver) {
+    return new BinaryMessageDecoder<s2_pm10>(MODEL$, SCHEMA$, resolver);
   }
 
   /**
-   * Serializes this pm1 to a ByteBuffer.
+   * Serializes this s2_pm10 to a ByteBuffer.
    * @return a buffer holding the serialized data for this instance
    * @throws java.io.IOException if this instance could not be serialized
    */
@@ -61,12 +61,12 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
   }
 
   /**
-   * Deserializes a pm1 from a ByteBuffer.
+   * Deserializes a s2_pm10 from a ByteBuffer.
    * @param b a byte buffer holding serialized data for an instance of this class
-   * @return a pm1 instance decoded from the given buffer
+   * @return a s2_pm10 instance decoded from the given buffer
    * @throws java.io.IOException if the given bytes could not be deserialized into an instance of this class
    */
-  public static pm1 fromByteBuffer(
+  public static s2_pm10 fromByteBuffer(
       java.nio.ByteBuffer b) throws java.io.IOException {
     return DECODER.decode(b);
   }
@@ -81,7 +81,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
    * to their default values from the schema.  If that is desired then
    * one should use <code>newBuilder()</code>.
    */
-  public pm1() {}
+  public s2_pm10() {}
 
   /**
    * All-args constructor.
@@ -90,7 +90,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
    * @param uncertaintyValue The new value for uncertaintyValue
    * @param standardDeviationValue The new value for standardDeviationValue
    */
-  public pm1(java.lang.Double value, java.lang.Double calibratedValue, java.lang.Double uncertaintyValue, java.lang.Double standardDeviationValue) {
+  public s2_pm10(java.lang.Double value, java.lang.Double calibratedValue, java.lang.Double uncertaintyValue, java.lang.Double standardDeviationValue) {
     this.value = value;
     this.calibratedValue = calibratedValue;
     this.uncertaintyValue = uncertaintyValue;
@@ -191,45 +191,45 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
   }
 
   /**
-   * Creates a new pm1 RecordBuilder.
-   * @return A new pm1 RecordBuilder
+   * Creates a new s2_pm10 RecordBuilder.
+   * @return A new s2_pm10 RecordBuilder
    */
-  public static net.airqo.models.pm1.Builder newBuilder() {
-    return new net.airqo.models.pm1.Builder();
+  public static net.airqo.models.s2_pm10.Builder newBuilder() {
+    return new net.airqo.models.s2_pm10.Builder();
   }
 
   /**
-   * Creates a new pm1 RecordBuilder by copying an existing Builder.
+   * Creates a new s2_pm10 RecordBuilder by copying an existing Builder.
    * @param other The existing builder to copy.
-   * @return A new pm1 RecordBuilder
+   * @return A new s2_pm10 RecordBuilder
    */
-  public static net.airqo.models.pm1.Builder newBuilder(net.airqo.models.pm1.Builder other) {
+  public static net.airqo.models.s2_pm10.Builder newBuilder(net.airqo.models.s2_pm10.Builder other) {
     if (other == null) {
-      return new net.airqo.models.pm1.Builder();
+      return new net.airqo.models.s2_pm10.Builder();
     } else {
-      return new net.airqo.models.pm1.Builder(other);
+      return new net.airqo.models.s2_pm10.Builder(other);
     }
   }
 
   /**
-   * Creates a new pm1 RecordBuilder by copying an existing pm1 instance.
+   * Creates a new s2_pm10 RecordBuilder by copying an existing s2_pm10 instance.
    * @param other The existing instance to copy.
-   * @return A new pm1 RecordBuilder
+   * @return A new s2_pm10 RecordBuilder
    */
-  public static net.airqo.models.pm1.Builder newBuilder(net.airqo.models.pm1 other) {
+  public static net.airqo.models.s2_pm10.Builder newBuilder(net.airqo.models.s2_pm10 other) {
     if (other == null) {
-      return new net.airqo.models.pm1.Builder();
+      return new net.airqo.models.s2_pm10.Builder();
     } else {
-      return new net.airqo.models.pm1.Builder(other);
+      return new net.airqo.models.s2_pm10.Builder(other);
     }
   }
 
   /**
-   * RecordBuilder for pm1 instances.
+   * RecordBuilder for s2_pm10 instances.
    */
   @org.apache.avro.specific.AvroGenerated
-  public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<pm1>
-    implements org.apache.avro.data.RecordBuilder<pm1> {
+  public static class Builder extends org.apache.avro.specific.SpecificRecordBuilderBase<s2_pm10>
+    implements org.apache.avro.data.RecordBuilder<s2_pm10> {
 
     private java.lang.Double value;
     private java.lang.Double calibratedValue;
@@ -245,7 +245,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
      * Creates a Builder by copying an existing Builder.
      * @param other The existing Builder to copy.
      */
-    private Builder(net.airqo.models.pm1.Builder other) {
+    private Builder(net.airqo.models.s2_pm10.Builder other) {
       super(other);
       if (isValidValue(fields()[0], other.value)) {
         this.value = data().deepCopy(fields()[0].schema(), other.value);
@@ -266,10 +266,10 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
     }
 
     /**
-     * Creates a Builder by copying an existing pm1 instance
+     * Creates a Builder by copying an existing s2_pm10 instance
      * @param other The existing instance to copy.
      */
-    private Builder(net.airqo.models.pm1 other) {
+    private Builder(net.airqo.models.s2_pm10 other) {
       super(SCHEMA$);
       if (isValidValue(fields()[0], other.value)) {
         this.value = data().deepCopy(fields()[0].schema(), other.value);
@@ -303,7 +303,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * @param value The value of 'value'.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder setValue(java.lang.Double value) {
+    public net.airqo.models.s2_pm10.Builder setValue(java.lang.Double value) {
       validate(fields()[0], value);
       this.value = value;
       fieldSetFlags()[0] = true;
@@ -323,7 +323,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * Clears the value of the 'value' field.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder clearValue() {
+    public net.airqo.models.s2_pm10.Builder clearValue() {
       value = null;
       fieldSetFlags()[0] = false;
       return this;
@@ -343,7 +343,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * @param value The value of 'calibratedValue'.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder setCalibratedValue(java.lang.Double value) {
+    public net.airqo.models.s2_pm10.Builder setCalibratedValue(java.lang.Double value) {
       validate(fields()[1], value);
       this.calibratedValue = value;
       fieldSetFlags()[1] = true;
@@ -363,7 +363,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * Clears the value of the 'calibratedValue' field.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder clearCalibratedValue() {
+    public net.airqo.models.s2_pm10.Builder clearCalibratedValue() {
       calibratedValue = null;
       fieldSetFlags()[1] = false;
       return this;
@@ -383,7 +383,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * @param value The value of 'uncertaintyValue'.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder setUncertaintyValue(java.lang.Double value) {
+    public net.airqo.models.s2_pm10.Builder setUncertaintyValue(java.lang.Double value) {
       validate(fields()[2], value);
       this.uncertaintyValue = value;
       fieldSetFlags()[2] = true;
@@ -403,7 +403,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * Clears the value of the 'uncertaintyValue' field.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder clearUncertaintyValue() {
+    public net.airqo.models.s2_pm10.Builder clearUncertaintyValue() {
       uncertaintyValue = null;
       fieldSetFlags()[2] = false;
       return this;
@@ -423,7 +423,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * @param value The value of 'standardDeviationValue'.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder setStandardDeviationValue(java.lang.Double value) {
+    public net.airqo.models.s2_pm10.Builder setStandardDeviationValue(java.lang.Double value) {
       validate(fields()[3], value);
       this.standardDeviationValue = value;
       fieldSetFlags()[3] = true;
@@ -443,7 +443,7 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       * Clears the value of the 'standardDeviationValue' field.
       * @return This builder.
       */
-    public net.airqo.models.pm1.Builder clearStandardDeviationValue() {
+    public net.airqo.models.s2_pm10.Builder clearStandardDeviationValue() {
       standardDeviationValue = null;
       fieldSetFlags()[3] = false;
       return this;
@@ -451,9 +451,9 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
 
     @Override
     @SuppressWarnings("unchecked")
-    public pm1 build() {
+    public s2_pm10 build() {
       try {
-        pm1 record = new pm1();
+        s2_pm10 record = new s2_pm10();
         record.value = fieldSetFlags()[0] ? this.value : (java.lang.Double) defaultValue(fields()[0]);
         record.calibratedValue = fieldSetFlags()[1] ? this.calibratedValue : (java.lang.Double) defaultValue(fields()[1]);
         record.uncertaintyValue = fieldSetFlags()[2] ? this.uncertaintyValue : (java.lang.Double) defaultValue(fields()[2]);
@@ -468,8 +468,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
   }
 
   @SuppressWarnings("unchecked")
-  private static final org.apache.avro.io.DatumWriter<pm1>
-    WRITER$ = (org.apache.avro.io.DatumWriter<pm1>)MODEL$.createDatumWriter(SCHEMA$);
+  private static final org.apache.avro.io.DatumWriter<s2_pm10>
+    WRITER$ = (org.apache.avro.io.DatumWriter<s2_pm10>)MODEL$.createDatumWriter(SCHEMA$);
 
   @Override public void writeExternal(java.io.ObjectOutput out)
     throws java.io.IOException {
@@ -477,8 +477,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
   }
 
   @SuppressWarnings("unchecked")
-  private static final org.apache.avro.io.DatumReader<pm1>
-    READER$ = (org.apache.avro.io.DatumReader<pm1>)MODEL$.createDatumReader(SCHEMA$);
+  private static final org.apache.avro.io.DatumReader<s2_pm10>
+    READER$ = (org.apache.avro.io.DatumReader<s2_pm10>)MODEL$.createDatumReader(SCHEMA$);
 
   @Override public void readExternal(java.io.ObjectInput in)
     throws java.io.IOException {

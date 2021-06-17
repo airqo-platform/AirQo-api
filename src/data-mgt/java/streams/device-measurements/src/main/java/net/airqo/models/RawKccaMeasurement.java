@@ -9,9 +9,18 @@ public class RawKccaMeasurement implements Serializable {
     private String _id;
     private String time;
     private String device;
+    private String average = "raw";
     private String deviceCode;
     private HashMap<String, Object> location;
     private HashMap<String, HashMap<String, Double>> characteristics;
+
+    public String getAverage() {
+        return average;
+    }
+
+    public void setAverage(String average) {
+        this.average = average;
+    }
 
     public String get_id() {
         return _id;

@@ -74,7 +74,6 @@ public class Utils {
                                 .build())
                         .setInternalHumidity(internalHumidity.newBuilder()
                                 .setValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("calibratedValue")))
                                 .build())
                         .setInternalTemperature(internalTemperature.newBuilder()
                                 .setValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("value")))

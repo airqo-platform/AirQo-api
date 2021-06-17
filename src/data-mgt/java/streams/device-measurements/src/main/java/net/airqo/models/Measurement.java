@@ -14,8 +14,8 @@ import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
 public class Measurement extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = -9047251391685751426L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"Measurement\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"frequency\",\"type\":\"string\"},{\"name\":\"time\",\"type\":\"string\"},{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"tenant\",\"type\":\"string\"},{\"name\":\"location\",\"type\":{\"type\":\"record\",\"name\":\"location\",\"fields\":[{\"name\":\"latitude\",\"type\":[\"double\",\"null\"]},{\"name\":\"longitude\",\"type\":[\"double\",\"null\"]}]}},{\"name\":\"internalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"internalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"internalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"internalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm10\",\"type\":{\"type\":\"record\",\"name\":\"pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"no2\",\"type\":{\"type\":\"record\",\"name\":\"no2\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm1\",\"type\":{\"type\":\"record\",\"name\":\"pm1\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}}]}");
+  private static final long serialVersionUID = 7363536413190316193L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"Measurement\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"frequency\",\"type\":\"string\"},{\"name\":\"time\",\"type\":\"string\"},{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"tenant\",\"type\":\"string\"},{\"name\":\"location\",\"type\":{\"type\":\"record\",\"name\":\"location\",\"fields\":[{\"name\":\"latitude\",\"type\":[\"double\",\"null\"]},{\"name\":\"longitude\",\"type\":[\"double\",\"null\"]}]}},{\"name\":\"internalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"internalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"internalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"internalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"externalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"externalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"externalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"externalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"externalPressure\",\"type\":{\"type\":\"record\",\"name\":\"externalPressure\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm10\",\"type\":{\"type\":\"record\",\"name\":\"pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"no2\",\"type\":{\"type\":\"record\",\"name\":\"no2\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm1\",\"type\":{\"type\":\"record\",\"name\":\"pm1\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"speed\",\"type\":{\"type\":\"record\",\"name\":\"speed\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"altitude\",\"type\":{\"type\":\"record\",\"name\":\"altitude\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"battery\",\"type\":{\"type\":\"record\",\"name\":\"battery\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"satellites\",\"type\":{\"type\":\"record\",\"name\":\"satellites\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"hdop\",\"type\":{\"type\":\"record\",\"name\":\"hdop\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"s2_pm10\",\"type\":{\"type\":\"record\",\"name\":\"s2_pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"s2_pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"s2_pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
@@ -78,10 +78,20 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
    private net.airqo.models.location location;
    private net.airqo.models.internalTemperature internalTemperature;
    private net.airqo.models.internalHumidity internalHumidity;
+   private net.airqo.models.externalTemperature externalTemperature;
+   private net.airqo.models.externalHumidity externalHumidity;
+   private net.airqo.models.externalPressure externalPressure;
    private net.airqo.models.pm10 pm10;
    private net.airqo.models.pm2_5 pm2_5;
    private net.airqo.models.no2 no2;
    private net.airqo.models.pm1 pm1;
+   private net.airqo.models.speed speed;
+   private net.airqo.models.altitude altitude;
+   private net.airqo.models.battery battery;
+   private net.airqo.models.satellites satellites;
+   private net.airqo.models.hdop hdop;
+   private net.airqo.models.s2_pm10 s2_pm10;
+   private net.airqo.models.s2_pm2_5 s2_pm2_5;
 
   /**
    * Default constructor.  Note that this does not initialize fields
@@ -99,12 +109,22 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
    * @param location The new value for location
    * @param internalTemperature The new value for internalTemperature
    * @param internalHumidity The new value for internalHumidity
+   * @param externalTemperature The new value for externalTemperature
+   * @param externalHumidity The new value for externalHumidity
+   * @param externalPressure The new value for externalPressure
    * @param pm10 The new value for pm10
    * @param pm2_5 The new value for pm2_5
    * @param no2 The new value for no2
    * @param pm1 The new value for pm1
+   * @param speed The new value for speed
+   * @param altitude The new value for altitude
+   * @param battery The new value for battery
+   * @param satellites The new value for satellites
+   * @param hdop The new value for hdop
+   * @param s2_pm10 The new value for s2_pm10
+   * @param s2_pm2_5 The new value for s2_pm2_5
    */
-  public Measurement(java.lang.CharSequence frequency, java.lang.CharSequence time, java.lang.CharSequence device, java.lang.CharSequence tenant, net.airqo.models.location location, net.airqo.models.internalTemperature internalTemperature, net.airqo.models.internalHumidity internalHumidity, net.airqo.models.pm10 pm10, net.airqo.models.pm2_5 pm2_5, net.airqo.models.no2 no2, net.airqo.models.pm1 pm1) {
+  public Measurement(java.lang.CharSequence frequency, java.lang.CharSequence time, java.lang.CharSequence device, java.lang.CharSequence tenant, net.airqo.models.location location, net.airqo.models.internalTemperature internalTemperature, net.airqo.models.internalHumidity internalHumidity, net.airqo.models.externalTemperature externalTemperature, net.airqo.models.externalHumidity externalHumidity, net.airqo.models.externalPressure externalPressure, net.airqo.models.pm10 pm10, net.airqo.models.pm2_5 pm2_5, net.airqo.models.no2 no2, net.airqo.models.pm1 pm1, net.airqo.models.speed speed, net.airqo.models.altitude altitude, net.airqo.models.battery battery, net.airqo.models.satellites satellites, net.airqo.models.hdop hdop, net.airqo.models.s2_pm10 s2_pm10, net.airqo.models.s2_pm2_5 s2_pm2_5) {
     this.frequency = frequency;
     this.time = time;
     this.device = device;
@@ -112,10 +132,20 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     this.location = location;
     this.internalTemperature = internalTemperature;
     this.internalHumidity = internalHumidity;
+    this.externalTemperature = externalTemperature;
+    this.externalHumidity = externalHumidity;
+    this.externalPressure = externalPressure;
     this.pm10 = pm10;
     this.pm2_5 = pm2_5;
     this.no2 = no2;
     this.pm1 = pm1;
+    this.speed = speed;
+    this.altitude = altitude;
+    this.battery = battery;
+    this.satellites = satellites;
+    this.hdop = hdop;
+    this.s2_pm10 = s2_pm10;
+    this.s2_pm2_5 = s2_pm2_5;
   }
 
   public org.apache.avro.specific.SpecificData getSpecificData() { return MODEL$; }
@@ -130,10 +160,20 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     case 4: return location;
     case 5: return internalTemperature;
     case 6: return internalHumidity;
-    case 7: return pm10;
-    case 8: return pm2_5;
-    case 9: return no2;
-    case 10: return pm1;
+    case 7: return externalTemperature;
+    case 8: return externalHumidity;
+    case 9: return externalPressure;
+    case 10: return pm10;
+    case 11: return pm2_5;
+    case 12: return no2;
+    case 13: return pm1;
+    case 14: return speed;
+    case 15: return altitude;
+    case 16: return battery;
+    case 17: return satellites;
+    case 18: return hdop;
+    case 19: return s2_pm10;
+    case 20: return s2_pm2_5;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -149,10 +189,20 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     case 4: location = (net.airqo.models.location)value$; break;
     case 5: internalTemperature = (net.airqo.models.internalTemperature)value$; break;
     case 6: internalHumidity = (net.airqo.models.internalHumidity)value$; break;
-    case 7: pm10 = (net.airqo.models.pm10)value$; break;
-    case 8: pm2_5 = (net.airqo.models.pm2_5)value$; break;
-    case 9: no2 = (net.airqo.models.no2)value$; break;
-    case 10: pm1 = (net.airqo.models.pm1)value$; break;
+    case 7: externalTemperature = (net.airqo.models.externalTemperature)value$; break;
+    case 8: externalHumidity = (net.airqo.models.externalHumidity)value$; break;
+    case 9: externalPressure = (net.airqo.models.externalPressure)value$; break;
+    case 10: pm10 = (net.airqo.models.pm10)value$; break;
+    case 11: pm2_5 = (net.airqo.models.pm2_5)value$; break;
+    case 12: no2 = (net.airqo.models.no2)value$; break;
+    case 13: pm1 = (net.airqo.models.pm1)value$; break;
+    case 14: speed = (net.airqo.models.speed)value$; break;
+    case 15: altitude = (net.airqo.models.altitude)value$; break;
+    case 16: battery = (net.airqo.models.battery)value$; break;
+    case 17: satellites = (net.airqo.models.satellites)value$; break;
+    case 18: hdop = (net.airqo.models.hdop)value$; break;
+    case 19: s2_pm10 = (net.airqo.models.s2_pm10)value$; break;
+    case 20: s2_pm2_5 = (net.airqo.models.s2_pm2_5)value$; break;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -277,6 +327,57 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
   }
 
   /**
+   * Gets the value of the 'externalTemperature' field.
+   * @return The value of the 'externalTemperature' field.
+   */
+  public net.airqo.models.externalTemperature getExternalTemperature() {
+    return externalTemperature;
+  }
+
+
+  /**
+   * Sets the value of the 'externalTemperature' field.
+   * @param value the value to set.
+   */
+  public void setExternalTemperature(net.airqo.models.externalTemperature value) {
+    this.externalTemperature = value;
+  }
+
+  /**
+   * Gets the value of the 'externalHumidity' field.
+   * @return The value of the 'externalHumidity' field.
+   */
+  public net.airqo.models.externalHumidity getExternalHumidity() {
+    return externalHumidity;
+  }
+
+
+  /**
+   * Sets the value of the 'externalHumidity' field.
+   * @param value the value to set.
+   */
+  public void setExternalHumidity(net.airqo.models.externalHumidity value) {
+    this.externalHumidity = value;
+  }
+
+  /**
+   * Gets the value of the 'externalPressure' field.
+   * @return The value of the 'externalPressure' field.
+   */
+  public net.airqo.models.externalPressure getExternalPressure() {
+    return externalPressure;
+  }
+
+
+  /**
+   * Sets the value of the 'externalPressure' field.
+   * @param value the value to set.
+   */
+  public void setExternalPressure(net.airqo.models.externalPressure value) {
+    this.externalPressure = value;
+  }
+
+  /**
    * Gets the value of the 'pm10' field.
    * @return The value of the 'pm10' field.
    */
@@ -345,6 +446,125 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
   }
 
   /**
+   * Gets the value of the 'speed' field.
+   * @return The value of the 'speed' field.
+   */
+  public net.airqo.models.speed getSpeed() {
+    return speed;
+  }
+
+
+  /**
+   * Sets the value of the 'speed' field.
+   * @param value the value to set.
+   */
+  public void setSpeed(net.airqo.models.speed value) {
+    this.speed = value;
+  }
+
+  /**
+   * Gets the value of the 'altitude' field.
+   * @return The value of the 'altitude' field.
+   */
+  public net.airqo.models.altitude getAltitude() {
+    return altitude;
+  }
+
+
+  /**
+   * Sets the value of the 'altitude' field.
+   * @param value the value to set.
+   */
+  public void setAltitude(net.airqo.models.altitude value) {
+    this.altitude = value;
+  }
+
+  /**
+   * Gets the value of the 'battery' field.
+   * @return The value of the 'battery' field.
+   */
+  public net.airqo.models.battery getBattery() {
+    return battery;
+  }
+
+
+  /**
+   * Sets the value of the 'battery' field.
+   * @param value the value to set.
+   */
+  public void setBattery(net.airqo.models.battery value) {
+    this.battery = value;
+  }
+
+  /**
+   * Gets the value of the 'satellites' field.
+   * @return The value of the 'satellites' field.
+   */
+  public net.airqo.models.satellites getSatellites() {
+    return satellites;
+  }
+
+
+  /**
+   * Sets the value of the 'satellites' field.
+   * @param value the value to set.
+   */
+  public void setSatellites(net.airqo.models.satellites value) {
+    this.satellites = value;
+  }
+
+  /**
+   * Gets the value of the 'hdop' field.
+   * @return The value of the 'hdop' field.
+   */
+  public net.airqo.models.hdop getHdop() {
+    return hdop;
+  }
+
+
+  /**
+   * Sets the value of the 'hdop' field.
+   * @param value the value to set.
+   */
+  public void setHdop(net.airqo.models.hdop value) {
+    this.hdop = value;
+  }
+
+  /**
+   * Gets the value of the 's2_pm10' field.
+   * @return The value of the 's2_pm10' field.
+   */
+  public net.airqo.models.s2_pm10 getS2Pm10() {
+    return s2_pm10;
+  }
+
+
+  /**
+   * Sets the value of the 's2_pm10' field.
+   * @param value the value to set.
+   */
+  public void setS2Pm10(net.airqo.models.s2_pm10 value) {
+    this.s2_pm10 = value;
+  }
+
+  /**
+   * Gets the value of the 's2_pm2_5' field.
+   * @return The value of the 's2_pm2_5' field.
+   */
+  public net.airqo.models.s2_pm2_5 getS2Pm25() {
+    return s2_pm2_5;
+  }
+
+
+  /**
+   * Sets the value of the 's2_pm2_5' field.
+   * @param value the value to set.
+   */
+  public void setS2Pm25(net.airqo.models.s2_pm2_5 value) {
+    this.s2_pm2_5 = value;
+  }
+
+  /**
    * Creates a new Measurement RecordBuilder.
    * @return A new Measurement RecordBuilder
    */
@@ -395,6 +615,12 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     private net.airqo.models.internalTemperature.Builder internalTemperatureBuilder;
     private net.airqo.models.internalHumidity internalHumidity;
     private net.airqo.models.internalHumidity.Builder internalHumidityBuilder;
+    private net.airqo.models.externalTemperature externalTemperature;
+    private net.airqo.models.externalTemperature.Builder externalTemperatureBuilder;
+    private net.airqo.models.externalHumidity externalHumidity;
+    private net.airqo.models.externalHumidity.Builder externalHumidityBuilder;
+    private net.airqo.models.externalPressure externalPressure;
+    private net.airqo.models.externalPressure.Builder externalPressureBuilder;
     private net.airqo.models.pm10 pm10;
     private net.airqo.models.pm10.Builder pm10Builder;
     private net.airqo.models.pm2_5 pm2_5;
@@ -403,6 +629,20 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     private net.airqo.models.no2.Builder no2Builder;
     private net.airqo.models.pm1 pm1;
     private net.airqo.models.pm1.Builder pm1Builder;
+    private net.airqo.models.speed speed;
+    private net.airqo.models.speed.Builder speedBuilder;
+    private net.airqo.models.altitude altitude;
+    private net.airqo.models.altitude.Builder altitudeBuilder;
+    private net.airqo.models.battery battery;
+    private net.airqo.models.battery.Builder batteryBuilder;
+    private net.airqo.models.satellites satellites;
+    private net.airqo.models.satellites.Builder satellitesBuilder;
+    private net.airqo.models.hdop hdop;
+    private net.airqo.models.hdop.Builder hdopBuilder;
+    private net.airqo.models.s2_pm10 s2_pm10;
+    private net.airqo.models.s2_pm10.Builder s2_pm10Builder;
+    private net.airqo.models.s2_pm2_5 s2_pm2_5;
+    private net.airqo.models.s2_pm2_5.Builder s2_pm2_5Builder;
 
     /** Creates a new Builder */
     private Builder() {
@@ -452,33 +692,103 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       if (other.hasInternalHumidityBuilder()) {
         this.internalHumidityBuilder = net.airqo.models.internalHumidity.newBuilder(other.getInternalHumidityBuilder());
       }
-      if (isValidValue(fields()[7], other.pm10)) {
-        this.pm10 = data().deepCopy(fields()[7].schema(), other.pm10);
+      if (isValidValue(fields()[7], other.externalTemperature)) {
+        this.externalTemperature = data().deepCopy(fields()[7].schema(), other.externalTemperature);
         fieldSetFlags()[7] = other.fieldSetFlags()[7];
+      }
+      if (other.hasExternalTemperatureBuilder()) {
+        this.externalTemperatureBuilder = net.airqo.models.externalTemperature.newBuilder(other.getExternalTemperatureBuilder());
+      }
+      if (isValidValue(fields()[8], other.externalHumidity)) {
+        this.externalHumidity = data().deepCopy(fields()[8].schema(), other.externalHumidity);
+        fieldSetFlags()[8] = other.fieldSetFlags()[8];
+      }
+      if (other.hasExternalHumidityBuilder()) {
+        this.externalHumidityBuilder = net.airqo.models.externalHumidity.newBuilder(other.getExternalHumidityBuilder());
+      }
+      if (isValidValue(fields()[9], other.externalPressure)) {
+        this.externalPressure = data().deepCopy(fields()[9].schema(), other.externalPressure);
+        fieldSetFlags()[9] = other.fieldSetFlags()[9];
+      }
+      if (other.hasExternalPressureBuilder()) {
+        this.externalPressureBuilder = net.airqo.models.externalPressure.newBuilder(other.getExternalPressureBuilder());
+      }
+      if (isValidValue(fields()[10], other.pm10)) {
+        this.pm10 = data().deepCopy(fields()[10].schema(), other.pm10);
+        fieldSetFlags()[10] = other.fieldSetFlags()[10];
       }
       if (other.hasPm10Builder()) {
         this.pm10Builder = net.airqo.models.pm10.newBuilder(other.getPm10Builder());
       }
-      if (isValidValue(fields()[8], other.pm2_5)) {
-        this.pm2_5 = data().deepCopy(fields()[8].schema(), other.pm2_5);
-        fieldSetFlags()[8] = other.fieldSetFlags()[8];
+      if (isValidValue(fields()[11], other.pm2_5)) {
+        this.pm2_5 = data().deepCopy(fields()[11].schema(), other.pm2_5);
+        fieldSetFlags()[11] = other.fieldSetFlags()[11];
       }
       if (other.hasPm25Builder()) {
         this.pm2_5Builder = net.airqo.models.pm2_5.newBuilder(other.getPm25Builder());
       }
-      if (isValidValue(fields()[9], other.no2)) {
-        this.no2 = data().deepCopy(fields()[9].schema(), other.no2);
-        fieldSetFlags()[9] = other.fieldSetFlags()[9];
+      if (isValidValue(fields()[12], other.no2)) {
+        this.no2 = data().deepCopy(fields()[12].schema(), other.no2);
+        fieldSetFlags()[12] = other.fieldSetFlags()[12];
       }
       if (other.hasNo2Builder()) {
         this.no2Builder = net.airqo.models.no2.newBuilder(other.getNo2Builder());
       }
-      if (isValidValue(fields()[10], other.pm1)) {
-        this.pm1 = data().deepCopy(fields()[10].schema(), other.pm1);
-        fieldSetFlags()[10] = other.fieldSetFlags()[10];
+      if (isValidValue(fields()[13], other.pm1)) {
+        this.pm1 = data().deepCopy(fields()[13].schema(), other.pm1);
+        fieldSetFlags()[13] = other.fieldSetFlags()[13];
       }
       if (other.hasPm1Builder()) {
         this.pm1Builder = net.airqo.models.pm1.newBuilder(other.getPm1Builder());
+      }
+      if (isValidValue(fields()[14], other.speed)) {
+        this.speed = data().deepCopy(fields()[14].schema(), other.speed);
+        fieldSetFlags()[14] = other.fieldSetFlags()[14];
+      }
+      if (other.hasSpeedBuilder()) {
+        this.speedBuilder = net.airqo.models.speed.newBuilder(other.getSpeedBuilder());
+      }
+      if (isValidValue(fields()[15], other.altitude)) {
+        this.altitude = data().deepCopy(fields()[15].schema(), other.altitude);
+        fieldSetFlags()[15] = other.fieldSetFlags()[15];
+      }
+      if (other.hasAltitudeBuilder()) {
+        this.altitudeBuilder = net.airqo.models.altitude.newBuilder(other.getAltitudeBuilder());
+      }
+      if (isValidValue(fields()[16], other.battery)) {
+        this.battery = data().deepCopy(fields()[16].schema(), other.battery);
+        fieldSetFlags()[16] = other.fieldSetFlags()[16];
+      }
+      if (other.hasBatteryBuilder()) {
+        this.batteryBuilder = net.airqo.models.battery.newBuilder(other.getBatteryBuilder());
+      }
+      if (isValidValue(fields()[17], other.satellites)) {
+        this.satellites = data().deepCopy(fields()[17].schema(), other.satellites);
+        fieldSetFlags()[17] = other.fieldSetFlags()[17];
+      }
+      if (other.hasSatellitesBuilder()) {
+        this.satellitesBuilder = net.airqo.models.satellites.newBuilder(other.getSatellitesBuilder());
+      }
+      if (isValidValue(fields()[18], other.hdop)) {
+        this.hdop = data().deepCopy(fields()[18].schema(), other.hdop);
+        fieldSetFlags()[18] = other.fieldSetFlags()[18];
+      }
+      if (other.hasHdopBuilder()) {
+        this.hdopBuilder = net.airqo.models.hdop.newBuilder(other.getHdopBuilder());
+      }
+      if (isValidValue(fields()[19], other.s2_pm10)) {
+        this.s2_pm10 = data().deepCopy(fields()[19].schema(), other.s2_pm10);
+        fieldSetFlags()[19] = other.fieldSetFlags()[19];
+      }
+      if (other.hasS2Pm10Builder()) {
+        this.s2_pm10Builder = net.airqo.models.s2_pm10.newBuilder(other.getS2Pm10Builder());
+      }
+      if (isValidValue(fields()[20], other.s2_pm2_5)) {
+        this.s2_pm2_5 = data().deepCopy(fields()[20].schema(), other.s2_pm2_5);
+        fieldSetFlags()[20] = other.fieldSetFlags()[20];
+      }
+      if (other.hasS2Pm25Builder()) {
+        this.s2_pm2_5Builder = net.airqo.models.s2_pm2_5.newBuilder(other.getS2Pm25Builder());
       }
     }
 
@@ -519,26 +829,76 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
         fieldSetFlags()[6] = true;
       }
       this.internalHumidityBuilder = null;
-      if (isValidValue(fields()[7], other.pm10)) {
-        this.pm10 = data().deepCopy(fields()[7].schema(), other.pm10);
+      if (isValidValue(fields()[7], other.externalTemperature)) {
+        this.externalTemperature = data().deepCopy(fields()[7].schema(), other.externalTemperature);
         fieldSetFlags()[7] = true;
       }
-      this.pm10Builder = null;
-      if (isValidValue(fields()[8], other.pm2_5)) {
-        this.pm2_5 = data().deepCopy(fields()[8].schema(), other.pm2_5);
+      this.externalTemperatureBuilder = null;
+      if (isValidValue(fields()[8], other.externalHumidity)) {
+        this.externalHumidity = data().deepCopy(fields()[8].schema(), other.externalHumidity);
         fieldSetFlags()[8] = true;
       }
-      this.pm2_5Builder = null;
-      if (isValidValue(fields()[9], other.no2)) {
-        this.no2 = data().deepCopy(fields()[9].schema(), other.no2);
+      this.externalHumidityBuilder = null;
+      if (isValidValue(fields()[9], other.externalPressure)) {
+        this.externalPressure = data().deepCopy(fields()[9].schema(), other.externalPressure);
         fieldSetFlags()[9] = true;
       }
-      this.no2Builder = null;
-      if (isValidValue(fields()[10], other.pm1)) {
-        this.pm1 = data().deepCopy(fields()[10].schema(), other.pm1);
+      this.externalPressureBuilder = null;
+      if (isValidValue(fields()[10], other.pm10)) {
+        this.pm10 = data().deepCopy(fields()[10].schema(), other.pm10);
         fieldSetFlags()[10] = true;
       }
+      this.pm10Builder = null;
+      if (isValidValue(fields()[11], other.pm2_5)) {
+        this.pm2_5 = data().deepCopy(fields()[11].schema(), other.pm2_5);
+        fieldSetFlags()[11] = true;
+      }
+      this.pm2_5Builder = null;
+      if (isValidValue(fields()[12], other.no2)) {
+        this.no2 = data().deepCopy(fields()[12].schema(), other.no2);
+        fieldSetFlags()[12] = true;
+      }
+      this.no2Builder = null;
+      if (isValidValue(fields()[13], other.pm1)) {
+        this.pm1 = data().deepCopy(fields()[13].schema(), other.pm1);
+        fieldSetFlags()[13] = true;
+      }
       this.pm1Builder = null;
+      if (isValidValue(fields()[14], other.speed)) {
+        this.speed = data().deepCopy(fields()[14].schema(), other.speed);
+        fieldSetFlags()[14] = true;
+      }
+      this.speedBuilder = null;
+      if (isValidValue(fields()[15], other.altitude)) {
+        this.altitude = data().deepCopy(fields()[15].schema(), other.altitude);
+        fieldSetFlags()[15] = true;
+      }
+      this.altitudeBuilder = null;
+      if (isValidValue(fields()[16], other.battery)) {
+        this.battery = data().deepCopy(fields()[16].schema(), other.battery);
+        fieldSetFlags()[16] = true;
+      }
+      this.batteryBuilder = null;
+      if (isValidValue(fields()[17], other.satellites)) {
+        this.satellites = data().deepCopy(fields()[17].schema(), other.satellites);
+        fieldSetFlags()[17] = true;
+      }
+      this.satellitesBuilder = null;
+      if (isValidValue(fields()[18], other.hdop)) {
+        this.hdop = data().deepCopy(fields()[18].schema(), other.hdop);
+        fieldSetFlags()[18] = true;
+      }
+      this.hdopBuilder = null;
+      if (isValidValue(fields()[19], other.s2_pm10)) {
+        this.s2_pm10 = data().deepCopy(fields()[19].schema(), other.s2_pm10);
+        fieldSetFlags()[19] = true;
+      }
+      this.s2_pm10Builder = null;
+      if (isValidValue(fields()[20], other.s2_pm2_5)) {
+        this.s2_pm2_5 = data().deepCopy(fields()[20].schema(), other.s2_pm2_5);
+        fieldSetFlags()[20] = true;
+      }
+      this.s2_pm2_5Builder = null;
     }
 
     /**
@@ -930,6 +1290,234 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     }
 
     /**
+      * Gets the value of the 'externalTemperature' field.
+      * @return The value.
+      */
+    public net.airqo.models.externalTemperature getExternalTemperature() {
+      return externalTemperature;
+    }
+
+
+    /**
+      * Sets the value of the 'externalTemperature' field.
+      * @param value The value of 'externalTemperature'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setExternalTemperature(net.airqo.models.externalTemperature value) {
+      validate(fields()[7], value);
+      this.externalTemperatureBuilder = null;
+      this.externalTemperature = value;
+      fieldSetFlags()[7] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'externalTemperature' field has been set.
+      * @return True if the 'externalTemperature' field has been set, false otherwise.
+      */
+    public boolean hasExternalTemperature() {
+      return fieldSetFlags()[7];
+    }
+
+    /**
+     * Gets the Builder instance for the 'externalTemperature' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.externalTemperature.Builder getExternalTemperatureBuilder() {
+      if (externalTemperatureBuilder == null) {
+        if (hasExternalTemperature()) {
+          setExternalTemperatureBuilder(net.airqo.models.externalTemperature.newBuilder(externalTemperature));
+        } else {
+          setExternalTemperatureBuilder(net.airqo.models.externalTemperature.newBuilder());
+        }
+      }
+      return externalTemperatureBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'externalTemperature' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setExternalTemperatureBuilder(net.airqo.models.externalTemperature.Builder value) {
+      clearExternalTemperature();
+      externalTemperatureBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'externalTemperature' field has an active Builder instance
+     * @return True if the 'externalTemperature' field has an active Builder instance
+     */
+    public boolean hasExternalTemperatureBuilder() {
+      return externalTemperatureBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'externalTemperature' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearExternalTemperature() {
+      externalTemperature = null;
+      externalTemperatureBuilder = null;
+      fieldSetFlags()[7] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'externalHumidity' field.
+      * @return The value.
+      */
+    public net.airqo.models.externalHumidity getExternalHumidity() {
+      return externalHumidity;
+    }
+
+
+    /**
+      * Sets the value of the 'externalHumidity' field.
+      * @param value The value of 'externalHumidity'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setExternalHumidity(net.airqo.models.externalHumidity value) {
+      validate(fields()[8], value);
+      this.externalHumidityBuilder = null;
+      this.externalHumidity = value;
+      fieldSetFlags()[8] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'externalHumidity' field has been set.
+      * @return True if the 'externalHumidity' field has been set, false otherwise.
+      */
+    public boolean hasExternalHumidity() {
+      return fieldSetFlags()[8];
+    }
+
+    /**
+     * Gets the Builder instance for the 'externalHumidity' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.externalHumidity.Builder getExternalHumidityBuilder() {
+      if (externalHumidityBuilder == null) {
+        if (hasExternalHumidity()) {
+          setExternalHumidityBuilder(net.airqo.models.externalHumidity.newBuilder(externalHumidity));
+        } else {
+          setExternalHumidityBuilder(net.airqo.models.externalHumidity.newBuilder());
+        }
+      }
+      return externalHumidityBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'externalHumidity' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setExternalHumidityBuilder(net.airqo.models.externalHumidity.Builder value) {
+      clearExternalHumidity();
+      externalHumidityBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'externalHumidity' field has an active Builder instance
+     * @return True if the 'externalHumidity' field has an active Builder instance
+     */
+    public boolean hasExternalHumidityBuilder() {
+      return externalHumidityBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'externalHumidity' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearExternalHumidity() {
+      externalHumidity = null;
+      externalHumidityBuilder = null;
+      fieldSetFlags()[8] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'externalPressure' field.
+      * @return The value.
+      */
+    public net.airqo.models.externalPressure getExternalPressure() {
+      return externalPressure;
+    }
+
+
+    /**
+      * Sets the value of the 'externalPressure' field.
+      * @param value The value of 'externalPressure'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setExternalPressure(net.airqo.models.externalPressure value) {
+      validate(fields()[9], value);
+      this.externalPressureBuilder = null;
+      this.externalPressure = value;
+      fieldSetFlags()[9] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'externalPressure' field has been set.
+      * @return True if the 'externalPressure' field has been set, false otherwise.
+      */
+    public boolean hasExternalPressure() {
+      return fieldSetFlags()[9];
+    }
+
+    /**
+     * Gets the Builder instance for the 'externalPressure' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.externalPressure.Builder getExternalPressureBuilder() {
+      if (externalPressureBuilder == null) {
+        if (hasExternalPressure()) {
+          setExternalPressureBuilder(net.airqo.models.externalPressure.newBuilder(externalPressure));
+        } else {
+          setExternalPressureBuilder(net.airqo.models.externalPressure.newBuilder());
+        }
+      }
+      return externalPressureBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'externalPressure' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setExternalPressureBuilder(net.airqo.models.externalPressure.Builder value) {
+      clearExternalPressure();
+      externalPressureBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'externalPressure' field has an active Builder instance
+     * @return True if the 'externalPressure' field has an active Builder instance
+     */
+    public boolean hasExternalPressureBuilder() {
+      return externalPressureBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'externalPressure' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearExternalPressure() {
+      externalPressure = null;
+      externalPressureBuilder = null;
+      fieldSetFlags()[9] = false;
+      return this;
+    }
+
+    /**
       * Gets the value of the 'pm10' field.
       * @return The value.
       */
@@ -944,10 +1532,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setPm10(net.airqo.models.pm10 value) {
-      validate(fields()[7], value);
+      validate(fields()[10], value);
       this.pm10Builder = null;
       this.pm10 = value;
-      fieldSetFlags()[7] = true;
+      fieldSetFlags()[10] = true;
       return this;
     }
 
@@ -956,7 +1544,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'pm10' field has been set, false otherwise.
       */
     public boolean hasPm10() {
-      return fieldSetFlags()[7];
+      return fieldSetFlags()[10];
     }
 
     /**
@@ -1001,7 +1589,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearPm10() {
       pm10 = null;
       pm10Builder = null;
-      fieldSetFlags()[7] = false;
+      fieldSetFlags()[10] = false;
       return this;
     }
 
@@ -1020,10 +1608,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setPm25(net.airqo.models.pm2_5 value) {
-      validate(fields()[8], value);
+      validate(fields()[11], value);
       this.pm2_5Builder = null;
       this.pm2_5 = value;
-      fieldSetFlags()[8] = true;
+      fieldSetFlags()[11] = true;
       return this;
     }
 
@@ -1032,7 +1620,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'pm2_5' field has been set, false otherwise.
       */
     public boolean hasPm25() {
-      return fieldSetFlags()[8];
+      return fieldSetFlags()[11];
     }
 
     /**
@@ -1077,7 +1665,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearPm25() {
       pm2_5 = null;
       pm2_5Builder = null;
-      fieldSetFlags()[8] = false;
+      fieldSetFlags()[11] = false;
       return this;
     }
 
@@ -1096,10 +1684,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setNo2(net.airqo.models.no2 value) {
-      validate(fields()[9], value);
+      validate(fields()[12], value);
       this.no2Builder = null;
       this.no2 = value;
-      fieldSetFlags()[9] = true;
+      fieldSetFlags()[12] = true;
       return this;
     }
 
@@ -1108,7 +1696,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'no2' field has been set, false otherwise.
       */
     public boolean hasNo2() {
-      return fieldSetFlags()[9];
+      return fieldSetFlags()[12];
     }
 
     /**
@@ -1153,7 +1741,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearNo2() {
       no2 = null;
       no2Builder = null;
-      fieldSetFlags()[9] = false;
+      fieldSetFlags()[12] = false;
       return this;
     }
 
@@ -1172,10 +1760,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setPm1(net.airqo.models.pm1 value) {
-      validate(fields()[10], value);
+      validate(fields()[13], value);
       this.pm1Builder = null;
       this.pm1 = value;
-      fieldSetFlags()[10] = true;
+      fieldSetFlags()[13] = true;
       return this;
     }
 
@@ -1184,7 +1772,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'pm1' field has been set, false otherwise.
       */
     public boolean hasPm1() {
-      return fieldSetFlags()[10];
+      return fieldSetFlags()[13];
     }
 
     /**
@@ -1229,7 +1817,539 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearPm1() {
       pm1 = null;
       pm1Builder = null;
-      fieldSetFlags()[10] = false;
+      fieldSetFlags()[13] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'speed' field.
+      * @return The value.
+      */
+    public net.airqo.models.speed getSpeed() {
+      return speed;
+    }
+
+
+    /**
+      * Sets the value of the 'speed' field.
+      * @param value The value of 'speed'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setSpeed(net.airqo.models.speed value) {
+      validate(fields()[14], value);
+      this.speedBuilder = null;
+      this.speed = value;
+      fieldSetFlags()[14] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'speed' field has been set.
+      * @return True if the 'speed' field has been set, false otherwise.
+      */
+    public boolean hasSpeed() {
+      return fieldSetFlags()[14];
+    }
+
+    /**
+     * Gets the Builder instance for the 'speed' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.speed.Builder getSpeedBuilder() {
+      if (speedBuilder == null) {
+        if (hasSpeed()) {
+          setSpeedBuilder(net.airqo.models.speed.newBuilder(speed));
+        } else {
+          setSpeedBuilder(net.airqo.models.speed.newBuilder());
+        }
+      }
+      return speedBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'speed' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setSpeedBuilder(net.airqo.models.speed.Builder value) {
+      clearSpeed();
+      speedBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'speed' field has an active Builder instance
+     * @return True if the 'speed' field has an active Builder instance
+     */
+    public boolean hasSpeedBuilder() {
+      return speedBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'speed' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearSpeed() {
+      speed = null;
+      speedBuilder = null;
+      fieldSetFlags()[14] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'altitude' field.
+      * @return The value.
+      */
+    public net.airqo.models.altitude getAltitude() {
+      return altitude;
+    }
+
+
+    /**
+      * Sets the value of the 'altitude' field.
+      * @param value The value of 'altitude'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setAltitude(net.airqo.models.altitude value) {
+      validate(fields()[15], value);
+      this.altitudeBuilder = null;
+      this.altitude = value;
+      fieldSetFlags()[15] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'altitude' field has been set.
+      * @return True if the 'altitude' field has been set, false otherwise.
+      */
+    public boolean hasAltitude() {
+      return fieldSetFlags()[15];
+    }
+
+    /**
+     * Gets the Builder instance for the 'altitude' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.altitude.Builder getAltitudeBuilder() {
+      if (altitudeBuilder == null) {
+        if (hasAltitude()) {
+          setAltitudeBuilder(net.airqo.models.altitude.newBuilder(altitude));
+        } else {
+          setAltitudeBuilder(net.airqo.models.altitude.newBuilder());
+        }
+      }
+      return altitudeBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'altitude' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setAltitudeBuilder(net.airqo.models.altitude.Builder value) {
+      clearAltitude();
+      altitudeBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'altitude' field has an active Builder instance
+     * @return True if the 'altitude' field has an active Builder instance
+     */
+    public boolean hasAltitudeBuilder() {
+      return altitudeBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'altitude' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearAltitude() {
+      altitude = null;
+      altitudeBuilder = null;
+      fieldSetFlags()[15] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'battery' field.
+      * @return The value.
+      */
+    public net.airqo.models.battery getBattery() {
+      return battery;
+    }
+
+
+    /**
+      * Sets the value of the 'battery' field.
+      * @param value The value of 'battery'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setBattery(net.airqo.models.battery value) {
+      validate(fields()[16], value);
+      this.batteryBuilder = null;
+      this.battery = value;
+      fieldSetFlags()[16] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'battery' field has been set.
+      * @return True if the 'battery' field has been set, false otherwise.
+      */
+    public boolean hasBattery() {
+      return fieldSetFlags()[16];
+    }
+
+    /**
+     * Gets the Builder instance for the 'battery' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.battery.Builder getBatteryBuilder() {
+      if (batteryBuilder == null) {
+        if (hasBattery()) {
+          setBatteryBuilder(net.airqo.models.battery.newBuilder(battery));
+        } else {
+          setBatteryBuilder(net.airqo.models.battery.newBuilder());
+        }
+      }
+      return batteryBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'battery' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setBatteryBuilder(net.airqo.models.battery.Builder value) {
+      clearBattery();
+      batteryBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'battery' field has an active Builder instance
+     * @return True if the 'battery' field has an active Builder instance
+     */
+    public boolean hasBatteryBuilder() {
+      return batteryBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'battery' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearBattery() {
+      battery = null;
+      batteryBuilder = null;
+      fieldSetFlags()[16] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'satellites' field.
+      * @return The value.
+      */
+    public net.airqo.models.satellites getSatellites() {
+      return satellites;
+    }
+
+
+    /**
+      * Sets the value of the 'satellites' field.
+      * @param value The value of 'satellites'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setSatellites(net.airqo.models.satellites value) {
+      validate(fields()[17], value);
+      this.satellitesBuilder = null;
+      this.satellites = value;
+      fieldSetFlags()[17] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'satellites' field has been set.
+      * @return True if the 'satellites' field has been set, false otherwise.
+      */
+    public boolean hasSatellites() {
+      return fieldSetFlags()[17];
+    }
+
+    /**
+     * Gets the Builder instance for the 'satellites' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.satellites.Builder getSatellitesBuilder() {
+      if (satellitesBuilder == null) {
+        if (hasSatellites()) {
+          setSatellitesBuilder(net.airqo.models.satellites.newBuilder(satellites));
+        } else {
+          setSatellitesBuilder(net.airqo.models.satellites.newBuilder());
+        }
+      }
+      return satellitesBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'satellites' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setSatellitesBuilder(net.airqo.models.satellites.Builder value) {
+      clearSatellites();
+      satellitesBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'satellites' field has an active Builder instance
+     * @return True if the 'satellites' field has an active Builder instance
+     */
+    public boolean hasSatellitesBuilder() {
+      return satellitesBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'satellites' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearSatellites() {
+      satellites = null;
+      satellitesBuilder = null;
+      fieldSetFlags()[17] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'hdop' field.
+      * @return The value.
+      */
+    public net.airqo.models.hdop getHdop() {
+      return hdop;
+    }
+
+
+    /**
+      * Sets the value of the 'hdop' field.
+      * @param value The value of 'hdop'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setHdop(net.airqo.models.hdop value) {
+      validate(fields()[18], value);
+      this.hdopBuilder = null;
+      this.hdop = value;
+      fieldSetFlags()[18] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'hdop' field has been set.
+      * @return True if the 'hdop' field has been set, false otherwise.
+      */
+    public boolean hasHdop() {
+      return fieldSetFlags()[18];
+    }
+
+    /**
+     * Gets the Builder instance for the 'hdop' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.hdop.Builder getHdopBuilder() {
+      if (hdopBuilder == null) {
+        if (hasHdop()) {
+          setHdopBuilder(net.airqo.models.hdop.newBuilder(hdop));
+        } else {
+          setHdopBuilder(net.airqo.models.hdop.newBuilder());
+        }
+      }
+      return hdopBuilder;
+    }
+
+    /**
+     * Sets the Builder instance for the 'hdop' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setHdopBuilder(net.airqo.models.hdop.Builder value) {
+      clearHdop();
+      hdopBuilder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 'hdop' field has an active Builder instance
+     * @return True if the 'hdop' field has an active Builder instance
+     */
+    public boolean hasHdopBuilder() {
+      return hdopBuilder != null;
+    }
+
+    /**
+      * Clears the value of the 'hdop' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearHdop() {
+      hdop = null;
+      hdopBuilder = null;
+      fieldSetFlags()[18] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 's2_pm10' field.
+      * @return The value.
+      */
+    public net.airqo.models.s2_pm10 getS2Pm10() {
+      return s2_pm10;
+    }
+
+
+    /**
+      * Sets the value of the 's2_pm10' field.
+      * @param value The value of 's2_pm10'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setS2Pm10(net.airqo.models.s2_pm10 value) {
+      validate(fields()[19], value);
+      this.s2_pm10Builder = null;
+      this.s2_pm10 = value;
+      fieldSetFlags()[19] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 's2_pm10' field has been set.
+      * @return True if the 's2_pm10' field has been set, false otherwise.
+      */
+    public boolean hasS2Pm10() {
+      return fieldSetFlags()[19];
+    }
+
+    /**
+     * Gets the Builder instance for the 's2_pm10' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.s2_pm10.Builder getS2Pm10Builder() {
+      if (s2_pm10Builder == null) {
+        if (hasS2Pm10()) {
+          setS2Pm10Builder(net.airqo.models.s2_pm10.newBuilder(s2_pm10));
+        } else {
+          setS2Pm10Builder(net.airqo.models.s2_pm10.newBuilder());
+        }
+      }
+      return s2_pm10Builder;
+    }
+
+    /**
+     * Sets the Builder instance for the 's2_pm10' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setS2Pm10Builder(net.airqo.models.s2_pm10.Builder value) {
+      clearS2Pm10();
+      s2_pm10Builder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 's2_pm10' field has an active Builder instance
+     * @return True if the 's2_pm10' field has an active Builder instance
+     */
+    public boolean hasS2Pm10Builder() {
+      return s2_pm10Builder != null;
+    }
+
+    /**
+      * Clears the value of the 's2_pm10' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearS2Pm10() {
+      s2_pm10 = null;
+      s2_pm10Builder = null;
+      fieldSetFlags()[19] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 's2_pm2_5' field.
+      * @return The value.
+      */
+    public net.airqo.models.s2_pm2_5 getS2Pm25() {
+      return s2_pm2_5;
+    }
+
+
+    /**
+      * Sets the value of the 's2_pm2_5' field.
+      * @param value The value of 's2_pm2_5'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setS2Pm25(net.airqo.models.s2_pm2_5 value) {
+      validate(fields()[20], value);
+      this.s2_pm2_5Builder = null;
+      this.s2_pm2_5 = value;
+      fieldSetFlags()[20] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 's2_pm2_5' field has been set.
+      * @return True if the 's2_pm2_5' field has been set, false otherwise.
+      */
+    public boolean hasS2Pm25() {
+      return fieldSetFlags()[20];
+    }
+
+    /**
+     * Gets the Builder instance for the 's2_pm2_5' field and creates one if it doesn't exist yet.
+     * @return This builder.
+     */
+    public net.airqo.models.s2_pm2_5.Builder getS2Pm25Builder() {
+      if (s2_pm2_5Builder == null) {
+        if (hasS2Pm25()) {
+          setS2Pm25Builder(net.airqo.models.s2_pm2_5.newBuilder(s2_pm2_5));
+        } else {
+          setS2Pm25Builder(net.airqo.models.s2_pm2_5.newBuilder());
+        }
+      }
+      return s2_pm2_5Builder;
+    }
+
+    /**
+     * Sets the Builder instance for the 's2_pm2_5' field
+     * @param value The builder instance that must be set.
+     * @return This builder.
+     */
+
+    public net.airqo.models.Measurement.Builder setS2Pm25Builder(net.airqo.models.s2_pm2_5.Builder value) {
+      clearS2Pm25();
+      s2_pm2_5Builder = value;
+      return this;
+    }
+
+    /**
+     * Checks whether the 's2_pm2_5' field has an active Builder instance
+     * @return True if the 's2_pm2_5' field has an active Builder instance
+     */
+    public boolean hasS2Pm25Builder() {
+      return s2_pm2_5Builder != null;
+    }
+
+    /**
+      * Clears the value of the 's2_pm2_5' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearS2Pm25() {
+      s2_pm2_5 = null;
+      s2_pm2_5Builder = null;
+      fieldSetFlags()[20] = false;
       return this;
     }
 
@@ -1272,6 +2392,36 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
         } else {
           record.internalHumidity = fieldSetFlags()[6] ? this.internalHumidity : (net.airqo.models.internalHumidity) defaultValue(fields()[6]);
         }
+        if (externalTemperatureBuilder != null) {
+          try {
+            record.externalTemperature = this.externalTemperatureBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("externalTemperature"));
+            throw e;
+          }
+        } else {
+          record.externalTemperature = fieldSetFlags()[7] ? this.externalTemperature : (net.airqo.models.externalTemperature) defaultValue(fields()[7]);
+        }
+        if (externalHumidityBuilder != null) {
+          try {
+            record.externalHumidity = this.externalHumidityBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("externalHumidity"));
+            throw e;
+          }
+        } else {
+          record.externalHumidity = fieldSetFlags()[8] ? this.externalHumidity : (net.airqo.models.externalHumidity) defaultValue(fields()[8]);
+        }
+        if (externalPressureBuilder != null) {
+          try {
+            record.externalPressure = this.externalPressureBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("externalPressure"));
+            throw e;
+          }
+        } else {
+          record.externalPressure = fieldSetFlags()[9] ? this.externalPressure : (net.airqo.models.externalPressure) defaultValue(fields()[9]);
+        }
         if (pm10Builder != null) {
           try {
             record.pm10 = this.pm10Builder.build();
@@ -1280,7 +2430,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.pm10 = fieldSetFlags()[7] ? this.pm10 : (net.airqo.models.pm10) defaultValue(fields()[7]);
+          record.pm10 = fieldSetFlags()[10] ? this.pm10 : (net.airqo.models.pm10) defaultValue(fields()[10]);
         }
         if (pm2_5Builder != null) {
           try {
@@ -1290,7 +2440,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.pm2_5 = fieldSetFlags()[8] ? this.pm2_5 : (net.airqo.models.pm2_5) defaultValue(fields()[8]);
+          record.pm2_5 = fieldSetFlags()[11] ? this.pm2_5 : (net.airqo.models.pm2_5) defaultValue(fields()[11]);
         }
         if (no2Builder != null) {
           try {
@@ -1300,7 +2450,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.no2 = fieldSetFlags()[9] ? this.no2 : (net.airqo.models.no2) defaultValue(fields()[9]);
+          record.no2 = fieldSetFlags()[12] ? this.no2 : (net.airqo.models.no2) defaultValue(fields()[12]);
         }
         if (pm1Builder != null) {
           try {
@@ -1310,7 +2460,77 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.pm1 = fieldSetFlags()[10] ? this.pm1 : (net.airqo.models.pm1) defaultValue(fields()[10]);
+          record.pm1 = fieldSetFlags()[13] ? this.pm1 : (net.airqo.models.pm1) defaultValue(fields()[13]);
+        }
+        if (speedBuilder != null) {
+          try {
+            record.speed = this.speedBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("speed"));
+            throw e;
+          }
+        } else {
+          record.speed = fieldSetFlags()[14] ? this.speed : (net.airqo.models.speed) defaultValue(fields()[14]);
+        }
+        if (altitudeBuilder != null) {
+          try {
+            record.altitude = this.altitudeBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("altitude"));
+            throw e;
+          }
+        } else {
+          record.altitude = fieldSetFlags()[15] ? this.altitude : (net.airqo.models.altitude) defaultValue(fields()[15]);
+        }
+        if (batteryBuilder != null) {
+          try {
+            record.battery = this.batteryBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("battery"));
+            throw e;
+          }
+        } else {
+          record.battery = fieldSetFlags()[16] ? this.battery : (net.airqo.models.battery) defaultValue(fields()[16]);
+        }
+        if (satellitesBuilder != null) {
+          try {
+            record.satellites = this.satellitesBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("satellites"));
+            throw e;
+          }
+        } else {
+          record.satellites = fieldSetFlags()[17] ? this.satellites : (net.airqo.models.satellites) defaultValue(fields()[17]);
+        }
+        if (hdopBuilder != null) {
+          try {
+            record.hdop = this.hdopBuilder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("hdop"));
+            throw e;
+          }
+        } else {
+          record.hdop = fieldSetFlags()[18] ? this.hdop : (net.airqo.models.hdop) defaultValue(fields()[18]);
+        }
+        if (s2_pm10Builder != null) {
+          try {
+            record.s2_pm10 = this.s2_pm10Builder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("s2_pm10"));
+            throw e;
+          }
+        } else {
+          record.s2_pm10 = fieldSetFlags()[19] ? this.s2_pm10 : (net.airqo.models.s2_pm10) defaultValue(fields()[19]);
+        }
+        if (s2_pm2_5Builder != null) {
+          try {
+            record.s2_pm2_5 = this.s2_pm2_5Builder.build();
+          } catch (org.apache.avro.AvroMissingFieldException e) {
+            e.addParentField(record.getSchema().getField("s2_pm2_5"));
+            throw e;
+          }
+        } else {
+          record.s2_pm2_5 = fieldSetFlags()[20] ? this.s2_pm2_5 : (net.airqo.models.s2_pm2_5) defaultValue(fields()[20]);
         }
         return record;
       } catch (org.apache.avro.AvroMissingFieldException e) {
@@ -1358,6 +2578,12 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
 
     this.internalHumidity.customEncode(out);
 
+    this.externalTemperature.customEncode(out);
+
+    this.externalHumidity.customEncode(out);
+
+    this.externalPressure.customEncode(out);
+
     this.pm10.customEncode(out);
 
     this.pm2_5.customEncode(out);
@@ -1365,6 +2591,20 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     this.no2.customEncode(out);
 
     this.pm1.customEncode(out);
+
+    this.speed.customEncode(out);
+
+    this.altitude.customEncode(out);
+
+    this.battery.customEncode(out);
+
+    this.satellites.customEncode(out);
+
+    this.hdop.customEncode(out);
+
+    this.s2_pm10.customEncode(out);
+
+    this.s2_pm2_5.customEncode(out);
 
   }
 
@@ -1396,6 +2636,21 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       }
       this.internalHumidity.customDecode(in);
 
+      if (this.externalTemperature == null) {
+        this.externalTemperature = new net.airqo.models.externalTemperature();
+      }
+      this.externalTemperature.customDecode(in);
+
+      if (this.externalHumidity == null) {
+        this.externalHumidity = new net.airqo.models.externalHumidity();
+      }
+      this.externalHumidity.customDecode(in);
+
+      if (this.externalPressure == null) {
+        this.externalPressure = new net.airqo.models.externalPressure();
+      }
+      this.externalPressure.customDecode(in);
+
       if (this.pm10 == null) {
         this.pm10 = new net.airqo.models.pm10();
       }
@@ -1416,8 +2671,43 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       }
       this.pm1.customDecode(in);
 
+      if (this.speed == null) {
+        this.speed = new net.airqo.models.speed();
+      }
+      this.speed.customDecode(in);
+
+      if (this.altitude == null) {
+        this.altitude = new net.airqo.models.altitude();
+      }
+      this.altitude.customDecode(in);
+
+      if (this.battery == null) {
+        this.battery = new net.airqo.models.battery();
+      }
+      this.battery.customDecode(in);
+
+      if (this.satellites == null) {
+        this.satellites = new net.airqo.models.satellites();
+      }
+      this.satellites.customDecode(in);
+
+      if (this.hdop == null) {
+        this.hdop = new net.airqo.models.hdop();
+      }
+      this.hdop.customDecode(in);
+
+      if (this.s2_pm10 == null) {
+        this.s2_pm10 = new net.airqo.models.s2_pm10();
+      }
+      this.s2_pm10.customDecode(in);
+
+      if (this.s2_pm2_5 == null) {
+        this.s2_pm2_5 = new net.airqo.models.s2_pm2_5();
+      }
+      this.s2_pm2_5.customDecode(in);
+
     } else {
-      for (int i = 0; i < 11; i++) {
+      for (int i = 0; i < 21; i++) {
         switch (fieldOrder[i].pos()) {
         case 0:
           this.frequency = in.readString(this.frequency instanceof Utf8 ? (Utf8)this.frequency : null);
@@ -1457,31 +2747,101 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
           break;
 
         case 7:
+          if (this.externalTemperature == null) {
+            this.externalTemperature = new net.airqo.models.externalTemperature();
+          }
+          this.externalTemperature.customDecode(in);
+          break;
+
+        case 8:
+          if (this.externalHumidity == null) {
+            this.externalHumidity = new net.airqo.models.externalHumidity();
+          }
+          this.externalHumidity.customDecode(in);
+          break;
+
+        case 9:
+          if (this.externalPressure == null) {
+            this.externalPressure = new net.airqo.models.externalPressure();
+          }
+          this.externalPressure.customDecode(in);
+          break;
+
+        case 10:
           if (this.pm10 == null) {
             this.pm10 = new net.airqo.models.pm10();
           }
           this.pm10.customDecode(in);
           break;
 
-        case 8:
+        case 11:
           if (this.pm2_5 == null) {
             this.pm2_5 = new net.airqo.models.pm2_5();
           }
           this.pm2_5.customDecode(in);
           break;
 
-        case 9:
+        case 12:
           if (this.no2 == null) {
             this.no2 = new net.airqo.models.no2();
           }
           this.no2.customDecode(in);
           break;
 
-        case 10:
+        case 13:
           if (this.pm1 == null) {
             this.pm1 = new net.airqo.models.pm1();
           }
           this.pm1.customDecode(in);
+          break;
+
+        case 14:
+          if (this.speed == null) {
+            this.speed = new net.airqo.models.speed();
+          }
+          this.speed.customDecode(in);
+          break;
+
+        case 15:
+          if (this.altitude == null) {
+            this.altitude = new net.airqo.models.altitude();
+          }
+          this.altitude.customDecode(in);
+          break;
+
+        case 16:
+          if (this.battery == null) {
+            this.battery = new net.airqo.models.battery();
+          }
+          this.battery.customDecode(in);
+          break;
+
+        case 17:
+          if (this.satellites == null) {
+            this.satellites = new net.airqo.models.satellites();
+          }
+          this.satellites.customDecode(in);
+          break;
+
+        case 18:
+          if (this.hdop == null) {
+            this.hdop = new net.airqo.models.hdop();
+          }
+          this.hdop.customDecode(in);
+          break;
+
+        case 19:
+          if (this.s2_pm10 == null) {
+            this.s2_pm10 = new net.airqo.models.s2_pm10();
+          }
+          this.s2_pm10.customDecode(in);
+          break;
+
+        case 20:
+          if (this.s2_pm2_5 == null) {
+            this.s2_pm2_5 = new net.airqo.models.s2_pm2_5();
+          }
+          this.s2_pm2_5.customDecode(in);
           break;
 
         default:
