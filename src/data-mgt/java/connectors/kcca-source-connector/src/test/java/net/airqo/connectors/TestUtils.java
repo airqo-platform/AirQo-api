@@ -12,6 +12,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 import java.util.Properties;
+import java.util.TimeZone;
 
 import static net.airqo.connectors.Utils.getMeasurements;
 
@@ -31,6 +32,37 @@ public class TestUtils {
         } catch (Exception e) {
             logger.error("Unable to load clarity properties from clarity.properties.", e);
         }
+
+    }
+
+
+
+    @Test
+    public void testBuildQueryParameters(){
+
+        // testing hour average
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:00:00'Z'");
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        String startTime =  simpleDateFormat.format(new Date(System.currentTimeMillis() - 2 * 3600 * 1000 ));
+
+        String params = Utils.buildQueryParameters("hour");
+        Assertions.assertEquals(String.format("?startTime=%s&average=hour", startTime), params);
+
+        // testing day average
+        simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'00:00:00'Z'");
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        startTime =  simpleDateFormat.format(new Date(System.currentTimeMillis() - 48 * 3600 * 1000));
+
+        params = Utils.buildQueryParameters("day");
+        Assertions.assertEquals(String.format("?startTime=%s&average=day", startTime), params);
+
+        // testing invalid/raw average
+        simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:00'Z'");
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        startTime =  simpleDateFormat.format(new Date(System.currentTimeMillis() - 1800 * 1000));
+
+        params = Utils.buildQueryParameters("invalid");
+        Assertions.assertEquals(String.format("?startTime=%s", startTime), params);
 
     }
 

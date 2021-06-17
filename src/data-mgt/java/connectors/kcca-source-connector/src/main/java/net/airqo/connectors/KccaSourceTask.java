@@ -32,7 +32,6 @@ public class KccaSourceTask extends SourceTask {
     private String apiKey;
     private String clarityBaseUrl;
     private String average;
-    private String timezone;
 
     private Long interval;
     private Long last_execution = 0L;
@@ -55,7 +54,6 @@ public class KccaSourceTask extends SourceTask {
         clarityBaseUrl = props.get(KccaSourceConnectorConfig.CLARITY_API_BASE_URL);
         interval = Long.parseLong(props.get(KccaSourceConnectorConfig.POLL_INTERVAL));
         average = props.get(KccaSourceConnectorConfig.AVERAGE);
-        timezone = props.get(KccaSourceConnectorConfig.TIME_ZONE);
 
     }
 
@@ -79,7 +77,7 @@ public class KccaSourceTask extends SourceTask {
             String startTime = simpleDateFormat.format(lastExecutionTime) + "T" + simpleTimeFormat.format(lastExecutionTime) + ":00Z";
 
 //                String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + "&average=hour" + "&code=" + deviceCodes + "&limit=" + 2;
-            String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + Utils.buildQueryParameters(average, timezone);
+            String urlString = clarityBaseUrl + "measurements?startTime=" + startTime + Utils.buildQueryParameters(average);
 
             Schema measurementsListSchema = SchemaBuilder.array(
                     SchemaBuilder.struct()
@@ -209,7 +207,7 @@ public class KccaSourceTask extends SourceTask {
 //
 //                String startTime = simpleDateFormat.format(lastExecutionTime) + "T" + simpleTimeFormat.format(lastExecutionTime) + ":00Z";
 
-                String urlString = String.format("%smeasurements?%s", clarityBaseUrl, Utils.buildQueryParameters(average, timezone));
+                String urlString = String.format("%smeasurements?%s", clarityBaseUrl, Utils.buildQueryParameters(average));
 
                 URL url = new URL(urlString);
 
