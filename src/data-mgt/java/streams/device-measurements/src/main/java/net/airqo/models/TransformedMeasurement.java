@@ -4,7 +4,7 @@ import java.util.HashMap;
 
 public class TransformedMeasurement {
 
-    private String frequency = "";
+    private String frequency = "raw";
     private int channelID = 0;
     private String time = "";
     private String tenant = "";
@@ -19,6 +19,9 @@ public class TransformedMeasurement {
     }};
     private HashMap<String, Object> internalTemperature = setDefaults();
     private HashMap<String, Object> internalHumidity = setDefaults();
+    private HashMap<String, Object> externalTemperature = setDefaults();
+    private HashMap<String, Object> externalPressure = setDefaults();
+    private HashMap<String, Object> externalHumidity = setDefaults();
     private HashMap<String, Object> altitude = setDefaults();
     private HashMap<String, Object> battery = setDefaults();
     private HashMap<String, Object> speed = setDefaults();
@@ -35,7 +38,33 @@ public class TransformedMeasurement {
         return  new HashMap<String, Object>(){{
             put("calibratedValue", null);
             put("value", null);
+            put("standardDeviationValue", null);
+            put("uncertaintyValue", null);
         }};
+    }
+
+    public HashMap<String, Object> getExternalTemperature() {
+        return externalTemperature;
+    }
+
+    public void setExternalTemperature(HashMap<String, Object> externalTemperature) {
+        this.externalTemperature = externalTemperature;
+    }
+
+    public HashMap<String, Object> getExternalPressure() {
+        return externalPressure;
+    }
+
+    public void setExternalPressure(HashMap<String, Object> externalPressure) {
+        this.externalPressure = externalPressure;
+    }
+
+    public HashMap<String, Object> getExternalHumidity() {
+        return externalHumidity;
+    }
+
+    public void setExternalHumidity(HashMap<String, Object> externalHumidity) {
+        this.externalHumidity = externalHumidity;
     }
 
     public int getChannelID() {

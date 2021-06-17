@@ -42,8 +42,7 @@
                                 "type": "record", 
                                 "name": "internalTemperature",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },

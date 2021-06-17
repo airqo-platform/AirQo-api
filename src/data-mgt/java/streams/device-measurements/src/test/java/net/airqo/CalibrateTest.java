@@ -14,8 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 
@@ -69,13 +67,9 @@ public class CalibrateTest {
             logger.error("Calibrate error : {}", e.toString());
         }
 
-        assertThrows(IOException.class, () -> {
-            Calibrate.getCalibratedValue(transformedMeasurement, "test.empty.properties");
-        });
+        assertThrows(IOException.class, () -> Calibrate.getCalibratedValue(transformedMeasurement, "test.empty.properties"));
 
-        assertThrows(IOException.class, () -> {
-            Calibrate.getCalibratedValue(null, null);
-        });
+        assertThrows(IOException.class, () -> Calibrate.getCalibratedValue(null, null));
     }
 
     @Test
@@ -90,9 +84,9 @@ public class CalibrateTest {
 
         List<Calibrate.CalibrateResponse> object = Calibrate.stringToObjectList(new Gson().toJson(list));
 
-        assertFalse(object.isEmpty());
-        assertEquals(object.get(0).getCalibratedValue(), 23.0);
-        assertEquals(object.get(0).getDevice(), "device");
+        Assertions.assertFalse(object.isEmpty());
+        Assertions.assertEquals(object.get(0).getCalibratedValue(), 23.0);
+        Assertions.assertEquals(object.get(0).getDevice(), "device");
 
 
     }

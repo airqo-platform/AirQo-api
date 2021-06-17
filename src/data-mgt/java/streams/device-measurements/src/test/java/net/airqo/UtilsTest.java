@@ -69,7 +69,6 @@ public class UtilsTest {
         assertEquals(measurement.getLocation().getLongitude(), transformedMeasurement.getLocation().get("longitude").get("value"));
 
         assertEquals(measurement.getInternalTemperature().getValue(), transformedMeasurement.getInternalTemperature().get("value"));
-        assertEquals(measurement.getInternalTemperature().getCalibratedValue(), transformedMeasurement.getInternalTemperature().get("calibratedValue"));
 
         assertEquals(measurement.getInternalHumidity().getValue(), transformedMeasurement.getInternalHumidity().get("value"));
 
