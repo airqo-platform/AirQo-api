@@ -9,7 +9,7 @@ spec:
   image: localhost:5000/airqo-stage-kcca-deivce-measurements-connect:latest
   imagePullPolicy: Always
   replicas: 1
-  bootstrapServers: 192.168.49.2:31303
+  bootstrapServers: 192.168.49.2:31913
   config:
     group.id: kcca-source-connector-cluster
     offset.storage.topic: kcca-source-connector-cluster-offsets
@@ -17,5 +17,5 @@ spec:
     status.storage.topic: kcca-source-connector-cluster-status
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
-    key.converter.schemas.enable: false
-    value.converter.schemas.enable: false
+    key.converter.schemas.enable: true
+    value.converter.schemas.enable: true

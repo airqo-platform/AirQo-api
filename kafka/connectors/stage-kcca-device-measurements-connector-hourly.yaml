@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1alpha1
 kind: KafkaConnector
 metadata:
-  name: kcca-source-connector
+  name: kcca-source-connector-hourly
   namespace: staging
   labels:
     strimzi.io/cluster: kcca-source-connector-cluster
@@ -10,9 +10,10 @@ spec:
   tasksMax: 2
   config:
     topic: kcca-raw-device-measurements-topic
-    clarityApiKey: CALRITY_API_KEY
-    clarityApiBaseUrl: CLARITY_URL
-    pollInterval: 86400000
+    clarityApiKey: key
+    clarityApiBaseUrl: url
+    pollInterval: 3600000  # set to 1 hour (3600 * 1000). Note that the connector fetches for last 2 hours
+    average: hour
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter
