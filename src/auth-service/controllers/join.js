@@ -68,7 +68,7 @@ const join = {
 
   forgot: async (req, res) => {
     logText("...........................................");
-    logText("forgot password");
+    logText("forgot password...");
     try {
       let { email } = req.body;
       let { tenant } = req.query;
@@ -126,66 +126,6 @@ const join = {
           });
         }
       }
-
-      // const token = crypto.randomBytes(20).toString("hex");
-
-      // let query = { email: req.body.email };
-
-      // if (!query.email) {
-      //   return res
-      //     .status(HTTPStatus.BAD_REQUEST)
-      //     .json({ success: false, message: "email field is required" });
-      // }
-      // let updateDetails = {
-      //   resetPasswordToken: token,
-      //   resetPasswordExpires: Date.now() + 3600000,
-      // };
-      // //get the model based on tenant
-      // const { tenant } = req.query;
-
-      // await UserModel(tenant.toLowerCase()).findOneAndUpdate(
-      //   query,
-      //   updateDetails,
-      //   (error, response) => {
-      //     if (error) {
-      //       return res
-      //         .status(HTTPStatus.BAD_GATEWAY)
-      //         .json({ message: "Email does not exist" });
-      //     } else if (response) {
-      //       /**
-      //        * afterwards, send them emails accordingly
-      //        */
-      //       const mailOptions = {
-      //         from: constants.EMAIL,
-      //         to: `${req.body.email}`,
-      //         subject: `Link To Reset Password`,
-      //         text: `${msgs.recovery_email(token, tenant)}`,
-      //       };
-
-      //       console.log("sending mail");
-
-      //       //deliver the message object using sendMail
-      //       transporter.sendMail(mailOptions, (err, response) => {
-      //         if (err) {
-      //           console.error("there was an error: ", err);
-      //           return res
-      //             .status(HTTPStatus.BAD_GATEWAY)
-      //             .json({ email: "unable to send email" });
-      //         } else {
-      //           console.log("here is the res: ", response);
-      //           return res
-      //             .status(HTTPStatus.OK)
-      //             .json({ message: "recovery email sent" });
-      //         }
-      //       });
-      //     } else {
-      //       return res.status(HTTPStatus.BAD_GATEWAY).json({
-      //         message:
-      //           "unable to send email. Please crosscheck the organisation and email information provided.",
-      //       });
-      //     }
-      //   }
-      // );
     } catch (error) {
       tryCatchErrors(res, error, "join controller");
     }
@@ -292,26 +232,6 @@ const join = {
           });
         }
       }
-
-      // UserModel(tenant.toLowerCase())
-      //   .findById(id)
-      //   .then((user) => {
-      //     //when the user does not exist in the DB
-      //     if (!user) {
-      //       res.json({ msg: msgs.couldNotFind });
-      //     }
-      //     // The user exists but has not been confirmed. So we confirm them...
-      //     else if (user && !user.emailConfirmed) {
-      //       User.findByIdAndUpdate(id, { confirmed: true })
-      //         .then(() => res.json({ msg: msgs.confirmed }))
-      //         .catch((err) => console.log(err));
-      //     }
-      //     //when the user has already confirmed their email address
-      //     else {
-      //       res.json({ msg: msgs.alreadyConfirmed });
-      //     }
-      //   })
-      //   .catch((err) => console.log(err));
     } catch (error) {
       logElement("controller server error", error.message);
       tryCatchErrors(res, error, "join controller");
@@ -511,49 +431,6 @@ const join = {
           });
         }
       }
-
-      // await UserModel(tenant.toLowerCase())
-      //   .findOne({
-      //     resetPasswordToken: resetPasswordToken,
-      //     resetPasswordExpires: {
-      //       $gt: Date.now(),
-      //     },
-      //   })
-      //   .then((user) => {
-      //     if (user === null) {
-      //       console.log("password reset link is invalid or has expired");
-      //       res.status(HTTPStatus.BAD_REQUEST).json({
-      //         message: "password reset link is invalid or has expired",
-      //         success: false,
-      //       });
-      //     } else if (user !== null) {
-      //       user.resetPasswordToken = null;
-      //       user.resetPasswordExpires = null;
-      //       user.password = password;
-      //       user.save((error, saved) => {
-      //         if (error) {
-      //           console.log("user does not exist");
-      //           res.status(HTTPStatus.BAD_GATEWAY).json({
-      //             success: false,
-      //             message: "user does not exist",
-      //           });
-      //         } else if (saved) {
-      //           console.log("password updated");
-      //           res.status(HTTPStatus.OK).json({
-      //             success: true,
-      //             message: "password updated successfully",
-      //             userName: user.userName,
-      //           });
-      //         }
-      //       });
-      //     } else {
-      //       console.log("the user does not exist");
-      //       res.status(HTTPStatus.BAD_GATEWAY).json({
-      //         success: false,
-      //         message: "the user does not exist",
-      //       });
-      //     }
-      //   });
     } catch (error) {
       tryCatchErrors(res, error, "join controller");
     }
@@ -562,12 +439,6 @@ const join = {
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
-      /**
-       * check that all needed params are present
-       * check that the user does exist (happen from the util I presume)
-       * if user exists, then check that their old passwords matches
-       * if the old password matches, then perform the password update
-       */
       const { errors, isValid } = validations.updateKnownPassword(req.body);
       if (!isValid) {
         return res.status(400).json(errors);

@@ -147,7 +147,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         error: error.message,
-        message: "User model server error",
+        message: "User model server error - register",
         success: false,
       };
     }
@@ -183,7 +183,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "model server error",
+        message: "User model server error - list",
         error: error.message,
       };
     }
@@ -192,7 +192,10 @@ UserSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-      modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
+      logObject("modifiedUpdate", modifiedUpdate);
+      if (update.password) {
+        modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
+      }
       let udpatedUser = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
@@ -214,7 +217,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "model server error",
+        message: "User model server error - modify",
         error: error.message,
       };
     }
@@ -241,7 +244,7 @@ UserSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "model server error",
+        message: "User model server error - remove",
         error: error.message,
       };
     }
