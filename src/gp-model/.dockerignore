@@ -1,0 +1,10 @@
+saved_model
+env/
+__pycache__/
+.vscode
+.DS_Store
+Jenkinsfile
+README.md
+Dockerfile
+Dockerfile.stage
+.gitignore
