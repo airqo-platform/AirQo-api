@@ -29,7 +29,7 @@ module.exports = {
       "Welcome to the KCCA AirQo air quality monitoring platform. \n\n" +
       `Your username is: ${username}\n` +
       `Your temporary password is: ${password}\n\n` +
-      `Please remember to reset your password by visting: ${constants.FORGOT_PAGE}\n` +
+      `You can always change your password in your account settings after login\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
       "A guide to using the platform will be found under the Documentation section of the platform\n" +
       `Demos for using our main features can be found on our Youtube channel here: ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
@@ -45,7 +45,7 @@ module.exports = {
       "Welcome to the AirQo air quality monitoring platform. \n\n" +
       `Your username is: ${username}\n` +
       `Your temporary password is: ${password}\n\n` +
-      `Please remember to reset your password by visting: ${constants.FORGOT_PAGE}\n` +
+      `You can always change your password in your account settings after login\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
       "A guide to using the platform will be found under the Documentation section of the platform\n" +
       `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
