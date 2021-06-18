@@ -547,7 +547,7 @@ const join = {
       } else {
         return {
           success: false,
-          message: "please crosscheck your old password",
+          message: "unable to find this user",
         };
       }
     } catch (error) {
