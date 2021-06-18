@@ -1,3 +1,4 @@
+require("app-module-path").addPath(__dirname);
 var express = require("express");
 var path = require("path");
 var logger = require("morgan");
@@ -8,7 +9,6 @@ var bodyParser = require("body-parser");
 var api = require("./routes/api");
 const { mongodb } = require("./config/dbConnection");
 mongodb;
-console.log = function () {};
 
 var app = express();
 
