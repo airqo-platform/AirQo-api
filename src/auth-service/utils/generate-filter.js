@@ -73,32 +73,6 @@ const filter = {
       };
     }
   },
-  defaults: (req) => {
-    try {
-      let { chart, user, id } = req.query;
-      let filter = {};
-      if (chart) {
-        filter["chartTitle"] = chart;
-      }
-      if (user) {
-        filter["user"] = user;
-      }
-      if (id) {
-        filter["_id"] = id;
-      }
-      return {
-        success: true,
-        message: "successfully created the filter",
-        data: filter,
-      };
-    } catch (e) {
-      return {
-        success: false,
-        message: "filter util server error",
-        error: e.message,
-      };
-    }
-  },
 
   defaults: (req) => {
     try {
