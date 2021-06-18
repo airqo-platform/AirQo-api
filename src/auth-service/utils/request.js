@@ -186,14 +186,6 @@ const request = {
     filter
   ) => {
     try {
-      let response = {};
-
-      /**
-       * first check for the existence of the candidate
-       * then generate the password and the candidate is available
-       */
-
-      logObject("the filter during confirmatiuon", filter);
       let responseFromListCandidate = await request.list({ tenant, filter });
       logObject(
         "responseFromListCandidate during confirmation",
@@ -235,9 +227,6 @@ const request = {
           logObject("jsonifyCreatedUser", jsonifyCreatedUser);
 
           if (responseFromCreateUser.success == true) {
-            /**
-             * created user successfully and sent email success
-             */
             let responseFromSendEmail = await mailer.user(
               firstName,
               lastName,
@@ -250,15 +239,33 @@ const request = {
               responseFromSendEmail
             );
             if (responseFromSendEmail.success == true) {
-              return {
-                success: true,
-                message: "candidate successfully confirmed",
-                data: jsonifyCreatedUser,
-              };
+              let responseFromDeleteCandidate = await request.delete(
+                tenant,
+                filter
+              );
+              if (responseFromDeleteCandidate.success == true) {
+                return {
+                  success: true,
+                  message: "candidate successfully confirmed",
+                  data: jsonifyCreatedUser,
+                };
+              } else if (responseFromDeleteCandidate.success == false) {
+                if (responseFromDeleteCandidate.error) {
+                  return {
+                    success: false,
+                    message: responseFromDeleteCandidate.message,
+                    data: responseFromDeleteCandidate.data,
+                    error: responseFromDeleteCandidate.error,
+                  };
+                } else {
+                  return {
+                    success: false,
+                    message: responseFromDeleteCandidate.message,
+                    data: responseFromDeleteCandidate.data,
+                  };
+                }
+              }
             } else if (responseFromSendEmail.success == false) {
-              /**
-               * created user but unable to send email
-               */
               if (responseFromSendEmail.error) {
                 return {
                   success: false,
@@ -273,9 +280,6 @@ const request = {
               }
             }
           }
-          /**
-           * unable to create user
-           */
           if (responseFromCreateUser.success == false) {
             if (responseFromCreateUser.error) {
               return {
@@ -294,12 +298,16 @@ const request = {
 
         if (responseFromGeneratePassword == false) {
           if (responseFromGeneratePassword.error) {
-            response["success"] = false;
-            response["message"] = responseFromGeneratePassword.message;
-            response["error"] = responseFromGeneratePassword.error;
+            return {
+              success: false,
+              message: responseFromGeneratePassword.message,
+              error: responseFromGeneratePassword.error,
+            };
           } else {
-            response["success"] = false;
-            response["message"] = responseFromGeneratePassword.message;
+            return {
+              success: false,
+              message: responseFromGeneratePassword.message,
+            };
           }
         }
       }
@@ -308,21 +316,26 @@ const request = {
         responseFromListCandidate.success == true &&
         isEmpty(responseFromListCandidate.data)
       ) {
-        (response["success"] = false),
-          (response["message"] = "the candidate does not exist");
+        return {
+          success: false,
+          message: "the candidate does not exist",
+        };
       }
 
       if (responseFromListCandidate.success == false) {
         if (responseFromListCandidate.error) {
-          response["success"] = true;
-          response["message"] = "candidate does not exist";
-          response["error"] = responseFromListCandidate.error;
+          return {
+            success: false,
+            message: "unable to retrieve candidate",
+            error: responseFromListCandidate.error,
+          };
         } else {
-          response["success"] = true;
-          response["message"] = "candidate does not exist";
+          return {
+            success: true,
+            message: "unable to retrieve candidate",
+          };
         }
       }
-      return response;
     } catch (e) {
       return {
         success: false,
