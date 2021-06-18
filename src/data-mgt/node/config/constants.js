@@ -58,7 +58,7 @@ const defaultConfig = {
   },
   GET_API_KEY: async (channel) => {
     logText("GET_API_KEY...........");
-    let url = `http://platform.airqo.net/api/v1/devices?tenant=airqo&chid=${channel.trim()}`;
+    let url = `https://platform.airqo.net/api/v1/devices?tenant=airqo&chid=${channel.trim()}`;
     return axios
       .get(url)
       .then(async (response) => {
