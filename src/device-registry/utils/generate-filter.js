@@ -7,14 +7,13 @@ const {
   generateDateFormatWithoutHrs,
 } = require("./date");
 
-const { logElement } = require("./log");
+const { logElement, logObject } = require("./log");
 
 const generateEventsFilter = (device, frequency, startTime, endTime) => {
   let oneMonthBack = monthsBehind(1);
   let oneMonthInfront = monthsInfront(1);
   logElement("defaultStartTime", oneMonthBack);
   logElement(" defaultEndTime", oneMonthInfront);
-
   let filter = {
     day: {
       $gte: generateDateFormatWithoutHrs(oneMonthBack),
@@ -78,7 +77,12 @@ const generateEventsFilter = (device, frequency, startTime, endTime) => {
   }
 
   if (device) {
-    filter["values.device"]["$in"] = device;
+    deviceArray = device.split(",");
+    filter["values.device"]["$in"] = deviceArray;
+  }
+
+  if (!device) {
+    delete filter["values.device"];
   }
 
   if (frequency) {
