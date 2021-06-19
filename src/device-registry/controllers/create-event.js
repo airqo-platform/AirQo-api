@@ -84,15 +84,11 @@ const createEvent = {
         startTime,
         endTime,
       } = req.query;
-      if (req.query.device) {
-        let numberOfDeviceParams = Object.keys(req.query.device).length;
-        logElement("numberOfDeviceParams", numberOfDeviceParams);
-        if (numberOfDeviceParams > 1) {
-          return badRequest(
-            res,
-            "multiple Device query params not supported, please use one comma separated one"
-          );
-        }
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one"
+        );
       }
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
