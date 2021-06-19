@@ -9,6 +9,7 @@ const {
   missingQueryParams,
   callbackErrors,
   invalidParamsValue,
+  badRequest,
 } = require("../utils/errors");
 
 const getDetail = require("../utils/get-device-details");
@@ -83,6 +84,13 @@ const createEvent = {
         startTime,
         endTime,
       } = req.query;
+      let numberOfDeviceParams = Object.keys(req.query.device).length;
+      if (numberOfDeviceParams > 1) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one"
+        );
+      }
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
       logText(".......getting values.......");
