@@ -3,7 +3,6 @@ const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/manage-site");
 const middlewareConfig = require("../config/router.middleware");
-const validate = require("express-validation");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
 const imageUpload = require("../utils/multer");
@@ -11,6 +10,8 @@ const imageController = require("../controllers/process-image");
 const { checkTenancy } = require("../utils/validators/auth");
 const { validateRequestQuery } = require("../utils/validators/requestQuery");
 const { validateRequestBody } = require("../utils/validators/requestBody");
+const { check, oneOf, query, body, param } = require("express-validator");
+const constants = require("../config/constants");
 
 middlewareConfig(router);
 
@@ -32,37 +33,67 @@ router.put("/update", deviceController.updateDevice);
 
 /****************** manage site *************************/
 router.post(
-  "/ts/activity/recall",
+  "/sites/activities/recall",
   checkTenancy,
   validateRequestQuery(["deviceName"]),
   siteController.recallDevice
 );
 router.post(
-  "/ts/activity/deploy",
+  "/sites/activities/deploy",
   checkTenancy,
   validateRequestQuery(["deviceName"]),
   validateRequestBody(siteController.deploymentFields),
   siteController.deployDevice
 );
 router.post(
-  "/ts/activity/maintain",
+  "/sites/activities/maintain",
   checkTenancy,
   validateRequestQuery(["deviceName"]),
   validateRequestBody(siteController.maintenanceField),
   siteController.maintainDevice
 );
-router.get("/ts/activity", siteController.getActivities);
-router.put("/ts/activity/update", siteController.updateActivity);
-router.delete("/ts/activity/delete", siteController.deleteActivity);
+router.get("/sites/activities", siteController.getActivities);
+router.put("/sites/activities", siteController.updateActivity);
+router.delete("/sites/activities", siteController.deleteActivity);
 router.post(
   "/upload-images",
   imageUpload.array("image"),
   imageController.uploadMany
 );
-router.get("/sites", siteController.getSite);
-router.post("/sites", siteController.create);
-router.put("/sites", siteController.update);
-router.delete("/sites", siteController.delete);
+router.get("/sites", oneOf([check("tenant").exists()]), siteController.list);
+router.post(
+  "/sites",
+  oneOf([
+    [
+      check("tenant").exists(),
+      body("latitude").exists(),
+      body("longitude").exists(),
+      body("latitude").matches(constants.LATITUDE_REGEX, "i"),
+      body("longitude").matches(constants.LONGITUDE_REGEX, "i"),
+    ],
+  ]),
+  siteController.register
+);
+router.put(
+  "/sites",
+  oneOf([
+    check("tenant").exists(),
+    check("id").exists(),
+    check("lat_long").exists(),
+    check("generated_name").exists(),
+  ]),
+  siteController.update
+);
+router.delete(
+  "/sites",
+  check("tenant").exists(),
+  oneOf([
+    check("id").exists(),
+    check("lat_long").exists(),
+    check("generated_name").exists(),
+  ]),
+  siteController.delete
+);
 router.post("/sites/nearest", siteController.findNearestSite);
 
 /******************* create component **************************/
