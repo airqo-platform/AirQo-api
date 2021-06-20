@@ -28,8 +28,11 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
-  GET_ADDRESS: (lat, long) => {
+  GET_ADDRESS_URL: (lat, long) => {
     return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
+  },
+  GET_ELEVATION_URL: (lat, long) => {
+    return `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
   CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
   DELETE_THING_URL: (device) => {
@@ -73,6 +76,8 @@ const defaultConfig = {
     field8: "GpsData",
   },
   N_VALUES: 120000,
+  LATITUDE_REGEX: /^(-?[1-8]?\d(?:\.\d{1,18})?|90(?:\.0{1,18})?)$/,
+  LONGITUDE_REGEX: /^(-?(?:1[0-7]|[1-9])?\d(?:\.\d{1,18})?|180(?:\.0{1,18})?)$/,
 };
 
 function envConfig(env) {

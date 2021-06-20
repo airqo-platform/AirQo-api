@@ -2,8 +2,20 @@ const SiteSchema = require("../models/Site");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
+const isEmpty = require("is-empty");
+const jsonify = require("./jsonify");
+const axios = require("axios");
+const { Client } = require("@googlemaps/google-maps-services-js");
+const client = new Client({});
+const axiosInstance = () => {
+  return axios.create();
+};
 
-const createSiteUtils = {
+const SiteModel = (tenant) => {
+  getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
+};
+
+const manageSite = {
   hasWhiteSpace: (name) => {
     try {
       return name.indexOf(" ") >= 0;
@@ -26,8 +38,8 @@ const createSiteUtils = {
 
   validateSiteName: (name) => {
     try {
-      let nameHasWhiteSpace = createSiteUtils.hasWhiteSpace(name);
-      let isValidStringLength = createSiteUtils.checkStringLength(name);
+      let nameHasWhiteSpace = manageSite.hasWhiteSpace(name);
+      let isValidStringLength = manageSite.checkStringLength(name);
       if (!nameHasWhiteSpace && isValidStringLength) {
         return true;
       }
@@ -37,34 +49,82 @@ const createSiteUtils = {
     }
   },
 
-  getSitesCount: async (tenant) => {
+  generateName: async (tenant) => {
     try {
-      let sites = await getModelByTenant(
+      let filter = {
+        lat_long: "4_4",
+      };
+      let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).list();
-      let siteCount = sites.length;
-      return siteCount;
+      ).list({
+        tenant,
+        filter,
+      });
+      if (responseFromListSite.success == true) {
+        let update = {
+          $inc: { count: 1 },
+        };
+        let responseFromUpdateSite = await getModelByTenant(
+          tenant.toLowerCase(),
+          "site",
+          SiteSchema
+        ).modify({
+          filter,
+          update,
+        });
+        if (responseFromUpdateSite.success == true) {
+          let count = responseFromUpdateSite.data.count;
+          let siteName = `site_${count}`;
+          return {
+            success: true,
+            message: "successfully generated the unique site name",
+            data: siteName,
+          };
+        } else if (responseFromUpdateSite.success == false) {
+          if (responseFromUpdateSite.error) {
+            return {
+              success: false,
+              message: responseFromUpdateSite.message,
+              error: responseFromUpdateSite.error,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromUpdateSite.message,
+            };
+          }
+        }
+      } else if (responseFromListSite.success == false) {
+        if (responseFromListSite.error) {
+          return {
+            success: false,
+            message: responseFromListSite.message,
+            error: responseFromListSite.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromListSite.message,
+          };
+        }
+      }
     } catch (e) {
-      logElement("server error", e.message);
+      return {
+        success: false,
+        error: e.message,
+        message: "generateName util server error",
+      };
     }
   },
 
-  generateName: async (tenant) => {
+  create: async (tenant, req) => {
     try {
-      let count = await createSiteUtils.getSitesCount(tenant);
-      return `site_${count + 1}`;
-    } catch (e) {
-      logElement("server error", e.message);
-    }
-  },
-
-  createSite: async (tenant, lat, long, name) => {
-    try {
-      let body = { latitude: lat, longitude: long, name };
-      let isNameValid = createSiteUtils.validateSiteName(name);
-      let lat_long = createSiteUtils.generateLatLong(lat, long);
+      let { latitude, longitude, name, site_tags } = req.body;
+      let body = req.body;
+      let isNameValid = manageSite.validateSiteName(name);
+      let lat_long = manageSite.generateLatLong(latitude, longitude);
       body["lat_long"] = lat_long;
       if (!isNameValid) {
         return {
@@ -72,120 +132,207 @@ const createSiteUtils = {
           message: "site name is invalid, please check documentation",
         };
       }
-      let Site = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
+      let responseFromGenerateName = await manageSite.generateName(tenant);
+      logObject("responseFromGenerateName", responseFromGenerateName);
+
+      let responseFromGetAltitude = await manageSite.getAltitude(
+        latitude,
+        longitude
       );
-      let createdSite = await Site.create(body);
-      if (createdSite) {
-        return {
-          success: true,
-          message: "successfully created a site",
-          createdSite,
-        };
-      } else {
-        return {
-          success: false,
-          message: "unable to create a site",
-        };
+      logObject("responseFromGetAltitude", responseFromGetAltitude);
+      if (responseFromGetAltitude.success == true) {
+        body.altitude = responseFromGetAltitude.data;
+      }
+
+      if (responseFromGenerateName.success == true) {
+        body.generated_name = responseFromGenerateName.data;
+
+        let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
+          latitude,
+          longitude
+        );
+        logObject("responseFromReverseGeoCode", responseFromReverseGeoCode);
+        if (responseFromReverseGeoCode.success == true) {
+          let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+          let responseFromCreateSite = await getModelByTenant(
+            tenant.toLowerCase(),
+            "site",
+            SiteSchema
+          ).register(requestBody);
+          if (responseFromCreateSite.success == true) {
+            let createdSite = responseFromCreateSite.data;
+            let jsonifyCreatedSite = jsonify(createdSite);
+            return {
+              success: true,
+              message: "Site successfully created",
+              data: jsonifyCreatedSite,
+            };
+          }
+          if (responseFromCreateSite.success == false) {
+            if (responseFromCreateSite.error) {
+              return {
+                success: false,
+                message: responseFromCreateSite.message,
+                error: responseFromCreateSite.error,
+              };
+            } else {
+              return {
+                success: false,
+                message: responseFromCreateSite.message,
+              };
+            }
+          }
+        } else if (responseFromReverseGeoCode.success == false) {
+          if (responseFromReverseGeoCode.error) {
+            return {
+              success: false,
+              message: responseFromReverseGeoCode.message,
+              error: responseFromReverseGeoCode.error,
+            };
+          } else {
+            return {
+              success: false,
+              message: responseFromReverseGeoCode.message,
+            };
+          }
+        }
+      } else if (responseFromGenerateName.success == false) {
+        if (responseFromGenerateName.error) {
+          return {
+            success: false,
+            message: responseFromGenerateName.message,
+            error: responseFromGenerateName.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromGenerateName.message,
+          };
+        }
       }
     } catch (e) {
       return {
         success: false,
-        message: "unable to create a site",
+        message: "create site util server error",
         error: e.message,
       };
     }
   },
 
-  updateSite: async (tenant, lat_long, body) => {
+  update: async (tenant, filter, update) => {
     try {
-      let filter = { lat_long },
-        update = body,
-        options = { new: true };
-      let updatedSite = await getModelByTenant(
+      let responseFromModifySite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).updateSite({ filter, update, options });
-      if (updatedSite) {
+      ).modify({
+        filter,
+        update,
+      });
+      if (responseFromModifySite.success == true) {
         return {
           success: true,
-          message: "successfully updated the site",
-          updatedSite,
+          message: responseFromModifySite.message,
+          data: responseFromModifySite.data,
         };
-      } else {
-        return {
-          success: false,
-          message: "unable to update the site, ensure that this Site exists",
-        };
+      } else if (responseFromModifySite.success == false) {
+        if (responseFromModifySite.error) {
+          return {
+            success: false,
+            message: responseFromModifySite.message,
+            error: responseFromModifySite.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromModifySite.message,
+          };
+        }
       }
     } catch (e) {
+      logElement("update Sites util", e.message);
       return {
         success: false,
-        message: "unable to update the site",
+        message: "util server error",
         error: e.message,
       };
     }
   },
 
-  deleteSite: async (tenant, lat_long) => {
+  delete: async (tenant, filter) => {
     try {
-      let filter = { lat_long };
-      let deletedSite = await getModelByTenant(
+      let responseFromRemoveSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).deleteSite({ filter });
-
-      if (deletedSite) {
+      ).remove({
+        filter,
+      });
+      if (responseFromRemoveSite.success == true) {
         return {
           success: true,
-          message: "successfully deleted the site",
-          deletedSite,
+          message: responseFromRemoveSite.message,
+          data: responseFromRemoveSite.data,
         };
-      } else {
-        return {
-          success: false,
-          message: "unable to delete the site, ensure that this Site exists",
-        };
+      } else if (responseFromRemoveSite.success == false) {
+        if (responseFromRemoveSite.error) {
+          return {
+            success: false,
+            message: responseFromRemoveSite.message,
+            error: responseFromRemoveSite.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromRemoveSite.message,
+          };
+        }
       }
     } catch (e) {
+      logElement("delete Site util", e.message);
       return {
         success: false,
-        message: "unable to delete the site",
+        message: "delete Site util server error",
         error: e.message,
       };
     }
   },
-  getSite: async (tenant, filter, _skip, _limit) => {
+  list: async ({ tenant, filter, skip, limit }) => {
     try {
-      options = {};
-      const limit = parseInt(_limit, 0);
-      const skip = parseInt(_skip, 0);
-      let siteDetails = await getModelByTenant(
+      let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
         SiteSchema
-      ).list({ skip, limit, filter });
-      if (siteDetails.length) {
+      ).list({
+        filter,
+        limit,
+        skip,
+      });
+      if (responseFromListSite.success == true) {
         return {
           success: true,
-          message: "successfully listed the site(s)",
-          siteDetails,
+          message: responseFromListSite.message,
+          data: responseFromListSite.data,
         };
-      } else {
-        return {
-          success: true,
-          message: "Site(s) not available",
-          siteDetails,
-        };
+      } else if ((responseFromListSite.success = false)) {
+        if (responseFromListSite.error) {
+          return {
+            success: false,
+            message: responseFromListSite.message,
+            error: responseFromListSite.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromListSite.message,
+          };
+        }
       }
     } catch (e) {
+      logElement("list Sites util", e.message);
       return {
         success: false,
-        message: "unable to retrieve site details",
+        message: "list Sites util server error",
         error: e.message,
       };
     }
@@ -198,37 +345,48 @@ const createSiteUtils = {
     }
   },
 
-  transformAddress: (address) => {
+  retrieveInformationFromAddress: (address) => {
     try {
-      let address_components = address.results[0].address_components;
-      let formatted_name = address.results[0].formatted_address;
-      let geometry = address.results[0].geometry;
-      let transformedAddress = {};
+      let results = address.results[0];
+      let address_components = results.address_components;
+      let formatted_name = results.formatted_address;
+      let geometry = results.geometry;
+      let google_place_id = results.place_id;
+      let types = results.types;
+      let retrievedAddress = {};
       address_components.forEach((object) => {
         if (object.types.includes("locality", "administrative_area_level_3")) {
-          transformedAddress.town = object.long_name;
-          transformedAddress.city = object.long_name;
+          retrievedAddress.town = object.long_name;
+          retrievedAddress.city = object.long_name;
         }
         if (object.types.includes("administrative_area_level_2")) {
-          transformedAddress.district = object.long_name;
-          transformedAddress.county = object.long_name;
+          retrievedAddress.district = object.long_name;
+          retrievedAddress.county = object.long_name;
         }
         if (object.types.includes("administrative_area_level_1")) {
-          transformedAddress.region = object.long_name;
+          retrievedAddress.region = object.long_name;
         }
         if (object.types.includes("route")) {
-          transformedAddress.street = object.long_name;
+          retrievedAddress.street = object.long_name;
         }
         if (object.types.includes("country")) {
-          transformedAddress.country = object.long_name;
+          retrievedAddress.country = object.long_name;
         }
-        transformedAddress.formatted_name = formatted_name;
-        transformedAddress.geometry = geometry;
+        if (object.types.includes("sublocality", "sublocality_level_1")) {
+          retrievedAddress.parish = object.long_name;
+          retrievedAddress.division = object.long_name;
+          retrievedAddress.village = object.long_name;
+          retrievedAddress.sub_county = object.long_name;
+        }
+        retrievedAddress.formatted_name = formatted_name;
+        retrievedAddress.geometry = geometry;
+        retrievedAddress.$addToSet = { site_tags: { $each: types } };
+        retrievedAddress.google_place_id = google_place_id;
       });
       return {
         success: true,
-        message: "received the address values of this site",
-        address: transformedAddress,
+        message: "retrieved the Google address details of this site",
+        data: retrievedAddress,
       };
     } catch (e) {
       return {
@@ -239,18 +397,52 @@ const createSiteUtils = {
     }
   },
 
-  reverseGeoCode: (lat, long) => {
+  reverseGeoCode: async (latitude, longitude) => {
     try {
-      let address = constants.GET_ADDRESS(lat, long);
-      if (address) {
-        let responseFromTransformAddress = this.transformAddress(address);
-        return responseFromTransformAddress;
-      } else {
-        return {
-          success: false,
-          message: "unable to get the address values",
-        };
-      }
+      logText("reverseGeoCode...........");
+      let url = constants.GET_ADDRESS_URL(latitude, longitude);
+      return await axios
+        .get(url)
+        .then(async (response) => {
+          let responseJSON = response.data;
+          if (responseJSON) {
+            let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
+              responseJSON
+            );
+            if (responseFromTransformAddress.success == true) {
+              return {
+                success: true,
+                data: responseFromTransformAddress.data,
+                message: responseFromTransformAddress.message,
+              };
+            } else if (responseFromTransformAddress.success == false) {
+              if (responseFromTransformAddress.error) {
+                return {
+                  success: false,
+                  error: responseFromTransformAddress.error,
+                  message: responseFromTransformAddress.message,
+                };
+              } else {
+                return {
+                  success: false,
+                  message: responseFromTransformAddress.message,
+                };
+              }
+            }
+          } else {
+            return {
+              success: false,
+              message: "unable to get the site address details",
+            };
+          }
+        })
+        .catch((error) => {
+          return {
+            success: false,
+            error: error.message,
+            message: "constants server side error",
+          };
+        });
     } catch (e) {
       return {
         success: false,
@@ -276,8 +468,40 @@ const createSiteUtils = {
 
   getAltitude: (lat, long) => {
     try {
+      return client
+        .elevation(
+          {
+            params: {
+              locations: [{ lat: lat, lng: long }],
+              key: process.env.GOOGLE_MAPS_API_KEY,
+            },
+            timeout: 1000, // milliseconds
+          },
+          axiosInstance()
+        )
+        .then((r) => {
+          console.log(r.data.results[0].elevation);
+          return {
+            success: true,
+            message: "successfully retrieved the altitude details",
+            data: r.data.results[0].elevation,
+          };
+        })
+        .catch((e) => {
+          logElement("get altitude server error", e.message);
+          return {
+            success: false,
+            message: "get altitude server error",
+            error: e,
+          };
+        });
     } catch (e) {
       logElement("server error", e.message);
+      return {
+        success: false,
+        message: "get altitude server error",
+        error: e.message,
+      };
     }
   },
 
@@ -339,4 +563,4 @@ const createSiteUtils = {
   },
 };
 
-module.exports = createSiteUtils;
+module.exports = manageSite;
