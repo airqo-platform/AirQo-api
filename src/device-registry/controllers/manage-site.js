@@ -2,7 +2,7 @@ const SiteActivitySchema = require("../models/SiteActivity");
 const HTTPStatus = require("http-status");
 const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
-const { getModelByTenant } = require("../utils/multitenancy");
+const { validationResult } = require("express-validator");
 
 const {
   carryOutActivity,
@@ -17,125 +17,130 @@ const {
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
+  missingOrInvalidValues,
 } = require("../utils/errors");
 
-const { generateSiteFilter } = require("../utils/generate-filter");
+const generateFilter = require("../utils/generate-filter");
 
 const createSiteUtil = require("../utils/create-site");
 
 const manageSite = {
-  create: async (req, res) => {
+  register: async (req, res) => {
+    logText("registering site.............");
     try {
-      let { long, lat, name } = req.body;
-      let { tenant } = req.query;
-      if (!tenant) {
-        return missingQueryParams(req, res);
+      const result = validationResult(req);
+      const hasErrors = !result.isEmpty();
+      if (hasErrors) {
+        return missingOrInvalidValues(res);
       }
-      let responseFromCreateSiteUtil = await createSiteUtil.createSite(
-        tenant,
-        lat,
-        long,
-        name
-      );
-      if (responseFromCreateSiteUtil.success == true) {
+      const { tenant } = req.query;
+
+      const { latitude, longitude, name } = req.body;
+      let responseFromCreateSite = await createSiteUtil.create(tenant, req);
+      logObject("responseFromCreateSite in controller", responseFromCreateSite);
+      if (responseFromCreateSite.success == true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
-          message: responseFromCreateSiteUtil.message,
-          site: responseFromCreateSiteUtil.createdSite,
+          message: responseFromCreateSite.message,
+          site: responseFromCreateSite.data,
         });
-      } else {
-        if (responseFromCreateSiteUtil.error) {
+      } else if (responseFromCreateSite.success == false) {
+        if (responseFromCreateSite.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromCreateSiteUtil.message,
-            error: responseFromCreateSiteUtil.error,
+            message: responseFromCreateSite.message,
+            error: responseFromCreateSite.error,
           });
         } else {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromCreateSiteUtil.message,
+            message: responseFromCreateSite.message,
           });
         }
       }
-    } catch (e) {
-      logElement("server error", e.message);
-      tryCatchErrors(req, res);
+    } catch (error) {
+      tryCatchErrors(res, error, "manageSite controller");
     }
   },
 
   delete: async (req, res) => {
     try {
-      let { tenant, lat_long } = req.query;
-
-      if (!tenant) {
-        return missingQueryParams(req, res);
+      logText(".................................................");
+      logText("inside delete site............");
+      const { tenant } = req.query;
+      const result = validationResult(req);
+      const hasErrors = !result.isEmpty();
+      if (hasErrors) {
+        return missingQueryParams(res);
       }
-
-      let responseFromCreateSiteUtil = await createSiteUtil.deleteSite(
-        tenant,
-        lat_long
-      );
-      if (responseFromCreateSiteUtil.success == true) {
+      let filter = generateFilter.sites(req);
+      logObject("filter", filter);
+      let responseFromRemoveSite = await createSiteUtil.delete(tenant, filter);
+      if (responseFromRemoveSite.success == true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
-          message: responseFromCreateSiteUtil.message,
-          deleted_site: responseFromCreateSiteUtil.deletedSite,
+          message: responseFromRemoveSite.message,
+          site: responseFromRemoveSite.data,
         });
-      } else {
-        if (responseFromCreateSiteUtil.error) {
+      } else if (responseFromRemoveSite.success == false) {
+        if (responseFromRemoveSite.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromCreateSiteUtil.message,
-            error: responseFromCreateSiteUtil.error,
+            message: responseFromRemoveSite.message,
+            error: responseFromRemoveSite.error,
           });
         } else {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromCreateSiteUtil.message,
+            message: responseFromRemoveSite.message,
           });
         }
       }
-    } catch (e) {
-      logElement("server error", e.message);
+    } catch (error) {
+      tryCatchErrors(res, error, "manageSite controller");
     }
   },
 
   update: async (req, res) => {
     try {
-      let { tenant, lat_long } = req.query;
-      let { body } = req;
-
-      if (!tenant) {
-        return missingQueryParams(req, res);
+      logText("updating site................");
+      const result = validationResult(req);
+      const hasErrors = !result.isEmpty();
+      if (hasErrors) {
+        return missingQueryParams(res);
       }
-      let responseFromCreateSiteUtil = await createSiteUtil.updateSite(
+      const { tenant } = req.query;
+      let filter = generateFilter.sites(req);
+      logObject("responseFromFilter", filter);
+      let update = req.body;
+      let responseFromUpdateSite = await createSiteUtil.update(
         tenant,
-        lat_long,
-        body
+        filter,
+        update
       );
-      if (responseFromCreateSiteUtil.success == true) {
+      logObject("responseFromUpdateSite", responseFromUpdateSite);
+      if (responseFromUpdateSite.success == true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
-          message: responseFromCreateSiteUtil.message,
-          updated_site: responseFromCreateSiteUtil.updatedSite,
+          message: responseFromUpdateSite.message,
+          site: responseFromUpdateSite.data,
         });
-      } else {
-        if (responseFromCreateSiteUtil.error) {
+      } else if (responseFromUpdateSite.success == false) {
+        if (responseFromUpdateSite.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromCreateSiteUtil.message,
-            error: responseFromCreateSiteUtil.error,
+            message: responseFromUpdateSite.message,
+            error: responseFromUpdateSite.error,
           });
         } else {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromCreateSiteUtil.message,
+            message: responseFromUpdateSite.message,
           });
         }
       }
-    } catch (e) {
-      logElement("server error", e.message);
-      tryCatchErrors(req, res);
+    } catch (error) {
+      tryCatchErrors(res, error, "manageSite controller");
     }
   },
 
@@ -146,69 +151,49 @@ const manageSite = {
     }
   },
 
-  getSite: async (req, res) => {
+  list: async (req, res) => {
     try {
-      logText("getting sites.......");
-      let {
-        lat_long,
-        id,
-        generated_name,
-        tenant,
-        district,
-        region,
-        city,
-        street,
-        country,
-        parish,
-        name,
-        skip,
-        limit,
-      } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      logText(".....................................");
+      logText("list all sites by query params provided");
+      const { tenant } = req.query;
+      const limit = parseInt(req.query.limit, 0);
+      const skip = parseInt(req.query.skip, 0);
+      const result = validationResult(req);
+      const hasErrors = !result.isEmpty();
+      if (hasErrors) {
+        return missingQueryParams(res);
       }
-      let filter = generateSiteFilter(
-        lat_long,
-        id,
-        generated_name,
-        district,
-        region,
-        city,
-        street,
-        country,
-        parish,
-        name
-      );
-      logObject("the filter for sites", filter);
-      let responseFromGetSite = await createSiteUtil.getSite(
+      let filter = generateFilter.sites(req);
+      logObject("filter in the controller", filter);
+      let responseFromListSites = await createSiteUtil.list({
         tenant,
         filter,
+        limit,
         skip,
-        limit
-      );
-      if (responseFromGetSite.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      });
+      logObject("responseFromListSites", responseFromListSites);
+      if (responseFromListSites.success == true) {
+        res.status(HTTPStatus.OK).json({
           success: true,
-          message: responseFromGetSite.message,
-          sites: responseFromGetSite.siteDetails,
+          message: responseFromListSites.message,
+          sites: responseFromListSites.data,
         });
-      } else {
-        if (responseFromGetSite.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+      } else if (responseFromListSites.success == false) {
+        if (responseFromListSites.error) {
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromGetSite.message,
-            error: responseFromGetSite.error,
+            message: responseFromListSites.message,
+            error: responseFromListSites.error,
           });
         } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromGetSite.message,
+            message: responseFromListSites.message,
           });
         }
       }
-    } catch (e) {
-      logElement("server error", e.message);
-      tryCatchErrors(req, res);
+    } catch (error) {
+      tryCatchErrors(res, error, "create site controller");
     }
   },
 
@@ -328,7 +313,7 @@ const manageSite = {
             callbackErrors(error, req, res);
           });
       } else {
-        missingQueryParams(req, res);
+        missingQueryParams(res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
@@ -367,7 +352,7 @@ const manageSite = {
           });
         }
       } else {
-        missingQueryParams(req, res);
+        missingQueryParams(res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
@@ -421,7 +406,7 @@ const manageSite = {
           }
         }
       } else {
-        missingQueryParams(req, res);
+        missingQueryParams(res);
       }
     } catch (e) {
       tryCatchErrors(res, e);
