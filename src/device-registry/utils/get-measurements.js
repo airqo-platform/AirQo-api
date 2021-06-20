@@ -11,10 +11,7 @@ const {
 } = require("./errors");
 
 const { logObject, logElement, logText } = require("./log");
-const {
-  generateEventsFilter,
-  generateDeviceFilter,
-} = require("./generate-filter");
+const generateFilter = require("./generate-filter");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -110,7 +107,7 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const filter = generateEventsFilter(
+          const filter = generateFilter.events(
             device,
             frequency,
             startTime,
