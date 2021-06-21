@@ -371,7 +371,9 @@ const generateFilter = {
       maintenance_type,
     } = req.query;
 
-    let filter = {};
+    let filter = {
+      tags: {},
+    };
 
     if (maintenance_type) {
       let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
@@ -385,9 +387,11 @@ const generateFilter = {
       );
       filter["activityType"] = { $regex: regexExpression, $options: "i" };
     }
-
     if (activity_tags) {
       filter["tags"]["$in"] = activity_tags;
+    }
+    if (!activity_tags) {
+      delete filter["tags"];
     }
 
     if (id) {
