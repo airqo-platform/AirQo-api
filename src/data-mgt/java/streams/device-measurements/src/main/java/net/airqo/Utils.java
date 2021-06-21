@@ -338,12 +338,16 @@ public class Utils {
 
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
+        String propertiesUrlFile = "application.properties";
+        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
+        String urlString = props.getProperty("calibrate.url", null);
+
         measurements.forEach(measurement -> {
 
             HashMap<String, Object>  pm25 = measurement.getPm2_5();
 
             try {
-                Object calibratedValue = Calibrate.getCalibratedValue(measurement, null);
+                Object calibratedValue = Calibrate.getCalibratedValue(measurement, urlString);
                 pm25.put("calibratedValue", calibratedValue);
 
             } catch (IOException e) {
