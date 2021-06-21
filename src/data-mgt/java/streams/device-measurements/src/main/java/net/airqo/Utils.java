@@ -37,7 +37,7 @@ public class Utils {
         }
     }
 
-    public static TransformedDeviceMeasurements toTransformedDeviceMeasurements(List<TransformedMeasurement> transformedMeasurements) {
+    public static TransformedDeviceMeasurements generateTransformedOutput(List<TransformedMeasurement> transformedMeasurements) {
 
 
         List<Measurement> measurements = new ArrayList<>();
@@ -150,11 +150,11 @@ public class Utils {
             transformedMeasurement.setFrequency(rawMeasurement.getAverage());
 
             ArrayList<Double> coordinates  = (ArrayList<Double>) rawMeasurement.getLocation().get("coordinates");
-            transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
-                put("longitude", new HashMap<String, Object>(){{
+            transformedMeasurement.setLocation(new HashMap<>(){{
+                put("longitude", new HashMap<>(){{
                     put("value", coordinates.get(0));
                 }});
-                put("latitude", new HashMap<String, Object>(){{
+                put("latitude", new HashMap<>(){{
                     put("value", coordinates.get(1));
                 }});
             }});
@@ -168,7 +168,7 @@ public class Utils {
                     calibratedValue = rawMeasurement.getCharacteristics().get(key).get("calibratedValue");
                 else calibratedValue = rawMeasurement.getCharacteristics().get(key).getOrDefault("value", rawValue);
 
-                HashMap<String, Object> values = new HashMap<String, Object>(){{
+                HashMap<String, Object> values = new HashMap<>(){{
                     put("value", rawValue);
                     put("calibratedValue", calibratedValue);
 
@@ -234,68 +234,68 @@ public class Utils {
             transformedMeasurement.setChannelID(stringToInt(rawMeasurement.getChannelId()));
             transformedMeasurement.setTime(rawMeasurement.getTime());
 
-            transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
-                put("latitude", new HashMap<String, Object>(){{
+            transformedMeasurement.setLocation(new HashMap<>(){{
+                put("latitude", new HashMap<>(){{
                     put("value", Utils.stringToDouble(rawMeasurement.getLatitude()));
                 }});
-                put("longitude", new HashMap<String, Object>(){{
+                put("longitude", new HashMap<>(){{
                     put("value", Utils.stringToDouble(rawMeasurement.getLongitude()));
                 }});
             }});
 
-            transformedMeasurement.setPm2_5(new HashMap<String, Object>(){{
+            transformedMeasurement.setPm2_5(new HashMap<>() {{
                 put("value", Utils.stringToDouble(rawMeasurement.getPm25()));
             }});
 
-            transformedMeasurement.setPm10(new HashMap<String, Object>(){{
+            transformedMeasurement.setPm10(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getPm10()));
             }});
 
-            transformedMeasurement.setS2_pm2_5(new HashMap<String, Object>(){{
+            transformedMeasurement.setS2_pm2_5(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getS2Pm25()));
             }});
 
-            transformedMeasurement.setS2_pm10(new HashMap<String, Object>(){{
+            transformedMeasurement.setS2_pm10(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getS2Pm10()));
             }});
 
-            transformedMeasurement.setAltitude(new HashMap<String, Object>(){{
+            transformedMeasurement.setAltitude(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getAltitude()));
             }});
 
-            transformedMeasurement.setSpeed(new HashMap<String, Object>(){{
+            transformedMeasurement.setSpeed(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getSpeed()));
             }});
 
-            transformedMeasurement.setBattery(new HashMap<String, Object>(){{
+            transformedMeasurement.setBattery(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getBattery()));
             }});
 
-            transformedMeasurement.setSatellites(new HashMap<String, Object>(){{
+            transformedMeasurement.setSatellites(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getSatellites()));
             }});
 
-            transformedMeasurement.setHdop(new HashMap<String, Object>(){{
+            transformedMeasurement.setHdop(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getHdop()));
             }});
 
-            transformedMeasurement.setExternalHumidity(new HashMap<String, Object>(){{
+            transformedMeasurement.setExternalHumidity(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getExternalHumidity()));
             }});
 
-            transformedMeasurement.setExternalPressure(new HashMap<String, Object>(){{
+            transformedMeasurement.setExternalPressure(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getExternalPressure()));
             }});
 
-            transformedMeasurement.setExternalTemperature(new HashMap<String, Object>(){{
+            transformedMeasurement.setExternalTemperature(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getExternalTemperature()));
             }});
 
-            transformedMeasurement.setInternalTemperature(new HashMap<String, Object>(){{
+            transformedMeasurement.setInternalTemperature(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
             }});
 
-            transformedMeasurement.setInternalHumidity(new HashMap<String, Object>(){{
+            transformedMeasurement.setInternalHumidity(new HashMap<>(){{
                 put("value", Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
             }});
 

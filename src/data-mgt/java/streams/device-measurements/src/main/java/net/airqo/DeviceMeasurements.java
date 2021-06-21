@@ -60,9 +60,6 @@ public class DeviceMeasurements {
         props.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         props.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
         props.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
-//        props.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-//        props.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, CustomSerdes.RawMeasurementsSerde.class);
-
         props.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
 
         props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -85,11 +82,8 @@ public class DeviceMeasurements {
         final KStream<String, String> source = builder
                 .stream(INPUT_TOPIC, Consumed.with(Serdes.String(), Serdes.String()));
 
-//        final KStream<String, transformedDeviceMeasurements> transformedList = source
-//                .map((key, value) -> new KeyValue<>("", Utils.transformMeasurements(value, TENANT)));
-
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>("", Utils.toTransformedDeviceMeasurements(Utils.transformMeasurements(value, TENANT))));
+                .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, TENANT))));
 
 
         transformedList.to(OUTPUT_TOPIC, Produced.valueSerde(valueSpecificAvroSerde) );

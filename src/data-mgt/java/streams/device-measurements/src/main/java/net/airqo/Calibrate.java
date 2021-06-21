@@ -103,7 +103,6 @@ public class Calibrate {
 
         int responseCode = conn.getResponseCode();
 
-
         if(responseCode == 200){
 
             BufferedReader in = new BufferedReader(

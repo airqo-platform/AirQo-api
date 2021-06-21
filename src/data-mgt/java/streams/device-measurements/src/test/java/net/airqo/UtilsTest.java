@@ -54,7 +54,7 @@ public class UtilsTest {
     @Test
     public void testToTransformedDeviceMeasurements(){
 
-        TransformedDeviceMeasurements deviceMeasurements = Utils.toTransformedDeviceMeasurements(transformedMeasurements);
+        TransformedDeviceMeasurements deviceMeasurements = Utils.generateTransformedOutput(transformedMeasurements);
         assertFalse(deviceMeasurements.getMeasurements().isEmpty());
         
         Measurement measurement = deviceMeasurements.getMeasurements().get(0);
@@ -182,11 +182,6 @@ public class UtilsTest {
 
         assertEquals(transformedMeasurements.get(0).getPm1().get("value"),  rawMeasurements.getCharacteristics().get("pm1ConcMass").get("value"));
         assertEquals(transformedMeasurements.get(0).getPm1().get("calibratedValue"),  rawMeasurements.getCharacteristics().get("pm1ConcMass").get("value"));
-
-//        assertEquals(transformedMeasurements.get(0).getLocation().get("latitude").get("value"), Utils.stringToDouble(Double.valueOf(rawMeasurements.getLocation().get("c"))));
-//        assertEquals(transformedMeasurements.get(0).getLocation().get("longitude").get("value"), Utils.stringToDouble(rawMeasurements.getLocation().get("coordinates")[1]));
-
-
     }
 
     @Test
@@ -389,7 +384,7 @@ public class UtilsTest {
         rawMeasurements.setInternalTemperature("30.40");
         rawMeasurements.setExternalHumidity("897.27");
         rawMeasurements.setExternalTemperature("765.40");
-        rawMeasurements.setExternalPressure("344.27");
+        rawMeasurements.setExternalPressure(null);
 
 
         rawMeasurementsArrayList.add(rawMeasurements);
