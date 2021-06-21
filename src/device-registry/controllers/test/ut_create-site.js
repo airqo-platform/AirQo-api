@@ -10,7 +10,7 @@ const request = require("request");
 chai.use(chaiHttp);
 const assert = require("assert");
 const SiteModel = require("../../models/Site");
-const siteController = require("../manage-site");
+const siteController = require("../create-site");
 const siteUtil = require("../../utils/create-site");
 
 const stubValue = {
