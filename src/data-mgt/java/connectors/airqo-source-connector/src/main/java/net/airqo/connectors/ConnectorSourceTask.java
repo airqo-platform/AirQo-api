@@ -1,9 +1,12 @@
 package net.airqo.connectors;
 
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.airqo.models.AirqoDevice;
+import net.airqo.models.RawMeasurement;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
@@ -18,6 +21,9 @@ import java.lang.reflect.Type;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
+
+import static net.airqo.connectors.Utils.getDevices;
+import static net.airqo.connectors.Utils.getMeasurements;
 
 public class ConnectorSourceTask extends SourceTask {
 
@@ -69,22 +75,40 @@ public class ConnectorSourceTask extends SourceTask {
 
             if(devices.isEmpty() || (System.currentTimeMillis() > (lastDevicesFetch + DEVICES_FETCH_INTERVAL))) {
                 lastDevicesFetch = System.currentTimeMillis();
-                devices = getDevices();
+                devices = getDevices(apiUrl);
             }
 
             devices.forEach(airqoDevice -> {
 
                 String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getChannelId();
 
-                String measurements = getMeasurements(urlString);
+                RawMeasurement measurements = getMeasurements(urlString);
 
-                if(!measurements.isEmpty()){
+                if(measurements != null){
+
+                    measurements.setChannelID(airqoDevice.getChannelId());
+                    measurements.setDevice(airqoDevice.getDevice());
+
+                    String jsonString;
+
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        jsonString = mapper.writeValueAsString(measurements);
+
+                    } catch (JsonProcessingException e) {
+                        e.printStackTrace();
+
+                        Gson gson = new Gson();
+                        Type dataType = new TypeToken<RawMeasurement>() {}.getType();
+                        jsonString = gson.toJson(measurements, dataType);
+                    }
+
                     SourceRecord sourceRecord = new SourceRecord(
                             null,
                             null,
                             topic,
                             Schema.STRING_SCHEMA,
-                            measurements
+                            jsonString
                     );
 
                     records.add(sourceRecord);
@@ -119,98 +143,6 @@ public class ConnectorSourceTask extends SourceTask {
 
     }
 
-    private List<AirqoDevice> getDevices(){
-
-        logger.info("\n\n********** Fetching Devices **************\n");
-
-        List<AirqoDevice> devices = new ArrayList<>();
-        try {
-
-            String urlString = apiUrl + "devices?tenant=airqo";
-            logger.info("\n ====> Url : {}\n", apiUrl);
-
-            java.net.URL url = new URL(urlString);
-
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-
-            conn.connect();
-
-            int responseCode = conn.getResponseCode();
-
-            if(responseCode == 200){
-
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream())
-                );
-
-                StringBuilder sb = new StringBuilder();
-                String line;
-                while ((line = in.readLine()) != null) {
-                    sb.append(line);
-                }
-
-                JSONObject jsonObject = new JSONObject(sb.toString());
-
-                Gson gson = new Gson();
-                Type listType = new TypeToken<List<AirqoDevice>>() {}.getType();
-                List<AirqoDevice> devicesData = gson.fromJson(jsonObject.get("devices").toString(), listType);
-                devices.addAll(devicesData);
-
-            }
-
-            conn.disconnect();
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        logger.info("\n ====> Devices : {}\n", devices);
-        return devices;
-    }
-
-    private String getMeasurements(String stringUrl){
-
-        logger.info("\n\n**************** Fetching Measurements *************\n");
-        logger.info("\n ====> Url : {}\n", stringUrl);
-
-        StringBuilder sb = new StringBuilder();
-
-        try {
-
-            URL url = new URL(stringUrl);
-
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-
-            conn.connect();
-
-            int responseCode = conn.getResponseCode();
-
-            if(responseCode == 200){
-
-                BufferedReader in = new BufferedReader(
-                        new InputStreamReader(conn.getInputStream()));
-
-                String line;
-
-                while ((line = in.readLine()) != null) {
-                    sb.append(line);
-                }
-
-                conn.disconnect();
-            }
-            conn.disconnect();
-        }
-        catch (IOException e) {
-            e.printStackTrace();
-        }
-        logger.info("\n ====> Measurements : {}\n", sb);
-
-        return sb.toString();
-    }
 
 }
 
