@@ -238,6 +238,126 @@ const generateFilter = {
 
     return filter;
   },
+
+  activities: (req) => {
+    let {
+      device,
+      id,
+      site_id,
+      activity_type,
+      activity_tags,
+      next_maintenance,
+      maintenance_type,
+      startTime,
+      endTime,
+      generated_name,
+    } = req.query;
+
+    let filter = {
+      day: {
+        $gte: generateDateFormatWithoutHrs(oneMonthBack),
+        $lte: generateDateFormatWithoutHrs(oneMonthInfront),
+      },
+      "logs.time": { $gte: oneMonthBack, $lte: oneMonthInfront },
+      "logs.site": {},
+    };
+
+    if (site_id) {
+      filter["logs.site_id"]["$in"] = site_id;
+    }
+
+    if (generated_name) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        generated_name
+      );
+      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (maintenance_type) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        maintenance_type
+      );
+      filter["maintenance_type"] = { $regex: regexExpression, $options: "i" };
+    }
+    if (activity_type) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        activity_type
+      );
+      filter["activity_type"] = { $regex: regexExpression, $options: "i" };
+    }
+    if (activity_tags) {
+    }
+
+    if (next_maintenance) {
+    }
+
+    if (startTime) {
+      if (isTimeEmpty(startTime) == false) {
+        let start = new Date(startTime);
+        filter["logs.time"]["$gte"] = start;
+      } else {
+        delete filter["logs.time"];
+      }
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
+    }
+
+    if (id) {
+      filter["_id"] = id;
+    }
+
+    if (generated_name) {
+      filter[" generated_name"] = generated_name;
+    }
+
+    if (endTime) {
+      if (isTimeEmpty(endTime) == false) {
+        let end = new Date(endTime);
+        filter["logs.time"]["$lte"] = end;
+      } else {
+        delete filter["logs.time"];
+      }
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
+    }
+
+    if (startTime && !endTime) {
+      if (isTimeEmpty(startTime) == false) {
+        filter["logs.time"]["$lte"] = addMonthsToProvideDateTime(startTime, 1);
+      } else {
+        delete filter["logs.time"];
+      }
+      let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+        startTime,
+        1
+      );
+      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+        addedOneMonthToProvidedDateTime
+      );
+    }
+
+    if (!startTime && endTime) {
+      if (isTimeEmpty(endTime) == false) {
+        filter["logs.time"]["$gte"] = removeMonthsFromProvideDateTime(
+          endTime,
+          1
+        );
+      } else {
+        delete filter["logs.time"];
+      }
+      let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+        endTime,
+        1
+      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+        removedOneMonthFromProvidedDateTime
+      );
+    }
+
+    if (device) {
+      filter["logs.device"]["$in"] = device;
+    }
+
+    return filter;
+  },
 };
 
 module.exports = generateFilter;
