@@ -14,13 +14,16 @@
                     "type":"record",
                     "fields":[
                         {
-                            "name": "frequency", "type": "string"
+                            "name": "frequency", "type": "string", "default" : "raw"
                         },
                         {
                             "name": "time", "type": "string"
                         },
                         {
                             "name": "device", "type": "string"
+                        },
+                        {
+                            "name": "channelID", "type": ["int", "null"]
                         },
                         {
                             "name": "tenant", "type": "string"
@@ -42,8 +45,7 @@
                                 "type": "record", 
                                 "name": "internalTemperature",
                                 "fields": [
-                                    {"name": "value", "type": ["null", "double"] },
-                                    {"name": "calibratedValue", "type": ["null", "double"]}
+                                    {"name": "value", "type": ["null", "double"] }
                                 ]
                             }
                         },
