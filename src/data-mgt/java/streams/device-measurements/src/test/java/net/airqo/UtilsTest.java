@@ -65,8 +65,8 @@ public class UtilsTest {
         assertEquals(measurement.getTime(), transformedMeasurement.getTime());
         assertEquals(measurement.getTenant(), transformedMeasurement.getTenant());
 
-        assertEquals(measurement.getLocation().getLatitude(), transformedMeasurement.getLocation().get("latitude").get("value"));
-        assertEquals(measurement.getLocation().getLongitude(), transformedMeasurement.getLocation().get("longitude").get("value"));
+        assertEquals(measurement.getLocation().getLatitude(), transformedMeasurement.getLocation().getLatitude().getValue());
+        assertEquals(measurement.getLocation().getLongitude(), transformedMeasurement.getLocation().getLongitude().getValue());
 
         assertEquals(measurement.getInternalTemperature().getValue(), transformedMeasurement.getInternalTemperature().getValue());
 
@@ -118,8 +118,8 @@ public class UtilsTest {
         assertEquals(transformedMeasurements.get(0).getSpeed().getValue(), Utils.stringToDouble(rawMeasurements.getSpeed()));
         assertEquals(transformedMeasurements.get(0).getAltitude().getValue(), Utils.stringToDouble(rawMeasurements.getAltitude()));
 
-        assertEquals(transformedMeasurements.get(0).getLocation().get("latitude").get("value"), Utils.stringToDouble(rawMeasurements.getLatitude()));
-        assertEquals(transformedMeasurements.get(0).getLocation().get("longitude").get("value"), Utils.stringToDouble(rawMeasurements.getLongitude()));
+        assertEquals(transformedMeasurements.get(0).getLocation().getLatitude().getValue(), Utils.stringToDouble(rawMeasurements.getLatitude()));
+        assertEquals(transformedMeasurements.get(0).getLocation().getLongitude().getValue(), Utils.stringToDouble(rawMeasurements.getLongitude()));
 
     }
 
@@ -232,13 +232,9 @@ public class UtilsTest {
         transformedMeasurement.setChannelID(1);
         transformedMeasurement.setTenant("airqo");
         transformedMeasurement.setTime("2020-01-01T00:00:00Z");
-        transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
-            put("latitude", new HashMap<String, Object>(){{
-                put("value", 0.2);
-            }});
-            put("longitude", new HashMap<String, Object>(){{
-                put("value", 0.4);
-            }});
+        transformedMeasurement.setLocation(new TransformedLocation(){{
+            setLatitude(new LocationValue(0.2));
+            setLongitude(new LocationValue(0.1));
         }});
         transformedMeasurement.setInternalTemperature(new TransformedValue(){{
             setValue(0.2);

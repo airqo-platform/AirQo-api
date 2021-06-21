@@ -10,14 +10,7 @@ public class TransformedMeasurement implements Serializable {
     private String time = "";
     private String tenant = "";
     private String device = "";
-    private HashMap<String, HashMap<String, Object>> location = new HashMap<>(){{
-        put("latitude", new HashMap<>(){{
-            put("value", null);
-        }});
-        put("longitude", new HashMap<>(){{
-            put("value", null);
-        }});
-    }};
+    private TransformedLocation location = new TransformedLocation();
 
     private TransformedValue internalTemperature = new TransformedValue();
     private TransformedValue internalHumidity = new TransformedValue();
@@ -76,11 +69,11 @@ public class TransformedMeasurement implements Serializable {
         this.device = device;
     }
 
-    public HashMap<String, HashMap<String, Object>> getLocation() {
+    public TransformedLocation getLocation() {
         return location;
     }
 
-    public void setLocation(HashMap<String, HashMap<String, Object>> location) {
+    public void setLocation(TransformedLocation location) {
         this.location = location;
     }
 

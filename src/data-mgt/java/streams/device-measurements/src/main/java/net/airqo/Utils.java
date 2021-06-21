@@ -56,8 +56,8 @@ public class Utils {
                         .setTime(transformedMeasurement.getTime())
                         .setChannelID(transformedMeasurement.getChannelID())
                         .setLocation(location.newBuilder()
-                                .setLatitude(objectToDouble(transformedMeasurement.getLocation().get("latitude").get("value")))
-                                .setLongitude(objectToDouble(transformedMeasurement.getLocation().get("longitude").get("value")))
+                                .setLatitude(objectToDouble(transformedMeasurement.getLocation().getLatitude().getValue()))
+                                .setLongitude(objectToDouble(transformedMeasurement.getLocation().getLongitude().getValue()))
                                 .build())
                         .setPm1(pm1.newBuilder()
                                 .setValue(objectToDouble(transformedMeasurement.getPm1().getValue()))
@@ -164,13 +164,9 @@ public class Utils {
             transformedMeasurement.setFrequency(rawMeasurement.getAverage());
 
             List<Double> coordinates  =  rawMeasurement.getLocation().getCoordinates();
-            transformedMeasurement.setLocation(new HashMap<>(){{
-                put("longitude", new HashMap<>(){{
-                    put("value", coordinates.get(0));
-                }});
-                put("latitude", new HashMap<>(){{
-                    put("value", coordinates.get(1));
-                }});
+            transformedMeasurement.setLocation(new TransformedLocation(){{
+                setLatitude(new LocationValue(coordinates.get(0)));
+                setLatitude(new LocationValue(coordinates.get(1)));
             }});
 
             transformedMeasurement.setPm10(new TransformedValue(){{
@@ -240,13 +236,9 @@ public class Utils {
             transformedMeasurement.setChannelID(rawMeasurement.getChannelId());
             transformedMeasurement.setTime(rawMeasurement.getTime());
 
-            transformedMeasurement.setLocation(new HashMap<>(){{
-                put("latitude", new HashMap<>(){{
-                    put("value", Utils.stringToDouble(rawMeasurement.getLatitude()));
-                }});
-                put("longitude", new HashMap<>(){{
-                    put("value", Utils.stringToDouble(rawMeasurement.getLongitude()));
-                }});
+            transformedMeasurement.setLocation(new TransformedLocation(){{
+                setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude())));
+                setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude())));
             }});
 
             transformedMeasurement.setPm2_5(new TransformedValue(){{
