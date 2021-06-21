@@ -1,5 +1,6 @@
 package net.airqo;
 
+import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import net.airqo.models.TransformedDeviceMeasurements;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -56,15 +57,14 @@ public class DeviceMeasurements {
             System.exit(1);
         }
 
-        // When configuring the default serdes of StreamConfig
         props.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         props.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
-//        props.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, "http://localhost:8081");
-
-
-        props.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
+        props.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
 //        props.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
 //        props.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, CustomSerdes.RawMeasurementsSerde.class);
+
+        props.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
+
         props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         return props;
@@ -73,8 +73,8 @@ public class DeviceMeasurements {
 
     static void createMeasurementsStream(final StreamsBuilder builder) {
 
-        // When you want to override serdes explicitly/selectively
-        final Map<String, String> serdeConfig = Collections.singletonMap("schema.registry.url", SCHEMA_REGISTRY_URL);
+        final Map<String, String> serdeConfig = Collections.singletonMap(
+                AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
 
         // `TransformedDeviceMeasurements` are Java classes generated from Avro schemas
         final Serde<TransformedDeviceMeasurements>

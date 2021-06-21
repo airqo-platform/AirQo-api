@@ -51,6 +51,7 @@ public class Utils {
                         .setTenant(transformedMeasurement.getTenant())
                         .setFrequency(transformedMeasurement.getFrequency())
                         .setTime(transformedMeasurement.getTime())
+                        .setChannelID(transformedMeasurement.getChannelID())
                         .setLocation(location.newBuilder()
                                 .setLatitude(objectToDouble(transformedMeasurement.getLocation().get("latitude").get("value")))
                                 .setLongitude(objectToDouble(transformedMeasurement.getLocation().get("longitude").get("value")))
@@ -230,7 +231,7 @@ public class Utils {
             transformedMeasurement.setDevice(rawMeasurement.getDevice());
             transformedMeasurement.setFrequency("raw");
             transformedMeasurement.setTenant("airqo");
-            transformedMeasurement.setChannelID(Integer.parseInt(rawMeasurement.getChannelId()));
+            transformedMeasurement.setChannelID(stringToInt(rawMeasurement.getChannelId()));
             transformedMeasurement.setTime(rawMeasurement.getTime());
 
             transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
@@ -361,6 +362,20 @@ public class Utils {
         }
         catch (NumberFormatException ignored){
             return "null";
+        }
+    }
+
+
+    public static int stringToInt(String s){
+
+        int aInteger;
+
+        try {
+            aInteger = Integer.parseInt(s);
+            return aInteger;
+        }
+        catch (NumberFormatException ignored){
+            return -1;
         }
     }
 
