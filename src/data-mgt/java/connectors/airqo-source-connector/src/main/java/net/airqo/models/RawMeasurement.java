@@ -2,7 +2,6 @@ package net.airqo.models;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonKey;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
@@ -16,6 +15,7 @@ public class RawMeasurement {
 
     @SerializedName("pm2_5")
     @Expose
+    @JsonAlias({ "pm2_5" })
     private String pm25 = "null";
 
     private int channelID = 0;
@@ -85,6 +85,19 @@ public class RawMeasurement {
     @Expose
     @JsonAlias({ "ExternalPressure" })
     private String externalPressure = "null";
+
+    @SerializedName("ExternalAltitude")
+    @Expose
+    @JsonAlias({ "ExternalAltitude" })
+    private String externalAltitude = "null";
+
+    public String getExternalAltitude() {
+        return externalAltitude;
+    }
+
+    public void setExternalAltitude(String externalAltitude) {
+        this.externalAltitude = externalAltitude;
+    }
 
     public int getChannelID() {
         return channelID;

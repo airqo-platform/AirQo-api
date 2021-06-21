@@ -1,25 +1,30 @@
 package net.airqo.models;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class AirqoDevice implements Serializable {
 
     @SerializedName("device")
     @Expose
-    String device;
+    @JsonAlias({ "name" })
+    private String device = "";
 
     @SerializedName("channelID")
     @Expose
-    Integer channelId;
+    @JsonAlias({ "channelID" })
+    private int channelId = -1;
 
-    public Integer getChannelId() {
+    public int getChannelId() {
         return channelId;
     }
 
-    public void setChannelId(Integer channelId) {
+    public void setChannelId(int channelId) {
         this.channelId = channelId;
     }
 
