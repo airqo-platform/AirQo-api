@@ -14,8 +14,8 @@ public class RawKccaMeasurement implements Serializable {
     private String device;
     private String average = "raw";
     private String deviceCode;
-    private HashMap<String, Object> location;
-    private HashMap<String, HashMap<String, Double>> characteristics;
+    private KccaLocation location;
+    private KccaXtics characteristics;
 
     public String getAverage() {
         return average;
@@ -57,19 +57,19 @@ public class RawKccaMeasurement implements Serializable {
         this.deviceCode = deviceCode;
     }
 
-    public HashMap<String, Object> getLocation() {
+    public KccaLocation getLocation() {
         return location;
     }
 
-    public void setLocation(HashMap<String, Object> location) {
+    public void setLocation(KccaLocation location) {
         this.location = location;
     }
 
-    public HashMap<String, HashMap<String, Double>> getCharacteristics() {
+    public KccaXtics getCharacteristics() {
         return characteristics;
     }
 
-    public void setCharacteristics(HashMap<String, HashMap<String, Double>> characteristics) {
+    public void setCharacteristics(KccaXtics characteristics) {
         this.characteristics = characteristics;
     }
 }

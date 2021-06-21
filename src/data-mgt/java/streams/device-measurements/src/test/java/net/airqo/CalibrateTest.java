@@ -2,13 +2,13 @@ package net.airqo;
 
 import com.google.gson.Gson;
 import net.airqo.models.TransformedMeasurement;
+import net.airqo.models.TransformedValue;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 
@@ -39,17 +39,17 @@ public class CalibrateTest {
         transformedMeasurement = new TransformedMeasurement(){{
             setTime("2021-04-11T12:00:00Z");
             setDevice("aq_01");
-            setPm2_5(new HashMap<>(){{
-                put("value", 34.6);
+            setPm2_5(new TransformedValue(){{
+                setValue(32.6);
             }});
-            setPm10(new HashMap<>(){{
-                put("value", 67.34);
+            setPm10(new TransformedValue(){{
+                setValue(34.6);
             }});
-            setInternalTemperature(new HashMap<>(){{
-                put("value", 37.6);
+            setInternalTemperature(new TransformedValue(){{
+                setValue(89.6);
             }});
-            setInternalHumidity(new HashMap<>(){{
-                put("value", 34.67);
+            setInternalHumidity(new TransformedValue(){{
+                setValue(12.6);
             }});
         }};
     }

@@ -12,13 +12,9 @@ import net.airqo.models.TransformedMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.lang.reflect.Type;
-import java.net.HttpURLConnection;
-import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -28,7 +24,6 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
 
 public class Calibrate {
 
@@ -46,7 +41,7 @@ public class Calibrate {
         @SerializedName("calibrated_value")
         @Expose
         @JsonAlias({"calibrated_value", "calibratedValue"})
-        Object calibratedValue;
+        Double calibratedValue;
 
         public CalibrateResponse() {
         }
@@ -59,11 +54,11 @@ public class Calibrate {
             this.device = device;
         }
 
-        public Object getCalibratedValue() {
+        public Double getCalibratedValue() {
             return calibratedValue;
         }
 
-        public void setCalibratedValue(Object calibratedValue) {
+        public void setCalibratedValue(Double calibratedValue) {
             this.calibratedValue = calibratedValue;
         }
     }
@@ -81,10 +76,10 @@ public class Calibrate {
             List<HashMap<String, Object>> list  = new ArrayList<>();
             list.add(new HashMap<>(){{
                 put("device_id", transformedMeasurement.getDevice());
-                put("pm2.5", transformedMeasurement.getPm2_5().get("value"));
-                put("pm10", transformedMeasurement.getPm10().get("value"));
-                put("temperature", transformedMeasurement.getInternalTemperature().get("value"));
-                put("humidity", transformedMeasurement.getInternalHumidity().get("value"));
+                put("pm2.5", transformedMeasurement.getPm2_5().getValue());
+                put("pm10", transformedMeasurement.getPm10().getValue());
+                put("temperature", transformedMeasurement.getInternalTemperature().getValue());
+                put("humidity", transformedMeasurement.getInternalHumidity().getValue());
             }});
             this.setRaw_values(list);
         }
@@ -106,7 +101,7 @@ public class Calibrate {
         }
     }
 
-    public static Object getCalibratedValue(TransformedMeasurement transformedMeasurement, String urlString) throws IOException {
+    public static Double getCalibratedValue(TransformedMeasurement transformedMeasurement, String urlString) throws IOException {
 
         if(transformedMeasurement == null)
             throw new IOException("Invalid Measurements");
@@ -145,7 +140,7 @@ public class Calibrate {
             e.printStackTrace();
         }
 
-        return calibrateResponseList.isEmpty() ? "null" : calibrateResponseList.get(0).getCalibratedValue();
+        return calibrateResponseList.isEmpty() ? null : calibrateResponseList.get(0).getCalibratedValue();
     }
 
     public static List<CalibrateResponse> stringToObjectList(String s){

@@ -16,6 +16,8 @@ public class RawAirQoMeasurement implements Serializable {
     @JsonAlias({"created_at", "time"})
     private String time;
 
+    private String frequency = "raw";
+
     @SerializedName("device")
     @Expose
     private String device = "null";
@@ -97,6 +99,14 @@ public class RawAirQoMeasurement implements Serializable {
     @Expose
     @JsonAlias({"ExternalPressure", "externalPressure"})
     private String externalPressure = "null";
+
+    public String getFrequency() {
+        return frequency;
+    }
+
+    public void setFrequency(String frequency) {
+        this.frequency = frequency;
+    }
 
     public String getExternalTemperature() {
         return externalTemperature;
