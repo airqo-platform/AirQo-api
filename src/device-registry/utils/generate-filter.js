@@ -252,7 +252,10 @@ const generateFilter = {
       endTime,
       generated_name,
     } = req.query;
-
+    let oneMonthBack = monthsBehind(1);
+    let oneMonthInfront = monthsInfront(1);
+    logElement("defaultStartTime", oneMonthBack);
+    logElement(" defaultEndTime", oneMonthInfront);
     let filter = {
       day: {
         $gte: generateDateFormatWithoutHrs(oneMonthBack),
@@ -354,6 +357,45 @@ const generateFilter = {
 
     if (device) {
       filter["logs.device"]["$in"] = device;
+    }
+
+    return filter;
+  },
+
+  activities_v0: (req) => {
+    let {
+      device,
+      id,
+      activity_type,
+      activity_tags,
+      maintenance_type,
+    } = req.query;
+
+    let filter = {};
+
+    if (maintenance_type) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        maintenance_type
+      );
+      filter["maintenanceType"] = { $regex: regexExpression, $options: "i" };
+    }
+    if (activity_type) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        activity_type
+      );
+      filter["activityType"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (activity_tags) {
+      filter["tags"]["$in"] = activity_tags;
+    }
+
+    if (id) {
+      filter["_id"] = id;
+    }
+
+    if (device) {
+      filter["device"] = device;
     }
 
     return filter;

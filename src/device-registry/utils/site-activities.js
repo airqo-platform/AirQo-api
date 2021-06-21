@@ -284,7 +284,8 @@ const bodyFilterOptions = async (req, res) => {
       description,
       activityType,
       nextMaintenance,
-      tags,
+      add_tags,
+      remove_tags,
       maintenanceType,
     } = req.body;
 
@@ -296,7 +297,8 @@ const bodyFilterOptions = async (req, res) => {
       ...(!isEmpty(activityType) && { activityType }),
       ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
       ...(!isEmpty(maintenanceType) && { maintenanceType }),
-      ...(!isEmpty(tags) && { tags: tags }),
+      ...(!isEmpty(add_tags) && { $addToSet: { tags: add_tags } }),
+      ...(!isEmpty(remove_tags) && { $pullAll: { tags: remove_tags } }),
     };
     return { activityBody };
   } catch (e) {

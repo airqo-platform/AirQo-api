@@ -24,6 +24,8 @@ const generateFilter = require("../utils/generate-filter");
 
 const createSiteUtil = require("../utils/create-site");
 
+const { getModelByTenant } = require("../utils/multitenancy");
+
 const manageSite = {
   register: async (req, res) => {
     logText("registering site.............");
@@ -295,17 +297,17 @@ const manageSite = {
 
         Activity.findOneAndDelete(filter)
           .exec()
-          .then((deletedActivity) => {
-            if (!isEmpty(deletedActivity)) {
+          .then((deleted_activity) => {
+            if (!isEmpty(deleted_activity)) {
               return res.status(HTTPStatus.OK).json({
                 success: true,
                 message: "the log has successfully been deleted",
-                deletedActivity,
+                deleted_activity,
               });
-            } else if (isEmpty(deletedActivity)) {
+            } else if (isEmpty(deleted_activity)) {
               return res.status(HTTPStatus.BAD_REQUEST).json({
                 success: false,
-                message: `there is no log by that id (${id}), please crosscheck`,
+                message: `there is no activity by that id (${id}), please crosscheck`,
               });
             }
           })
@@ -331,7 +333,7 @@ const manageSite = {
 
         logObject("activity body", activityBody);
 
-        const updatedActivity = await getModelByTenant(
+        const updated_activity = await getModelByTenant(
           tenant.toLowerCase(),
           "activity",
           SiteActivitySchema
@@ -339,13 +341,13 @@ const manageSite = {
           new: true,
         });
 
-        if (!isEmpty(updatedActivity)) {
+        if (!isEmpty(updated_activity)) {
           return res.status(HTTPStatus.OK).json({
             success: true,
-            message: "Activity updated successfully",
-            updatedActivity,
+            message: "activity updated successfully",
+            updated_activity,
           });
-        } else if (isEmpty(updatedActivity)) {
+        } else if (isEmpty(updated_activity)) {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: `An activity log by this ID (${id}) could be missing, please crosscheck`,
@@ -361,52 +363,36 @@ const manageSite = {
 
   getActivities: async (req, res) => {
     try {
-      logText(".....getting logs......................");
+      logText(".....getting site site_activities......................");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, device, type, location, next, id } = req.query;
-      logElement("the tenant", tenant);
+      const { tenant } = req.query;
 
-      const { activityFilter } = await queryFilterOptions(req, res);
-      logObject("activity filter", activityFilter);
-
-      if (tenant) {
-        if (!device && !type && !location && !next && !id) {
-          const locationActivities = await getModelByTenant(
-            tenant.toLowerCase(),
-            "activity",
-            SiteActivitySchema
-          ).list({
-            limit,
-            skip,
-          });
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "Activities fetched successfully",
-            locationActivities,
-          });
-        } else {
-          const activities = await getModelByTenant(
-            tenant.toLowerCase(),
-            "activity",
-            SiteActivitySchema
-          ).find(activityFilter);
-
-          if (!isEmpty(activities)) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "Activities fetched successfully",
-              activities,
-            });
-          } else if (isEmpty(activities)) {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: `Your query filters have no results for this organisation (${tenant.toLowerCase()})`,
-            });
-          }
-        }
-      } else {
+      if (!tenant) {
         missingQueryParams(res);
+      }
+
+      const filter = generateFilter.activities_v0(req);
+      logObject("activity filter", filter);
+
+      const site_activities = await getModelByTenant(
+        tenant.toLowerCase(),
+        "activity",
+        SiteActivitySchema
+      ).list({ filter, limit, skip });
+
+      if (!isEmpty(site_activities)) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "activities fetched successfully",
+          site_activities,
+        });
+      } else if (isEmpty(site_activities)) {
+        return res.status(HTTPStatus.OK).json({
+          success: false,
+          message: `no site site_activities for this organisation (${tenant.toLowerCase()})`,
+          site_activities,
+        });
       }
     } catch (e) {
       tryCatchErrors(res, e);
