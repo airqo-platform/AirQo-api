@@ -10,6 +10,7 @@ const {
   missingQueryParams,
   callbackErrors,
   invalidParamsValue,
+  badRequest,
 } = require("../utils/errors");
 
 const isEmpty = require("is-empty");
@@ -83,6 +84,12 @@ const createEvent = {
         startTime,
         endTime,
       } = req.query;
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one"
+        );
+      }
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
       logText(".......getting values.......");

@@ -23,9 +23,11 @@ const axiosError = (error, req, res) => {
 };
 
 const tryCatchErrors = (res, error) => {
-  res
-    .status(HTTPStatus.BAD_GATEWAY)
-    .json({ success: false, message: "server error", error: error.message });
+  res.status(HTTPStatus.BAD_GATEWAY).json({
+    success: false,
+    message: "internal server error",
+    error: error.message,
+  });
 };
 
 const missingQueryParams = (req, res) => {
@@ -54,19 +56,10 @@ const unclearError = (res) => {
     .json({ success: false, message: "unclear server error" });
 };
 
-const itemAlreadyExists = (item, res) => {
-  res.status(HTTPStatus.BAD_REQUEST).json({
-    success: false,
-    message: `"${item}" already exists!`,
-  });
+const badRequest = (res, message) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message });
 };
 
-const itemDoesNotExist = (item, res) => {
-  res.status(HTTPStatus.BAD_REQUEST).json({
-    success: false,
-    message: `"${item}" does not exist`,
-  });
-};
 module.exports = {
   axiosError,
   tryCatchErrors,
@@ -76,4 +69,5 @@ module.exports = {
   itemAlreadyExists,
   itemDoesNotExist,
   invalidParamsValue,
+  badRequest,
 };

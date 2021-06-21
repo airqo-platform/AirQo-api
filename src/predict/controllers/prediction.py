@@ -15,8 +15,12 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 load_dotenv()
 
-cache = Cache(config={'CACHE_TYPE': 'redis', 'CACHE_REDIS_HOST': os.getenv(
-    'REDIS_SERVER'), 'CACHE_REDIS_PORT': os.getenv('REDIS_PORT')})
+cache = Cache(config={
+    'CACHE_TYPE': 'redis',
+    'CACHE_REDIS_HOST': os.getenv('REDIS_SERVER'),
+    'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
+    'CACHE_REDIS_URL': f"redis://{os.getenv('REDIS_SERVER')}:{os.getenv('REDIS_PORT')}",
+})
 
 _logger = logging.getLogger(__name__)
 
