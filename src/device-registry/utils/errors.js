@@ -64,6 +64,10 @@ const unclearError = (res) => {
     .json({ success: false, message: "unclear server error" });
 };
 
+const badRequest = (res, message) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message });
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
@@ -72,4 +76,5 @@ module.exports = {
   callbackErrors,
   unclearError,
   invalidParamsValue,
+  badRequest,
 };

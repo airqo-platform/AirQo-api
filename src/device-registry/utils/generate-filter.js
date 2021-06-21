@@ -7,7 +7,7 @@ const {
   generateDateFormatWithoutHrs,
 } = require("./date");
 
-const { logElement } = require("./log");
+const { logElement, logObject } = require("./log");
 
 const generateFilter = {
   events: (device, frequency, startTime, endTime) => {
