@@ -1,9 +1,12 @@
 package net.airqo.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RawKccaMeasurement implements Serializable {
 
     private String _id;

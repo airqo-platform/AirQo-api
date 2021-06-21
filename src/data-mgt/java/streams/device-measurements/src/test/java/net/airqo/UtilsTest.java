@@ -367,7 +367,7 @@ public class UtilsTest {
         RawAirQoMeasurement rawMeasurements = new RawAirQoMeasurement();
 
         rawMeasurements.setDevice("device");
-        rawMeasurements.setChannelId("123493");
+        rawMeasurements.setChannelId(-1);
         rawMeasurements.setTime("2020-01-01T00:00:00Z");
         rawMeasurements.setPm25("53.12");
         rawMeasurements.setPm10("34.21");
@@ -392,4 +392,13 @@ public class UtilsTest {
         return rawMeasurementsArrayList;
     }
 
+    public static String composeAirQoInputString(){
+        return "\"{\\\"time\\\":\\\"2019-06-20T13:02:01Z\\\",\\\"pm25\\\":\\\"5.04\\\",\\\"channelID\\\":295702," +
+                "\\\"device\\\":\\\"6A\\\",\\\"pm10\\\":\\\"6.01\\\",\\\"s2Pm25\\\":\\\"7.46\\\",\\\"s2Pm10\\\":" +
+                "\\\"1.39\\\",\\\"latitude\\\":\\\"0.283670\\\",\\\"longitude\\\":\\\"32.600399\\\",\\\"battery\\\":" +
+                "\\\"4.19\\\",\\\"altitude\\\":\\\"null\\\",\\\"speed\\\":\\\"null\\\",\\\"satellites\\\":\\\"null\\\"," +
+                "\\\"internalTemperature\\\":\\\"null\\\",\\\"internalHumidity\\\":\\\"null\\\",\\\"hdop\\\":" +
+                "\\\"null\\\",\\\"externalTemperature\\\":\\\"null\\\",\\\"externalHumidity\\\":\\\"null\\\"," +
+                "\\\"externalPressure\\\":\\\"null\\\",\\\"externalAltitude\\\":\\\"null\\\"}\"";
+    }
 }

@@ -1,15 +1,19 @@
 package net.airqo.models;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 
 import java.io.Serializable;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RawAirQoMeasurement implements Serializable {
 
 
     @SerializedName("created_at")
     @Expose
+    @JsonAlias({"created_at", "time"})
     private String time;
 
     @SerializedName("device")
@@ -18,22 +22,27 @@ public class RawAirQoMeasurement implements Serializable {
 
     @SerializedName("channelID")
     @Expose
-    private String channelId = "null";
+    @JsonAlias({"channelID", "channel_ID", "channel_Id"})
+    private int channelId = -1;
 
     @SerializedName("pm2_5")
     @Expose
+    @JsonAlias({"pm2_5", "pm25"})
     private String pm25 = "null";
 
     @SerializedName("pm10")
     @Expose
+    @JsonAlias({"pm10"})
     private String pm10 = "null";
 
     @SerializedName("s2_pm2_5")
     @Expose
+    @JsonAlias({"s2_pm2_5", "s2Pm25"})
     private String s2Pm25 = "null";
 
     @SerializedName("s2_pm10")
     @Expose
+    @JsonAlias({"s2_pm10", "s2Pm10"})
     private String s2Pm10 = "null";
 
     @SerializedName("latitude")
@@ -62,10 +71,12 @@ public class RawAirQoMeasurement implements Serializable {
 
     @SerializedName("internalTemperature")
     @Expose
+    @JsonAlias({"internalTemperature", "InternalTemperature"})
     private String internalTemperature = "null";
 
     @SerializedName("internalHumidity")
     @Expose
+    @JsonAlias({"internalHumidity", "InternalHumidity"})
     private String internalHumidity = "null";
 
     @SerializedName("hdop")
@@ -74,14 +85,17 @@ public class RawAirQoMeasurement implements Serializable {
 
     @SerializedName("externalTemperature")
     @Expose
+    @JsonAlias({"externalTemperature", "ExternalTemperature"})
     private String externalTemperature = "null";
 
     @SerializedName("ExternalHumidity")
     @Expose
+    @JsonAlias({"ExternalHumidity", "externalHumidity"})
     private String externalHumidity = "null";
 
     @SerializedName("ExternalPressure")
     @Expose
+    @JsonAlias({"ExternalPressure", "externalPressure"})
     private String externalPressure = "null";
 
     public String getExternalTemperature() {
@@ -132,11 +146,11 @@ public class RawAirQoMeasurement implements Serializable {
         this.device = device;
     }
 
-    public String getChannelId() {
+    public int getChannelId() {
         return channelId;
     }
 
-    public void setChannelId(String channelId) {
+    public void setChannelId(int channelId) {
         this.channelId = channelId;
     }
 
