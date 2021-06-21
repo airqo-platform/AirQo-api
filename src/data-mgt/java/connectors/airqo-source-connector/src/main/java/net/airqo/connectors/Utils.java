@@ -19,7 +19,7 @@ public class Utils {
 
     static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
-    public static List<AirqoDevice> getDevices(String apiUrl){
+    public static List<AirqoDevice> getDevices(String baseUrl){
 
         logger.info("\n\n********** Fetching Devices **************\n");
 
@@ -27,7 +27,7 @@ public class Utils {
 
         try {
 
-            String urlString = apiUrl + "devices?tenant=airqo";
+            String urlString = baseUrl + "devices?tenant=airqo";
 
             HttpClient httpClient = HttpClient.newBuilder()
                     .build();
@@ -49,7 +49,7 @@ public class Utils {
             return new ArrayList<>();
         }
 
-        logger.info("\n ====> Devices : {}\n", devicesResponse);
+        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices());
         return devicesResponse.getDevices();
     }
 
@@ -69,9 +69,6 @@ public class Utils {
                     .build();
 
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            //            ObjectMapper objectMapper = new ObjectMapper();
-            //            RawMeasurement measurements = objectMapper.readValue(httpResponse.body(), RawMeasurement.class);
             RawMeasurement measurements = new ObjectMapper().readerFor(RawMeasurement.class).readValue(httpResponse.body());
 
             logger.info("Device measurements => {}", measurements);
