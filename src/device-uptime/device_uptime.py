@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 def get_device_records(tenant, channel_id, device_name, mobility):
     device_channel_records = DeviceChannelRecords(tenant, device_name, channel_id)
     device_records = device_channel_records.get_sensor_readings()
-    uptime, downtime = device_channel_records.calculate_uptime(mobility)
+    uptime, downtime = device_channel_records.calculate_uptime()
     created_at = datetime.now()
     sensor_one_pm2_5 = device_records.sensor_one_pm2_5
     sensor_two_pm2_5 = device_records.sensor_two_pm2_5
@@ -58,7 +58,15 @@ def save_device_uptime(tenant):
         try:
             records.append(future.result())
         except Exception as e:
+            import sys
+            from traceback import print_tb, print_exc
+            from colored import fg, attr
+            color_red = fg('#FF0000')
+            reset = attr('reset')
             print("error occurred while fetching data -", e)
+            print(color_red)
+            print_exc(file=sys.stdout)
+            print(reset)
 
     network_uptime = 0.0
 
