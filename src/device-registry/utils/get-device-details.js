@@ -23,7 +23,7 @@ const getDetail = async (
   try {
     const limit = parseInt(limitValue, 0);
     const skip = parseInt(skipValue, 0);
-    const filter = generateFilter.devices(
+    const filter = generateFilter.devices_v0(
       name,
       chid,
       loc,

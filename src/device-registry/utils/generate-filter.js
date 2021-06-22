@@ -6,6 +6,8 @@ const {
   isTimeEmpty,
   generateDateFormatWithoutHrs,
 } = require("./date");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 const { logElement, logObject } = require("./log");
 
@@ -95,7 +97,15 @@ const generateFilter = {
     let regex = `${element}`;
     return regex;
   },
-  devices: (name, channel, location, siteName, mapAddress, primary, active) => {
+  devices_v0: (
+    name,
+    channel,
+    location,
+    siteName,
+    mapAddress,
+    primary,
+    active
+  ) => {
     let filter = {};
 
     if (name) {
@@ -123,6 +133,95 @@ const generateFilter = {
     if (mapAddress) {
       let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
         mapAddress
+      );
+      filter["locationName"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (primary) {
+      const primaryStr = primary + "";
+      if (primaryStr.toLowerCase() == "yes") {
+        filter["isPrimaryInLocation"] = true;
+      } else if (primaryStr.toLowerCase() == "no") {
+        filter["isPrimaryInLocation"] = false;
+      } else {
+      }
+    }
+
+    if (active) {
+      const activeStr = active + "";
+      if (activeStr.toLowerCase() == "yes") {
+        filter["isActive"] = true;
+      } else if (activeStr.toLowerCase() == "no") {
+        filter["isActive"] = false;
+      } else {
+      }
+    }
+
+    return filter;
+  },
+  devices: (req) => {
+    let filter = {};
+    let {
+      name,
+      channel,
+      location,
+      siteName,
+      mapAddress,
+      primary,
+      active,
+      chid,
+      loc,
+      map,
+      site,
+      site_id,
+    } = req.query;
+
+    if (name) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        name
+      );
+      filter["name"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (channel) {
+      filter["channelID"] = channel;
+    }
+
+    if (chid) {
+      filter["channelID"] = chid;
+    }
+
+    if (location) {
+      filter["locationID"] = location;
+    }
+    if (loc) {
+      filter["locationID"] = loc;
+    }
+    if (site) {
+      filter["site_id"] = site;
+    }
+
+    if (site_id) {
+      filter["site_id"] = site_id;
+    }
+
+    if (siteName) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        siteName
+      );
+      filter["siteName"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (mapAddress) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        mapAddress
+      );
+      filter["locationName"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (map) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        map
       );
       filter["locationName"] = { $regex: regexExpression, $options: "i" };
     }
@@ -184,7 +283,7 @@ const generateFilter = {
     }
 
     if (id) {
-      filter["_id"] = id;
+      filter["_id"] = ObjectId(id);
     }
 
     if (generated_name) {
@@ -305,7 +404,7 @@ const generateFilter = {
     }
 
     if (id) {
-      filter["_id"] = id;
+      filter["_id"] = ObjectId(id);
     }
 
     if (generated_name) {
@@ -395,7 +494,7 @@ const generateFilter = {
     }
 
     if (id) {
-      filter["_id"] = id;
+      filter["_id"] = ObjectId(id);
     }
 
     if (device) {

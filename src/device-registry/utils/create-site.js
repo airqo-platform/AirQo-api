@@ -297,7 +297,7 @@ const manageSite = {
       };
     }
   },
-  list: async ({ tenant, filter, skip, limit }) => {
+  list: async ({ tenant, filter, _skip, _limit }) => {
     try {
       let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
@@ -305,16 +305,11 @@ const manageSite = {
         SiteSchema
       ).list({
         filter,
-        limit,
-        skip,
+        _limit,
+        _skip,
       });
-      if (responseFromListSite.success == true) {
-        return {
-          success: true,
-          message: responseFromListSite.message,
-          data: responseFromListSite.data,
-        };
-      } else if ((responseFromListSite.success = false)) {
+      logObject("responseFromListSite in util", responseFromListSite);
+      if (responseFromListSite.success == false) {
         if (responseFromListSite.error) {
           return {
             success: false,
@@ -327,6 +322,12 @@ const manageSite = {
             message: responseFromListSite.message,
           };
         }
+      } else {
+        return {
+          success: true,
+          message: "successfully listed the site(s)",
+          data: responseFromListSite,
+        };
       }
     } catch (e) {
       logElement("list Sites util", e.message);

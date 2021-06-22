@@ -4,6 +4,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
+const constants = require("../config/constants");
 
 const siteSchema = new Schema(
   {
@@ -254,34 +255,55 @@ siteSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({
+    _skip = 0,
+    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+    filter = {},
+  } = {}) {
     try {
-      let sites = await this.find(filter)
+      return this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "devices",
+          localField: "_id",
+          foreignField: "site_id",
+          as: "devices",
+        })
         .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .exec();
-      let data = jsonify(sites);
-      if (!isEmpty(data)) {
-        return {
-          success: true,
-          data,
-          message: "successfully listed the site(s)",
-        };
-      }
-
-      if (isEmpty(data)) {
-        return {
-          success: true,
-          message: "no sites exist",
-          data,
-        };
-      }
-      return {
-        success: false,
-        message: "unable to retrieve sites",
-        data,
-      };
+        .project({
+          _id: 1,
+          latitude: 1,
+          longitude: 1,
+          description: 1,
+          lat_long: 1,
+          country: 1,
+          district: 1,
+          sub_county: 1,
+          parish: 1,
+          region: 1,
+          geometry: 1,
+          city: 1,
+          street: 1,
+          formatted_name: 1,
+          county: 1,
+          altitude: 1,
+          greenness: 1,
+          landform_270: 1,
+          landform_90: 1,
+          aspect: 1,
+          distance_to_nearest_road: 1,
+          distance_to_nearest_primary_road: 1,
+          distance_to_nearest_secondary_road: 1,
+          distance_to_nearest_tertiary_road: 1,
+          distance_to_nearest_unclassified_road: 1,
+          distance_to_nearest_residential_area: 1,
+          bearing_to_kampala_center: 1,
+          distance_to_kampala_center: 1,
+          devices: "$devices",
+        })
+        .skip(_skip)
+        .limit(_limit)
+        .allowDiskUse(true);
     } catch (error) {
       return {
         success: false,

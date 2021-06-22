@@ -87,7 +87,7 @@ const deviceSchema = new mongoose.Schema(
       phone: Number,
     },
     site_id: {
-      type: String,
+      type: ObjectId,
     },
     isPrimaryInLocation: {
       type: Boolean,
@@ -153,7 +153,7 @@ deviceSchema.methods = {
   },
   toJSON() {
     return {
-      id: this.id,
+      id: this._id,
       name: this.name,
       latitude: this.latitude,
       longitude: this.longitude,
@@ -211,48 +211,56 @@ deviceSchema.statics = {
     });
   },
 
-  list({ _skip = 0, _limit = 50, filter = {} } = {}) {
-    return this.aggregate()
-      .match(filter)
-      .lookup({
-        from: "sites",
-        localField: "site_id",
-        foreignField: "lat_long",
-        as: "site",
-      })
-      .sort({ createdAt: -1 })
-      .project({
-        id: 1,
-        name: 1,
-        latitude: 1,
-        longitude: 1,
-        createdAt: 1,
-        owner: 1,
-        device_manufacturer: 1,
-        product_name: 1,
-        ISP: 1,
-        phoneNumber: 1,
-        visibility: 1,
-        description: 1,
-        isPrimaryInLocation: 1,
-        isUsedForCollocation: 1,
-        nextMaintenance: 1,
-        channelID: 1,
-        powerType: 1,
-        mountType: 1,
-        locationID: 1,
-        isActive: 1,
-        writeKey: 1,
-        readKey: 1,
-        pictures: 1,
-        siteName: 1,
-        locationName: 1,
-        height: 1,
-        site: { $arrayElemAt: ["$site", 0] },
-      })
-      .skip(_skip)
-      .limit(_limit)
-      .allowDiskUse(true);
+  list({ _skip = 0, _limit = 100, filter = {} } = {}) {
+    try {
+      return this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "sites",
+          localField: "site_id",
+          foreignField: "_id",
+          as: "site",
+        })
+        .sort({ createdAt: -1 })
+        .project({
+          _id: 1,
+          name: 1,
+          latitude: 1,
+          longitude: 1,
+          createdAt: 1,
+          owner: 1,
+          device_manufacturer: 1,
+          product_name: 1,
+          ISP: 1,
+          phoneNumber: 1,
+          visibility: 1,
+          description: 1,
+          isPrimaryInLocation: 1,
+          isUsedForCollocation: 1,
+          nextMaintenance: 1,
+          channelID: 1,
+          powerType: 1,
+          mountType: 1,
+          locationID: 1,
+          isActive: 1,
+          writeKey: 1,
+          readKey: 1,
+          pictures: 1,
+          siteName: 1,
+          locationName: 1,
+          height: 1,
+          site: { $arrayElemAt: ["$site", 0] },
+        })
+        .skip(_skip)
+        .limit(_limit)
+        .allowDiskUse(true);
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to retrieve devices",
+        error: error.message,
+      };
+    }
   },
 
   listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {

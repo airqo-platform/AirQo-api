@@ -7,6 +7,8 @@ const HTTPStatus = require("http-status");
 const axios = require("axios");
 const SiteActivitySchema = require("../models/SiteActivity");
 const constants = require("../config/constants");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 const {
   clearEventsBody,
   doesDeviceExist,
@@ -79,7 +81,6 @@ const carryOutActivity = async (
           success: false,
         });
       }
-
       if (updatedDevice) {
         //then log the operation
         let createdActivity = {};
@@ -146,6 +147,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       isUsedForCollocation,
       maintenanceType,
       site_id,
+      locationName,
     } = req.body;
 
     if (type === "deploy") {
@@ -190,7 +192,10 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         longitude: "",
         latitude: "",
         isActive: false,
-        site_id: "",
+        site_id: null,
+        description: "",
+        siteName: "",
+        locationName: "",
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
