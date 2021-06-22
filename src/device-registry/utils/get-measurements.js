@@ -3,6 +3,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("./multitenancy");
 const redis = require("../config/redis");
+const constants = require("../config/constants");
 const {
   axiosError,
   tryCatchErrors,
@@ -119,16 +120,25 @@ const getMeasurements = async (
 
           let devicesCount = await getDevicesCount(tenant);
 
-          let skipInt = skip ? skip : 0;
-          let limitInt = limit ? limit : devicesCount;
+          let _skip = skip ? skip : 0;
+          let _limit = limit ? limit : constants.DEFAULT_EVENTS_LIMIT;
+          let options = {
+            skipInt: _skip,
+            limitInt: _limit,
+          };
+
+          if (!device) {
+            options["skipInt"] = 0;
+            options["limitInt"] = devicesCount;
+          }
 
           let recentFlag = isRecentTrue(recent);
 
           let events = await getEvents(
             tenant,
             recentFlag,
-            skipInt,
-            limitInt,
+            options.skipInt,
+            options.limitInt,
             filter
           );
 
