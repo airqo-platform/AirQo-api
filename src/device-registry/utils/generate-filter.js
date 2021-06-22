@@ -5,6 +5,7 @@ const {
   addMonthsToProvideDateTime,
   isTimeEmpty,
   generateDateFormatWithoutHrs,
+  getDifferenceInMonths,
 } = require("./date");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
@@ -83,8 +84,35 @@ const generateFilter = {
       );
     }
 
+    if (startTime && endTime) {
+      let months = getDifferenceInMonths(startTime, endTime);
+      logElement("the number of months", months);
+      if (months > 2) {
+        if (isTimeEmpty(endTime) == false) {
+          filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(
+            endTime,
+            1
+          );
+        } else {
+          delete filter["values.time"];
+        }
+        let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+          endTime,
+          1
+        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+          removedOneMonthFromProvidedDateTime
+        );
+      }
+    }
+
     if (device) {
-      filter["values.device"]["$in"] = device;
+      deviceArray = device.split(",");
+      filter["values.device"]["$in"] = deviceArray;
+    }
+
+    if (!device) {
+      delete filter["values.device"];
     }
 
     if (frequency) {
