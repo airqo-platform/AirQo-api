@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kcca-historical-hourly-measurements
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: kcca-historical-hourly-measurements
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: kcca-historical-hourly-measurements
+    spec:
+      containers:
+        - name: kcca-historical-hourly-measurements
+          image: us.gcr.io/airqo-250220/prod-kcca-historical-measurements:latest
+          imagePullPolicy: Always
+          env:
+            - name: CLARITY_API_BASE_URL
+              value: https://clarity-data-api.clarity.io/v1/
+            - name: CLARITY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: clarity
+                  key: CLARITY_API_KEY
+            - name: FREQUENCY
+              value: hour
+            - name: DEVICE_REGISTRY_STAGING_URL
+              value: https://staging-platform.airqo.net/api/v1/
+            - name: DEVICE_REGISTRY_PRODUCTION_URL
+              value: https://platform.airqo.net/api/v1/
