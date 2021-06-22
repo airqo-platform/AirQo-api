@@ -1,6 +1,5 @@
 package net.airqo;
 
-import com.google.gson.Gson;
 import net.airqo.models.TransformedMeasurement;
 import net.airqo.models.TransformedValue;
 import org.junit.jupiter.api.*;
@@ -8,8 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -70,28 +67,6 @@ public class CalibrateTest {
             e.printStackTrace();
             fail();
         }
-
-
-
-    }
-
-    @Test
-    public void testStringToObjectList(){
-
-        Calibrate.CalibrateResponse calibrateResponse = new Calibrate.CalibrateResponse();
-        calibrateResponse.setCalibratedValue(23.0);
-        calibrateResponse.setDevice("device");
-
-        List<Calibrate.CalibrateResponse> list = new ArrayList<>();
-        list.add(calibrateResponse);
-
-        List<Calibrate.CalibrateResponse> object = Calibrate.stringToObjectList(new Gson().toJson(list));
-
-        Assertions.assertFalse(object.isEmpty());
-        Assertions.assertEquals(object.get(0).getCalibratedValue(), 23.0);
-        Assertions.assertEquals(object.get(0).getDevice(), "device");
-
-
     }
 
 }

@@ -10,7 +10,6 @@ import java.io.Serializable;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RawAirQoMeasurement implements Serializable {
 
-
     @SerializedName("created_at")
     @Expose
     @JsonAlias({"created_at", "time"})
@@ -25,7 +24,7 @@ public class RawAirQoMeasurement implements Serializable {
     @SerializedName("channelID")
     @Expose
     @JsonAlias({"channelID", "channel_ID", "channel_Id"})
-    private int channelId = -1;
+    private Integer channelId = -1;
 
     @SerializedName("pm2_5")
     @Expose
@@ -100,6 +99,9 @@ public class RawAirQoMeasurement implements Serializable {
     @JsonAlias({"ExternalPressure", "externalPressure"})
     private String externalPressure = "null";
 
+    public RawAirQoMeasurement() {
+    }
+
     public String getFrequency() {
         return frequency;
     }
@@ -156,11 +158,11 @@ public class RawAirQoMeasurement implements Serializable {
         this.device = device;
     }
 
-    public int getChannelId() {
+    public Integer getChannelId() {
         return channelId;
     }
 
-    public void setChannelId(int channelId) {
+    public void setChannelId(Integer channelId) {
         this.channelId = channelId;
     }
 

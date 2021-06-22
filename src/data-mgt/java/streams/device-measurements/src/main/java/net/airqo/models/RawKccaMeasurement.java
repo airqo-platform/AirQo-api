@@ -17,6 +17,9 @@ public class RawKccaMeasurement implements Serializable {
     private KccaLocation location;
     private KccaXtics characteristics;
 
+    public RawKccaMeasurement() {
+    }
+
     public String getAverage() {
         return average;
     }

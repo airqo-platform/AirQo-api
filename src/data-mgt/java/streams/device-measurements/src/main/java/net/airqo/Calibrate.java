@@ -29,7 +29,6 @@ public class Calibrate {
 
     private static final Logger logger = LoggerFactory.getLogger(Calibrate.class);
 
-
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CalibrateResponse implements Serializable {
 
@@ -133,6 +132,11 @@ public class Calibrate {
 
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
+            if(httpResponse.statusCode() != 200){
+                logger.error("Calibrate Response Body => {}", httpResponse.body());
+                return null;
+            }
+
             calibrateResponseList = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
 
         }
@@ -141,12 +145,5 @@ public class Calibrate {
         }
 
         return calibrateResponseList.isEmpty() ? null : calibrateResponseList.get(0).getCalibratedValue();
-    }
-
-    public static List<CalibrateResponse> stringToObjectList(String s){
-
-        Type listType = new TypeToken<List<CalibrateResponse>>() {}.getType();
-
-        return new Gson().fromJson(s, listType);
     }
 }

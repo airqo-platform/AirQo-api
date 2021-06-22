@@ -2,17 +2,18 @@ package net.airqo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import net.airqo.models.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Type;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
 
 public class Utils {
 
@@ -20,13 +21,13 @@ public class Utils {
 
     public static List<TransformedMeasurement> transformMeasurements(String rawMeasurements, String tenant) {
 
-    //        if(rawMeasurements.startsWith("\""))
-    //            rawMeasurements = rawMeasurements.replaceFirst("\"", "");
-    //
-    //        if(rawMeasurements.endsWith("\""))
-    //            rawMeasurements = rawMeasurements.substring(0, rawMeasurements.length() - 1);
-    //
-    //        rawMeasurements = rawMeasurements.replace("\\\"", "\"");
+            if(rawMeasurements.startsWith("\""))
+                rawMeasurements = rawMeasurements.replaceFirst("\"", "");
+
+            if(rawMeasurements.endsWith("\""))
+                rawMeasurements = rawMeasurements.substring(0, rawMeasurements.length() - 1);
+
+            rawMeasurements = rawMeasurements.replace("\\\"", "\"");
 
         switch (tenant.trim().toUpperCase()){
             case "KCCA":
@@ -144,12 +145,14 @@ public class Utils {
         try {
 
             ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
             deviceMeasurements = objectMapper.readValue(rawMeasurements, new TypeReference<>() {});
 
-        } catch (JsonProcessingException e) {
+
+        } catch (JsonProcessingException e)
+        {
             e.printStackTrace();
-            Type listType = new TypeToken<List<RawKccaMeasurement>>() {}.getType();
-            deviceMeasurements = new Gson().fromJson(rawMeasurements, listType);
+            return new ArrayList<>();
         }
 
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
@@ -216,12 +219,12 @@ public class Utils {
         try {
 
             ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
             deviceMeasurements = objectMapper.readValue(rawMeasurements, new TypeReference<>() {});
 
         } catch (JsonProcessingException e) {
             e.printStackTrace();
-            Type listType = new TypeToken<List<RawAirQoMeasurement>>() {}.getType();
-            deviceMeasurements = new Gson().fromJson(rawMeasurements, listType);
+            return new ArrayList<>();
         }
 
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
