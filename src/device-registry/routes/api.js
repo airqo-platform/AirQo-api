@@ -33,28 +33,28 @@ router.put("/update", deviceController.updateDevice);
 
 /****************** manage site *************************/
 router.post(
-  "/sites/activities/recall",
+  "/activities/recall",
   checkTenancy,
   validateRequestQuery(["deviceName"]),
   siteController.recallDevice
 );
 router.post(
-  "/sites/activities/deploy",
+  "/activities/deploy",
   checkTenancy,
   validateRequestQuery(["deviceName"]),
   validateRequestBody(siteController.deploymentFields),
   siteController.deployDevice
 );
 router.post(
-  "/sites/activities/maintain",
+  "/activities/maintain",
   checkTenancy,
   validateRequestQuery(["deviceName"]),
   validateRequestBody(siteController.maintenanceField),
   siteController.maintainDevice
 );
-router.get("/sites/activities", siteController.getActivities);
-router.put("/sites/activities", siteController.updateActivity);
-router.delete("/sites/activities", siteController.deleteActivity);
+router.get("/activities", siteController.getActivities);
+router.put("/activities", siteController.updateActivity);
+router.delete("/activities", siteController.deleteActivity);
 router.post(
   "/upload-images",
   imageUpload.array("image"),
