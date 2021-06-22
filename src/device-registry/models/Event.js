@@ -19,7 +19,7 @@ const measurementsSchema = [
       required: [true, "The device name is required"],
       trim: true,
     },
-    deviceID: {
+    device_id: {
       type: ObjectId,
       required: [true, "The device ID is required"],
     },
@@ -30,9 +30,9 @@ const measurementsSchema = [
     },
     site: {
       type: String,
-      required: [true, "the site ID is required"],
+      required: [true, "the site name is required"],
     },
-    siteID: {
+    site_id: {
       type: ObjectId,
       required: [true, "The site ID is required"],
     },
