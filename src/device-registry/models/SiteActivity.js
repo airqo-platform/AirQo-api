@@ -1,4 +1,5 @@
 const { Schema, model } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 function threeMonthsFromNow() {
   let d = new Date();
   let targetMonth = d.getMonth() + 3;
@@ -12,7 +13,7 @@ function threeMonthsFromNow() {
 const activitySchema = new Schema(
   {
     device: { type: String, trim: true },
-    siteID: { type: String, trim: true },
+    site_id: { type: ObjectId },
     date: { type: Date },
     description: { type: String, trim: true },
     activityType: { type: String, trim: true },
@@ -41,6 +42,7 @@ activitySchema.methods = {
       nextMaintenance: this.nextMaintenance,
       createdAt: this.createdAt,
       tags: this.tags,
+      site_id: this.site_id,
     };
   },
 };

@@ -496,6 +496,7 @@ const generateFilter = {
       activity_type,
       activity_tags,
       maintenance_type,
+      site_id,
     } = req.query;
 
     let filter = {
@@ -513,6 +514,9 @@ const generateFilter = {
         activity_type
       );
       filter["activityType"] = { $regex: regexExpression, $options: "i" };
+    }
+    if (site_id) {
+      filter["site_id"] = ObjectId(site_id);
     }
     if (activity_tags) {
       filter["tags"]["$in"] = activity_tags;

@@ -157,6 +157,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         date: (date && new Date(date)) || new Date(),
         description: "device deployed",
         activityType: "deployment",
+        site_id: site_id,
       };
 
       deviceBody = {
@@ -181,6 +182,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         date: new Date(),
         description: "device recalled",
         activityType: "recallment",
+        site_id: site_id,
       };
       deviceBody = {
         height: 0,
@@ -205,6 +207,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       logObject("the tags", tags);
       siteActivityBody = {
         site: siteName,
+        site_id: site_id,
         device: deviceName || req.query.deviceName,
         date: (date && new Date(date)) || new Date(),
         description: description,
