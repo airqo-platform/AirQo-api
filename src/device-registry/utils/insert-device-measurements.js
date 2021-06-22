@@ -7,17 +7,17 @@ const insertDeviceMeasurements = {
 
     // Contains modules that provide various ways to insert device measurements.
 
-    addValuesArray: async (array_data) => {
+    addValuesArray: async (measurements_array) => {
 
         try {
 
-            for (let index in array_data) {
+            for (const measurement of measurements_array) {
 
-                const data = array_data[index];
+                logObject("Kafka Measurement", measurement);
 
-                const device = data.device;
-                const tenant = data.tenant;
-                const measurements = [data];
+                const device = measurement.device;
+                const tenant = measurement.tenant;
+                const measurements = [measurement];
 
                 if (!tenant || !device) {
 
@@ -25,30 +25,26 @@ const insertDeviceMeasurements = {
                         success: false,
                         message: "Missing values...",
                         errors: [],
-                        valuesRejected: data,
+                        valuesRejected: measurements,
                         valuesAdded: [],
 
                     }));
-
                     continue;
-
                 }
 
                 let isDevicePresent = await doesDeviceExist(
                     device,
                     tenant.toLowerCase()
                 );
-
                 if (!isDevicePresent){
                     logObject("Kafka Data insertion log", JSON.stringify({
                         success: false,
                         message: `Device (${device}) for tenant (${tenant}) does not exist on the network`,
                         errors: [],
-                        valuesRejected: data,
+                        valuesRejected: measurements,
                         valuesAdded: [],
 
                     }));
-
                     continue;
                 }
 
@@ -59,10 +55,11 @@ const insertDeviceMeasurements = {
 
                 let response = await insertMeasurements(tenant, transformedMeasurements);
                 logObject("Kafka Data insertion log", JSON.stringify(response));
-
             }
         } 
         catch (e) {
+
+            logObject("Kafka Single Event Error", e);
 
             logObject("Kafka Data insertion log", JSON.stringify({
                 success: false,
