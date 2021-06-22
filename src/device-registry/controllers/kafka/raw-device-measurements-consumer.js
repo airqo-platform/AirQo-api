@@ -1,54 +1,32 @@
-const kafka = require('kafka-node');
-const Consumer = kafka.Consumer;
 const { logObject, logElement } = require("../../utils/log");
-const client = require('../../config/kafka');
+// const client = require('../../config/kafka');
+
+// var avro = require('avsc');
+// const insertMeasurtements = require("../../utils/insert-device-measurements");
 const constants = require("../../config/constants");
-var avro = require('avsc');
+const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
+const KAFKA_BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 
-const insertMeasurtements = require("../../utils/insert-device-measurements");
+const { Kafka } = require('kafkajs')
+const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 
-const KAFKA_TOPICS = constants.KAFKA_TOPICS;
+const kafka = new Kafka({ clientId: 'device-registry-streams', brokers: [KAFKA_BOOTSTRAP_SERVERS] })
+const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY })
+const consumer = kafka.consumer({ groupId: 'device-registry-streams-group' })
 
+const rawMeasurementsConsumer = async () => {
+  await consumer.connect()
+  await consumer.subscribe({ topic: 'transformed-device-measurements-topic', fromBeginning: true })
 
-let topics = [{
-    topic: KAFKA_TOPICS
-}];
+  await consumer.run({
+    eachMessage: async ({ topic, partition, message }) => {
+      const decodedValue = await registry.decode(message.value)
+      logObject("Measurements", decodedValue)
+    //   console.log({ decodedValue })
+    },
+  })
+}
 
-let options = {
-    autoCommit: true,
-};
+rawMeasurementsConsumer().catch(console.error)
 
-let consumer = new Consumer(client, topics, options);
-
-
-consumer.on('message', function (message) {
-
-    try {
-
-        logObject("Kafka Message Received", message);
-
-    
-        const messageValue = message.value.replace(/\'/g, '"');
-    
-        const json_data = JSON.parse(messageValue);
-    
-        insertMeasurtements.addValuesArray(json_data);
-
-    } catch (error) {
-        logElement("Error Occurred in kafka kcca consumer", error);
-    }
-
-});
-
-
-consumer.on('error', function (err) {
-    console.log('error', err);
-});
-
-process.on('SIGINT', function () {
-    consumer.close(true, function () {
-        process.exit();
-    })
-})
-
-module.exports = consumer;
+module.exports = rawMeasurementsConsumer;
