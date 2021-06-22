@@ -1,6 +1,5 @@
 package net.airqo.connectors;
 
-
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
@@ -75,6 +74,8 @@ public class ConnectorSourceTask extends SourceTask {
                 devices = getDevices(apiUrl);
             }
 
+            List<RawMeasurement> measurementList = new ArrayList<>();
+
             devices.forEach(airqoDevice -> {
 
                 String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getChannelId();
@@ -85,35 +86,40 @@ public class ConnectorSourceTask extends SourceTask {
 
                     measurements.setChannelID(airqoDevice.getChannelId());
                     measurements.setDevice(airqoDevice.getDevice());
+                    measurementList.add(measurements);
 
-                    String jsonString;
-
-                    try {
-                        ObjectMapper mapper = new ObjectMapper();
-                        jsonString = mapper.writeValueAsString(measurements);
-
-                    } catch (JsonProcessingException e) {
-                        e.printStackTrace();
-
-                        Gson gson = new Gson();
-                        Type dataType = new TypeToken<RawMeasurement>() {}.getType();
-                        jsonString = gson.toJson(measurements, dataType);
-                    }
-
-                    SourceRecord sourceRecord = new SourceRecord(
-                            null,
-                            null,
-                            topic,
-                            Schema.STRING_SCHEMA,
-                            jsonString
-                    );
-
-                    records.add(sourceRecord);
                 }
 
             });
 
-            logger.info("\n\n ====> Records Sent : {}\n\n", records);
+            if(!measurementList.isEmpty()){
+
+                String jsonString;
+
+                try {
+                    ObjectMapper mapper = new ObjectMapper();
+                    jsonString = mapper.writeValueAsString(measurementList);
+
+                } catch (JsonProcessingException e) {
+                    e.printStackTrace();
+
+                    Gson gson = new Gson();
+                    Type dataType = new TypeToken<List<RawMeasurement>>() {}.getType();
+                    jsonString = gson.toJson(measurementList, dataType);
+                }
+
+                SourceRecord sourceRecord = new SourceRecord(
+                        null,
+                        null,
+                        topic,
+                        Schema.STRING_SCHEMA,
+                        jsonString
+                );
+
+                records.add(sourceRecord);
+            }
+
+            logger.info("\n\n ====> Records To Be Sent : {}\n\n", records);
 
             return records.isEmpty() ? new ArrayList<>() : records;
 

@@ -27,7 +27,7 @@ public class Utils {
 
         try {
 
-            String urlString = baseUrl + "devices?tenant=airqo";
+            String urlString = baseUrl + "devices?tenant=airqo&active=yes";
 
             HttpClient httpClient = HttpClient.newBuilder()
                     .build();

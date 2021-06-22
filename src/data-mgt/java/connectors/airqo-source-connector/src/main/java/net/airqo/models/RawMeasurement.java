@@ -18,7 +18,8 @@ public class RawMeasurement {
     @JsonAlias({ "pm2_5" })
     private String pm25 = "null";
 
-    private int channelID = 0;
+    private int channelID = -1;
+    private String frequency = "raw";
 
     private String device = "null";
 
@@ -90,6 +91,14 @@ public class RawMeasurement {
     @Expose
     @JsonAlias({ "ExternalAltitude" })
     private String externalAltitude = "null";
+
+    public String getFrequency() {
+        return frequency;
+    }
+
+    public void setFrequency(String frequency) {
+        this.frequency = frequency;
+    }
 
     public String getExternalAltitude() {
         return externalAltitude;
