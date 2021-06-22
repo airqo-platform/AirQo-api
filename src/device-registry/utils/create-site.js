@@ -62,41 +62,7 @@ const manageSite = {
         tenant,
         filter,
       });
-      if (responseFromListSite.success == true) {
-        let update = {
-          $inc: { count: 1 },
-        };
-        let responseFromUpdateSite = await getModelByTenant(
-          tenant.toLowerCase(),
-          "site",
-          SiteSchema
-        ).modify({
-          filter,
-          update,
-        });
-        if (responseFromUpdateSite.success == true) {
-          let count = responseFromUpdateSite.data.count;
-          let siteName = `site_${count}`;
-          return {
-            success: true,
-            message: "successfully generated the unique site name",
-            data: siteName,
-          };
-        } else if (responseFromUpdateSite.success == false) {
-          if (responseFromUpdateSite.error) {
-            return {
-              success: false,
-              message: responseFromUpdateSite.message,
-              error: responseFromUpdateSite.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateSite.message,
-            };
-          }
-        }
-      } else if (responseFromListSite.success == false) {
+      if (responseFromListSite.success == false) {
         if (responseFromListSite.error) {
           return {
             success: false,
@@ -107,6 +73,39 @@ const manageSite = {
           return {
             success: false,
             message: responseFromListSite.message,
+          };
+        }
+      }
+      let update = {
+        $inc: { count: 1 },
+      };
+      let responseFromUpdateSite = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      ).modify({
+        filter,
+        update,
+      });
+      if (responseFromUpdateSite.success == true) {
+        let count = responseFromUpdateSite.data.count;
+        let siteName = `site_${count}`;
+        return {
+          success: true,
+          message: "successfully generated the unique site name",
+          data: siteName,
+        };
+      } else if (responseFromUpdateSite.success == false) {
+        if (responseFromUpdateSite.error) {
+          return {
+            success: false,
+            message: responseFromUpdateSite.message,
+            error: responseFromUpdateSite.error,
+          };
+        } else {
+          return {
+            success: false,
+            message: responseFromUpdateSite.message,
           };
         }
       }
