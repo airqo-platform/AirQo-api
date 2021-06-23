@@ -148,7 +148,6 @@ public class Utils {
             objectMapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
             deviceMeasurements = objectMapper.readValue(rawMeasurements, new TypeReference<>() {});
 
-
         } catch (JsonProcessingException e)
         {
             e.printStackTrace();
@@ -164,7 +163,7 @@ public class Utils {
             transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
             transformedMeasurement.setTenant("kcca");
             transformedMeasurement.setTime(rawMeasurement.getTime());
-            transformedMeasurement.setFrequency(rawMeasurement.getAverage());
+            transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getAverage()));
 
             List<Double> coordinates  =  rawMeasurement.getLocation().getCoordinates();
             transformedMeasurement.setLocation(new TransformedLocation(){{
@@ -234,7 +233,7 @@ public class Utils {
             TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
             transformedMeasurement.setDevice(rawMeasurement.getDevice());
-            transformedMeasurement.setFrequency(rawMeasurement.getFrequency());
+            transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getFrequency()));
             transformedMeasurement.setTenant("airqo");
             transformedMeasurement.setChannelID(rawMeasurement.getChannelId());
             transformedMeasurement.setTime(rawMeasurement.getTime());
@@ -355,6 +354,24 @@ public class Utils {
         }
 
         return props;
+    }
+
+    public static String getFrequency(String frequency){
+
+        if(frequency == null)
+            return "raw";
+
+        if(frequency.equalsIgnoreCase("daily") || frequency.equalsIgnoreCase("day")
+               || frequency.equalsIgnoreCase("days")){
+           return "daily";
+        }
+        else if(frequency.equalsIgnoreCase("hourly") || frequency.equalsIgnoreCase("hour")
+               || frequency.equalsIgnoreCase("hours")){
+           return "hourly";
+        }
+        else{
+           return "raw";
+        }
     }
 
     public static Double stringToDouble(String s){

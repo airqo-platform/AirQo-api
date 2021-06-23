@@ -15,7 +15,7 @@ import org.apache.avro.message.SchemaStore;
 @org.apache.avro.specific.AvroGenerated
 public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
   private static final long serialVersionUID = -5765176459723701962L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"pm1\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}");
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"pm1\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();

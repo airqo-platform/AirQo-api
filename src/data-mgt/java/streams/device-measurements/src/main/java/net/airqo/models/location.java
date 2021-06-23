@@ -14,8 +14,8 @@ import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
 public class location extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = -7910539274970801381L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"location\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"latitude\",\"type\":[\"double\",\"null\"]},{\"name\":\"longitude\",\"type\":[\"double\",\"null\"]}]}");
+  private static final long serialVersionUID = 8538474939996411027L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"location\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"latitude\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"longitude\",\"type\":[\"null\",\"double\"],\"default\":null}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
@@ -347,18 +347,18 @@ public class location extends org.apache.avro.specific.SpecificRecordBase implem
     throws java.io.IOException
   {
     if (this.latitude == null) {
-      out.writeIndex(1);
+      out.writeIndex(0);
       out.writeNull();
     } else {
-      out.writeIndex(0);
+      out.writeIndex(1);
       out.writeDouble(this.latitude);
     }
 
     if (this.longitude == null) {
-      out.writeIndex(1);
+      out.writeIndex(0);
       out.writeNull();
     } else {
-      out.writeIndex(0);
+      out.writeIndex(1);
       out.writeDouble(this.longitude);
     }
 
@@ -369,14 +369,14 @@ public class location extends org.apache.avro.specific.SpecificRecordBase implem
   {
     org.apache.avro.Schema.Field[] fieldOrder = in.readFieldOrderIfDiff();
     if (fieldOrder == null) {
-      if (in.readIndex() != 0) {
+      if (in.readIndex() != 1) {
         in.readNull();
         this.latitude = null;
       } else {
         this.latitude = in.readDouble();
       }
 
-      if (in.readIndex() != 0) {
+      if (in.readIndex() != 1) {
         in.readNull();
         this.longitude = null;
       } else {
@@ -387,7 +387,7 @@ public class location extends org.apache.avro.specific.SpecificRecordBase implem
       for (int i = 0; i < 2; i++) {
         switch (fieldOrder[i].pos()) {
         case 0:
-          if (in.readIndex() != 0) {
+          if (in.readIndex() != 1) {
             in.readNull();
             this.latitude = null;
           } else {
@@ -396,7 +396,7 @@ public class location extends org.apache.avro.specific.SpecificRecordBase implem
           break;
 
         case 1:
-          if (in.readIndex() != 0) {
+          if (in.readIndex() != 1) {
             in.readNull();
             this.longitude = null;
           } else {

@@ -14,8 +14,8 @@ import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
 public class Measurement extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = -7700941205434789604L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"Measurement\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"frequency\",\"type\":\"string\",\"default\":\"raw\"},{\"name\":\"time\",\"type\":\"string\"},{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"channelID\",\"type\":[\"int\",\"null\"]},{\"name\":\"tenant\",\"type\":\"string\"},{\"name\":\"location\",\"type\":{\"type\":\"record\",\"name\":\"location\",\"fields\":[{\"name\":\"latitude\",\"type\":[\"double\",\"null\"]},{\"name\":\"longitude\",\"type\":[\"double\",\"null\"]}]}},{\"name\":\"internalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"internalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"internalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"internalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"externalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"externalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"externalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"externalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"externalPressure\",\"type\":{\"type\":\"record\",\"name\":\"externalPressure\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm10\",\"type\":{\"type\":\"record\",\"name\":\"pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"no2\",\"type\":{\"type\":\"record\",\"name\":\"no2\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"pm1\",\"type\":{\"type\":\"record\",\"name\":\"pm1\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"speed\",\"type\":{\"type\":\"record\",\"name\":\"speed\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"altitude\",\"type\":{\"type\":\"record\",\"name\":\"altitude\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"battery\",\"type\":{\"type\":\"record\",\"name\":\"battery\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"satellites\",\"type\":{\"type\":\"record\",\"name\":\"satellites\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"hdop\",\"type\":{\"type\":\"record\",\"name\":\"hdop\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"s2_pm10\",\"type\":{\"type\":\"record\",\"name\":\"s2_pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}},{\"name\":\"s2_pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"s2_pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"]},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"]}]}}]}");
+  private static final long serialVersionUID = 7779325209858651501L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"Measurement\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"frequency\",\"type\":\"string\",\"default\":\"raw\"},{\"name\":\"time\",\"type\":\"string\"},{\"name\":\"device\",\"type\":\"string\"},{\"name\":\"site_id\",\"type\":\"string\"},{\"name\":\"channelID\",\"type\":[\"null\",\"int\"],\"default\":null},{\"name\":\"tenant\",\"type\":\"string\"},{\"name\":\"location\",\"type\":{\"type\":\"record\",\"name\":\"location\",\"fields\":[{\"name\":\"latitude\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"longitude\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"internalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"internalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"internalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"internalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"externalTemperature\",\"type\":{\"type\":\"record\",\"name\":\"externalTemperature\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"externalHumidity\",\"type\":{\"type\":\"record\",\"name\":\"externalHumidity\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"externalPressure\",\"type\":{\"type\":\"record\",\"name\":\"externalPressure\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"pm10\",\"type\":{\"type\":\"record\",\"name\":\"pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"no2\",\"type\":{\"type\":\"record\",\"name\":\"no2\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"pm1\",\"type\":{\"type\":\"record\",\"name\":\"pm1\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"speed\",\"type\":{\"type\":\"record\",\"name\":\"speed\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"altitude\",\"type\":{\"type\":\"record\",\"name\":\"altitude\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"battery\",\"type\":{\"type\":\"record\",\"name\":\"battery\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"satellites\",\"type\":{\"type\":\"record\",\"name\":\"satellites\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"hdop\",\"type\":{\"type\":\"record\",\"name\":\"hdop\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"s2_pm10\",\"type\":{\"type\":\"record\",\"name\":\"s2_pm10\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}},{\"name\":\"s2_pm2_5\",\"type\":{\"type\":\"record\",\"name\":\"s2_pm2_5\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
@@ -74,6 +74,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
    private java.lang.CharSequence frequency;
    private java.lang.CharSequence time;
    private java.lang.CharSequence device;
+   private java.lang.CharSequence site_id;
    private java.lang.Integer channelID;
    private java.lang.CharSequence tenant;
    private net.airqo.models.location location;
@@ -106,6 +107,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
    * @param frequency The new value for frequency
    * @param time The new value for time
    * @param device The new value for device
+   * @param site_id The new value for site_id
    * @param channelID The new value for channelID
    * @param tenant The new value for tenant
    * @param location The new value for location
@@ -126,10 +128,11 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
    * @param s2_pm10 The new value for s2_pm10
    * @param s2_pm2_5 The new value for s2_pm2_5
    */
-  public Measurement(java.lang.CharSequence frequency, java.lang.CharSequence time, java.lang.CharSequence device, java.lang.Integer channelID, java.lang.CharSequence tenant, net.airqo.models.location location, net.airqo.models.internalTemperature internalTemperature, net.airqo.models.internalHumidity internalHumidity, net.airqo.models.externalTemperature externalTemperature, net.airqo.models.externalHumidity externalHumidity, net.airqo.models.externalPressure externalPressure, net.airqo.models.pm10 pm10, net.airqo.models.pm2_5 pm2_5, net.airqo.models.no2 no2, net.airqo.models.pm1 pm1, net.airqo.models.speed speed, net.airqo.models.altitude altitude, net.airqo.models.battery battery, net.airqo.models.satellites satellites, net.airqo.models.hdop hdop, net.airqo.models.s2_pm10 s2_pm10, net.airqo.models.s2_pm2_5 s2_pm2_5) {
+  public Measurement(java.lang.CharSequence frequency, java.lang.CharSequence time, java.lang.CharSequence device, java.lang.CharSequence site_id, java.lang.Integer channelID, java.lang.CharSequence tenant, net.airqo.models.location location, net.airqo.models.internalTemperature internalTemperature, net.airqo.models.internalHumidity internalHumidity, net.airqo.models.externalTemperature externalTemperature, net.airqo.models.externalHumidity externalHumidity, net.airqo.models.externalPressure externalPressure, net.airqo.models.pm10 pm10, net.airqo.models.pm2_5 pm2_5, net.airqo.models.no2 no2, net.airqo.models.pm1 pm1, net.airqo.models.speed speed, net.airqo.models.altitude altitude, net.airqo.models.battery battery, net.airqo.models.satellites satellites, net.airqo.models.hdop hdop, net.airqo.models.s2_pm10 s2_pm10, net.airqo.models.s2_pm2_5 s2_pm2_5) {
     this.frequency = frequency;
     this.time = time;
     this.device = device;
+    this.site_id = site_id;
     this.channelID = channelID;
     this.tenant = tenant;
     this.location = location;
@@ -159,25 +162,26 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     case 0: return frequency;
     case 1: return time;
     case 2: return device;
-    case 3: return channelID;
-    case 4: return tenant;
-    case 5: return location;
-    case 6: return internalTemperature;
-    case 7: return internalHumidity;
-    case 8: return externalTemperature;
-    case 9: return externalHumidity;
-    case 10: return externalPressure;
-    case 11: return pm10;
-    case 12: return pm2_5;
-    case 13: return no2;
-    case 14: return pm1;
-    case 15: return speed;
-    case 16: return altitude;
-    case 17: return battery;
-    case 18: return satellites;
-    case 19: return hdop;
-    case 20: return s2_pm10;
-    case 21: return s2_pm2_5;
+    case 3: return site_id;
+    case 4: return channelID;
+    case 5: return tenant;
+    case 6: return location;
+    case 7: return internalTemperature;
+    case 8: return internalHumidity;
+    case 9: return externalTemperature;
+    case 10: return externalHumidity;
+    case 11: return externalPressure;
+    case 12: return pm10;
+    case 13: return pm2_5;
+    case 14: return no2;
+    case 15: return pm1;
+    case 16: return speed;
+    case 17: return altitude;
+    case 18: return battery;
+    case 19: return satellites;
+    case 20: return hdop;
+    case 21: return s2_pm10;
+    case 22: return s2_pm2_5;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -189,25 +193,26 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     case 0: frequency = (java.lang.CharSequence)value$; break;
     case 1: time = (java.lang.CharSequence)value$; break;
     case 2: device = (java.lang.CharSequence)value$; break;
-    case 3: channelID = (java.lang.Integer)value$; break;
-    case 4: tenant = (java.lang.CharSequence)value$; break;
-    case 5: location = (net.airqo.models.location)value$; break;
-    case 6: internalTemperature = (net.airqo.models.internalTemperature)value$; break;
-    case 7: internalHumidity = (net.airqo.models.internalHumidity)value$; break;
-    case 8: externalTemperature = (net.airqo.models.externalTemperature)value$; break;
-    case 9: externalHumidity = (net.airqo.models.externalHumidity)value$; break;
-    case 10: externalPressure = (net.airqo.models.externalPressure)value$; break;
-    case 11: pm10 = (net.airqo.models.pm10)value$; break;
-    case 12: pm2_5 = (net.airqo.models.pm2_5)value$; break;
-    case 13: no2 = (net.airqo.models.no2)value$; break;
-    case 14: pm1 = (net.airqo.models.pm1)value$; break;
-    case 15: speed = (net.airqo.models.speed)value$; break;
-    case 16: altitude = (net.airqo.models.altitude)value$; break;
-    case 17: battery = (net.airqo.models.battery)value$; break;
-    case 18: satellites = (net.airqo.models.satellites)value$; break;
-    case 19: hdop = (net.airqo.models.hdop)value$; break;
-    case 20: s2_pm10 = (net.airqo.models.s2_pm10)value$; break;
-    case 21: s2_pm2_5 = (net.airqo.models.s2_pm2_5)value$; break;
+    case 3: site_id = (java.lang.CharSequence)value$; break;
+    case 4: channelID = (java.lang.Integer)value$; break;
+    case 5: tenant = (java.lang.CharSequence)value$; break;
+    case 6: location = (net.airqo.models.location)value$; break;
+    case 7: internalTemperature = (net.airqo.models.internalTemperature)value$; break;
+    case 8: internalHumidity = (net.airqo.models.internalHumidity)value$; break;
+    case 9: externalTemperature = (net.airqo.models.externalTemperature)value$; break;
+    case 10: externalHumidity = (net.airqo.models.externalHumidity)value$; break;
+    case 11: externalPressure = (net.airqo.models.externalPressure)value$; break;
+    case 12: pm10 = (net.airqo.models.pm10)value$; break;
+    case 13: pm2_5 = (net.airqo.models.pm2_5)value$; break;
+    case 14: no2 = (net.airqo.models.no2)value$; break;
+    case 15: pm1 = (net.airqo.models.pm1)value$; break;
+    case 16: speed = (net.airqo.models.speed)value$; break;
+    case 17: altitude = (net.airqo.models.altitude)value$; break;
+    case 18: battery = (net.airqo.models.battery)value$; break;
+    case 19: satellites = (net.airqo.models.satellites)value$; break;
+    case 20: hdop = (net.airqo.models.hdop)value$; break;
+    case 21: s2_pm10 = (net.airqo.models.s2_pm10)value$; break;
+    case 22: s2_pm2_5 = (net.airqo.models.s2_pm2_5)value$; break;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -261,6 +266,23 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
    */
   public void setDevice(java.lang.CharSequence value) {
     this.device = value;
+  }
+
+  /**
+   * Gets the value of the 'site_id' field.
+   * @return The value of the 'site_id' field.
+   */
+  public java.lang.CharSequence getSiteId() {
+    return site_id;
+  }
+
+
+  /**
+   * Sets the value of the 'site_id' field.
+   * @param value the value to set.
+   */
+  public void setSiteId(java.lang.CharSequence value) {
+    this.site_id = value;
   }
 
   /**
@@ -630,6 +652,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     private java.lang.CharSequence frequency;
     private java.lang.CharSequence time;
     private java.lang.CharSequence device;
+    private java.lang.CharSequence site_id;
     private java.lang.Integer channelID;
     private java.lang.CharSequence tenant;
     private net.airqo.models.location location;
@@ -690,129 +713,133 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
         this.device = data().deepCopy(fields()[2].schema(), other.device);
         fieldSetFlags()[2] = other.fieldSetFlags()[2];
       }
-      if (isValidValue(fields()[3], other.channelID)) {
-        this.channelID = data().deepCopy(fields()[3].schema(), other.channelID);
+      if (isValidValue(fields()[3], other.site_id)) {
+        this.site_id = data().deepCopy(fields()[3].schema(), other.site_id);
         fieldSetFlags()[3] = other.fieldSetFlags()[3];
       }
-      if (isValidValue(fields()[4], other.tenant)) {
-        this.tenant = data().deepCopy(fields()[4].schema(), other.tenant);
+      if (isValidValue(fields()[4], other.channelID)) {
+        this.channelID = data().deepCopy(fields()[4].schema(), other.channelID);
         fieldSetFlags()[4] = other.fieldSetFlags()[4];
       }
-      if (isValidValue(fields()[5], other.location)) {
-        this.location = data().deepCopy(fields()[5].schema(), other.location);
+      if (isValidValue(fields()[5], other.tenant)) {
+        this.tenant = data().deepCopy(fields()[5].schema(), other.tenant);
         fieldSetFlags()[5] = other.fieldSetFlags()[5];
+      }
+      if (isValidValue(fields()[6], other.location)) {
+        this.location = data().deepCopy(fields()[6].schema(), other.location);
+        fieldSetFlags()[6] = other.fieldSetFlags()[6];
       }
       if (other.hasLocationBuilder()) {
         this.locationBuilder = net.airqo.models.location.newBuilder(other.getLocationBuilder());
       }
-      if (isValidValue(fields()[6], other.internalTemperature)) {
-        this.internalTemperature = data().deepCopy(fields()[6].schema(), other.internalTemperature);
-        fieldSetFlags()[6] = other.fieldSetFlags()[6];
+      if (isValidValue(fields()[7], other.internalTemperature)) {
+        this.internalTemperature = data().deepCopy(fields()[7].schema(), other.internalTemperature);
+        fieldSetFlags()[7] = other.fieldSetFlags()[7];
       }
       if (other.hasInternalTemperatureBuilder()) {
         this.internalTemperatureBuilder = net.airqo.models.internalTemperature.newBuilder(other.getInternalTemperatureBuilder());
       }
-      if (isValidValue(fields()[7], other.internalHumidity)) {
-        this.internalHumidity = data().deepCopy(fields()[7].schema(), other.internalHumidity);
-        fieldSetFlags()[7] = other.fieldSetFlags()[7];
+      if (isValidValue(fields()[8], other.internalHumidity)) {
+        this.internalHumidity = data().deepCopy(fields()[8].schema(), other.internalHumidity);
+        fieldSetFlags()[8] = other.fieldSetFlags()[8];
       }
       if (other.hasInternalHumidityBuilder()) {
         this.internalHumidityBuilder = net.airqo.models.internalHumidity.newBuilder(other.getInternalHumidityBuilder());
       }
-      if (isValidValue(fields()[8], other.externalTemperature)) {
-        this.externalTemperature = data().deepCopy(fields()[8].schema(), other.externalTemperature);
-        fieldSetFlags()[8] = other.fieldSetFlags()[8];
+      if (isValidValue(fields()[9], other.externalTemperature)) {
+        this.externalTemperature = data().deepCopy(fields()[9].schema(), other.externalTemperature);
+        fieldSetFlags()[9] = other.fieldSetFlags()[9];
       }
       if (other.hasExternalTemperatureBuilder()) {
         this.externalTemperatureBuilder = net.airqo.models.externalTemperature.newBuilder(other.getExternalTemperatureBuilder());
       }
-      if (isValidValue(fields()[9], other.externalHumidity)) {
-        this.externalHumidity = data().deepCopy(fields()[9].schema(), other.externalHumidity);
-        fieldSetFlags()[9] = other.fieldSetFlags()[9];
+      if (isValidValue(fields()[10], other.externalHumidity)) {
+        this.externalHumidity = data().deepCopy(fields()[10].schema(), other.externalHumidity);
+        fieldSetFlags()[10] = other.fieldSetFlags()[10];
       }
       if (other.hasExternalHumidityBuilder()) {
         this.externalHumidityBuilder = net.airqo.models.externalHumidity.newBuilder(other.getExternalHumidityBuilder());
       }
-      if (isValidValue(fields()[10], other.externalPressure)) {
-        this.externalPressure = data().deepCopy(fields()[10].schema(), other.externalPressure);
-        fieldSetFlags()[10] = other.fieldSetFlags()[10];
+      if (isValidValue(fields()[11], other.externalPressure)) {
+        this.externalPressure = data().deepCopy(fields()[11].schema(), other.externalPressure);
+        fieldSetFlags()[11] = other.fieldSetFlags()[11];
       }
       if (other.hasExternalPressureBuilder()) {
         this.externalPressureBuilder = net.airqo.models.externalPressure.newBuilder(other.getExternalPressureBuilder());
       }
-      if (isValidValue(fields()[11], other.pm10)) {
-        this.pm10 = data().deepCopy(fields()[11].schema(), other.pm10);
-        fieldSetFlags()[11] = other.fieldSetFlags()[11];
+      if (isValidValue(fields()[12], other.pm10)) {
+        this.pm10 = data().deepCopy(fields()[12].schema(), other.pm10);
+        fieldSetFlags()[12] = other.fieldSetFlags()[12];
       }
       if (other.hasPm10Builder()) {
         this.pm10Builder = net.airqo.models.pm10.newBuilder(other.getPm10Builder());
       }
-      if (isValidValue(fields()[12], other.pm2_5)) {
-        this.pm2_5 = data().deepCopy(fields()[12].schema(), other.pm2_5);
-        fieldSetFlags()[12] = other.fieldSetFlags()[12];
+      if (isValidValue(fields()[13], other.pm2_5)) {
+        this.pm2_5 = data().deepCopy(fields()[13].schema(), other.pm2_5);
+        fieldSetFlags()[13] = other.fieldSetFlags()[13];
       }
       if (other.hasPm25Builder()) {
         this.pm2_5Builder = net.airqo.models.pm2_5.newBuilder(other.getPm25Builder());
       }
-      if (isValidValue(fields()[13], other.no2)) {
-        this.no2 = data().deepCopy(fields()[13].schema(), other.no2);
-        fieldSetFlags()[13] = other.fieldSetFlags()[13];
+      if (isValidValue(fields()[14], other.no2)) {
+        this.no2 = data().deepCopy(fields()[14].schema(), other.no2);
+        fieldSetFlags()[14] = other.fieldSetFlags()[14];
       }
       if (other.hasNo2Builder()) {
         this.no2Builder = net.airqo.models.no2.newBuilder(other.getNo2Builder());
       }
-      if (isValidValue(fields()[14], other.pm1)) {
-        this.pm1 = data().deepCopy(fields()[14].schema(), other.pm1);
-        fieldSetFlags()[14] = other.fieldSetFlags()[14];
+      if (isValidValue(fields()[15], other.pm1)) {
+        this.pm1 = data().deepCopy(fields()[15].schema(), other.pm1);
+        fieldSetFlags()[15] = other.fieldSetFlags()[15];
       }
       if (other.hasPm1Builder()) {
         this.pm1Builder = net.airqo.models.pm1.newBuilder(other.getPm1Builder());
       }
-      if (isValidValue(fields()[15], other.speed)) {
-        this.speed = data().deepCopy(fields()[15].schema(), other.speed);
-        fieldSetFlags()[15] = other.fieldSetFlags()[15];
+      if (isValidValue(fields()[16], other.speed)) {
+        this.speed = data().deepCopy(fields()[16].schema(), other.speed);
+        fieldSetFlags()[16] = other.fieldSetFlags()[16];
       }
       if (other.hasSpeedBuilder()) {
         this.speedBuilder = net.airqo.models.speed.newBuilder(other.getSpeedBuilder());
       }
-      if (isValidValue(fields()[16], other.altitude)) {
-        this.altitude = data().deepCopy(fields()[16].schema(), other.altitude);
-        fieldSetFlags()[16] = other.fieldSetFlags()[16];
+      if (isValidValue(fields()[17], other.altitude)) {
+        this.altitude = data().deepCopy(fields()[17].schema(), other.altitude);
+        fieldSetFlags()[17] = other.fieldSetFlags()[17];
       }
       if (other.hasAltitudeBuilder()) {
         this.altitudeBuilder = net.airqo.models.altitude.newBuilder(other.getAltitudeBuilder());
       }
-      if (isValidValue(fields()[17], other.battery)) {
-        this.battery = data().deepCopy(fields()[17].schema(), other.battery);
-        fieldSetFlags()[17] = other.fieldSetFlags()[17];
+      if (isValidValue(fields()[18], other.battery)) {
+        this.battery = data().deepCopy(fields()[18].schema(), other.battery);
+        fieldSetFlags()[18] = other.fieldSetFlags()[18];
       }
       if (other.hasBatteryBuilder()) {
         this.batteryBuilder = net.airqo.models.battery.newBuilder(other.getBatteryBuilder());
       }
-      if (isValidValue(fields()[18], other.satellites)) {
-        this.satellites = data().deepCopy(fields()[18].schema(), other.satellites);
-        fieldSetFlags()[18] = other.fieldSetFlags()[18];
+      if (isValidValue(fields()[19], other.satellites)) {
+        this.satellites = data().deepCopy(fields()[19].schema(), other.satellites);
+        fieldSetFlags()[19] = other.fieldSetFlags()[19];
       }
       if (other.hasSatellitesBuilder()) {
         this.satellitesBuilder = net.airqo.models.satellites.newBuilder(other.getSatellitesBuilder());
       }
-      if (isValidValue(fields()[19], other.hdop)) {
-        this.hdop = data().deepCopy(fields()[19].schema(), other.hdop);
-        fieldSetFlags()[19] = other.fieldSetFlags()[19];
+      if (isValidValue(fields()[20], other.hdop)) {
+        this.hdop = data().deepCopy(fields()[20].schema(), other.hdop);
+        fieldSetFlags()[20] = other.fieldSetFlags()[20];
       }
       if (other.hasHdopBuilder()) {
         this.hdopBuilder = net.airqo.models.hdop.newBuilder(other.getHdopBuilder());
       }
-      if (isValidValue(fields()[20], other.s2_pm10)) {
-        this.s2_pm10 = data().deepCopy(fields()[20].schema(), other.s2_pm10);
-        fieldSetFlags()[20] = other.fieldSetFlags()[20];
+      if (isValidValue(fields()[21], other.s2_pm10)) {
+        this.s2_pm10 = data().deepCopy(fields()[21].schema(), other.s2_pm10);
+        fieldSetFlags()[21] = other.fieldSetFlags()[21];
       }
       if (other.hasS2Pm10Builder()) {
         this.s2_pm10Builder = net.airqo.models.s2_pm10.newBuilder(other.getS2Pm10Builder());
       }
-      if (isValidValue(fields()[21], other.s2_pm2_5)) {
-        this.s2_pm2_5 = data().deepCopy(fields()[21].schema(), other.s2_pm2_5);
-        fieldSetFlags()[21] = other.fieldSetFlags()[21];
+      if (isValidValue(fields()[22], other.s2_pm2_5)) {
+        this.s2_pm2_5 = data().deepCopy(fields()[22].schema(), other.s2_pm2_5);
+        fieldSetFlags()[22] = other.fieldSetFlags()[22];
       }
       if (other.hasS2Pm25Builder()) {
         this.s2_pm2_5Builder = net.airqo.models.s2_pm2_5.newBuilder(other.getS2Pm25Builder());
@@ -837,97 +864,101 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
         this.device = data().deepCopy(fields()[2].schema(), other.device);
         fieldSetFlags()[2] = true;
       }
-      if (isValidValue(fields()[3], other.channelID)) {
-        this.channelID = data().deepCopy(fields()[3].schema(), other.channelID);
+      if (isValidValue(fields()[3], other.site_id)) {
+        this.site_id = data().deepCopy(fields()[3].schema(), other.site_id);
         fieldSetFlags()[3] = true;
       }
-      if (isValidValue(fields()[4], other.tenant)) {
-        this.tenant = data().deepCopy(fields()[4].schema(), other.tenant);
+      if (isValidValue(fields()[4], other.channelID)) {
+        this.channelID = data().deepCopy(fields()[4].schema(), other.channelID);
         fieldSetFlags()[4] = true;
       }
-      if (isValidValue(fields()[5], other.location)) {
-        this.location = data().deepCopy(fields()[5].schema(), other.location);
+      if (isValidValue(fields()[5], other.tenant)) {
+        this.tenant = data().deepCopy(fields()[5].schema(), other.tenant);
         fieldSetFlags()[5] = true;
       }
-      this.locationBuilder = null;
-      if (isValidValue(fields()[6], other.internalTemperature)) {
-        this.internalTemperature = data().deepCopy(fields()[6].schema(), other.internalTemperature);
+      if (isValidValue(fields()[6], other.location)) {
+        this.location = data().deepCopy(fields()[6].schema(), other.location);
         fieldSetFlags()[6] = true;
       }
-      this.internalTemperatureBuilder = null;
-      if (isValidValue(fields()[7], other.internalHumidity)) {
-        this.internalHumidity = data().deepCopy(fields()[7].schema(), other.internalHumidity);
+      this.locationBuilder = null;
+      if (isValidValue(fields()[7], other.internalTemperature)) {
+        this.internalTemperature = data().deepCopy(fields()[7].schema(), other.internalTemperature);
         fieldSetFlags()[7] = true;
       }
-      this.internalHumidityBuilder = null;
-      if (isValidValue(fields()[8], other.externalTemperature)) {
-        this.externalTemperature = data().deepCopy(fields()[8].schema(), other.externalTemperature);
+      this.internalTemperatureBuilder = null;
+      if (isValidValue(fields()[8], other.internalHumidity)) {
+        this.internalHumidity = data().deepCopy(fields()[8].schema(), other.internalHumidity);
         fieldSetFlags()[8] = true;
       }
-      this.externalTemperatureBuilder = null;
-      if (isValidValue(fields()[9], other.externalHumidity)) {
-        this.externalHumidity = data().deepCopy(fields()[9].schema(), other.externalHumidity);
+      this.internalHumidityBuilder = null;
+      if (isValidValue(fields()[9], other.externalTemperature)) {
+        this.externalTemperature = data().deepCopy(fields()[9].schema(), other.externalTemperature);
         fieldSetFlags()[9] = true;
       }
-      this.externalHumidityBuilder = null;
-      if (isValidValue(fields()[10], other.externalPressure)) {
-        this.externalPressure = data().deepCopy(fields()[10].schema(), other.externalPressure);
+      this.externalTemperatureBuilder = null;
+      if (isValidValue(fields()[10], other.externalHumidity)) {
+        this.externalHumidity = data().deepCopy(fields()[10].schema(), other.externalHumidity);
         fieldSetFlags()[10] = true;
       }
-      this.externalPressureBuilder = null;
-      if (isValidValue(fields()[11], other.pm10)) {
-        this.pm10 = data().deepCopy(fields()[11].schema(), other.pm10);
+      this.externalHumidityBuilder = null;
+      if (isValidValue(fields()[11], other.externalPressure)) {
+        this.externalPressure = data().deepCopy(fields()[11].schema(), other.externalPressure);
         fieldSetFlags()[11] = true;
       }
-      this.pm10Builder = null;
-      if (isValidValue(fields()[12], other.pm2_5)) {
-        this.pm2_5 = data().deepCopy(fields()[12].schema(), other.pm2_5);
+      this.externalPressureBuilder = null;
+      if (isValidValue(fields()[12], other.pm10)) {
+        this.pm10 = data().deepCopy(fields()[12].schema(), other.pm10);
         fieldSetFlags()[12] = true;
       }
-      this.pm2_5Builder = null;
-      if (isValidValue(fields()[13], other.no2)) {
-        this.no2 = data().deepCopy(fields()[13].schema(), other.no2);
+      this.pm10Builder = null;
+      if (isValidValue(fields()[13], other.pm2_5)) {
+        this.pm2_5 = data().deepCopy(fields()[13].schema(), other.pm2_5);
         fieldSetFlags()[13] = true;
       }
-      this.no2Builder = null;
-      if (isValidValue(fields()[14], other.pm1)) {
-        this.pm1 = data().deepCopy(fields()[14].schema(), other.pm1);
+      this.pm2_5Builder = null;
+      if (isValidValue(fields()[14], other.no2)) {
+        this.no2 = data().deepCopy(fields()[14].schema(), other.no2);
         fieldSetFlags()[14] = true;
       }
-      this.pm1Builder = null;
-      if (isValidValue(fields()[15], other.speed)) {
-        this.speed = data().deepCopy(fields()[15].schema(), other.speed);
+      this.no2Builder = null;
+      if (isValidValue(fields()[15], other.pm1)) {
+        this.pm1 = data().deepCopy(fields()[15].schema(), other.pm1);
         fieldSetFlags()[15] = true;
       }
-      this.speedBuilder = null;
-      if (isValidValue(fields()[16], other.altitude)) {
-        this.altitude = data().deepCopy(fields()[16].schema(), other.altitude);
+      this.pm1Builder = null;
+      if (isValidValue(fields()[16], other.speed)) {
+        this.speed = data().deepCopy(fields()[16].schema(), other.speed);
         fieldSetFlags()[16] = true;
       }
-      this.altitudeBuilder = null;
-      if (isValidValue(fields()[17], other.battery)) {
-        this.battery = data().deepCopy(fields()[17].schema(), other.battery);
+      this.speedBuilder = null;
+      if (isValidValue(fields()[17], other.altitude)) {
+        this.altitude = data().deepCopy(fields()[17].schema(), other.altitude);
         fieldSetFlags()[17] = true;
       }
-      this.batteryBuilder = null;
-      if (isValidValue(fields()[18], other.satellites)) {
-        this.satellites = data().deepCopy(fields()[18].schema(), other.satellites);
+      this.altitudeBuilder = null;
+      if (isValidValue(fields()[18], other.battery)) {
+        this.battery = data().deepCopy(fields()[18].schema(), other.battery);
         fieldSetFlags()[18] = true;
       }
-      this.satellitesBuilder = null;
-      if (isValidValue(fields()[19], other.hdop)) {
-        this.hdop = data().deepCopy(fields()[19].schema(), other.hdop);
+      this.batteryBuilder = null;
+      if (isValidValue(fields()[19], other.satellites)) {
+        this.satellites = data().deepCopy(fields()[19].schema(), other.satellites);
         fieldSetFlags()[19] = true;
       }
-      this.hdopBuilder = null;
-      if (isValidValue(fields()[20], other.s2_pm10)) {
-        this.s2_pm10 = data().deepCopy(fields()[20].schema(), other.s2_pm10);
+      this.satellitesBuilder = null;
+      if (isValidValue(fields()[20], other.hdop)) {
+        this.hdop = data().deepCopy(fields()[20].schema(), other.hdop);
         fieldSetFlags()[20] = true;
       }
-      this.s2_pm10Builder = null;
-      if (isValidValue(fields()[21], other.s2_pm2_5)) {
-        this.s2_pm2_5 = data().deepCopy(fields()[21].schema(), other.s2_pm2_5);
+      this.hdopBuilder = null;
+      if (isValidValue(fields()[21], other.s2_pm10)) {
+        this.s2_pm10 = data().deepCopy(fields()[21].schema(), other.s2_pm10);
         fieldSetFlags()[21] = true;
+      }
+      this.s2_pm10Builder = null;
+      if (isValidValue(fields()[22], other.s2_pm2_5)) {
+        this.s2_pm2_5 = data().deepCopy(fields()[22].schema(), other.s2_pm2_5);
+        fieldSetFlags()[22] = true;
       }
       this.s2_pm2_5Builder = null;
     }
@@ -1053,6 +1084,46 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     }
 
     /**
+      * Gets the value of the 'site_id' field.
+      * @return The value.
+      */
+    public java.lang.CharSequence getSiteId() {
+      return site_id;
+    }
+
+
+    /**
+      * Sets the value of the 'site_id' field.
+      * @param value The value of 'site_id'.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder setSiteId(java.lang.CharSequence value) {
+      validate(fields()[3], value);
+      this.site_id = value;
+      fieldSetFlags()[3] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'site_id' field has been set.
+      * @return True if the 'site_id' field has been set, false otherwise.
+      */
+    public boolean hasSiteId() {
+      return fieldSetFlags()[3];
+    }
+
+
+    /**
+      * Clears the value of the 'site_id' field.
+      * @return This builder.
+      */
+    public net.airqo.models.Measurement.Builder clearSiteId() {
+      site_id = null;
+      fieldSetFlags()[3] = false;
+      return this;
+    }
+
+    /**
       * Gets the value of the 'channelID' field.
       * @return The value.
       */
@@ -1067,9 +1138,9 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setChannelID(java.lang.Integer value) {
-      validate(fields()[3], value);
+      validate(fields()[4], value);
       this.channelID = value;
-      fieldSetFlags()[3] = true;
+      fieldSetFlags()[4] = true;
       return this;
     }
 
@@ -1078,7 +1149,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'channelID' field has been set, false otherwise.
       */
     public boolean hasChannelID() {
-      return fieldSetFlags()[3];
+      return fieldSetFlags()[4];
     }
 
 
@@ -1088,7 +1159,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       */
     public net.airqo.models.Measurement.Builder clearChannelID() {
       channelID = null;
-      fieldSetFlags()[3] = false;
+      fieldSetFlags()[4] = false;
       return this;
     }
 
@@ -1107,9 +1178,9 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setTenant(java.lang.CharSequence value) {
-      validate(fields()[4], value);
+      validate(fields()[5], value);
       this.tenant = value;
-      fieldSetFlags()[4] = true;
+      fieldSetFlags()[5] = true;
       return this;
     }
 
@@ -1118,7 +1189,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'tenant' field has been set, false otherwise.
       */
     public boolean hasTenant() {
-      return fieldSetFlags()[4];
+      return fieldSetFlags()[5];
     }
 
 
@@ -1128,7 +1199,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       */
     public net.airqo.models.Measurement.Builder clearTenant() {
       tenant = null;
-      fieldSetFlags()[4] = false;
+      fieldSetFlags()[5] = false;
       return this;
     }
 
@@ -1147,10 +1218,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setLocation(net.airqo.models.location value) {
-      validate(fields()[5], value);
+      validate(fields()[6], value);
       this.locationBuilder = null;
       this.location = value;
-      fieldSetFlags()[5] = true;
+      fieldSetFlags()[6] = true;
       return this;
     }
 
@@ -1159,7 +1230,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'location' field has been set, false otherwise.
       */
     public boolean hasLocation() {
-      return fieldSetFlags()[5];
+      return fieldSetFlags()[6];
     }
 
     /**
@@ -1204,7 +1275,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearLocation() {
       location = null;
       locationBuilder = null;
-      fieldSetFlags()[5] = false;
+      fieldSetFlags()[6] = false;
       return this;
     }
 
@@ -1223,10 +1294,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setInternalTemperature(net.airqo.models.internalTemperature value) {
-      validate(fields()[6], value);
+      validate(fields()[7], value);
       this.internalTemperatureBuilder = null;
       this.internalTemperature = value;
-      fieldSetFlags()[6] = true;
+      fieldSetFlags()[7] = true;
       return this;
     }
 
@@ -1235,7 +1306,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'internalTemperature' field has been set, false otherwise.
       */
     public boolean hasInternalTemperature() {
-      return fieldSetFlags()[6];
+      return fieldSetFlags()[7];
     }
 
     /**
@@ -1280,7 +1351,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearInternalTemperature() {
       internalTemperature = null;
       internalTemperatureBuilder = null;
-      fieldSetFlags()[6] = false;
+      fieldSetFlags()[7] = false;
       return this;
     }
 
@@ -1299,10 +1370,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setInternalHumidity(net.airqo.models.internalHumidity value) {
-      validate(fields()[7], value);
+      validate(fields()[8], value);
       this.internalHumidityBuilder = null;
       this.internalHumidity = value;
-      fieldSetFlags()[7] = true;
+      fieldSetFlags()[8] = true;
       return this;
     }
 
@@ -1311,7 +1382,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'internalHumidity' field has been set, false otherwise.
       */
     public boolean hasInternalHumidity() {
-      return fieldSetFlags()[7];
+      return fieldSetFlags()[8];
     }
 
     /**
@@ -1356,7 +1427,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearInternalHumidity() {
       internalHumidity = null;
       internalHumidityBuilder = null;
-      fieldSetFlags()[7] = false;
+      fieldSetFlags()[8] = false;
       return this;
     }
 
@@ -1375,10 +1446,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setExternalTemperature(net.airqo.models.externalTemperature value) {
-      validate(fields()[8], value);
+      validate(fields()[9], value);
       this.externalTemperatureBuilder = null;
       this.externalTemperature = value;
-      fieldSetFlags()[8] = true;
+      fieldSetFlags()[9] = true;
       return this;
     }
 
@@ -1387,7 +1458,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'externalTemperature' field has been set, false otherwise.
       */
     public boolean hasExternalTemperature() {
-      return fieldSetFlags()[8];
+      return fieldSetFlags()[9];
     }
 
     /**
@@ -1432,7 +1503,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearExternalTemperature() {
       externalTemperature = null;
       externalTemperatureBuilder = null;
-      fieldSetFlags()[8] = false;
+      fieldSetFlags()[9] = false;
       return this;
     }
 
@@ -1451,10 +1522,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setExternalHumidity(net.airqo.models.externalHumidity value) {
-      validate(fields()[9], value);
+      validate(fields()[10], value);
       this.externalHumidityBuilder = null;
       this.externalHumidity = value;
-      fieldSetFlags()[9] = true;
+      fieldSetFlags()[10] = true;
       return this;
     }
 
@@ -1463,7 +1534,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'externalHumidity' field has been set, false otherwise.
       */
     public boolean hasExternalHumidity() {
-      return fieldSetFlags()[9];
+      return fieldSetFlags()[10];
     }
 
     /**
@@ -1508,7 +1579,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearExternalHumidity() {
       externalHumidity = null;
       externalHumidityBuilder = null;
-      fieldSetFlags()[9] = false;
+      fieldSetFlags()[10] = false;
       return this;
     }
 
@@ -1527,10 +1598,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setExternalPressure(net.airqo.models.externalPressure value) {
-      validate(fields()[10], value);
+      validate(fields()[11], value);
       this.externalPressureBuilder = null;
       this.externalPressure = value;
-      fieldSetFlags()[10] = true;
+      fieldSetFlags()[11] = true;
       return this;
     }
 
@@ -1539,7 +1610,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'externalPressure' field has been set, false otherwise.
       */
     public boolean hasExternalPressure() {
-      return fieldSetFlags()[10];
+      return fieldSetFlags()[11];
     }
 
     /**
@@ -1584,7 +1655,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearExternalPressure() {
       externalPressure = null;
       externalPressureBuilder = null;
-      fieldSetFlags()[10] = false;
+      fieldSetFlags()[11] = false;
       return this;
     }
 
@@ -1603,10 +1674,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setPm10(net.airqo.models.pm10 value) {
-      validate(fields()[11], value);
+      validate(fields()[12], value);
       this.pm10Builder = null;
       this.pm10 = value;
-      fieldSetFlags()[11] = true;
+      fieldSetFlags()[12] = true;
       return this;
     }
 
@@ -1615,7 +1686,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'pm10' field has been set, false otherwise.
       */
     public boolean hasPm10() {
-      return fieldSetFlags()[11];
+      return fieldSetFlags()[12];
     }
 
     /**
@@ -1660,7 +1731,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearPm10() {
       pm10 = null;
       pm10Builder = null;
-      fieldSetFlags()[11] = false;
+      fieldSetFlags()[12] = false;
       return this;
     }
 
@@ -1679,10 +1750,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setPm25(net.airqo.models.pm2_5 value) {
-      validate(fields()[12], value);
+      validate(fields()[13], value);
       this.pm2_5Builder = null;
       this.pm2_5 = value;
-      fieldSetFlags()[12] = true;
+      fieldSetFlags()[13] = true;
       return this;
     }
 
@@ -1691,7 +1762,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'pm2_5' field has been set, false otherwise.
       */
     public boolean hasPm25() {
-      return fieldSetFlags()[12];
+      return fieldSetFlags()[13];
     }
 
     /**
@@ -1736,7 +1807,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearPm25() {
       pm2_5 = null;
       pm2_5Builder = null;
-      fieldSetFlags()[12] = false;
+      fieldSetFlags()[13] = false;
       return this;
     }
 
@@ -1755,10 +1826,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setNo2(net.airqo.models.no2 value) {
-      validate(fields()[13], value);
+      validate(fields()[14], value);
       this.no2Builder = null;
       this.no2 = value;
-      fieldSetFlags()[13] = true;
+      fieldSetFlags()[14] = true;
       return this;
     }
 
@@ -1767,7 +1838,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'no2' field has been set, false otherwise.
       */
     public boolean hasNo2() {
-      return fieldSetFlags()[13];
+      return fieldSetFlags()[14];
     }
 
     /**
@@ -1812,7 +1883,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearNo2() {
       no2 = null;
       no2Builder = null;
-      fieldSetFlags()[13] = false;
+      fieldSetFlags()[14] = false;
       return this;
     }
 
@@ -1831,10 +1902,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setPm1(net.airqo.models.pm1 value) {
-      validate(fields()[14], value);
+      validate(fields()[15], value);
       this.pm1Builder = null;
       this.pm1 = value;
-      fieldSetFlags()[14] = true;
+      fieldSetFlags()[15] = true;
       return this;
     }
 
@@ -1843,7 +1914,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'pm1' field has been set, false otherwise.
       */
     public boolean hasPm1() {
-      return fieldSetFlags()[14];
+      return fieldSetFlags()[15];
     }
 
     /**
@@ -1888,7 +1959,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearPm1() {
       pm1 = null;
       pm1Builder = null;
-      fieldSetFlags()[14] = false;
+      fieldSetFlags()[15] = false;
       return this;
     }
 
@@ -1907,10 +1978,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setSpeed(net.airqo.models.speed value) {
-      validate(fields()[15], value);
+      validate(fields()[16], value);
       this.speedBuilder = null;
       this.speed = value;
-      fieldSetFlags()[15] = true;
+      fieldSetFlags()[16] = true;
       return this;
     }
 
@@ -1919,7 +1990,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'speed' field has been set, false otherwise.
       */
     public boolean hasSpeed() {
-      return fieldSetFlags()[15];
+      return fieldSetFlags()[16];
     }
 
     /**
@@ -1964,7 +2035,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearSpeed() {
       speed = null;
       speedBuilder = null;
-      fieldSetFlags()[15] = false;
+      fieldSetFlags()[16] = false;
       return this;
     }
 
@@ -1983,10 +2054,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setAltitude(net.airqo.models.altitude value) {
-      validate(fields()[16], value);
+      validate(fields()[17], value);
       this.altitudeBuilder = null;
       this.altitude = value;
-      fieldSetFlags()[16] = true;
+      fieldSetFlags()[17] = true;
       return this;
     }
 
@@ -1995,7 +2066,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'altitude' field has been set, false otherwise.
       */
     public boolean hasAltitude() {
-      return fieldSetFlags()[16];
+      return fieldSetFlags()[17];
     }
 
     /**
@@ -2040,7 +2111,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearAltitude() {
       altitude = null;
       altitudeBuilder = null;
-      fieldSetFlags()[16] = false;
+      fieldSetFlags()[17] = false;
       return this;
     }
 
@@ -2059,10 +2130,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setBattery(net.airqo.models.battery value) {
-      validate(fields()[17], value);
+      validate(fields()[18], value);
       this.batteryBuilder = null;
       this.battery = value;
-      fieldSetFlags()[17] = true;
+      fieldSetFlags()[18] = true;
       return this;
     }
 
@@ -2071,7 +2142,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'battery' field has been set, false otherwise.
       */
     public boolean hasBattery() {
-      return fieldSetFlags()[17];
+      return fieldSetFlags()[18];
     }
 
     /**
@@ -2116,7 +2187,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearBattery() {
       battery = null;
       batteryBuilder = null;
-      fieldSetFlags()[17] = false;
+      fieldSetFlags()[18] = false;
       return this;
     }
 
@@ -2135,10 +2206,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setSatellites(net.airqo.models.satellites value) {
-      validate(fields()[18], value);
+      validate(fields()[19], value);
       this.satellitesBuilder = null;
       this.satellites = value;
-      fieldSetFlags()[18] = true;
+      fieldSetFlags()[19] = true;
       return this;
     }
 
@@ -2147,7 +2218,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'satellites' field has been set, false otherwise.
       */
     public boolean hasSatellites() {
-      return fieldSetFlags()[18];
+      return fieldSetFlags()[19];
     }
 
     /**
@@ -2192,7 +2263,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearSatellites() {
       satellites = null;
       satellitesBuilder = null;
-      fieldSetFlags()[18] = false;
+      fieldSetFlags()[19] = false;
       return this;
     }
 
@@ -2211,10 +2282,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setHdop(net.airqo.models.hdop value) {
-      validate(fields()[19], value);
+      validate(fields()[20], value);
       this.hdopBuilder = null;
       this.hdop = value;
-      fieldSetFlags()[19] = true;
+      fieldSetFlags()[20] = true;
       return this;
     }
 
@@ -2223,7 +2294,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 'hdop' field has been set, false otherwise.
       */
     public boolean hasHdop() {
-      return fieldSetFlags()[19];
+      return fieldSetFlags()[20];
     }
 
     /**
@@ -2268,7 +2339,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearHdop() {
       hdop = null;
       hdopBuilder = null;
-      fieldSetFlags()[19] = false;
+      fieldSetFlags()[20] = false;
       return this;
     }
 
@@ -2287,10 +2358,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setS2Pm10(net.airqo.models.s2_pm10 value) {
-      validate(fields()[20], value);
+      validate(fields()[21], value);
       this.s2_pm10Builder = null;
       this.s2_pm10 = value;
-      fieldSetFlags()[20] = true;
+      fieldSetFlags()[21] = true;
       return this;
     }
 
@@ -2299,7 +2370,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 's2_pm10' field has been set, false otherwise.
       */
     public boolean hasS2Pm10() {
-      return fieldSetFlags()[20];
+      return fieldSetFlags()[21];
     }
 
     /**
@@ -2344,7 +2415,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearS2Pm10() {
       s2_pm10 = null;
       s2_pm10Builder = null;
-      fieldSetFlags()[20] = false;
+      fieldSetFlags()[21] = false;
       return this;
     }
 
@@ -2363,10 +2434,10 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return This builder.
       */
     public net.airqo.models.Measurement.Builder setS2Pm25(net.airqo.models.s2_pm2_5 value) {
-      validate(fields()[21], value);
+      validate(fields()[22], value);
       this.s2_pm2_5Builder = null;
       this.s2_pm2_5 = value;
-      fieldSetFlags()[21] = true;
+      fieldSetFlags()[22] = true;
       return this;
     }
 
@@ -2375,7 +2446,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       * @return True if the 's2_pm2_5' field has been set, false otherwise.
       */
     public boolean hasS2Pm25() {
-      return fieldSetFlags()[21];
+      return fieldSetFlags()[22];
     }
 
     /**
@@ -2420,7 +2491,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
     public net.airqo.models.Measurement.Builder clearS2Pm25() {
       s2_pm2_5 = null;
       s2_pm2_5Builder = null;
-      fieldSetFlags()[21] = false;
+      fieldSetFlags()[22] = false;
       return this;
     }
 
@@ -2432,8 +2503,9 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
         record.frequency = fieldSetFlags()[0] ? this.frequency : (java.lang.CharSequence) defaultValue(fields()[0]);
         record.time = fieldSetFlags()[1] ? this.time : (java.lang.CharSequence) defaultValue(fields()[1]);
         record.device = fieldSetFlags()[2] ? this.device : (java.lang.CharSequence) defaultValue(fields()[2]);
-        record.channelID = fieldSetFlags()[3] ? this.channelID : (java.lang.Integer) defaultValue(fields()[3]);
-        record.tenant = fieldSetFlags()[4] ? this.tenant : (java.lang.CharSequence) defaultValue(fields()[4]);
+        record.site_id = fieldSetFlags()[3] ? this.site_id : (java.lang.CharSequence) defaultValue(fields()[3]);
+        record.channelID = fieldSetFlags()[4] ? this.channelID : (java.lang.Integer) defaultValue(fields()[4]);
+        record.tenant = fieldSetFlags()[5] ? this.tenant : (java.lang.CharSequence) defaultValue(fields()[5]);
         if (locationBuilder != null) {
           try {
             record.location = this.locationBuilder.build();
@@ -2442,7 +2514,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.location = fieldSetFlags()[5] ? this.location : (net.airqo.models.location) defaultValue(fields()[5]);
+          record.location = fieldSetFlags()[6] ? this.location : (net.airqo.models.location) defaultValue(fields()[6]);
         }
         if (internalTemperatureBuilder != null) {
           try {
@@ -2452,7 +2524,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.internalTemperature = fieldSetFlags()[6] ? this.internalTemperature : (net.airqo.models.internalTemperature) defaultValue(fields()[6]);
+          record.internalTemperature = fieldSetFlags()[7] ? this.internalTemperature : (net.airqo.models.internalTemperature) defaultValue(fields()[7]);
         }
         if (internalHumidityBuilder != null) {
           try {
@@ -2462,7 +2534,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.internalHumidity = fieldSetFlags()[7] ? this.internalHumidity : (net.airqo.models.internalHumidity) defaultValue(fields()[7]);
+          record.internalHumidity = fieldSetFlags()[8] ? this.internalHumidity : (net.airqo.models.internalHumidity) defaultValue(fields()[8]);
         }
         if (externalTemperatureBuilder != null) {
           try {
@@ -2472,7 +2544,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.externalTemperature = fieldSetFlags()[8] ? this.externalTemperature : (net.airqo.models.externalTemperature) defaultValue(fields()[8]);
+          record.externalTemperature = fieldSetFlags()[9] ? this.externalTemperature : (net.airqo.models.externalTemperature) defaultValue(fields()[9]);
         }
         if (externalHumidityBuilder != null) {
           try {
@@ -2482,7 +2554,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.externalHumidity = fieldSetFlags()[9] ? this.externalHumidity : (net.airqo.models.externalHumidity) defaultValue(fields()[9]);
+          record.externalHumidity = fieldSetFlags()[10] ? this.externalHumidity : (net.airqo.models.externalHumidity) defaultValue(fields()[10]);
         }
         if (externalPressureBuilder != null) {
           try {
@@ -2492,7 +2564,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.externalPressure = fieldSetFlags()[10] ? this.externalPressure : (net.airqo.models.externalPressure) defaultValue(fields()[10]);
+          record.externalPressure = fieldSetFlags()[11] ? this.externalPressure : (net.airqo.models.externalPressure) defaultValue(fields()[11]);
         }
         if (pm10Builder != null) {
           try {
@@ -2502,7 +2574,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.pm10 = fieldSetFlags()[11] ? this.pm10 : (net.airqo.models.pm10) defaultValue(fields()[11]);
+          record.pm10 = fieldSetFlags()[12] ? this.pm10 : (net.airqo.models.pm10) defaultValue(fields()[12]);
         }
         if (pm2_5Builder != null) {
           try {
@@ -2512,7 +2584,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.pm2_5 = fieldSetFlags()[12] ? this.pm2_5 : (net.airqo.models.pm2_5) defaultValue(fields()[12]);
+          record.pm2_5 = fieldSetFlags()[13] ? this.pm2_5 : (net.airqo.models.pm2_5) defaultValue(fields()[13]);
         }
         if (no2Builder != null) {
           try {
@@ -2522,7 +2594,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.no2 = fieldSetFlags()[13] ? this.no2 : (net.airqo.models.no2) defaultValue(fields()[13]);
+          record.no2 = fieldSetFlags()[14] ? this.no2 : (net.airqo.models.no2) defaultValue(fields()[14]);
         }
         if (pm1Builder != null) {
           try {
@@ -2532,7 +2604,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.pm1 = fieldSetFlags()[14] ? this.pm1 : (net.airqo.models.pm1) defaultValue(fields()[14]);
+          record.pm1 = fieldSetFlags()[15] ? this.pm1 : (net.airqo.models.pm1) defaultValue(fields()[15]);
         }
         if (speedBuilder != null) {
           try {
@@ -2542,7 +2614,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.speed = fieldSetFlags()[15] ? this.speed : (net.airqo.models.speed) defaultValue(fields()[15]);
+          record.speed = fieldSetFlags()[16] ? this.speed : (net.airqo.models.speed) defaultValue(fields()[16]);
         }
         if (altitudeBuilder != null) {
           try {
@@ -2552,7 +2624,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.altitude = fieldSetFlags()[16] ? this.altitude : (net.airqo.models.altitude) defaultValue(fields()[16]);
+          record.altitude = fieldSetFlags()[17] ? this.altitude : (net.airqo.models.altitude) defaultValue(fields()[17]);
         }
         if (batteryBuilder != null) {
           try {
@@ -2562,7 +2634,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.battery = fieldSetFlags()[17] ? this.battery : (net.airqo.models.battery) defaultValue(fields()[17]);
+          record.battery = fieldSetFlags()[18] ? this.battery : (net.airqo.models.battery) defaultValue(fields()[18]);
         }
         if (satellitesBuilder != null) {
           try {
@@ -2572,7 +2644,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.satellites = fieldSetFlags()[18] ? this.satellites : (net.airqo.models.satellites) defaultValue(fields()[18]);
+          record.satellites = fieldSetFlags()[19] ? this.satellites : (net.airqo.models.satellites) defaultValue(fields()[19]);
         }
         if (hdopBuilder != null) {
           try {
@@ -2582,7 +2654,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.hdop = fieldSetFlags()[19] ? this.hdop : (net.airqo.models.hdop) defaultValue(fields()[19]);
+          record.hdop = fieldSetFlags()[20] ? this.hdop : (net.airqo.models.hdop) defaultValue(fields()[20]);
         }
         if (s2_pm10Builder != null) {
           try {
@@ -2592,7 +2664,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.s2_pm10 = fieldSetFlags()[20] ? this.s2_pm10 : (net.airqo.models.s2_pm10) defaultValue(fields()[20]);
+          record.s2_pm10 = fieldSetFlags()[21] ? this.s2_pm10 : (net.airqo.models.s2_pm10) defaultValue(fields()[21]);
         }
         if (s2_pm2_5Builder != null) {
           try {
@@ -2602,7 +2674,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
             throw e;
           }
         } else {
-          record.s2_pm2_5 = fieldSetFlags()[21] ? this.s2_pm2_5 : (net.airqo.models.s2_pm2_5) defaultValue(fields()[21]);
+          record.s2_pm2_5 = fieldSetFlags()[22] ? this.s2_pm2_5 : (net.airqo.models.s2_pm2_5) defaultValue(fields()[22]);
         }
         return record;
       } catch (org.apache.avro.AvroMissingFieldException e) {
@@ -2642,11 +2714,13 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
 
     out.writeString(this.device);
 
+    out.writeString(this.site_id);
+
     if (this.channelID == null) {
-      out.writeIndex(1);
+      out.writeIndex(0);
       out.writeNull();
     } else {
-      out.writeIndex(0);
+      out.writeIndex(1);
       out.writeInt(this.channelID);
     }
 
@@ -2699,7 +2773,9 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
 
       this.device = in.readString(this.device instanceof Utf8 ? (Utf8)this.device : null);
 
-      if (in.readIndex() != 0) {
+      this.site_id = in.readString(this.site_id instanceof Utf8 ? (Utf8)this.site_id : null);
+
+      if (in.readIndex() != 1) {
         in.readNull();
         this.channelID = null;
       } else {
@@ -2794,7 +2870,7 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
       this.s2_pm2_5.customDecode(in);
 
     } else {
-      for (int i = 0; i < 22; i++) {
+      for (int i = 0; i < 23; i++) {
         switch (fieldOrder[i].pos()) {
         case 0:
           this.frequency = in.readString(this.frequency instanceof Utf8 ? (Utf8)this.frequency : null);
@@ -2809,7 +2885,11 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
           break;
 
         case 3:
-          if (in.readIndex() != 0) {
+          this.site_id = in.readString(this.site_id instanceof Utf8 ? (Utf8)this.site_id : null);
+          break;
+
+        case 4:
+          if (in.readIndex() != 1) {
             in.readNull();
             this.channelID = null;
           } else {
@@ -2817,123 +2897,123 @@ public class Measurement extends org.apache.avro.specific.SpecificRecordBase imp
           }
           break;
 
-        case 4:
+        case 5:
           this.tenant = in.readString(this.tenant instanceof Utf8 ? (Utf8)this.tenant : null);
           break;
 
-        case 5:
+        case 6:
           if (this.location == null) {
             this.location = new net.airqo.models.location();
           }
           this.location.customDecode(in);
           break;
 
-        case 6:
+        case 7:
           if (this.internalTemperature == null) {
             this.internalTemperature = new net.airqo.models.internalTemperature();
           }
           this.internalTemperature.customDecode(in);
           break;
 
-        case 7:
+        case 8:
           if (this.internalHumidity == null) {
             this.internalHumidity = new net.airqo.models.internalHumidity();
           }
           this.internalHumidity.customDecode(in);
           break;
 
-        case 8:
+        case 9:
           if (this.externalTemperature == null) {
             this.externalTemperature = new net.airqo.models.externalTemperature();
           }
           this.externalTemperature.customDecode(in);
           break;
 
-        case 9:
+        case 10:
           if (this.externalHumidity == null) {
             this.externalHumidity = new net.airqo.models.externalHumidity();
           }
           this.externalHumidity.customDecode(in);
           break;
 
-        case 10:
+        case 11:
           if (this.externalPressure == null) {
             this.externalPressure = new net.airqo.models.externalPressure();
           }
           this.externalPressure.customDecode(in);
           break;
 
-        case 11:
+        case 12:
           if (this.pm10 == null) {
             this.pm10 = new net.airqo.models.pm10();
           }
           this.pm10.customDecode(in);
           break;
 
-        case 12:
+        case 13:
           if (this.pm2_5 == null) {
             this.pm2_5 = new net.airqo.models.pm2_5();
           }
           this.pm2_5.customDecode(in);
           break;
 
-        case 13:
+        case 14:
           if (this.no2 == null) {
             this.no2 = new net.airqo.models.no2();
           }
           this.no2.customDecode(in);
           break;
 
-        case 14:
+        case 15:
           if (this.pm1 == null) {
             this.pm1 = new net.airqo.models.pm1();
           }
           this.pm1.customDecode(in);
           break;
 
-        case 15:
+        case 16:
           if (this.speed == null) {
             this.speed = new net.airqo.models.speed();
           }
           this.speed.customDecode(in);
           break;
 
-        case 16:
+        case 17:
           if (this.altitude == null) {
             this.altitude = new net.airqo.models.altitude();
           }
           this.altitude.customDecode(in);
           break;
 
-        case 17:
+        case 18:
           if (this.battery == null) {
             this.battery = new net.airqo.models.battery();
           }
           this.battery.customDecode(in);
           break;
 
-        case 18:
+        case 19:
           if (this.satellites == null) {
             this.satellites = new net.airqo.models.satellites();
           }
           this.satellites.customDecode(in);
           break;
 
-        case 19:
+        case 20:
           if (this.hdop == null) {
             this.hdop = new net.airqo.models.hdop();
           }
           this.hdop.customDecode(in);
           break;
 
-        case 20:
+        case 21:
           if (this.s2_pm10 == null) {
             this.s2_pm10 = new net.airqo.models.s2_pm10();
           }
           this.s2_pm10.customDecode(in);
           break;
 
-        case 21:
+        case 22:
           if (this.s2_pm2_5 == null) {
             this.s2_pm2_5 = new net.airqo.models.s2_pm2_5();
           }
