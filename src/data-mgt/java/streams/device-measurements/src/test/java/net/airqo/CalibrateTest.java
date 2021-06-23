@@ -30,7 +30,8 @@ public class CalibrateTest {
 
         String propertiesUrlFile = "application.properties";
         Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
-        urlString = props.getProperty("calibrate.url", null);
+        urlString = props.getProperty("airqo.base.url", "");
+        urlString = urlString + "calibrate";
 
         logger.info("Calibrate tests started");
         transformedMeasurement = new TransformedMeasurement(){{

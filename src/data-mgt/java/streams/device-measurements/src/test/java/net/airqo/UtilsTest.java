@@ -11,6 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
+import static net.airqo.Utils.getFrequency;
 import static org.junit.Assert.*;
 
 public class UtilsTest {
@@ -163,7 +164,7 @@ public class UtilsTest {
         List<TransformedMeasurement> transformedMeasurements = Utils.transformKccaMeasurements(measurementsString);
 
         assertEquals(transformedMeasurements.get(0).getTime(), rawMeasurements.getTime());
-        assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), rawMeasurements.getAverage());
+        assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), getFrequency(rawMeasurements.getAverage()));
         assertEquals(transformedMeasurements.get(0).getDevice(), rawMeasurements.getDeviceCode());
         assertEquals(transformedMeasurements.get(0).getTenant().trim().toLowerCase(), "kcca");
 
@@ -214,11 +215,17 @@ public class UtilsTest {
     @Test
     public void testObjectToDouble(){
 
+        List<String> objects = new ArrayList<>(){{
+            add("null");
+            add("invalid");
+        }};
+
+        objects.forEach(s -> {
+            assertThat(Utils.objectToDouble(s), CoreMatchers.equalTo(null));
+        });
+
         double aDouble = Utils.objectToDouble("90.0");
         assertThat(aDouble, CoreMatchers.equalTo(90.0));
-        
-        aDouble = Utils.objectToDouble("invalid double");
-        assertThat(aDouble, CoreMatchers.equalTo(0.0));
     }
 
 

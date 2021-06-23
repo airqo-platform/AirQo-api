@@ -10,10 +10,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Properties;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.util.*;
+import java.util.stream.Stream;
 
 public class Utils {
 
@@ -55,6 +57,7 @@ public class Utils {
                         .setTenant(transformedMeasurement.getTenant())
                         .setFrequency(transformedMeasurement.getFrequency())
                         .setTime(transformedMeasurement.getTime())
+                        .setSiteId(transformedMeasurement.getSite_id())
                         .setChannelID(transformedMeasurement.getChannelID())
                         .setLocation(location.newBuilder()
                                 .setLatitude(objectToDouble(transformedMeasurement.getLocation().getLatitude().getValue()))
@@ -154,14 +157,22 @@ public class Utils {
             return new ArrayList<>();
         }
 
+        String propertiesUrlFile = "application.properties";
+        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
+        String urlString = props.getProperty("airqo.base.url", "");
+        List<Device> devices = getDevices(urlString, "kcca");
+
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
         deviceMeasurements.forEach(rawMeasurement -> {
 
             TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
+            String siteId = getSiteId(devices, rawMeasurement.getDevice());
+
             transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
             transformedMeasurement.setTenant("kcca");
+            transformedMeasurement.setSite_id(siteId);
             transformedMeasurement.setTime(rawMeasurement.getTime());
             transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getAverage()));
 
@@ -235,6 +246,7 @@ public class Utils {
             transformedMeasurement.setDevice(rawMeasurement.getDevice());
             transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getFrequency()));
             transformedMeasurement.setTenant("airqo");
+            transformedMeasurement.setSite_id(rawMeasurement.getSite_id());
             transformedMeasurement.setChannelID(rawMeasurement.getChannelId());
             transformedMeasurement.setTime(rawMeasurement.getTime());
 
@@ -315,14 +327,15 @@ public class Utils {
 
         String propertiesUrlFile = "application.properties";
         Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
-        String urlString = props.getProperty("calibrate.url", null);
+        String urlString = props.getProperty("airqo.base.url", "");
+        String finalUrlString = urlString + "calibrate";;
 
         measurements.forEach(measurement -> {
 
             TransformedValue  pm25 = measurement.getPm2_5();
 
             try {
-                Double calibratedValue = Calibrate.getCalibratedValue(measurement, urlString);
+                Double calibratedValue = Calibrate.getCalibratedValue(measurement, finalUrlString);
                 pm25.setCalibratedValue(calibratedValue);
 
             } catch (IOException e) {
@@ -387,7 +400,7 @@ public class Utils {
         }
     }
 
-    public static double objectToDouble(Object o){
+    public static Double objectToDouble(Object o){
 
         double aDouble;
 
@@ -396,8 +409,50 @@ public class Utils {
             return aDouble;
         }
         catch (NumberFormatException ignored){
-            return 0.0;
+            return null;
         }
     }
 
+    public static List<Device> getDevices(String baseUrl, String tenant){
+
+        logger.info("\n\n********** Fetching Devices **************\n");
+
+        DevicesResponse devicesResponse;
+
+        try {
+
+            String urlString =  String.format("%sdevices?tenant=%s&active=yes", baseUrl, tenant);
+
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .GET()
+                    .uri(URI.create(urlString))
+                    .setHeader("Accept", "application/json")
+                    .build();
+
+            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            devicesResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
+        }
+        catch (Exception e){
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+
+        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices());
+        return devicesResponse.getDevices();
+    }
+
+    public static String getSiteId(List<Device> devices, String name){
+
+        Optional<Device> optionalDevice = devices.stream().filter(
+                deviceFilter -> deviceFilter.getName().equalsIgnoreCase(name)
+        ).findFirst();
+
+        return optionalDevice.map(device -> device.getSite().get_id()).orElse(null);
+
+    }
 }

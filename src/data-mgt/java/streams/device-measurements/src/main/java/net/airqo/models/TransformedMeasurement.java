@@ -1,11 +1,11 @@
 package net.airqo.models;
 
 import java.io.Serializable;
-import java.util.HashMap;
 
 public class TransformedMeasurement implements Serializable {
 
     private String frequency = "raw";
+    private String site_id = "";
     private Integer channelID = null;
     private String time = "";
     private String tenant = "";
@@ -28,6 +28,14 @@ public class TransformedMeasurement implements Serializable {
     private TransformedValue s2_pm2_5 = new TransformedValue();
     private TransformedValue no2 = new TransformedValue();
     private TransformedValue pm1 = new TransformedValue();
+
+    public String getSite_id() {
+        return site_id;
+    }
+
+    public void setSite_id(String site_id) {
+        this.site_id = site_id;
+    }
 
     public String getFrequency() {
         return frequency;

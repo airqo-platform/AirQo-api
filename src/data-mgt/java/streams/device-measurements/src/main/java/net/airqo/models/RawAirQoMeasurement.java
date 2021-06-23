@@ -15,6 +15,9 @@ public class RawAirQoMeasurement implements Serializable {
     @JsonAlias({"created_at", "time"})
     private String time;
 
+    @JsonAlias({"siteId", "siteID"})
+    private String site_id = "";
+
     private String frequency = "raw";
 
     @SerializedName("device")
@@ -104,6 +107,14 @@ public class RawAirQoMeasurement implements Serializable {
 
     public String getFrequency() {
         return frequency;
+    }
+
+    public String getSite_id() {
+        return site_id;
+    }
+
+    public void setSite_id(String site_id) {
+        this.site_id = site_id;
     }
 
     public void setFrequency(String frequency) {
