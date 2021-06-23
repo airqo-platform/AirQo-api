@@ -5,6 +5,7 @@ const {
   addMonthsToProvideDateTime,
   isTimeEmpty,
   generateDateFormatWithoutHrs,
+  getDifferenceInMonths,
 } = require("./date");
 
 const { logElement, logObject } = require("./log");
@@ -93,6 +94,28 @@ const generateEventsFilter = (device, frequency, startTime, endTime) => {
   if (device) {
     deviceArray = device.split(",");
     filter["values.device"]["$in"] = deviceArray;
+  }
+
+  if (startTime && endTime) {
+    let months = getDifferenceInMonths(startTime, endTime);
+    logElement("the number of months", months);
+    if (months > 2) {
+      if (isTimeEmpty(endTime) == false) {
+        filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(
+          endTime,
+          1
+        );
+      } else {
+        delete filter["values.time"];
+      }
+      let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+        endTime,
+        1
+      );
+      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+        removedOneMonthFromProvidedDateTime
+      );
+    }
   }
 
   if (!device) {

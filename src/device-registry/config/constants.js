@@ -70,6 +70,7 @@ const defaultConfig = {
     field8: "GpsData",
   },
   N_VALUES: 120000,
+  DEFAULT_EVENTS_LIMIT: 1000,
 };
 
 function envConfig(env) {
