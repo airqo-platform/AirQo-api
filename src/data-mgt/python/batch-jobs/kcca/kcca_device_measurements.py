@@ -1,10 +1,11 @@
+import json
 import os
 from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
 
-from events import DeviceRegistry
+from kafkaRegistry import KafkaOnRegistry, Kafka
 
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", None)
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL", "https://clarity-data-api.clarity.io/v1/")
@@ -13,6 +14,10 @@ FREQUENCY = os.getenv("FREQUENCY", "hour")
 START_TIME = os.getenv("START_TIME", "2021-06-23")
 END_TIME = os.getenv("END_TIME", "2021-12-31")
 INTERVAL = os.getenv("INTERVAL", "3")
+
+BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS", "127.0.0.1:9092")
+TOPIC = os.getenv("TOPIC", "quickstart-events")
+SCHEMA_REGISTRY = os.getenv("SCHEMA_REGISTRY", "127.0.0.1:8081")
 
 """
 :Api Documentation: https://api-guide.clarity.io/
@@ -57,6 +62,9 @@ def get_kcca_device_data(start_time, end_time):
     # get the device measurements
     headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
     results = requests.get(api_url, headers=headers)
+    if results.status_code != 200:
+        print(f"{results}")
+        return []
     return results.json()
 
 
@@ -93,7 +101,38 @@ def transform_kcca_data(data):
     device_groups = raw_data.groupby('deviceCode')
     devices = get_kcca_devices()
     for name, group in device_groups:
-        transform_group(group, devices)
+        transform_group_plain(group, devices)
+
+
+def transform_group_plain(group, devices):
+
+    device_name = group.iloc[0]['deviceCode']
+    site_id = get_site_id(device_name, devices)
+    transformed_data = []
+
+    # loop through the device measurements, transform and insert
+    for index, row in group.iterrows():
+
+        row_data = row
+
+        row_data["average"] = row.get("average", "raw")
+        row_data["tenant"] = 'kcca'
+        row_data["channelID"] = row.get("deviceCode", None)
+        row_data["site_id"] = site_id
+
+        transformed_data.append(row_data.to_json())
+
+    if transformed_data:
+        n = 20
+        sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
+
+        for sub_list in sub_lists:
+            # print(sub_list)
+            # kafka = KafkaRegistry(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC, schema_registry_url=SCHEMA_REGISTRY)
+            kafka = Kafka(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC)
+            kafka.produce(json.dumps(sub_list))
+            # device_registry = DeviceRegistry(sub_list, 'kcca', device_name)
+            # device_registry.insert_measurements()
 
 
 def transform_group(group, devices):
@@ -165,7 +204,10 @@ def transform_group(group, devices):
         sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
         for sub_list in sub_lists:
-            print(sub_list)
+            # print(sub_list)
+            data = {"measurements": sub_list}
+            kafka = KafkaOnRegistry(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC, schema_registry_url=SCHEMA_REGISTRY)
+            kafka.produce("", sub_list)
             # device_registry = DeviceRegistry(sub_list, 'kcca', device_name)
             # device_registry.insert_measurements()
 
