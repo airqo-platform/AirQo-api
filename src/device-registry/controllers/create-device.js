@@ -288,7 +288,6 @@ const device = {
         DeviceSchema
       ).list({ skip, limit, filter });
 
-      logObject("responseFromListDevice", responseFromListDevice);
       if (responseFromListDevice.success == false) {
         if (responseFromListDevice.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({

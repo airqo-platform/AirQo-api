@@ -22,7 +22,6 @@ const siteSchema = new Schema(
     formatted_name: {
       type: String,
       trim: true,
-      unique: true,
     },
     lat_long: {
       type: String,
@@ -284,6 +283,7 @@ siteSchema.statics = {
           geometry: 1,
           city: 1,
           street: 1,
+          generated_name: 1,
           formatted_name: 1,
           county: 1,
           altitude: 1,
@@ -377,8 +377,8 @@ siteSchema.statics = {
           country: 1,
         },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedUser);
+      let removedSite = await this.findOneAndRemove(filter, options).exec();
+      let data = jsonify(removedSite);
       if (!isEmpty(data)) {
         return {
           success: true,
