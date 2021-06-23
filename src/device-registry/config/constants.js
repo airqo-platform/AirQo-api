@@ -71,6 +71,7 @@ const defaultConfig = {
   },
   N_VALUES: 120000,
   DEFAULT_EVENTS_LIMIT: 1000,
+  EVENTS_CACHE_LIMIT: 1800,
 };
 
 function envConfig(env) {
