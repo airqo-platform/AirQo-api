@@ -20,6 +20,19 @@ public class AirqoDevice implements Serializable {
     @JsonAlias({ "channelID" })
     private int channelId = -1;
 
+    @SerializedName("site")
+    @Expose
+    @JsonAlias({ "site_details", "siteDetails" })
+    private SiteDetails site = new SiteDetails();
+
+    public SiteDetails getSite() {
+        return site;
+    }
+
+    public void setSite(SiteDetails site) {
+        this.site = site;
+    }
+
     public int getChannelId() {
         return channelId;
     }

@@ -18,10 +18,21 @@ public class RawMeasurement {
     @JsonAlias({ "pm2_5" })
     private String pm25 = "null";
 
+    @SerializedName("channelID")
+    @Expose
     private int channelID = -1;
+
+    @SerializedName("frequency")
+    @Expose
     private String frequency = "raw";
 
+    @SerializedName("device")
+    @Expose
     private String device = "null";
+
+    @SerializedName("site_id")
+    @Expose
+    private String site_id = "";
 
     @SerializedName("pm10")
     @Expose
@@ -91,6 +102,15 @@ public class RawMeasurement {
     @Expose
     @JsonAlias({ "ExternalAltitude" })
     private String externalAltitude = "null";
+
+    
+    public String getSite_id() {
+        return site_id;
+    }
+
+    public void setSite_id(String site_id) {
+        this.site_id = site_id;
+    }
 
     public String getFrequency() {
         return frequency;

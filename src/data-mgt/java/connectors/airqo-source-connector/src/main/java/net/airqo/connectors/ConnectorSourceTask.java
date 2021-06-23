@@ -86,6 +86,7 @@ public class ConnectorSourceTask extends SourceTask {
 
                     measurements.setChannelID(airqoDevice.getChannelId());
                     measurements.setDevice(airqoDevice.getDevice());
+                    measurements.setSite_id(airqoDevice.getSite().get_id());
                     measurementList.add(measurements);
 
                 }
