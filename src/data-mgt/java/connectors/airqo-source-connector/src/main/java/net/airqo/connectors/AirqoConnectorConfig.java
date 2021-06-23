@@ -19,7 +19,6 @@ public class AirqoConnectorConfig extends AbstractConfig {
             .define(API_BASE_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "AirQo Base url")
             .define(FEEDS_BASE_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Feeds Base url");
 
-
     public AirqoConnectorConfig(Map<String, ?> props) {
         super(CONFIG_DEF, props);
     }
@@ -32,6 +31,5 @@ public class AirqoConnectorConfig extends AbstractConfig {
 
         return config;
     }
-
 }
 

@@ -19,5 +19,4 @@ public class VersionUtil {
         return properties.getProperty("project.version","0.0.1");
 
     }
-
 }

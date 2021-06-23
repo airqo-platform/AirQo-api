@@ -2,6 +2,7 @@ package net.airqo.connectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import net.airqo.models.AirqoDevice;
@@ -56,7 +57,6 @@ public class ConnectorSourceTask extends SourceTask {
         apiUrl = props.get(AirqoConnectorConfig.API_BASE_URL);
         feedsUrl = props.get(AirqoConnectorConfig.FEEDS_BASE_URL);
         interval = Long.parseLong(props.get(AirqoConnectorConfig.POLL_INTERVAL));
-
     }
 
     @Override
@@ -89,34 +89,36 @@ public class ConnectorSourceTask extends SourceTask {
                     measurementList.add(measurements);
 
                 }
-
             });
 
             if(!measurementList.isEmpty()){
 
-                String jsonString;
+                List<List<RawMeasurement>> measurementsLists = Lists.partition(measurementList, 10);
 
-                try {
-                    ObjectMapper mapper = new ObjectMapper();
-                    jsonString = mapper.writeValueAsString(measurementList);
+                measurementsLists.forEach(rawMeasurements -> {
 
-                } catch (JsonProcessingException e) {
-                    e.printStackTrace();
+                    String jsonString;
 
-                    Gson gson = new Gson();
-                    Type dataType = new TypeToken<List<RawMeasurement>>() {}.getType();
-                    jsonString = gson.toJson(measurementList, dataType);
-                }
+                    try {
+                        ObjectMapper mapper = new ObjectMapper();
+                        jsonString = mapper.writeValueAsString(rawMeasurements);
 
-                SourceRecord sourceRecord = new SourceRecord(
-                        null,
-                        null,
-                        topic,
-                        Schema.STRING_SCHEMA,
-                        jsonString
-                );
+                    } catch (JsonProcessingException e) {
+                        e.printStackTrace();
 
-                records.add(sourceRecord);
+                        Gson gson = new Gson();
+                        Type dataType = new TypeToken<List<RawMeasurement>>() {}.getType();
+                        jsonString = gson.toJson(rawMeasurements, dataType);
+                    }
+
+                    SourceRecord sourceRecord = new SourceRecord(
+                            null,
+                            null,
+                            topic, Schema.STRING_SCHEMA, jsonString );
+
+                    records.add(sourceRecord);
+
+                });
             }
 
             logger.info("\n\n ====> Records To Be Sent : {}\n\n", records);
@@ -145,9 +147,4 @@ public class ConnectorSourceTask extends SourceTask {
     public void stop() {
 
     }
-
-
 }
-
-
-
