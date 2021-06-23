@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kcca-historical-hourly-measurements
+  name: kcca-historical-daily-measurements
   namespace: staging
 spec:
   selector:
     matchLabels:
-      app: kcca-historical-hourly-measurements
+      app: kcca-historical-daily-measurements
   replicas: 2
   strategy:
     type: RollingUpdate
@@ -17,13 +17,19 @@ spec:
   template:
     metadata:
       labels:
-        app: kcca-historical-hourly-measurements
+        app: kcca-historical-daily-measurements
     spec:
       containers:
-        - name: kcca-historical-hourly-measurements
-          image: us.gcr.io/airqo-250220/kcca-historical-hourly-measurements:latest
+        - name: kcca-historical-daily-measurements
+          image: us.gcr.io/airqo-250220/kcca-historical-measurements:latest
           imagePullPolicy: Always
           env:
+            - name: START_TIME
+              value: "2021-01-01"
+            - name: END_TIME
+              value: "2021-07-30"
+            - name: INTERVAL
+              value: "24"
             - name: CLARITY_API_BASE_URL
               value: https://clarity-data-api.clarity.io/v1/
             - name: CLARITY_API_KEY
@@ -32,8 +38,14 @@ spec:
                   name: clarity-api-key
                   key: CLARITY_API_KEY
             - name: FREQUENCY
-              value: hour
+              value: day
             - name: DEVICE_REGISTRY_STAGING_URL
               value: https://staging-platform.airqo.net/api/v1/
             - name: DEVICE_REGISTRY_PRODUCTION_URL
               value: https://platform.airqo.net/api/v1/
+            - name: BOOT_STRAP_SERVERS
+              value: "127.0.0.1:9092"
+            - name: TOPIC
+              value: "quickstart-events"
+            - name: SCHEMA_REGISTRY
+              value: "127.0.0.1:8081"

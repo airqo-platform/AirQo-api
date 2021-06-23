@@ -6,4 +6,4 @@ WORKDIR /
 RUN pip install -r requirements.txt
 
 ENTRYPOINT [ "python" ]
-CMD [ "kcca_device_measurements.py" ]
+CMD [ "kcca_historical_device_measurements.py" ]

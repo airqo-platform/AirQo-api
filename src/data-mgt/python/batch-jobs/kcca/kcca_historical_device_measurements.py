@@ -10,10 +10,11 @@ from kafkaRegistry import KafkaOnRegistry, Kafka
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", None)
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL", "https://clarity-data-api.clarity.io/v1/")
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL", "https://staging-platform.airqo.net/api/v1/")
-FREQUENCY = os.getenv("FREQUENCY", "hour")
-START_TIME = os.getenv("START_TIME", "2021-06-23")
+FREQUENCY = os.getenv("FREQUENCY", "raw")
+START_TIME = os.getenv("START_TIME", "2019-09-01")
 END_TIME = os.getenv("END_TIME", "2021-12-31")
-INTERVAL = os.getenv("INTERVAL", "3")
+INTERVAL = os.getenv("INTERVAL", "1")
+os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS", "127.0.0.1:9092")
 TOPIC = os.getenv("TOPIC", "quickstart-events")
@@ -33,15 +34,15 @@ def get_kcca_device_measurements():
     for date in dates:
 
         start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-        end_time = datetime.strftime(date + timedelta(hours=3), '%Y-%m-%dT%H:%M:%SZ')
+        end_time = datetime.strftime(date + timedelta(hours=int(INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
 
         print(start_time + " : " + end_time)
 
         # get all kcca device measurements
-        device_measurements_data = get_kcca_device_data(start_time, end_time)
-
-        # process all kcca device measurements
-        transform_kcca_data(device_measurements_data)
+        # device_measurements_data = get_kcca_device_data(start_time, end_time)
+        #
+        # # process all kcca device measurements
+        # transform_kcca_data(device_measurements_data)
 
 
 def get_kcca_device_data(start_time, end_time):
@@ -131,8 +132,6 @@ def transform_group_plain(group, devices):
             # kafka = KafkaRegistry(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC, schema_registry_url=SCHEMA_REGISTRY)
             kafka = Kafka(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC)
             kafka.produce(json.dumps(sub_list))
-            # device_registry = DeviceRegistry(sub_list, 'kcca', device_name)
-            # device_registry.insert_measurements()
 
 
 def transform_group(group, devices):
@@ -204,12 +203,8 @@ def transform_group(group, devices):
         sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
         for sub_list in sub_lists:
-            # print(sub_list)
-            data = {"measurements": sub_list}
             kafka = KafkaOnRegistry(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC, schema_registry_url=SCHEMA_REGISTRY)
             kafka.produce("", sub_list)
-            # device_registry = DeviceRegistry(sub_list, 'kcca', device_name)
-            # device_registry.insert_measurements()
 
 
 def get_site_id(name, devices):
