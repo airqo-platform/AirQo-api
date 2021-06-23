@@ -1,14 +1,16 @@
 import os
-import pandas as pd
-import requests
-import json
-from events import DeviceRegistry
 from datetime import datetime, timedelta
 
-CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", "CLARITY_API_KEY")
+import pandas as pd
+import requests
+
+from events import DeviceRegistry
+
+CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", None)
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL", "https://clarity-data-api.clarity.io/v1/")
-FREQUENCY = os.getenv("FREQUENCY", "raw")
-START_TIME = os.getenv("START_TIME", "2019-01-01")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_PRODUCTION_URL", "https://staging-platform.airqo.net/api/v1/")
+FREQUENCY = os.getenv("FREQUENCY", "hour")
+START_TIME = os.getenv("START_TIME", "2021-06-23")
 END_TIME = os.getenv("END_TIME", "2021-12-31")
 INTERVAL = os.getenv("INTERVAL", "3")
 
@@ -55,9 +57,6 @@ def get_kcca_device_data(start_time, end_time):
     # get the device measurements
     headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
     results = requests.get(api_url, headers=headers)
-
-
-
     return results.json()
 
 
@@ -92,14 +91,15 @@ def transform_kcca_data(data):
 
     # group data by device names for bulk transform and insertion
     device_groups = raw_data.groupby('deviceCode')
-
+    devices = get_kcca_devices()
     for name, group in device_groups:
-        transform_group(group)
+        transform_group(group, devices)
 
 
-def transform_group(group):
+def transform_group(group, devices):
 
     device_name = group.iloc[0]['deviceCode']
+    site_id = get_site_id(device_name, devices)
     transformed_data = []
 
     # loop through the device measurements, transform and insert
@@ -113,15 +113,18 @@ def transform_group(group):
 
         if frequency == "hour":
             frequency = "hourly"
-            time = time.replace("00:00.000Z", "59:00.000Z")
+            # time = time.replace("00:00.000Z", "59:00.000Z")
 
         if frequency == "day":
             frequency = "daily"
-            time = time.replace("00:00:00.000Z", "23:59:00.000Z")
+            # time = time.replace("00:00:00.000Z", "23:59:00.000Z")
 
         row_data = dict({
             'frequency': frequency,
             'time': time,
+            'tenant': 'kcca',
+            'channelID': row["deviceCode"],
+            'site_id': site_id,
             'device':  row["deviceCode"],
             'location': dict({
                 "longitude": dict({"value":  location[0]}), "latitude": {"value": location[1]}})
@@ -140,11 +143,9 @@ def transform_group(group):
                 "pm2_5ConcMass": "pm2_5",
                 "no2Conc": "no2",
                 "pm1ConcMass": "pm1"
-
             })
 
             try:
-
                 row_data[conversion_units[component_type]] = dict({
                     'value': device_components[component_type]["raw"]
                 })
@@ -164,50 +165,44 @@ def transform_group(group):
         sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
         for sub_list in sub_lists:
-            device_registry = DeviceRegistry(sub_list, 'kcca', device_name)
-            device_registry.insert_measurements()
+            print(sub_list)
+            # device_registry = DeviceRegistry(sub_list, 'kcca', device_name)
+            # device_registry.insert_measurements()
+
+
+def get_site_id(name, devices):
+
+    result = list(filter(lambda device: (device["name"] == name), devices))
+    if result is not None:
+        return result[0]["site_id"]
+    return None
 
 
 def get_kcca_devices():
     """
-    gets all kcca devices
+    gets all kcca devices from netmanager
     :return: list of devices
     """
-    headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
-    api_url = f"{CLARITY_API_BASE_URL}devices"
+    api_url = DEVICE_REGISTRY_URL + "devices?tenant=kcca&active=yes"
+    results = requests.get(api_url, verify=False)
 
-    results = requests.get(api_url, headers=headers)
+    if results.status_code != 200:
+        return []
 
-    device_data = pd.DataFrame(results.json())
+    device_data = pd.DataFrame(results.json()["devices"])
 
     devices = []
 
     for index, row in device_data.iterrows():
-
         try:
-            location = row['location']['coordinates']
-
-            device = dict({
-                "channelID": row['code'],
-                "name": row['code'],
-                "createdAt": row['workingStartAt'],
-                "longitude": location[0],
-                "latitude": location[1],
-                "device_manufacturer": 'CLARITY',
-                "isActive": True,
-                "visibility": True,
-                "owner": "KCCA",
-                "description": "Particulate Matter and NO2 monitor",
-                "product_name": "NODE - S"
+            devices.append({
+                "name": row['name'],
+                 "site_id": row['site']["_id"] if 'site' in row else None
             })
+        except KeyError:
+            pass
 
-        except Exception as ex:
-            print(ex)
-            continue
-
-        devices.append(device)
-
-    return json.dumps(devices)
+    return devices
 
 
 if __name__ == "__main__":
