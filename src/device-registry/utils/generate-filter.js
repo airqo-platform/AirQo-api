@@ -1,7 +1,5 @@
 const {
-  monthsBehind,
   monthsInfront,
-  removeMonthsFromProvideDateTime,
   addMonthsToProvideDateTime,
   isTimeEmpty,
   generateDateFormatWithoutHrs,
@@ -15,10 +13,11 @@ const { logElement, logObject } = require("./log");
 
 const generateFilter = {
   events: (device, frequency, startTime, endTime) => {
-    let oneMonthBack = monthsBehind(1);
+    let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     let today = monthsInfront(0);
     let oneWeekBack = addDays(-7);
+    let oneWeekInfront = addDays(7);
     let filter = {
       day: {
         $gte: generateDateFormatWithoutHrs(oneWeekBack),
@@ -68,16 +67,13 @@ const generateFilter = {
 
     if (!startTime && endTime) {
       if (isTimeEmpty(endTime) == false) {
-        filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(
-          endTime,
-          1
-        );
+        filter["values.time"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
       } else {
         delete filter["values.time"];
       }
-      let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+      let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
         endTime,
-        1
+        -1
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
         removedOneMonthFromProvidedDateTime
@@ -87,18 +83,18 @@ const generateFilter = {
     if (startTime && endTime) {
       let months = getDifferenceInMonths(startTime, endTime);
       logElement("the number of months", months);
-      if (months > 2) {
+      if (months > 1) {
         if (isTimeEmpty(endTime) == false) {
-          filter["values.time"]["$gte"] = removeMonthsFromProvideDateTime(
+          filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
             endTime,
-            1
+            -1
           );
         } else {
           delete filter["values.time"];
         }
-        let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+        let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
           endTime,
-          1
+          -1
         );
         filter["day"]["$gte"] = generateDateFormatWithoutHrs(
           removedOneMonthFromProvidedDateTime
@@ -379,7 +375,7 @@ const generateFilter = {
       endTime,
       generated_name,
     } = req.query;
-    let oneMonthBack = monthsBehind(1);
+    let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     logElement("defaultStartTime", oneMonthBack);
     logElement(" defaultEndTime", oneMonthInfront);
@@ -466,16 +462,13 @@ const generateFilter = {
 
     if (!startTime && endTime) {
       if (isTimeEmpty(endTime) == false) {
-        filter["logs.time"]["$gte"] = removeMonthsFromProvideDateTime(
-          endTime,
-          1
-        );
+        filter["logs.time"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
       } else {
         delete filter["logs.time"];
       }
-      let removedOneMonthFromProvidedDateTime = removeMonthsFromProvideDateTime(
+      let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
         endTime,
-        1
+        -1
       );
       filter["day"]["$gte"] = generateDateFormatWithoutHrs(
         removedOneMonthFromProvidedDateTime
