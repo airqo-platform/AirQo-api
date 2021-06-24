@@ -80,6 +80,7 @@ const defaultConfig = {
   LONGITUDE_REGEX: /^(-?(?:1[0-7]|[1-9])?\d(?:\.\d{1,18})?|180(?:\.0{1,18})?)$/,
   DEFAULT_LIMIT_FOR_QUERYING_SITES: 100,
   DEFAULT_EVENTS_LIMIT: 1000,
+  EVENTS_CACHE_LIMIT: 1800,
 };
 
 function envConfig(env) {

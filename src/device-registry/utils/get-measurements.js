@@ -148,7 +148,7 @@ const getMeasurements = async (
               measurements: events,
             })
           );
-          redis.expire(cacheID, 30);
+          redis.expire(cacheID, constants.EVENTS_CACHE_LIMIT);
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,
