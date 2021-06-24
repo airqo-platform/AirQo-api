@@ -1,0 +1,254 @@
+{
+    "namespace": "net.airqo.models",
+    "type": "record",
+    "name": "KccaDeviceMeasurements",
+    "doc": "https://api-guide.clarity.io/measurements/",
+    "fields": [
+
+        {
+            "name":"measurements",
+            "type":{
+                "type": "array",  
+                "items":{
+                    "name":"Measurement",
+                    "type":"record",
+                    "fields":[
+                        {
+                            "name": "_id", "type": "string"
+                        },
+                        {
+                            "name": "recId", "type": "string"
+                        },
+                        {
+                            "name": "device", "type": "string"
+                        },
+                        {
+                            "name": "deviceCode", "type": "string"
+                        },
+                        {
+                            "name": "time", "type": "string"
+                        },
+                        {
+                            "name": "location",
+                            "type": {
+                                "type": "record", 
+                                "name": "location",
+                                "fields": [
+                                    {
+                                        "name": "coordinates", 
+                                        "type": {
+                                            "type": "array",
+                                            "items": "double"
+                                        }
+                                    }, 
+                                    {"name": "type", "type": "string"}
+                                ]
+                        }
+                        },
+                        {
+                            "name": "characteristics",
+                            "type": {
+                                "type": "record", 
+                                "name": "characteristics",
+                                "fields": [
+                                    {
+                                        "name": "relHumid", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "relHumid",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "temperature", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "temperature",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "pm2_5ConcNum", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "pm2_5ConcNum",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "pm2_5ConcMass", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "pm2_5ConcMass",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "pm1ConcNum", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "pm1ConcNum",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "pm1ConcMass", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "pm1ConcMass",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "pm10ConcNum", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "pm10ConcNum",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "pm10ConcMass", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "pm10ConcMass",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "name": "no2Conc", 
+                                        "type": {
+                                            "type": "record",
+                                            "name": "no2Conc",
+                                            "fields": [
+                                                {
+                                                    "name": "value", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "raw", 
+                                                    "type": ["double", "null"]
+                                                },
+                                                {
+                                                    "name": "weight", 
+                                                    "type": ["int", "null"]
+                                                }
+                                            ]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    ]
+                }
+            }
+        }
+        
+    ]
+}
+
+

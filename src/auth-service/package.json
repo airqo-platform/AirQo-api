@@ -11,11 +11,13 @@
         "dev-pc": "set NODE_ENV=development&&nodemon ./bin/www",
         "stage-pc": "set NODE_ENV=staging&&nodemon ./bin/www",
         "prod-pc": "set NODE_ENV=production&&nodemon ./bin/www",
-        "create-env": "printenv > .env"
+        "create-env": "printenv > .env",
+        "test": "mocha ./**/test/ut_*.js --exit"
     },
     "dependencies": {
         "@google-cloud/datastore": "^5.1.0",
         "@google-cloud/debug-agent": "^4.0.4",
+        "app-module-path": "^2.2.0",
         "bcrypt": "^5.0.0",
         "body-parser": "~1.18.2",
         "compression": "^1.7.4",
@@ -36,11 +38,12 @@
         "is-empty": "^1.2.0",
         "jade": "~1.11.0",
         "joi": "^14.3.1",
+        "jsonify": "0.0.0",
         "jsonwebtoken": "^8.5.1",
-        "mongoose": "^5.7.5",
+        "mongoose": "^5.12.14",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
-        "nodemailer": "^6.4.6",
+        "nodemailer": "^6.6.1",
         "passport": "^0.4.1",
         "passport-jwt": "^4.0.0",
         "passport-local": "^1.0.0",
@@ -50,6 +53,11 @@
         "xoauth2": "^1.2.0"
     },
     "devDependencies": {
-        "nodemon": "^1.19.3"
+        "chai": "^4.3.4",
+        "chai-http": "^4.3.0",
+        "faker": "^5.5.3",
+        "mocha": "^8.4.0",
+        "nodemon": "^1.19.3",
+        "sinon": "^11.1.1"
     }
 }
