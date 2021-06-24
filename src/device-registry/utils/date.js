@@ -156,6 +156,16 @@ const monthsInfront = (number) => {
   }
 };
 
+const getDifferenceInMonths = (d1, d2) => {
+  let months;
+  let start = new Date(d1);
+  let end = new Date(d2);
+  months = (end.getFullYear() - start.getFullYear()) * 12;
+  months -= start.getMonth();
+  months += end.getMonth();
+  return months <= 0 ? 0 : months;
+};
+
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
@@ -164,4 +174,5 @@ module.exports = {
   monthsBehind,
   monthsInfront,
   isTimeEmpty,
+  getDifferenceInMonths,
 };
