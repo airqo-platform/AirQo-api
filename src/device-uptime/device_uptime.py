@@ -61,10 +61,10 @@ def save_device_uptime(tenant):
             import sys
             from traceback import print_tb, print_exc
             from colored import fg, attr
-            color_red = fg('#FF0000')
+            color_warning = fg('#FF6600')
             reset = attr('reset')
             print("error occurred while fetching data -", e)
-            print(color_red)
+            print(color_warning)
             print_exc(file=sys.stdout)
             print(reset)
 
@@ -74,6 +74,8 @@ def save_device_uptime(tenant):
         network_uptime = sum(record.get("uptime", 0.0) for record in records) / len(records)
 
     device_uptime_model = DeviceUptime(tenant)
+    print("records", len(records))
+    print(records)
     device_uptime_model.save_device_uptime(records)
 
     network_uptime_record = {
