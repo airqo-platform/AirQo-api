@@ -1,17 +1,32 @@
 package net.airqo.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RawKccaMeasurement implements Serializable {
 
-    private String _id;
-    private String time;
-    private String device;
-    private String deviceCode;
-    private HashMap<String, Object> location;
-    private HashMap<String, HashMap<String, Double>> characteristics;
+    private String _id = "";
+    private String time = "";
+    private String device = "";
+    private String average = "raw";
+    private String deviceCode = "";
+    private KccaLocation location = new KccaLocation();
+    private KccaXtics characteristics = new KccaXtics();
+
+    public RawKccaMeasurement() {
+    }
+
+    public String getAverage() {
+        return average;
+    }
+
+    public void setAverage(String average) {
+        this.average = average;
+    }
 
     public String get_id() {
         return _id;
@@ -45,19 +60,19 @@ public class RawKccaMeasurement implements Serializable {
         this.deviceCode = deviceCode;
     }
 
-    public HashMap<String, Object> getLocation() {
+    public KccaLocation getLocation() {
         return location;
     }
 
-    public void setLocation(HashMap<String, Object> location) {
+    public void setLocation(KccaLocation location) {
         this.location = location;
     }
 
-    public HashMap<String, HashMap<String, Double>> getCharacteristics() {
+    public KccaXtics getCharacteristics() {
         return characteristics;
     }
 
-    public void setCharacteristics(HashMap<String, HashMap<String, Double>> characteristics) {
+    public void setCharacteristics(KccaXtics characteristics) {
         this.characteristics = characteristics;
     }
 }

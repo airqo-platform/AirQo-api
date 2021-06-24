@@ -14,8 +14,8 @@ import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
 public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = 1622084447214032133L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"pm1\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}");
+  private static final long serialVersionUID = -5765176459723701962L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"pm1\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"uncertaintyValue\",\"type\":[\"null\",\"double\"],\"default\":null},{\"name\":\"standardDeviationValue\",\"type\":[\"null\",\"double\"],\"default\":null}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
@@ -73,6 +73,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
 
    private java.lang.Double value;
    private java.lang.Double calibratedValue;
+   private java.lang.Double uncertaintyValue;
+   private java.lang.Double standardDeviationValue;
 
   /**
    * Default constructor.  Note that this does not initialize fields
@@ -85,10 +87,14 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
    * All-args constructor.
    * @param value The new value for value
    * @param calibratedValue The new value for calibratedValue
+   * @param uncertaintyValue The new value for uncertaintyValue
+   * @param standardDeviationValue The new value for standardDeviationValue
    */
-  public pm1(java.lang.Double value, java.lang.Double calibratedValue) {
+  public pm1(java.lang.Double value, java.lang.Double calibratedValue, java.lang.Double uncertaintyValue, java.lang.Double standardDeviationValue) {
     this.value = value;
     this.calibratedValue = calibratedValue;
+    this.uncertaintyValue = uncertaintyValue;
+    this.standardDeviationValue = standardDeviationValue;
   }
 
   public org.apache.avro.specific.SpecificData getSpecificData() { return MODEL$; }
@@ -98,6 +104,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
     switch (field$) {
     case 0: return value;
     case 1: return calibratedValue;
+    case 2: return uncertaintyValue;
+    case 3: return standardDeviationValue;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -108,6 +116,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
     switch (field$) {
     case 0: value = (java.lang.Double)value$; break;
     case 1: calibratedValue = (java.lang.Double)value$; break;
+    case 2: uncertaintyValue = (java.lang.Double)value$; break;
+    case 3: standardDeviationValue = (java.lang.Double)value$; break;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -144,6 +154,40 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
    */
   public void setCalibratedValue(java.lang.Double value) {
     this.calibratedValue = value;
+  }
+
+  /**
+   * Gets the value of the 'uncertaintyValue' field.
+   * @return The value of the 'uncertaintyValue' field.
+   */
+  public java.lang.Double getUncertaintyValue() {
+    return uncertaintyValue;
+  }
+
+
+  /**
+   * Sets the value of the 'uncertaintyValue' field.
+   * @param value the value to set.
+   */
+  public void setUncertaintyValue(java.lang.Double value) {
+    this.uncertaintyValue = value;
+  }
+
+  /**
+   * Gets the value of the 'standardDeviationValue' field.
+   * @return The value of the 'standardDeviationValue' field.
+   */
+  public java.lang.Double getStandardDeviationValue() {
+    return standardDeviationValue;
+  }
+
+
+  /**
+   * Sets the value of the 'standardDeviationValue' field.
+   * @param value the value to set.
+   */
+  public void setStandardDeviationValue(java.lang.Double value) {
+    this.standardDeviationValue = value;
   }
 
   /**
@@ -189,6 +233,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
 
     private java.lang.Double value;
     private java.lang.Double calibratedValue;
+    private java.lang.Double uncertaintyValue;
+    private java.lang.Double standardDeviationValue;
 
     /** Creates a new Builder */
     private Builder() {
@@ -209,6 +255,14 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
         this.calibratedValue = data().deepCopy(fields()[1].schema(), other.calibratedValue);
         fieldSetFlags()[1] = other.fieldSetFlags()[1];
       }
+      if (isValidValue(fields()[2], other.uncertaintyValue)) {
+        this.uncertaintyValue = data().deepCopy(fields()[2].schema(), other.uncertaintyValue);
+        fieldSetFlags()[2] = other.fieldSetFlags()[2];
+      }
+      if (isValidValue(fields()[3], other.standardDeviationValue)) {
+        this.standardDeviationValue = data().deepCopy(fields()[3].schema(), other.standardDeviationValue);
+        fieldSetFlags()[3] = other.fieldSetFlags()[3];
+      }
     }
 
     /**
@@ -224,6 +278,14 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       if (isValidValue(fields()[1], other.calibratedValue)) {
         this.calibratedValue = data().deepCopy(fields()[1].schema(), other.calibratedValue);
         fieldSetFlags()[1] = true;
+      }
+      if (isValidValue(fields()[2], other.uncertaintyValue)) {
+        this.uncertaintyValue = data().deepCopy(fields()[2].schema(), other.uncertaintyValue);
+        fieldSetFlags()[2] = true;
+      }
+      if (isValidValue(fields()[3], other.standardDeviationValue)) {
+        this.standardDeviationValue = data().deepCopy(fields()[3].schema(), other.standardDeviationValue);
+        fieldSetFlags()[3] = true;
       }
     }
 
@@ -307,6 +369,86 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       return this;
     }
 
+    /**
+      * Gets the value of the 'uncertaintyValue' field.
+      * @return The value.
+      */
+    public java.lang.Double getUncertaintyValue() {
+      return uncertaintyValue;
+    }
+
+
+    /**
+      * Sets the value of the 'uncertaintyValue' field.
+      * @param value The value of 'uncertaintyValue'.
+      * @return This builder.
+      */
+    public net.airqo.models.pm1.Builder setUncertaintyValue(java.lang.Double value) {
+      validate(fields()[2], value);
+      this.uncertaintyValue = value;
+      fieldSetFlags()[2] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'uncertaintyValue' field has been set.
+      * @return True if the 'uncertaintyValue' field has been set, false otherwise.
+      */
+    public boolean hasUncertaintyValue() {
+      return fieldSetFlags()[2];
+    }
+
+
+    /**
+      * Clears the value of the 'uncertaintyValue' field.
+      * @return This builder.
+      */
+    public net.airqo.models.pm1.Builder clearUncertaintyValue() {
+      uncertaintyValue = null;
+      fieldSetFlags()[2] = false;
+      return this;
+    }
+
+    /**
+      * Gets the value of the 'standardDeviationValue' field.
+      * @return The value.
+      */
+    public java.lang.Double getStandardDeviationValue() {
+      return standardDeviationValue;
+    }
+
+
+    /**
+      * Sets the value of the 'standardDeviationValue' field.
+      * @param value The value of 'standardDeviationValue'.
+      * @return This builder.
+      */
+    public net.airqo.models.pm1.Builder setStandardDeviationValue(java.lang.Double value) {
+      validate(fields()[3], value);
+      this.standardDeviationValue = value;
+      fieldSetFlags()[3] = true;
+      return this;
+    }
+
+    /**
+      * Checks whether the 'standardDeviationValue' field has been set.
+      * @return True if the 'standardDeviationValue' field has been set, false otherwise.
+      */
+    public boolean hasStandardDeviationValue() {
+      return fieldSetFlags()[3];
+    }
+
+
+    /**
+      * Clears the value of the 'standardDeviationValue' field.
+      * @return This builder.
+      */
+    public net.airqo.models.pm1.Builder clearStandardDeviationValue() {
+      standardDeviationValue = null;
+      fieldSetFlags()[3] = false;
+      return this;
+    }
+
     @Override
     @SuppressWarnings("unchecked")
     public pm1 build() {
@@ -314,6 +456,8 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
         pm1 record = new pm1();
         record.value = fieldSetFlags()[0] ? this.value : (java.lang.Double) defaultValue(fields()[0]);
         record.calibratedValue = fieldSetFlags()[1] ? this.calibratedValue : (java.lang.Double) defaultValue(fields()[1]);
+        record.uncertaintyValue = fieldSetFlags()[2] ? this.uncertaintyValue : (java.lang.Double) defaultValue(fields()[2]);
+        record.standardDeviationValue = fieldSetFlags()[3] ? this.standardDeviationValue : (java.lang.Double) defaultValue(fields()[3]);
         return record;
       } catch (org.apache.avro.AvroMissingFieldException e) {
         throw e;
@@ -362,6 +506,22 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
       out.writeDouble(this.calibratedValue);
     }
 
+    if (this.uncertaintyValue == null) {
+      out.writeIndex(0);
+      out.writeNull();
+    } else {
+      out.writeIndex(1);
+      out.writeDouble(this.uncertaintyValue);
+    }
+
+    if (this.standardDeviationValue == null) {
+      out.writeIndex(0);
+      out.writeNull();
+    } else {
+      out.writeIndex(1);
+      out.writeDouble(this.standardDeviationValue);
+    }
+
   }
 
   @Override public void customDecode(org.apache.avro.io.ResolvingDecoder in)
@@ -383,8 +543,22 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
         this.calibratedValue = in.readDouble();
       }
 
+      if (in.readIndex() != 1) {
+        in.readNull();
+        this.uncertaintyValue = null;
+      } else {
+        this.uncertaintyValue = in.readDouble();
+      }
+
+      if (in.readIndex() != 1) {
+        in.readNull();
+        this.standardDeviationValue = null;
+      } else {
+        this.standardDeviationValue = in.readDouble();
+      }
+
     } else {
-      for (int i = 0; i < 2; i++) {
+      for (int i = 0; i < 4; i++) {
         switch (fieldOrder[i].pos()) {
         case 0:
           if (in.readIndex() != 1) {
@@ -401,6 +575,24 @@ public class pm1 extends org.apache.avro.specific.SpecificRecordBase implements 
             this.calibratedValue = null;
           } else {
             this.calibratedValue = in.readDouble();
+          }
+          break;
+
+        case 2:
+          if (in.readIndex() != 1) {
+            in.readNull();
+            this.uncertaintyValue = null;
+          } else {
+            this.uncertaintyValue = in.readDouble();
+          }
+          break;
+
+        case 3:
+          if (in.readIndex() != 1) {
+            in.readNull();
+            this.standardDeviationValue = null;
+          } else {
+            this.standardDeviationValue = in.readDouble();
           }
           break;
 

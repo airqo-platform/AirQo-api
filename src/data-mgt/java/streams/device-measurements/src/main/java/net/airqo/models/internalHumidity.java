@@ -14,8 +14,8 @@ import org.apache.avro.message.SchemaStore;
 
 @org.apache.avro.specific.AvroGenerated
 public class internalHumidity extends org.apache.avro.specific.SpecificRecordBase implements org.apache.avro.specific.SpecificRecord {
-  private static final long serialVersionUID = -2113777228205137899L;
-  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"internalHumidity\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"]},{\"name\":\"calibratedValue\",\"type\":[\"null\",\"double\"]}]}");
+  private static final long serialVersionUID = -3334385100899939838L;
+  public static final org.apache.avro.Schema SCHEMA$ = new org.apache.avro.Schema.Parser().parse("{\"type\":\"record\",\"name\":\"internalHumidity\",\"namespace\":\"net.airqo.models\",\"fields\":[{\"name\":\"value\",\"type\":[\"null\",\"double\"],\"default\":null}]}");
   public static org.apache.avro.Schema getClassSchema() { return SCHEMA$; }
 
   private static SpecificData MODEL$ = new SpecificData();
@@ -72,7 +72,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   }
 
    private java.lang.Double value;
-   private java.lang.Double calibratedValue;
 
   /**
    * Default constructor.  Note that this does not initialize fields
@@ -84,11 +83,9 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   /**
    * All-args constructor.
    * @param value The new value for value
-   * @param calibratedValue The new value for calibratedValue
    */
-  public internalHumidity(java.lang.Double value, java.lang.Double calibratedValue) {
+  public internalHumidity(java.lang.Double value) {
     this.value = value;
-    this.calibratedValue = calibratedValue;
   }
 
   public org.apache.avro.specific.SpecificData getSpecificData() { return MODEL$; }
@@ -97,7 +94,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   public java.lang.Object get(int field$) {
     switch (field$) {
     case 0: return value;
-    case 1: return calibratedValue;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -107,7 +103,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
   public void put(int field$, java.lang.Object value$) {
     switch (field$) {
     case 0: value = (java.lang.Double)value$; break;
-    case 1: calibratedValue = (java.lang.Double)value$; break;
     default: throw new IndexOutOfBoundsException("Invalid index: " + field$);
     }
   }
@@ -127,23 +122,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
    */
   public void setValue(java.lang.Double value) {
     this.value = value;
-  }
-
-  /**
-   * Gets the value of the 'calibratedValue' field.
-   * @return The value of the 'calibratedValue' field.
-   */
-  public java.lang.Double getCalibratedValue() {
-    return calibratedValue;
-  }
-
-
-  /**
-   * Sets the value of the 'calibratedValue' field.
-   * @param value the value to set.
-   */
-  public void setCalibratedValue(java.lang.Double value) {
-    this.calibratedValue = value;
   }
 
   /**
@@ -188,7 +166,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
     implements org.apache.avro.data.RecordBuilder<internalHumidity> {
 
     private java.lang.Double value;
-    private java.lang.Double calibratedValue;
 
     /** Creates a new Builder */
     private Builder() {
@@ -205,10 +182,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
         this.value = data().deepCopy(fields()[0].schema(), other.value);
         fieldSetFlags()[0] = other.fieldSetFlags()[0];
       }
-      if (isValidValue(fields()[1], other.calibratedValue)) {
-        this.calibratedValue = data().deepCopy(fields()[1].schema(), other.calibratedValue);
-        fieldSetFlags()[1] = other.fieldSetFlags()[1];
-      }
     }
 
     /**
@@ -220,10 +193,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
       if (isValidValue(fields()[0], other.value)) {
         this.value = data().deepCopy(fields()[0].schema(), other.value);
         fieldSetFlags()[0] = true;
-      }
-      if (isValidValue(fields()[1], other.calibratedValue)) {
-        this.calibratedValue = data().deepCopy(fields()[1].schema(), other.calibratedValue);
-        fieldSetFlags()[1] = true;
       }
     }
 
@@ -267,53 +236,12 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
       return this;
     }
 
-    /**
-      * Gets the value of the 'calibratedValue' field.
-      * @return The value.
-      */
-    public java.lang.Double getCalibratedValue() {
-      return calibratedValue;
-    }
-
-
-    /**
-      * Sets the value of the 'calibratedValue' field.
-      * @param value The value of 'calibratedValue'.
-      * @return This builder.
-      */
-    public net.airqo.models.internalHumidity.Builder setCalibratedValue(java.lang.Double value) {
-      validate(fields()[1], value);
-      this.calibratedValue = value;
-      fieldSetFlags()[1] = true;
-      return this;
-    }
-
-    /**
-      * Checks whether the 'calibratedValue' field has been set.
-      * @return True if the 'calibratedValue' field has been set, false otherwise.
-      */
-    public boolean hasCalibratedValue() {
-      return fieldSetFlags()[1];
-    }
-
-
-    /**
-      * Clears the value of the 'calibratedValue' field.
-      * @return This builder.
-      */
-    public net.airqo.models.internalHumidity.Builder clearCalibratedValue() {
-      calibratedValue = null;
-      fieldSetFlags()[1] = false;
-      return this;
-    }
-
     @Override
     @SuppressWarnings("unchecked")
     public internalHumidity build() {
       try {
         internalHumidity record = new internalHumidity();
         record.value = fieldSetFlags()[0] ? this.value : (java.lang.Double) defaultValue(fields()[0]);
-        record.calibratedValue = fieldSetFlags()[1] ? this.calibratedValue : (java.lang.Double) defaultValue(fields()[1]);
         return record;
       } catch (org.apache.avro.AvroMissingFieldException e) {
         throw e;
@@ -354,14 +282,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
       out.writeDouble(this.value);
     }
 
-    if (this.calibratedValue == null) {
-      out.writeIndex(0);
-      out.writeNull();
-    } else {
-      out.writeIndex(1);
-      out.writeDouble(this.calibratedValue);
-    }
-
   }
 
   @Override public void customDecode(org.apache.avro.io.ResolvingDecoder in)
@@ -376,15 +296,8 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
         this.value = in.readDouble();
       }
 
-      if (in.readIndex() != 1) {
-        in.readNull();
-        this.calibratedValue = null;
-      } else {
-        this.calibratedValue = in.readDouble();
-      }
-
     } else {
-      for (int i = 0; i < 2; i++) {
+      for (int i = 0; i < 1; i++) {
         switch (fieldOrder[i].pos()) {
         case 0:
           if (in.readIndex() != 1) {
@@ -392,15 +305,6 @@ public class internalHumidity extends org.apache.avro.specific.SpecificRecordBas
             this.value = null;
           } else {
             this.value = in.readDouble();
-          }
-          break;
-
-        case 1:
-          if (in.readIndex() != 1) {
-            in.readNull();
-            this.calibratedValue = null;
-          } else {
-            this.calibratedValue = in.readDouble();
           }
           break;
 

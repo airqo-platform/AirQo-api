@@ -1,5 +1,9 @@
 package net.airqo;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
@@ -8,32 +12,35 @@ import net.airqo.models.TransformedMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.io.Serializable;
 import java.lang.reflect.Type;
-import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Properties;
 
 public class Calibrate {
 
     private static final Logger logger = LoggerFactory.getLogger(Calibrate.class);
 
-
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CalibrateResponse implements Serializable {
 
         @SerializedName("device_id")
         @Expose
+        @JsonAlias({"device_id", "device"})
         String device;
 
         @SerializedName("calibrated_value")
         @Expose
-        Object calibratedValue;
+        @JsonAlias({"calibrated_value", "calibratedValue"})
+        Double calibratedValue;
 
         public CalibrateResponse() {
         }
@@ -46,89 +53,97 @@ public class Calibrate {
             this.device = device;
         }
 
-        public Object getCalibratedValue() {
+        public Double getCalibratedValue() {
             return calibratedValue;
         }
 
-        public void setCalibratedValue(Object calibratedValue) {
+        public void setCalibratedValue(Double calibratedValue) {
             this.calibratedValue = calibratedValue;
         }
     }
 
     public static class CalibratedBody {
-        String datetime;
-        HashMap<String, Object> raw_values;
+        private String datetime;
+        private List<HashMap<String, Object>> raw_values;
 
+
+        public CalibratedBody() {
+        }
 
         public CalibratedBody(TransformedMeasurement transformedMeasurement) {
-            datetime = transformedMeasurement.getTime();
-            raw_values = new HashMap<String, Object>(){{
+            this.setDatetime(transformedMeasurement.getTime());
+            List<HashMap<String, Object>> list  = new ArrayList<>();
+            list.add(new HashMap<>(){{
                 put("device_id", transformedMeasurement.getDevice());
-                put("pm2.5", transformedMeasurement.getPm2_5());
-                put("pm10", transformedMeasurement.getPm10());
-                put("temperature", transformedMeasurement.getInternalTemperature());
-                put("humidity", transformedMeasurement.getInternalHumidity());
-            }};
+                put("pm2.5", transformedMeasurement.getPm2_5().getValue());
+                put("pm10", transformedMeasurement.getPm10().getValue());
+                put("temperature", transformedMeasurement.getInternalTemperature().getValue());
+                put("humidity", transformedMeasurement.getInternalHumidity().getValue());
+            }});
+            this.setRaw_values(list);
+        }
+
+        public String getDatetime() {
+            return datetime;
+        }
+
+        public void setDatetime(String datetime) {
+            this.datetime = datetime;
+        }
+
+        public List<HashMap<String, Object>> getRaw_values() {
+            return raw_values;
+        }
+
+        public void setRaw_values(List<HashMap<String, Object>> raw_values) {
+            this.raw_values = raw_values;
         }
     }
 
-    public static Object getCalibratedValue(TransformedMeasurement transformedMeasurement, String propertiesUrlFile) throws IOException {
+    public static Double getCalibratedValue(TransformedMeasurement transformedMeasurement, String urlString) throws IOException {
 
         if(transformedMeasurement == null)
             throw new IOException("Invalid Measurements");
 
-        if(propertiesUrlFile == null || propertiesUrlFile.equals(""))
-            propertiesUrlFile = "application.properties";
+        new URL(urlString);
 
         List<CalibrateResponse> calibrateResponseList = new ArrayList<>();
-
         CalibratedBody body = new CalibratedBody(transformedMeasurement);
 
-        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
+        try {
 
-        if(!props.containsKey("calibrate.url"))
-            throw new IOException("calibrate.url is missing in " + propertiesUrlFile + " file");
+            ObjectMapper objectMapper = new ObjectMapper();
+            String requestBody = objectMapper
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(body);
 
-        String urlString = props.getProperty("calibrate.url");
+            logger.info("Calibrate Url => {}", urlString);
+            logger.info("Calibrate Request Body => {}", requestBody);
 
-        URL url = new URL(urlString);
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofMinutes(4))
+                    .uri(URI.create(urlString))
+                    .setHeader("Accept", "application/json")
+                    .setHeader("Content-Type", "application/json")
+                    .build();
 
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-        conn.setRequestMethod("POST");
-        conn.setRequestProperty("Accept", "application/json");
+            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
-        conn.connect();
-
-        logger.error(conn.getResponseMessage());
-
-        int responseCode = conn.getResponseCode();
-
-
-        if(responseCode == 200){
-
-            BufferedReader in = new BufferedReader(
-                    new InputStreamReader(conn.getInputStream()));
-
-            StringBuilder sb = new StringBuilder();
-            String line;
-
-            while ((line = in.readLine()) != null) {
-                sb.append(line);
+            if(httpResponse.statusCode() != 200){
+                logger.error("Calibrate Response Body => {}", httpResponse.body());
+                return null;
             }
 
-            calibrateResponseList = stringToObjectList(sb.toString());
+            calibrateResponseList = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
 
         }
+        catch (Exception e){
+            e.printStackTrace();
+        }
 
-        conn.disconnect();
-
-        return calibrateResponseList.isEmpty() ? "null" : calibrateResponseList.get(0).getCalibratedValue();
-    }
-
-    public static List<CalibrateResponse> stringToObjectList(String s){
-
-        Type listType = new TypeToken<List<CalibrateResponse>>() {}.getType();
-
-        return new Gson().fromJson(s, listType);
+        return calibrateResponseList.isEmpty() ? null : calibrateResponseList.get(0).getCalibratedValue();
     }
 }

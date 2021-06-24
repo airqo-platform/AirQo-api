@@ -1,36 +1,43 @@
 package net.airqo;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import net.airqo.models.*;
-import org.apache.avro.AvroRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.*;
-import java.lang.reflect.Type;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.util.*;
 
 public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
-    public static List<TransformedMeasurement> transformMeasurements(String rawMeasurements, String tenant) {
+    public static List<TransformedMeasurement> transformMeasurements(String rawMeasurements, Properties properties) {
 
-        if(rawMeasurements.startsWith("\""))
-            rawMeasurements = rawMeasurements.replaceFirst("\"", "");
+            if(rawMeasurements.startsWith("\""))
+                rawMeasurements = rawMeasurements.replaceFirst("\"", "");
 
-        if(rawMeasurements.endsWith("\""))
-            rawMeasurements = rawMeasurements.substring(0, rawMeasurements.length() - 1);
+            if(rawMeasurements.endsWith("\""))
+                rawMeasurements = rawMeasurements.substring(0, rawMeasurements.length() - 1);
 
-        rawMeasurements = rawMeasurements.replace("\\\"", "\"");
+            rawMeasurements = rawMeasurements.replace("\\\"", "\"");
+
+        String tenant = properties.getProperty("tenant");
 
         switch (tenant.trim().toUpperCase()){
             case "KCCA":
-                return transformKccaMeasurements(rawMeasurements);
+                return transformKccaMeasurements(rawMeasurements, properties);
 
             case "AIRQO":
-                List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements);
+                List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements, properties);
                 return addAirQoCalibratedValues(transformedMeasurements);
 
             default:
@@ -38,8 +45,7 @@ public class Utils {
         }
     }
 
-    public static TransformedDeviceMeasurements toTransformedDeviceMeasurements(List<TransformedMeasurement> transformedMeasurements) {
-
+    public static TransformedDeviceMeasurements generateTransformedOutput(List<TransformedMeasurement> transformedMeasurements) {
 
         List<Measurement> measurements = new ArrayList<>();
 
@@ -52,33 +58,73 @@ public class Utils {
                         .setTenant(transformedMeasurement.getTenant())
                         .setFrequency(transformedMeasurement.getFrequency())
                         .setTime(transformedMeasurement.getTime())
+                        .setSiteId(transformedMeasurement.getSiteId())
+                        .setDeviceNumber(transformedMeasurement.getDeviceNumber())
+                        .setDeviceId(transformedMeasurement.getDeviceId())
                         .setLocation(location.newBuilder()
-                                .setLatitude(objectToDouble(transformedMeasurement.getLocation().get("latitude").get("value")))
-                                .setLongitude(objectToDouble(transformedMeasurement.getLocation().get("longitude").get("value")))
+                                .setLatitude(objectToDouble(transformedMeasurement.getLocation().getLatitude().getValue()))
+                                .setLongitude(objectToDouble(transformedMeasurement.getLocation().getLongitude().getValue()))
                                 .build())
                         .setPm1(pm1.newBuilder()
-                                .setValue(objectToDouble(transformedMeasurement.getPm1().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm1().get("calibratedValue")))
+                                .setValue(objectToDouble(transformedMeasurement.getPm1().getValue()))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm1().getCalibratedValue()))
+                                .setStandardDeviationValue(objectToDouble(transformedMeasurement.getPm1().getStandardDeviationValue()))
+                                .setUncertaintyValue(objectToDouble(transformedMeasurement.getPm1().getUncertaintyValue()))
                                 .build())
                         .setPm25(pm2_5.newBuilder()
-                                .setValue(objectToDouble(transformedMeasurement.getPm2_5().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm2_5().get("calibratedValue")))
+                                .setValue(objectToDouble(transformedMeasurement.getPm2_5().getValue()))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm2_5().getCalibratedValue()))
+                                .setStandardDeviationValue(objectToDouble(transformedMeasurement.getPm2_5().getStandardDeviationValue()))
+                                .setUncertaintyValue(objectToDouble(transformedMeasurement.getPm2_5().getUncertaintyValue()))
+                                .build())
+                        .setS2Pm25(s2_pm2_5.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getS2_pm2_5().getValue()))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getS2_pm2_5().getCalibratedValue()))
+                                .setStandardDeviationValue(objectToDouble(transformedMeasurement.getS2_pm2_5().getStandardDeviationValue()))
+                                .setUncertaintyValue(objectToDouble(transformedMeasurement.getS2_pm2_5().getUncertaintyValue()))
+                                .build())
+                        .setS2Pm10(s2_pm10.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getS2_pm10().getValue()))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getS2_pm10().getCalibratedValue()))
+                                .setStandardDeviationValue(objectToDouble(transformedMeasurement.getS2_pm10().getStandardDeviationValue()))
+                                .setUncertaintyValue(objectToDouble(transformedMeasurement.getS2_pm10().getUncertaintyValue()))
                                 .build())
                         .setPm10(pm10.newBuilder()
-                                .setValue(objectToDouble(transformedMeasurement.getPm10().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm10().get("calibratedValue")))
+                                .setValue(objectToDouble(transformedMeasurement.getPm10().getValue()))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getPm10().getCalibratedValue()))
+                                .setStandardDeviationValue(objectToDouble(transformedMeasurement.getPm10().getStandardDeviationValue()))
+                                .setUncertaintyValue(objectToDouble(transformedMeasurement.getPm10().getUncertaintyValue()))
                                 .build())
                         .setNo2(no2.newBuilder()
-                                .setValue(objectToDouble(transformedMeasurement.getNo2().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getNo2().get("calibratedValue")))
+                                .setValue(objectToDouble(transformedMeasurement.getNo2().getValue()))
+                                .setCalibratedValue(objectToDouble(transformedMeasurement.getNo2().getCalibratedValue()))
+                                .setStandardDeviationValue(objectToDouble(transformedMeasurement.getNo2().getStandardDeviationValue()))
+                                .setUncertaintyValue(objectToDouble(transformedMeasurement.getNo2().getUncertaintyValue()))
                                 .build())
+                        .setBattery(battery.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getBattery().getValue())).build())
+                        .setAltitude(altitude.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getAltitude().getValue())).build())
+                        .setSpeed(speed.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getSpeed().getValue())).build())
+                        .setSatellites(satellites.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getSatellites().getValue())).build())
+                        .setHdop(hdop.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getHdop().getValue())).build())
                         .setInternalHumidity(internalHumidity.newBuilder()
-                                .setValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalHumidity().get("calibratedValue")))
+                                .setValue(objectToDouble(transformedMeasurement.getInternalHumidity().getValue()))
                                 .build())
                         .setInternalTemperature(internalTemperature.newBuilder()
-                                .setValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("value")))
-                                .setCalibratedValue(objectToDouble(transformedMeasurement.getInternalTemperature().get("calibratedValue")))
+                                .setValue(objectToDouble(transformedMeasurement.getInternalTemperature().getValue()))
+                                .build())
+                        .setExternalHumidity(externalHumidity.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getExternalHumidity().getValue()))
+                                .build())
+                        .setExternalTemperature(externalTemperature.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getExternalTemperature().getValue()))
+                                .build())
+                        .setExternalPressure(externalPressure.newBuilder()
+                                .setValue(objectToDouble(transformedMeasurement.getExternalPressure().getValue()))
                                 .build())
                         .build();
 
@@ -86,7 +132,8 @@ public class Utils {
 
             }
             catch (Exception e) {
-                e.printStackTrace();
+
+//                e.printStackTrace();
             }
 
         });
@@ -96,161 +143,192 @@ public class Utils {
                 .build();
     }
 
-    public static List<TransformedMeasurement> transformKccaMeasurements(String rawMeasurements) {
+    public static List<TransformedMeasurement> transformKccaMeasurements(String rawMeasurements, Properties properties) {
 
-        Type listType = new TypeToken<List<RawKccaMeasurement>>() {}.getType();
-        List<RawKccaMeasurement> deviceMeasurements = new Gson().fromJson(rawMeasurements, listType);
+        List<RawKccaMeasurement> deviceMeasurements;
+
+        try {
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
+            deviceMeasurements = objectMapper.readValue(rawMeasurements, new TypeReference<>() {});
+
+        } catch (JsonProcessingException e)
+        {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+
+        String urlString = properties.getProperty("airqo.base.url", "");
+        List<Device> devices = getDevices(urlString, "kcca");
 
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
         deviceMeasurements.forEach(rawMeasurement -> {
 
-            TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
+            try {
+                TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-            transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
-            transformedMeasurement.setFrequency("hourly");
-            transformedMeasurement.setTenant("kcca");
-            transformedMeasurement.setTime(rawMeasurement.getTime());
+                Device device = getDevice(devices, rawMeasurement.getDevice());
 
-            ArrayList<Double> coordinates  = (ArrayList<Double>) rawMeasurement.getLocation().get("coordinates");
-            transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
-                put("latitude", new HashMap<String, Object>(){{
-                    put("value", coordinates.get(0));
+                transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
+                transformedMeasurement.setTenant("kcca");
+                transformedMeasurement.setSiteId(device.getSite().get_id());
+                transformedMeasurement.setDeviceId(device.get_id());
+                transformedMeasurement.setTime(rawMeasurement.getTime());
+                transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getAverage()));
+
+                List<Double> coordinates  =  rawMeasurement.getLocation().getCoordinates();
+                transformedMeasurement.setLocation(new TransformedLocation(){{
+                    setLongitude(new LocationValue(coordinates.get(0)));
+                    setLatitude(new LocationValue(coordinates.get(1)));
                 }});
-                put("longitude", new HashMap<String, Object>(){{
-                    put("value", coordinates.get(1));
+
+                transformedMeasurement.setPm10(new TransformedValue(){{
+                    setValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getRaw());
+                    setCalibratedValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getCalibratedValue());
                 }});
-            }});
 
-            for (String key: rawMeasurement.getCharacteristics().keySet()) {
+                transformedMeasurement.setInternalHumidity(new TransformedValue(){{
+                    setValue(rawMeasurement.getCharacteristics().getRelHumid().getRaw());
+                    setCalibratedValue(rawMeasurement.getCharacteristics().getRelHumid().getCalibratedValue());
+                }});
 
-                double rawValue = rawMeasurement.getCharacteristics().get(key).get("raw");
-                double calibratedValue;
+                transformedMeasurement.setInternalTemperature(new TransformedValue(){{
+                    setValue(rawMeasurement.getCharacteristics().getTemperature().getRaw());
+                    setCalibratedValue(rawMeasurement.getCharacteristics().getTemperature().getCalibratedValue());
+                }});
 
-                if(rawMeasurement.getCharacteristics().get(key).containsKey("calibratedValue"))
-                    calibratedValue = rawMeasurement.getCharacteristics().get(key).get("calibratedValue");
-                else calibratedValue = rawMeasurement.getCharacteristics().get(key).getOrDefault("value", rawValue);
+                transformedMeasurement.setPm2_5(new TransformedValue(){{
+                    setValue(rawMeasurement.getCharacteristics().getPm2_5ConcMass().getRaw());
+                    setCalibratedValue(rawMeasurement.getCharacteristics().getPm2_5ConcMass().getCalibratedValue());
+                }});
 
-                HashMap<String, Object> values = new HashMap<String, Object>(){{
-                    put("value", rawValue);
-                    put("calibratedValue", calibratedValue);
+                transformedMeasurement.setNo2(new TransformedValue(){{
+                    setValue(rawMeasurement.getCharacteristics().getNo2Conc().getRaw());
+                    setCalibratedValue(rawMeasurement.getCharacteristics().getNo2Conc().getCalibratedValue());
+                }});
 
-                }};
+                transformedMeasurement.setPm1(new TransformedValue(){{
+                    setValue(rawMeasurement.getCharacteristics().getPm1ConcMass().getRaw());
+                    setCalibratedValue(rawMeasurement.getCharacteristics().getPm1ConcMass().getCalibratedValue());
+                }});
 
-                key = key.trim().toLowerCase();
-
-                switch (key){
-                    case "temperature":
-                        transformedMeasurement.setInternalTemperature(values);
-                        break;
-
-                    case "relhumid":
-                        transformedMeasurement.setInternalHumidity(values);
-                        break;
-
-                    case "pm10concmass":
-                        transformedMeasurement.setPm10(values);
-                        break;
-
-                    case "pm2_5concmass":
-                        transformedMeasurement.setPm2_5(values);
-                        break;
-
-                    case "no2conc":
-                        transformedMeasurement.setNo2(values);
-                        break;
-
-                    case "pm1concmass":
-                        transformedMeasurement.setPm1(values);
-                        break;
-
-                    default:
-                        break;
-
-                }
+                transformedMeasurements.add(transformedMeasurement);
             }
-
-            transformedMeasurements.add(transformedMeasurement);
+            catch (Exception ex){
+                ex.printStackTrace();
+            }
 
         });
 
         logger.info(new Date( System.currentTimeMillis()).toString());
-        logger.info("Records got : " + String.valueOf(transformedMeasurements.size()));
+        logger.info("Records got : {}", transformedMeasurements.size());
 
         return transformedMeasurements;
     }
 
-    public static List<TransformedMeasurement> transformAirQoMeasurements(String rawMeasurements) {
+    public static List<TransformedMeasurement> transformAirQoMeasurements(String rawMeasurements, Properties properties) {
 
-        Type listType = new TypeToken<List<RawAirQoMeasurement>>() {}.getType();
-        List<RawAirQoMeasurement> deviceMeasurements = new Gson().fromJson(rawMeasurements, listType);
+        List<RawAirQoMeasurement> deviceMeasurements;
+
+        try {
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            objectMapper.enable(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT);
+            deviceMeasurements = objectMapper.readValue(rawMeasurements, new TypeReference<>() {});
+
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
 
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
+        String urlString = properties.getProperty("airqo.base.url", "");
+        List<Device> devices = getDevices(urlString, "kcca");
+
         deviceMeasurements.forEach(rawMeasurement -> {
 
-            TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
+            try {
+                TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-            transformedMeasurement.setDevice(rawMeasurement.getDevice());
-            transformedMeasurement.setFrequency("raw");
-            transformedMeasurement.setTenant("airqo");
-            transformedMeasurement.setChannelID(Integer.parseInt(rawMeasurement.getChannelId()));
-            transformedMeasurement.setTime(rawMeasurement.getTime());
+                Device device = getDevice(devices, rawMeasurement.getDevice());
 
-            transformedMeasurement.setLocation(new HashMap<String, HashMap<String, Object>>(){{
-                put("latitude", new HashMap<String, Object>(){{
-                    put("value", Utils.stringToDouble(rawMeasurement.getLatitude()));
+                transformedMeasurement.setDevice(rawMeasurement.getDevice());
+                transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getFrequency()));
+                transformedMeasurement.setTenant("airqo");
+
+                transformedMeasurement.setSiteId(device.getSite().get_id());
+                transformedMeasurement.setDeviceId(device.get_id());
+                transformedMeasurement.setDeviceNumber(rawMeasurement.getChannelId());
+                transformedMeasurement.setTime(rawMeasurement.getTime());
+
+                transformedMeasurement.setLocation(new TransformedLocation(){{
+                    setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude())));
+                    setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude())));
                 }});
-                put("longitude", new HashMap<String, Object>(){{
-                    put("value", Utils.stringToDouble(rawMeasurement.getLongitude()));
+
+                transformedMeasurement.setPm2_5(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getPm25()));
                 }});
-            }});
 
-            transformedMeasurement.setInternalTemperature(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
-            }});
+                transformedMeasurement.setPm10(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getPm10()));
+                }});
 
-            transformedMeasurement.setInternalHumidity(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
-            }});
+                transformedMeasurement.setS2_pm2_5(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getS2Pm25()));
+                }});
 
-            transformedMeasurement.setPm2_5(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getPm25()));
-            }});
+                transformedMeasurement.setS2_pm10(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getS2Pm10()));
+                }});
 
-            transformedMeasurement.setPm10(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getPm10()));
-            }});
+                transformedMeasurement.setAltitude(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getAltitude()));
+                }});
 
-            transformedMeasurement.setS2_pm2_5(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getS2Pm25()));
-            }});
+                transformedMeasurement.setSpeed(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getSpeed()));
+                }});
 
-            transformedMeasurement.setS2_pm10(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getS2Pm10()));
-            }});
+                transformedMeasurement.setBattery(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getBattery()));
+                }});
 
-            transformedMeasurement.setAltitude(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getAltitude()));
-            }});
+                transformedMeasurement.setSatellites(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getSatellites()));
+                }});
 
-            transformedMeasurement.setSpeed(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getSpeed()));
-            }});
+                transformedMeasurement.setHdop(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getHdop()));
+                }});
 
-            transformedMeasurement.setBattery(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getBattery()));
-            }});
+                transformedMeasurement.setExternalHumidity(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getExternalHumidity()));
+                }});
 
-            transformedMeasurement.setSatellites(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getSatellites()));
-            }});
+                transformedMeasurement.setExternalPressure(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getExternalPressure()));
+                }});
 
-            transformedMeasurement.setHdop(new HashMap<String, Object>(){{
-                put("value", Utils.stringToDouble(rawMeasurement.getHdop()));
-            }});
+                transformedMeasurement.setExternalTemperature(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getExternalTemperature()));
+                }});
 
-            transformedMeasurements.add(transformedMeasurement);
+                transformedMeasurement.setInternalTemperature(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
+                }});
+
+                transformedMeasurement.setInternalHumidity(new TransformedValue(){{
+                    setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
+                }});
+
+                transformedMeasurements.add(transformedMeasurement);
+            }catch (Exception e){
+                e.printStackTrace();
+            }
 
         });
 
@@ -264,19 +342,22 @@ public class Utils {
 
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
+        String propertiesUrlFile = "application.properties";
+        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
+        String urlString = props.getProperty("airqo.base.url", "");
+        String finalUrlString = urlString + "calibrate";;
+
         measurements.forEach(measurement -> {
 
-            HashMap<String, Object>  pm25 = measurement.getPm2_5();
-//            if(pm25.containsKey("calibratedValue"))
-//                pm25.remove("calibratedValue");
+            TransformedValue  pm25 = measurement.getPm2_5();
 
             try {
-                Object calibratedValue = Calibrate.getCalibratedValue(measurement, null);
-                pm25.put("calibratedValue", calibratedValue);
+                Double calibratedValue = Calibrate.getCalibratedValue(measurement, finalUrlString);
+                pm25.setCalibratedValue(calibratedValue);
 
             } catch (IOException e) {
                 logger.error("Calibration Error : {}", e.toString());
-                pm25.put("calibratedValue", "null");
+                pm25.setCalibratedValue(null);
             }
 
             measurement.setPm2_5(pm25);
@@ -305,7 +386,42 @@ public class Utils {
         return props;
     }
 
-    public static Object stringToDouble(String s){
+    public static Properties loadEnvProperties(List<String> keys){
+
+        Properties props = new Properties();
+        Set<String> systemKeys = System.getenv().keySet();
+
+        keys.forEach(k -> {
+            String envKey = k.trim().toUpperCase();
+            if(systemKeys.contains(envKey)){
+                String propKey = k.trim().toLowerCase();
+                props.setProperty(propKey, System.getenv(envKey));
+            }
+        });
+
+        return props;
+    }
+
+
+    public static String getFrequency(String frequency){
+
+        if(frequency == null)
+            return "raw";
+
+        if(frequency.equalsIgnoreCase("daily") || frequency.equalsIgnoreCase("day")
+               || frequency.equalsIgnoreCase("days")){
+           return "daily";
+        }
+        else if(frequency.equalsIgnoreCase("hourly") || frequency.equalsIgnoreCase("hour")
+               || frequency.equalsIgnoreCase("hours")){
+           return "hourly";
+        }
+        else{
+           return "raw";
+        }
+    }
+
+    public static Double stringToDouble(String s){
 
         double aDouble;
 
@@ -314,11 +430,11 @@ public class Utils {
             return aDouble;
         }
         catch (NumberFormatException ignored){
-            return "null";
+            return null;
         }
     }
 
-    public static double objectToDouble(Object o){
+    public static Double objectToDouble(Object o){
 
         double aDouble;
 
@@ -327,9 +443,50 @@ public class Utils {
             return aDouble;
         }
         catch (NumberFormatException ignored){
-            return 0.0;
+            return null;
         }
     }
 
+    public static List<Device> getDevices(String baseUrl, String tenant){
 
+        logger.info("\n\n********** Fetching Devices **************\n");
+
+        DevicesResponse devicesResponse;
+
+        try {
+
+            String urlString =  String.format("%sdevices?tenant=%s&active=yes", baseUrl, tenant);
+
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .GET()
+                    .uri(URI.create(urlString))
+                    .setHeader("Accept", "application/json")
+                    .build();
+
+            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            devicesResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
+        }
+        catch (Exception e){
+            e.printStackTrace();
+            return new ArrayList<>();
+        }
+
+        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices());
+        return devicesResponse.getDevices();
+    }
+
+    public static Device getDevice(List<Device> devices, String name){
+
+        Optional<Device> optionalDevice = devices.stream().filter(
+                deviceFilter -> deviceFilter.getName().equalsIgnoreCase(name)
+        ).findFirst();
+
+        return optionalDevice.orElse(new Device());
+
+    }
 }

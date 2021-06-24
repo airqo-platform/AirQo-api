@@ -1,113 +1,49 @@
 package net.airqo.models;
 
-import java.util.HashMap;
+import java.io.Serializable;
 
-public class TransformedMeasurement {
+public class TransformedMeasurement implements Serializable {
 
-    private String frequency = "";
-    private int channelID = 0;
+    private String frequency = "raw";
+    private String siteId = "";
+    private Integer deviceNumber = null;
     private String time = "";
     private String tenant = "";
     private String device = "";
-    private HashMap<String, HashMap<String, Object>> location = new HashMap<String, HashMap<String, Object>>(){{
-        put("latitude", new HashMap<String, Object>(){{
-            put("value", null);
-        }});
-        put("longitude", new HashMap<String, Object>(){{
-            put("value", null);
-        }});
-    }};
-    private HashMap<String, Object> internalTemperature = setDefaults();
-    private HashMap<String, Object> internalHumidity = setDefaults();
-    private HashMap<String, Object> altitude = setDefaults();
-    private HashMap<String, Object> battery = setDefaults();
-    private HashMap<String, Object> speed = setDefaults();
-    private HashMap<String, Object> satellites = setDefaults();
-    private HashMap<String, Object> hdop = setDefaults();
-    private HashMap<String, Object> pm10 = setDefaults();
-    private HashMap<String, Object> pm2_5 = setDefaults();
-    private HashMap<String, Object> s2_pm10 = setDefaults();
-    private HashMap<String, Object> s2_pm2_5 = setDefaults();
-    private HashMap<String, Object> no2 = setDefaults();
-    private HashMap<String, Object> pm1 = setDefaults();
+    private String deviceId = "";
+    private TransformedLocation location = new TransformedLocation();
 
-    private HashMap<String, Object> setDefaults(){
-        return  new HashMap<String, Object>(){{
-            put("calibratedValue", null);
-            put("value", null);
-        }};
+    private TransformedValue internalTemperature = new TransformedValue();
+    private TransformedValue internalHumidity = new TransformedValue();
+    private TransformedValue externalTemperature = new TransformedValue();
+    private TransformedValue externalPressure = new TransformedValue();
+    private TransformedValue externalHumidity = new TransformedValue();
+    private TransformedValue altitude = new TransformedValue();
+    private TransformedValue battery = new TransformedValue();
+    private TransformedValue speed = new TransformedValue();
+    private TransformedValue satellites = new TransformedValue();
+    private TransformedValue hdop = new TransformedValue();
+    private TransformedValue pm10 = new TransformedValue();
+    private TransformedValue pm2_5 = new TransformedValue();
+    private TransformedValue s2_pm10 = new TransformedValue();
+    private TransformedValue s2_pm2_5 = new TransformedValue();
+    private TransformedValue no2 = new TransformedValue();
+    private TransformedValue pm1 = new TransformedValue();
+
+    public String getDeviceId() {
+        return deviceId;
     }
 
-    public int getChannelID() {
-        return channelID;
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
     }
 
-    public void setChannelID(int channelID) {
-        this.channelID = channelID;
+    public String getSiteId() {
+        return siteId;
     }
 
-    public HashMap<String, Object> getAltitude() {
-        return altitude;
-    }
-
-    public void setAltitude(HashMap<String, Object> altitude) {
-        this.altitude = altitude;
-    }
-
-    public HashMap<String, Object> getBattery() {
-        return battery;
-    }
-
-    public void setBattery(HashMap<String, Object> battery) {
-        this.battery = battery;
-    }
-
-    public HashMap<String, Object> getSpeed() {
-        return speed;
-    }
-
-    public void setSpeed(HashMap<String, Object> speed) {
-        this.speed = speed;
-    }
-
-    public HashMap<String, Object> getSatellites() {
-        return satellites;
-    }
-
-    public void setSatellites(HashMap<String, Object> satellites) {
-        this.satellites = satellites;
-    }
-
-    public HashMap<String, Object> getHdop() {
-        return hdop;
-    }
-
-    public void setHdop(HashMap<String, Object> hdop) {
-        this.hdop = hdop;
-    }
-
-    public HashMap<String, Object> getS2_pm10() {
-        return s2_pm10;
-    }
-
-    public void setS2_pm10(HashMap<String, Object> s2_pm10) {
-        this.s2_pm10 = s2_pm10;
-    }
-
-    public HashMap<String, Object> getS2_pm2_5() {
-        return s2_pm2_5;
-    }
-
-    public void setS2_pm2_5(HashMap<String, Object> s2_pm2_5) {
-        this.s2_pm2_5 = s2_pm2_5;
-    }
-
-    public String getTenant() {
-        return tenant;
-    }
-
-    public void setTenant(String tenant) {
-        this.tenant = tenant;
+    public void setSiteId(String siteId) {
+        this.siteId = siteId;
     }
 
     public String getFrequency() {
@@ -118,12 +54,28 @@ public class TransformedMeasurement {
         this.frequency = frequency;
     }
 
+    public Integer getDeviceNumber() {
+        return deviceNumber;
+    }
+
+    public void setDeviceNumber(Integer deviceNumber) {
+        this.deviceNumber = deviceNumber;
+    }
+
     public String getTime() {
         return time;
     }
 
     public void setTime(String time) {
         this.time = time;
+    }
+
+    public String getTenant() {
+        return tenant;
+    }
+
+    public void setTenant(String tenant) {
+        this.tenant = tenant;
     }
 
     public String getDevice() {
@@ -134,67 +86,139 @@ public class TransformedMeasurement {
         this.device = device;
     }
 
-    public HashMap<String, HashMap<String, Object>> getLocation() {
+    public TransformedLocation getLocation() {
         return location;
     }
 
-    public void setLocation(HashMap<String, HashMap<String, Object>> location) {
+    public void setLocation(TransformedLocation location) {
         this.location = location;
     }
 
-    public HashMap<String, Object> getInternalTemperature() {
+    public TransformedValue getInternalTemperature() {
         return internalTemperature;
     }
 
-    public void setInternalTemperature(HashMap<String, Object> internalTemperature) {
+    public void setInternalTemperature(TransformedValue internalTemperature) {
         this.internalTemperature = internalTemperature;
     }
 
-    public HashMap<String, Object> getInternalHumidity() {
+    public TransformedValue getInternalHumidity() {
         return internalHumidity;
     }
 
-    public void setInternalHumidity(HashMap<String, Object> internalHumidity) {
+    public void setInternalHumidity(TransformedValue internalHumidity) {
         this.internalHumidity = internalHumidity;
     }
 
-    public HashMap<String, Object> getPm10() {
+    public TransformedValue getExternalTemperature() {
+        return externalTemperature;
+    }
+
+    public void setExternalTemperature(TransformedValue externalTemperature) {
+        this.externalTemperature = externalTemperature;
+    }
+
+    public TransformedValue getExternalPressure() {
+        return externalPressure;
+    }
+
+    public void setExternalPressure(TransformedValue externalPressure) {
+        this.externalPressure = externalPressure;
+    }
+
+    public TransformedValue getExternalHumidity() {
+        return externalHumidity;
+    }
+
+    public void setExternalHumidity(TransformedValue externalHumidity) {
+        this.externalHumidity = externalHumidity;
+    }
+
+    public TransformedValue getAltitude() {
+        return altitude;
+    }
+
+    public void setAltitude(TransformedValue altitude) {
+        this.altitude = altitude;
+    }
+
+    public TransformedValue getBattery() {
+        return battery;
+    }
+
+    public void setBattery(TransformedValue battery) {
+        this.battery = battery;
+    }
+
+    public TransformedValue getSpeed() {
+        return speed;
+    }
+
+    public void setSpeed(TransformedValue speed) {
+        this.speed = speed;
+    }
+
+    public TransformedValue getSatellites() {
+        return satellites;
+    }
+
+    public void setSatellites(TransformedValue satellites) {
+        this.satellites = satellites;
+    }
+
+    public TransformedValue getHdop() {
+        return hdop;
+    }
+
+    public void setHdop(TransformedValue hdop) {
+        this.hdop = hdop;
+    }
+
+    public TransformedValue getPm10() {
         return pm10;
     }
 
-    public void setPm10(HashMap<String, Object> pm10) {
+    public void setPm10(TransformedValue pm10) {
         this.pm10 = pm10;
     }
 
-    public HashMap<String, Object> getPm2_5() {
+    public TransformedValue getPm2_5() {
         return pm2_5;
     }
 
-    public void setPm2_5(HashMap<String, Object> pm2_5) {
+    public void setPm2_5(TransformedValue pm2_5) {
         this.pm2_5 = pm2_5;
     }
 
-    public HashMap<String, Object> getNo2() {
+    public TransformedValue getS2_pm10() {
+        return s2_pm10;
+    }
+
+    public void setS2_pm10(TransformedValue s2_pm10) {
+        this.s2_pm10 = s2_pm10;
+    }
+
+    public TransformedValue getS2_pm2_5() {
+        return s2_pm2_5;
+    }
+
+    public void setS2_pm2_5(TransformedValue s2_pm2_5) {
+        this.s2_pm2_5 = s2_pm2_5;
+    }
+
+    public TransformedValue getNo2() {
         return no2;
     }
 
-    public void setNo2(HashMap<String, Object> no2) {
+    public void setNo2(TransformedValue no2) {
         this.no2 = no2;
     }
 
-    public HashMap<String, Object> getPm1() {
+    public TransformedValue getPm1() {
         return pm1;
     }
 
-    public void setPm1(HashMap<String, Object> pm1) {
+    public void setPm1(TransformedValue pm1) {
         this.pm1 = pm1;
     }
-
-    //    public HashMap<String, HashMap<String, Object>> getMeasurements() {
-//        return measurements;
-//    }
-//
-//    public void setMeasurements(HashMap<String, HashMap<String, Object>> measurements) {
-//        this.measurements = measurements;
-//    }
 }
