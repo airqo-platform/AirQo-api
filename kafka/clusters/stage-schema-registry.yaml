@@ -4,7 +4,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-stage-schema-registry
+  name: stage-schema-registry
   namespace: staging
 spec:
   selector:
@@ -33,7 +33,7 @@ spec:
             - name: SCHEMA_REGISTRY_HOST_NAME
               value: schema-registry
             - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
-              value: 192.168.49.2:32028
+              value: 127.0.0.1:9092
 
 ---
 kind: Service
