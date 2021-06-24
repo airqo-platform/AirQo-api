@@ -29,7 +29,7 @@
         "morgan": "~1.9.0",
         "node-fetch": "^2.6.1",
         "nodemon": "^1.19.4",
-        "redis": "^3.0.2",
+        "redis": "^3.1.1",
         "request": "^2.88.0",
         "response-time": "^2.3.2"
     }
