@@ -1,6 +1,7 @@
-const { Schema, model } = require("mongoose");
+const { Schema } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
+const ObjectId = Schema.Types.ObjectId;
 
 const measurementsSchema = [
   {
@@ -11,127 +12,161 @@ const measurementsSchema = [
     frequency: {
       type: String,
       required: [true, "the frequency is required"],
+      trim: true,
     },
     device: {
       type: String,
       required: [true, "The device name is required"],
       trim: true,
     },
+    device_id: {
+      type: ObjectId,
+      required: [true, "The device ID is required"],
+    },
     channelID: {
       type: Number,
       trim: true,
+      default: null,
+    },
+    site: {
+      type: String,
+      required: [true, "the site name is required"],
+    },
+    site_id: {
+      type: ObjectId,
+      required: [true, "The site ID is required"],
     },
     pm1: {
       value: {
         type: Number,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     pm2_5: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     s2_pm2_5: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     pm10: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        trim: true,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     s2_pm10: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        trim: true,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     no2: {
       value: {
         type: Number,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     battery: {
       value: {
         type: Number,
+        default: null,
       },
     },
     location: {
       latitude: {
         value: {
           type: Number,
+          default: null,
         },
       },
       longitude: {
         value: {
           type: Number,
+          default: null,
         },
       },
     },
     altitude: {
       value: {
         type: Number,
+        default: null,
       },
     },
     speed: {
       value: {
         type: Number,
+        default: null,
       },
     },
     satellites: {
       value: {
         type: Number,
+        default: null,
       },
     },
     hdop: {
       value: {
         type: Number,
+        default: null,
       },
     },
     internalTemperature: {
       value: {
         type: Number,
+        default: null,
       },
     },
     internalHumidity: {
       value: {
         type: Number,
+        default: null,
       },
     },
     externalTemperature: {
       value: {
         type: Number,
+        default: null,
       },
     },
     externalHumidity: {
       value: {
         type: Number,
+        default: null,
       },
     },
     externalPressure: {
-      value: { type: Number },
+      value: { type: Number, default: null },
+    },
+    externalAltitude: {
+      value: {
+        type: Number,
+      },
     },
   },
 ];
@@ -140,9 +175,13 @@ const eventSchema = new Schema(
   {
     day: {
       type: String,
+      required: [true, "the day is required"],
     },
-    first: { type: Date },
-    last: { type: Date },
+    first: {
+      type: Date,
+      required: [true, "the first day's event is required"],
+    },
+    last: { type: Date, required: [true, "the last day's event is required"] },
     nValues: {
       type: Number,
     },
@@ -238,9 +277,10 @@ eventSchema.statics = {
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
         externalHumidity: { $first: "$externalHumidity" },
+        externalAltitude: { $first: "$externalAltitude" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
-        deviceDetails: { $first: {$arrayElemAt: [ "$deviceDetails", 0 ]} },
+        deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
       })
       .skip(skipInt)
       .limit(limitInt)

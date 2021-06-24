@@ -70,20 +70,6 @@ const addMonthsToProvidedDate = (date, number) => {
   }
 };
 
-const removeMonthsFromProvidedDate = (date, number) => {
-  try {
-    logElement("the day I am receiving", date);
-    let year = date.split("-")[0];
-    let month = date.split("-")[1];
-    let day = date.split("-")[2];
-    let newMonth = parseInt(month, 10) - number;
-    let modifiedMonth = "0" + newMonth;
-    return `${year}-${modifiedMonth}-${day}`;
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
 const addMonthsToProvideDateTime = (dateTime, number) => {
   try {
     if (isTimeEmpty(dateTime) == false) {
@@ -110,38 +96,6 @@ const addMonthsToProvideDateTime = (dateTime, number) => {
   }
 };
 
-const removeMonthsFromProvideDateTime = (dateTime, number) => {
-  try {
-    if (isTimeEmpty(dateTime) == false) {
-      let newDate = new Date(dateTime);
-      let monthsBehindProvidedDateTime = newDate.setMonth(
-        newDate.getMonth() - number
-      );
-      return new Date(monthsBehindProvidedDateTime);
-    } else {
-      let newDate = removeMonthsFromProvidedDate(dateTime, number);
-      logElement("the new date I am sending", newDate);
-      return newDate;
-    }
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
-const monthsBehind = (number) => {
-  try {
-    let d = new Date();
-    let targetMonth = d.getMonth() - number;
-    d.setMonth(targetMonth);
-    if (d.getMonth() !== targetMonth % 12) {
-      d.setDate(0);
-    }
-    return d;
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
 const monthsInfront = (number) => {
   try {
     let d = new Date();
@@ -156,12 +110,32 @@ const monthsInfront = (number) => {
   }
 };
 
+const addDays = (number) => {
+  try {
+    let d = new Date();
+    let target = d.setDate(d.getDate() + number);
+    return d;
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
+const getDifferenceInMonths = (d1, d2) => {
+  let months;
+  let start = new Date(d1);
+  let end = new Date(d2);
+  months = (end.getFullYear() - start.getFullYear()) * 12;
+  months -= start.getMonth();
+  months += end.getMonth();
+  return months <= 0 ? 0 : months;
+};
+
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  removeMonthsFromProvideDateTime,
   addMonthsToProvideDateTime,
-  monthsBehind,
   monthsInfront,
   isTimeEmpty,
+  getDifferenceInMonths,
+  addDays,
 };
