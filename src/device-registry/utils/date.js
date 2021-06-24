@@ -70,20 +70,6 @@ const addMonthsToProvidedDate = (date, number) => {
   }
 };
 
-const removeMonthsFromProvidedDate = (date, number) => {
-  try {
-    logElement("the day I am receiving", date);
-    let year = date.split("-")[0];
-    let month = date.split("-")[1];
-    let day = date.split("-")[2];
-    let newMonth = parseInt(month, 10) - number;
-    let modifiedMonth = "0" + newMonth;
-    return `${year}-${modifiedMonth}-${day}`;
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
 const addMonthsToProvideDateTime = (dateTime, number) => {
   try {
     if (isTimeEmpty(dateTime) == false) {
@@ -110,28 +96,10 @@ const addMonthsToProvideDateTime = (dateTime, number) => {
   }
 };
 
-const removeMonthsFromProvideDateTime = (dateTime, number) => {
-  try {
-    if (isTimeEmpty(dateTime) == false) {
-      let newDate = new Date(dateTime);
-      let monthsBehindProvidedDateTime = newDate.setMonth(
-        newDate.getMonth() - number
-      );
-      return new Date(monthsBehindProvidedDateTime);
-    } else {
-      let newDate = removeMonthsFromProvidedDate(dateTime, number);
-      logElement("the new date I am sending", newDate);
-      return newDate;
-    }
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
-const monthsBehind = (number) => {
+const monthsInfront = (number) => {
   try {
     let d = new Date();
-    let targetMonth = d.getMonth() - number;
+    let targetMonth = d.getMonth() + number;
     d.setMonth(targetMonth);
     if (d.getMonth() !== targetMonth % 12) {
       d.setDate(0);
@@ -142,14 +110,10 @@ const monthsBehind = (number) => {
   }
 };
 
-const monthsInfront = (number) => {
+const addDays = (number) => {
   try {
     let d = new Date();
-    let targetMonth = d.getMonth() + number;
-    d.setMonth(targetMonth);
-    if (d.getMonth() !== targetMonth % 12) {
-      d.setDate(0);
-    }
+    let target = d.setDate(d.getDate() + number);
     return d;
   } catch (e) {
     console.log("server side error: ", e.message);
@@ -169,10 +133,9 @@ const getDifferenceInMonths = (d1, d2) => {
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  removeMonthsFromProvideDateTime,
   addMonthsToProvideDateTime,
-  monthsBehind,
   monthsInfront,
   isTimeEmpty,
   getDifferenceInMonths,
+  addDays,
 };
