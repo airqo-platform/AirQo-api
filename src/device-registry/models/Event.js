@@ -1,4 +1,11 @@
-const { Schema } = require("mongoose");
+/*
+Changes made to `measurementsSchema` schema may affect the format of messages 
+received from the message broker (Kafka). Consider updating 
+the schema `AirQo-api/kafka/schemas/transformed-device-measurements.avsc`
+and following up on its deployment. :)
+*/
+
+const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
