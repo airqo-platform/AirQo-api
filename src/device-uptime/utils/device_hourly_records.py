@@ -12,10 +12,10 @@ urllib3.disable_warnings()
 
 @dataclass
 class DeviceSensorReadings:
-    sensor_one_pm2_5: list
-    sensor_two_pm2_5: list
-    battery_voltage: list
-    time: list
+    sensor_one_pm2_5: int
+    sensor_two_pm2_5: int
+    battery_voltage: int
+    time: datetime
 
 
 class DeviceChannelRecords:
@@ -40,10 +40,10 @@ class DeviceChannelRecords:
         if not self.record:
             print(f"Device {self.device_name} has no records")
             return DeviceSensorReadings(
-                time=[datetime.now()],
-                sensor_one_pm2_5=[],
-                sensor_two_pm2_5=[],
-                battery_voltage=[]
+                time=datetime.utcnow(),
+                sensor_one_pm2_5=0,
+                sensor_two_pm2_5=0,
+                battery_voltage=0
             )
 
         return DeviceSensorReadings(

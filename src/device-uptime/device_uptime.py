@@ -1,6 +1,7 @@
 from datetime import datetime
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from dateutil.tz import UTC
 from utils.device_hourly_records import DeviceChannelRecords
 from models import Device, NetworkUptime, DeviceUptime
 
@@ -12,15 +13,17 @@ def get_device_records(tenant, channel_id, device_name, mobility):
     device_channel_records = DeviceChannelRecords(tenant, device_name, channel_id)
     device_records = device_channel_records.get_sensor_readings()
     uptime, downtime = device_channel_records.calculate_uptime()
-    created_at = datetime.now()
     sensor_one_pm2_5 = device_records.sensor_one_pm2_5
     sensor_two_pm2_5 = device_records.sensor_two_pm2_5
     battery_voltage = device_records.battery_voltage
 
+    created_at = datetime.utcnow()
+    created_at = created_at.replace(tzinfo=UTC)
+
     record = {
-        "sensor_one_pm2_5": sensor_one_pm2_5 and sensor_one_pm2_5[0] or 0,
-        "sensor_two_pm2_5": sensor_two_pm2_5 and sensor_two_pm2_5[0] or 0,
-        "battery_voltage": battery_voltage and battery_voltage[0] or 0,
+        "sensor_one_pm2_5": sensor_one_pm2_5 if sensor_one_pm2_5 else 0,
+        "sensor_two_pm2_5": sensor_two_pm2_5 if sensor_two_pm2_5 else 0,
+        "battery_voltage": battery_voltage if battery_voltage else 0,
         "device_name": device_name,
         "channel_id": channel_id,
         "uptime": uptime,
@@ -74,14 +77,15 @@ def save_device_uptime(tenant):
         network_uptime = sum(record.get("uptime", 0.0) for record in records) / len(records)
 
     device_uptime_model = DeviceUptime(tenant)
-    print("records", len(records))
-    print(records)
     device_uptime_model.save_device_uptime(records)
+
+    created_at = datetime.utcnow()
+    created_at = created_at.replace(tzinfo=UTC)
 
     network_uptime_record = {
         "network_name": tenant,
         "uptime": network_uptime,
-        "created_at": datetime.now().isoformat()
+        "created_at": created_at.isoformat()
     }
 
     print("network uptime", network_uptime_record)
