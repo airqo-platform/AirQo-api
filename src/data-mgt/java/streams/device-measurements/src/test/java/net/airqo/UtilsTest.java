@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import java.util.*;
 
 import static net.airqo.Utils.getFrequency;
+import static net.airqo.Utils.loadPropertiesFile;
 import static org.junit.Assert.*;
 
 public class UtilsTest {
@@ -21,6 +22,7 @@ public class UtilsTest {
     List<RawAirQoMeasurement> airqoMeasurementsArrayList = new ArrayList<>();
     List<RawKccaMeasurement> kccaMeasurementsArrayList = new ArrayList<>();
     List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
+    Properties properties = new Properties();
 
     @After
     public void tearDown() {
@@ -34,22 +36,25 @@ public class UtilsTest {
         airqoMeasurementsArrayList = composeAirQoInputData();
         kccaMeasurementsArrayList = composeKccaInputData();
         transformedMeasurements = composeTransformedMeasurements();
-        
+        properties = loadPropertiesFile("test.application.properties");
+
     }
 
     @Test
     public void testTransformMeasurements(){
 
+        Properties funcProps = properties;
+        funcProps.setProperty("input.topic", "airqo-raw-device-measurements-topic");
+        funcProps.setProperty("tenant", "airqo");
+
         String measurementsString = new Gson().toJson(airqoMeasurementsArrayList);
-        List<TransformedMeasurement> transformedMeasurements = Utils.transformMeasurements(measurementsString, "airqo");
+        List<TransformedMeasurement> transformedMeasurements = Utils.transformMeasurements(measurementsString, funcProps);
         assertFalse(transformedMeasurements.isEmpty());
 
         measurementsString = new Gson().toJson(kccaMeasurementsArrayList);
-        transformedMeasurements = Utils.transformMeasurements(measurementsString, "kcca");
+        transformedMeasurements = Utils.transformMeasurements(measurementsString, properties);
         assertFalse(transformedMeasurements.isEmpty());
 
-        transformedMeasurements = Utils.transformMeasurements(measurementsString, "invalid tenant");
-        assertTrue(transformedMeasurements.isEmpty());
     }
 
     @Test
@@ -86,7 +91,7 @@ public class UtilsTest {
         assertEquals(measurement.getPm1().getCalibratedValue(), transformedMeasurement.getPm1().getCalibratedValue());
 
     }
-    
+
     @Test
     public void testTransformAirQoMeasurements(){
 
@@ -94,7 +99,7 @@ public class UtilsTest {
 
         RawAirQoMeasurement rawMeasurements = airqoMeasurementsArrayList.get(0);
 
-        List<TransformedMeasurement> transformedMeasurements = Utils.transformAirQoMeasurements(measurementsString);
+        List<TransformedMeasurement> transformedMeasurements = Utils.transformAirQoMeasurements(measurementsString, properties);
 
         assertEquals(transformedMeasurements.get(0).getTime(), rawMeasurements.getTime());
         assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), "raw");
@@ -161,7 +166,7 @@ public class UtilsTest {
         String measurementsString = new Gson().toJson(kccaMeasurementsArrayList);
         RawKccaMeasurement rawMeasurements = kccaMeasurementsArrayList.get(0);
 
-        List<TransformedMeasurement> transformedMeasurements = Utils.transformKccaMeasurements(measurementsString);
+        List<TransformedMeasurement> transformedMeasurements = Utils.transformKccaMeasurements(measurementsString, properties);
 
         assertEquals(transformedMeasurements.get(0).getTime(), rawMeasurements.getTime());
         assertEquals(transformedMeasurements.get(0).getFrequency().trim().toLowerCase(), getFrequency(rawMeasurements.getAverage()));
@@ -190,13 +195,13 @@ public class UtilsTest {
     @Test
     public void testLoadPropertiesFile(){
 
-        Properties properties = Utils.loadPropertiesFile("invalid.file.properties");
+        Properties properties = loadPropertiesFile("invalid.file.properties");
         assertNotNull(properties);
 
-        properties = Utils.loadPropertiesFile("test.application.properties");
+        properties = loadPropertiesFile("test.application.properties");
         assertNotNull(properties.getProperty("properties.test.value"));
 
-        properties = Utils.loadPropertiesFile(null);
+        properties = loadPropertiesFile(null);
         assertNotNull(properties);
 
     }
@@ -236,7 +241,7 @@ public class UtilsTest {
         
         transformedMeasurement.setDevice("device");
         transformedMeasurement.setFrequency("daily");
-        transformedMeasurement.setChannelID(1);
+        transformedMeasurement.setDeviceNumber(1);
         transformedMeasurement.setTenant("airqo");
         transformedMeasurement.setTime("2020-01-01T00:00:00Z");
         transformedMeasurement.setLocation(new TransformedLocation(){{

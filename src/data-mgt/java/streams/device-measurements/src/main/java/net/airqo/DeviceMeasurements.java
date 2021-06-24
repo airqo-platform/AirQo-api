@@ -22,11 +22,6 @@ import java.util.concurrent.CountDownLatch;
 
 public class DeviceMeasurements {
 
-    public static String INPUT_TOPIC;
-    public static String OUTPUT_TOPIC;
-    private static String TENANT;
-    private static String SCHEMA_REGISTRY_URL;
-
     private static final Logger logger = LoggerFactory.getLogger(DeviceMeasurements.class);
 
     static Properties getStreamsConfig(String propertiesFile) {
@@ -54,10 +49,9 @@ public class DeviceMeasurements {
                     !properties.containsKey("application.id"))
                 throw new IOException("Some properties are missing");
 
-            INPUT_TOPIC = properties.getProperty("input.topic");
-            OUTPUT_TOPIC = properties.getProperty("output.topic");
-            TENANT = properties.getProperty("tenant");
-            SCHEMA_REGISTRY_URL = properties.getProperty("schema.registry.url");
+//            INPUT_TOPIC = properties.getProperty("input.topic");
+//            OUTPUT_TOPIC = properties.getProperty("output.topic");
+         //   SCHEMA_REGISTRY_URL = properties.getProperty("schema.registry.url");
 
         }
         catch (IOException ex){
@@ -67,7 +61,7 @@ public class DeviceMeasurements {
 
         properties.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         properties.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
-        properties.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
+       // properties.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
         properties.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
 
 //        props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
@@ -76,10 +70,10 @@ public class DeviceMeasurements {
 
     }
 
-    static void createMeasurementsStream(final StreamsBuilder builder) {
+    static void createMeasurementsStream(final StreamsBuilder builder, Properties properties) {
 
         final Map<String, String> serdeConfig = Collections.singletonMap(
-                AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
+                AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
 
         // `TransformedDeviceMeasurements` are Java classes generated from Avro schemas
         final Serde<TransformedDeviceMeasurements>
@@ -88,13 +82,13 @@ public class DeviceMeasurements {
 
 
         final KStream<String, String> source = builder
-                .stream(INPUT_TOPIC, Consumed.with(Serdes.String(), Serdes.String()));
+                .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
 
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, TENANT))));
+                .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
 
 
-        transformedList.to(OUTPUT_TOPIC, Produced.valueSerde(valueSpecificAvroSerde) );
+        transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde) );
     }
 
     public static void main(final String[] args) {
@@ -105,7 +99,7 @@ public class DeviceMeasurements {
         logger.info(new Date( System.currentTimeMillis()).toString());
 
         final StreamsBuilder builder = new StreamsBuilder();
-        createMeasurementsStream(builder);
+        createMeasurementsStream(builder, streamsConfiguration);
 
         final KafkaStreams streams = new KafkaStreams(builder.build(), streamsConfiguration);
 

@@ -5,11 +5,12 @@ import java.io.Serializable;
 public class TransformedMeasurement implements Serializable {
 
     private String frequency = "raw";
-    private String site_id = "";
-    private Integer channelID = null;
+    private String siteId = "";
+    private Integer deviceNumber = null;
     private String time = "";
     private String tenant = "";
     private String device = "";
+    private String deviceId = "";
     private TransformedLocation location = new TransformedLocation();
 
     private TransformedValue internalTemperature = new TransformedValue();
@@ -29,12 +30,20 @@ public class TransformedMeasurement implements Serializable {
     private TransformedValue no2 = new TransformedValue();
     private TransformedValue pm1 = new TransformedValue();
 
-    public String getSite_id() {
-        return site_id;
+    public String getDeviceId() {
+        return deviceId;
     }
 
-    public void setSite_id(String site_id) {
-        this.site_id = site_id;
+    public void setDeviceId(String deviceId) {
+        this.deviceId = deviceId;
+    }
+
+    public String getSiteId() {
+        return siteId;
+    }
+
+    public void setSiteId(String siteId) {
+        this.siteId = siteId;
     }
 
     public String getFrequency() {
@@ -45,12 +54,12 @@ public class TransformedMeasurement implements Serializable {
         this.frequency = frequency;
     }
 
-    public Integer getChannelID() {
-        return channelID;
+    public Integer getDeviceNumber() {
+        return deviceNumber;
     }
 
-    public void setChannelID(Integer channelID) {
-        this.channelID = channelID;
+    public void setDeviceNumber(Integer deviceNumber) {
+        this.deviceNumber = deviceNumber;
     }
 
     public String getTime() {

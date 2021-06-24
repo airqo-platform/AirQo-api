@@ -15,6 +15,11 @@ public class Device implements Serializable {
     @JsonAlias({ "device_name", "deviceName" })
     private String name = "";
 
+    @SerializedName("_id")
+    @Expose
+    @JsonAlias({ "id", "device_id" })
+    private String _id = "";
+
     @SerializedName("channelID")
     @Expose
     @JsonAlias({ "channelID" })
@@ -24,6 +29,15 @@ public class Device implements Serializable {
     @Expose
     @JsonAlias({ "site_details", "siteDetails" })
     private SiteDetails site = new SiteDetails();
+
+
+    public String get_id() {
+        return _id;
+    }
+
+    public void set_id(String _id) {
+        this._id = _id;
+    }
 
     public SiteDetails getSite() {
         return site;

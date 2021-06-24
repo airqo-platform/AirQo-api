@@ -45,7 +45,7 @@ public class DeviceMeasurementsTest {
 
         final Properties streamsConfiguration = DeviceMeasurements.getStreamsConfig("test.application.properties");
         final StreamsBuilder builder = new StreamsBuilder();
-        DeviceMeasurements.createMeasurementsStream(builder);
+        DeviceMeasurements.createMeasurementsStream(builder, streamsConfiguration);
 
         try (final TopologyTestDriver topologyTestDriver = new TopologyTestDriver(builder.build(), streamsConfiguration)){
 

@@ -9,13 +9,13 @@ import java.util.HashMap;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class RawKccaMeasurement implements Serializable {
 
-    private String _id;
-    private String time;
-    private String device;
+    private String _id = "";
+    private String time = "";
+    private String device = "";
     private String average = "raw";
-    private String deviceCode;
-    private KccaLocation location;
-    private KccaXtics characteristics;
+    private String deviceCode = "";
+    private KccaLocation location = new KccaLocation();
+    private KccaXtics characteristics = new KccaXtics();
 
     public RawKccaMeasurement() {
     }
