@@ -27,17 +27,17 @@ spec:
           image: us.gcr.io/airqo-250220/stage-raw-device-measurements-stream:latest
           imagePullPolicy: Always
           env:
-            - name: INPUT_TOPIC
+            - name: INPUT.TOPIC
               value: kcca-raw-device-measurements-topic
-            - name: OUTPUT_TOPIC
+            - name: OUTPUT.TOPIC
               value: transformed-device-measurements-topic
             - name: TENANT
               value: kcca
-            - name: APPLICATION_ID
+            - name: APPLICATION.ID
               value: measurements-stream-id-1
-            - name: BOOTSTRAP_SERVERS
+            - name: BOOTSTRAP.SERVERS
               value: 192.168.49.2:31913
-            - name: SCHEMA_REGISTRY
+            - name: SCHEMA.REGISTRY
               value: http://0.0.0.0:8081
-            - name: AIRQO_BASE_URL
+            - name: AIRQO.BASE.URL
               value: https://staging-platform.airqo.net/api/v1/

@@ -17,10 +17,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.Date;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 
 public class DeviceMeasurements {
@@ -34,22 +31,33 @@ public class DeviceMeasurements {
 
     static Properties getStreamsConfig(String propertiesFile) {
 
-        final Properties props = Utils.loadPropertiesFile(propertiesFile);
+        List<String> propKeys = new ArrayList<>();
+        propKeys.add("bootstrap.servers");
+        propKeys.add("input.topic");
+        propKeys.add("tenant");
+        propKeys.add("output.topic");
+        propKeys.add("schema.registry.url");
+        propKeys.add("application.id");
+
+        final Properties properties = Utils.loadPropertiesFile(propertiesFile);
+        final Properties envProperties = Utils.loadEnvProperties(propKeys);
+
+        envProperties.forEach(properties::replace);
 
         try {
 
-            if(!props.containsKey("bootstrap.servers") ||
-                    !props.containsKey("input.topic") ||
-                    !props.containsKey("tenant") ||
-                    !props.containsKey("output.topic") ||
-                    !props.containsKey("schema.registry.url") ||
-                    !props.containsKey("application.id"))
+            if(!properties.containsKey("bootstrap.servers") ||
+                    !properties.containsKey("input.topic") ||
+                    !properties.containsKey("tenant") ||
+                    !properties.containsKey("output.topic") ||
+                    !properties.containsKey("schema.registry.url") ||
+                    !properties.containsKey("application.id"))
                 throw new IOException("Some properties are missing");
 
-            INPUT_TOPIC = props.getProperty("input.topic");
-            OUTPUT_TOPIC = props.getProperty("output.topic");
-            TENANT = props.getProperty("tenant");
-            SCHEMA_REGISTRY_URL = props.getProperty("schema.registry.url");
+            INPUT_TOPIC = properties.getProperty("input.topic");
+            OUTPUT_TOPIC = properties.getProperty("output.topic");
+            TENANT = properties.getProperty("tenant");
+            SCHEMA_REGISTRY_URL = properties.getProperty("schema.registry.url");
 
         }
         catch (IOException ex){
@@ -57,14 +65,14 @@ public class DeviceMeasurements {
             System.exit(1);
         }
 
-        props.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
-        props.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
-        props.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
-        props.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
+        properties.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
+        properties.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
+        properties.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, SCHEMA_REGISTRY_URL);
+        properties.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
 
 //        props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
-        return props;
+        return properties;
 
     }
 

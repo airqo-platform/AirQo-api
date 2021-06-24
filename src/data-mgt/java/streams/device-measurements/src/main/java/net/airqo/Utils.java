@@ -369,6 +369,23 @@ public class Utils {
         return props;
     }
 
+    public static Properties loadEnvProperties(List<String> keys){
+
+        Properties props = new Properties();
+        Set<String> systemKeys = System.getenv().keySet();
+
+        keys.forEach(k -> {
+            String envKey = k.trim().toUpperCase();
+            if(systemKeys.contains(envKey)){
+                String propKey = k.trim().toLowerCase();
+                props.setProperty(propKey, System.getenv(envKey));
+            }
+        });
+
+        return props;
+    }
+
+
     public static String getFrequency(String frequency){
 
         if(frequency == null)
