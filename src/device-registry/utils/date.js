@@ -156,6 +156,16 @@ const monthsInfront = (number) => {
   }
 };
 
+const addDays = (number) => {
+  try {
+    let d = new Date();
+    let target = d.setDate(d.getDate() + number);
+    return d;
+  } catch (e) {
+    console.log("server side error: ", e.message);
+  }
+};
+
 const getDifferenceInMonths = (d1, d2) => {
   let months;
   let start = new Date(d1);
@@ -175,4 +185,5 @@ module.exports = {
   monthsInfront,
   isTimeEmpty,
   getDifferenceInMonths,
+  addDays,
 };
