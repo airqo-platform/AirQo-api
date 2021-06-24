@@ -1,4 +1,4 @@
-package net.airqo.connectors.config;
+package net.airqo.connectors;
 
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -6,23 +6,20 @@ import org.apache.kafka.common.config.ConfigDef;
 import java.util.HashMap;
 import java.util.Map;
 
-public class KccaSourceConnectorConfig extends AbstractConfig {
+public class AirqoConnectorConfig extends AbstractConfig {
 
     public static final String TOPIC_CONFIG = "topic";
     public static final String POLL_INTERVAL = "pollInterval";
-    public static final String CLARITY_API_KEY = "clarityApiKey";
-    public static final String CLARITY_API_BASE_URL = "clarityApiBaseUrl";
-    public static final String AVERAGE = "average";
+    public static final String API_BASE_URL = "airqoBaseUrl";
+    public static final String FEEDS_BASE_URL = "feedsBaseUrl";
 
     public static final ConfigDef CONFIG_DEF = new ConfigDef()
             .define(TOPIC_CONFIG, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "The topic to publish data to")
-            .define(CLARITY_API_KEY, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Api key")
-            .define(AVERAGE, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Average")
             .define(POLL_INTERVAL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Pool Interval")
-            .define(CLARITY_API_BASE_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Api Base url");
+            .define(API_BASE_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "AirQo Base url")
+            .define(FEEDS_BASE_URL, ConfigDef.Type.STRING, ConfigDef.Importance.HIGH, "Feeds Base url");
 
-
-    public KccaSourceConnectorConfig(Map<String, ?> props) {
+    public AirqoConnectorConfig(Map<String, ?> props) {
         super(CONFIG_DEF, props);
     }
 
@@ -34,5 +31,5 @@ public class KccaSourceConnectorConfig extends AbstractConfig {
 
         return config;
     }
-
 }
+

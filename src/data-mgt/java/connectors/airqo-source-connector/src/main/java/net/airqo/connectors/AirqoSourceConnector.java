@@ -1,7 +1,5 @@
 package net.airqo.connectors;
 
-import net.airqo.connectors.config.KccaSourceConnectorConfig;
-import net.airqo.connectors.tasks.KccaSourceTask;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -16,36 +14,36 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static net.airqo.connectors.config.KccaSourceConnectorConfig.CONFIG_DEF;
+import static net.airqo.connectors.AirqoConnectorConfig.CONFIG_DEF;
 
-public class KccaSourceConnector extends SourceConnector {
+public class AirqoSourceConnector extends SourceConnector {
 
-    private static final Logger logger = LoggerFactory.getLogger(KccaSourceConnector.class);
+    private static final Logger logger = LoggerFactory.getLogger(AirqoSourceConnector.class);
 
     private Map<String, String> configProperties;
 
     @Override
     public void start(Map<String, String> props) {
 
-        logger.info("Starting up Kcca Source connector");
+        logger.info("Starting up Airqo Source connector");
 
         try {
             configProperties = setupPropertiesWithDefaultsIfMissing(props);
         } catch (ConfigException e) {
-            throw new ConnectException("Couldn't start KccaSourceConnector due to configuration error", e);
+            throw new ConnectException("Couldn't start Airqo Source Connector due to configuration error", e);
         }
 
     }
 
     private Map<String, String> setupPropertiesWithDefaultsIfMissing(Map<String, String> props) {
 
-        return new KccaSourceConnectorConfig(props).propertiesWithDefaultsValuesIfMissing();
+        return new AirqoConnectorConfig(props).propertiesWithDefaultsValuesIfMissing();
 
     }
 
     @Override
     public Class<? extends Task> taskClass() {
-        return KccaSourceTask.class;
+        return ConnectorSourceTask.class;
     }
 
     @Override
