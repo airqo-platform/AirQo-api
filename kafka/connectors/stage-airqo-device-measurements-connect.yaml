@@ -1,20 +1,20 @@
 apiVersion: kafka.strimzi.io/v1beta1
 kind: KafkaConnect
 metadata:
-  name: kcca-source-connector-cluster
+  name: airqo-source-connector-cluster
   namespace: staging
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: us.gcr.io/airqo-250220/stage-kcca-deivce-measurements-connect:latest
+  image: us.gcr.io/airqo-250220/stage-airqo-deivce-measurements-connect:latest
   imagePullPolicy: Always
   replicas: 1
   bootstrapServers: 192.168.49.2:32028
   config:
-    group.id: kcca-source-connector-cluster
-    offset.storage.topic: kcca-source-connector-cluster-offsets
-    config.storage.topic: kcca-source-connector-cluster-configs
-    status.storage.topic: kcca-source-connector-cluster-status
+    group.id: airqo-source-connector-cluster
+    offset.storage.topic: airqo-source-connector-cluster-offsets
+    config.storage.topic: airqo-source-connector-cluster-configs
+    status.storage.topic: airqo-source-connector-cluster-status
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
