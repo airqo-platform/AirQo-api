@@ -30,19 +30,28 @@ public class Utils {
 
             rawMeasurements = rawMeasurements.replace("\\\"", "\"");
 
-        String tenant = properties.getProperty("tenant");
+            try {
 
-        switch (tenant.trim().toUpperCase()){
-            case "KCCA":
-                return transformKccaMeasurements(rawMeasurements, properties);
+                String tenant = properties.getProperty("tenant");
 
-            case "AIRQO":
-                List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements, properties);
-                return addAirQoCalibratedValues(transformedMeasurements);
+                switch (tenant.trim().toUpperCase()){
+                    case "KCCA":
+                        return transformKccaMeasurements(rawMeasurements, properties);
 
-            default:
+                    case "AIRQO":
+                        List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements, properties);
+                        return addAirQoCalibratedValues(transformedMeasurements);
+
+                    default:
+                        return new ArrayList<>();
+                }
+
+            }catch (NullPointerException e){
+                e.printStackTrace();
                 return new ArrayList<>();
-        }
+            }
+
+
     }
 
     public static TransformedDeviceMeasurements generateTransformedOutput(List<TransformedMeasurement> transformedMeasurements) {
@@ -132,8 +141,7 @@ public class Utils {
 
             }
             catch (Exception e) {
-
-//                e.printStackTrace();
+                e.printStackTrace();
             }
 
         });
@@ -169,7 +177,7 @@ public class Utils {
             try {
                 TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-                Device device = getDevice(devices, rawMeasurement.getDeviceCode());
+                Device device = getDeviceByName(devices, rawMeasurement.getDeviceCode());
 
                 transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
                 transformedMeasurement.setTenant("kcca");
@@ -253,7 +261,7 @@ public class Utils {
             try {
                 TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-                Device device = getDevice(devices, rawMeasurement.getDevice());
+                Device device = getDeviceByName(devices, rawMeasurement.getDevice());
 
                 transformedMeasurement.setDevice(rawMeasurement.getDevice());
                 transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getFrequency()));
@@ -402,11 +410,12 @@ public class Utils {
         return props;
     }
 
-
     public static String getFrequency(String frequency){
 
         if(frequency == null)
             return "raw";
+
+        frequency = frequency.trim().toLowerCase();
 
         if(frequency.equalsIgnoreCase("daily") || frequency.equalsIgnoreCase("day")
                || frequency.equalsIgnoreCase("days")){
@@ -480,10 +489,10 @@ public class Utils {
         return devicesResponse.getDevices();
     }
 
-    public static Device getDevice(List<Device> devices, String name){
+    public static Device getDeviceByName(List<Device> devices, String name){
 
         Optional<Device> optionalDevice = devices.stream().filter(
-                deviceFilter -> deviceFilter.getName().equalsIgnoreCase(name)
+                deviceFilter -> deviceFilter.getName().trim().equalsIgnoreCase(name.trim())
         ).findFirst();
 
         return optionalDevice.orElse(new Device());

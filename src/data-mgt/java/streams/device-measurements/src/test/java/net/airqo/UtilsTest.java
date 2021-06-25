@@ -6,6 +6,7 @@ import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.jupiter.api.Assertions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -15,6 +16,7 @@ import static net.airqo.Utils.*;
 import static org.junit.Assert.*;
 
 public class UtilsTest {
+
 
     private static final Logger logger = LoggerFactory.getLogger(UtilsTest.class);
 
@@ -41,30 +43,77 @@ public class UtilsTest {
 
     @Test
     public void testGetDevices(){
+
         String baseUrl = properties.getProperty("airqo.base.url");
 
-        List<Device> devices = getDevices(baseUrl, "kcca");
-        devices.forEach(device -> {
-            logger.info(device.getName() + " : "+ device.getSite().get_id());
+        Map<String, String> invalidOptions = new HashMap<>(){{
+            put("invalid", "kcca");
+            put(baseUrl, null);
+            put(baseUrl, "invalidTenant");
+            put(null, null);
+        }};
+
+        invalidOptions.forEach((url, tenant) -> {
+            List<Device> devices = getDevices(url, tenant);
+            Assertions.assertTrue(devices.isEmpty());
         });
+
+        Map<String, String> validOptions = new HashMap<>(){{
+            put(baseUrl, "airqo");
+            put(baseUrl, "kcca");
+        }};
+
+        validOptions.forEach((url, tenant) -> {
+            List<Device> devices = getDevices(url, tenant);
+            Assertions.assertFalse(devices.isEmpty());
+        });
+
+    }
+
+
+    @Test
+    public void testGetFrequency(){
+
+        Assertions.assertEquals(getFrequency("RAW"), "raw");
+        Assertions.assertEquals(getFrequency("1"), "raw");
+        Assertions.assertEquals(getFrequency(null), "raw");
+        Assertions.assertEquals(getFrequency("daY"), "daily");
+        Assertions.assertEquals(getFrequency(" days "), "daily");
+        Assertions.assertEquals(getFrequency("HOURLY "), "hourly");
+        Assertions.assertEquals(getFrequency("hours"), "hourly");
     }
 
     @Test
-    public void testGetDevice(){
-        String baseUrl = properties.getProperty("airqo.base.url");
-        List<Device> devices = getDevices(baseUrl, "kcca");
-        Device device = getDevice(devices, "ANYRC92F");
-        logger.info(device.getName() + " : "+ device.getSite().get_id());
+    public void testGetDeviceByName(){
+        List<Device> devices = new ArrayList<>(){{
+            add(new Device(){{
+                setChannelId(123);
+                setName("device_one");
+            }});
+        }};
+
+        Device device = getDeviceByName(devices, "ANYRC92F");
+        Assertions.assertEquals(device.get_id(), "");
+        Assertions.assertEquals(device.getSite().get_id(), "");
+
+        device = getDeviceByName(devices, " DEVICE_ONE ");
+        Assertions.assertEquals(device.getName(), "device_one");
+        Assertions.assertEquals(device.getChannelId(), 123);
     }
 
     @Test
     public void testTransformMeasurements(){
+
+        Properties emptyProperties = new Properties();
+
+        Assertions.assertTrue(Utils.transformMeasurements("measurementsString", emptyProperties).isEmpty());
 
         Properties funcProps = properties;
         funcProps.setProperty("input.topic", "airqo-raw-device-measurements-topic");
         funcProps.setProperty("tenant", "airqo");
 
         String measurementsString = new Gson().toJson(airqoMeasurementsArrayList);
+
         List<TransformedMeasurement> transformedMeasurements = Utils.transformMeasurements(measurementsString, funcProps);
         assertFalse(transformedMeasurements.isEmpty());
 
@@ -75,7 +124,7 @@ public class UtilsTest {
     }
 
     @Test
-    public void testToTransformedDeviceMeasurements(){
+    public void testGenerateTransformedOutput(){
 
         TransformedDeviceMeasurements deviceMeasurements = Utils.generateTransformedOutput(transformedMeasurements);
         assertFalse(deviceMeasurements.getMeasurements().isEmpty());
@@ -111,6 +160,8 @@ public class UtilsTest {
 
     @Test
     public void testTransformAirQoMeasurements(){
+
+        Assertions.assertTrue(Utils.transformAirQoMeasurements("hello world", properties).isEmpty());
 
         String measurementsString = new Gson().toJson(airqoMeasurementsArrayList);
 
@@ -179,6 +230,8 @@ public class UtilsTest {
 
     @Test
     public void testTransformKccaMeasurements(){
+
+        Assertions.assertTrue(Utils.transformKccaMeasurements("hello world", properties).isEmpty());
 
         String measurementsString = new Gson().toJson(kccaMeasurementsArrayList);
         RawKccaMeasurement rawMeasurements = kccaMeasurementsArrayList.get(0);

@@ -45,14 +45,9 @@ public class DeviceMeasurements {
                     !properties.containsKey("input.topic") ||
                     !properties.containsKey("tenant") ||
                     !properties.containsKey("output.topic") ||
-                    !properties.containsKey("schema.registry.url") ||
+                    !properties.containsKey(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG) ||
                     !properties.containsKey("application.id"))
                 throw new IOException("Some properties are missing");
-
-//            INPUT_TOPIC = properties.getProperty("input.topic");
-//            OUTPUT_TOPIC = properties.getProperty("output.topic");
-         //   SCHEMA_REGISTRY_URL = properties.getProperty("schema.registry.url");
-
         }
         catch (IOException ex){
             System.err.println(ex.getMessage());
@@ -61,10 +56,8 @@ public class DeviceMeasurements {
 
         properties.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         properties.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
-       // properties.putIfAbsent(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
         properties.putIfAbsent(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, 0);
-
-//        props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+//      props.putIfAbsent(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
 
         return properties;
 
@@ -80,13 +73,11 @@ public class DeviceMeasurements {
                 valueSpecificAvroSerde = new SpecificAvroSerde<>();
         valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
 
-
         final KStream<String, String> source = builder
                 .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
 
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
                 .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
-
 
         transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde) );
     }

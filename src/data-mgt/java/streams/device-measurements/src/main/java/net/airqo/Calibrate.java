@@ -66,10 +66,6 @@ public class Calibrate {
         private String datetime;
         private List<HashMap<String, Object>> raw_values;
 
-
-        public CalibratedBody() {
-        }
-
         public CalibratedBody(TransformedMeasurement transformedMeasurement) {
             this.setDatetime(transformedMeasurement.getTime());
             List<HashMap<String, Object>> list  = new ArrayList<>();
@@ -108,9 +104,10 @@ public class Calibrate {
         new URL(urlString);
 
         List<CalibrateResponse> calibrateResponseList = new ArrayList<>();
-        CalibratedBody body = new CalibratedBody(transformedMeasurement);
 
         try {
+
+            CalibratedBody body = new CalibratedBody(transformedMeasurement);
 
             ObjectMapper objectMapper = new ObjectMapper();
             String requestBody = objectMapper
