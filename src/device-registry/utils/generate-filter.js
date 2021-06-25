@@ -113,30 +113,13 @@ const generateFilter = {
       delete filter["values.device"];
     }
 
-    if (device_number) {
-      let deviceArray = device_number.split(",");
-      filter["values.device_number"]["$in"] = deviceArray;
-    }
-
-    if (!device_number) {
-      delete filter["values.device_number"];
-    }
-
-    if (device_id) {
-      let deviceArray = device_id.split(",");
-      filter["values.device_id"]["$in"] = deviceArray;
-    }
-
-    if (!device_id) {
-      delete filter["values.device_id"];
-    }
-
     if (frequency) {
       filter["values.frequency"] = frequency;
     }
 
     return filter;
   },
+
   generateRegexExpressionFromStringElement: (element) => {
     let regex = `${element}`;
     return regex;
