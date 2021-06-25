@@ -7,7 +7,7 @@ const devConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV,
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
-  SCHEMA_REGISTRY: `http://localhost:8081/`,
+  SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPIC: process.env.KAFKA_RAW_MEASUREMENTS_TOPIC_DEV,
 };
 const prodConfig = {

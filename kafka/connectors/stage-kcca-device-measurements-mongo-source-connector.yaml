@@ -18,4 +18,3 @@ spec:
     tasksMax: 2
     database.include.list: MONGO_DATABASE
     collection.include.list: MONGO_COLLECTION
-
