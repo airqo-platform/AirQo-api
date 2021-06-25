@@ -25,8 +25,6 @@ const generateFilter = {
       },
       "values.time": { $gte: oneWeekBack, $lte: today },
       "values.device": {},
-      "values.device_id": {},
-      "values.device_number": {},
     };
 
     if (startTime) {
