@@ -11,8 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
-import static net.airqo.Utils.getFrequency;
-import static net.airqo.Utils.loadPropertiesFile;
+import static net.airqo.Utils.*;
 import static org.junit.Assert.*;
 
 public class UtilsTest {
@@ -38,6 +37,24 @@ public class UtilsTest {
         transformedMeasurements = composeTransformedMeasurements();
         properties = loadPropertiesFile("test.application.properties");
 
+    }
+
+    @Test
+    public void testGetDevices(){
+        String baseUrl = properties.getProperty("airqo.base.url");
+
+        List<Device> devices = getDevices(baseUrl, "kcca");
+        devices.forEach(device -> {
+            logger.info(device.getName() + " : "+ device.getSite().get_id());
+        });
+    }
+
+    @Test
+    public void testGetDevice(){
+        String baseUrl = properties.getProperty("airqo.base.url");
+        List<Device> devices = getDevices(baseUrl, "kcca");
+        Device device = getDevice(devices, "ANYRC92F");
+        logger.info(device.getName() + " : "+ device.getSite().get_id());
     }
 
     @Test

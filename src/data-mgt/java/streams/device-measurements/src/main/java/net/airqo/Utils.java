@@ -169,7 +169,7 @@ public class Utils {
             try {
                 TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-                Device device = getDevice(devices, rawMeasurement.getDevice());
+                Device device = getDevice(devices, rawMeasurement.getDeviceCode());
 
                 transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
                 transformedMeasurement.setTenant("kcca");
@@ -246,7 +246,7 @@ public class Utils {
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
         String urlString = properties.getProperty("airqo.base.url", "");
-        List<Device> devices = getDevices(urlString, "kcca");
+        List<Device> devices = getDevices(urlString, "airqo");
 
         deviceMeasurements.forEach(rawMeasurement -> {
 
