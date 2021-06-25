@@ -1,9 +1,9 @@
-const { logObject, logElement } = require("../../utils/log");
+const { logObject, logElement } = require("../utils/log");
 const { Kafka } = require('kafkajs')
 const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 
-const insertMeasurtements = require("../../utils/insert-device-measurements");
-const constants = require("../../config/constants");
+const insertMeasurtements = require("../utils/insert-device-measurements");
+const constants = require("../config/constants");
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const RAW_MEASUREMENTS_TOPIC = constants.KAFKA_RAW_MEASUREMENTS_TOPIC;
