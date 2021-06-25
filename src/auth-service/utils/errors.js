@@ -24,10 +24,14 @@ const axiosError = (error, req, res) => {
   console.log(error.config);
 };
 
-const tryCatchErrors = (res, error) => {
+const tryCatchErrors = (res, error, type) => {
   res
     .status(HTTPStatus.BAD_GATEWAY)
-    .json({ success: false, message: "server error", error: error.message });
+    .json({
+      success: false,
+      message: `${type} server error`,
+      error: error.message,
+    });
 };
 
 const missingQueryParams = (req, res) => {
