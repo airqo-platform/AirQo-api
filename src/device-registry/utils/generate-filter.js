@@ -25,6 +25,8 @@ const generateFilter = {
       },
       "values.time": { $gte: oneWeekBack, $lte: today },
       "values.device": {},
+      "values.device_id": {},
+      "values.device_number": {},
     };
 
     if (startTime) {
@@ -103,12 +105,30 @@ const generateFilter = {
     }
 
     if (device) {
-      deviceArray = device.split(",");
+      let deviceArray = device.split(",");
       filter["values.device"]["$in"] = deviceArray;
     }
 
     if (!device) {
       delete filter["values.device"];
+    }
+
+    if (device_number) {
+      let deviceArray = device_number.split(",");
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (!device_number) {
+      delete filter["values.device_number"];
+    }
+
+    if (device_id) {
+      let deviceArray = device_id.split(",");
+      filter["values.device_id"]["$in"] = deviceArray;
+    }
+
+    if (!device_id) {
+      delete filter["values.device_id"];
     }
 
     if (frequency) {
