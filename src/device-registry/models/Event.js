@@ -1,6 +1,14 @@
+/*
+Changes made to `measurementsSchema` schema may affect the format of messages 
+received from the message broker (Kafka). Consider updating 
+the schema `AirQo-api/kafka/schemas/transformed-device-measurements.avsc`
+and following up on its deployment. :)
+*/
+
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
+const ObjectId = Schema.Types.ObjectId;
 
 const measurementsSchema = [
   {
@@ -18,10 +26,22 @@ const measurementsSchema = [
       required: [true, "The device name is required"],
       trim: true,
     },
+    device_id: {
+      type: ObjectId,
+      required: [true, "The device ID is required"],
+    },
     channelID: {
       type: Number,
       trim: true,
       default: null,
+    },
+    site: {
+      type: String,
+      required: [true, "the site name is required"],
+    },
+    site_id: {
+      type: ObjectId,
+      required: [true, "The site ID is required"],
     },
     pm1: {
       value: {
@@ -150,6 +170,11 @@ const measurementsSchema = [
     externalPressure: {
       value: { type: Number, default: null },
     },
+    externalAltitude: {
+      value: {
+        type: Number,
+      },
+    },
   },
 ];
 
@@ -259,6 +284,7 @@ eventSchema.statics = {
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
         externalHumidity: { $first: "$externalHumidity" },
+        externalAltitude: { $first: "$externalAltitude" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
         deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },

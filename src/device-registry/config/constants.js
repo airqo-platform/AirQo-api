@@ -7,6 +7,10 @@ const devConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV,
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
+  SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
+  KAFKA_RAW_MEASUREMENTS_TOPIC: process.env.KAFKA_RAW_MEASUREMENTS_TOPIC_DEV,
+  KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
+  KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -15,6 +19,10 @@ const prodConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD,
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
+  SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
+  KAFKA_RAW_MEASUREMENTS_TOPIC: process.env.KAFKA_RAW_MEASUREMENTS_TOPIC_PROD,
+  KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
+  KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
 };
 
 const stageConfig = {
@@ -24,10 +32,20 @@ const stageConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE,
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
+  SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
+  KAFKA_RAW_MEASUREMENTS_TOPIC: process.env.KAFKA_RAW_MEASUREMENTS_TOPIC_STAGE,
+  KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
+  KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
 };
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  GET_ADDRESS_URL: (lat, long) => {
+    return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
+  },
+  GET_ELEVATION_URL: (lat, long) => {
+    return `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
+  },
   CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
   DELETE_THING_URL: (device) => {
     return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
@@ -70,7 +88,11 @@ const defaultConfig = {
     field8: "GpsData",
   },
   N_VALUES: 120000,
+  LATITUDE_REGEX: /^(-?[1-8]?\d(?:\.\d{1,18})?|90(?:\.0{1,18})?)$/,
+  LONGITUDE_REGEX: /^(-?(?:1[0-7]|[1-9])?\d(?:\.\d{1,18})?|180(?:\.0{1,18})?)$/,
+  DEFAULT_LIMIT_FOR_QUERYING_SITES: 100,
   DEFAULT_EVENTS_LIMIT: 1000,
+  EVENTS_CACHE_LIMIT: 1800,
 };
 
 function envConfig(env) {
