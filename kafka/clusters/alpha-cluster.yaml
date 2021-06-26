@@ -1,8 +1,8 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: Kafka
 metadata:
-  name: stage-kafka-cluster
-  namespace: stage
+  name: alpha-kafka-cluster
+  namespace: alpha
 spec:
   kafka:
     version: 2.8.0
@@ -22,16 +22,16 @@ spec:
         tls: false
         configuration:
           bootstrap:
-            nodePort: 31000
+            nodePort: 32000
           brokers:
             - broker: 0
-              nodePort: 31001
+              nodePort: 32001
               advertisedHost: XX.XXX.XXX.XX
             - broker: 1
-              nodePort: 31002
+              nodePort: 32002
               advertisedHost: XX.XXX.XXX.XX
             - broker: 2
-              nodePort: 31003
+              nodePort: 32003
               advertisedHost: XX.XXX.XXX.XX
 
     config:

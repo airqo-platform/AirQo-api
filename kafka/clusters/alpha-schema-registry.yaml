@@ -1,11 +1,11 @@
 ###########################################################
-# Start deployment of schema registry - staging
+# Start deployment of schema registry - alpha
 ###########################################################
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stage-schema-registry
-  namespace: staging
+  name: alpha-schema-registry
+  namespace: alpha
 spec:
   selector:
     matchLabels:
@@ -24,7 +24,7 @@ spec:
     spec:
       containers:
         - name: schema-registry
-          image: us.gcr.io/airqo-250220/stage-schema-registry:latest
+          image: us.gcr.io/airqo-250220/alpha-schema-registry:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
@@ -40,7 +40,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: schema-registry-svc
-  namespace: staging
+  namespace: alpha
 spec:
   selector:
     app: schema-registry
@@ -48,5 +48,5 @@ spec:
     - protocol: TCP
       port: 8081
       targetPort: 8081
-      nodePort: 31081
+      nodePort: 32081
   type: NodePort
