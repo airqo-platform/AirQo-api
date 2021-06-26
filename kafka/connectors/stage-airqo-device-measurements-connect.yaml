@@ -8,7 +8,7 @@ metadata:
 spec:
   image: us.gcr.io/airqo-250220/stage-airqo-deivce-measurements-connect:latest
   replicas: 1
-  bootstrapServers: 192.168.49.2:32337
+  bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
   config:
     group.id: airqo-source-connector-cluster
     offset.storage.topic: airqo-source-connector-cluster-offsets

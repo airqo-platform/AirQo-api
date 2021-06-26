@@ -36,8 +36,8 @@ spec:
             - name: APPLICATION.ID
               value: kcca-measurements-stream-id-1
             - name: BOOTSTRAP.SERVERS
-              value: 192.168.49.2:32337
+              value: stage-kafka-cluster-kafka-bootstrap:9092
             - name: SCHEMA.REGISTRY.URL
-              value: http://192.168.49.2:30081/
+              value: http://stage-schema-registry-svc:8081
             - name: AIRQO.BASE.URL
               value: https://staging-platform.airqo.net/api/v1/
