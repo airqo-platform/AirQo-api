@@ -2,6 +2,7 @@ cachetools==4.2.1
 certifi==2020.12.5
 cffi==1.14.5
 chardet==4.0.0
+confluent-kafka==1.7.0
 docutils==0.16
 google-api-core==1.26.1
 google-auth==1.28.0
