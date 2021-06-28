@@ -62,34 +62,30 @@ class BaseMongoOperations:
 
 
 class ChainableMongoOperations(BaseMongoOperations):
-    def _init_filter_dict(self):
-        self.andOperatorKey = "$and"
-        self.filter_dict = {self.andOperatorKey: []}
+    def __init__(self):
+        self.stages = []
+        self.init_match_expr = "$and"
+        self.match_stage = {"$and": []}
 
-    def _get_filter_dict(self):
-        try:
-            return self.filter_dict
-        except AttributeError:
-            self._init_filter_dict()
-            return self.filter_dict
-
-    def _update_filter_dict(self, **new_filters):
+    def _update_match_stage(self, expression, raise_exc=True, **new_filters):
         """
-        Method  for updating the filter_dict attr of self. Emphasis is placed on splitting the new filters into
-        single-key dict that mongo $and operator expects.
+        Method  for updating the $match pipeline stage.
 
         Args:
+            expression: the mongoDB $match expression e.g $and, $or. more info here https://docs.mongodb.com/manual/reference/operator/aggregation/match/
             **new_filters: a dict containing the new filter conditions
         """
+        init_cond = self.match_stage.get(self.init_match_expr, [])
 
-        filter_dict = self._get_filter_dict()
-        filters = filter_dict[self.andOperatorKey]
-        split_filters = [{key: value} for key, value in new_filters.items()]
-        filters.extend(split_filters)
+        if expression == self.init_match_expr:
+            self.match_stage[self.init_match_expr] = init_cond.append(new_filters)
+            return
 
-        filter_dict.update({self.andOperatorKey: filters})
-
-        self.filter_dict = filter_dict
+        if raise_exc:
+            for v in init_cond:
+                if expression in v.keys():
+                    raise Exception(f'the {expression} expression already set')
+        self.match_stage[expression] = init_cond.append(new_filters)
 
     def filter_by(self, *args, **filters):
         """
@@ -103,10 +99,11 @@ class ChainableMongoOperations(BaseMongoOperations):
 
         Returns: the class instance (self) to enable further chaining
         """
+        expression = '$and'
         if args:
             raise Exception("positional arguments are not allowed")
 
-        self._update_filter_dict(**filters)
+        self._update_match_stage(expression, **filters)
 
         return self
 
@@ -126,35 +123,87 @@ class ChainableMongoOperations(BaseMongoOperations):
         Returns:
 
         """
-        modified_filters = {}
+        expression = '$in'
+        # modified_filters = {}
         for key, value in filters.items():
 
             if not isinstance(value, list):
                 raise Exception("keys must be instance of list")
-            modified_filters[key] = {"$in": value}
-
-        self._update_filter_dict(**modified_filters)
+            self._update_match_stage(expression, raise_exc=False, **{"$in": value})
+        #     modified_filters[key] = {"$in": value}
+        #
+        # self._update_filter_dict(**modified_filters)
 
         return self
 
-    def _find_exec(self, projections):
-        filters = self._get_filter_dict()
-        self._init_filter_dict()
-        projections = projections if projections else {}
+    def or_filter_by(self, **filters):
+        """
+        A filter method that allows for the chaining style of filtering for example
+        model.or_filter_by(first_name='john', last_name='doe').exec().
+        The chaining is terminated by the exec() method that clears the filter_dict and queries for results
 
-        return self.find(filters, projections)
+        This differs from the filter_by method by;
+            1. The values of the filters are sequence
+            2. This filter maps to the $or mongodb query operator https://docs.mongodb.com/manual/reference/operator/query/or/
+
+        Args:
+            **filters:
+
+        Returns:
+
+        """
+        expression = '$or'
+        modified_filters = []
+        for key, value in filters.items():
+            modified_filters.append({key: value})
+            if not isinstance(value, list):
+                raise Exception("keys must be instance of list")
+        self._update_match_stage(expression, **{expression: modified_filters})
+
+        return self
+
+    def lookup(self, collection, *args, local_field=None, foreign_field=None, col_as=None):
+        """
+        A filter method that maps to mongodb's $lookup (https://docs.mongodb.com/manual/reference/operator/aggregation/lookup/)
+
+        Args:
+            collection (str): Specifies the collection in the same database to perform the join with.
+                                The from collection cannot be shard
+            local_field (str): Specifies the field from the documents input to the $lookup stage. $lookup performs an
+                                equality match on the localField to the foreignField from the documents of the from
+                                collection
+            foreign_field (str): Specifies the field from the documents in the from collection. $lookup performs an
+                                    equality match on the foreignField to the localField from the input documents.
+            col_as: Specifies the name of the new array field to add to the input documents. The new array field
+                        contains the matching documents from the from collection.
+        """
+
+        self.stages.append(
+            {
+                "$lookup": {
+                    "from": collection,
+                    "localField": local_field,
+                    "foreignField": foreign_field,
+                    "as": col_as or collection
+                },
+            }
+        )
+
+        return self
+
+    def add_stages(self, stages):
+        """
+        A filter method for adding stage(s) directly to the aggregation stages list.
+        More info about stages https://docs.mongodb.com/manual/reference/operator/aggregation-pipeline/
+        Args:
+            stages (list): list of valid mongodb aggregation stage(s)
+        """
+        self.stages.extend(stages)
+        return self
 
     def _aggregate_exec(self, projections):
-        filters = self._get_filter_dict().get(self.andOperatorKey, [])
-        self._init_filter_dict()
-
-        stages = []
-        mongo_db_match_operator = {}
-
-        for f in filters:
-            mongo_db_match_operator.update(f)
-
-        stages.append({'$match': mongo_db_match_operator})
+        stages = [self.match_stage] if self.match_stage.get(self.init_match_expr) else []
+        stages.extend(self.stages)
 
         if projections:
             mongo_db_project_operator = projections
@@ -162,13 +211,12 @@ class ChainableMongoOperations(BaseMongoOperations):
                 mongo_db_project_operator.update({"_id": {"$toString": "$_id"}})
             stages.append({"$project": mongo_db_project_operator})
 
-        return self.aggregate(stages)
+        return list(self.aggregate(stages))
 
-    def exec(self, projections=None, aggregate=True):
+    def exec(self, projections=None):
         """
         This is a method used to terminate the chained filter query
         Args:
-            aggregate: boolean to switch between the mongo find and aggregate functions
             projections: an optional dict that specifies Specifies the fields to return in the documents that match
                          the query filter. To return all fields in the matching documents, omit this parameter.
                          For details, see https://docs.mongodb.com/manual/reference/method/db.collection.find/#find-projection
@@ -178,12 +226,13 @@ class ChainableMongoOperations(BaseMongoOperations):
 
         """
 
-        if aggregate:
-            return self._aggregate_exec(projections)
-        return self._find_exec(projections)
+        return self._aggregate_exec(projections)
 
 
 class ModelOperations(ChainableMongoOperations):
+
+    def __init__(self):
+        super().__init__()
 
     def convert_model_ids(self, documents):
         docs = list(documents)
