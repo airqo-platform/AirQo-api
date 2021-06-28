@@ -36,7 +36,7 @@ const measurementsSchema = [
     },
     site: {
       type: String,
-      required: [true, "the site name is required"],
+      default: "",
     },
     site_id: {
       type: ObjectId,
