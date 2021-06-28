@@ -37,6 +37,5 @@ def index():
 # print("all rules", [r.rule for r in app.url_map.iter_rules()])
 
 
-
 if __name__ == '__main__':
     app.run()
