@@ -103,7 +103,7 @@ const generateFilter = {
     }
 
     if (device) {
-      deviceArray = device.split(",");
+      let deviceArray = device.split(",");
       filter["values.device"]["$in"] = deviceArray;
     }
 
@@ -117,6 +117,7 @@ const generateFilter = {
 
     return filter;
   },
+
   generateRegexExpressionFromStringElement: (element) => {
     let regex = `${element}`;
     return regex;
