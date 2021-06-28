@@ -14,7 +14,8 @@ from api.models import (
     MonitoringSiteModel,
     DeviceHourlyMeasurementModel,
     DeviceDailyExceedancesModel,
-    DeviceDailyHistoricalAveragesModel
+    DeviceDailyHistoricalAveragesModel,
+    SiteModel
 )
 from api.models.constants import CODE_LOCATIONS
 
@@ -30,18 +31,18 @@ from api.utils.pollutants import (
 )
 
 
-@rest_api.route("/dashboard/locations/pm25categorycount")
-class PM25CategoryLocationCountResource(Resource):
-
-    @swag_from('/api/docs/dashboard/pm25_location_count_get.yml')
-    def get(self):
-        tenant = request.args.get("tenant")
-        model = PM25LocationCategoryCountModel(tenant)
-        results = list(model.sort("created_at", ascending=False).limit(1))
-
-        data = results and results[0].get('pm25_categories') or []
-
-        return create_response("location count successfully fetched", data=data), Status.HTTP_200_OK
+# @rest_api.route("/dashboard/locations/pm25categorycount")
+# class PM25CategoryLocationCountResource(Resource):
+#
+#     @swag_from('/api/docs/dashboard/pm25_location_count_get.yml')
+#     def get(self):
+#         tenant = request.args.get("tenant")
+#         model = PM25LocationCategoryCountModel(tenant)
+#         results = list(model.sort("created_at", ascending=False).limit(1))
+#
+#         data = results and results[0].get('pm25_categories') or []
+#
+#         return create_response("location count successfully fetched", data=data), Status.HTTP_200_OK
 
 
 @rest_api.route("/data/download")
@@ -239,45 +240,39 @@ class CustomisedChartResource(Resource):
         return create_response("chart data successfully retrieved", data=results), Status.HTTP_200_OK
 
 
-@rest_api.route('/dashboard/monitoring_sites/locations')
-class MonitoringSiteLocationResource(Resource):
+# @rest_api.route('/dashboard/monitoring_sites/locations')
+# class MonitoringSiteLocationResource(Resource):
+#
+#     @swag_from("/api/docs/dashboard/monitoring_site_location_get.yml")
+#     @validate_request_params('orgName|str')
+#     def get(self):
+#         tenant = request.args.get('tenant')
+#         org_name = request.args.get('orgName') or tenant
+#
+#         ms_model = MonitoringSiteModel(tenant)
+#
+#         org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
+#
+#         return create_response(
+#             "monitoring site location data successfully fetched",
+#             data=org_monitoring_sites
+#         ), Status.HTTP_200_OK
 
-    @swag_from("/api/docs/dashboard/monitoring_site_location_get.yml")
-    @validate_request_params('orgName|str')
-    def get(self):
-        tenant = request.args.get('tenant')
-        org_name = request.args.get('orgName') or tenant
 
-        ms_model = MonitoringSiteModel(tenant)
-
-        org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
-
-        return create_response(
-            "monitoring site location data successfully fetched",
-            data=org_monitoring_sites
-        ), Status.HTTP_200_OK
-
-
-@rest_api.route('/dashboard/monitoring_sites')
+@rest_api.route('/dashboard/sites')
 class MonitoringSiteResource(Resource):
 
     @swag_from('/api/docs/dashboard/monitoring_site_get.yml')
-    @validate_request_params('orgName|str', 'pm25Category|pmCategory')
     def get(self):
         tenant = request.args.get('tenant')
-        org_name = request.args.get('orgName') or tenant
-        pm25_category = request.args.get('pm25Category')
 
-        ms_model = MonitoringSiteModel(tenant)
+        ms_model = SiteModel(tenant)
 
-        org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
-
-        if pm25_category:
-            org_monitoring_sites = categorise_pm25_values(org_monitoring_sites, pm25_category)
+        sites = ms_model.get_all_sites()
 
         return create_response(
             "monitoring site data successfully fetched",
-            data=org_monitoring_sites
+            data=sites
         ), Status.HTTP_200_OK
 
 
