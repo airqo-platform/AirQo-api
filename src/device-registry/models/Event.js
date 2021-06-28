@@ -30,9 +30,8 @@ const measurementsSchema = [
       type: ObjectId,
       required: [true, "The device ID is required"],
     },
-    channelID: {
+    device_number: {
       type: Number,
-      trim: true,
       default: null,
     },
     site: {
@@ -200,7 +199,13 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index(
-  { "values.time": 1, "values.device": 1, day: 1, "values.frequency": 1 },
+  {
+    "values.time": 1,
+    "values.device": 1,
+    "values.device_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
   { unique: true }
 );
 
