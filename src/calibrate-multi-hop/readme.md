@@ -19,28 +19,19 @@ Make a "POST" request to http://localhost:4001/api/v1/calibrate/multihop with th
 
 ```{json}
 {
-    "datetime": "2020-07-15 13:00:00",
+    "datetime": "2020-09-06 12:56:59+00:00",
     "raw_values": [
         {
-            "device_id": "aq_01",
-            "pm2.5": 44.12,
-            "pm10": 54.20,
-            "temperature": 25.3,
-            "humidity": 62.0
+            "raw_value": 100,
+            "sensor_id": 832251
         },
         {
-            "device_id": "aq_02",
-            "pm2.5": 35.42,
-            "pm10": 41.53,
-            "temperature": 26.5,
-            "humidity": 57.0
+            "raw_value": 22,
+            "sensor_id": 82720
         },
         {
-            "device_id": "aq_03",
-            "pm2.5": 36.34,
-            "pm10": 43.06,
-            "temperature": 27.0,
-            "humidity": 56.0
+            "raw_value": 29,
+            "sensor_id": 870144
         }
     ]
 }
