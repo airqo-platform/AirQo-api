@@ -15,14 +15,17 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MONITOR_FREQUENCY_MINUTES = os.getenv('MONITOR_FREQUENCY_MINUTES', 60)
     BASE_API_URL = "https://staging-platform.airqo.net/api/v1"
     DAILY_EVENTS_URL = f"{BASE_API_URL}/devices/events"
+    DEVICE_RECENT_EVENTS_URL = f"{BASE_API_URL}/data/feeds/transform/recent"
 
 
 class ProductionConfig(Config):
     DEVELOPMENT = False
     BASE_API_URL = "https://platform.airqo.net/api/v1"
     DAILY_EVENTS_URL = f"{BASE_API_URL}/devices/events"
+    DEVICE_RECENT_EVENTS_URL = f"{BASE_API_URL}/data/feeds/transform/recent"
 
 
 class DevelopmentConfig(Config):
@@ -49,6 +52,7 @@ environment = os.getenv("ENV")
 print("ENVIRONMENT", environment or 'staging')
 
 configuration = app_config.get(environment, TestingConfig)
+
 
 def connect_mongo(tenant):
     client = MongoClient(configuration.MONGO_URI)
