@@ -32,6 +32,7 @@ const measurementsSchema = [
     },
     device_number: {
       type: Number,
+      default: null,
     },
     site: {
       type: String,
