@@ -10,6 +10,7 @@ from flask import request
 from api.utils.http import Status
 from api.utils.pollutants import PM_25_CATEGORY
 
+
 @dataclass
 class ValidatorResult:
     is_valid: bool
@@ -33,7 +34,9 @@ class Validator(OrderedDict):
 
     DATA_TYPES = ['csv', 'json']
 
-    PM_CATEGORIES = PM_25_CATEGORY.keys();
+    PM_CATEGORIES = PM_25_CATEGORY.keys()
+
+    POLLUTANTS = ['PM 2.5', 'PM 10', 'NO2']
 
     def __init__(self, validation_type=''):
         super().__init__()
@@ -126,6 +129,11 @@ class Validator(OrderedDict):
     def pm_category_checker(cls, value):
         if value not in cls.PM_CATEGORIES:
             raise TypeError("invalid pm category type")
+
+    @classmethod
+    def pollutant_checker(cls, value):
+        if value not in cls.POLLUTANTS:
+            raise TypeError("invalid pollutant type")
 
     @staticmethod
     def parse_rule(rule):
