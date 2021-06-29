@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: schema-registry
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:

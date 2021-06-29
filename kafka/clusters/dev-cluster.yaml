@@ -6,7 +6,7 @@ metadata:
 spec:
   kafka:
     version: 2.8.0
-    replicas: 1
+    replicas: 3
     listeners:
       - name: plain
         port: 9092
@@ -23,16 +23,6 @@ spec:
         configuration:
           bootstrap:
             nodePort: 32000
-          brokers:
-            - broker: 0
-              nodePort: 32001
-              # advertisedHost: XX.XXX.XXX.XX
-            - broker: 1
-              nodePort: 32002
-              # advertisedHost: XX.XXX.XXX.XX
-            - broker: 2
-              nodePort: 32003
-              # advertisedHost: XX.XXX.XXX.XX
 
     config:
       offsets.topic.replication.factor: 1
@@ -41,20 +31,11 @@ spec:
       log.message.format.version: "2.8"
       inter.broker.protocol.version: "2.8"
     storage:
-      type: jbod
-      volumes:
-      - id: 0
-        type: persistent-claim
-        size: 1Gi
-        # class: stage-clusters
-        deleteClaim: true
+      type: ephemeral
   zookeeper:
-    replicas: 1
+    replicas: 3
     storage:
-      type: persistent-claim
-      # class: stage-clusters
-      size: 1Gi
-      deleteClaim: true
+      type: ephemeral
   entityOperator:
     topicOperator: {}
     userOperator: {}
