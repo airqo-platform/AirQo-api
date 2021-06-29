@@ -177,6 +177,7 @@ public class Utils {
         deviceMeasurements.forEach(rawMeasurement -> {
 
             Device device = getDeviceByName(devices, rawMeasurement.getDeviceCode());
+            logger.info(device.getSite().get_id());
             if(!device.getSite().get_id().isEmpty()){
                 try {
                     TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
@@ -262,6 +263,7 @@ public class Utils {
         deviceMeasurements.forEach(rawMeasurement -> {
 
             Device device = getDeviceByName(devices, rawMeasurement.getDevice());
+            logger.info(device.getSite().get_id());
             if(!device.getSite().get_id().isEmpty()){
                 try {
                     TransformedMeasurement transformedMeasurement = new TransformedMeasurement();

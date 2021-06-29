@@ -87,7 +87,6 @@ public class UtilsTest {
     public void testGetDeviceByName(){
         List<Device> devices = new ArrayList<>(){{
             add(new Device(){{
-                setChannelId(123);
                 setName("device_one");
             }});
         }};
@@ -98,7 +97,6 @@ public class UtilsTest {
 
         device = getDeviceByName(devices, " DEVICE_ONE ");
         Assertions.assertEquals(device.getName(), "device_one");
-        Assertions.assertEquals(device.getChannelId(), 123);
     }
 
     @Test
