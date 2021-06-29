@@ -27,23 +27,14 @@ class Events:
                 "$project": {
                     "pm2_5": 1,
                     "pm10": 1,
-                    "no2": 1
+                    "no2": 1,
+                    "site_id": 1
                 }
             }
         ])
 
 
 class Exceedances:
-    def __init__(self, tenant):
-        self.tenant = tenant
-
-    def get_exceedance(self, site_name, days):
-        tenant = self.tenant
-        db = connect_mongo(tenant)
-        results = list(db.exceedanaces.find(
-            {'site_name': site_name}, {'_id': 0}).sort([('$natural', -1)]).limit(days))
-        return results
-
     def save_exceedance(self, records):
         tenant = self.tenant
         db = connect_mongo(tenant)

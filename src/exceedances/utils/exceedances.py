@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from config import configuration
 import numpy as np
 
-from exceedances.exceedance import get_WHO_exceedances
-
 # disable tls/ssl warnings
 urllib3.disable_warnings()
 
@@ -25,7 +23,7 @@ class Exceedances:
 
 class CalculateExceedances:
 
-    def __init__(self, tenant, standard, day):
+    def __init__(self, tenant):
         self.tenant = tenant
         self.WHO_LIMIT = {"pm2_5": 25, "pm10": 50, "no2": 40}
         self.PM_25_AQI_LIMIT = {
@@ -56,52 +54,45 @@ class CalculateExceedances:
             'All': [0, 2049],
         }
 
-    def calculate_exceedance():
+    def calculate_exceedances(self):
+        """
+        get the measurements for all sites accordingly
+        then go ahead to calculate each Site's exceedance accordingly
+        return the exceedance list for all sites accordingly
+        """
         get_measurements()
         aqi = get_AQ1()
         who = get_WHO()
 
-        return {
-            site_id: "",
-            time: "",
-            who: {
-                pm2_5: "",
-                pm10: "",
-                no2: ""
+        return [
+            {
+                "site_id": "",
+                "time": "",
+                "who": {
+                    "pm2_5": "",
+                    "pm10": "",
+                    "no2": ""
+                },
+                "aqi": {
+                    "pm2_5": "",
+                    "pm10": "",
+                    "no2": ""
+                },
             },
-            aqi: {
-                pm2_5: "",
-                pm10: "",
-                no2: ""
-            },
-        }
+            {},
+            {}]
 
-    def save_exceedance():
-        exceedance_document = {
-            day: "",
-            exceedances: [
-                {
-                    site_id: "",
-                    time: "",
-                    who: {
-                        pm2_5: "",
-                        pm10: "",
-                        no2: ""
-                    },
-                    aqi: {
-                        pm2_5: "",
-                        pm10: "",
-                        no2: ""
-                    },
-                }
-            ]
-        }
+    def save_exceedances(self, exceedances):
+        """
+        Get the exceedance array/list that needs to be stored
+        And then save it into the database accordingly
+        """
 
-    def get_AQ1():
-        get_measuremnts()
-
-    def get_WHO():
+    def get_AQ1(self):
         pass
 
-    def get_measurements():
+    def get_WHO(self):
+        pass
+
+    def get_measurements(self):
         pass
