@@ -30,14 +30,13 @@ const measurementsSchema = [
       type: ObjectId,
       required: [true, "The device ID is required"],
     },
-    channelID: {
+    device_number: {
       type: Number,
-      trim: true,
       default: null,
     },
     site: {
       type: String,
-      required: [true, "the site name is required"],
+      default: "",
     },
     site_id: {
       type: ObjectId,
@@ -200,7 +199,14 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index(
-  { "values.time": 1, "values.device": 1, day: 1, "values.frequency": 1 },
+  {
+    "values.time": 1,
+    "values.device": 1,
+    "values.device_id": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
   { unique: true }
 );
 
@@ -267,7 +273,6 @@ eventSchema.statics = {
       .sort({ time: -1 })
       .group({
         _id: "$device",
-        channelID: { $first: "$channelID" },
         time: { $first: "$time" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
