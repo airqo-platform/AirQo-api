@@ -1,0 +1,26 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: dev-device-registry-db-connector-cluster
+  namespace: dev
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  image: us.gcr.io/airqo-250220/dev-device-registry-db-connect:latest
+  imagePullPolicy: Always
+  replicas: 1
+  bootstrapServers: dev-kafka-cluster-kafka-bootstrap:9092
+  externalConfiguration:
+    volumes:
+      - name: connector-config
+        secret:
+          secretName: device-registry-credentials
+  config:
+    group.id: dev-device-registry-db-connector-cluster
+    offset.storage.topic: dev-device-registry-db-connector-cluster-offsets
+    config.storage.topic: dev-device-registry-db-connector-cluster-configs
+    status.storage.topic: dev-device-registry-db-connector-cluster-status
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
