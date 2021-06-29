@@ -5,7 +5,7 @@ const insertMeasurtements = require("../utils/insert-device-measurements");
 const constants = require("../config/constants");
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
-const RAW_MEASUREMENTS_TOPIC = constants.KAFKA_RAW_MEASUREMENTS_TOPIC;
+const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
 const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
 const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
 
@@ -14,9 +14,14 @@ const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY })
 const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP })
 
 const rawMeasurementsConsumer = async () => {
-  await consumer.connect()
-  await consumer.subscribe({ topic: RAW_MEASUREMENTS_TOPIC, fromBeginning: true })
+  await consumer.connect();
 
+  const topics = RAW_MEASUREMENTS_TOPICS.split(",");
+
+  for (const topic of topics) {
+    await consumer.subscribe({ topic: topic.trim().toLowerCase(), fromBeginning: true });
+  }
+  
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
       try{
@@ -28,7 +33,7 @@ const rawMeasurementsConsumer = async () => {
         logObject("Kafka Raw Measurements consumer", e);
       }
     },
-  })
+  });
 }
 
 rawMeasurementsConsumer().catch(console.error)

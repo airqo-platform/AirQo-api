@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: transformed-device-measurements-topic
+  name: kcca-transformed-device-measurements-topic
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster

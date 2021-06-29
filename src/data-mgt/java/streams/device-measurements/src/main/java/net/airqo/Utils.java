@@ -39,8 +39,10 @@ public class Utils {
                         return transformKccaMeasurements(rawMeasurements, properties);
 
                     case "AIRQO":
-                        List<TransformedMeasurement> transformedMeasurements = transformAirQoMeasurements(rawMeasurements, properties);
-                        return addAirQoCalibratedValues(transformedMeasurements);
+//                        List<TransformedMeasurement> transformedMeasurements =
+//                        transformAirQoMeasurements(rawMeasurements, properties);
+//                        return addAirQoCalibratedValues(transformedMeasurements);
+                        return transformAirQoMeasurements(rawMeasurements, properties);
 
                     default:
                         return new ArrayList<>();
@@ -174,58 +176,60 @@ public class Utils {
 
         deviceMeasurements.forEach(rawMeasurement -> {
 
-            try {
-                TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
+            Device device = getDeviceByName(devices, rawMeasurement.getDeviceCode());
+            logger.info(device.getSite().get_id());
+            if(!device.getSite().get_id().isEmpty()){
+                try {
+                    TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-                Device device = getDeviceByName(devices, rawMeasurement.getDeviceCode());
+                    transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
+                    transformedMeasurement.setTenant("kcca");
+                    transformedMeasurement.setSiteId(device.getSite().get_id());
+                    transformedMeasurement.setDeviceId(device.get_id());
+                    transformedMeasurement.setTime(rawMeasurement.getTime());
+                    transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getAverage()));
 
-                transformedMeasurement.setDevice(rawMeasurement.getDeviceCode());
-                transformedMeasurement.setTenant("kcca");
-                transformedMeasurement.setSiteId(device.getSite().get_id());
-                transformedMeasurement.setDeviceId(device.get_id());
-                transformedMeasurement.setTime(rawMeasurement.getTime());
-                transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getAverage()));
+                    List<Double> coordinates  =  rawMeasurement.getLocation().getCoordinates();
+                    transformedMeasurement.setLocation(new TransformedLocation(){{
+                        setLongitude(new LocationValue(coordinates.get(0)));
+                        setLatitude(new LocationValue(coordinates.get(1)));
+                    }});
 
-                List<Double> coordinates  =  rawMeasurement.getLocation().getCoordinates();
-                transformedMeasurement.setLocation(new TransformedLocation(){{
-                    setLongitude(new LocationValue(coordinates.get(0)));
-                    setLatitude(new LocationValue(coordinates.get(1)));
-                }});
+                    transformedMeasurement.setPm10(new TransformedValue(){{
+                        setValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getRaw());
+                        setCalibratedValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getCalibratedValue());
+                    }});
 
-                transformedMeasurement.setPm10(new TransformedValue(){{
-                    setValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getRaw());
-                    setCalibratedValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getCalibratedValue());
-                }});
+                    transformedMeasurement.setInternalHumidity(new TransformedValue(){{
+                        setValue(rawMeasurement.getCharacteristics().getRelHumid().getRaw());
+                        setCalibratedValue(rawMeasurement.getCharacteristics().getRelHumid().getCalibratedValue());
+                    }});
 
-                transformedMeasurement.setInternalHumidity(new TransformedValue(){{
-                    setValue(rawMeasurement.getCharacteristics().getRelHumid().getRaw());
-                    setCalibratedValue(rawMeasurement.getCharacteristics().getRelHumid().getCalibratedValue());
-                }});
+                    transformedMeasurement.setInternalTemperature(new TransformedValue(){{
+                        setValue(rawMeasurement.getCharacteristics().getTemperature().getRaw());
+                        setCalibratedValue(rawMeasurement.getCharacteristics().getTemperature().getCalibratedValue());
+                    }});
 
-                transformedMeasurement.setInternalTemperature(new TransformedValue(){{
-                    setValue(rawMeasurement.getCharacteristics().getTemperature().getRaw());
-                    setCalibratedValue(rawMeasurement.getCharacteristics().getTemperature().getCalibratedValue());
-                }});
+                    transformedMeasurement.setPm2_5(new TransformedValue(){{
+                        setValue(rawMeasurement.getCharacteristics().getPm2_5ConcMass().getRaw());
+                        setCalibratedValue(rawMeasurement.getCharacteristics().getPm2_5ConcMass().getCalibratedValue());
+                    }});
 
-                transformedMeasurement.setPm2_5(new TransformedValue(){{
-                    setValue(rawMeasurement.getCharacteristics().getPm2_5ConcMass().getRaw());
-                    setCalibratedValue(rawMeasurement.getCharacteristics().getPm2_5ConcMass().getCalibratedValue());
-                }});
+                    transformedMeasurement.setNo2(new TransformedValue(){{
+                        setValue(rawMeasurement.getCharacteristics().getNo2Conc().getRaw());
+                        setCalibratedValue(rawMeasurement.getCharacteristics().getNo2Conc().getCalibratedValue());
+                    }});
 
-                transformedMeasurement.setNo2(new TransformedValue(){{
-                    setValue(rawMeasurement.getCharacteristics().getNo2Conc().getRaw());
-                    setCalibratedValue(rawMeasurement.getCharacteristics().getNo2Conc().getCalibratedValue());
-                }});
+                    transformedMeasurement.setPm1(new TransformedValue(){{
+                        setValue(rawMeasurement.getCharacteristics().getPm1ConcMass().getRaw());
+                        setCalibratedValue(rawMeasurement.getCharacteristics().getPm1ConcMass().getCalibratedValue());
+                    }});
 
-                transformedMeasurement.setPm1(new TransformedValue(){{
-                    setValue(rawMeasurement.getCharacteristics().getPm1ConcMass().getRaw());
-                    setCalibratedValue(rawMeasurement.getCharacteristics().getPm1ConcMass().getCalibratedValue());
-                }});
-
-                transformedMeasurements.add(transformedMeasurement);
-            }
-            catch (Exception ex){
-                ex.printStackTrace();
+                    transformedMeasurements.add(transformedMeasurement);
+                }
+                catch (Exception ex){
+                    ex.printStackTrace();
+                }
             }
 
         });
@@ -258,84 +262,86 @@ public class Utils {
 
         deviceMeasurements.forEach(rawMeasurement -> {
 
-            try {
-                TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
+            Device device = getDeviceByName(devices, rawMeasurement.getDevice());
+            logger.info(device.getSite().get_id());
+            if(!device.getSite().get_id().isEmpty()){
+                try {
+                    TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
 
-                Device device = getDeviceByName(devices, rawMeasurement.getDevice());
+                    transformedMeasurement.setDevice(rawMeasurement.getDevice());
+                    transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getFrequency()));
+                    transformedMeasurement.setTenant("airqo");
 
-                transformedMeasurement.setDevice(rawMeasurement.getDevice());
-                transformedMeasurement.setFrequency(getFrequency(rawMeasurement.getFrequency()));
-                transformedMeasurement.setTenant("airqo");
+                    transformedMeasurement.setSiteId(device.getSite().get_id());
+                    transformedMeasurement.setDeviceId(device.get_id());
+                    transformedMeasurement.setDeviceNumber(rawMeasurement.getChannelId());
+                    transformedMeasurement.setTime(rawMeasurement.getTime());
 
-                transformedMeasurement.setSiteId(device.getSite().get_id());
-                transformedMeasurement.setDeviceId(device.get_id());
-                transformedMeasurement.setDeviceNumber(rawMeasurement.getChannelId());
-                transformedMeasurement.setTime(rawMeasurement.getTime());
+                    transformedMeasurement.setLocation(new TransformedLocation(){{
+                        setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude())));
+                        setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude())));
+                    }});
 
-                transformedMeasurement.setLocation(new TransformedLocation(){{
-                    setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude())));
-                    setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude())));
-                }});
+                    transformedMeasurement.setPm2_5(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getPm25()));
+                    }});
 
-                transformedMeasurement.setPm2_5(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getPm25()));
-                }});
+                    transformedMeasurement.setPm10(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getPm10()));
+                    }});
 
-                transformedMeasurement.setPm10(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getPm10()));
-                }});
+                    transformedMeasurement.setS2_pm2_5(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm25()));
+                    }});
 
-                transformedMeasurement.setS2_pm2_5(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getS2Pm25()));
-                }});
+                    transformedMeasurement.setS2_pm10(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm10()));
+                    }});
 
-                transformedMeasurement.setS2_pm10(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getS2Pm10()));
-                }});
+                    transformedMeasurement.setAltitude(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getAltitude()));
+                    }});
 
-                transformedMeasurement.setAltitude(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getAltitude()));
-                }});
+                    transformedMeasurement.setSpeed(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getSpeed()));
+                    }});
 
-                transformedMeasurement.setSpeed(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getSpeed()));
-                }});
+                    transformedMeasurement.setBattery(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getBattery()));
+                    }});
 
-                transformedMeasurement.setBattery(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getBattery()));
-                }});
+                    transformedMeasurement.setSatellites(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getSatellites()));
+                    }});
 
-                transformedMeasurement.setSatellites(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getSatellites()));
-                }});
+                    transformedMeasurement.setHdop(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getHdop()));
+                    }});
 
-                transformedMeasurement.setHdop(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getHdop()));
-                }});
+                    transformedMeasurement.setExternalHumidity(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getExternalHumidity()));
+                    }});
 
-                transformedMeasurement.setExternalHumidity(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getExternalHumidity()));
-                }});
+                    transformedMeasurement.setExternalPressure(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getExternalPressure()));
+                    }});
 
-                transformedMeasurement.setExternalPressure(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getExternalPressure()));
-                }});
+                    transformedMeasurement.setExternalTemperature(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getExternalTemperature()));
+                    }});
 
-                transformedMeasurement.setExternalTemperature(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getExternalTemperature()));
-                }});
+                    transformedMeasurement.setInternalTemperature(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
+                    }});
 
-                transformedMeasurement.setInternalTemperature(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
-                }});
+                    transformedMeasurement.setInternalHumidity(new TransformedValue(){{
+                        setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
+                    }});
 
-                transformedMeasurement.setInternalHumidity(new TransformedValue(){{
-                    setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
-                }});
-
-                transformedMeasurements.add(transformedMeasurement);
-            }catch (Exception e){
-                e.printStackTrace();
+                    transformedMeasurements.add(transformedMeasurement);
+                }catch (Exception e){
+                    e.printStackTrace();
+                }
             }
 
         });

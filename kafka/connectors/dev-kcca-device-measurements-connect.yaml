@@ -1,0 +1,27 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: kcca-source-connector-cluster
+  namespace: dev
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  image: us.gcr.io/airqo-250220/airqo-stage-kcca-deivce-measurements-connect:latest
+  replicas: 1
+  bootstrapServers: dev-kafka-cluster-kafka-bootstrap:9092
+  externalConfiguration:
+    volumes:
+      - name: connector-config
+        secret:
+          secretName: clarity-credentials
+  config:
+    group.id: kcca-source-connector-cluster
+    offset.storage.topic: kcca-source-connector-cluster-offsets
+    config.storage.topic: kcca-source-connector-cluster-configs
+    status.storage.topic: kcca-source-connector-cluster-status
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: true
+    value.converter.schemas.enable: true
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider

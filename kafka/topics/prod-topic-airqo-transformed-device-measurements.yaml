@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: kcca-raw-device-measurements-topic
+  name: airqo-transformed-device-measurements-topic
   namespace: production
   labels:
     strimzi.io/cluster: prod-kafka-cluster
