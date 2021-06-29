@@ -16,9 +16,11 @@ const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP })
 const rawMeasurementsConsumer = async () => {
   await consumer.connect();
 
-  RAW_MEASUREMENTS_TOPICS.split(",").forEach((topic) => {
-    await consumer.subscribe({ topic: topic.trim().toLowerCase() })
-  });
+  const topics = RAW_MEASUREMENTS_TOPICS.split(",");
+
+  for (const topic of topics) {
+    await consumer.subscribe({ topic: topic.trim().toLowerCase(), fromBeginning: true });
+  }
   
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
