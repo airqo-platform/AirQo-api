@@ -11,6 +11,7 @@ DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL")
 START_TIME = os.getenv("START_TIME", "2021-01-01")
 END_TIME = os.getenv("END_TIME", "2021-01-02")
 INTERVAL = os.getenv("INTERVAL", "1")
+SIZE = os.getenv("INTERVAL", "1000")
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
@@ -152,7 +153,7 @@ def transform_airqo_data(data, devices):
             transformed_data.append(device_data)
 
         if transformed_data:
-            n = 20
+            n = int(SIZE)
             sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
             for sub_list in sub_lists:
