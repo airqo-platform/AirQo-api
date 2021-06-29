@@ -36,7 +36,7 @@ const measurementsSchema = [
     },
     site: {
       type: String,
-      required: [true, "the site name is required"],
+      default: "",
     },
     site_id: {
       type: ObjectId,
@@ -272,7 +272,6 @@ eventSchema.statics = {
       .sort({ time: -1 })
       .group({
         _id: "$device",
-        channelID: { $first: "$channelID" },
         time: { $first: "$time" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
