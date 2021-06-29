@@ -5,17 +5,32 @@ class Events:
     def __init__(self, tenant):
         self.tenant = tenant
 
-    def get_active_devices(self):
+    def get_events(self, start_date, end_date):
         tenant = self.tenant
         db = connect_mongo(tenant)
-        return db.devices.find(
+        return db.events.aggregate([
             {
-                '$and': [{
-                    "device_number": {'$ne': ''},
-                    'isActive': {'$eq': True}
-                }]
+                "$match": {
+                    "values.time": {
+                        "$gte": start_date,
+                        "$lt": end_date
+                    }
+                }
+            },
+            {
+                "$unwind": "values"
+            },
+            {
+                "$replaceRoot": {"newRoot": "$values"}
+            },
+            {
+                "$project": {
+                    "pm2_5": 1,
+                    "pm10": 1,
+                    "no2": 1
+                }
             }
-        )
+        ])
 
 
 class Exceedances:
