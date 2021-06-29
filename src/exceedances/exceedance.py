@@ -11,8 +11,9 @@ from datetime import datetime
 
 """
 we need to get these codes from the DB and not have them static here
+sites?
 """
-code_locations_dict = {
+code_sites_dict = {
     'Luzira': 'A9WLJS5F',
     'Kawala': 'AR2RHV97',
     'Nakulabye': 'AMBD741S',
@@ -298,7 +299,7 @@ def get_exceedances(pollutant='PM 2.5', standard='WHO', frequency='daily'):
     Generates data for exceedances chart
     '''
     exceedances_list = []
-    for location in code_locations_dict.keys():
+    for location in code_sites_dict.keys():
         exceedances_dict = {}
         if standard == 'AQI':
             exceedances = get_AQI_exceedances(location, pollutant, frequency)
@@ -320,7 +321,7 @@ def get_WHO_exceedances(location, pollutant='PM 2.5', frequency='daily'):
     '''
     Returns exceedances based on the WHO limit
     '''
-    device_code = code_locations_dict[location]
+    device_code = code_sites_dict[location]
     end_date = datetime.now()
     start_date = end_date-timedelta(days=29)
 
@@ -345,7 +346,7 @@ def get_AQI_exceedances(location, pollutant='PM 2.5', frequency='daily'):
     '''
     Returns exceedances based on the AQI index
     '''
-    device_code = code_locations_dict[location]
+    device_code = code_sites_dict[location]
     end_date = datetime.now()
     start_date = end_date-timedelta(days=29)
 
