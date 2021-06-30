@@ -33,8 +33,10 @@ class Event:
             }
         ])
 
-
 class Exceedance:
+    def __init__(self, tenant):
+        self.tenant = tenant
+
     def save_exceedance(self, records):
         tenant = self.tenant
         db = connect_mongo(tenant)
