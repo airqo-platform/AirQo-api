@@ -167,11 +167,15 @@ const measurementsSchema = [
       },
     },
     externalPressure: {
-      value: { type: Number, default: null },
+      value: {
+        type: Number,
+        default: null,
+      },
     },
     externalAltitude: {
       value: {
         type: Number,
+        default: null,
       },
     },
   },
@@ -272,7 +276,7 @@ eventSchema.statics = {
       })
       .sort({ time: -1 })
       .group({
-        _id: "$device",
+        _id: "$site_id",
         time: { $first: "$time" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
@@ -285,6 +289,10 @@ eventSchema.statics = {
         speed: { $first: "$speed" },
         satellites: { $first: "$satellites" },
         hdop: { $first: "$hdop" },
+        site: { $first: "$site" },
+        device: { $first: "$device" },
+        device_number: { $first: "$device_number" },
+        device_id: { $first: "$device_id" },
         internalTemperature: { $first: "$internalTemperature" },
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
