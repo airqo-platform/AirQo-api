@@ -20,6 +20,9 @@ const insert = async (tenant, transformedMeasurements) => {
         $or: [
           { "values.time": { $ne: measurement.time } },
           { "values.device": { $ne: measurement.device } },
+          { "values.frequency": { $ne: measurement.frequency } },
+          { "values.device_id": { $ne: measurement.device_id } },
+          { "values.site_id": { $ne: measurement.site_id } },
           { day: { $ne: measurement.day } },
         ],
       };
@@ -67,7 +70,6 @@ const insert = async (tenant, transformedMeasurements) => {
       valuesAdded: eventsAdded,
     };
   }
-
 };
 
 module.exports = insert;

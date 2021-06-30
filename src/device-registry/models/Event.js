@@ -203,6 +203,7 @@ eventSchema.index(
     "values.time": 1,
     "values.device": 1,
     "values.device_id": 1,
+    "values.site_id": 1,
     day: 1,
     "values.frequency": 1,
   },
