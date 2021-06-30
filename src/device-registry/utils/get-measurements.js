@@ -21,7 +21,7 @@ const getDetail = require("../utils/get-device-details");
 const isRecentTrue = (recent) => {
   let isRecentEmpty = isEmpty(recent);
   if (isRecentEmpty == true) {
-    return true;
+    return false;
   }
   if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
     return true;
