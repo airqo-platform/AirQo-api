@@ -17,6 +17,7 @@ class Config:
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     BASE_API_URL = "https://staging-platform.airqo.net/api/v1"
     DAILY_EVENTS_URL = f"{BASE_API_URL}/devices/events"
+    SITES_URL = f"{BASE_API_URL}/devices/sites"
 
 
 class ProductionConfig(Config):
