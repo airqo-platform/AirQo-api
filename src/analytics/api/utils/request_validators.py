@@ -36,7 +36,7 @@ class Validator(OrderedDict):
 
     PM_CATEGORIES = PM_25_CATEGORY.keys()
 
-    POLLUTANTS = ['PM 2.5', 'PM 10', 'NO2']
+    POLLUTANTS = ['pm2_5', 'pm10', 'no2']
 
     def __init__(self, validation_type=''):
         super().__init__()
