@@ -141,6 +141,17 @@ class ChainableMongoOperations(BaseMongoOperations):
 
         return self
 
+    def date_range(self, field, start_date, end_date):
+        expression = None
+        start = datetime.strptime(start_date, '%Y-%m-%dT%H:%M:%S.%fZ')
+        end = end_date and datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%fZ') or datetime.now()
+        self._update_match_stage(
+            expression,
+            raise_exc=False,
+            **{field: {"$gte": start, "$lt": end}}
+        )
+        return self
+
     def or_filter_by(self, **filters):
         """
         A filter method that allows for the chaining style of filtering for example
@@ -202,6 +213,31 @@ class ChainableMongoOperations(BaseMongoOperations):
             stages (list): list of valid mongodb aggregation stage(s)
         """
         self.stages.extend(stages)
+        return self
+
+    def replace_root(self, new_root):
+        return self.add_stages([{"$replaceRoot": {"newRoot": f"${new_root}"}}])
+
+    def unwind(self, field):
+        return self.add_stages([{"$unwind": f'${field}'}])
+
+    def project(self, **fields):
+        if fields.get("_id"):
+            fields['_id'] = {"$toString": "$_id"}
+        return self.add_stages([{"$project": fields}])
+
+    def match(self, **conditions):
+        return self.add_stages([{"$match": conditions}])
+
+    def group(self, **conditions):
+        return self.add_stages([{"$group": conditions}])
+
+    def match_in(self, **condition):
+        for field, value in condition.items():
+            if isinstance(value, str) and not isinstance(value, Sequence):
+                raise Exception(f'{value} is not a list or tuple (sequence)')
+            self.match(**{field: {'$in': value}})
+            # self.add_stages([{"$in": [f'${field}', value]}])
         return self
 
     def _aggregate_exec(self, projections):
