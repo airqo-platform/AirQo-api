@@ -7,11 +7,6 @@ parameters:
     type: string
     required: true
     default: airqo
-  - name: orgName
-    description: organisation name incase it's different from the tenant value (compatibility reasons)
-    in: query
-    type: string
-    required: false
 definitions:
   MonitoringSiteResponse:
     type: object
@@ -26,36 +21,31 @@ definitions:
         type: array
         items:
            $ref: '#/definitions/MonitoringSiteData'
+  MonitoringSiteDevice:
+    type: object
+    properties:
+      _id:
+        type: string
+        example: 5f2036bc70223655545a8b3c
+      name:
+        type: string
+        example: aq_04
   MonitoringSiteData:
     type: object
     properties:
-      DeviceCode:
+      name:
         type: string
-        example: A743BPWK
-      Parish:
+        example: Rubirizi
+      description:
         type: string
-        example: Wandegeya
-      Division:
+        example: Kasharara, Rubirizi
+      generated_name:
         type: string
-        example: Kawempe
-      Last_Hour_PM25_Value:
-        type: float
-        example: 49
-      Latitude:
-        type: float
-        example: 0.331732
-      Longitude:
-        type: float
-        example: 32.57455
-      LocationCode:
-        type: string
-        example: KCCA_KWPE_AQ05
-      LastHour:
-        type: string
-        example: "2021-03-03 11:00"
-      _id:
-        type: string
-        example: 5e78a8e66a7e115ad4a4e6c6
+        example: site_21
+      devices:
+        type: array
+        items:
+          $ref: '#/definitions/MonitoringSiteDevice'
 
 responses:
   200:
