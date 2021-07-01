@@ -5,6 +5,23 @@ class EventsModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="events")
 
+    def get_downloadable_events(self, sites, start_date, end_date, frequency, pollutants):
+        return (
+            self.date_range("values.time", start_date=start_date, end_date=end_date)
+                .filter_by(**{"values.frequency": frequency})
+                .unwind("values")
+                .replace_root("values")
+                .project(
+                    _id=0,
+                    time={"$toString": "$time"},
+                    **pollutants,
+                    frequency=1,
+                    site_id={"$toString": "$site_id"}
+                )
+                .match_in(site_id=sites)
+                .exec()
+        )
+
     def get_events(self, sites, start_date, end_date, frequency):
         return (
             self
