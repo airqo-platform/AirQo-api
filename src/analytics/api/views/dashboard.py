@@ -52,72 +52,37 @@ class DownloadCustomisedDataResource(Resource):
     @swag_from('/api/docs/dashboard/download_custom_data_post.yml')
     @validate_request_params('downloadType|required:data')
     @validate_request_json(
-        'locations|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
-        'frequency|required:str', 'pollutants|required:list', 'orgName|str'
+        'sites|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
+        'frequency|required:str', 'pollutants|required:list'
     )
     def post(self):
         tenant = request.args.get("tenant")
         download_type = request.args.get('downloadType')
         json_data = request.get_json()
-        locations = json_data["locations"]
+        sites = json_data["sites"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
-        org_name = json_data.get("orgName") or tenant
 
-        ms_model = MonitoringSiteModel(tenant)
-        dhm_model = DeviceHourlyMeasurementModel(tenant)
+        formatted_pollutants = {}
 
-        formatted_data = []
+        for pollutant in pollutants:
+            if pollutant == 'pm2_5':
+                formatted_pollutants['pm2_5.value'] = 1
+            elif pollutant == 'pm10':
+                formatted_pollutants['pm10.value'] = 1
+            elif pollutant == 'no2':
+                formatted_pollutants['no2.value'] = 1
 
-        sites = list(ms_model.filter_by(Organisation=org_name).in_filter_by(Parish=locations).exec(
-            {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 1}
-        ))
-
-        device_codes = []
-        location_mapper = {}
-
-        for site in sites:
-            device_codes.append(site["DeviceCode"])
-            location_mapper[site["DeviceCode"]] = site
-
-        device_data = list(dhm_model.get_all_pollutant_values(
-            device_codes, start_date=start_date, end_date=end_date, frequency=frequency
-        ))
-
-        for data in device_data:
-            dataset = OrderedDict()
-            site = location_mapper.get(data['deviceCode'])
-            dataset['datetime'] = data['time']
-            dataset['owner'] = org_name
-            dataset['location'] = site['Parish']
-            dataset['division'] = site['Division']
-            dataset['frequency'] = frequency
-
-            data['owner'] = org_name
-            data['division'] = site['Division']
-            data['location'] = site['Parish']
-            data['frequency'] = frequency
-
-            if "PM 2.5" in pollutants:
-                dataset['pm25_value'] = data['pm25_value']
-
-            if 'PM 10' in pollutants:
-                dataset['pm10_value'] = data['pm10_value']
-
-            if 'NO2' in pollutants:
-                dataset['no2_value'] = data['no2_value']
-
-            dataset['channel_ref'] = data['deviceCode']
-
-            formatted_data.append(dataset)
+        events_model = EventsModel(tenant)
+        data = events_model.get_downloadable_events(sites, start_date, end_date, frequency, formatted_pollutants)
 
         if download_type == 'json':
-            return create_response("air-quality data download successful", data=formatted_data), Status.HTTP_200_OK
+            return create_response("air-quality data download successful", data=data), Status.HTTP_200_OK
 
         if download_type == 'csv':
-            return excel.make_response_from_records(formatted_data, 'csv', file_name=f'airquality-{frequency}-data')
+            return excel.make_response_from_records(data, 'csv', file_name=f'airquality-{frequency}-data')
 
         return create_response(f'unknown data format {download_type}', success=False), Status.HTTP_400_BAD_REQUEST
 
