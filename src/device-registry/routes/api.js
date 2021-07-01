@@ -25,9 +25,9 @@ router.post(
       body("visibility").exists(),
       body("name").exists(),
       body("device_number").exists(),
-      body("name").matches(constants.WHITE_SPACES_REGEX, "i"),
-      body("mountType").isIn(["pole", "wall", "motor"]),
-      body("powerType").isIn(["solar", "mains", "alternator"]),
+      check("name").matches(constants.WHITE_SPACES_REGEX, "i"),
+      check("mountType").isIn(["pole", "wall", "motor"]),
+      check("powerType").isIn(["solar", "mains", "alternator"]),
     ],
   ]),
   deviceController.createThing
