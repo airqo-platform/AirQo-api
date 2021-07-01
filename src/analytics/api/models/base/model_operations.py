@@ -1,4 +1,7 @@
+from collections.abc import Sequence
+from datetime import datetime
 from pymongo import ASCENDING, DESCENDING
+from bson.objectid import ObjectId
 
 
 class BaseMongoOperations:
@@ -67,6 +70,10 @@ class ChainableMongoOperations(BaseMongoOperations):
         self.init_match_expr = "$and"
         self.match_stage = {"$and": []}
 
+    @staticmethod
+    def to_object_ids(ids):
+        return [ObjectId(ID) for ID in ids]
+
     def _update_match_stage(self, expression, raise_exc=True, **new_filters):
         """
         Method  for updating the $match pipeline stage.
@@ -75,17 +82,15 @@ class ChainableMongoOperations(BaseMongoOperations):
             expression: the mongoDB $match expression e.g $and, $or. more info here https://docs.mongodb.com/manual/reference/operator/aggregation/match/
             **new_filters: a dict containing the new filter conditions
         """
-        init_cond = self.match_stage.get(self.init_match_expr, [])
-
-        if expression == self.init_match_expr:
-            self.match_stage[self.init_match_expr] = init_cond.append(new_filters)
-            return
+        init_cond = self.match_stage.get(self.init_match_expr) or []
 
         if raise_exc:
             for v in init_cond:
                 if expression in v.keys():
                     raise Exception(f'the {expression} expression already set')
-        self.match_stage[expression] = init_cond.append(new_filters)
+
+        init_cond.append(new_filters)
+        self.match_stage[self.init_match_expr] = init_cond
 
     def filter_by(self, *args, **filters):
         """
@@ -129,7 +134,7 @@ class ChainableMongoOperations(BaseMongoOperations):
 
             if not isinstance(value, list):
                 raise Exception("keys must be instance of list")
-            self._update_match_stage(expression, raise_exc=False, **{"$in": value})
+            self._update_match_stage(expression, raise_exc=False, **{key: {"$in": value}})
         #     modified_filters[key] = {"$in": value}
         #
         # self._update_filter_dict(**modified_filters)
@@ -156,8 +161,6 @@ class ChainableMongoOperations(BaseMongoOperations):
         modified_filters = []
         for key, value in filters.items():
             modified_filters.append({key: value})
-            if not isinstance(value, list):
-                raise Exception("keys must be instance of list")
         self._update_match_stage(expression, **{expression: modified_filters})
 
         return self
@@ -202,8 +205,10 @@ class ChainableMongoOperations(BaseMongoOperations):
         return self
 
     def _aggregate_exec(self, projections):
-        stages = [self.match_stage] if self.match_stage.get(self.init_match_expr) else []
+        stages = [{"$match": self.match_stage}] if self.match_stage.get(self.init_match_expr) else []
         stages.extend(self.stages)
+
+        print("stages", stages)
 
         if projections:
             mongo_db_project_operator = projections
