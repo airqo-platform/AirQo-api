@@ -22,12 +22,12 @@ definitions:
   CustomDownloadDataBody:
     type: object
     properties:
-      locations:
+      sites:
         required: true
         type: array
         items:
           type: string
-        example: [Kawala]
+        example: ["60d2b0317e9018a1a8d38c11", "60d2b5c57e9018a1a8d38c1c"]
       startDate:
         type: string
         example: "2021-01-08T21:00:00.000Z"
@@ -36,13 +36,13 @@ definitions:
         example: "2021-02-08T21:00:00.000Z"
       frequency:
         type: string
-        enum: [hourly, daily, monthly]
+        enum: [raw, hourly, daily, monthly]
         example: daily
       pollutants:
         type: array
         items:
           type: string
-        example: ["PM 2.5", "PM 10", "NO2"]
+        example: ["pm2_5", "pm10", "no2"]
   CustomDownloadDataResponse:
     type: object
     properties:
@@ -59,33 +59,33 @@ definitions:
   PollutantData:
     type: object
     properties:
-      datetime:
+      frequency:
         type: string
-        example: "2021-01-09"
-      owner:
+        example: "raw"
+      time:
         type: string
-        example: airqo
-      location:
+        example: "2021-06-16T00:57:42.898Z"
+      site_id:
         type: string
-        example: Kawala
-      division:
-        type: string
-        example: Lubaga
-      frquency:
-        type: string
-        example: daily
-      pm25_value:
-        type: float
-        example: 141.89,
-      pm10_value:
-        type: float
-        example: 189.85,
-      no2_value:
-        type: float
-        example: 16.49,
-      channel_ref:
-        type: string
-        example: "AR2RHV97"
+        example: 60d2b5c57e9018a1a8d38c1c
+      pm2_5:
+        type: object
+        properties:
+          value:
+            type: string
+            exmaple: 78.26829528808594
+      pm10:
+        type: object
+        properties:
+          value:
+            type: string
+            exmaple: 78.26829528808594
+      no2:
+        type: object
+        properties:
+          value:
+            type: string
+            exmaple: 78.26829528808594
 responses:
   200:
     description: A successful downlaod of json data
