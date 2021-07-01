@@ -16,11 +16,44 @@ const constants = require("../config/constants");
 middlewareConfig(router);
 
 /******************* create device ***************************/
-router.get("/", deviceController.listAll);
-router.post("/ts", deviceController.createThing);
-router.delete("/ts/delete", deviceController.deleteThing);
-router.delete("/ts/clear", deviceController.clearThing);
-router.put("/ts/update", deviceController.updateThingSettings);
+router.get("/", oneOf([[query("tenant").exists()]]), deviceController.listAll);
+router.post(
+  "/ts",
+  oneOf([
+    [
+      query("tenant").exists(),
+      body("visibility").exists(),
+      body("name").exists(),
+      body("device_number").exists(),
+      body("name").matches(constants.WHITE_SPACES_REGEX, "i"),
+      body("mountType").isIn(["pole", "wall", "motor"]),
+      body("powerType").isIn(["solar", "mains", "alternator"]),
+    ],
+  ]),
+  deviceController.createThing
+);
+router.delete(
+  "/ts/delete",
+  oneOf([[query("tenant").exists(), query("name").exists()]]),
+  deviceController.deleteThing
+);
+router.delete(
+  "/ts/clear",
+  oneOf([[query("tenant").exists(), query("name").exists()]]),
+  deviceController.clearThing
+);
+router.put(
+  "/ts/update",
+  oneOf([
+    [
+      query("tenant").exists(),
+      query("name").exists(),
+      body("mountType").isIn(["pole", "wall", "motor"]),
+      body("powerType").isIn(["solar", "mains", "alternator"]),
+    ],
+  ]),
+  deviceController.updateThingSettings
+);
 router.get("/by/location", deviceController.listAllByLocation);
 router.get(
   "/by/nearest-coordinates",

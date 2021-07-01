@@ -81,6 +81,7 @@ const defaultConfig = {
   DEFAULT_LIMIT_FOR_QUERYING_SITES: 100,
   DEFAULT_EVENTS_LIMIT: 1000,
   EVENTS_CACHE_LIMIT: 1800,
+  WHITE_SPACES_REGEX: /^\S*$/,
 };
 
 function envConfig(env) {
