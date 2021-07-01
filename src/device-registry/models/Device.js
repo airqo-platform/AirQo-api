@@ -3,6 +3,17 @@ const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
 const { logObject, logElement } = require("../utils/log");
+const { monthsInfront } = require("../utils/date");
+
+const maxLength = [
+  9,
+  "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
+];
+
+const minLength = [
+  5,
+  "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
+];
 
 const deviceSchema = new mongoose.Schema(
   {
@@ -25,7 +36,9 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       required: [true, "Device name is required!"],
       trim: true,
+      maxlength: maxLength,
       unique: true,
+      minlength: minLength,
     },
     visibility: {
       type: Boolean,
@@ -39,7 +52,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: String,
+      type: ObjectId,
     },
     description: {
       type: String,
@@ -57,6 +70,8 @@ const deviceSchema = new mongoose.Schema(
     mountType: {
       type: String,
       trim: true,
+      default: "wall",
+      lowercase: true,
     },
     ISP: {
       type: String,
@@ -72,35 +87,41 @@ const deviceSchema = new mongoose.Schema(
     },
     device_manufacturer: {
       type: String,
+      default: "airqo",
     },
     product_name: {
       type: String,
+      default: "gen1",
     },
     powerType: {
       type: String,
+      lowercase: true,
     },
-    locationID: {
-      type: String,
+    isRetired: {
+      type: Boolean,
+      default: false,
     },
-    host: {
-      name: String,
-      phone: Number,
+    host_id: {
+      type: ObjectId,
     },
     site_id: {
       type: ObjectId,
     },
     isPrimaryInLocation: {
       type: Boolean,
+      default: false,
     },
     isUsedForCollocation: {
       type: Boolean,
+      default: false,
     },
     nextMaintenance: {
       type: Date,
+      default: monthsInfront(3),
     },
-    channelID: {
+    device_number: {
       type: Number,
-      required: [true, "Channel ID is required!"],
+      required: [true, "device_number is required!"],
       trim: true,
       unique: true,
     },
@@ -168,16 +189,16 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
-      channelID: this.channelID,
+      device_number: this.device_number,
       powerType: this.powerType,
       mountType: this.mountType,
-      locationID: this.locationID,
       isActive: this.isActive,
       writeKey: this.writeKey,
+      isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
-      siteName: this.siteName,
       site_id: this.site_id,
+      siteName: this.siteName,
       locationName: this.locationName,
       height: this.height,
     };
@@ -238,7 +259,7 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           isUsedForCollocation: 1,
           nextMaintenance: 1,
-          channelID: 1,
+          device_number: 1,
           powerType: 1,
           mountType: 1,
           locationID: 1,
