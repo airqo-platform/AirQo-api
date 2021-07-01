@@ -15,7 +15,8 @@ from api.models import (
     DeviceHourlyMeasurementModel,
     DeviceDailyExceedancesModel,
     DeviceDailyHistoricalAveragesModel,
-    SiteModel
+    EventsModel,
+    SiteModel,
 )
 from api.models.constants import CODE_LOCATIONS
 
@@ -119,6 +120,29 @@ class DownloadCustomisedDataResource(Resource):
             return excel.make_response_from_records(formatted_data, 'csv', file_name=f'airquality-{frequency}-data')
 
         return create_response(f'unknown data format {download_type}', success=False), Status.HTTP_400_BAD_REQUEST
+
+
+@rest_api.route('/dashboard/chart/data')
+class ChartDataResource(Resource):
+    @swag_from('/api/docs/dashboard/customised_chart_post.yml')
+    @validate_request_json(
+        'sites|required:list', 'startDate|required:datetime',
+        'endDate|required:datetime', 'frequency|required:str'
+    )
+    def post(self):
+        tenant = request.args.get('tenant')
+
+        json_data = request.get_json()
+        sites = json_data["sites"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
+        frequency = json_data["frequency"]
+
+        events_model = EventsModel(tenant)
+
+        data = events_model.get_events(sites, start_date, end_date, frequency)
+
+        return create_response("chart data successfully retrieved", data=data), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/customised_chart')

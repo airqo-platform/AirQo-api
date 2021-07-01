@@ -4,6 +4,7 @@ from .dashboard import (
     ExceedanceLocationsResource,
     DivisionsResource,
     DeviceDailyMeasurementsResource,
+    ChartDataResource,
     CustomisedChartResource,
     MonitoringSiteResource,
 )
