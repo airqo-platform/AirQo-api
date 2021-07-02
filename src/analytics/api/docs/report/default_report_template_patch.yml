@@ -1,0 +1,33 @@
+Example endpoint for updating default report template
+---
+tags: [Report]
+parameters:
+  - name: tenant
+    in: query
+    type: string
+    required: true
+    default: airqo
+  - name: body
+    in: body
+    type: object
+    properties:
+      userId:
+        type: string
+        example:
+      reportName:
+        type: string
+        example:
+      reportBody:
+        type: object
+responses:
+  202:
+    description: A successful update of report template
+    schema:
+      type: object
+      properties:
+        status:
+          type: string
+          example: success
+        message:
+          type: string
+          example: default reporting template updated successfully

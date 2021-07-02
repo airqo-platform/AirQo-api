@@ -1,4 +1,5 @@
 const { logText, logObject, logElement } = require("./log");
+const isEmpty = require("is-empty");
 
 const generateDateFormat = (ISODate) => {
   try {
@@ -30,10 +31,15 @@ const isTimeEmpty = (dateTime) => {
   logElement("mins", mins);
   logElement("secs", secs);
   logElement("millisecs", millisecs);
-  if (hrs == 00 && mins == 00 && secs == 00 && millisecs == 00) {
-    return true;
+  if (
+    Number.isInteger(hrs) &&
+    Number.isInteger(mins) &&
+    Number.isInteger(secs) &&
+    Number.isInteger(millisecs)
+  ) {
+    return false;
   }
-  return false;
+  return true;
 };
 
 const generateDateFormatWithoutHrs = (ISODate) => {

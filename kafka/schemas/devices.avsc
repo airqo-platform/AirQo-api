@@ -1,0 +1,52 @@
+{
+    "namespace": "net.airqo.models",
+    "type": "record",
+    "name": "DevicesDetails",
+    "aliases": ["DevicesDetailsValue"],
+    "doc": "https://github.com/airqo-platform/AirQo-api/blob/staging/src/device-registry/models/Device.js",
+    "fields": [
+        {
+            "name":"tenant",
+            "type": "string"
+        },
+        {
+            "name":"devices",
+            "type":{
+                "type": "array",
+                "items":{
+                    "name":"Device",
+                    "type":"record",
+                    "fields":[
+                        {
+                            "name": "name", "type": "string"
+                        },
+                        {
+                            "name": "site_id", "type": "string"
+                        },
+                        {
+                            "name": "device_number", "type": "string"
+                        },
+                        {
+                            "name": "createdAt", "type": "string"
+                        },
+                        {
+                            "name": "latitude", "type": "double"
+                        },
+                        {
+                            "name": "longitude", "type": "double"
+                        },
+                        {
+                            "name": "device_manufacturer", "type": "string"
+                        },
+                        {
+                            "name": "description", "type": "string"
+                        },
+                        {
+                            "name": "owner", "type": "string"
+                        }
+                    ]
+                }
+            }
+        }
+    ]
+}
