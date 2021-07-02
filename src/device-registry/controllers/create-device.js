@@ -28,11 +28,15 @@ const updateDeviceUtil = require("../utils/update-device");
 const nearestDevices = require("../utils/nearest-device");
 const generateFilter = require("../utils/generate-filter");
 
+const { validationResult } = require("express-validator");
+
 const {
   tryCatchErrors,
   axiosError,
   missingQueryParams,
   callbackErrors,
+  missingOrInvalidValues,
+  badRequest,
 } = require("../utils/errors");
 
 const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
@@ -580,6 +584,11 @@ const device = {
 
   createOne: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
       const { tenant } = req.query;
       if (tenant) {
         console.log("creating one device....");
