@@ -232,6 +232,9 @@ class ChainableMongoOperations(BaseMongoOperations):
     def group(self, **conditions):
         return self.add_stages([{"$group": conditions}])
 
+    def sort(self, **conditions):
+        return self.add_stages([{"$sort": conditions}])
+
     def match_in(self, **condition):
         for field, value in condition.items():
             if isinstance(value, str) and not isinstance(value, Sequence):
@@ -243,8 +246,6 @@ class ChainableMongoOperations(BaseMongoOperations):
     def _aggregate_exec(self, projections):
         stages = [{"$match": self.match_stage}] if self.match_stage.get(self.init_match_expr) else []
         stages.extend(self.stages)
-
-        print("stages", stages)
 
         if projections:
             mongo_db_project_operator = projections
