@@ -37,9 +37,9 @@ spec:
               nodePort: 30004
               advertisedHost: XX.XXX.XXX.XX
     config:
-      offsets.topic.replication.factor: 1
-      transaction.state.log.replication.factor: 1
-      transaction.state.log.min.isr: 1
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 3
       log.message.format.version: "2.8"
       inter.broker.protocol.version: "2.8"
     storage:

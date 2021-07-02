@@ -1,4 +1,4 @@
-package net.airqo.connectors.config;
+package net.airqo.connectors;
 
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;

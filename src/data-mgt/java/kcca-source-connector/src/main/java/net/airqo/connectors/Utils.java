@@ -2,7 +2,6 @@ package net.airqo.connectors;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.airqo.connectors.models.RawMeasurements;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

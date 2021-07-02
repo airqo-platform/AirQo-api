@@ -1,5 +1,6 @@
 package net.airqo;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.Gson;
 import io.confluent.kafka.schemaregistry.client.SchemaRegistryClient;
 import io.confluent.kafka.schemaregistry.testutil.MockSchemaRegistry;
@@ -62,23 +63,17 @@ public class DeviceMeasurementsTest {
                             new KafkaAvroDeserializer(schemaRegistryClient));
 
             List<RawKccaMeasurement> rawMeasurements = UtilsTest.composeKccaInputData();
-            Gson gson = new Gson();
-            String string = gson.toJson(rawMeasurements);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            String string = objectMapper.writeValueAsString(rawMeasurements);
             inputTopic.pipeInput("id", string);
 
-            System.out.println(outputTopic.readValue());
-//            logger.info(String.valueOf(outputTopic.readValue()));
+            logger.info("{}", outputTopic.readValue());
 //            assertThat(outputTopic.readValue(), equalTo(null));
         }
         finally {
             MockSchemaRegistry.dropScope(SCHEMA_REGISTRY_SCOPE);
         }
-    }
-
-    @Test
-    public void print(){
-        System.out.println(SCHEMA_REGISTRY_SCOPE);
-        logger.info(SCHEMA_REGISTRY_SCOPE);
     }
 
 }

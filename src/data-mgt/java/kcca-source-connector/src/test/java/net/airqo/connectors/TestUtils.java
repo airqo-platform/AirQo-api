@@ -1,20 +1,10 @@
 package net.airqo.connectors;
 
-import net.airqo.connectors.models.RawMeasurements;
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.List;
 import java.util.Properties;
-import java.util.TimeZone;
-
-import static net.airqo.connectors.Utils.getMeasurements;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class TestUtils {
