@@ -87,7 +87,8 @@ const createEvent = {
       if (Array.isArray(req.query.device)) {
         return badRequest(
           res,
-          "multiple Device query params not supported, please use one comma separated one"
+          "multiple Device query params not supported, please use one comma separated one",
+          []
         );
       }
       const limitInt = parseInt(limit, 0);

@@ -15,6 +15,8 @@ const minLength = [
   "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
 ];
 
+const noSpaces = /^\S*$/;
+
 const deviceSchema = new mongoose.Schema(
   {
     latitude: {
@@ -39,6 +41,7 @@ const deviceSchema = new mongoose.Schema(
       maxlength: maxLength,
       unique: true,
       minlength: minLength,
+      match: noSpaces,
     },
     visibility: {
       type: Boolean,
