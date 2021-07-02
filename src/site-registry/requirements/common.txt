@@ -55,5 +55,5 @@ Rtree==0.9.4
 Shapely==1.7.0
 six==1.15.0
 uritemplate==3.0.1
-urllib3==1.25.9
+urllib3==1.26.5
 Werkzeug==1.0.1
