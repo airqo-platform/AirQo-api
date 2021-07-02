@@ -7,7 +7,7 @@ import requests
 from google.cloud import bigquery
 from kafkaRegistry import Kafka
 
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
 START_TIME = os.getenv("START_TIME", "2021-01-01")
 END_TIME = os.getenv("END_TIME", "2021-01-02")
 INTERVAL = os.getenv("INTERVAL", "1")
@@ -91,7 +91,7 @@ def build_channel_id_filter(devices_data):
     channel_filter = "channel_id = 0"
     for device in devices_data:
         device_dict = dict(device)
-        channel_filter = channel_filter + f" or channel_id = {device_dict.get('channelID')}"
+        channel_filter = channel_filter + f" or channel_id = {device_dict.get('device_number')}"
 
     return channel_filter
 
@@ -126,7 +126,7 @@ def transform_airqo_data(data, devices):
     for device in devices:
         transformed_data = []
         device = dict(device)
-        device_data = data.loc[data['channel_id'] == int(device.get("channelID", "0"))]
+        device_data = data.loc[data['channel_id'] == int(device.get("device_number", "0"))]
 
         for index, device_row in device_data.iterrows():
             device_data = dict({
