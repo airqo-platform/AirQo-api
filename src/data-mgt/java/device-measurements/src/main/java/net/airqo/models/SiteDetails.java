@@ -19,4 +19,11 @@ public class SiteDetails {
     public void set_id(String _id) {
         this._id = _id;
     }
+
+    @Override
+    public String toString() {
+        return "SiteDetails{" +
+                "_id='" + _id + '\'' +
+                '}';
+    }
 }

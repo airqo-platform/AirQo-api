@@ -26,4 +26,12 @@ public class DevicesResponse {
     public void setDevices(List<Device> devices) {
         this.devices = devices;
     }
+
+    @Override
+    public String toString() {
+        return "DevicesResponse{" +
+                "success=" + success +
+                ", devices=" + devices +
+                '}';
+    }
 }
