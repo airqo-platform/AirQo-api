@@ -4,13 +4,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-prod-schema-registry
+  name: prod-schema-registry
   namespace: production
 spec:
   selector:
     matchLabels:
       app: schema-registry
-  replicas: 2
+  replicas: 1
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -24,22 +24,22 @@ spec:
     spec:
       containers:
         - name: schema-registry
-          image: us.gcr.io/airqo-250220/prod-airqo-schema-registry:latest
+          image: us.gcr.io/airqo-250220/prod-schema-registry:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
               name: schema-registry
           env:
             - name: SCHEMA_REGISTRY_HOST_NAME
-              value: schema-registry
+              value: prod-schema-registry
             - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
-              value: 192.168.49.2:32028
+              value: prod-kafka-cluster-kafka-bootstrap:9092
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: schema-registry-svc
+  name: prod-schema-registry-svc
   namespace: production
 spec:
   selector:

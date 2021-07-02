@@ -39,7 +39,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: schema-registry-svc
+  name: dev-schema-registry-svc
   namespace: dev
 spec:
   selector:

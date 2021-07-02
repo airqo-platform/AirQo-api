@@ -34,7 +34,7 @@ spec:
             - name: TENANT
               value: airqo
             - name: APPLICATION.ID
-              value: prod-airqo-measurements-stream-id-1
+              value: airqo-measurements-stream-3d508ddb
             - name: BOOTSTRAP.SERVERS
               value: prod-kafka-cluster-kafka-bootstrap:9092
             - name: SCHEMA.REGISTRY.URL
