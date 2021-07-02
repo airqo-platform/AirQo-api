@@ -16,17 +16,122 @@ const constants = require("../config/constants");
 middlewareConfig(router);
 
 /******************* create device ***************************/
-router.get("/", deviceController.listAll);
-router.post("/ts", deviceController.createThing);
-router.delete("/ts/delete", deviceController.deleteThing);
-router.delete("/ts/clear", deviceController.clearThing);
-router.put("/ts/update", deviceController.updateThingSettings);
+router.get("/", oneOf([[query("tenant").exists()]]), deviceController.listAll);
+router.post(
+  "/ts",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant does not exist"),
+      body("visibility")
+        .exists()
+        .withMessage("visibility does not exist"),
+      body("name")
+        .exists()
+        .withMessage("name does not exist"),
+      body("device_number")
+        .exists()
+        .withMessage("device_number does not exist"),
+      body("name")
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device name should not have spaces in it"),
+      body("mountType")
+        .isIn(["pole", "wall", "motor"])
+        .withMessage(
+          "the mountType value is not among the expected ones of pole, walll and motor"
+        ),
+      body("powerType")
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones of solar, mains and alternator"
+        ),
+      body("name")
+        .isLength({ min: 5, max: 9 })
+        .withMessage(
+          "minimum length should be 5 characters and maximum length should be 9 characters"
+        ),
+    ],
+  ]),
+  deviceController.createThing
+);
+router.delete(
+  "/ts/delete",
+  oneOf([[query("tenant").exists(), query("name").exists()]]),
+  deviceController.deleteThing
+);
+router.delete(
+  "/ts/clear",
+  oneOf([[query("tenant").exists(), query("name").exists()]]),
+  deviceController.clearThing
+);
+router.put(
+  "/ts/update",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant does not exist"),
+      query("device")
+        .exists()
+        .withMessage("device does not exist"),
+      body("mountType")
+        .isIn(["pole", "wall", "motor"])
+        .withMessage(
+          "the mountType value is not among the expected ones of pole, walll and motor"
+        ),
+      body("powerType")
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones of solar, mains and alternator"
+        ),
+    ],
+  ]),
+  deviceController.updateThingSettings
+);
 router.get("/by/location", deviceController.listAllByLocation);
 router.get(
   "/by/nearest-coordinates",
   deviceController.listAllByNearestCoordinates
 );
-router.post("/", deviceController.createOne);
+router.post(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant does not exist"),
+      body("visibility")
+        .exists()
+        .withMessage("visibility does not exist"),
+      body("name")
+        .exists()
+        .withMessage("name does not exist"),
+      body("device_number")
+        .exists()
+        .withMessage("device_number does not exist"),
+      body("name")
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device name should not have spaces in it"),
+      body("mountType")
+        .isIn(["pole", "wall", "motor"])
+        .withMessage(
+          "the mountType value is not among the expected ones of pole, walll and motor"
+        ),
+      body("powerType")
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones of solar, mains and alternator"
+        ),
+      body("name")
+        .isLength({ min: 5, max: 9 })
+        .withMessage(
+          "minimum length should be 5 characters and maximum length should be 9 characters"
+        ),
+    ],
+  ]),
+  deviceController.createOne
+);
 router.delete("/photos", deviceController.deletePhotos);
 router.delete("/delete", deviceController.delete);
 router.put("/update", deviceController.updateDevice);

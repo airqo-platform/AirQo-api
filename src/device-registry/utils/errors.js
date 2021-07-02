@@ -64,8 +64,8 @@ const unclearError = (res) => {
     .json({ success: false, message: "unclear server error" });
 };
 
-const badRequest = (res, message) => {
-  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message });
+const badRequest = (res, message, errors) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message, errors });
 };
 
 module.exports = {
