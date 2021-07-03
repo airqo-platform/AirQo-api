@@ -81,7 +81,7 @@ def filter_valid_devices(devices_data):
     valid_devices = []
     for device in devices_data:
         device_dict = dict(device)
-        if "site" in device_dict.keys():
+        if "site" in device_dict.keys() and "device_number" in device_dict.keys():
             valid_devices.append(device_dict)
 
     return valid_devices
