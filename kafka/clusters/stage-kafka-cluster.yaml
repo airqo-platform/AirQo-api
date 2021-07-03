@@ -7,6 +7,12 @@ spec:
   kafka:
     version: 2.8.0
     replicas: 3
+    minReadySeconds: 10
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
     listeners:
       - name: plain
         port: 9092
@@ -58,6 +64,12 @@ spec:
           key: stage-kafka-cluster-metrics-config.yml
   zookeeper:
     replicas: 3
+    minReadySeconds: 10
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
     storage:
       type: ephemeral
     readinessProbe:
