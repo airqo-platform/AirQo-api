@@ -1,4 +1,4 @@
-package net.airqo.connectors.models;
+package net.airqo.connectors;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.kafka.connect.data.Schema;

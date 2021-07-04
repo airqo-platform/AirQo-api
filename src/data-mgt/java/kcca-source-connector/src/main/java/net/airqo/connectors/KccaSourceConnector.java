@@ -1,7 +1,5 @@
 package net.airqo.connectors;
 
-import net.airqo.connectors.config.KccaSourceConnectorConfig;
-import net.airqo.connectors.tasks.KccaSourceTask;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -16,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static net.airqo.connectors.config.KccaSourceConnectorConfig.CONFIG_DEF;
+import static net.airqo.connectors.KccaSourceConnectorConfig.CONFIG_DEF;
 
 public class KccaSourceConnector extends SourceConnector {
 

@@ -1,12 +1,12 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnect
 metadata:
-  name: kcca-source-connector-cluster
-  namespace: staging
+  name: airqo-source-connector-cluster
+  namespace: production
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: us.gcr.io/airqo-250220/airqo-stage-kcca-deivce-measurements-connect:latest
+  image: us.gcr.io/airqo-250220/prod-airqo-deivce-measurements-connect:latest
   replicas: 2
   minReadySeconds: 10
   strategy:
@@ -14,39 +14,32 @@ spec:
     rollingUpdate:
       maxSurge: 1
       maxUnavailable: 0
-  bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
+  bootstrapServers: prod-kafka-cluster-kafka-bootstrap:9092
   metricsConfig:
     type: jmxPrometheusExporter
     valueFrom:
       configMapKeyRef:
-        name: stage-kcca-source-connector-cluster-metrics
-        key: stage-kcca-source-connector-cluster-metrics-config.yml
-  externalConfiguration:
-    volumes:
-      - name: connector-config
-        secret:
-          secretName: clarity-credentials
+        name: prod-airqo-source-connector-cluster-metrics
+        key: prod-airqo-source-connector-cluster-metrics-config.yml
   config:
-    group.id: kcca-source-connector-cluster
-    offset.storage.topic: kcca-source-connector-cluster-offsets
-    config.storage.topic: kcca-source-connector-cluster-configs
-    status.storage.topic: kcca-source-connector-cluster-status
+    group.id: airqo-source-connector-cluster
+    offset.storage.topic: airqo-source-connector-cluster-offsets
+    config.storage.topic: airqo-source-connector-cluster-configs
+    status.storage.topic: airqo-source-connector-cluster-status
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
-    key.converter.schemas.enable: true
-    value.converter.schemas.enable: true
-    config.providers: file
-    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
 
 ---
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: stage-kcca-source-connector-cluster-metrics
+  name: prod-airqo-source-connector-cluster-metrics
   labels:
     app: strimzi
 data:
-  stage-kcca-source-connector-cluster-metrics-config.yml: |
+  prod-airqo-source-connector-cluster-metrics-config.yml: |
     # Inspired by kafka-connect rules
     # https://github.com/prometheus/jmx_exporter/blob/master/example_configs/kafka-connect.yml
     # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics

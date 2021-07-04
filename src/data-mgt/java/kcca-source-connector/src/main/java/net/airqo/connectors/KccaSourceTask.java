@@ -1,14 +1,10 @@
-package net.airqo.connectors.tasks;
+package net.airqo.connectors;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import net.airqo.connectors.Utils;
-import net.airqo.connectors.VersionUtil;
-import net.airqo.connectors.config.KccaSourceConnectorConfig;
-import net.airqo.connectors.models.RawMeasurements;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.source.SourceRecord;

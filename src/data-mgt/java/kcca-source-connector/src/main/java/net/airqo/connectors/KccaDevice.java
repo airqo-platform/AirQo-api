@@ -1,4 +1,4 @@
-package net.airqo.connectors.models;
+package net.airqo.connectors;
 
 import java.io.Serializable;
 
