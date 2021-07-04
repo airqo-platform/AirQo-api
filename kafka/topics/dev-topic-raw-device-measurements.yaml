@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: kcca-raw-device-measurements-topic
+  name: airqo-raw-device-measurements-topic
   namespace: dev
   labels:
     strimzi.io/cluster: dev-kafka-cluster
@@ -9,5 +9,5 @@ spec:
   partitions: 1
   replicas: 1
   config:
-    retention.ms: 86400000 # data retention set to 1 day
+    retention.ms: 3600000 # data retention set to 1 hour
     segment.bytes: 1073741824

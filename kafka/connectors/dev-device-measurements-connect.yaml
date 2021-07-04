@@ -1,30 +1,30 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnect
 metadata:
-  name: kcca-source-connector-cluster
+  name: raw-measurements-source-connector-cluster
   namespace: dev
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: us.gcr.io/airqo-250220/airqo-stage-kcca-deivce-measurements-connect:latest
+  image: us.gcr.io/airqo-250220/stage-airqo-deivce-measurements-connect:latest
   replicas: 1
   bootstrapServers: dev-kafka-cluster-kafka-bootstrap:9092
   metricsConfig:
     type: jmxPrometheusExporter
     valueFrom:
       configMapKeyRef:
-        name: kcca-source-connector-cluster-metrics
-        key: kcca-source-connector-cluster-metrics-config.yml
+        name: source-connector-cluster-metrics
+        key: source-connector-cluster-metrics-config.yml
   externalConfiguration:
     volumes:
       - name: connector-config
         secret:
           secretName: clarity-credentials
   config:
-    group.id: kcca-source-connector-cluster
-    offset.storage.topic: kcca-source-connector-cluster-offsets
-    config.storage.topic: kcca-source-connector-cluster-configs
-    status.storage.topic: kcca-source-connector-cluster-status
+    group.id: measurements-source-connector-cluster
+    offset.storage.topic: measurements-source-connector-cluster-offsets
+    config.storage.topic: measurements-source-connector-cluster-configs
+    status.storage.topic: measurements-source-connector-cluster-status
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: true
@@ -36,11 +36,11 @@ spec:
 kind: ConfigMap
 apiVersion: v1
 metadata:
-  name: kcca-source-connector-cluster-metrics
+  name: source-connector-cluster-metrics
   labels:
     app: strimzi
 data:
-  kcca-source-connector-cluster-metrics-config.yml: |
+  source-connector-cluster-metrics-config.yml: |
     # Inspired by kafka-connect rules
     # https://github.com/prometheus/jmx_exporter/blob/master/example_configs/kafka-connect.yml
     # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics
