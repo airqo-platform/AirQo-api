@@ -10,3 +10,5 @@ pyarrow==3.0.0
 pymongo==3.11.3
 python-dotenv==0.17.0
 scikit_learn==0.24.1
+confluent-kafka
+confluent-kafka[avro]
