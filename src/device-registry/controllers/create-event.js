@@ -1,6 +1,7 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const { getMeasurements } = require("../utils/get-measurements");
+const insertMeasurementsService = require("../services/insert-device-measurements");
 
 const {
   tryCatchErrors,

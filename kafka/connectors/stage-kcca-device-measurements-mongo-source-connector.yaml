@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta2
+apiVersion: kafka.strimzi.io/v1alpha1
 kind: KafkaConnector
 metadata:
   name: kcca-mongodb-source-connector
@@ -18,3 +18,4 @@ spec:
     tasksMax: 2
     database.include.list: MONGO_DATABASE
     collection.include.list: MONGO_COLLECTION
+
