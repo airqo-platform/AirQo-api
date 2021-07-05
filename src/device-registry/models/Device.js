@@ -4,6 +4,9 @@ const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
 const { logObject, logElement } = require("../utils/log");
 const { monthsInfront } = require("../utils/date");
+const Cryptr = require("cryptr");
+const constants = require("../config/constants");
+const cryptr = new Cryptr(constants.KEY_ENCRYPTION_KEY);
 
 const maxLength = [
   9,
@@ -50,6 +53,17 @@ const deviceSchema = new mongoose.Schema(
     },
     createdAt: {
       type: Date,
+    },
+    generation: {
+      type: Number,
+      required: [true, "the generation is required"],
+    },
+    generation_count: {
+      type: Number,
+      required: [
+        true,
+        "the number of the device in the provided generation is required",
+      ],
     },
     elevation: {
       type: Number,
@@ -130,6 +144,7 @@ const deviceSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
+      default: false,
     },
     pictures: [{ type: String }],
   },
@@ -145,6 +160,10 @@ deviceSchema.plugin(uniqueValidator, {
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
     // this.name = this._transformDeviceName(this.name);
+    if (this.writeKey && this.readKey) {
+      this.writeKey = this._encryptKey(this.writeKey);
+      this.readKey = this._encryptKey(this.readKey);
+    }
     let n = this.name;
     console.log({ n });
   }
@@ -174,6 +193,14 @@ deviceSchema.methods = {
   _transformDeviceName(name) {
     let transformedName = tranformDeviceName(name);
     return transformedName;
+  },
+  _encryptKey(key) {
+    let encryptedKey = cryptr.encrypt(key);
+    return encryptedKey;
+  },
+  _decryptKey(encryptedKey) {
+    let decryptedKey = cryptr.decrypt(encryptedKey);
+    return decryptedKey;
   },
   toJSON() {
     return {
@@ -229,10 +256,24 @@ deviceSchema.methods = {
 
 // I will add the check for the user after setting up the communications between services
 deviceSchema.statics = {
-  createDevice(args) {
-    return this.create({
-      ...args,
-    });
+  async register(args) {
+    try {
+      logObject("the args", args);
+      let createdDevice = await this.create({
+        ...args,
+      });
+      return {
+        success: true,
+        message: "successfully created the device",
+        data: createdDevice,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "model server error",
+        error: error.message,
+      };
+    }
   },
 
   list({ _skip = 0, _limit = 100, filter = {} } = {}) {

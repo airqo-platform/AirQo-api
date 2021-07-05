@@ -23,6 +23,8 @@ const {
   getApiKeys,
 } = require("../utils/does-device-exist");
 
+const jsonify = require("../utils/jsonify");
+
 const updateDeviceUtil = require("../utils/update-device");
 
 const nearestDevices = require("../utils/nearest-device");
@@ -43,6 +45,7 @@ const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const deleteDevice = require("../utils/delete-device");
 const getDetail = require("../utils/get-device-details");
 const getLastPath = require("../utils/get-last-path");
+const log = require("log4js").getLogger("create-device");
 
 const device = {
   createThing: async (req, res) => {
@@ -591,18 +594,32 @@ const device = {
       }
       const { tenant } = req.query;
       if (tenant) {
-        console.log("creating one device....");
-        const device = await getModelByTenant(
+        logText("creating one device....");
+        // log.debug("creating one device....");
+        let body = req.body;
+        logObject("the body", body);
+        let responseFromCreateDevice = await getModelByTenant(
           tenant.toLowerCase(),
           "device",
           DeviceSchema
-        ).createDevice(req.body);
-        return res.status(HTTPStatus.CREATED).json(device);
+        ).register(req.body);
+
+        if (responseFromCreateDevice.success == true) {
+          let jsonifiedBody = jsonify(responseFromCreateDevice.data);
+          logObject("the created device", jsonifiedBody);
+          return res.status(HTTPStatus.OK).json(responseFromCreateDevice.data);
+        }
+        return res
+          .status(HTTPStatus.BAD_GATEWAY)
+          .json(responseFromCreateDevice);
       } else {
-        missingQueryParams(req, res);
+        missingQueryParams(res);
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      return res
+        .status(HTTPStatus.BAD_GATEWAY)
+        .json({ message: "create one controller", more: e.message });
+      // tryCatchErrors(res, e);
     }
   },
 
