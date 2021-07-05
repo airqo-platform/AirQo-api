@@ -100,33 +100,54 @@ router.post(
     [
       query("tenant")
         .exists()
-        .withMessage("tenant does not exist"),
+        .withMessage("tenant should be provided"),
       body("visibility")
         .exists()
-        .withMessage("visibility does not exist"),
-      body("name")
-        .exists()
-        .withMessage("name does not exist"),
+        .withMessage("visibility should be provided")
+        .bail()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("device_number")
         .exists()
-        .withMessage("device_number does not exist"),
+        .withMessage("device_number should be provided")
+        .bail()
+        .isInt()
+        .withMessage("the generation should be an integer between 1 and 99 "),
       body("name")
+        .exists()
+        .withMessage("name should be provided")
+        .bail()
         .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device name should not have spaces in it"),
-      body("mountType")
-        .isIn(["pole", "wall", "motor"])
-        .withMessage(
-          "the mountType value is not among the expected ones of pole, walll and motor"
-        ),
-      body("powerType")
-        .isIn(["solar", "mains", "alternator"])
-        .withMessage(
-          "the powerType value is not among the expected ones of solar, mains and alternator"
-        ),
-      body("name")
+        .withMessage("the device name should not have white spaces in it")
         .isLength({ min: 5, max: 9 })
         .withMessage(
           "minimum length should be 5 characters and maximum length should be 9 characters"
+        ),
+      body("generation")
+        .exists()
+        .withMessage("the generation number should be provided")
+        .bail()
+        .isInt({ min: 1, max: 99 })
+        .withMessage("the generation should be an integer between 1 and 99 "),
+      body("generation_count")
+        .exists()
+        .withMessage("the generation_count should be provided")
+        .bail()
+        .isInt({ min: 1, max: 99 })
+        .withMessage("the generation should be an integer between 1 and 99 "),
+      body("mountType")
+        .if(body("mountType").exists())
+        .notEmpty()
+        .isIn(["pole", "wall", "faceboard", "rooftop"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include pole, wall, faceboard and rooftop "
+        ),
+      body("powerType")
+        .if(body("powerType").exists())
+        .notEmpty()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones which include solar, mains and alternator"
         ),
     ],
   ]),
