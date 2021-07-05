@@ -23,4 +23,4 @@ ENV SCHEMA_REGISTRY_URL=$SCHEMA_REGISTRY \
     CONSUMER_GROUP=$CONSUMER_GROUP
 
 # Run the application
-CMD ["python", "controllers/MeasurementsConsumer.py"]
+CMD ["python", "MeasurementsConsumer.py"]
