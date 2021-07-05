@@ -11,7 +11,7 @@ https://kafka.apache.org/quickstart
 ### Docker
 
 ```bash
-docker build --build-arg BOOTSTRAP_SERVERS=127.0.0.1:9092 --build-arg HOST_NAME=schema-registry -t schema-registry .
+docker build --build-arg BOOTSTRAP_SERVERS=127.0.0.1:9092 --build-arg HOST_NAME=schema-registry -t stage-airqo-schema-registry .
 docker run -d --network=host schema-registry
 ```
 
@@ -24,7 +24,7 @@ Use `stage-schema-registry.yaml` in `AirQo-api/kafka` directory. Update the `SCH
 Create a schema `AirQoAccountModel`. Run the following from terminal
 
 ```bash
-curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data '{"schema": "{\"namespace\": \"net.airqo.models\",  \"type\": \"record\", \"name\": \"AirQoAccountModel\", \"fields\": [{\"name\": \"firstName\", \"type\": \"string\"}, {\"name\": \"lastName\", \"type\": \"string\"},  {\"name\": \"emailAddress\", \"type\": \"string\" }]}"}'  http://0.0.0.0:8081/subjects/account-model-value/versions
+curl -X POST -H "Content-Type: application/vnd.schemaregistry.v1+json" --data '{"schema": "{\"namespace\": \"net.airqo.models\",  \"type\": \"record\", \"name\": \"AirQoAccountModel\", \"fields\": [{\"name\": \"firstName\", \"type\": \"string\"}, {\"name\": \"lastName\", \"type\": \"string\"},  {\"name\": \"emailAddress\", \"type\": \"string\" }]}"}' http://0.0.0.0:8081/subjects/account-model-value/versions
 ```
 
 ## Viewing available schemas
