@@ -43,6 +43,7 @@ class Event:
             }
         ])
 
+
 class Exceedance:
     def __init__(self, tenant):
         self.tenant = tenant
@@ -51,15 +52,3 @@ class Exceedance:
         tenant = self.tenant
         db = connect_mongo(tenant)
         return db.exceedances.insert(records)
-
-
-class Site:
-    def __init__(self, tenant):
-        self.tenant = tenant
-
-    def get_sites(self, id):
-        tenant = self.tenant
-        db = connect_mongo(tenant)
-        results = list(db.sites.find(
-            {'_id': id}, {'_id': 0}.sort([('$natural', -1)])))
-        return results.sites
