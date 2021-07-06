@@ -28,7 +28,7 @@ spec:
           imagePullPolicy: Always
           env:
             - name: INPUT.TOPIC
-              value: airqo-raw-device-measurements-topic
+              value: airqo-streams-raw-device-measurements-topic
             - name: OUTPUT.TOPIC
               value: airqo-transformed-device-measurements-topic
             - name: TENANT

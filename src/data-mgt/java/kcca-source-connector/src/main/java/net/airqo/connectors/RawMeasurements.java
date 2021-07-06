@@ -82,4 +82,18 @@ public class RawMeasurements implements Serializable {
     public void setCharacteristics(HashMap<String, HashMap<String, Double>> characteristics) {
         this.characteristics = characteristics;
     }
+
+    @Override
+    public String toString() {
+        return "RawMeasurements{" +
+                "_id='" + _id + '\'' +
+                ", recId='" + recId + '\'' +
+                ", time='" + time + '\'' +
+                ", device='" + device + '\'' +
+                ", deviceCode='" + deviceCode + '\'' +
+                ", average='" + average + '\'' +
+                ", location=" + location +
+                ", characteristics=" + characteristics +
+                '}';
+    }
 }

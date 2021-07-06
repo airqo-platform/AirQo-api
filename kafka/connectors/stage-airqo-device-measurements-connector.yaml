@@ -9,7 +9,7 @@ spec:
   class: net.airqo.connectors.AirqoSourceConnector
   tasksMax: 2
   config:
-    topic: airqo-raw-device-measurements-topic
+    topic: airqo-streams-raw-device-measurements-topic
     feedsBaseUrl: https://staging-platform.airqo.net/api/v1/
     airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
     pollInterval: 30000 # 30 seconds

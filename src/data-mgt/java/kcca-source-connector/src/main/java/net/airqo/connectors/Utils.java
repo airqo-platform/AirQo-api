@@ -74,6 +74,7 @@ public class Utils {
             ObjectMapper objectMapper = new ObjectMapper();
             List<RawMeasurements> measurements = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
 
+            logger.info("Url => {}", urlString);
             logger.info("Device measurements => {}", measurements);
 
             return measurements;
@@ -82,8 +83,6 @@ public class Utils {
         catch (Exception e){
             e.printStackTrace();
         }
-
-
         return new ArrayList<>();
     }
 

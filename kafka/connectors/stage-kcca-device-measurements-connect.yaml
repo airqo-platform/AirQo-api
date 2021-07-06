@@ -6,7 +6,7 @@ metadata:
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: us.gcr.io/airqo-250220/airqo-stage-kcca-deivce-measurements-connect:latest
+  image: us.gcr.io/airqo-250220/stage-kcca-deivce-measurements-connect:latest
   replicas: 2
   minReadySeconds: 10
   strategy:

@@ -28,9 +28,9 @@ spec:
           imagePullPolicy: Always
           env:
             - name: INPUT.TOPIC
-              value: kcca-raw-device-measurements-topic
+              value: kcca-streams-raw-device-measurements-topic
             - name: OUTPUT.TOPIC
-              value: kcca-transformed-device-measurements-topic
+              value: kcca-streams-transformed-device-measurements-topic
             - name: TENANT
               value: kcca
             - name: APPLICATION.ID

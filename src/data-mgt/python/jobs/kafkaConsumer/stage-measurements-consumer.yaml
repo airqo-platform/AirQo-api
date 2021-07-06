@@ -4,12 +4,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stage-measurements-consumer
+  name: stage-kcca-measurements-consumer
   namespace: staging
 spec:
   selector:
     matchLabels:
-      app: stage-measurements-consumer
+      app: stage-kcca-measurements-consumer
   replicas: 1
   minReadySeconds: 10
   strategy:
@@ -20,10 +20,10 @@ spec:
   template:
     metadata:
       labels:
-        app: stage-measurements-consumer
+        app: stage-kcca-measurements-consumer
     spec:
       containers:
-        - name: stage-measurements-consumer
+        - name: stage-kcca-measurements-consumer
           image: us.gcr.io/airqo-250220/stage-stage-measurements-consumer:latest
           imagePullPolicy: Always
           env:
@@ -32,7 +32,7 @@ spec:
             - name: BOOTSTRAP_SERVERS
               value: stage-kafka-cluster-kafka-bootstrap:9092
             - name: INPUT_TOPIC
-              value: airqo-transformed-device-measurements-topic
+              value: kcca-streams-transformed-device-measurements-topic
             - name: BASE_URL
               value: http://staging-platform.airqo.net/api/v1/
             - name: CONSUMER_GROUP
