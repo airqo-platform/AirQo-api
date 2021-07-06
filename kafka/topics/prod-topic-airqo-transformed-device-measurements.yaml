@@ -1,0 +1,13 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: airqo-transformed-device-measurements-topic
+  namespace: production
+  labels:
+    strimzi.io/cluster: prod-kafka-cluster
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 259200000 # data retention set to 3 day
+    segment.bytes: 1073741824

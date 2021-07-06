@@ -1,4 +1,4 @@
-apiVersion: kafka.strimzi.io/v1beta1
+apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: kcca-raw-device-measurements-topic
@@ -9,5 +9,5 @@ spec:
   partitions: 1
   replicas: 1
   config:
-    retention.ms: 86400000 # data retention set to 1 day
+    retention.ms: 259200000 # data retention set to 1 day
     segment.bytes: 1073741824

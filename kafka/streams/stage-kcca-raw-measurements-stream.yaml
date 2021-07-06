@@ -1,0 +1,43 @@
+###########################################################
+# Start deployment of KCCA raw device measurements streams application - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-kcca-raw-measurements-stream
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: stage-kcca-raw-measurements-stream
+  replicas: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: stage-kcca-raw-measurements-stream
+    spec:
+      containers:
+        - name: stage-airqo-raw-measurements-stream
+          image: us.gcr.io/airqo-250220/stage-raw-device-measurements-stream:latest
+          imagePullPolicy: Always
+          env:
+            - name: INPUT.TOPIC
+              value: kcca-raw-device-measurements-topic
+            - name: OUTPUT.TOPIC
+              value: kcca-transformed-device-measurements-topic
+            - name: TENANT
+              value: kcca
+            - name: APPLICATION.ID
+              value: kcca-measurements-stream-3d508ddb-5b9f-493a-b96a-9a3c62dc030f
+            - name: BOOTSTRAP.SERVERS
+              value: stage-kafka-cluster-kafka-bootstrap:9092
+            - name: SCHEMA.REGISTRY.URL
+              value: http://stage-schema-registry-svc:8081
+            - name: AIRQO.BASE.URL
+              value: https://staging-platform.airqo.net/api/v1/
