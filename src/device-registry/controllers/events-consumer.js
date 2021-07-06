@@ -1,7 +1,7 @@
 const { logObject, logElement } = require("../utils/log");
 const { Kafka } = require('kafkajs')
 const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
-const insertMeasurtements = require("../utils/insert-device-measurements");
+const insertMeasurtements = require("../utils/bulk-insert-measurements");
 const constants = require("../config/constants");
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
@@ -13,7 +13,7 @@ const kafka = new Kafka({ clientId: KAFKA_CLIENT_ID, brokers: [BOOTSTRAP_SERVERS
 const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY })
 const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP })
 
-const rawMeasurementsConsumer = async () => {
+const rawEventsConsumer = async () => {
   await consumer.connect();
 
   const topics = RAW_MEASUREMENTS_TOPICS.split(",");
@@ -36,6 +36,6 @@ const rawMeasurementsConsumer = async () => {
   });
 }
 
-rawMeasurementsConsumer().catch(console.error)
+rawEventsConsumer().catch(console.error)
 
-module.exports = rawMeasurementsConsumer;
+module.exports = rawEventsConsumer;

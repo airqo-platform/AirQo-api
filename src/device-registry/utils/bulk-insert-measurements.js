@@ -5,8 +5,6 @@ const { logObject } = require("./log");
 
 const insertDeviceMeasurements = {
 
-    // Contains modules that provide various ways to insert device measurements.
-
     addValuesArray: async (measurements_array) => {
 
         try {
@@ -73,75 +71,6 @@ const insertDeviceMeasurements = {
 
     },
 
-    addDeviceValues: async (device, tenant, measurements) => {
-
-        try {
-
-            if (tenant && device && measurements) {
-
-                const deviceDetails = await getDetail(tenant, device);
-                const deviceExists = isEmpty(deviceDetails);
-    
-                if (!deviceExists){
-                    return {
-                        success: false,
-                        message: `Device (${device}) for tenant (${tenant}) does not exist on the network`,
-                        errors: [],
-                        valuesRejected: data,
-                        valuesAdded: [],
-                    }
-                }
-
-                const transformedMeasurements = await transformMeasurements(
-                    device,
-                    measurements
-                  );
-
-                const response = await insertMeasurements(
-                    tenant,
-                    transformedMeasurements
-                );
-
-                if(response.success === false){
-                    return {
-                        success: false,
-                        message: "finished the operation with some errors",
-                        errors: response.errors,
-                        valuesRejected: response.valuesRejected,
-                        valuesAdded: response.valuesAdded,
-                      };
-                }
-
-                return response;
-
-
-            } else {
-
-                return {
-                    success: false,
-                    message: "misssing parameters",
-                    errors: [],
-                    valuesRejected: data,
-                    valuesAdded: [],
-
-                };
-            }
-
-
-        } 
-        catch (e) {
-
-            return {
-                success: false,
-                message: "Error Occurred...",
-                errors: error.message,
-                valuesRejected: [],
-                valuesAdded: [],
-            };
-
-        }
-
-    },
 };
 
 module.exports =  insertDeviceMeasurements;
