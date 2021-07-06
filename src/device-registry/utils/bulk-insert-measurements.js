@@ -1,7 +1,7 @@
-const { transformMeasurements } = require("./transform-measurements");
-const insertMeasurements = require("./insert-measurements");
-const { doesDeviceExist } = require("./does-component-exist");
-const { logObject } = require("./log");
+const { transformMeasurements } = require("../utils/transform-measurements");
+const insertMeasurements = require("../utils/insert-measurements");
+const { doesDeviceExist } = require("../utils/does-component-exist");
+const { logObject } = require("../utils/log");
 
 const insertDeviceMeasurements = {
 
@@ -9,13 +9,13 @@ const insertDeviceMeasurements = {
 
         try {
 
-            for (const measurement of measurements_array) {
+            for (let index in array_data) {
 
-                logObject("Kafka Measurement", measurement);
+                const data = array_data[index];
 
-                const device = measurement.device;
-                const tenant = measurement.tenant;
-                const measurements = [measurement];
+                const device = data.device;
+                const tenant = data.tenant;
+                const measurements = [data];
 
                 if (!tenant || !device) {
 
@@ -23,26 +23,30 @@ const insertDeviceMeasurements = {
                         success: false,
                         message: "Missing values...",
                         errors: [],
-                        valuesRejected: measurements,
+                        valuesRejected: data,
                         valuesAdded: [],
 
                     }));
+
                     continue;
+
                 }
 
                 let isDevicePresent = await doesDeviceExist(
                     device,
                     tenant.toLowerCase()
                 );
+
                 if (!isDevicePresent){
                     logObject("Kafka Data insertion log", JSON.stringify({
                         success: false,
                         message: `Device (${device}) for tenant (${tenant}) does not exist on the network`,
                         errors: [],
-                        valuesRejected: measurements,
+                        valuesRejected: data,
                         valuesAdded: [],
 
                     }));
+
                     continue;
                 }
 
@@ -53,11 +57,10 @@ const insertDeviceMeasurements = {
 
                 let response = await insertMeasurements(tenant, transformedMeasurements);
                 logObject("Kafka Data insertion log", JSON.stringify(response));
+
             }
         } 
         catch (e) {
-
-            logObject("Kafka Single Event Error", e);
 
             logObject("Kafka Data insertion log", JSON.stringify({
                 success: false,
