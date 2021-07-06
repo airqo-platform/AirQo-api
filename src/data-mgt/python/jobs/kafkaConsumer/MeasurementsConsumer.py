@@ -8,8 +8,8 @@ import pandas as pd
 BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS")
 SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC")
-CONSUMER_GROUP = os.getenv("CONSUMER_GROUP", "asasasa")
-BASE_URL = os.getenv("BASE_URL", "https://staging-platform.airqo.net/api/v1/")
+CONSUMER_GROUP = os.getenv("CONSUMER_GROUP")
+BASE_URL = os.getenv("BASE_URL")
 
 
 def post_measurements(measurements, tenant, device):
@@ -46,13 +46,13 @@ def consume_measurements(registry):
 
             measurements = pd.DataFrame(dict(value).get("measurements"))
             measurements_groups = measurements.groupby(by=["device"])
-            for index, group in measurements_groups:
+            for name, group in measurements_groups:
                 tenant = group["tenant"].values[0]
                 device = group["device"].values[0]
-                print(tenant)
-                print(device)
-                print(group.to_json())
-                # post_measurements(group.to_json(), tenant=tenant, device=device)
+                # print(tenant)
+                # print(device)
+                # print(group.to_json(orient='records'))
+                post_measurements(group.to_json(orient='records'), tenant=tenant, device=device)
 
         except Exception as e:
             traceback.print_exc()
