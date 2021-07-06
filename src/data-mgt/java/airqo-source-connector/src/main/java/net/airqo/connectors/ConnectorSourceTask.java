@@ -78,13 +78,13 @@ public class ConnectorSourceTask extends SourceTask {
 
             devices.forEach(airqoDevice -> {
 
-                String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getChannelId();
+                String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
 
                 RawMeasurement measurements = getMeasurements(urlString);
 
                 if(measurements != null){
 
-                    measurements.setChannelID(airqoDevice.getChannelId());
+                    measurements.setChannelID(airqoDevice.getDeviceNumber());
                     measurements.setDevice(airqoDevice.getDevice());
                     measurements.setSite_id(airqoDevice.getSite().get_id());
                     measurementList.add(measurements);

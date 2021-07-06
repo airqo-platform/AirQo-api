@@ -15,10 +15,10 @@ public class AirqoDevice implements Serializable {
     @JsonAlias({ "name" })
     private String device = "";
 
-    @SerializedName("channelID")
+    @SerializedName("device_number")
     @Expose
-    @JsonAlias({ "channelID" })
-    private int channelId = -1;
+    @JsonAlias({ "channelID", "device_number" })
+    private int deviceNumber = -1;
 
     @SerializedName("site")
     @Expose
@@ -33,12 +33,12 @@ public class AirqoDevice implements Serializable {
         this.site = site;
     }
 
-    public int getChannelId() {
-        return channelId;
+    public int getDeviceNumber() {
+        return deviceNumber;
     }
 
-    public void setChannelId(int channelId) {
-        this.channelId = channelId;
+    public void setDeviceNumber(int deviceNumber) {
+        this.deviceNumber = deviceNumber;
     }
 
     public String getDevice() {

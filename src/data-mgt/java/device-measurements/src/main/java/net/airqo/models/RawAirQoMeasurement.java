@@ -26,7 +26,7 @@ public class RawAirQoMeasurement implements Serializable {
 
     @SerializedName("channelID")
     @Expose
-    @JsonAlias({"channelID", "channel_ID", "channel_Id"})
+    @JsonAlias({"channelID", "channel_ID", "channel_Id", "device_number"})
     private Integer channelId = -1;
 
     @SerializedName("pm2_5")
