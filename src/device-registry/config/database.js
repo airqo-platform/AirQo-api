@@ -6,7 +6,7 @@ mongoose.set("debug", false);
 const constants = require("./constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const URI = constants.MONGO_URI;
-logElement("the URI string", URI);
+// logElement("the URI string", URI);
 
 const options = {
   useCreateIndex: true,
@@ -28,7 +28,8 @@ const connect = () => mongoose.createConnection(URI, options);
 const connectToMongoDB = () => {
   const db = connect();
   db.on("open", () => {
-    logText(`mongoose connection opened on: ${URI}`);
+    // logText(`mongoose connection opened on: ${URI}`);
+    logText(`mongoose connection successfully opened...`);
   });
 
   db.on("error", (err) => {

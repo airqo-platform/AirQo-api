@@ -1,5 +1,6 @@
+const { logElement, logText, logObject } = require("../utils/log");
 const cloudinary = require("cloudinary").v2;
-console.log("cloud name", process.env.CLOUD_NAME);
+// logElement("cloud name", process.env.CLOUD_NAME);
 
 cloudinary.config({
   cloud_name: process.env.CLOUD_NAME,
