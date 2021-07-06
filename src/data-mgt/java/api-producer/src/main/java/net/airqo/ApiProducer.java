@@ -1,14 +1,21 @@
 package net.airqo;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.util.JSONPObject;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
+import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
+import net.airqo.models.Measurement;
+import net.airqo.models.TransformedDeviceMeasurements;
+import org.apache.avro.io.EncoderFactory;
+import org.apache.avro.io.JsonEncoder;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.common.serialization.StringDeserializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,27 +26,47 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ApiProducer {
+
 
     private static final Logger logger = LoggerFactory.getLogger(ApiProducer.class);
 
     public static void main(String[] args) {
         Properties props = buildConfig();
 
-        KafkaConsumer<String, Object> consumer = new KafkaConsumer<>(props);
+        KafkaConsumer<Object, TransformedDeviceMeasurements> consumer = new KafkaConsumer<>(props);
 
         try (consumer) {
             consumer.subscribe(Collections.singletonList(props.getProperty("topic")));
             while (true) {
-                ConsumerRecords<String, Object> records = consumer.poll(Duration.ofMillis(100));
-                for (ConsumerRecord<String, Object> record : records){
-                    logger.info("offset = {}", record.offset());
-                    ObjectMapper objectMapper = new ObjectMapper();
-                    JsonObject data = objectMapper.convertValue(record.value(), new TypeReference<>() {});
-                    logger.info("{}", data);
-                    List<Measurement> measurements = objectMapper.convertValue(data.getValue()[], new TypeReference<>() {});
+                ConsumerRecords<Object, TransformedDeviceMeasurements> records = consumer.poll(Duration.ofMillis(100));
+                for (ConsumerRecord<Object, TransformedDeviceMeasurements> record : records){
 
+                    try {
+                        TransformedDeviceMeasurements transformedDeviceMeasurements = record.value();
+
+                        List<Measurement> measurements = transformedDeviceMeasurements.getMeasurements();
+
+                        Map<String, List<Measurement>> listMap = measurements.stream().collect(Collectors.groupingBy(m -> m.getDevice().toString()));
+
+                        listMap.forEach((deviceName, deviceMeasurements) -> {
+                            String tenant = deviceMeasurements.get(0).getTenant().toString();
+
+                            logger.info(deviceName);
+                            logger.info(tenant);
+                            logger.info("{}", deviceMeasurements.get(0));
+
+                            props.put("tenant", tenant);
+                            props.put("device", deviceName);
+
+                           sendToApi(deviceMeasurements, Action.ADD_EVENTS, props);
+
+                        });
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
@@ -51,7 +78,6 @@ public class ApiProducer {
             add(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG);
             add(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG);
             add("topic");
-            add(ConsumerConfig.GROUP_ID_CONFIG);
         }};
 
         Properties props = new Properties();
@@ -74,20 +100,27 @@ public class ApiProducer {
         });
 
         props.putIfAbsent(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, "false");
-        props.putIfAbsent(ConsumerConfig.GROUP_ID_CONFIG, "api-producer-group");
         props.putIfAbsent(ConsumerConfig.AUTO_COMMIT_INTERVAL_MS_CONFIG, "1000");
-        props.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        props.setProperty(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class.getName());
         props.setProperty(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, KafkaAvroDeserializer.class.getName());
+        props.setProperty(KafkaAvroDeserializerConfig.SPECIFIC_AVRO_READER_CONFIG, "true");
 
         return props;
     }
 
+    abstract static class IgnoreSchemaProperty
+    {
+        // You have to use the correct package for JsonIgnore,
+        // fasterxml or codehaus
+        @JsonIgnore
+        abstract void getSchema();
+    }
 
-    private static void sendToApi(JSONPObject data, String url, Action action, Properties props){
+    private static void sendToApi(Object data, Action action, Properties props){
 
         try {
 
-            String urlStr = buildUrl(url, action, props);
+            String urlStr = buildUrl(action, props);
 
             ObjectMapper objectMapper = new ObjectMapper();
             String body = objectMapper.writeValueAsString(data);
@@ -118,35 +151,23 @@ public class ApiProducer {
 
     }
 
-//    private static Map<String, Object> getQueryParameters(Action action, Object o){
-//
-//        Map<String, Object> params = new HashMap<>();
-//
-//
-//        switch (action){
-//            case ADD_EVENTS:
-//                params.put("tenant")
-//        }
-//
-//        return params;
-//    }
-
-    private static String buildUrl(String baseUrl, Action action, Properties props){
+    private static String buildUrl(Action action, Properties props){
 
         StringBuilder url = new StringBuilder();
-        url.append(baseUrl);
+        url.append(props.getProperty("baseUrl"));
 
         switch (action){
             case ADD_EVENTS:
-                url.append("device/events?");
+                url.append("devices/events?");
+                Map<String, Object> params = new HashMap<>(){{
+                    put("tenant", props.getProperty("tenant"));
+                    put("device", props.getProperty("device"));
+                }};
+                params.forEach((s, o) -> url.append(String.format("%s=%s,", s, o)));
         }
 
-//        Map<String, Object> params = getQueryParameters(action);
-        Map<String, Object> params = new HashMap<>(){{
-            put("tenant", props.getProperty("tenant"));
-            put("device", props.getProperty("tenant"));
-        }};
-        params.forEach((s, o) -> url.append(String.format("%s=%s,", s, o)));
+        if(url.lastIndexOf(",") == url.length() - 1)
+            url.deleteCharAt(url.lastIndexOf(","));
 
         return url.toString();
     }
