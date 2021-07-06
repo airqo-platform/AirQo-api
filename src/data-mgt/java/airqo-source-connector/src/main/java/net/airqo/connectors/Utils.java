@@ -49,7 +49,7 @@ public class Utils {
             return new ArrayList<>();
         }
 
-        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices());
+        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices().toString());
         return devicesResponse.getDevices();
     }
 

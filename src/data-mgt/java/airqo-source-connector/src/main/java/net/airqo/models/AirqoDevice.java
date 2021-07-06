@@ -48,5 +48,14 @@ public class AirqoDevice implements Serializable {
     public void setDevice(String device) {
         this.device = device;
     }
+
+    @Override
+    public String toString() {
+        return "AirqoDevice{" +
+                "device='" + device + '\'' +
+                ", deviceNumber=" + deviceNumber +
+                ", site=" + site +
+                '}';
+    }
 }
 

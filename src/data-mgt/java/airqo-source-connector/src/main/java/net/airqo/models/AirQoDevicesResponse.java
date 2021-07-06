@@ -26,4 +26,12 @@ public class AirQoDevicesResponse {
     public void setDevices(List<AirqoDevice> devices) {
         this.devices = devices;
     }
+
+    @Override
+    public String toString() {
+        return "AirQoDevicesResponse{" +
+                "success=" + success +
+                ", devices=" + devices +
+                '}';
+    }
 }

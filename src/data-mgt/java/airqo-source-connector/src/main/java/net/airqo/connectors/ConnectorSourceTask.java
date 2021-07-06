@@ -78,18 +78,22 @@ public class ConnectorSourceTask extends SourceTask {
 
             devices.forEach(airqoDevice -> {
 
-                String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
+                if(!airqoDevice.getSite().get_id().trim().equals("")){
+                    String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
 
-                RawMeasurement measurements = getMeasurements(urlString);
+                    RawMeasurement measurements = getMeasurements(urlString);
 
-                if(measurements != null){
+                    if(measurements != null){
 
-                    measurements.setChannelID(airqoDevice.getDeviceNumber());
-                    measurements.setDevice(airqoDevice.getDevice());
-                    measurements.setSite_id(airqoDevice.getSite().get_id());
-                    measurementList.add(measurements);
+                        measurements.setChannelID(airqoDevice.getDeviceNumber());
+                        measurements.setDevice(airqoDevice.getDevice());
+                        measurements.setSite_id(airqoDevice.getSite().get_id());
+                        measurementList.add(measurements);
 
+                    }
                 }
+
+
             });
 
             if(!measurementList.isEmpty()){
