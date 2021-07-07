@@ -30,7 +30,7 @@ spec:
             - name: INPUT.TOPIC
               value: airqo-streams-raw-device-measurements-topic
             - name: OUTPUT.TOPIC
-              value: airqo-transformed-device-measurements-topic
+              value: airqo-streams-transformed-device-measurements-topic
             - name: TENANT
               value: airqo
             - name: APPLICATION.ID
