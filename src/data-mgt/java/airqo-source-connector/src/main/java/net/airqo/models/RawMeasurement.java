@@ -279,4 +279,32 @@ public class RawMeasurement {
     public void setExternalPressure(String externalPressure) {
         this.externalPressure = externalPressure;
     }
+
+    @Override
+    public String toString() {
+        return "RawMeasurement{" +
+                "time='" + time + '\'' +
+                ", pm25='" + pm25 + '\'' +
+                ", channelID=" + channelID +
+                ", frequency='" + frequency + '\'' +
+                ", device='" + device + '\'' +
+                ", site_id='" + site_id + '\'' +
+                ", pm10='" + pm10 + '\'' +
+                ", s2Pm25='" + s2Pm25 + '\'' +
+                ", s2Pm10='" + s2Pm10 + '\'' +
+                ", latitude='" + latitude + '\'' +
+                ", longitude='" + longitude + '\'' +
+                ", battery='" + battery + '\'' +
+                ", altitude='" + altitude + '\'' +
+                ", speed='" + speed + '\'' +
+                ", satellites='" + satellites + '\'' +
+                ", internalTemperature='" + internalTemperature + '\'' +
+                ", internalHumidity='" + internalHumidity + '\'' +
+                ", hdop='" + hdop + '\'' +
+                ", externalTemperature='" + externalTemperature + '\'' +
+                ", externalHumidity='" + externalHumidity + '\'' +
+                ", externalPressure='" + externalPressure + '\'' +
+                ", externalAltitude='" + externalAltitude + '\'' +
+                '}';
+    }
 }

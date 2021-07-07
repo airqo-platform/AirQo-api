@@ -71,7 +71,7 @@ public class Utils {
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             RawMeasurement measurements = new ObjectMapper().readerFor(RawMeasurement.class).readValue(httpResponse.body());
 
-            logger.info("Device measurements => {}", measurements);
+            logger.info("Device measurements => {}", measurements.toString());
 
             return measurements;
 
