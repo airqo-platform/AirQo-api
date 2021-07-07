@@ -7,7 +7,74 @@ const deleteChannel = require("./delete-channel");
 var { transform } = require("node-json-transform");
 
 const registerDevice = {
-  updateThingBodies: (req, res) => {
+  create: async (req) => {
+    let responseFromTransform = await registerDevice.transform(req);
+    let responseFromCreateOnThingSpeak = await createOnThingSpeak(
+      responseFromTransform.data.thingspeak
+    );
+    if (
+      responseFromTransform.success == true ||
+      responseFromCreateOnThingSpeak.success == true
+    ) {
+      let { plaformBody } = responseFromTransform.data;
+      let thingspeakResponse = responseFromCreateOnThingSpeak.data;
+      let writeKey = thingspeakResponse.api_keys[0].write_flag
+        ? thingspeakResponse.api_keys[0].api_key
+        : "";
+      let readKey = !thingspeakResponse.api_keys[1].write_flag
+        ? thingspeakResponse.api_keys[1].api_key
+        : "";
+      let device_number = thingspeakResponse.id;
+      let enrichedPlaformBody = {
+        ...plaformBody,
+        device_number,
+        writeKey,
+        readKey,
+      };
+      let responseFromCreateOnPlatform = await createOnPlatform(
+        enrichedPlaformBody
+      );
+
+      if (responseFromCreateOnPlatform.success == true) {
+        return {
+          success: true,
+          message: responseFromCreateOnPlatform.message,
+          data: responseFromCreateOnPlatform.data,
+        };
+      }
+      if (responseFromCreateOnPlatform.success == false) {
+        responseFromDeleteOnThingspeak = await registerDevice.deleteOnThingspeak(
+          device_number
+        );
+        if (responseFromDeleteOnThingspeak.success == true) {
+          return {
+            success: false,
+            message:
+              "unable to create device, successfully deleted device on external system",
+          };
+        }
+        return {
+          success: false,
+          message: "unable to successfully cancel device creation process",
+        };
+      }
+    }
+    if (responseFromCreateOnThingSpeak.success == false) {
+      let error = responseFromCreateOnThingSpeak.error
+        ? responseFromCreateOnThingSpeak.error
+        : "";
+      return {
+        success: false,
+        message: responseFromCreateOnThingSpeak.message,
+        error,
+      };
+    }
+  },
+  update: (req) => {},
+  delete: (req) => {},
+  view: (req) => {},
+  clear: (req) => {},
+  transformBodies: (req, res) => {
     let {
       name,
       latitude,
@@ -141,6 +208,38 @@ const registerDevice = {
     },
     clarity: {},
   },
+
+  createOnClarity: (tenant, req, res) => {
+    return res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
+      message: `temporary redirect, device creation for this organisation (${tenant}) not yet enabled/integrated`,
+      success: false,
+    });
+  },
+
+  createOnPlatform: async (req) => {
+    try {
+      let { tenant } = req.query;
+      let { platformBody } = await registerDevice.transform(req);
+      const device = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).register(platformBody);
+      logElement("the added device", device);
+      return {
+        success: true,
+        message: "successfully created the device",
+        device,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "server error - create on platform util",
+        error: error.message,
+      };
+    }
+  },
+
   createOnThingSpeak: async (
     req,
     res,
@@ -180,38 +279,7 @@ const registerDevice = {
         await deleteChannel(channel, device, error, req, res);
       });
   },
-
-  createOnClarity: (tenant, req, res) => {
-    return res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
-      message: `temporary redirect, device creation for this organisation (${tenant}) not yet enabled/integrated`,
-      success: false,
-    });
-  },
-
-  createOnPlatform: async (req) => {
-    try {
-      let { tenant } = req.query;
-      let { platformBody } = await registerDevice.transform(req);
-      const device = await getModelByTenant(
-        tenant,
-        "device",
-        DeviceSchema
-      ).register(platformBody);
-      logElement("the added device", device);
-      return {
-        success: true,
-        message: "successfully created the device",
-        device,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        message: "server error - create on platform util",
-        error: error.message,
-      };
-    }
-  },
-  createOnThingSpeak: async (body) => {
+  createOnThingSpeak: async (body, device_id) => {
     await axios
       .post(constants.THINGSPEAK_BASE_URL, body)
       .then(async (response) => {
@@ -229,69 +297,14 @@ const registerDevice = {
         };
       });
   },
-  create: async (req) => {
-    let responseFromTransform = await registerDevice.transform(req);
-    let responseFromCreateOnThingSpeak = await createOnThingSpeak(
-      responseFromTransform.data.thingspeak
-    );
-    if (
-      responseFromTransform.success == true ||
-      responseFromCreateOnThingSpeak.success == true
-    ) {
-      let { plaformBody } = responseFromTransform.data;
-      let thingspeakResponse = responseFromCreateOnThingSpeak.data;
-      let writeKey = thingspeakResponse.api_keys[0].write_flag
-        ? thingspeakResponse.api_keys[0].api_key
-        : "";
-      let readKey = !thingspeakResponse.api_keys[1].write_flag
-        ? thingspeakResponse.api_keys[1].api_key
-        : "";
-      let device_number = thingspeakResponse.id;
-      let enrichedPlaformBody = {
-        ...plaformBody,
-        device_number,
-        writeKey,
-        readKey,
-      };
-      let responseFromCreateOnPlatform = await createOnPlatform(
-        enrichedPlaformBody
-      );
-
-      if (responseFromCreateOnPlatform.success == true) {
-        return {
-          success: true,
-          message: responseFromCreateOnPlatform.message,
-          data: responseFromCreateOnPlatform.data,
-        };
-      }
-      if (responseFromCreateOnPlatform.success == false) {
-        responseFromDeleteOnThingspeak = await registerDevice.deleteOnThingspeak(
-          device_number
-        );
-        if (responseFromDeleteOnThingspeak.success == true) {
-          return {
-            success: false,
-            message:
-              "unable to create device, successfully deleted device on external system",
-          };
-        }
-        return {
-          success: false,
-          message: "unable to successfully cancel device creation process",
-        };
-      }
-    }
-    if (responseFromCreateOnThingSpeak.success == false) {
-      let error = responseFromCreateOnThingSpeak.error
-        ? responseFromCreateOnThingSpeak.error
-        : "";
-      return {
-        success: false,
-        message: responseFromCreateOnThingSpeak.message,
-        error,
-      };
-    }
-  },
+  updateOnThingspeak: (body, device_id) => {},
+  updateOnClarity: (body, device_id) => {},
+  updateOnPlatform: (body, device_id) => {},
+  deleteOnThingspeak: (body, device_id) => {},
+  deleteOnclarity: (body, device_id) => {},
+  clearOnThingspeak: (body, device_id) => {},
+  clearOnClarity: (body, device_id) => {},
+  clearOnPlatform: (body, device_id) => {},
 };
 
 const createOnThingSpeak = async (
@@ -355,4 +368,9 @@ const createDevice = async (tenant, prepBodyDeviceModel, req, res) => {
   });
 };
 
-module.exports = { createDevice, createOnThingSpeak, createOnClarity };
+module.exports = {
+  createDevice,
+  createOnThingSpeak,
+  createOnClarity,
+  registerDevice,
+};
