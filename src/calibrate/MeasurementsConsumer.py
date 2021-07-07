@@ -1,17 +1,11 @@
 import os
-
-# from confluent_kafka.avro import AvroProducer, loads
 import traceback
-
 from confluent_avro import AvroKeyValueSerde, SchemaRegistry
-
-# Ref: https://github.com/confluentinc/confluent-kafka-python
-# Ref: https://kafka-python.readthedocs.io/en/master/usage.html
-
 from kafka import KafkaConsumer, KafkaProducer
-
 from models import regression
 from schema import schema_str
+# Ref: https://kafka-python.readthedocs.io/en/master/usage.html
+
 
 BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS")
 SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
@@ -20,29 +14,8 @@ OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
 CONSUMER_GROUP = os.getenv("CONSUMER_GROUP")
 
 
-def delivery_report(err, msg):
-    """ Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush(). """
-    if err is not None:
-        print('Message delivery failed: {}'.format(err))
-    else:
-        print('Message delivered to {} [{}]'.format(msg.topic(), msg.partition()))
-
-
-# def produce_measurements(measurement):
-#     value_schema = loads(schema_str)
-#
-#     avr_producer = AvroProducer({
-#         'bootstrap.servers': BOOTSTRAP_SERVERS,
-#         'on_delivery': delivery_report,
-#         'schema.registry.url': SCHEMA_REGISTRY_URL
-#     }, default_value_schema=value_schema)
-#     avr_producer.produce(topic=OUTPUT_TOPIC, value=measurement)
-#     avr_producer.flush()
-
-
 def produce_measurements(measurements):
-    avro_serde = AvroKeyValueSerde(registry_client, INPUT_TOPIC)
+    avro_serde = AvroKeyValueSerde(registry_client, OUTPUT_TOPIC)
     producer = KafkaProducer(bootstrap_servers=[BOOTSTRAP_SERVERS])
     bytes_data = avro_serde.value.serialize(measurements, schema_str)
     producer.send(OUTPUT_TOPIC, bytes_data)
@@ -57,7 +30,6 @@ def consume_measurements(registry):
     hourly_combined_dataset = rg_model.hourly_combined_dataset
 
     for msg in consumer:
-        print(msg)
         value = avro_serde.value.deserialize(msg.value)
         calibrated_measurements = []
 
@@ -88,6 +60,7 @@ def consume_measurements(registry):
                     continue
 
             if calibrated_measurements:
+                print(dict({"measurements": calibrated_measurements}))
                 produce_measurements(dict({"measurements": calibrated_measurements}))
 
         except Exception as e:
