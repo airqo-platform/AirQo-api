@@ -1,4 +1,7 @@
 FROM quay.io/strimzi/kafka:0.22.1-kafka-2.7.0
 USER root:root
 COPY mongo-db.jar /opt/kafka/plugins/mongo/
+COPY avro-1.10.2.jar /opt/kafka/plugins/mongo/
 USER 1001
+
+# Ref https://www.confluent.io/hub/mongodb/kafka-connect-mongodb

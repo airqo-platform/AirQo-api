@@ -1,0 +1,27 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: stage-device-measurements-source-connector
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-device-measurements-connector-cluster
+spec:
+  # class: io.debezium.connector.mongodb.MongoDbConnector
+  class: com.mongodb.kafka.connect.MongoSourceConnector
+  tasksMax: 1
+  config:
+    # Ref: https://debezium.io/documentation/reference/connectors/mongodb.html#mongodb-connector-properties
+    # name: stage-device-measurements-source-connector
+    # mongodb.hosts: 35.224.67.244:27017
+    # mongodb.name: device_measurements_db
+    # mongodb.user: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_user}
+    # mongodb.password: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_password}
+    # database.include.list: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_names}
+    # collection.include.list: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_collections}
+
+    # https://docs.mongodb.com/kafka-connector/current/kafka-source/
+    connection.uri: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_uri}
+    database: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_name}
+    collection: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_collection}
+    topic.prefix: db
+    # pipeline: [{"$match": {"operationType": "insert"}}]
