@@ -3,9 +3,6 @@
 This microservice handles the device creation, site creation, events creation and the respective 
 activities whch take place on a site. 
 
-
-## API Reference
-
 ## Run Locally
 
 #### a) Using npm scripts
@@ -63,6 +60,7 @@ Push the respective images to a respective Docker register
 
 Use the images in deployment files for Kubernetes accordingly
 
+## API Reference
 
 #### Get all devices
 
