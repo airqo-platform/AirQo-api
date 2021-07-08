@@ -124,7 +124,7 @@ Use the images in deployment files for Kubernetes accordingly
 | `startTime`      | `string` | **Optional**. the startTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD) |
 | `endTime`      | `string` | **Optional**. the endTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD) |
 | `device`      | `string` | **Optional**. the unique name of the device |
-| `frequency`      | `string` | **Optional**. the formatted name of the site |
+| `frequency`      | `string` | **Optional**. the frequency of the events. Includes: hourly, daily and raw |
 
 
 #### Get all Site activities
