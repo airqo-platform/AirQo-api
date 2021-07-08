@@ -1,4 +1,3 @@
-
 # Device Registry
 
 This microservice handles the device creation, site creation, events creation and the respective 
@@ -6,6 +5,64 @@ activities whch take place on a site.
 
 
 ## API Reference
+
+## Run Locally
+
+#### a) Using npm scripts
+
+
+Clone the project
+
+```bash
+  git clone https://github.com/airqo-platform/AirQo-api
+```
+
+Go to the microservice directory
+```bash 
+  cd AirQo-api/src/device-registry
+```
+Install the dependencies
+```bash
+  npm install 
+```
+To run on MacOS
+```bash
+  npm run dev-mac
+```
+To run on Windows
+```bash
+  npm run dev-pc
+```
+
+#### b) Using Docker
+
+Build the image within the microservice's directory
+```bash
+docker build -t {IMAGE_NAME} .
+```
+Then run the container based on the newly created image
+
+```bash
+docker run -d -n {CONTAINER_NAME} -p host-port:container-port {IMAGE_NAME}
+```
+
+After successfully runing the container, you can go ahead and test out the respective endpoints
+
+## Deployment
+
+To deploy this project, we take advantages of kubernetes
+ as a container orchestration tool
+
+
+  Build the image within the microservice's directory
+```bash
+docker build -t {IMAGE_NAME} .
+```
+
+Push the respective images to a respective Docker register
+
+Use the images in deployment files for Kubernetes accordingly
+
 
 #### Get all devices
 
@@ -86,63 +143,3 @@ activities whch take place on a site.
 | `maintenance_type`      | `string` | **Optional**. the type of maintenance |
 | `id`      | `Object ID` | **Optional**. the Object ID associated with the activity |
 | `device`      | `string` | **Optional**. the unique device name |
-
-
-
-  
-## Run Locally
-
-#### a) Using npm scripts
-
-
-Clone the project
-
-```bash
-  git clone https://github.com/airqo-platform/AirQo-api
-```
-
-Go to the microservice directory
-```bash 
-  cd AirQo-api/src/device-registry
-```
-Install the dependencies
-```bash
-  npm install 
-```
-To run on MacOS
-```bash
-  npm run dev-mac
-```
-To run on Windows
-```bash
-  npm run dev-pc
-```
-
-#### b) Using Docker
-
-Build the image within the microservice's directory
-```bash
-docker build -t {IMAGE_NAME} .
-```
-Then run the container based on the newly created image
-
-```bash
-docker run -d -n {CONTAINER_NAME} -p host-port:container-port {IMAGE_NAME}
-```
-
-After successfully runing the container, you can go ahead and test out the respective endpoints
-
-## Deployment
-
-To deploy this project, we take advantages of kubernetes
- as a container orchestration tool
-
-
-  Build the image within the microservice's directory
-```bash
-docker build -t {IMAGE_NAME} .
-```
-
-Push the respective images to a respective Docker register
-
-Use the images in deployment files for Kubernetes accordingly
