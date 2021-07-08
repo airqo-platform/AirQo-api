@@ -29,7 +29,7 @@
     * **SECRET_KEY**
 
 * Run script
-    * `python main.py`
+    * `python main.py` -  the default tenant `AirQo` will be used in this case
     * or by explicitly stating the tenant `python main.py --tenant=kcca`
 
 #### Local Setup using docker
