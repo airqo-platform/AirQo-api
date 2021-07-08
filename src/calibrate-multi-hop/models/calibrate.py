@@ -1,7 +1,6 @@
 import numpy as np
 import pandas as pd
 import os
-import pickle
 from pymongo import MongoClient
 from simple_calibration import simple as sp 
 from datetime import datetime,timedelta
@@ -16,7 +15,7 @@ class Calibrate():
         """ initialize """
 
         with open('models/encounters.p','rb') as pickle_file:
-            encounters = pickle.load(pickle_file)
+            encounters = pd.read_pickle(pickle_file)
             self.allcals, self.myDict_id = self.calibrate_raw_data(encounters)
 
     def calibrate_raw_data(self, encounters):
