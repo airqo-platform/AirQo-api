@@ -100,8 +100,8 @@ Use the images in deployment files for Kubernetes accordingly
 | `tenant`      | `string` | **Required**. the tenant/organisation |
 | `id`      | `Object ID` | **Optional**. the Object ID of the site |
 | `lat_long`      | `string` | **Optional**. the lat_long string of the site |
-| `generated_name`      | `Number` | **Optional**. the generated name of the site |
-| `formatted_name`      | `Number` | **Optional**. the formatted name of the site |
+| `generated_name`      | `string` | **Optional**. the generated name of the site |
+| `formatted_name`      | `string` | **Optional**. the formatted name of the site |
 | `name`      | `string` | **Optional**. the name of the site |
 | `county`      | `string` | **Optional**. the county of the site |
 | `district`      | `string` | **Optional**. the district of the site |
@@ -123,8 +123,8 @@ Use the images in deployment files for Kubernetes accordingly
 | `tenant`      | `string` | **Required**. the tenant/organisation |
 | `startTime`      | `string` | **Optional**. the startTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD) |
 | `endTime`      | `string` | **Optional**. the endTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD) |
-| `device`      | `Number` | **Optional**. the unique name of the device |
-| `frequency`      | `Number` | **Optional**. the formatted name of the site |
+| `device`      | `string` | **Optional**. the unique name of the device |
+| `frequency`      | `string` | **Optional**. the formatted name of the site |
 
 
 #### Get all Site activities
