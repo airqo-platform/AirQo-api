@@ -174,7 +174,7 @@ def events_collection_insertion(device, data):
             print(results.json())
         else:
             print("Device registry failed to insert values. Status Code : " + str(results.status_code))
-            print("Result : " + results.json())
+            print(f"Result : {results.json()}")
 
     except Exception as ex:
         print("Error Occurred while inserting measurements: " + str(ex))
