@@ -236,7 +236,33 @@ eventSchema.statics = {
       ...args,
     });
   },
-
+  removeMany({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+      };
+      let removedEvents = await this.deleteMany(filter, options).exec();
+      let data = jsonify(removedEvents);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully cleared the device measurements from the system",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Event model server error - remove",
+        error: error.message,
+      };
+    }
+  },
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
     return this.aggregate()

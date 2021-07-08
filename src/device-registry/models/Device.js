@@ -39,12 +39,18 @@ const deviceSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: [true, "Device name is required!"],
+      required: [true, "the Device name is required!"],
       trim: true,
       maxlength: maxLength,
       unique: true,
       minlength: minLength,
       match: noSpaces,
+      lowercase: true,
+    },
+    long_name: {
+      type: String,
+      required: [true, "the Device long name is required"],
+      trim: true,
     },
     visibility: {
       type: Boolean,
@@ -206,6 +212,7 @@ deviceSchema.methods = {
     return {
       id: this._id,
       name: this.name,
+      long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
       createdAt: this.createdAt,
@@ -233,28 +240,8 @@ deviceSchema.methods = {
       height: this.height,
     };
   },
-
-  toUpdateJSON() {
-    return {
-      name: this.name,
-      locationID: this.locationID,
-      height: this.height,
-      mountType: this.mountType,
-      powerType: this.powerType,
-      date: this.date,
-      latitude: this.latitude,
-      longitude: this.longitude,
-      isPrimaryInLocation: this.isPrimaryInLocation,
-      isUsedForCollocaton: this.isUsedForCollocation,
-      updatedAt: this.updatedAt,
-      siteName: this.siteName,
-      locationName: this.locationName,
-      site_id: this.site_id,
-    };
-  },
 };
 
-// I will add the check for the user after setting up the communications between services
 deviceSchema.statics = {
   async register(args) {
     try {
@@ -327,12 +314,69 @@ deviceSchema.statics = {
       };
     }
   },
-
-  listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {
-    return this.find({ locationID: loc })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      let options = { new: true };
+      let modifiedUpdate = update;
+      logObject("modifiedUpdate", modifiedUpdate);
+      if (update.writeKey) {
+        modifiedUpdate.writeKey = cryptr.encrypt(update.writeKey);
+      }
+      if (update.readKey) {
+        modifiedUpdate.readKey = cryptr.encrypt(update.readKey);
+      }
+      let updatedDevice = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdate,
+        options
+      ).exec();
+      let data = jsonify(updatedDevice);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the device",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Device model server error - modify",
+        error: error.message,
+      };
+    }
+  },
+  async remove({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: { _id: 0, name: 1, device_number: 1, long_name: 1 },
+      };
+      let removedDevice = await this.findOneAndRemove(filter, options).exec();
+      let data = jsonify(removedDevice);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully removed the device",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Device model server error - remove",
+        error: error.message,
+      };
+    }
   },
 };
 
