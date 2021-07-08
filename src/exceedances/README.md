@@ -30,7 +30,7 @@
 
 * Run script
     * `python main.py`
-    * or by explicitly stating the tenant `python main --tenant=kcca`
+    * or by explicitly stating the tenant `python main.py --tenant=kcca`
 
 #### Local Setup using docker
 * Coming soon...
