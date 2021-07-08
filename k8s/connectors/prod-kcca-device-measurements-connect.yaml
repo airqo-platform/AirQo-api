@@ -37,6 +37,11 @@ spec:
     value.converter.schemas.enable: true
     config.providers: file
     config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+  template:
+    connectContainer:
+      env:
+        - name: STRIMZI_IMAGE_PULL_POLICY
+          value: Always
 
 ---
 kind: ConfigMap

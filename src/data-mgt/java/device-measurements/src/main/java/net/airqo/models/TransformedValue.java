@@ -43,4 +43,14 @@ public class TransformedValue implements Serializable {
     public void setUncertaintyValue(Double uncertaintyValue) {
         this.uncertaintyValue = uncertaintyValue;
     }
+
+    @Override
+    public String toString() {
+        return "TransformedValue{" +
+                "value=" + value +
+                ", calibratedValue=" + calibratedValue +
+                ", standardDeviationValue=" + standardDeviationValue +
+                ", uncertaintyValue=" + uncertaintyValue +
+                '}';
+    }
 }

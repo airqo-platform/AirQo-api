@@ -49,4 +49,12 @@ public class TransformedLocation implements Serializable {
     public void setLongitude(LocationValue longitude) {
         this.longitude = longitude;
     }
+
+    @Override
+    public String toString() {
+        return "TransformedLocation{" +
+                "latitude=" + latitude +
+                ", longitude=" + longitude +
+                '}';
+    }
 }

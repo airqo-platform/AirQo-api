@@ -221,4 +221,34 @@ public class TransformedMeasurement implements Serializable {
     public void setPm1(TransformedValue pm1) {
         this.pm1 = pm1;
     }
+
+    @Override
+    public String toString() {
+        return "TransformedMeasurement{" +
+                "frequency='" + frequency + '\'' +
+                ", siteId='" + siteId + '\'' +
+                ", deviceNumber=" + deviceNumber +
+                ", time='" + time + '\'' +
+                ", tenant='" + tenant + '\'' +
+                ", device='" + device + '\'' +
+                ", deviceId='" + deviceId + '\'' +
+                ", location=" + location +
+                ", internalTemperature=" + internalTemperature +
+                ", internalHumidity=" + internalHumidity +
+                ", externalTemperature=" + externalTemperature +
+                ", externalPressure=" + externalPressure +
+                ", externalHumidity=" + externalHumidity +
+                ", altitude=" + altitude +
+                ", battery=" + battery +
+                ", speed=" + speed +
+                ", satellites=" + satellites +
+                ", hdop=" + hdop +
+                ", pm10=" + pm10 +
+                ", pm2_5=" + pm2_5 +
+                ", s2_pm10=" + s2_pm10 +
+                ", s2_pm2_5=" + s2_pm2_5 +
+                ", no2=" + no2 +
+                ", pm1=" + pm1 +
+                '}';
+    }
 }

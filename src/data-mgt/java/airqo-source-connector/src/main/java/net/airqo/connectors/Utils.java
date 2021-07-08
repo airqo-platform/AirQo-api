@@ -56,7 +56,7 @@ public class Utils {
     public static RawMeasurement getMeasurements(String urlString){
 
         logger.info("\n\n**************** Fetching Measurements *************\n");
-        logger.info("\n ====> Url : {}\n", urlString);
+        logger.info("\n====> Url : {}\n", urlString);
 
         try {
             HttpClient httpClient = HttpClient.newBuilder()
@@ -71,7 +71,7 @@ public class Utils {
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             RawMeasurement measurements = new ObjectMapper().readerFor(RawMeasurement.class).readValue(httpResponse.body());
 
-            logger.info("Device measurements => {}", measurements.toString());
+            logger.info("\nApi Device measurements => {}", measurements.toString());
 
             return measurements;
 

@@ -30,6 +30,8 @@ public class Utils {
 
             rawMeasurements = rawMeasurements.replace("\\\"", "\"");
 
+            logger.info("\n====> Measurements Received {}\n", rawMeasurements);
+
             try {
 
                 String tenant = properties.getProperty("tenant");
@@ -39,10 +41,10 @@ public class Utils {
                         return transformKccaMeasurements(rawMeasurements, properties);
 
                     case "AIRQO":
-//                        List<TransformedMeasurement> transformedMeasurements =
-//                        transformAirQoMeasurements(rawMeasurements, properties);
-//                        return addAirQoCalibratedValues(transformedMeasurements);
-                        return transformAirQoMeasurements(rawMeasurements, properties);
+                        List<TransformedMeasurement> transformedMeasurements =
+                        transformAirQoMeasurements(rawMeasurements, properties);
+                        return addAirQoCalibratedValues(transformedMeasurements);
+//                        return transformAirQoMeasurements(rawMeasurements, properties);
 
                     default:
                         return new ArrayList<>();
@@ -57,6 +59,9 @@ public class Utils {
     }
 
     public static TransformedDeviceMeasurements generateTransformedOutput(List<TransformedMeasurement> transformedMeasurements) {
+
+        logger.info("\n====> Total Measurements to be transformed : {}\n", transformedMeasurements.size());
+        logger.info("\n====> Measurements to be transformed : {}\n", transformedMeasurements);
 
         List<Measurement> measurements = new ArrayList<>();
 
@@ -148,6 +153,8 @@ public class Utils {
 
         });
 
+        logger.info("\nTotal Measurements to be : " + measurements.size());
+
         return TransformedDeviceMeasurements.newBuilder()
                 .setMeasurements(measurements)
                 .build();
@@ -233,9 +240,6 @@ public class Utils {
             }
 
         });
-
-        logger.info(new Date( System.currentTimeMillis()).toString());
-        logger.info("Records got : {}", transformedMeasurements.size());
 
         return transformedMeasurements;
     }
@@ -345,9 +349,6 @@ public class Utils {
             }
 
         });
-
-        logger.info(new Date( System.currentTimeMillis()).toString());
-        logger.info("Records got : " + transformedMeasurements.size());
 
         return transformedMeasurements;
     }
