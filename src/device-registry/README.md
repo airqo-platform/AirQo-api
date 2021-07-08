@@ -141,3 +141,4 @@ Use the images in deployment files for Kubernetes accordingly
 | `maintenance_type`      | `string` | **Optional**. the type of maintenance |
 | `id`      | `Object ID` | **Optional**. the Object ID associated with the activity |
 | `device`      | `string` | **Optional**. the unique device name |
+| `activity_type`      | `string` | **Optional**. the activity types which include: deployment, recallment, maintenance |
