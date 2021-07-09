@@ -12,6 +12,7 @@ const softUpdateDevice = require("../utils/soft-update-device");
 const {
   createOnThingSpeak,
   createOnClarity,
+  registerDeviceUtil,
 } = require("../utils/create-device");
 
 const {
@@ -39,13 +40,15 @@ const {
   callbackErrors,
   missingOrInvalidValues,
   badRequest,
+  logger_v2,
 } = require("../utils/errors");
 
 const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const deleteDevice = require("../utils/delete-device");
 const getDetail = require("../utils/get-device-details");
 const getLastPath = require("../utils/get-last-path");
-const log = require("log4js").getLogger("create-device");
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-device-controller");
 
 const device = {
   createThing: async (req, res) => {
@@ -279,44 +282,38 @@ const device = {
   listAll: async (req, res) => {
     try {
       logText(".....................................");
-      logText("list all devices original...");
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
-      const { tenant } = req.query;
-      if (!tenant) {
-        missingQueryParams(req, res);
+      logText("list devices based on query params...");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      let responseFromListDeviceDetails = await registerDeviceUtil.list(req);
+      logElement(
+        "is responseFromListDeviceDetails in controller a success?",
+        responseFromListDeviceDetails.success
+      );
+
+      if (responseFromListDeviceDetails.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromListDeviceDetails.message,
+          devices: responseFromListDeviceDetails.data,
+        });
       }
 
-      let filter = generateFilter.devices(req);
-      logObject("filter", filter);
-      let responseFromListDevice = await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).list({ skip, limit, filter });
-
-      if (responseFromListDevice.success == false) {
-        if (responseFromListDevice.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromListDevice.message,
-            error: responseFromListDevice.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromListDevice.message,
-          });
-        }
+      if (responseFromListDeviceDetails.success == false) {
+        let error = responseFromListDeviceDetails.error
+          ? responseFromListDeviceDetails
+          : "";
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromListDeviceDetails.message,
+          error: responseFromListDeviceDetails.error,
+        });
       }
-
-      return res.status(HTTPStatus.OK).json({
-        success: true,
-        message: "Devices fetched successfully",
-        devices: responseFromListDevice,
-      });
     } catch (e) {
-      tryCatchErrors(res, e);
+      tryCatchErrors(res, e, "create device controller");
     }
   },
 
@@ -382,73 +379,111 @@ const device = {
     }
   },
 
-  updateDevice: async (req, res) => {
+  updateOnPlatform: async (req, res) => {
     try {
-      const { tenant, device } = req.query;
-      const deviceBody = req.body;
-      const deviceFilter = {
-        name: device,
+      logText("the soft update operation starts....");
+      logger.info(`the soft update operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      const { tenant, device, device_number, name, id } = req.query;
+      const { body } = req;
+      let requestObject = {};
+      requestObject["query"] = {
+        id,
+        device_number,
+        name,
+        device,
+        tenant,
+        body,
       };
-      let options = {
-        new: true,
-        upsert: true,
-      };
-      if (tenant && device) {
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
-        logElement("isDevicePresent ?", doesDeviceExist);
-        if (doesDeviceExist) {
-          await softUpdateDevice(
-            res,
-            device,
-            deviceBody,
-            deviceFilter,
-            tenant,
-            options
-          );
-        } else {
-          logText(`device ${device} does not exist in the system`);
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message: `device ${device} does not exist in the system`,
-            success: false,
-          });
-        }
-      } else {
-        missingQueryParams(req, res);
+      logObject("we see", requestObject);
+      let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
+        requestObject
+      );
+
+      logger.info(
+        `responseFromUpdateDeviceOnPlatform ${JSON.stringify(
+          responseFromUpdateDeviceOnPlatform
+        )}`
+      );
+
+      if (responseFromUpdateDeviceOnPlatform.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          message: responseFromUpdateDeviceOnPlatform.message,
+          success: true,
+          updated_device: responseFromUpdateDeviceOnPlatform.data,
+        });
+      }
+
+      if (responseFromUpdateDeviceOnPlatform.success == false) {
+        let error = responseFromUpdateDeviceOnPlatform.error
+          ? responseFromUpdateDeviceOnPlatform.error
+          : "";
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          message: responseFromUpdateDeviceOnPlatform.message,
+          success: false,
+          error,
+        });
       }
     } catch (e) {
       tryCatchErrors(res, e);
     }
   },
 
-  delete: async (req, res) => {
+  deleteOnPlatform: async (req, res) => {
     try {
-      const { device, tenant } = req.query;
-      if (tenant && device) {
-        if (!device) {
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          });
-        }
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
-        logElement("isDevicePresent ?", doesDeviceExist);
-        if (doesDeviceExist) {
-          deleteDevice(tenant, res, device);
-        } else {
-          logText(`device ${device} does not exist in the system`);
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message: `device ${device} does not exist in the system`,
-            success: false,
-          });
-        }
-      } else {
-        missingQueryParams(req, res);
+      logger.info(`the soft delete operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      const { device, name, id, device_number, tenant } = req.query;
+
+      let requestObject = {};
+      requestObject["query"] = {
+        device,
+        name,
+        id,
+        device_number,
+        tenant,
+      };
+
+      let responseFromRemoveDevice = await registerDeviceUtil.deleteOnPlatform(
+        requestObject
+      );
+
+      logger.info(
+        `responseFromRemoveDevice -- ${JSON.stringify(
+          responseFromRemoveDevice
+        )}`
+      );
+
+      if (responseFromRemoveDevice.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromRemoveDevice.message,
+          deleted_device: responseFromRemoveDevice.data,
+        });
+      }
+
+      if (responseFromRemoveDevice.success == false) {
+        let error = responseFromRemoveDevice.error
+          ? responseFromRemoveDevice.error
+          : "";
+
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromRemoveDevice.message,
+          error,
+        });
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      logger.error(`server error --- ${e.message}`);
+      logger_v2.tryCatchErrors("server error", e.message);
     }
   },
 
@@ -585,7 +620,7 @@ const device = {
       });
   },
 
-  createOne: async (req, res) => {
+  createOnPlatform: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -593,33 +628,45 @@ const device = {
         return badRequest(res, "bad request errors", nestedErrors);
       }
       const { tenant } = req.query;
-      if (tenant) {
-        logText("creating one device....");
-        // log.debug("creating one device....");
-        let body = req.body;
-        logObject("the body", body);
-        let responseFromCreateDevice = await getModelByTenant(
-          tenant.toLowerCase(),
-          "device",
-          DeviceSchema
-        ).register(req.body);
+      const { body } = req;
 
-        if (responseFromCreateDevice.success == true) {
-          let jsonifiedBody = jsonify(responseFromCreateDevice.data);
-          logObject("the created device", jsonifiedBody);
-          return res.status(HTTPStatus.OK).json(responseFromCreateDevice.data);
-        }
-        return res
-          .status(HTTPStatus.BAD_GATEWAY)
-          .json(responseFromCreateDevice);
-      } else {
-        missingQueryParams(res);
+      let requestBody = {};
+      requestBody["tenant"] = tenant;
+      requestBody["body"] = body;
+
+      let responseFromCreateOnPlatform = await registerDeviceUtil.createOnPlatform(
+        requestBody
+      );
+      logger.info(
+        `responseFromCreateOnPlatform -- ${JSON.stringify(
+          responseFromCreateOnPlatform
+        )}`
+      );
+      if (responseFromCreateOnPlatform.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromCreateOnPlatform.message,
+          created_device: responseFromCreateOnPlatform.data,
+        });
+      }
+
+      if (responseFromCreateOnPlatform.success == false) {
+        let error = responseFromCreateOnPlatform.error
+          ? responseFromCreateOnPlatform.error
+          : "";
+
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromCreateOnPlatform.message,
+          error,
+        });
       }
     } catch (e) {
-      return res
-        .status(HTTPStatus.BAD_GATEWAY)
-        .json({ message: "create one controller", more: e.message });
-      // tryCatchErrors(res, e);
+      logger.error(`server error in the create one controller -- ${e.message}`);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        message: "server error in the createOnPlatform controller",
+        error: e.message,
+      });
     }
   },
 
