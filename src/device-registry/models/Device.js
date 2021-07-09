@@ -7,14 +7,18 @@ const { monthsInfront } = require("../utils/date");
 const Cryptr = require("cryptr");
 const constants = require("../config/constants");
 const cryptr = new Cryptr(constants.KEY_ENCRYPTION_KEY);
+const isEmpty = require("is-empty");
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-device-util");
+const jsonify = require("../utils/jsonify");
 
 const maxLength = [
-  9,
+  15,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
 ];
 
 const minLength = [
-  5,
+  7,
   "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
 ];
 
@@ -60,7 +64,7 @@ const deviceSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
     },
-    generation: {
+    generation_version: {
       type: Number,
       required: [true, "the generation is required"],
     },
@@ -110,11 +114,11 @@ const deviceSchema = new mongoose.Schema(
     },
     device_manufacturer: {
       type: String,
-      default: "airqo",
+      default: null,
     },
     product_name: {
       type: String,
-      default: "gen1",
+      default: null,
     },
     powerType: {
       type: String,
@@ -171,7 +175,7 @@ deviceSchema.pre("save", function(next) {
       this.readKey = this._encryptKey(this.readKey);
     }
     let n = this.name;
-    console.log({ n });
+    // console.log({ n });
   }
   return next();
 });
@@ -180,7 +184,7 @@ deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
     // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
+    // console.log({ n });
   }
   return next();
 });
@@ -190,7 +194,7 @@ deviceSchema.pre("findByIdAndUpdate", function(next) {
   if (this.isModified("name")) {
     // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
+    // console.log({ n });
   }
   return next();
 });
@@ -246,15 +250,29 @@ deviceSchema.statics = {
   async register(args) {
     try {
       logObject("the args", args);
+      logger.info("in the register static fn of the Device model...");
+      let modifiedArgs = args;
+      if (modifiedArgs.name) {
+        modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
+      }
       let createdDevice = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
+      if (!isEmpty(createdDevice)) {
+        return {
+          success: true,
+          message: "successfully created the device",
+          data: createdDevice,
+        };
+      }
+      logger.warn("operation successful but device is not created");
       return {
         success: true,
-        message: "successfully created the device",
+        message: "operation successful but device not created",
         data: createdDevice,
       };
     } catch (error) {
+      logger.error(`Device model server error -- ${error.message}`);
       return {
         success: false,
         message: "model server error",
@@ -263,7 +281,7 @@ deviceSchema.statics = {
     }
   },
 
-  list({ _skip = 0, _limit = 100, filter = {} } = {}) {
+  async list({ _skip = 0, _limit = 100, filter = {} } = {}) {
     try {
       return this.aggregate()
         .match(filter)
@@ -277,6 +295,7 @@ deviceSchema.statics = {
         .project({
           _id: 1,
           name: 1,
+          long_name: 1,
           latitude: 1,
           longitude: 1,
           createdAt: 1,
@@ -295,6 +314,7 @@ deviceSchema.statics = {
           mountType: 1,
           locationID: 1,
           isActive: 1,
+          isRetired: 1,
           writeKey: 1,
           readKey: 1,
           pictures: 1,
@@ -316,8 +336,14 @@ deviceSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
+      logObject("the filter", filter);
       let options = { new: true };
       let modifiedUpdate = update;
+      delete modifiedUpdate.name;
+      delete modifiedUpdate.device_number;
+      delete modifiedUpdate._id;
+      delete modifiedUpdate.generation_count;
+      delete modifiedUpdate.generation_version;
       logObject("modifiedUpdate", modifiedUpdate);
       if (update.writeKey) {
         modifiedUpdate.writeKey = cryptr.encrypt(update.writeKey);
@@ -354,7 +380,7 @@ deviceSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, name: 1, device_number: 1, long_name: 1 },
+        projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
       let data = jsonify(removedDevice);

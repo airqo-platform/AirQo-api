@@ -236,7 +236,7 @@ eventSchema.statics = {
       ...args,
     });
   },
-  removeMany({ filter = {} } = {}) {
+  async removeMany({ filter = {} } = {}) {
     try {
       let options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
@@ -246,7 +246,8 @@ eventSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully cleared the device measurements from the system",
+          message:
+            "successfully cleared the device measurements from the system",
           data,
         };
       } else {
