@@ -68,6 +68,19 @@ const badRequest = (res, message, errors) => {
   res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message, errors });
 };
 
+const logger_v2 = {
+  tryCatchErrors: (error, message) => {
+    return {
+      success: false,
+      message: `server error - ${message}`,
+      error: error.message,
+    };
+  },
+  badRequest: (message, errors) => {
+    return { success: false, message, errors };
+  },
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
@@ -77,4 +90,5 @@ module.exports = {
   unclearError,
   invalidParamsValue,
   badRequest,
+  logger_v2,
 };

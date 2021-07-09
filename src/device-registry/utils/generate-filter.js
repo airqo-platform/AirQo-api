@@ -185,93 +185,114 @@ const generateFilter = {
     return filter;
   },
   devices: (req) => {
-    let filter = {};
-    let {
-      name,
-      channel,
-      location,
-      siteName,
-      mapAddress,
-      primary,
-      active,
-      chid,
-      loc,
-      map,
-      site,
-      site_id,
-    } = req.query;
+    try {
+      let filter = {};
+      let {
+        name,
+        channel,
+        location,
+        siteName,
+        mapAddress,
+        primary,
+        active,
+        chid,
+        loc,
+        map,
+        site,
+        site_id,
+        id,
+        device_number,
+      } = req.query;
 
-    if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (channel) {
-      filter["channelID"] = channel;
-    }
-
-    if (chid) {
-      filter["channelID"] = chid;
-    }
-
-    if (location) {
-      filter["locationID"] = location;
-    }
-    if (loc) {
-      filter["locationID"] = loc;
-    }
-    if (site) {
-      filter["site_id"] = site;
-    }
-
-    if (site_id) {
-      filter["site_id"] = site_id;
-    }
-
-    if (siteName) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        siteName
-      );
-      filter["siteName"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (mapAddress) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        mapAddress
-      );
-      filter["locationName"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (map) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        map
-      );
-      filter["locationName"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (primary) {
-      const primaryStr = primary + "";
-      if (primaryStr.toLowerCase() == "yes") {
-        filter["isPrimaryInLocation"] = true;
-      } else if (primaryStr.toLowerCase() == "no") {
-        filter["isPrimaryInLocation"] = false;
-      } else {
+      if (name) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          name
+        );
+        filter["name"] = { $regex: regexExpression, $options: "i" };
       }
-    }
 
-    if (active) {
-      const activeStr = active + "";
-      if (activeStr.toLowerCase() == "yes") {
-        filter["isActive"] = true;
-      } else if (activeStr.toLowerCase() == "no") {
-        filter["isActive"] = false;
-      } else {
+      if (channel) {
+        filter["channelID"] = channel;
       }
-    }
 
-    return filter;
+      if (device_number) {
+        filter["device_number"] = device_number;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (chid) {
+        filter["channelID"] = chid;
+      }
+
+      if (location) {
+        filter["locationID"] = location;
+      }
+      if (loc) {
+        filter["locationID"] = loc;
+      }
+      if (site) {
+        filter["site_id"] = site;
+      }
+
+      if (site_id) {
+        filter["site_id"] = site_id;
+      }
+
+      if (siteName) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          siteName
+        );
+        filter["siteName"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (mapAddress) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          mapAddress
+        );
+        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (map) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          map
+        );
+        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (primary) {
+        const primaryStr = primary + "";
+        if (primaryStr.toLowerCase() == "yes") {
+          filter["isPrimaryInLocation"] = true;
+        } else if (primaryStr.toLowerCase() == "no") {
+          filter["isPrimaryInLocation"] = false;
+        } else {
+        }
+      }
+
+      if (active) {
+        const activeStr = active + "";
+        if (activeStr.toLowerCase() == "yes") {
+          filter["isActive"] = true;
+        } else if (activeStr.toLowerCase() == "no") {
+          filter["isActive"] = false;
+        } else {
+        }
+      }
+      return {
+        success: true,
+        message: "successfully generated the filter",
+        data: filter,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "server error - generate device filter",
+        error: error.message,
+      };
+    }
   },
   sites: (req) => {
     let {
