@@ -18,7 +18,7 @@ class Event:
                 }
             },
             {
-                "$unwind": "values"
+                "$unwind": "$values"
             },
             {
                 "$replaceRoot": {"newRoot": "$values"}
@@ -28,10 +28,21 @@ class Event:
                     "pm2_5": 1,
                     "pm10": 1,
                     "no2": 1,
-                    "site_id": 1
+                    "site_id": {"$toString": "$site_id"}
+                }
+            },
+            {
+                "$group": {
+                    "_id": "$site_id",
+                    "reading": {"$push": {
+                        "pm2_5": "$pm2_5.value",
+                        "pm10": "$pm10.value",
+                        "no2": "$no2.value",
+                    }}
                 }
             }
         ])
+
 
 class Exceedance:
     def __init__(self, tenant):
@@ -40,16 +51,4 @@ class Exceedance:
     def save_exceedance(self, records):
         tenant = self.tenant
         db = connect_mongo(tenant)
-        return db.exceedances(records)
-
-
-class Site:
-    def __init__(self, tenant):
-        self.tenant = tenant
-
-    def get_sites(self, id):
-        tenant = self.tenant
-        db = connect_mongo(tenant)
-        results = list(db.sites.find(
-            {'_id': id}, {'_id': 0}.sort([('$natural', -1)])))
-        return results.sites
+        return db.exceedances.insert(records)

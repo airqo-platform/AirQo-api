@@ -2,6 +2,6 @@ from utils.exceedances import CalculateExceedances
 
 
 def calculate_exceedance(tenant):
-    calculator = CalculateExceedances(tenant)
-    exceedances = calculator.calculate_exceedances()
-    calculator.save_exceedances(exceedances)
+    exc_calculator = CalculateExceedances(tenant)
+    exceedances = exc_calculator.calculate_exceedances()
+    exc_calculator.save_exceedances(exceedances)
