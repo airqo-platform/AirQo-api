@@ -12,44 +12,112 @@ const { validateRequestQuery } = require("../utils/validators/requestQuery");
 const { validateRequestBody } = require("../utils/validators/requestBody");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("../config/constants");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 middlewareConfig(router);
 
 /******************* create device ***************************/
-router.get("/", oneOf([[query("tenant").exists()]]), deviceController.listAll);
+router.get(
+  "/",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant parameter should be provided")
+        .trim()
+        .toLowerCase(),
+      query("device_number")
+        .if(query("device_number").exists())
+        .notEmpty()
+        .trim()
+        .isInt()
+        .withMessage("device_number must be an integer")
+        .bail()
+        .toInt(),
+      query("id")
+        .if(query("id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .if(query("name").exists())
+        .notEmpty()
+        .trim()
+        .isLowercase()
+        .withMessage("device name should be lower case")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device names do not have spaces in them"),
+    ],
+  ]),
+  deviceController.listAll
+);
 router.post(
   "/ts",
   oneOf([
     [
       query("tenant")
+        .trim()
+        .toLowerCase()
         .exists()
-        .withMessage("tenant does not exist"),
+        .withMessage("tenant parameter should be provided"),
       body("visibility")
+        .trim()
         .exists()
-        .withMessage("visibility does not exist"),
+        .withMessage("visibility should be provided")
+        .bail()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
       body("name")
+        .trim()
         .exists()
-        .withMessage("name does not exist"),
-      body("device_number")
-        .exists()
-        .withMessage("device_number does not exist"),
-      body("name")
+        .withMessage("the name should be part of the request body")
+        .bail()
         .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device name should not have spaces in it"),
-      body("mountType")
-        .isIn(["pole", "wall", "motor"])
-        .withMessage(
-          "the mountType value is not among the expected ones of pole, walll and motor"
-        ),
-      body("powerType")
-        .isIn(["solar", "mains", "alternator"])
-        .withMessage(
-          "the powerType value is not among the expected ones of solar, mains and alternator"
-        ),
-      body("name")
+        .withMessage("the device name should not have spaces in it")
+        .bail()
         .isLength({ min: 5, max: 9 })
         .withMessage(
           "minimum length should be 5 characters and maximum length should be 9 characters"
+        ),
+      body("device_number")
+        .trim()
+        .exists()
+        .withMessage("device_number should be part of the request body")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device_number should not have spaces in it"),
+      body("mountType")
+        .trim()
+        .if(body("mountType").exists())
+        .notEmpty()
+        .isIn(["pole", "wall", "faceboard", "suspended", "rooftop"])
+        .withMessage(
+          "the mountType value is not among the expected ones of pole, wall, rooftop, suspended and faceboard"
+        ),
+      body("powerType")
+        .trim()
+        .if(body("powerType").exists())
+        .notEmpty()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones of solar, mains and alternator"
         ),
     ],
   ]),
@@ -95,67 +163,202 @@ router.get(
   deviceController.listAllByNearestCoordinates
 );
 router.post(
-  "/",
+  "/soft",
   oneOf([
     [
       query("tenant")
         .exists()
-        .withMessage("tenant should be provided"),
+        .withMessage("tenant should be provided")
+        .trim()
+        .toLowerCase(),
       body("visibility")
         .exists()
         .withMessage("visibility should be provided")
         .bail()
+        .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("device_number")
         .exists()
         .withMessage("device_number should be provided")
         .bail()
+        .trim()
         .isInt()
-        .withMessage("the generation should be an integer between 1 and 99 "),
-      body("name")
+        .withMessage("the device_number should be an integer value")
+        .toInt(),
+      body("long_name")
         .exists()
-        .withMessage("name should be provided")
-        .bail()
-        .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device name should not have white spaces in it")
-        .isLength({ min: 5, max: 9 })
-        .withMessage(
-          "minimum length should be 5 characters and maximum length should be 9 characters"
-        ),
-      body("generation")
+        .withMessage("the device long_name should be provided")
+        .trim()
+        .toLowerCase(),
+      body("generation_version")
         .exists()
-        .withMessage("the generation number should be provided")
+        .withMessage("the generation_version number should be provided")
         .bail()
-        .isInt({ min: 1, max: 99 })
-        .withMessage("the generation should be an integer between 1 and 99 "),
+        .trim()
+        .isInt()
+        .withMessage("the generation_version should be an integer ")
+        .toInt(),
       body("generation_count")
         .exists()
         .withMessage("the generation_count should be provided")
         .bail()
-        .isInt({ min: 1, max: 99 })
-        .withMessage("the generation should be an integer between 1 and 99 "),
+        .trim()
+        .isInt()
+        .withMessage("the generation should be an integer")
+        .toInt(),
       body("mountType")
         .if(body("mountType").exists())
         .notEmpty()
-        .isIn(["pole", "wall", "faceboard", "rooftop"])
+        .trim()
+        .toLowerCase()
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
-          "the mountType value is not among the expected ones which include pole, wall, faceboard and rooftop "
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("powerType")
         .if(body("powerType").exists())
         .notEmpty()
+        .trim()
+        .toLowerCase()
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
-          "the powerType value is not among the expected ones which include solar, mains and alternator"
+          "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
     ],
   ]),
-  deviceController.createOne
+  deviceController.createOnPlatform
 );
 router.delete("/photos", deviceController.deletePhotos);
-router.delete("/delete", deviceController.delete);
-router.put("/update", deviceController.updateDevice);
+router.delete(
+  "/delete/soft",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .trim()
+      .toLowerCase(),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value")
+      .toInt(),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id "
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name "
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  deviceController.deleteOnPlatform
+);
+router.put(
+  "/soft",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .trim()
+      .toLowerCase(),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value")
+      .toInt(),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  oneOf([
+    [
+      body("visibility")
+        .if(body("visibility").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
+      body("long_name")
+        .if(body("long_name").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase(),
+      body("mountType")
+        .if(body("mountType").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("powerType")
+        .if(body("powerType").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+    ],
+  ]),
+  deviceController.updateOnPlatform
+);
 
 /****************** manage site *************************/
 router.post(
