@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 # Third-party libraries
 from flasgger import swag_from
 import flask_excel as excel
@@ -17,6 +15,7 @@ from api.models import (
     DeviceDailyHistoricalAveragesModel,
     EventsModel,
     SiteModel,
+    ExceedanceModel,
 )
 from api.models.constants import CODE_LOCATIONS
 
@@ -320,21 +319,26 @@ class DivisionsResource(Resource):
 class ExceedancesResource(Resource):
 
     @swag_from('/api/docs/dashboard/exceedances_post.yml')
-    @validate_request_json('pollutant|required:str', 'standard|required:str')
+    @validate_request_json(
+        'pollutant|required:str', 'standard|required:str',
+        'startDate|required:datetime', 'endDate|required:datetime'
+    )
     def post(self):
         tenant = request.args.get('tenant')
 
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         standard = json_data["standard"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
 
-        de_model = DeviceDailyExceedancesModel(tenant)
+        exc_model = ExceedanceModel(tenant)
 
-        exceedances_data = de_model.get_last_28_days_exceedences(pollutant, standard)
+        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard)
 
         return create_response(
             "exceedance data successfully fetched",
-            data=exceedances_data and exceedances_data[0].get('exceedences') or []
+            data=data,
         ), Status.HTTP_200_OK
 
 
