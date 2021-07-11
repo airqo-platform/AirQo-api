@@ -1,7 +1,7 @@
 apiVersion: v1
 appVersion: "1.0"
-description: AirQo Analytics Helm Chart
-name: airqo-analytics-api
+description: AirQo Prediction Helm Chart
+name: airqo-prediction-api
 home: https://airqo.net
 version: 0.1.0
 maintainers: 
