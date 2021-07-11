@@ -1,0 +1,35 @@
+# values for airqo-device-registry-api.
+env:
+  deployment_name: airqo-device-monitor-api
+  service_name: airqo-device-monitor-api-svc
+  labels: dev-monitor-api
+  secret: prod-device-monitor-secret
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-device-monitor-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 30006
+  targetPort: 4001
+  port: 4001
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: production
