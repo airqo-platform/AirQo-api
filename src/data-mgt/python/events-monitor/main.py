@@ -1,12 +1,13 @@
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import requests
 
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 TENANT = os.getenv("TENANT", "airqo")
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK", "")
+TIME_INTERVAL = os.getenv("TIME_INTERVAL", 3)
 
 
 def notify_slack(data):
@@ -65,6 +66,46 @@ def run_checks():
                         "type": "mrkdwn",
                         "text": f"Url : *{api_url}*"
                     }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"Time check was carried out : *{datetime.now()}*"
+                    },
+                }
+            ]
+        })
+        notify_slack(data)
+        return
+
+    has_latest = False
+    check_date = datetime.utcnow() - timedelta(hours=TIME_INTERVAL)
+
+    for measurement in measurements:
+        measurement_values = dict(measurement)
+        measurement_date = datetime.strptime(measurement_values["time"], '%Y-%m-%dT%H:%M:%S.%fZ')
+        if measurement_date > check_date:
+            has_latest = True
+            break
+
+    if not has_latest:
+        data = dict({
+            "text": f"Device registry doesnt have latest measurements",
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"Url : *{api_url}*"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"Interval : *{TIME_INTERVAL}*"
+                    },
                 },
                 {
                     "type": "section",
