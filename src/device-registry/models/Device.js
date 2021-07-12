@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
-const { logObject, logElement } = require("../utils/log");
+const { logObject, logElement, logText } = require("../utils/log");
 const { monthsInfront } = require("../utils/date");
 const Cryptr = require("cryptr");
 const constants = require("../config/constants");
@@ -11,7 +11,6 @@ const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const jsonify = require("../utils/jsonify");
-
 const maxLength = [
   15,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
@@ -77,6 +76,9 @@ const deviceSchema = new mongoose.Schema(
     },
     elevation: {
       type: Number,
+    },
+    tags: {
+      type: Array,
     },
     owner: {
       type: ObjectId,
@@ -252,9 +254,7 @@ deviceSchema.statics = {
       logObject("the args", args);
       logger.info("in the register static fn of the Device model...");
       let modifiedArgs = args;
-      if (modifiedArgs.name) {
-        modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
-      }
+      modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
       let createdDevice = await this.create({
         ...modifiedArgs,
       });
