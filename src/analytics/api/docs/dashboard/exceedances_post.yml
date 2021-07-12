@@ -40,21 +40,24 @@ definitions:
   ExceedanceData:
     type: object
     properties:
-      location:
-        type: string
-        example: Luzira
-      UH4SG:
+      site:
+        type: object
+        properties:
+          name:
+            type: string
+            example: kampala central
+          generated_name:
+            type: string
+            example: site_5
+          description:
+            type: string
+            example: Kampala Central
+      total:
         type: integer
-        example: 6
-      Unhealthy:
+        example: 36
+      exceedance:
         type: integer
         example: 21
-      VeryUnhealthy:
-        type: integer
-        example: 0
-      Hazardous:
-        type: integer
-        example: 0
 responses:
   200:
     description: A successful retrieval of exceedances data

@@ -9,14 +9,14 @@ class ExceedanceModel(BasePyMongoModel):
         if str(standard).lower() == 'who':
             return self.group(
                 _id="$site_id",
-                sites={"$first": "$sites"},
+                site={"$first": "$site"},
                 **{f"{pollutant}": {"$avg": f"$who.{pollutant}"}},
                 totalRaw={"$avg": "$who.total"},
             )
 
         return self.group(
             _id="$site_id",
-            sites={"$first": "$sites"},
+            site={"$first": "$site"},
             Good={"$avg": f"$aqi.{pollutant}.Good"},
             Moderate={"$avg": f"$aqi.{pollutant}.Moderate"},
             UHFSG={"$avg": f"$aqi.{pollutant}.UHFSG"},
@@ -57,15 +57,15 @@ class ExceedanceModel(BasePyMongoModel):
                 .unwind("exceedances")
                 .replace_root("exceedances")
                 .project_by_standard(standard)
-                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="sites")
+                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
                 .group_by_pollutant(pollutant, standard)
                 .add_field_by_pollutant(pollutant, standard)
-                .unwind("sites")
+                .unwind("site")
                 .project(
                     _id=0,
                     total=1,
                     exceedance=1,
-                    sites={"name": 1, "description": 1, "generated_name": 1},
+                    site={"name": 1, "description": 1, "generated_name": 1},
                 )
                 .exec()
         )
