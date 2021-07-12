@@ -35,9 +35,14 @@ router.get(
     [
       query("tenant")
         .exists()
-        .withMessage("tenant parameter should be provided")
+        .withMessage("tenant should be provided")
+        .bail()
         .trim()
-        .toLowerCase(),
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage(
+          "the tenant value is not among the expected ones which include: kcca and airqo"
+        ),
       query("device_number")
         .if(query("device_number").exists())
         .notEmpty()
@@ -270,8 +275,13 @@ router.delete(
     query("tenant")
       .exists()
       .withMessage("tenant should be provided")
+      .bail()
       .trim()
-      .toLowerCase(),
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
   ]),
   oneOf([
     query("device_number")
@@ -524,8 +534,13 @@ router.post(
       query("tenant")
         .exists()
         .withMessage("tenant should be provided")
+        .bail()
         .trim()
-        .toLowerCase(),
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage(
+          "the tenant value is not among the expected ones which include: kcca and airqo"
+        ),
       body("visibility")
         .exists()
         .withMessage("visibility should be provided")
@@ -591,8 +606,13 @@ router.delete(
     query("tenant")
       .exists()
       .withMessage("tenant should be provided")
+      .bail()
       .trim()
-      .toLowerCase(),
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
   ]),
   oneOf([
     query("device_number")
@@ -640,8 +660,13 @@ router.put(
     query("tenant")
       .exists()
       .withMessage("tenant should be provided")
+      .bail()
       .trim()
-      .toLowerCase(),
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
   ]),
   oneOf([
     query("device_number")
@@ -827,11 +852,11 @@ router.put(
   deviceController.updateOnPlatform
 );
 
-/******************* create photos use-case ***************/
+/******************* create-photo use-case ***************/
 /**** delete photos */
 router.delete("/photos", photoController.deletePhotos);
 
-/****************** manage site use-case *************************/
+/****************** create-site use-case *************************/
 router.post(
   "/activities/recall",
   checkTenancy,
@@ -860,12 +885,36 @@ router.post(
   imageUpload.array("image"),
   photoController.uploadManyPhotosOnCloudinary
 );
-router.get("/sites", oneOf([check("tenant").exists()]), siteController.list);
+router.get(
+  "/sites",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
+  ]),
+  siteController.list
+);
 router.post(
   "/sites",
   oneOf([
     [
-      check("tenant").exists(),
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage(
+          "the tenant value is not among the expected ones which include: kcca and airqo"
+        ),
       body("latitude").exists(),
       body("longitude").exists(),
       body("latitude").matches(constants.LATITUDE_REGEX, "i"),
@@ -877,7 +926,16 @@ router.post(
 router.put(
   "/sites",
   oneOf([
-    check("tenant").exists(),
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
     check("id").exists(),
     check("lat_long").exists(),
     check("generated_name").exists(),
@@ -886,7 +944,16 @@ router.put(
 );
 router.delete(
   "/sites",
-  check("tenant").exists(),
+  query("tenant")
+    .exists()
+    .withMessage("tenant should be provided")
+    .bail()
+    .trim()
+    .toLowerCase()
+    .isIn(["kcca", "airqo"])
+    .withMessage(
+      "the tenant value is not among the expected ones which include: kcca and airqo"
+    ),
   oneOf([
     check("id").exists(),
     check("lat_long").exists(),
@@ -896,7 +963,7 @@ router.delete(
 );
 router.post("/sites/nearest", siteController.findNearestSite);
 
-/******************* create component use-case **************************/
+/******************* create-component use-case **************************/
 router.get("/list/components/", componentController.listAll);
 router.post("/add/components/", componentController.addComponent);
 router.delete("/delete/components/", componentController.deleteComponent);
@@ -904,7 +971,7 @@ router.put("/update/components/", componentController.updateComponent);
 router.post("/add/components/types", componentController.createType);
 router.get("/list/components/types", componentController.getTypes);
 
-/******************* create event use-case *******************************/
+/******************* create-event use-case *******************************/
 router.post("/events/add", eventController.addValues);
 router.get("/events", eventController.getValues);
 router.post("/events/transmit", eventController.transmitValues);
@@ -915,8 +982,13 @@ router.delete(
     query("tenant")
       .exists()
       .withMessage("tenant should be provided")
+      .bail()
       .trim()
-      .toLowerCase(),
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
   ]),
   oneOf([
     query("device_number")
