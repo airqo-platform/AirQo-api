@@ -663,8 +663,26 @@ const registerDeviceUtil = {
   },
 
   decryptKey: (encryptedKey) => {
-    let decryptedKey = cryptr.decrypt(encryptedKey);
-    return decryptedKey;
+    try {
+      let decryptedKey = cryptr.decrypt(encryptedKey);
+      if (decryptedKey) {
+        return {
+          success: true,
+          message: "successfully decrypted the key",
+          data: decryptedKey,
+        };
+      }
+      return {
+        success: false,
+        message: "unable to retrieve the decrypted key",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to decrypt the key",
+        error: error.message,
+      };
+    }
   },
   transform: ({ data = {}, map = {}, context = {} } = {}) => {
     try {

@@ -21,7 +21,7 @@ middlewareConfig(router);
 router.post(
   "/decrypt",
   oneOf([
-    query("encrypted_key")
+    body("encrypted_key")
       .exists()
       .withMessage("encrypted_key parameter should be provided")
       .trim(),

@@ -31,7 +31,7 @@ const logger = log4js.getLogger("create-device-controller");
 
 const device = {
   decryptKey: async (req, res) => {
-    let { encrypted_key } = req.query;
+    let { encrypted_key } = req.body;
     let responseFromDecryptKey = await registerDeviceUtil.decryptKey(
       encrypted_key
     );
@@ -39,7 +39,7 @@ const device = {
       return res.status(HTTPStatus.OK).json({
         success: true,
         message: responseFromDecryptKey.message,
-        decryptedKey: responseFromDecryptKey.data,
+        decrypted_key: responseFromDecryptKey.data,
       });
     } else {
       let error = responseFromDecryptKey.error
