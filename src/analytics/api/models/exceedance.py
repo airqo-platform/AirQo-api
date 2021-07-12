@@ -26,7 +26,7 @@ class ExceedanceModel(BasePyMongoModel):
             totalRaw={"$avg": "$aqi.total"},
         )
 
-    def add_field_by_pollutant(self, pollutant, standard):
+    def add_fields_by_pollutant(self, pollutant, standard):
         if str(standard).lower() == 'who':
             return self.add_fields(
                 total={"$round": "$totalRaw"},
@@ -59,7 +59,7 @@ class ExceedanceModel(BasePyMongoModel):
                 .project_by_standard(standard)
                 .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
                 .group_by_pollutant(pollutant, standard)
-                .add_field_by_pollutant(pollutant, standard)
+                .add_fields_by_pollutant(pollutant, standard)
                 .unwind("site")
                 .project(
                     _id=0,

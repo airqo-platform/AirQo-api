@@ -6,20 +6,20 @@ parameters:
     in: query
     type: string
     required: true
-    default: airqo
+    default: kcca
   - name: body
     in: body
     type: object
     properties:
       pollutant:
         type: string
-        example: PM 2.5
+        example: pm2_5
       standard:
         type: string
-        example: AQI
+        example: aqi
       startDate:
         type: string
-        example: "2021-06-30T21:00:00.000Z"
+        example: "2021-07-13T21:00:00.000Z"
       endDate:
         type: string
         example: "2021-07-10T21:00:00.000Z"
