@@ -75,7 +75,6 @@ const registerDeviceUtil = {
         if (!responseFromCreateDeviceOnPlatform.success) {
           let deleteRequest = {};
           deleteRequest["query"] = {};
-
           deleteRequest["query"]["device_number"] =
             enrichmentDataForDeviceCreation.device_number;
           logger.info(`deleteRequest -- ${JSON.stringify(deleteRequest)}`);
@@ -155,8 +154,9 @@ const registerDeviceUtil = {
        */
 
       /**
-       * for updatin on ThingSpeak, we need the device_number
+       * for updating on ThingSpeak, we need the device_number
        */
+      logger.info(`in the update util....`);
       const { device_number } = request.query;
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
@@ -169,9 +169,10 @@ const registerDeviceUtil = {
           ? responseFromListDevice.data[0].device_number
           : null;
         logger.info(`device_number -- ${device_number}`);
-        modifiedRequest["device_number"] = device_number;
+        modifiedRequest["query"]["device_number"] = device_number;
       }
-      logger.info(`the modifiedRequest -- ${JSON.stringify(modifiedRequest)} `);
+      logger.info(`the modifiedRequest -- ${modifiedRequest} `);
+      logObject("the UNmodifiedRequest ", jsonify(request));
       let responseFromUpdateDeviceOnThingspeak = await registerDeviceUtil.updateOnThingspeak(
         modifiedRequest
       );

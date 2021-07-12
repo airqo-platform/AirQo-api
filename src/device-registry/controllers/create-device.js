@@ -168,7 +168,20 @@ const device = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(res, "bad request errors", nestedErrors);
       }
-      let responseFromUpdateDevice = await registerDeviceUtil.update(req);
+      const { tenant, device_number, id, name, device } = req.query;
+      const { body } = req;
+      let requestBody = {};
+      requestBody["query"] = {};
+      requestBody["query"]["tenant"] = tenant;
+      requestBody["query"]["device_number"] = device_number;
+      requestBody["query"]["id"] = id;
+      requestBody["query"]["name"] = name;
+      requestBody["query"]["device"] = device;
+      requestBody["body"] = body;
+
+      let responseFromUpdateDevice = await registerDeviceUtil.update(
+        requestBody
+      );
       logger.info(
         `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
       );
