@@ -16,13 +16,14 @@ class ExceedanceModel(BasePyMongoModel):
 
         return self.group(
             _id="$site_id",
+            sites={"$first": "$sites"},
             Good={"$avg": f"$aqi.{pollutant}.Good"},
             Moderate={"$avg": f"$aqi.{pollutant}.Moderate"},
             UHFSG={"$avg": f"$aqi.{pollutant}.UHFSG"},
             Unhealthy={"$avg": f"$aqi.{pollutant}.Unhealthy"},
             VeryUnhealthy={"$avg": f"$aqi.{pollutant}.VeryUnhealthy"},
             Hazardous={"$avg": f"$aqi.{pollutant}.Hazardous"},
-            total={"$avg": "$aqi.total"},
+            totalRaw={"$avg": "$aqi.total"},
         )
 
     def add_field_by_pollutant(self, pollutant, standard):
@@ -33,16 +34,14 @@ class ExceedanceModel(BasePyMongoModel):
             )
 
         return self.add_fields(
-            aqi={
-                "total": {"$round": "$totalRaw"},
-                f"{pollutant}": {
-                    "Good": {"$round": "$Good"},
-                    "Moderate": {"$round": "$Moderate"},
-                    "UHFSG": {"$round": "$UHFSG"},
-                    "Unhealthy": {"$round": "$Unhealthy"},
-                    "VeryUnhealthy": {"$round": "$VeryUnhealthy"},
-                    "Hazardous": {"$round": "$Hazardous"},
-                }
+            total={"$round": "$totalRaw"},
+            exceedance={
+                "Good": {"$round": "$Good"},
+                "Moderate": {"$round": "$Moderate"},
+                "UHFSG": {"$round": "$UHFSG"},
+                "Unhealthy": {"$round": "$Unhealthy"},
+                "VeryUnhealthy": {"$round": "$VeryUnhealthy"},
+                "Hazardous": {"$round": "$Hazardous"},
             },
         )
 
