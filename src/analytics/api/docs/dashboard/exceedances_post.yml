@@ -20,9 +20,9 @@ parameters:
       startDate:
         type: string
         example: "2021-06-30T21:00:00.000Z"
-        endDate:
-          type: string
-          example: "2021-07-10T21:00:00.000Z"
+      endDate:
+        type: string
+        example: "2021-07-10T21:00:00.000Z"
 definitions:
   ExceedanceResponse:
     type: object
