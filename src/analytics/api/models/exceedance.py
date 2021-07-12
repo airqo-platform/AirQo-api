@@ -46,13 +46,18 @@ class ExceedanceModel(BasePyMongoModel):
             },
         )
 
+    def project_by_standard(self, standard):
+        if str(standard).lower() == 'who':
+            return self.project(site_id={"$toObjectId": "$site_id"}, who=1)
+        return self.project(site_id={"$toObjectId": "$site_id"}, aqi=1)
+
     def get_exceedances(self, start_date, end_date, pollutant, standard):
         return (
             self
                 .date_range("exceedances.time", start_date=start_date, end_date=end_date)
                 .unwind("exceedances")
                 .replace_root("exceedances")
-                .project(site_id={"$toObjectId": "$site_id"}, who=1, aqi=1)
+                .project_by_standard(standard)
                 .lookup("sites", local_field="site_id", foreign_field="_id", col_as="sites")
                 .group_by_pollutant(pollutant, standard)
                 .add_field_by_pollutant(pollutant, standard)
