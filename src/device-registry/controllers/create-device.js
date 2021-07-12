@@ -95,68 +95,55 @@ const device = {
   },
   delete: async (req, res) => {
     try {
-      const { device, tenant } = req.query;
-      return res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
-        message: "endpoint temporarily disabled",
-        success: false,
-        device,
-      });
-      // if (tenant) {
-      //   if (!device) {
-      //     res.status(HTTPStatus.BAD_REQUEST).json({
-      //       message:
-      //         "please use the correct query parameter, check API documentation",
-      //       success: false,
-      //     });
-      //   }
-      //  const deviceDetails = await getDetail(tenant, device);
-      //  const doesDeviceExist = !isEmpty(deviceDetails);
-      //  logElement("isDevicePresent ?", doesDeviceExist);
-      //   if (doesDeviceExist) {
-      //     const channelID = await getChannelID(
-      //       req,
-      //       res,
-      //       device,
-      //       tenant.toLowerCase()
-      //     );
-      //     logText("deleting device from TS.......");
-      //     logElement("the channel ID", channelID);
-      //     await axios
-      //       .delete(constants.DELETE_THING_URL(channelID))
-      //       .then(async (response) => {
-      //         deleteDevice(tenant, res, device);
-      //       })
-      //       .catch(function(error) {
-      //         logElement("unable to delete device from TS", error);
-      //         logElement("this is the error response", error.response.status);
+      logger.info(`the general delete device operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      const { device, name, id, device_number, tenant } = req.query;
 
-      //         if (error.response.status == 404) {
-      //           deleteDevice(tenant, res, device);
-      //         } else {
-      //           tryCatchErrors(res, error);
-      //         }
-      //       });
-      //   } else {
-      //     logText("device does not exist in the network");
-      //     res.status(HTTPStatus.BAD_REQUEST).json({
-      //       message: "device does not exist in the network",
-      //       success: false,
-      //       device,
-      //     });
-      //   }
-      // } else {
-      //   return res.status(HTTPStatus.BAD_REQUEST).json({
-      //     success: false,
-      //     message: "missing query params, please check documentation",
-      //   });
-      // }
-    } catch (e) {
-      logElement(
-        "unable to carry out the entire deletion of device",
-        e.message
+      let requestObject = {};
+      requestObject["query"] = {
+        device,
+        name,
+        id,
+        device_number,
+        tenant,
+      };
+
+      let responseFromRemoveDevice = await registerDeviceUtil.delete(
+        requestObject
       );
-      logObject("unable to carry out the entire deletion of device", e.message);
-      tryCatchErrors(res, e);
+
+      logger.info(
+        `responseFromRemoveDevice -- ${JSON.stringify(
+          responseFromRemoveDevice
+        )}`
+      );
+
+      if (responseFromRemoveDevice.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromRemoveDevice.message,
+          deleted_device: responseFromRemoveDevice.data,
+        });
+      }
+
+      if (responseFromRemoveDevice.success == false) {
+        let error = responseFromRemoveDevice.error
+          ? responseFromRemoveDevice.error
+          : "";
+
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromRemoveDevice.message,
+          error,
+        });
+      }
+    } catch (e) {
+      logger.error(`server error - delete device --- ${e.message}`);
+      logger_v2.tryCatchErrors("server error", e.message);
     }
   },
 

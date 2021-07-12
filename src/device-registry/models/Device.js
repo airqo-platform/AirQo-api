@@ -283,7 +283,7 @@ deviceSchema.statics = {
 
   async list({ _skip = 0, _limit = 100, filter = {} } = {}) {
     try {
-      return this.aggregate()
+      let response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -326,6 +326,20 @@ deviceSchema.statics = {
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      let data = jsonify(response);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully deleted the device",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
     } catch (error) {
       return {
         success: false,
@@ -387,7 +401,7 @@ deviceSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully removed the device",
+          message: "successfully removed the platform",
           data,
         };
       } else {

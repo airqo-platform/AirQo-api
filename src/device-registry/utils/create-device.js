@@ -1,7 +1,6 @@
 "use strict";
 const HTTPStatus = require("http-status");
 const DeviceSchema = require("../models/Device");
-const EventSchema = require("../models/Event");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
@@ -9,8 +8,7 @@ const deleteChannel = require("./delete-channel");
 var { transform } = require("node-json-transform");
 const Cryptr = require("cryptr");
 const constants = require("../config/constants");
-const mongoose = require("mongoose");
-const cryptr = new Cryptr(constants.KEY_ENCRYPTION_KEY);
+const cryptr = new Cryptr(`${constants.KEY_ENCRYPTION_KEY}`);
 const generateFilter = require("./generate-filter");
 const { utillErrors } = require("./errors");
 const jsonify = require("./jsonify");
@@ -144,18 +142,6 @@ const registerDeviceUtil = {
   },
   update: async (request) => {
     try {
-      /***
-       * get the current state of item on Thingspeak??
-       * update on thingspeak
-       * then update on platform
-       * if update refuses on platform, then revert changes on thingspeak or just inform
-       * if reverting is hard, then just log the operation accordingly
-       * after everthing, just return appropriate response to requester
-       */
-
-      /**
-       * for updating on ThingSpeak, we need the device_number
-       */
       logger.info(`in the update util....`);
       const { device_number } = request.query;
       let modifiedRequest = request;
@@ -165,9 +151,17 @@ const registerDeviceUtil = {
         logger.info(
           `responseFromListDevice -- ${JSON.stringify(responseFromListDevice)}`
         );
-        let device_number = responseFromListDevice
-          ? responseFromListDevice.data[0].device_number
-          : null;
+        if (!responseFromListDevice.success) {
+          let error = responseFromListDevice.error
+            ? responseFromListDevice.error
+            : "";
+          return {
+            success: false,
+            message: responseFromListDevice.message,
+            error,
+          };
+        }
+        let device_number = responseFromListDevice.data[0].device_number;
         logger.info(`device_number -- ${device_number}`);
         modifiedRequest["query"]["device_number"] = device_number;
       }
@@ -230,14 +224,85 @@ const registerDeviceUtil = {
   },
   delete: async (request) => {
     try {
-      /**
-       * delete the device from thingspeak
-       * if the device is not on thingspeak but is present on platform, then go ahead and just do soft delete
-       * then delete it from the platform
-       * if the operation fails on the platform, please inform user
-       * After everything, just inform the user through a response
-       *
-       */
+      return {
+        success: false,
+        message: "feature temporarity disabled --coming soon",
+      };
+      const { device_number } = request.query;
+      let modifiedRequest = request;
+      if (isEmpty(device_number)) {
+        logger.info(`the device_number is not present`);
+        let responseFromListDevice = await registerDeviceUtil.list(request);
+        logger.info(
+          `responseFromListDevice -- ${JSON.stringify(responseFromListDevice)}`
+        );
+        if (!responseFromListDevice.success) {
+          let error = responseFromListDevice.error
+            ? responseFromListDevice.error
+            : "";
+          return {
+            success: false,
+            message: responseFromListDevice.message,
+            error,
+          };
+        }
+        let device_number = responseFromListDevice.data[0].device_number;
+        logger.info(`device_number -- ${device_number}`);
+        modifiedRequest["query"]["device_number"] = device_number;
+      }
+      logger.info(`the modifiedRequest -- ${modifiedRequest} `);
+      logObject("the UNmodifiedRequest ", jsonify(request));
+
+      let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
+        modifiedRequest
+      );
+
+      logger.info(
+        `responseFromDeleteDeviceFromThingspeak -- ${JSON.stringify(
+          responseFromDeleteDeviceFromThingspeak
+        )}`
+      );
+      if (responseFromDeleteDeviceFromThingspeak.success) {
+        let responseFromDeleteDeviceOnPlatform = await registerDeviceUtil.deleteOnPlatform(
+          modifiedRequest
+        );
+
+        logger.info(
+          `responseFromDeleteDeviceOnPlatform -- ${JSON.stringify(
+            responseFromDeleteDeviceOnPlatform
+          )}`
+        );
+
+        if (responseFromDeleteDeviceOnPlatform.success) {
+          return {
+            success: true,
+            message: responseFromDeleteDeviceOnPlatform.message,
+            data: responseFromDeleteDeviceOnPlatform.data,
+          };
+        }
+
+        if (!responseFromDeleteDeviceOnPlatform.success) {
+          let error = responseFromDeleteDeviceOnPlatform.error
+            ? responseFromDeleteDeviceOnPlatform.error
+            : "";
+          return {
+            success: false,
+            message: responseFromDeleteDeviceOnPlatform.message,
+            error,
+          };
+        }
+      }
+
+      if (!responseFromDeleteDeviceFromThingspeak.success) {
+        let error = responseFromDeleteDeviceFromThingspeak.error
+          ? responseFromDeleteDeviceFromThingspeak.error
+          : "";
+        return {
+          success: false,
+          message: responseFromDeleteDeviceFromThingspeak.message,
+          error,
+        };
+      }
     } catch (e) {
       logger.error(`delete -- ${e.message}`);
       return {
@@ -261,12 +326,12 @@ const registerDeviceUtil = {
 
       logObject("the filter", responseFromFilter.data);
 
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
-      if (responseFromFilter.success == false) {
+      if (!responseFromFilter.success) {
         let error = responseFromFilter.error ? responseFromFilter.error : "";
         return {
           success: false,
@@ -290,7 +355,7 @@ const registerDeviceUtil = {
         !responseFromListDevice.success
       );
 
-      if (responseFromListDevice.success == false) {
+      if (!responseFromListDevice.success) {
         let error = responseFromListDevice.error
           ? responseFromListDevice.error
           : "";
@@ -301,13 +366,10 @@ const registerDeviceUtil = {
           error,
         };
       } else {
-        let message = !isEmpty(responseFromListDevice)
-          ? "successfully listed the device(s)"
-          : "no device(s) data available for this request";
         return {
           success: true,
-          message: message,
-          data: responseFromListDevice,
+          message: responseFromListDevice.message,
+          data: responseFromListDevice.data,
         };
       }
     } catch (e) {
@@ -715,121 +777,7 @@ const registerDeviceUtil = {
   },
 };
 
-const preOperation = {
-  transform_v0: (req, res) => {
-    let {
-      name,
-      latitude,
-      longitude,
-      description,
-      public_flag,
-      readKey,
-      writeKey,
-      mobility,
-      height,
-      mountType,
-      visibility,
-      ISP,
-      phoneNumber,
-      device_manufacturer,
-      product_name,
-      powerType,
-      locationID,
-      host,
-      isPrimaryInLocation,
-      isUsedForCollocation,
-      nextMaintenance,
-      channelID,
-      isActive,
-      tags,
-      elevation,
-      pictures,
-      siteName,
-      locationName,
-      photos,
-    } = req.body;
-
-    let deviceBody = {
-      ...(!isEmpty(name) && { name: name }),
-      ...(!isEmpty(readKey) && { readKey: readKey }),
-      ...(!isEmpty(writeKey) && { writeKey: writeKey }),
-      ...(!isEmpty(host) && { host: host }),
-      ...(!isEmpty(isActive) && { isActive: isActive }),
-      ...(!isEmpty(latitude) && { latitude: latitude }),
-      ...(!isEmpty(longitude) && { longitude: longitude }),
-      ...(!isEmpty(description) && { description: description }),
-      ...(!isEmpty(visibility) && { visibility: visibility }),
-      ...(!isEmpty(product_name) && { product_name: product_name }),
-      ...(!isEmpty(powerType) && { powerType: powerType }),
-      ...(!isEmpty(mountType) && { mountType: mountType }),
-      ...(!isEmpty(device_manufacturer) && {
-        device_manufacturer: device_manufacturer,
-      }),
-      ...(!isEmpty(phoneNumber) && { phoneNumber: phoneNumber }),
-      ...(!isEmpty(channelID) && { channelID: channelID }),
-      ...(!isEmpty(isPrimaryInLocation) && {
-        isPrimaryInLocation: isPrimaryInLocation,
-      }),
-      ...(!isEmpty(isUsedForCollocation) && {
-        isUsedForCollocation: isUsedForCollocation,
-      }),
-      ...(!isEmpty(ISP) && { ISP: ISP }),
-      ...(!isEmpty(height) && { height: height }),
-      ...(!isEmpty(mobility) && { mobility: mobility }),
-      ...(!isEmpty(locationID) && { locationID: locationID }),
-      ...(!isEmpty(nextMaintenance) && { nextMaintenance: nextMaintenance }),
-      ...(!isEmpty(siteName) && { siteName }),
-      ...(!isEmpty(locationName) && { locationName }),
-      ...(!isEmpty(pictures) && { $addToSet: { pictures: pictures } }),
-    };
-
-    if (photos) {
-      delete deviceBody.pictures;
-      deviceBody = {
-        ...deviceBody,
-        ...(!isEmpty(photos) && {
-          $pullAll: { pictures: photos },
-        }),
-      };
-    }
-
-    let options = {
-      new: true,
-      upsert: true,
-    };
-
-    let tsBody = {
-      ...(!isEmpty(name) && { name: name }),
-      ...(!isEmpty(elevation) && { elevation: elevation }),
-      ...(!isEmpty(tags) && { tags: tags }),
-      ...(!isEmpty(latitude) && { latitude: latitude }),
-      ...(!isEmpty(longitude) && { longitude: longitude }),
-      ...(!isEmpty(description) && { description: description }),
-      ...(!isEmpty(visibility) && { public_flag: visibility }),
-    };
-
-    return { deviceBody, tsBody, options };
-  },
-
-  deviceMappings: {
-    thingspeak: {
-      name: "name",
-      elevation: "elevation",
-      tags: "tags",
-      latitude: "latitude",
-      longitude: "longitude",
-      description: "description",
-      public_flag: "visibility",
-    },
-    platform: {
-      pictures: { $pullAll: { pictures: "remove_pictures" } },
-      pictures: { $addToSet: { pictures: "add_pictures" } },
-    },
-    clarity: {},
-  },
-};
-
-/**********************************older code **************************** */
+/********************************** older code **************************** */
 const createOnThingSpeak = async (
   req,
   res,
