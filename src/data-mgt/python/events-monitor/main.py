@@ -78,6 +78,8 @@ def run_checks():
         notify_slack(data)
         return
 
+    print("Check passed")
+
 
 if __name__ == '__main__':
     run_checks()
