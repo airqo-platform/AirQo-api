@@ -1,3 +1,4 @@
+"use strict";
 const HTTPStatus = require("http-status");
 const DeviceSchema = require("../models/Device");
 const EventSchema = require("../models/Event");
@@ -11,234 +12,247 @@ const constants = require("../config/constants");
 const mongoose = require("mongoose");
 const cryptr = new Cryptr(constants.KEY_ENCRYPTION_KEY);
 const generateFilter = require("./generate-filter");
-const { logger_v2 } = require("./errors");
+const { utillErrors } = require("./errors");
 const jsonify = require("./jsonify");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
-
-const DeviceModel = async (tenant) => {
-  try {
-    return await getModelByTenant(tenant, "device", DeviceSchema);
-  } catch (error) {
-    // devices = await getModelByTenant(tenant, "device", DeviceSchema);
-    // return devices;
-  }
-};
-
-const EventModel = (tenant) => {
-  try {
-    let events;
-    events = mongoose.model("events");
-    return events;
-  } catch (error) {
-    events = getModelByTenant(tenant, "event", EventSchema);
-    return events;
-  }
-};
+const qs = require("qs");
+const { logger_v2 } = require("../utils/errors");
 
 const registerDeviceUtil = {
-  create: async (req) => {
-    let responseFromTransform = await preOperation.transform(req);
-    let responseFromCreateOnThingSpeak = await createOnThingSpeak(
-      responseFromTransform.data.thingspeak
-    );
-    if (
-      responseFromTransform.success == true ||
-      responseFromCreateOnThingSpeak.success == true
-    ) {
-      let { plaformBody } = responseFromTransform.data;
-      let thingspeakResponse = responseFromCreateOnThingSpeak.data;
-      let writeKey = thingspeakResponse.api_keys[0].write_flag
-        ? thingspeakResponse.api_keys[0].api_key
-        : "";
-      let readKey = !thingspeakResponse.api_keys[1].write_flag
-        ? thingspeakResponse.api_keys[1].api_key
-        : "";
-      let device_number = thingspeakResponse.id;
-      let enrichedPlaformBody = {
-        ...plaformBody,
-        device_number,
-        writeKey,
-        readKey,
-      };
-      let responseFromCreateOnPlatform = await createOnPlatform(
-        enrichedPlaformBody
+  create: async (request) => {
+    try {
+      if (request.query.tenant !== "airqo") {
+        return {
+          success: false,
+          message: "creation is not yet possible for this organisation",
+        };
+      }
+      let responseFromCreateOnThingspeak = await registerDeviceUtil.createOnThingSpeak(
+        request
       );
 
-      if (responseFromCreateOnPlatform.success == true) {
-        return {
-          success: true,
-          message: responseFromCreateOnPlatform.message,
-          data: responseFromCreateOnPlatform.data,
-        };
-      }
-      if (responseFromCreateOnPlatform.success == false) {
-        responseFromDeleteOnThingspeak = await registerDeviceUtil.deleteOnThingspeak(
-          device_number
-        );
-        if (responseFromDeleteOnThingspeak.success == true) {
-          return {
-            success: false,
-            message:
-              "unable to create device, successfully deleted device on external system",
-          };
-        }
-        return {
-          success: false,
-          message: "unable to successfully cancel device creation process",
-        };
-      }
-    }
-    if (responseFromCreateOnThingSpeak.success == false) {
-      let error = responseFromCreateOnThingSpeak.error
-        ? responseFromCreateOnThingSpeak.error
-        : "";
-      return {
-        success: false,
-        message: responseFromCreateOnThingSpeak.message,
-        error,
-      };
-    }
-  },
-  update: async (req) => {
-    try {
-      let { tenant } = req.query;
-      let filter = {};
-      let update = req.body;
-      let responseFromFilter = generateFilter.devices(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
-        filter = responseFromFilter.data;
-      }
+      logger.info(
+        `responseFromCreateOnThingspeak -- ${JSON.stringify(
+          responseFromCreateOnThingspeak
+        )}`
+      );
 
-      if (responseFromFilter.success == false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          error,
+      let enrichmentDataForDeviceCreation = responseFromCreateOnThingspeak.data
+        ? responseFromCreateOnThingspeak.data
+        : {};
+      logger.info(
+        `enrichmentDataForDeviceCreation -- ${JSON.stringify(
+          enrichmentDataForDeviceCreation
+        )}`
+      );
+
+      if (!isEmpty(enrichmentDataForDeviceCreation)) {
+        let modifiedRequest = request;
+        modifiedRequest["body"] = {
+          ...request.body,
+          ...enrichmentDataForDeviceCreation,
         };
-      }
-      // logObject("the filter sent to DB", filter);
-      // logObject("the update sent to DB", update);
-      let responseFromModifyDevice = await DeviceModel(
-        tenant.toLowerCase()
-      ).modify({
-        filter,
-        update,
-      });
-      // logObject("responseFromModifyDevice", responseFromModifyDevice);
-      if (responseFromModifyDevice.success == true) {
-        let device = responseFromModifyDevice.data;
-        let responseFromSendEmail = await mailer.update(
-          device.email,
-          device.firstName,
-          device.lastName
+
+        let responseFromCreateDeviceOnPlatform = await registerDeviceUtil.createOnPlatform(
+          modifiedRequest
         );
-        // logObject("responseFromSendEmail", responseFromSendEmail);
-        if (responseFromSendEmail.success == true) {
+
+        if (responseFromCreateDeviceOnPlatform.success) {
+          logger.info(
+            `successfully create the device --  ${JSON.stringify(
+              responseFromCreateDeviceOnPlatform.data
+            )}`
+          );
           return {
             success: true,
-            message: responseFromModifyDevice.message,
-            data: responseFromModifyDevice.data,
+            message: responseFromCreateDeviceOnPlatform.message,
+            data: responseFromCreateDeviceOnPlatform.data,
           };
-        } else if (responseFromSendEmail.success == false) {
-          if (responseFromSendEmail.error) {
+        }
+
+        if (!responseFromCreateDeviceOnPlatform.success) {
+          let deleteRequest = {};
+          deleteRequest["query"] = {};
+
+          deleteRequest["query"]["device_number"] =
+            enrichmentDataForDeviceCreation.device_number;
+          logger.info(`deleteRequest -- ${JSON.stringify(deleteRequest)}`);
+          let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
+            deleteRequest
+          );
+
+          logger.info(
+            ` responseFromDeleteDeviceFromThingspeak -- ${JSON.stringify(
+              responseFromDeleteDeviceFromThingspeak
+            )}`
+          );
+
+          if (responseFromDeleteDeviceFromThingspeak.success) {
+            let error = responseFromCreateDeviceOnPlatform.error
+              ? responseFromCreateDeviceOnPlatform.error
+              : "";
+            logger.error(
+              `creation operation failed -- successfully undid the successfull operations -- ${error}`
+            );
             return {
               success: false,
-              message: responseFromSendEmail.message,
-              error: responseFromSendEmail.error,
+              message:
+                "creation operation failed -- successfully undid the successfull operations",
+              error,
             };
-          } else {
+          }
+
+          if (!responseFromDeleteDeviceFromThingspeak.success) {
+            let error = responseFromDeleteDeviceFromThingspeak.error
+              ? responseFromDeleteDeviceFromThingspeak.error
+              : "";
+            logger.error(
+              `creation operation failed -- also failed to undo the successfull operations --${error}`
+            );
             return {
               success: false,
-              message: responseFromSendEmail.message,
+              message:
+                "creation operation failed -- also failed to undo the successfull operations",
+              error,
             };
           }
         }
-      } else if (responseFromModifyDevice.success == false) {
-        if (responseFromModifyDevice.error) {
-          return {
-            success: false,
-            message: responseFromModifyDevice.message,
-            error: responseFromModifyDevice.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyDevice.message,
-          };
-        }
-      }
-    } catch (e) {
-      logElement("update devices util", e.message);
-      return {
-        success: false,
-        message: "util server error",
-        error: e.message,
-      };
-    }
-  },
-  delete: async (req) => {
-    try {
-      let { tenant } = req.query;
-      let filter = {};
-      let responseFromFilter = generateFilter.devices(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
-        filter = responseFromFilter.data;
       }
 
-      if (responseFromFilter.success == false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
+      if (isEmpty(enrichmentDataForDeviceCreation)) {
+        let error = responseFromCreateOnThingspeak.error
+          ? responseFromCreateOnThingspeak.error
+          : "";
+        logger.error(
+          `unable to generate enrichment data for the device -- ${error}`
+        );
         return {
           success: false,
-          message: responseFromFilter.message,
+          message: "unable to generate enrichment data for the device",
           error,
         };
       }
-      let responseFromRemoveDevice = await DeviceModel(
-        tenant.toLowerCase()
-      ).remove({
-        filter,
-      });
-      if (responseFromRemoveDevice.success == true) {
-        return {
-          success: true,
-          message: responseFromRemoveDevice.message,
-          data: responseFromRemoveDevice.data,
-        };
-      } else if (responseFromRemoveDevice.success == false) {
-        if (responseFromRemoveDevice.error) {
+    } catch (error) {
+      logger.error(`create -- ${error.message}`);
+      return {
+        success: false,
+        message: "server error",
+        error: error.message,
+      };
+    }
+  },
+  update: async (request) => {
+    try {
+      /***
+       * get the current state of item on Thingspeak??
+       * update on thingspeak
+       * then update on platform
+       * if update refuses on platform, then revert changes on thingspeak or just inform
+       * if reverting is hard, then just log the operation accordingly
+       * after everthing, just return appropriate response to requester
+       */
+
+      /**
+       * for updatin on ThingSpeak, we need the device_number
+       */
+      const { device_number } = request.query;
+      let modifiedRequest = request;
+      if (isEmpty(device_number)) {
+        logger.info(`the device_number is not present`);
+        let responseFromListDevice = await registerDeviceUtil.list(request);
+        logger.info(
+          `responseFromListDevice -- ${JSON.stringify(responseFromListDevice)}`
+        );
+        let device_number = responseFromListDevice
+          ? responseFromListDevice.data[0].device_number
+          : null;
+        logger.info(`device_number -- ${device_number}`);
+        modifiedRequest["device_number"] = device_number;
+      }
+      logger.info(`the modifiedRequest -- ${JSON.stringify(modifiedRequest)} `);
+      let responseFromUpdateDeviceOnThingspeak = await registerDeviceUtil.updateOnThingspeak(
+        modifiedRequest
+      );
+      logger.info(
+        `responseFromUpdateDeviceOnThingspeak -- ${JSON.stringify(
+          responseFromUpdateDeviceOnThingspeak
+        )}`
+      );
+      if (responseFromUpdateDeviceOnThingspeak.success) {
+        let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
+          request
+        );
+        logger.info(
+          `responseFromUpdateDeviceOnPlatform -- ${JSON.stringify(
+            responseFromUpdateDeviceOnPlatform
+          )}`
+        );
+        if (responseFromUpdateDeviceOnPlatform.success) {
           return {
-            success: false,
-            message: responseFromRemoveDevice.message,
-            error: responseFromRemoveDevice.error,
+            success: true,
+            message: responseFromUpdateDeviceOnPlatform.message,
+            data: responseFromUpdateDeviceOnPlatform.data,
           };
-        } else {
+        }
+        if (!responseFromUpdateDeviceOnPlatform.success) {
+          let error = responseFromUpdateDeviceOnPlatform.error
+            ? responseFromUpdateDeviceOnPlatform.error
+            : "";
           return {
             success: false,
-            message: responseFromRemoveDevice.message,
+            message: responseFromUpdateDeviceOnPlatform.message,
+            error,
           };
         }
       }
+
+      if (!responseFromUpdateDeviceOnThingspeak.success) {
+        let error = responseFromUpdateDeviceOnThingspeak.error
+          ? responseFromUpdateDeviceOnThingspeak.error
+          : "";
+        return {
+          success: false,
+          message: responseFromUpdateDeviceOnThingspeak.message,
+          error,
+        };
+      }
     } catch (e) {
-      logElement("delete devices util", e.message);
+      logger.error(`update -- ${e.message}`);
       return {
         success: false,
-        message: "util server error",
+        message: "",
         error: e.message,
       };
     }
   },
-  list: async (req) => {
+  delete: async (request) => {
     try {
-      let { tenant } = req.query;
-      const limit = parseInt(req.query.limit, 0);
-      const skip = parseInt(req.query.skip, 0);
+      /**
+       * delete the device from thingspeak
+       * if the device is not on thingspeak but is present on platform, then go ahead and just do soft delete
+       * then delete it from the platform
+       * if the operation fails on the platform, please inform user
+       * After everything, just inform the user through a response
+       *
+       */
+    } catch (e) {
+      logger.error(`delete -- ${e.message}`);
+      return {
+        success: false,
+        message: "server error --delete -- create-device util",
+        error: e.message,
+      };
+    }
+  },
+  list: async (request) => {
+    try {
+      let { tenant } = request.query;
+      const limit = parseInt(request.query.limit, 0);
+      const skip = parseInt(request.query.skip, 0);
       let filter = {};
-      let responseFromFilter = generateFilter.devices(req);
+      let responseFromFilter = generateFilter.devices(request);
       logElement(
         "is responseFromFilter in util a success?",
         responseFromFilter.success
@@ -296,7 +310,7 @@ const registerDeviceUtil = {
         };
       }
     } catch (e) {
-      logElement("error for list devices util", e.message);
+      logger.error(`error for list devices util -- ${e.message}`);
       return {
         success: false,
         message: "list devices util - server error",
@@ -304,36 +318,25 @@ const registerDeviceUtil = {
       };
     }
   },
-  clear: (req) => {
-    /**
-     * This requires the Events collection
-     * clear on ThingSpeak
-     * And then clear on platform
-     * In case
-     */
+  clear: (request) => {
+    return {
+      success: false,
+      message: "coming soon...",
+    };
   },
 
-  createOnClarity: (tenant, req, res) => {
+  createOnClarity: (request) => {
     return {
-      message: `temporary redirect, device creation for this organisation (${tenant}) not yet enabled/integrated`,
+      message: "coming soon",
       success: false,
     };
   },
 
   createOnPlatform: async (request) => {
     try {
-      const { tenant, body } = request;
-      if (!tenant || !body) {
-        logger.error("required params are missing -- createOnPlatform util");
-        logger_v2.badRequest(
-          "required params are missing",
-          "createOnPlatform util"
-        );
-        return {
-          success: false,
-          message: "required params are missing -- createOnPlatform util",
-        };
-      }
+      const { tenant } = request.query;
+      const { body } = request;
+
       const responseFromRegisterDevice = await getModelByTenant(
         tenant,
         "device",
@@ -367,72 +370,151 @@ const registerDeviceUtil = {
       }
     } catch (error) {
       logger.error("server error - createOnPlatform util");
-      logger_v2.tryCatchErrors(error, "server error - createOnPlatform util");
+      utillErrors.tryCatchErrors(error, "server error - createOnPlatform util");
     }
   },
 
-  createOnThingSpeak: async (
-    req,
-    res,
-    baseUrl,
-    prepBodyTS,
-    channel,
-    device,
-    deviceBody,
-    tenant
-  ) => {
-    await axios
-      .post(baseUrl, prepBodyTS)
-      .then(async (response) => {
-        channel = response.data.id;
-        logText("device successfully created on TS.");
-        let writeKey = response.data.api_keys[0].write_flag
-          ? response.data.api_keys[0].api_key
-          : "";
-        let readKey = !response.data.api_keys[1].write_flag
-          ? response.data.api_keys[1].api_key
-          : "";
-        let prepBodyDeviceModel = {
-          ...deviceBody,
-          channelID: `${response.data.id}`,
-          writeKey: writeKey,
-          readKey: readKey,
-        };
-        logText("adding the device to the platform...");
-        await createDevice(tenant, prepBodyDeviceModel, req, res);
-      })
-      .catch(async (e) => {
-        logElement(
-          "unable to create device on the platform, attempting to delete it from TS",
-          e.message
-        );
-        let error = e.message;
-        await deleteChannel(channel, device, error, req, res);
-      });
-  },
-  createOnThingSpeak: async (body, device_id) => {
-    await axios
-      .post(constants.THINGSPEAK_BASE_URL, body)
-      .then(async (response) => {
-        return {
-          success: true,
-          message: "successfully created device",
-          data: response.data,
-        };
-      })
-      .catch(async (e) => {
+  createOnThingSpeak: async (request) => {
+    try {
+      const baseURL = constants.CREATE_THING_URL;
+      const { body } = request;
+      const data = body;
+      const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
+      const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
+      logger.info(`the context -- ${JSON.stringify(context)}`);
+      const responseFromTransformRequestBody = await registerDeviceUtil.transform(
+        {
+          data,
+          map,
+          context,
+        }
+      );
+      logger.info(
+        `responseFromTransformRequestBody -- ${JSON.stringify(
+          responseFromTransformRequestBody
+        )}`
+      );
+      let transformedBody = responseFromTransformRequestBody.success
+        ? responseFromTransformRequestBody.data
+        : {};
+
+      if (isEmpty(transformedBody)) {
         return {
           success: false,
-          message: "server error, unable to create on ts",
-          error: e.message,
+          message: responseFromTransformRequestBody.message,
         };
-      });
+      }
+      // return await
+      const response = await axios.post(baseURL, transformedBody);
+
+      if (isEmpty(response)) {
+        return {
+          success: false,
+          message: "unable to create the device on thingspeak",
+        };
+      }
+
+      let writeKey = response.data.api_keys[0].write_flag
+        ? response.data.api_keys[0].api_key
+        : "";
+      let readKey = !response.data.api_keys[1].write_flag
+        ? response.data.api_keys[1].api_key
+        : "";
+
+      let newChannel = {
+        device_number: `${response.data.id}`,
+        writeKey: writeKey,
+        readKey: readKey,
+      };
+
+      return {
+        success: true,
+        message: "successfully created the device on thingspeak",
+        data: newChannel,
+      };
+    } catch (error) {
+      logger.error(` createOnThingSpeak -- ${error.message}`);
+      utillErrors.tryCatchErrors(
+        error,
+        "server error - createOnThingSpeak util"
+      );
+    }
   },
-  updateOnThingspeak: (body, device_id) => {},
-  updateOnClarity: (body, device_id) => {},
+
+  updateOnThingspeak: async (request) => {
+    try {
+      logger.info(
+        `  updateOnThingspeak's request -- ${JSON.stringify(request)}`
+      );
+      const { device_number } = request.query;
+      const { body } = request;
+      const config = {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      };
+      const data = body;
+      const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
+      const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
+      logger.info(`the context -- ${JSON.stringify(context)}`);
+      const responseFromTransformRequestBody = await registerDeviceUtil.transform(
+        {
+          data,
+          map,
+        }
+      );
+      logger.info(
+        `responseFromTransformRequestBody -- ${JSON.stringify(
+          responseFromTransformRequestBody
+        )}`
+      );
+      let transformedBody = responseFromTransformRequestBody.success
+        ? responseFromTransformRequestBody.data
+        : {};
+
+      logger.info(`transformedBody -- ${JSON.stringify(transformedBody)}`);
+      if (isEmpty(transformedBody)) {
+        return {
+          success: false,
+          message: responseFromTransformRequestBody.message,
+        };
+      }
+      const response = await axios.put(
+        constants.UPDATE_THING(device_number),
+        qs.stringify(transformedBody),
+        config
+      );
+      if (isEmpty(response)) {
+        return {
+          success: false,
+          message: "unable to update the device_number on thingspeak",
+        };
+      }
+      logger.info(`successfully updated the device on thingspeak`);
+      return {
+        success: true,
+        message: "successfully updated the device on thingspeak",
+        data: response.data,
+      };
+    } catch (error) {
+      logger.error(`updateOnThingspeak util -- ${error.message}`);
+      utillErrors.tryCatchErrors(
+        error,
+        "server error - updateOnThingspeak util"
+      );
+    }
+  },
+  updateOnClarity: (request) => {
+    return {
+      success: false,
+      message: "coming soon...",
+      error: "not yet integrated with the clarity system",
+    };
+  },
   updateOnPlatform: async (request) => {
     try {
-      const { id, device_number, name, tenant, body } = request.query;
+      const { id, device_number, name, tenant } = request.query;
+      const { body } = request;
       logObject("The request", request);
       let update = body;
       let filter = {};
@@ -484,17 +566,41 @@ const registerDeviceUtil = {
       }
     } catch (error) {
       logger.error(`updateOnPlatform util -- ${error.message}`);
-      logger_v2.badRequest("updateOnPlatform util", error.message);
+      utillErrors.tryCatchErrors(error, "server error - updateOnPlatform util");
     }
   },
-  deleteOnThingspeak: (body, device_id) => {},
+  deleteOnThingspeak: async (request) => {
+    try {
+      let device_number = parseInt(request.query.device_number, 10);
+      logger.info(`the device_number -- ${device_number}`);
+      let response = await axios.delete(
+        constants.DELETE_THING_URL(device_number)
+      );
+      if (isEmpty(response)) {
+        return {
+          success: false,
+          message: "unable to remove device_number",
+        };
+      }
+      logger.info(
+        `successfully deleted the device on thingspeak -- ${response.data}`
+      );
+      return {
+        success: true,
+        message: "successfully deleted the device on thingspeak",
+        data: response.data,
+      };
+    } catch (error) {
+      logger.error(`deleteOnThingspeak -- ${error.message}`);
+      utillErrors.tryCatchErrors(error, "server error - updateOnPlatform util");
+    }
+  },
   deleteOnPlatform: async (request) => {
     try {
       const { tenant } = request.query;
       logger.info(
         `the requesting coming into deleteOnPlatform util --${request}`
       );
-
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
       if (responseFromFilter.success == true) {
@@ -544,143 +650,53 @@ const registerDeviceUtil = {
       }
     } catch (error) {
       logger.error(`updateOnPlatform util -- ${error.message}`);
-      logger_v2.badRequest("updateOnPlatform util", error.message);
+      utillErrors.badRequest("updateOnPlatform util", error.message);
     }
   },
-  deleteOnclarity: (body, device_id) => {},
-  clearOnThingspeak: async (req, body, device_id) => {
-    try {
-      const { device, tenant } = req.query;
-
-      if (tenant) {
-        if (!device) {
-          return {
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          };
-        }
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
-        logElement("isDevicePresent ?", doesDeviceExist);
-        if (doesDeviceExist) {
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
-          logText("...................................");
-          logText("clearing the Thing....");
-          logElement("url", constants.CLEAR_THING_URL(channelID));
-          await axios
-            .delete(constants.CLEAR_THING_URL(channelID))
-            .then(async (response) => {
-              logText("successfully cleared the device in TS");
-              logObject("response from TS", response.data);
-              return {
-                message: `successfully cleared the data for device ${device}`,
-                success: true,
-                updatedDevice,
-              };
-            })
-            .catch(function(error) {
-              console.log(error);
-              return {
-                message: `unable to clear the device data, device ${device} does not exist`,
-                success: false,
-              };
-            });
-        } else {
-          logText(`device ${device} does not exist in the system`);
-          return {
-            message: `device ${device} does not exist in the system`,
-            success: false,
-          };
-        }
-      } else {
-        return {
-          success: false,
-          message: "missing query params, please check documentation",
-        };
-      }
-    } catch (e) {
-      logText(`unable to clear device ${device}`);
-      logger_v2.tryCatchErrors(e, "create-device util server error");
-    }
-  },
-  clearOnClarity: (body, device_id) => {
+  deleteOnclarity: (request) => {
     return {
       success: false,
-      message: "coming soon - unavailable option",
+      message: "coming soon",
+      error: "not yet integrated with the clarity system",
     };
   },
-  clearOnPlatform: async (req) => {
-    try {
-      /**
-       * clear events for a device
-       */
-      let { tenant } = req.query;
-      let filter = {};
-      let responseFromFilter = generateFilter.events(req);
-      logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
-        filter = responseFromFilter.data;
-      }
 
-      if (responseFromFilter.success == false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
-        return {
-          success: false,
-          message: responseFromFilter.message,
-          error,
-        };
-      }
-
-      let responseFromClearDevice = await EventModel(
-        tenant.toLowerCase()
-      ).removeMany({
-        filter,
-      });
-      if (responseFromClearDevice.success == true) {
-        return {
-          success: true,
-          message: responseFromClearDevice.message,
-          data: responseFromClearDevice.data,
-        };
-      } else if (responseFromClearDevice.success == false) {
-        if (responseFromClearDevice.error) {
-          return {
-            success: false,
-            message: responseFromClearDevice.message,
-            error: responseFromClearDevice.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromClearDevice.message,
-          };
-        }
-      }
-    } catch (e) {
-      logElement("delete devices util", e.message);
-      return {
-        success: false,
-        message: "util server error",
-        error: e.message,
-      };
-    }
-  },
   decryptKey: (encryptedKey) => {
     let decryptedKey = cryptr.decrypt(encryptedKey);
     return decryptedKey;
   },
+  transform: ({ data = {}, map = {}, context = {} } = {}) => {
+    try {
+      const result = transform(data, map, context);
+      if (!isEmpty(result)) {
+        return {
+          success: true,
+          message: "successfully transformed the json request",
+          data: result,
+        };
+      } else {
+        logger.warn(
+          `the request body for the external system is empty after transformation`
+        );
+        return {
+          success: true,
+          message:
+            "the request body for the external system is empty after transformation",
+          data: result,
+        };
+      }
+    } catch (error) {
+      logger.error(`transform -- ${error.message}`);
+      return {
+        success: false,
+        message: "server error - trasform util",
+        error: error.message,
+      };
+    }
+  },
 };
 
 const preOperation = {
-  generate_name: async (generationVersion, generationCount) => {
-    return `aq_g${generationVersion}_${generationCount}`;
-  },
   transform_v0: (req, res) => {
     let {
       name,
@@ -763,8 +779,6 @@ const preOperation = {
       upsert: true,
     };
 
-    // let transformedName = tranformDeviceName(name);
-
     let tsBody = {
       ...(!isEmpty(name) && { name: name }),
       ...(!isEmpty(elevation) && { elevation: elevation }),
@@ -777,28 +791,7 @@ const preOperation = {
 
     return { deviceBody, tsBody, options };
   },
-  transform_v1: (data, map) => {
-    try {
-      let result = transform(data, map);
-      if (result) {
-        return {
-          success: true,
-          message: "successfully transformed the json request",
-          data: result,
-        };
-      } else {
-        return {
-          success: false,
-          message: "unable to transform the json request",
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "server error - trasform util",
-      };
-    }
-  },
+
   deviceMappings: {
     thingspeak: {
       name: "name",
@@ -817,6 +810,7 @@ const preOperation = {
   },
 };
 
+/**********************************older code **************************** */
 const createOnThingSpeak = async (
   req,
   res,

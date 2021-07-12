@@ -12,17 +12,78 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
 
 const createEvent = {
+  transformEvents: async (measurements) => {},
   addEvents: async (request) => {
-    const { tenant } = request.query;
-    const { body } = request;
+    try {
+      const { tenant } = request.query;
+      const { body } = request;
+      let responseFromTransformEvents = {};
+
+      if (responseFromTransformEvents.success == true) {
+        let responseFromAddEvents = {};
+        if (responseFromAddEvents.success == true) {
+          return {
+            success: true,
+            message: responseFromAddEvents.message,
+          };
+        } else {
+          let error = responseFromAddEvents.error
+            ? responseFromAddEvents.error
+            : "";
+          return {
+            success: false,
+            message: responseFromAddEvents.message,
+            error,
+          };
+        }
+      }
+    } catch (error) {
+      logger.error(`addEvents util -- ${error.message}`);
+      utillErrors.tryCatchErrors("", error, message);
+    }
   },
   getEvents: async (request) => {
     let { tenant } = request.query;
+
+    let responseFromFilter = generateFilter.events(request);
+    let filter = {};
+    if (responseFromFilter.success == true) {
+      filter = responseFromFilter.data;
+    }
+
+    if (responseFromFilter.success == false) {
+      let error = responseFromFilter.error ? responseFromFilter.error : "";
+      return {
+        success: false,
+        message: responseFromFilter.message,
+        error,
+      };
+    }
+
+    let responseFromListEvents = {};
+    if (responseFromListEvents.success == true) {
+      return {
+        success: true,
+        message: responseFromListEvents.message,
+        data: responseFromListEvents.data,
+      };
+    }
+
+    if (responseFromListEvents.success == false) {
+      let error = responseFromListEvents.error
+        ? responseFromListEvents.error
+        : "";
+      return {
+        success: false,
+        message: responseFromListEvents.message,
+        error,
+      };
+    }
   },
 
-  clearEventsOnThingspeak: async (req, body, device_id) => {
+  clearEventsOnThingspeak: async (request) => {
     try {
-      const { device, tenant } = req.query;
+      const { device, tenant } = request.query;
 
       if (tenant) {
         if (!device) {
@@ -37,7 +98,7 @@ const createEvent = {
         logElement("isDevicePresent ?", doesDeviceExist);
         if (doesDeviceExist) {
           const channelID = await getChannelID(
-            req,
+            request,
             res,
             device,
             tenant.toLowerCase()
@@ -81,7 +142,7 @@ const createEvent = {
       utillErrors.tryCatchErrors(e, "create-device util server error");
     }
   },
-  clearEventsOnClarity: (body, device_id) => {
+  clearEventsOnClarity: (request) => {
     return {
       success: false,
       message: "coming soon - unavailable option",
@@ -92,7 +153,7 @@ const createEvent = {
       const { device, name, id, device_number, tenant } = request.query;
 
       let filter = {};
-      let responseFromFilter = generateFilter.events(request);
+      let responseFromFilter = generateFilter.events_v2(request);
       logObject("responseFromFilter", responseFromFilter);
 
       if (responseFromFilter.success == true) {
@@ -108,13 +169,7 @@ const createEvent = {
         };
       }
 
-      let responseFromClearEvents = await getModelByTenant(
-        tenant,
-        "event",
-        EventSchema
-      ).removeMany({
-        filter,
-      });
+      let responseFromClearEvents = { success: false, message: "coming soon" };
 
       if (responseFromClearEvents.success == true) {
         return {
