@@ -9,7 +9,9 @@ class ExceedanceModel(BasePyMongoModel):
         if str(standard).lower() == 'who':
             return self.group(
                 _id="$site_id",
+                sites={"$first": "$sites"},
                 **{f"{pollutant}": {"$avg": f"$who.{pollutant}"}},
+                totalRaw={"$avg": "$who.total"},
             )
 
         return self.group(
@@ -26,16 +28,13 @@ class ExceedanceModel(BasePyMongoModel):
     def add_field_by_pollutant(self, pollutant, standard):
         if str(standard).lower() == 'who':
             return self.add_fields(
-
-                who={
-                    "total": {"$round": "$total"},
-                    f"{pollutant}": {"$round": f"${pollutant}"},
-                },
+                total={"$round": "$totalRaw"},
+                exceedance={"$round": f"${pollutant}"},
             )
 
         return self.add_fields(
             aqi={
-                "total": {"$round": "$total"},
+                "total": {"$round": "$totalRaw"},
                 f"{pollutant}": {
                     "Good": {"$round": "$Good"},
                     "Moderate": {"$round": "$Moderate"},
@@ -53,8 +52,16 @@ class ExceedanceModel(BasePyMongoModel):
                 .date_range("exceedances.time", start_date=start_date, end_date=end_date)
                 .unwind("exceedances")
                 .replace_root("exceedances")
+                .project(site_id={"$toObjectId": "$site_id"}, who=1, aqi=1)
+                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="sites")
                 .group_by_pollutant(pollutant, standard)
                 .add_field_by_pollutant(pollutant, standard)
-                .project(site_id={"$toString": "$_id"}, total=1, who=1, aqi=1)
+                .unwind("sites")
+                .project(
+                    _id=0,
+                    total=1,
+                    exceedance=1,
+                    sites={"name": 1, "description": 1, "generated_name": 1},
+                )
                 .exec()
         )
