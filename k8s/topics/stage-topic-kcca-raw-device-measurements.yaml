@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: kcca-raw-device-measurements-topic
+  name: kcca-streams-raw-device-measurements-topic
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster
@@ -9,5 +9,5 @@ spec:
   partitions: 1
   replicas: 1
   config:
-    retention.ms: 259200000 # data retention set to 1 day
+    retention.ms: 43200000
     segment.bytes: 1073741824

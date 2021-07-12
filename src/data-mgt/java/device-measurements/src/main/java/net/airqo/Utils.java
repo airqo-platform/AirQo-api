@@ -41,10 +41,10 @@ public class Utils {
                         return transformKccaMeasurements(rawMeasurements, properties);
 
                     case "AIRQO":
-                        List<TransformedMeasurement> transformedMeasurements =
-                        transformAirQoMeasurements(rawMeasurements, properties);
-                        return addAirQoCalibratedValues(transformedMeasurements);
-//                        return transformAirQoMeasurements(rawMeasurements, properties);
+//                        List<TransformedMeasurement> transformedMeasurements =
+//                        transformAirQoMeasurements(rawMeasurements, properties);
+//                        return addAirQoCalibratedValues(transformedMeasurements);
+                        return transformAirQoMeasurements(rawMeasurements, properties);
 
                     default:
                         return new ArrayList<>();

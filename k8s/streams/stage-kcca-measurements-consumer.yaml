@@ -36,4 +36,4 @@ spec:
             - name: BASE_URL
               value: http://staging-platform.airqo.net/api/v1/
             - name: CONSUMER_GROUP
-              value: airqo-measurements-consumer-group
+              value: kcca-measurements-consumer-group
