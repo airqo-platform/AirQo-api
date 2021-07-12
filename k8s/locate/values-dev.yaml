@@ -1,0 +1,35 @@
+# values for airqo-locate-api.
+env:
+  deployment_name: airqo-dev-locate-api
+  service_name: airqo-dev-locate-api-svc
+  labels: dev-locate-api
+  secret: dev-locate-secret
+
+replicaCount: 2
+
+image:
+  repository: airqo-dev-locate-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 32004
+  targetPort: 4001
+  port: 4001
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: development

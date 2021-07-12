@@ -1,0 +1,35 @@
+# values for airqo-locate-api.
+env:
+  deployment_name: airqo-stage-locate-api
+  service_name: airqo-stage-locate-api-svc
+  labels: sta-locate-api
+  secret: stage-locate-secret
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-stage-locate-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 31004
+  targetPort: 4001
+  port: 4001
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: staging
