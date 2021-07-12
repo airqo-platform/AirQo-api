@@ -66,7 +66,7 @@ const defaultConfig = {
   MESSAGE_TYPE: "events",
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
-  DEVICE_CREATION: {
+  THINGSPEAK_FIELD_DESCRIPTIONS: {
     field1: "Sensor1 PM2.5_CF_1_ug/m3",
     field2: "Sensor1 PM10_CF_1_ug/m3",
     field3: "Sensor2 PM2.5_CF_1_ug/m3",
@@ -74,7 +74,7 @@ const defaultConfig = {
     field5: "Latitude",
     field6: "Longitude",
     field7: "Battery Voltage",
-    field8: "GpsData",
+    field8: "ExtraData",
   },
   N_VALUES: 120000,
   LATITUDE_REGEX: /^(-?[1-8]?\d(?:\.\d{1,18})?|90(?:\.0{1,18})?)$/,
@@ -83,6 +83,38 @@ const defaultConfig = {
   DEFAULT_EVENTS_LIMIT: 1000,
   EVENTS_CACHE_LIMIT: 1800,
   WHITE_SPACES_REGEX: /^\S*$/,
+  DEVICE_THINGSPEAK_MAPPINGS: {
+    item: {
+      name: "long_name",
+      description: "description",
+      elevation: "elevation",
+      tags: "tags",
+      latitude: "latitude",
+      longitude: "longitude",
+      public_flag: "visibility",
+    },
+    remove: [],
+    defaults: {
+      missingData: true,
+    },
+    operate: [
+      {
+        run: "Date.parse",
+        on: "",
+      },
+    ],
+    each: function(item, index, collection, context) {
+      item.field1 = context.field1;
+      item.field2 = context.field2;
+      item.field3 = context.field3;
+      item.field4 = context.field4;
+      item.field5 = context.field5;
+      item.field6 = context.field6;
+      item.field7 = context.field7;
+      item.field8 = context.field8;
+      return item;
+    },
+  },
 };
 
 function envConfig(env) {
