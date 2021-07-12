@@ -116,7 +116,7 @@ class CalculateExceedances:
 
             exceedances.append({
                 "site_id": site_events["_id"],
-                "time": created_at.isoformat(),
+                "time": created_at,
                 "who": WHO,
                 "aqi": aqi,
             })
@@ -127,7 +127,7 @@ class CalculateExceedances:
         created_at = datetime.utcnow()
         created_at = created_at.replace(tzinfo=UTC)
         exceedance_model = Exceedance(self.tenant)
-        record = {"day": created_at.isoformat(), "exceedances": exceedances}
+        record = {"day": created_at, "exceedances": exceedances}
         return exceedance_model.save_exceedance(record)
 
     def get_events(self):
