@@ -9,7 +9,7 @@ const insertDeviceMeasurements = {
 
         try {
 
-            for (let index in array_data) {
+            for (let index in measurements_array) {
 
                 const data = array_data[index];
 

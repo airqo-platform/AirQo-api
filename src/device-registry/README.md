@@ -25,6 +25,7 @@ Install the dependencies
 To run on MacOS
 ```bash
   npm run dev-mac
+  npm run kafka-dev-mac
 ```
 To run on Windows
 ```bash
