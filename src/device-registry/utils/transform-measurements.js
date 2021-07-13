@@ -32,9 +32,11 @@ const transformMeasurements = (device, measurements) => {
 
 const bulkTransformMeasurements = (measurements) => {
   let promises = measurements.map(async (measurement) => {
+
+    const time = measurement.time;
+    const device = measurement.device;
+
     try {
-      const time = measurement.time;
-      const device = measurement.device;
       const day = generateDateFormatWithoutHrs(time);
       return {
         device: device,

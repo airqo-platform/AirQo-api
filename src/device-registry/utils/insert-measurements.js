@@ -79,9 +79,9 @@ const bulkInsert = async (transformedMeasurements) => {
   let errors = [];
 
   for (const measurement of transformedMeasurements) {
-    const tenant = measurement.tenant.toLowerCase();
     try {
       console.log("the measurement: ", measurement);
+      const tenant = measurement.tenant.toLowerCase();
       const eventBody = {
         day: measurement.day,
         nValues: { $lt: constants.N_VALUES },

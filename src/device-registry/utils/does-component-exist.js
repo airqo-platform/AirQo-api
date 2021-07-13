@@ -67,13 +67,14 @@ const doDevicesExist = (measurements) => {
         return true;
       }
       else{
-        logObject("Kafka Data insertion log", JSON.stringify({
+        logObject("Kafka Data device check log", JSON.stringify({
           success: false,
           message: `Device (${deviceName}) for tenant (${tenant}) does not exist on the network`,
           errors: [],
           valuesRejected: data,
           valuesAdded: [],
         }));
+        return false;
       }
 
     } catch (e) {
@@ -84,11 +85,7 @@ const doDevicesExist = (measurements) => {
     
   });
   return Promise.all(promises).then((results) => {
-    if (results.every((res) => res.success)) {
-      return results;
-    } else {
-      console.log("the results for no success", results);
-    }
+    return results;
   });
 };
 
