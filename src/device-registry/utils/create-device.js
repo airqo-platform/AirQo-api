@@ -78,18 +78,6 @@ const registerDeviceUtil = {
           ...enrichmentDataForDeviceCreation,
         };
 
-        let responseFromGenerateQRCode = await registerDeviceUtil.generateQR(
-          JSON.stringify(modifiedRequest.body)
-        );
-        logger.info(
-          `responseFromGenerateQRCode -- ${JSON.stringify(
-            responseFromGenerateQRCode
-          )}`
-        );
-        if (responseFromGenerateQRCode.success) {
-          modifiedRequest["body"]["qr_code"] = responseFromGenerateQRCode.data;
-        }
-
         let responseFromCreateDeviceOnPlatform = await registerDeviceUtil.createOnPlatform(
           modifiedRequest
         );

@@ -130,9 +130,6 @@ const deviceSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    qr_code: {
-      type: String,
-    },
     host_id: {
       type: ObjectId,
     },
@@ -240,7 +237,6 @@ deviceSchema.methods = {
       mountType: this.mountType,
       isActive: this.isActive,
       writeKey: this.writeKey,
-      qr_code: this.qr_code,
       isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
@@ -320,7 +316,6 @@ deviceSchema.statics = {
           isActive: 1,
           isRetired: 1,
           writeKey: 1,
-          qr_code: 1,
           readKey: 1,
           pictures: 1,
           siteName: 1,
