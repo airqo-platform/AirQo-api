@@ -122,6 +122,15 @@ def get_bbox_coordinates(shapefile_path):
     min_long, min_lat, max_long, max_lat= kampala_polygon.bounds
     return min_long, max_long, min_lat, max_lat
 
+def point_in_polygon(row, polygon):
+    from shapely.geometry import Point, shape
+    mypoint = Point(row.longitude, row.latitude)
+    
+    if polygon.contains(mypoint):
+        return 'True'
+    else:
+        return 'False'
+
 
 def predict_model(m):
     '''
