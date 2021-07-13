@@ -6,7 +6,7 @@ import requests
 
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 TENANT = os.getenv("TENANT", "airqo")
-SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK", "")
+SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK", "https://hooks.slack.com/services/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")
 TIME_INTERVAL = os.getenv("TIME_INTERVAL", 3)
 
 
@@ -14,7 +14,48 @@ def notify_slack(data):
     data = json.dumps(data)
     headers = {'Content-Type': 'application/json'}
     response = requests.post(SLACK_WEBHOOK, data=data, headers=headers)
+    if response.status_code == 200:
+        print("Check complete. Some issues were detected, check our slack channel")
+    else:
+        print("Check complete. Some issues were detected though we weren't able to send a slack message")
+
     print(response.content)
+
+
+def build_message(url, status_code, request_type, response_body):
+    return dict({
+            "text": f"*Status Code*: {status_code}",
+            "blocks": [
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Url*: {url}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Request Type*: {request_type}"
+                    }
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Response Body*: {str(response_body)}"
+                    },
+                },
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Time check was carried out*: {datetime.utcnow().strftime('%Y-%m-%d %H:%M ')} UTC"
+                    },
+                },
+            ]
+        })
 
 
 def run_checks():
@@ -24,32 +65,7 @@ def run_checks():
     results = requests.get(api_url)
 
     if results.status_code != 200:
-        data = dict({
-            "text": f"Device registry returned {results.status_code} status code",
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Url : {api_url}"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Time check was carried out : *{datetime.now()}*"
-                    },
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Response : {str(results.content)}"
-                    },
-                },
-            ]
-        })
+        data = build_message(api_url, results.status_code, results.request.method, str(results.content))
         notify_slack(data)
         return
 
@@ -57,25 +73,7 @@ def run_checks():
     measurements = list(response_data["measurements"])
 
     if len(measurements) == 0:
-        data = dict({
-            "text": f"Device registry returned 0 measurements",
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Url : *{api_url}*"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Time check was carried out : *{datetime.now()}*"
-                    },
-                }
-            ]
-        })
+        data = build_message(api_url, results.status_code, results.request.method, response_data)
         notify_slack(data)
         return
 
@@ -90,36 +88,12 @@ def run_checks():
             break
 
     if not has_latest:
-        data = dict({
-            "text": f"Device registry doesnt have latest measurements",
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Url : *{api_url}*"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Interval : *{TIME_INTERVAL}*"
-                    },
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"Time check was carried out : *{datetime.now()}*"
-                    },
-                }
-            ]
-        })
+        data = build_message(api_url, results.status_code,
+                             results.request.method, "It's better you make the query yourself")
         notify_slack(data)
         return
 
-    print("Check passed")
+    print("Check complete. All looks fine")
 
 
 if __name__ == '__main__':
