@@ -48,7 +48,7 @@ const doesDeviceExist = async (deviceName, tenant) => {
   }
 };
 
-const doDevicesExist = (measurements) => {
+const filterExistingDevices = (measurements) => {
   let promises = measurements.filter(async (measurement) => {
     try {
       logText(".......................................");
@@ -145,5 +145,5 @@ module.exports = {
   doesDeviceExist,
   doesComponentExist,
   doesComponentTypeExist,
-  doDevicesExist
+  filterExistingDevices
 };
