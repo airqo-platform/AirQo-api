@@ -23,6 +23,12 @@ const createEventUtil = require("../utils/create-event");
 const createEvent = {
   addValues: async (req, res) => {
     try {
+      logger.info(`the general delete device operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
       logger.info(`adding values...`);
       const { device, tenant } = req.query;
       const { body } = req;

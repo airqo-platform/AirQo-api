@@ -975,16 +975,21 @@ router.get("/list/components/types", componentController.getTypes);
 router.post(
   "/events",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage(
-        "the tenant value is not among the expected ones which include: kcca and airqo"
-      ),
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage(
+          "the tenant value is not among the expected ones which include: kcca and airqo"
+        ),
+      body()
+        .isArray()
+        .withMessage("the request body should be an array"),
+    ],
   ]),
   eventController.addValues
 );
