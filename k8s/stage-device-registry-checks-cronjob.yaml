@@ -2,21 +2,15 @@
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  creationTimestamp: "2021-07-11T00:00:00Z"
+  creationTimestamp: "2021-07-13T22:00:00Z"
   managedFields:
     - apiVersion: batch/v1beta1
       manager: kubectl
       operation: Update
-      time: "2021-07-11T00:00:00Z"
+      time: "2021-07-13T22:00:00Z"
   name: stage-device-registry-checks-job
   namespace: staging
 spec:
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 0
-      maxUnavailable: 1
-  minReadySeconds: 5
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1
   jobTemplate:
@@ -36,14 +30,14 @@ spec:
                 - name: SLACK_WEBHOOK
                   valueFrom:
                     secretKeyRef:
-                      name: stage-slack-webhook-url
+                      name: stage-slack-webhook-credentials
                       key: SLACK_WEBHOOK
                 - name: TENANT
                   value: airqo
                 - name: DEVICE_REGISTRY_URL
-                  value: http://staging-platform.airqo.net/api/v1/
+                  value: "http://staging-platform.airqo.net/api/v1/"
                 - name: TIME_INTERVAL
-                  value: 3
+                  value: "3"
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
@@ -52,7 +46,7 @@ spec:
           schedulerName: default-scheduler
           securityContext: {}
           terminationGracePeriodSeconds: 30
-  schedule: 00 */2 * * *
+  schedule: "@hourly"
   successfulJobsHistoryLimit: 3
   suspend: false
 status: {}

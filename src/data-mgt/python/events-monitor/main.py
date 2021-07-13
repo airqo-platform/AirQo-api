@@ -78,7 +78,7 @@ def run_checks():
         return
 
     has_latest = False
-    check_date = datetime.utcnow() - timedelta(hours=TIME_INTERVAL)
+    check_date = datetime.utcnow() - timedelta(hours=int(TIME_INTERVAL))
 
     for measurement in measurements:
         measurement_values = dict(measurement)
