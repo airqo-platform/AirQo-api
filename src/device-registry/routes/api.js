@@ -972,8 +972,38 @@ router.post("/add/components/types", componentController.createType);
 router.get("/list/components/types", componentController.getTypes);
 
 /******************* create-event use-case *******************************/
-router.post("/events/add", eventController.addValues);
-router.get("/events", eventController.getValues);
+router.post(
+  "/events",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
+  ]),
+  eventController.addValues
+);
+router.get(
+  "/events",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
+  ]),
+  eventController.getValues
+);
 router.post("/events/transmit", eventController.transmitValues);
 /*clear events*/
 router.delete(
@@ -994,17 +1024,17 @@ router.delete(
     query("device_number")
       .exists()
       .withMessage(
-        "the device identifier is missing in request, consider using the device_number"
+        "the record's identifier is missing in request, consider using the device_number"
       )
       .bail()
       .trim()
       .isInt()
       .withMessage("the device_number should be an integer value")
       .toInt(),
-    query("id")
+    query("device_id")
       .exists()
       .withMessage(
-        "the device identifier is missing in request, consider using the device_id"
+        "the record's identifier is missing in request, consider using the device_id"
       )
       .bail()
       .trim()
@@ -1014,10 +1044,23 @@ router.delete(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("name")
+    query("site_id")
       .exists()
       .withMessage(
-        "the device identifier is missing in request, consider using the name"
+        "the record's identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("site_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("device")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device name"
       )
       .bail()
       .trim()

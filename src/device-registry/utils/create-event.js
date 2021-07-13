@@ -1,4 +1,3 @@
-const HTTPStatus = require("http-status");
 const EventSchema = require("../models/Event");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
@@ -6,40 +5,140 @@ const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
 const { utillErrors } = require("./errors");
-const jsonify = require("./jsonify");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
+const { generateDateFormatWithoutHrs } = require("./date");
 
 const createEvent = {
-  transformEvents: async (measurements) => {},
+  transformEvents: async (measurements) => {
+    let promises = measurements.map(async (measurement) => {
+      try {
+        let time = measurement.time;
+        const day = generateDateFormatWithoutHrs(time);
+        return {
+          day: day,
+          ...measurement,
+          success: true,
+        };
+      } catch (e) {
+        logger.error(`transformEvents -- ${e.message}`);
+        let device = measurement.device;
+        return {
+          device,
+          success: false,
+          message: e.message,
+        };
+      }
+    });
+    return Promise.all(promises).then((results) => {
+      if (results.every((res) => res.success)) {
+        return {
+          success: true,
+          data: results,
+          message: "successfully transformed all",
+        };
+      } else {
+        logger.error(`the results for no success -- ${results}`);
+      }
+    });
+  },
   addEvents: async (request) => {
     try {
-      const { tenant } = request.query;
-      const { body } = request;
-      let responseFromTransformEvents = {};
+      logger.info(`adding events in the util.....`);
+      let { tenant } = request.query;
+      let { body } = request;
+      let responseFromTransformEvents = await createEvent.transformEvents(body);
+      logger.info(
+        `responseFromTransformEvents -- ${JSON.stringify(
+          responseFromTransformEvents
+        )}`
+      );
+      if (!responseFromTransformEvents.success) {
+        let error = responseFromTransformEvents.error
+          ? responseFromTransformEvents.error
+          : "";
+        return {
+          success: false,
+          message: responseFromTransformEvents.message,
+          error,
+        };
+      }
+      let transformedMeasurements = responseFromTransformEvents.data;
+      let nAdded = 0;
+      let eventsAdded = [];
+      let eventsRejected = [];
+      let errors = [];
 
-      if (responseFromTransformEvents.success == true) {
-        let responseFromAddEvents = {};
-        if (responseFromAddEvents.success == true) {
-          return {
-            success: true,
-            message: responseFromAddEvents.message,
+      for (const measurement of transformedMeasurements) {
+        try {
+          logger.info(`the measurement -- ${JSON.stringify(measurement)}`);
+          const event = {
+            day: measurement.day,
+            nValues: { $lt: constants.N_VALUES },
+            $or: [
+              { "values.time": { $ne: measurement.time } },
+              { "values.device": { $ne: measurement.device } },
+              { "values.frequency": { $ne: measurement.frequency } },
+              { "values.device_id": { $ne: measurement.device_id } },
+              { "values.site_id": { $ne: measurement.site_id } },
+              { day: { $ne: measurement.day } },
+            ],
           };
-        } else {
-          let error = responseFromAddEvents.error
-            ? responseFromAddEvents.error
-            : "";
-          return {
-            success: false,
-            message: responseFromAddEvents.message,
-            error,
+          const options = {
+            $addToSet: { values: measurement },
+            $min: { first: measurement.time },
+            $max: { last: measurement.time },
+            $inc: { nValues: 1 },
           };
+          const addedEvents = await getModelByTenant(
+            tenant.toLowerCase(),
+            "event",
+            EventSchema
+          ).updateOne(event, options, {
+            upsert: true,
+          });
+          if (addedEvents) {
+            nAdded += 1;
+            eventsAdded.push(measurement);
+          } else if (!addedEvents) {
+            eventsRejected.push(measurement);
+            errors.push("unable to add the events ");
+          } else {
+            eventsRejected.push(measurement);
+            errors.push("unable to add the events ");
+          }
+        } catch (e) {
+          eventsRejected.push(measurement);
+          errors.push(e.message);
         }
       }
+
+      if (errors.length > 0) {
+        return {
+          success: false,
+          message: "finished the operation with some errors",
+          errors: errors,
+          rejectedCount: `${eventsRejected.length}`,
+          addedCount: `${eventsAdded.length}`,
+          valuesRejected: eventsRejected,
+          valuesAdded: eventsAdded,
+        };
+      } else {
+        return {
+          success: true,
+          message: "successfully added all the events",
+          valuesAdded: eventsAdded,
+          addedCount: `${eventsAdded.length}`,
+        };
+      }
     } catch (error) {
-      logger.error(`addEvents util -- ${error.message}`);
-      utillErrors.tryCatchErrors("", error, message);
+      logger.error(`the server side error -- ${error.message}`);
+      return {
+        success: false,
+        message: "server side error",
+        errors: error.message,
+      };
     }
   },
   getEvents: async (request) => {
@@ -47,11 +146,11 @@ const createEvent = {
 
     let responseFromFilter = generateFilter.events(request);
     let filter = {};
-    if (responseFromFilter.success == true) {
+    if (responseFromFilter.success) {
       filter = responseFromFilter.data;
     }
 
-    if (responseFromFilter.success == false) {
+    if (!responseFromFilter.success) {
       let error = responseFromFilter.error ? responseFromFilter.error : "";
       return {
         success: false,
@@ -61,7 +160,7 @@ const createEvent = {
     }
 
     let responseFromListEvents = {};
-    if (responseFromListEvents.success == true) {
+    if (responseFromListEvents.success) {
       return {
         success: true,
         message: responseFromListEvents.message,
@@ -69,7 +168,7 @@ const createEvent = {
       };
     }
 
-    if (responseFromListEvents.success == false) {
+    if (!responseFromListEvents.success) {
       let error = responseFromListEvents.error
         ? responseFromListEvents.error
         : "";
@@ -80,66 +179,94 @@ const createEvent = {
       };
     }
   },
-
-  clearEventsOnThingspeak: async (request) => {
+  getMeasurements: async (
+    res,
+    recent,
+    device,
+    skip,
+    limit,
+    frequency,
+    tenant,
+    startTime,
+    endTime
+  ) => {
     try {
-      const { device, tenant } = request.query;
+      const currentTime = new Date().toISOString();
+      const day = generateDateFormatWithoutHrs(currentTime);
+      let cacheID = generateCacheID(
+        device,
+        day,
+        tenant,
+        skip,
+        limit,
+        frequency,
+        recent,
+        startTime,
+        endTime
+      );
 
-      if (tenant) {
-        if (!device) {
-          return {
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          };
-        }
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
-        logElement("isDevicePresent ?", doesDeviceExist);
-        if (doesDeviceExist) {
-          const channelID = await getChannelID(
-            request,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
-          logText("...................................");
-          logText("clearing the Thing....");
-          logElement("url", constants.CLEAR_THING_URL(channelID));
-          await axios
-            .delete(constants.CLEAR_THING_URL(channelID))
-            .then(async (response) => {
-              logText("successfully cleared the device in TS");
-              logObject("response from TS", response.data);
-              return {
-                message: `successfully cleared the data for device ${device}`,
+      redis.get(cacheID, async (err, result) => {
+        try {
+          if (result) {
+            const resultJSON = JSON.parse(result);
+            return res.status(HTTPStatus.OK).json(resultJSON);
+          } else if (err) {
+            callbackErrors(err, req, res);
+          } else {
+            const filter = generateFilter.events(
+              device,
+              frequency,
+              startTime,
+              endTime
+            );
+
+            let devicesCount = await getDevicesCount(tenant);
+
+            let _skip = skip ? skip : 0;
+            let _limit = limit ? limit : constants.DEFAULT_EVENTS_LIMIT;
+            let options = {
+              skipInt: _skip,
+              limitInt: _limit,
+            };
+
+            if (!device) {
+              options["skipInt"] = 0;
+              options["limitInt"] = devicesCount;
+            }
+
+            let recentFlag = isRecentTrue(recent);
+
+            let events = await getEvents(
+              tenant,
+              recentFlag,
+              options.skipInt,
+              options.limitInt,
+              filter
+            );
+
+            redis.set(
+              cacheID,
+              JSON.stringify({
+                isCache: true,
                 success: true,
-                updatedDevice,
-              };
-            })
-            .catch(function(error) {
-              console.log(error);
-              return {
-                message: `unable to clear the device data, device ${device} does not exist`,
-                success: false,
-              };
+                message: `successfully listed the Events`,
+                measurements: events,
+              })
+            );
+            redis.expire(cacheID, constants.EVENTS_CACHE_LIMIT);
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              isCache: false,
+              message: `successfully listed the Events`,
+              measurements: events,
             });
-        } else {
-          logText(`device ${device} does not exist in the system`);
-          return {
-            message: `device ${device} does not exist in the system`,
-            success: false,
-          };
+          }
+        } catch (e) {
+          tryCatchErrors(res, e);
         }
-      } else {
-        return {
-          success: false,
-          message: "missing query params, please check documentation",
-        };
-      }
+      });
     } catch (e) {
-      logText(`unable to clear device ${device}`);
-      utillErrors.tryCatchErrors(e, "create-device util server error");
+      tryCatchErrors(res, e);
     }
   },
   clearEventsOnClarity: (request) => {

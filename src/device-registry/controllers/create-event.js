@@ -23,50 +23,53 @@ const createEventUtil = require("../utils/create-event");
 const createEvent = {
   addValues: async (req, res) => {
     try {
-      logText("adding values...");
+      logger.info(`adding values...`);
       const { device, tenant } = req.query;
       const { body } = req;
-      if (tenant && device && body) {
-        const measurements = req.body;
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
 
-        if (doesDeviceExist) {
-          const transformedMeasurements = await transformMeasurements(
-            device,
-            measurements
-          );
-          let response = await insertMeasurements(
-            tenant,
-            transformedMeasurements
-          );
-          if (response.success == true) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "successfully added all the events",
-              valuesAdded: response.valuesAdded,
-            });
-          } else if (response.success == false) {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: "finished the operation with some errors",
-              errors: response.errors,
-              valuesRejected: response.valuesRejected,
-              valuesAdded: response.valuesAdded,
-            });
-          }
-        } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: `the device (${device}) does not exist on the network`,
-          });
-        }
-      } else {
-        missingQueryParams(res);
+      let request = {};
+      request["query"] = {};
+      request["query"]["device"] = device;
+      request["query"]["tenant"] = tenant;
+      request["body"] = body;
+
+      let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
+      logger.info(
+        `responseFromAddEventsUtil -- ${JSON.stringify(
+          responseFromAddEventsUtil
+        )}`
+      );
+
+      if (!responseFromAddEventsUtil.success) {
+        let errors = responseFromAddEventsUtil.errors
+          ? responseFromAddEventsUtil.errors
+          : "";
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: "finished the operation with some errors",
+          rejectedCount: responseFromAddEventsUtil.rejectedCount,
+          addedCount: responseFromAddEventsUtil.addedCount,
+          errors,
+          valuesRejected: responseFromAddEventsUtil.valuesRejected,
+          valuesAdded: responseFromAddEventsUtil.valuesAdded,
+        });
+      }
+
+      if (responseFromAddEventsUtil.success) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "successfully added all the events",
+          addedCount: responseFromAddEventsUtil.addedCount,
+          valuesAdded: responseFromAddEventsUtil.valuesAdded,
+        });
       }
     } catch (e) {
       logger.error(`addValue -- ${e.message}`);
-      tryCatchErrors(res, e, "server error");
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server error",
+        error: e.message,
+      });
     }
   },
   getValues: (req, res) => {
