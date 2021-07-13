@@ -261,10 +261,10 @@ const registerDeviceUtil = {
   },
   delete: async (request) => {
     try {
-      // return {
-      //   success: false,
-      //   message: "feature temporarity disabled --coming soon",
-      // };
+      return {
+        success: false,
+        message: "feature temporarity disabled --coming soon",
+      };
       const { device_number } = request.query;
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
