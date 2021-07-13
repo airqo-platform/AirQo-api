@@ -6,7 +6,7 @@ import requests
 
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 TENANT = os.getenv("TENANT", "airqo")
-SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK", "https://hooks.slack.com/services/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")
+SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK", "")
 TIME_INTERVAL = os.getenv("TIME_INTERVAL", 3)
 
 
