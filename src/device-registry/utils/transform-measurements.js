@@ -30,6 +30,36 @@ const transformMeasurements = (device, measurements) => {
   });
 };
 
+const bulkTransformMeasurements = (measurements) => {
+  let promises = measurements.map(async (measurement) => {
+    try {
+      const time = measurement.time;
+      const device = measurement.device;
+      const day = generateDateFormatWithoutHrs(time);
+      return {
+        device: device,
+        day: day,
+        ...measurement,
+        success: true,
+      };
+    } catch (e) {
+      console.log("the error: ", e.message);
+      return {
+        device: device,
+        success: false,
+        message: e.message,
+      };
+    }
+  });
+  return Promise.all(promises).then((results) => {
+    if (results.every((res) => res.success)) {
+      return results;
+    } else {
+      console.log("the results for no success", results);
+    }
+  });
+};
+
 const createString = () => {};
 
 const transformField = (field) => {
@@ -78,4 +108,4 @@ const transformMeasurementFields = async (measurements) => {
   }
 };
 
-module.exports = { transformMeasurements, transformMeasurementFields };
+module.exports = { transformMeasurements, transformMeasurementFields, bulkTransformMeasurements };

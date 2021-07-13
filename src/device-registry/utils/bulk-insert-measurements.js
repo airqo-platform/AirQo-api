@@ -1,79 +1,155 @@
-const { transformMeasurements } = require("../utils/transform-measurements");
-const insertMeasurements = require("../utils/insert-measurements");
-const { doesDeviceExist } = require("../utils/does-component-exist");
-const { logObject } = require("../utils/log");
+// const { transformMeasurements, bulkTransformMeasurements } = require("../utils/transform-measurements");
+// const { bulkInsert } = require("../utils/insert-measurements");
+// const { doesDeviceExist, doDevicesExist } = require("../utils/does-component-exist");
+// const { logObject } = require("../utils/log");
 
-const insertDeviceMeasurements = {
+// const bulkInserts = (measurements) => {
 
-    addValuesArray: async (measurements_array) => {
+//     const valid_measurements = doDevicesExist(measurements);
 
-        try {
+//     let transformedMeasurements = await bulkTransformMeasurements(valid_measurements);
 
-            for (let index in measurements_array) {
+//     let response = await bulkInsert(transformedMeasurements);
+//     logObject("Kafka Data insertion log", JSON.stringify(response));
 
-                const data = array_data[index];
 
-                const device = data.device;
-                const tenant = data.tenant;
-                const measurements = [data];
+//     addValuesArray: async (measurements_array) => {
 
-                if (!tenant || !device) {
+//         try {
 
-                    logObject("Kafka Data insertion log", JSON.stringify({
-                        success: false,
-                        message: "Missing values...",
-                        errors: [],
-                        valuesRejected: data,
-                        valuesAdded: [],
+//             for (let index in measurements_array) {
 
-                    }));
+//                 const data = array_data[index];
 
-                    continue;
+//                 const device = data.device;
+//                 const tenant = data.tenant;
+//                 const measurements = [data];
 
-                }
+//                 if (!tenant || !device) {
 
-                let isDevicePresent = await doesDeviceExist(
-                    device,
-                    tenant.toLowerCase()
-                );
+//                     logObject("Kafka Data insertion log", JSON.stringify({
+//                         success: false,
+//                         message: "Missing values...",
+//                         errors: [],
+//                         valuesRejected: data,
+//                         valuesAdded: [],
 
-                if (!isDevicePresent){
-                    logObject("Kafka Data insertion log", JSON.stringify({
-                        success: false,
-                        message: `Device (${device}) for tenant (${tenant}) does not exist on the network`,
-                        errors: [],
-                        valuesRejected: data,
-                        valuesAdded: [],
+//                     }));
 
-                    }));
+//                     continue;
 
-                    continue;
-                }
+//                 }
 
-                let transformedMeasurements = await transformMeasurements(
-                    device,
-                    measurements
-                );
+//                 let isDevicePresent = await doesDeviceExist(
+//                     device,
+//                     tenant.toLowerCase()
+//                 );
 
-                let response = await insertMeasurements(tenant, transformedMeasurements);
-                logObject("Kafka Data insertion log", JSON.stringify(response));
+//                 if (!isDevicePresent){
+//                     logObject("Kafka Data insertion log", JSON.stringify({
+//                         success: false,
+//                         message: `Device (${device}) for tenant (${tenant}) does not exist on the network`,
+//                         errors: [],
+//                         valuesRejected: data,
+//                         valuesAdded: [],
+//                     }));
 
-            }
-        } 
-        catch (e) {
+//                     continue;
+//                 }
 
-            logObject("Kafka Data insertion log", JSON.stringify({
-                success: false,
-                message: "Error Occurred...",
-                errors: e,
-                valuesRejected: [],
-                valuesAdded: [],
-            }));
+//                 let transformedMeasurements = await transformMeasurements(
+//                     device,
+//                     measurements
+//                 );
 
-        }
+//                 let response = await insertMeasurements(tenant, transformedMeasurements);
+//                 logObject("Kafka Data insertion log", JSON.stringify(response));
 
-    },
+//             }
+//         } 
+//         catch (e) {
 
-};
+//             logObject("Kafka Data insertion log", JSON.stringify({
+//                 success: false,
+//                 message: "Error Occurred...",
+//                 errors: e,
+//                 valuesRejected: [],
+//                 valuesAdded: [],
+//             }));
 
-module.exports =  insertDeviceMeasurements;
+//         }
+
+//     },
+
+//     async (measurements_array) => {
+
+//         try {
+
+//             for (let index in measurements_array) {
+
+//                 const data = array_data[index];
+
+//                 const device = data.device;
+//                 const tenant = data.tenant;
+//                 const measurements = [data];
+
+//                 if (!tenant || !device) {
+
+//                     logObject("Kafka Data insertion log", JSON.stringify({
+//                         success: false,
+//                         message: "Missing values...",
+//                         errors: [],
+//                         valuesRejected: data,
+//                         valuesAdded: [],
+
+//                     }));
+
+//                     continue;
+
+//                 }
+
+//                 let isDevicePresent = await doesDeviceExist(
+//                     device,
+//                     tenant.toLowerCase()
+//                 );
+
+//                 if (!isDevicePresent){
+//                     logObject("Kafka Data insertion log", JSON.stringify({
+//                         success: false,
+//                         message: `Device (${device}) for tenant (${tenant}) does not exist on the network`,
+//                         errors: [],
+//                         valuesRejected: data,
+//                         valuesAdded: [],
+//
+//                     }));
+
+//                     continue;
+//                 }
+
+//                 let transformedMeasurements = await transformMeasurements(
+//                     device,
+//                     measurements
+//                 );
+
+//                 let response = await insertMeasurements(tenant, transformedMeasurements);
+//                 logObject("Kafka Data insertion log", JSON.stringify(response));
+
+//             }
+//         } 
+//         catch (e) {
+
+//             logObject("Kafka Data insertion log", JSON.stringify({
+//                 success: false,
+//                 message: "Error Occurred...",
+//                 errors: e,
+//                 valuesRejected: [],
+//                 valuesAdded: [],
+//             }));
+
+//         }
+
+//     },
+
+// ;
+
+// module.exports =   bulkInsert;

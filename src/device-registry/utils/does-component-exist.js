@@ -48,6 +48,50 @@ const doesDeviceExist = async (deviceName, tenant) => {
   }
 };
 
+const doDevicesExist = (measurements) => {
+  let promises = measurements.filter(async (measurement) => {
+    try {
+      logText(".......................................");
+      logText("doesDeviceExist?...");
+      const tenant = measurement.tenant.toLowerCase();
+      const deviceName = measurement.device;
+
+      const device = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).find({
+        name: deviceName,
+      });
+      if (!isEmpty(device)) {
+        return true;
+      }
+      else{
+        logObject("Kafka Data insertion log", JSON.stringify({
+          success: false,
+          message: `Device (${deviceName}) for tenant (${tenant}) does not exist on the network`,
+          errors: [],
+          valuesRejected: data,
+          valuesAdded: [],
+        }));
+      }
+
+    } catch (e) {
+      logElement("unable to check device existence in system", e);
+      return false;
+    }
+
+    
+  });
+  return Promise.all(promises).then((results) => {
+    if (results.every((res) => res.success)) {
+      return results;
+    } else {
+      console.log("the results for no success", results);
+    }
+  });
+};
+
 const doesComponentExist = async (componentName, deviceName, tenant) => {
   try {
     logText(".......................................");
@@ -104,4 +148,5 @@ module.exports = {
   doesDeviceExist,
   doesComponentExist,
   doesComponentTypeExist,
+  doDevicesExist
 };
