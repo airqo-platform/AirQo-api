@@ -264,31 +264,39 @@ class MonitoringSiteResource(Resource):
         ), Status.HTTP_200_OK
 
 
-@rest_api.route('/dashboard/historical/daily/devices')
+@rest_api.route('/dashboard/historical/daily-averages')
 class DeviceDailyMeasurementsResource(Resource):
 
     @swag_from('/api/docs/dashboard/device_daily_measurements_get.yml')
-    def get(self):
+    @validate_request_json('pollutant|required:str', 'startDate|required:datetime', 'endDate|required:datetime')
+    def post(self):
         tenant = request.args.get('tenant')
-        dha_model = DeviceDailyHistoricalAveragesModel(tenant)
+        json_data = request.get_json()
+        pollutant = json_data["pollutant"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
 
-        sites = dha_model.get_last_28_days_measurements()
+        events_model = EventsModel(tenant)
+        data = events_model.get_averages_by_pollutant(start_date, end_date, pollutant)
 
         results = []
         values = []
         labels = []
         background_colors = []
 
-        for site in sites:
-            values.append(int(site["average_pm25"]))
-            labels.append(site["Parish"])
-            background_colors.append(set_pm25_category_background(site["average_pm25"]))
-            results.append(site)
+        for v in data:
+            values.append(v.get('value'))
+            labels.append(
+                v.get('site', {}).get('name') or
+                v.get('site', {}).get('description') or
+                v.get('site', {}).get('generated_name')
+            )
+            background_colors.append(set_pm25_category_background(v.get('value')))
 
         return create_response(
-            "daily measurements successfully fetched",
+            "daily averages successfully fetched",
             data={
-                "average_pm25_values": values,
+                "average_values": values,
                 "labels": labels,
                 "background_colors": background_colors
             }
