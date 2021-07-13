@@ -288,7 +288,7 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UNmodifiedRequest ", jsonify(request));
+      logObject("the UnModifiedRequest ", jsonify(request));
 
       let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
         modifiedRequest
@@ -334,10 +334,18 @@ const registerDeviceUtil = {
         let error = responseFromDeleteDeviceFromThingspeak.error
           ? responseFromDeleteDeviceFromThingspeak.error
           : "";
+        let status = parseInt(
+          `${
+            responseFromDeleteDeviceFromThingspeak.status
+              ? responseFromDeleteDeviceFromThingspeak.status
+              : ""
+          }`
+        );
         return {
           success: false,
           message: responseFromDeleteDeviceFromThingspeak.message,
           error,
+          status,
         };
       }
     } catch (e) {
@@ -673,23 +681,46 @@ const registerDeviceUtil = {
     try {
       let device_number = parseInt(request.query.device_number, 10);
       logger.info(`the device_number -- ${device_number}`);
-      let response = await axios.delete(
-        constants.DELETE_THING_URL(device_number)
-      );
-      if (isEmpty(response)) {
+      let response = await axios
+        .delete(`${constants.DELETE_THING_URL(device_number)}`)
+        .catch((e) => {
+          logger.error(`error.response.data -- ${e.response.data}`);
+          logger.error(`error.response.status -- ${e.response.status}`);
+          logger.error(`error.response.headers -- ${e.response.headers}`);
+          if (e.response) {
+            let error = e.response.data.error;
+            let status = e.response.data.status;
+            return {
+              success: false,
+              error,
+              status,
+              message:
+                "device does not exist on external system, consider SOFT delete",
+            };
+          }
+        });
+
+      if (!isEmpty(response.success) && !response.success) {
+        logger.info(`the response from thingspeak -- ${jsonify(response)}`);
         return {
           success: false,
-          message: "unable to remove device_number",
+          message: `${response.message}`,
+          error: `${response.error}`,
+          status: `${response.status}`,
         };
       }
-      logger.info(
-        `successfully deleted the device on thingspeak -- ${response.data}`
-      );
-      return {
-        success: true,
-        message: "successfully deleted the device on thingspeak",
-        data: response.data,
-      };
+      if (!isEmpty(response.data)) {
+        logger.info(
+          `successfully deleted the device on thingspeak -- ${jsonify(
+            response.data
+          )}`
+        );
+        return {
+          success: true,
+          message: "successfully deleted the device on thingspeak",
+          data: response.data,
+        };
+      }
     } catch (error) {
       logger.error(`deleteOnThingspeak -- ${error.message}`);
       utillErrors.tryCatchErrors(error, "server error - updateOnPlatform util");
