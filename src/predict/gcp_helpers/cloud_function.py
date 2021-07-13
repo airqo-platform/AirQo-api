@@ -16,6 +16,9 @@ import pymongo
 from pymongo import MongoClient
 from dotenv import load_dotenv
 import math
+import fiona
+import geopandas as gpd 
+
 load_dotenv()
 
 
