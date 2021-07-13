@@ -9,27 +9,27 @@ from confluent_kafka.serialization import StringDeserializer
 from event import DeviceRegistry
 
 TENANT = os.getenv("TENANT", "")
-URL = os.getenv("END_TIME", "BASE_URL")
+BASE_URL = os.getenv("BASE_URL", "")
+BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhoat:9092")
+SCHEMA_REGISTRY = os.getenv("SCHEMA_REGISTRY_URL", "http://localhoat:8081")
+OUTPUT_TOPIC = os.getenv("TOPIC", "quick-starts-topic")
+CONSUMER_GROUP = os.getenv("TOPIC", "quick-starts-topic")
 
 
-def main(args):
-    topic = args.topic
-
-    sr_conf = {'url': args.schema_registry}
-    schema_registry_client = SchemaRegistryClient(sr_conf)
-
+def main():
+    schema_registry_client = SchemaRegistryClient({'url': SCHEMA_REGISTRY})
 
     avro_deserializer = AvroDeserializer(schema_registry_client=schema_registry_client)
     string_deserializer = StringDeserializer('utf_8')
 
-    consumer_conf = {'bootstrap.servers': args.bootstrap_servers,
+    consumer_conf = {'bootstrap.servers': BOOTSTRAP_SERVERS,
                      'key.deserializer': string_deserializer,
                      'value.deserializer': avro_deserializer,
-                     'group.id': args.group,
+                     'group.id': CONSUMER_GROUP,
                      'auto.offset.reset': "earliest"}
 
     consumer = DeserializingConsumer(consumer_conf)
-    consumer.subscribe([topic])
+    consumer.subscribe([OUTPUT_TOPIC])
 
     while True:
         try:
@@ -39,7 +39,7 @@ def main(args):
 
             msg_value = msg.value()
             if msg_value is not None:
-                device_registry = DeviceRegistry(msg_value, TENANT, URL)
+                device_registry = DeviceRegistry(msg_value, TENANT, BASE_URL)
                 device_registry.send_to_api()
 
         except KeyboardInterrupt:
@@ -49,19 +49,4 @@ def main(args):
 
 
 if __name__ == '__main__':
-    bootstrapServers = os.getenv("BOOTSTRAP_SERVERS", "localhoat:9092")
-    schema_registry = os.getenv("SCHEMA_REGISTRY_URL", "http://localhoat:8081")
-    topic = os.getenv("TOPIC", "quick-starts-topic")
-
-    parser = argparse.ArgumentParser(description="Consumer Example client with "
-                                                 "serialization capabilities")
-    parser.add_argument('-b', dest="bootstrap_servers", default=bootstrapServers,
-                        help="Bootstrap broker(s) (host[:port])")
-    parser.add_argument('-s', dest="schema_registry", default=schema_registry,
-                        help="Schema Registry (http(s)://host[:port]")
-    parser.add_argument('-t', dest="topic", default=topic,
-                        help="Topic name")
-    parser.add_argument('-g', dest="group", default="example_serde_avro",
-                        help="Consumer group")
-
-    main(parser.parse_args())
+    main()
