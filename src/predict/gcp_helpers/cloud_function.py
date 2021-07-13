@@ -17,14 +17,16 @@ from pymongo import MongoClient
 from dotenv import load_dotenv
 import math
 import fiona
-import geopandas as gpd 
+import geopandas
 
 load_dotenv()
 
 
-storage_client = storage.Client('AirQo-e37846081569.json')
+#storage_client = storage.Client('AirQo-e37846081569.json')
 MONGO_URI = os.getenv("MONGO_URI")
-
+CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+storage_client = storage.Client.from_service_account_json(CREDENTIALS)
+shapefile_path = 'greater_kampala_metropolitan_area_kiidp_2012/Greater_Kampala_Metropolitan_Area_KIIDP_2012.shp'
 def get_channels():
     '''
     Gets details of channels whose data is to be used in training
@@ -113,12 +115,20 @@ def train_model(X, Y):
 
     return m
 
+def get_bbox_coordinates(shapefile_path):
+    data = geopandas.read_file(shapefile_path)
+    data = data.to_crs(epsg=4326)
+    kampala_polygon = data.iloc[0]['geometry']
+    min_long, min_lat, max_long, max_lat= kampala_polygon.bounds
+    return min_long, max_long, min_lat, max_lat
+
+
 def predict_model(m):
     '''
     Makes the predictions and stores them in a database
     '''
     time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
-    min_long, max_long, min_lat, max_lat = 32.4, 32.8, 0.1, 0.5
+    min_long, max_long, min_lat, max_lat = get_bbox_coordinates(shapefile_path)
 
     longitudes = np.linspace(min_long, max_long, 100)
     latitudes = np.linspace(min_lat, max_lat, 100)
@@ -180,4 +190,9 @@ def periodic_function():
 
 
 if __name__ == "__main__":
-    periodic_function()
+    #periodic_function()
+    #print(MONGO_URI)
+    #import os
+    #print(f"My file is: {os.environ['GOOGLE_APPLICATION_CREDENTIALS']}") 
+    min_long, max_long, min_lat, max_lat = get_bbox_coordinates(shapefile_path)
+    print(min_long, max_long, min_lat, max_lat)
