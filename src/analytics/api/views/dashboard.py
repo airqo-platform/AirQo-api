@@ -277,19 +277,30 @@ class DeviceDailyMeasurementsResource(Resource):
         end_date = json_data["endDate"]
 
         events_model = EventsModel(tenant)
+        site_model = SiteModel(tenant)
+        sites = site_model.get_sites()
         data = events_model.get_averages_by_pollutant(start_date, end_date, pollutant)
 
-        results = []
         values = []
         labels = []
         background_colors = []
 
         for v in data:
+
+            if not v.get("site_id"):
+                continue
+
+            site = list(filter(lambda s: s.get("site_id") == v.get("site_id"), sites))
+
+            if not site:
+                continue
+
+            site = site[0]
             values.append(v.get('value'))
             labels.append(
-                v.get('site', {}).get('name') or
-                v.get('site', {}).get('description') or
-                v.get('site', {}).get('generated_name')
+                site.get('name') or
+                site.get('description') or
+                site.get('generated_name')
             )
             background_colors.append(set_pm25_category_background(v.get('value')))
 

@@ -5,6 +5,9 @@ class SiteModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="sites")
 
+    def get_sites(self):
+        return self.project(_id=0, site_id={"$toString": "$_id"}, name=1, description=1, generated_name=1).exec()
+
     def get_all_sites(self):
         return (
             self

@@ -29,20 +29,17 @@ class EventsModel(BasePyMongoModel):
                 .filter_by(**{"values.frequency": "raw"})
                 .unwind("values")
                 .replace_root("values")
-                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
                 .project(
                     _id=0,
                     **{f"{pollutant}":1},
                     site_id={"$toString": "$site_id"},
-                    site={"name": 1, "description": 1, "generated_name": 1},
                 )
                 .group(
                     _id="$site_id",
+                    site_id={"$first": "$site_id"},
                     value={"$avg": f"${pollutant}.value"},
-                    site={"$first": "$site"},
                 )
-                .unwind("site")
-                .project(_id=0, value={"$round": "$value"}, site={"name": 1, "description": 1, "generated_name": 1})
+                .project(_id=0, site_id=1, value={"$round": "$value"})
                 .exec()
 
         )
