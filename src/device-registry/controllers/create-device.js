@@ -24,6 +24,7 @@ const {
   missingQueryParams,
   badRequest,
   logger_v2,
+  errorCodes,
 } = require("../utils/errors");
 const getDetail = require("../utils/get-device-details");
 const log4js = require("log4js");
@@ -134,8 +135,16 @@ const device = {
         let error = responseFromRemoveDevice.error
           ? responseFromRemoveDevice.error
           : "";
+        let status = HTTPStatus.BAD_REQUEST;
+        if (!isEmpty(responseFromRemoveDevice.status)) {
+          status = errorCodes.serverErrors.includes(
+            responseFromRemoveDevice.status
+          )
+            ? HTTPStatus.BAD_GATEWAY
+            : HTTPStatus.NOT_FOUND;
+        }
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(status).json({
           success: false,
           message: responseFromRemoveDevice.message,
           error,

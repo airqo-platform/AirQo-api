@@ -81,6 +81,10 @@ const utillErrors = {
   },
 };
 
+let errorCodes = {
+  serverErrors: [500, 501, 502, 503, 504],
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
@@ -90,5 +94,6 @@ module.exports = {
   unclearError,
   invalidParamsValue,
   badRequest,
+  errorCodes,
   utillErrors,
 };
