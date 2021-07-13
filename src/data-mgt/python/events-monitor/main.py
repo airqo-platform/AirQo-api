@@ -88,8 +88,8 @@ def run_checks():
             break
 
     if not has_latest:
-        data = build_message(api_url, results.status_code,
-                             results.request.method, "It's better you make the query yourself")
+        data = build_message(api_url, results.status_code,results.request.method,
+                             "It didn't return latest measurements. It's better you make the query yourself")
         notify_slack(data)
         return
 
