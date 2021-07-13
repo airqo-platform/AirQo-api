@@ -208,8 +208,3 @@ def periodic_function():
 
 if __name__ == "__main__":
     periodic_function()
-    #print(MONGO_URI)
-    #import os
-    #print(f"My file is: {os.environ['GOOGLE_APPLICATION_CREDENTIALS']}") 
-    #min_long, max_long, min_lat, max_lat = get_bbox_coordinates(shapefile_path)
-    #print(min_long, max_long, min_lat, max_lat)
