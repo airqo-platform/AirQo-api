@@ -120,12 +120,11 @@ def get_bbox_coordinates(shapefile_path):
     data = data.to_crs(epsg=4326)
     kampala_polygon = data.iloc[0]['geometry']
     min_long, min_lat, max_long, max_lat= kampala_polygon.bounds
-    return min_long, max_long, min_lat, max_lat
+    return kampala_polygon, min_long, max_long, min_lat, max_lat
 
 def point_in_polygon(row, polygon):
     from shapely.geometry import Point, shape
     mypoint = Point(row.longitude, row.latitude)
-    
     if polygon.contains(mypoint):
         return 'True'
     else:
@@ -137,7 +136,7 @@ def predict_model(m):
     Makes the predictions and stores them in a database
     '''
     time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
-    min_long, max_long, min_lat, max_lat = get_bbox_coordinates(shapefile_path)
+    kampala_polygon, min_long, max_long, min_lat, max_lat = get_bbox_coordinates(shapefile_path)
 
     longitudes = np.linspace(min_long, max_long, 100)
     latitudes = np.linspace(min_lat, max_lat, 100)
@@ -195,8 +194,8 @@ def periodic_function():
         if d.shape[0]!=0:
             d = preprocessing(d)
             df = pd.DataFrame({'channel_id':[channel['id']], 
-                               'longitude':[channel['long']], 
-                               'latitude':[channel['lat']]})
+                                'longitude':[channel['long']], 
+                                'latitude':[channel['lat']]})
         
             Xchan = np.c_[np.repeat(np.array(df)[:,1:],d.shape[0],0),[n.timestamp()/3600 for n in d['created_at']]]
             Ychan = np.array(d['field1'])
