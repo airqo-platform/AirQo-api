@@ -15,7 +15,7 @@ SIZE = os.getenv("INTERVAL", "1000")
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
-BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS", "34.123.249.54:31000")
+BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS", "localhost:9092")
 TOPIC = os.getenv("TOPIC", "airqo-raw-device-measurements-topic")
 
 

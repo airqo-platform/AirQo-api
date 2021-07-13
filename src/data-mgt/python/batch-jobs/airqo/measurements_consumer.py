@@ -15,18 +15,6 @@ def main(args):
     sr_conf = {'url': args.schema_registry}
     schema_registry_client = SchemaRegistryClient(sr_conf)
 
-    schema_str = """
-    {
-        "namespace": "confluent.io.examples.serialization.avro",
-        "name": "User",
-        "type": "record",
-        "fields": [
-            {"name": "name", "type": "string"},
-            {"name": "favorite_number", "type": "int"},
-            {"name": "favorite_color", "type": "string"}
-        ]
-    }
-    """
 
     avro_deserializer = AvroDeserializer(schema_registry_client=schema_registry_client)
     string_deserializer = StringDeserializer('utf_8')
@@ -58,9 +46,9 @@ def main(args):
 
 
 if __name__ == '__main__':
-    bootstrapServers = os.getenv("BOOTSTRAP_SERVERS", "34.123.249.54:31000")
-    schema_registry = os.getenv("SCHEMA_REGISTRY_URL", "http://34.123.249.54:31081")
-    topic = os.getenv("TOPIC", "airqo-transformed-device-measurements-topic")
+    bootstrapServers = os.getenv("BOOTSTRAP_SERVERS", "localhoat:9092")
+    schema_registry = os.getenv("SCHEMA_REGISTRY_URL", "http://localhoat:8081")
+    topic = os.getenv("TOPIC", "quick-starts-topic")
 
     parser = argparse.ArgumentParser(description="Consumer Example client with "
                                                  "serialization capabilities")
