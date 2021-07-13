@@ -19,7 +19,7 @@ def notify_slack(data):
 
 def run_checks():
 
-    api_url = f"{DEVICE_REGISTRY_BASE_URL}devices/events?tenant={TENANT}&recent=yes"
+    api_url = f"{DEVICE_REGISTRY_BASE_URL}devices/events?tenant={TENANT}"
 
     results = requests.get(api_url)
 
