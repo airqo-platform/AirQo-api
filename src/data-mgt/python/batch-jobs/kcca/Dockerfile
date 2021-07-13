@@ -6,4 +6,4 @@ WORKDIR /
 RUN pip install -r requirements.txt
 
 ENTRYPOINT [ "python" ]
-CMD [ "kcca_historical_device_measurements.py" ]
+CMD [ "batch_fetch.py" ]

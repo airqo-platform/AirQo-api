@@ -1,12 +1,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: kcca-historical-raw-measurements
+  name: kcca-batch-fetch-measurements
   namespace: staging
 spec:
   selector:
     matchLabels:
-      app: kcca-historical-raw-measurements
+      app: kcca-batch-fetch-measurements
   replicas: 2
   strategy:
     type: RollingUpdate
@@ -17,11 +17,11 @@ spec:
   template:
     metadata:
       labels:
-        app: kcca-historical-raw-measurements
+        app: kcca-batch-fetch-measurements
     spec:
       containers:
-        - name: kcca-historical-raw-measurements
-          image: us.gcr.io/airqo-250220/kcca-historical-measurements:latest
+        - name: kcca-batch-fetch-measurements
+          image: us.gcr.io/airqo-250220/kcca-batch-fetch-measurements:latest
           imagePullPolicy: Always
           env:
             - name: START_TIME
@@ -41,13 +41,12 @@ spec:
               value: raw
             - name: ENVIRONMENT
               value: STAGING
-            - name: DEVICE_REGISTRY_STAGING_URL
+            - name: DEVICE_REGISTRY_URL
               value: "https://staging-platform.airqo.net/api/v1/"
-            - name: DEVICE_REGISTRY_PRODUCTION_URL
-              value: "https://platform.airqo.net/api/v1/"
             - name: BOOT_STRAP_SERVERS
               value: "127.0.0.1:9092"
-            - name: TOPIC
+            - name: OUTPUT_TOPIC
               value: "quickstart-events"
-            - name: SCHEMA_REGISTRY
-              value: "127.0.0.1:8081"
+            - name: SCHEMA_REGISTRY_URL
+              value: "http://127.0.0.1:8081"
+    

@@ -4,7 +4,7 @@ from confluent_kafka import avro, Producer
 from schema import schema_str
 
 
-class KafkaOnRegistry:
+class KafkaWithRegistry:
 
     boot_strap_servers = None
     schema_registry_url = None
@@ -66,7 +66,7 @@ class KafkaOnRegistry:
         c.close()
 
 
-class Kafka:
+class KafkaWithoutRegistry:
 
     boot_strap_servers = None
     topic = None
@@ -88,6 +88,4 @@ class Kafka:
         p = Producer({'bootstrap.servers': self.boot_strap_servers})
         p.produce(self.topic, value.encode('utf-8'), callback=self.delivery_report)
 
-        # Wait for any outstanding messages to be delivered and delivery report
-        # callbacks to be triggered.
         p.flush()
