@@ -22,6 +22,31 @@ class EventsModel(BasePyMongoModel):
                 .exec()
         )
 
+    def get_averages_by_pollutant(self, start_date, end_date, pollutant):
+        return (
+            self
+                .date_range("values.time", start_date=start_date, end_date=end_date)
+                .filter_by(**{"values.frequency": "raw"})
+                .unwind("values")
+                .replace_root("values")
+                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
+                .project(
+                    _id=0,
+                    **{f"{pollutant}":1},
+                    site_id={"$toString": "$site_id"},
+                    site={"name": 1, "description": 1, "generated_name": 1},
+                )
+                .group(
+                    _id="$site_id",
+                    value={"$avg": f"${pollutant}.value"},
+                    site={"$first": "$site"},
+                )
+                .unwind("site")
+                .project(_id=0, value={"$round": "$value"}, site={"name": 1, "description": 1, "generated_name": 1})
+                .exec()
+
+        )
+
     def get_events(self, sites, start_date, end_date, frequency):
         time_format_mapper = {
             'raw': '%Y-%m-%dT%H:%M:%S%z',
