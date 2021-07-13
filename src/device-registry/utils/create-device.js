@@ -17,8 +17,33 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const { logger_v2 } = require("../utils/errors");
+const QRCode = require("qrcode");
 
 const registerDeviceUtil = {
+  generateQR: async (text) => {
+    try {
+      let responseFromQRCode = await QRCode.toDataURL(text);
+      logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
+      if (!isEmpty(responseFromQRCode)) {
+        return {
+          success: true,
+          message: "successfully generated the QR Code",
+          data: responseFromQRCode,
+        };
+      }
+      return {
+        success: false,
+        message: "unable to generate the QR code",
+      };
+    } catch (err) {
+      logger.error(`server side error -- ${err.message}`);
+      return {
+        success: false,
+        message: "unable to generate the QR code --server side error",
+        error: err.message,
+      };
+    }
+  },
   create: async (request) => {
     try {
       if (request.query.tenant !== "airqo") {
@@ -52,6 +77,18 @@ const registerDeviceUtil = {
           ...request.body,
           ...enrichmentDataForDeviceCreation,
         };
+
+        let responseFromGenerateQRCode = await registerDeviceUtil.generateQR(
+          JSON.stringify(modifiedRequest.body)
+        );
+        logger.info(
+          `responseFromGenerateQRCode -- ${JSON.stringify(
+            responseFromGenerateQRCode
+          )}`
+        );
+        if (responseFromGenerateQRCode.success) {
+          modifiedRequest["body"]["qr_code"] = responseFromGenerateQRCode.data;
+        }
 
         let responseFromCreateDeviceOnPlatform = await registerDeviceUtil.createOnPlatform(
           modifiedRequest
@@ -224,10 +261,10 @@ const registerDeviceUtil = {
   },
   delete: async (request) => {
     try {
-      return {
-        success: false,
-        message: "feature temporarity disabled --coming soon",
-      };
+      // return {
+      //   success: false,
+      //   message: "feature temporarity disabled --coming soon",
+      // };
       const { device_number } = request.query;
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
