@@ -22,8 +22,5 @@ class Kafka:
 
         p = Producer({'bootstrap.servers': self.boot_strap_servers})
         p.produce(self.topic, value.encode('utf-8'), callback=self.delivery_report)
-
-        # Wait for any outstanding messages to be delivered and delivery report
-        # callbacks to be triggered.
         p.flush()
 

@@ -2,7 +2,7 @@ import pandas as pd
 import requests
 from threading import Thread
 
-from events import DeviceRegistry
+from event import DeviceRegistry
 import numpy as np
 import os
 import math
@@ -128,7 +128,7 @@ def transform_chunk(chunk):
     data = pd.DataFrame(chunk)
 
     # loop through the devices in the chunk
-    for index, row in data.iterrows():
+    for _, row in data.iterrows():
 
         device_name = row.get('device', None)
 
@@ -165,7 +165,7 @@ def transform_chunk(chunk):
         #     data["pm2_5"]["calibratedValue"] = calibrated_value
 
         # insert device measurements into events collection
-        device_registry = DeviceRegistry([data], "airqo", device_name)
+        device_registry = DeviceRegistry([data], "airqo", DEVICE_REGISTRY_BASE_URL)
         device_registry.insert_measurements()
 
 

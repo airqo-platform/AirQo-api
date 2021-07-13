@@ -1,5 +1,4 @@
-import json
-import math
+from airqo.event import DeviceRegistry
 import os
 from datetime import datetime, timedelta
 
@@ -7,8 +6,6 @@ import pandas as pd
 import requests
 from google.cloud import bigquery
 
-from devices import airqo_devices_list
-from kafkaRegistry import Kafka
 
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 START_TIME = os.getenv("START_TIME", "2020-01-01")
@@ -79,6 +76,7 @@ def get_airqo_devices():
         print(results)
         return None
 
+
 def filter_valid_devices(devices_data):
     valid_devices = []
     for device in devices_data:
@@ -125,7 +123,7 @@ def transform_airqo_data(data, devices):
         device = dict(device)
         device_data = data.loc[data['channel_id'] == int(device.get("device_number", "0"))]
 
-        for index, device_row in device_data.iterrows():
+        for _, device_row in device_data.iterrows():
             device_data = dict({
                 DataConstants.DEVICE: device.get("name", ""),
                 DataConstants.DEVICE_ID: device.get("_id", ""),
@@ -159,30 +157,14 @@ def transform_airqo_data(data, devices):
             sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
             for sub_list in sub_lists:
-                events_collection_insertion(device.get("name"), json.dumps(sub_list))
-
-
-def events_collection_insertion(device, data):
-    try:
-
-        headers = {'Content-Type': 'application/json'}
-        url = DEVICE_REGISTRY_URL + "devices/events/add?device=" + device + "&tenant=airqo"
-
-        results = requests.post(url, data, headers=headers, verify=False)
-
-        if results.status_code == 200:
-            print(results.json())
-        else:
-            print("Device registry failed to insert values. Status Code : " + str(results.status_code))
-            print(f"Result : {results.json()}")
-
-    except Exception as ex:
-        print("Error Occurred while inserting measurements: " + str(ex))
+                device_registry = DeviceRegistry(sub_list, "airqo", DEVICE_REGISTRY_URL)
+                device_registry.send_to_api()
 
 
 if __name__ == "__main__":
-    airqo_devices = airqo_devices_list
+    airqo_devices = get_airqo_devices()
     filtered_devices = filter_valid_devices(airqo_devices)
+    
     if len(filtered_devices) > 0:
         get_device_measurements(filtered_devices)
     else:

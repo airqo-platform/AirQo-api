@@ -6,7 +6,10 @@ from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
 from confluent_kafka.serialization import StringDeserializer
 
-from event import send_to_api
+from event import DeviceRegistry
+
+TENANT = os.getenv("TENANT", "")
+URL = os.getenv("END_TIME", "BASE_URL")
 
 
 def main(args):
@@ -30,14 +33,14 @@ def main(args):
 
     while True:
         try:
-            # SIGINT can't be handled when polling, limit timeout to 1 second.
             msg = consumer.poll(1.0)
             if msg is None:
                 continue
 
             msg_value = msg.value()
             if msg_value is not None:
-                send_to_api(msg_value)
+                device_registry = DeviceRegistry(msg_value, TENANT, URL)
+                device_registry.send_to_api()
 
         except KeyboardInterrupt:
             break

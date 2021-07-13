@@ -1,2 +1,5 @@
 bigquery.json
-bigquery.json
+.env
+venv/
+.idea/
+__pycache__/

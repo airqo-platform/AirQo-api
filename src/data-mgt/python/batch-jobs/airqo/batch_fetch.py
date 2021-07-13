@@ -164,4 +164,8 @@ def transform_airqo_data(data, devices):
 if __name__ == "__main__":
     airqo_devices = get_airqo_devices()
     filtered_devices = filter_valid_devices(airqo_devices)
-    get_device_measurements(filtered_devices)
+    
+    if len(filtered_devices) > 0:
+        get_device_measurements(filtered_devices)
+    else:
+        print("No valid devices")

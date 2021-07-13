@@ -5,3 +5,5 @@ env.list
 env
 venv
 venv/
+.idea/
+__pycache__/
