@@ -60,7 +60,7 @@ def build_message(url, status_code, request_type, response_body):
 
 def run_checks():
 
-    api_url = f"{DEVICE_REGISTRY_BASE_URL}devices/events?tenant={TENANT}"
+    api_url = f"{DEVICE_REGISTRY_BASE_URL}devices/events?tenant={TENANT}&recent=yes"
 
     results = requests.get(api_url)
 

@@ -40,6 +40,10 @@ spec:
                       key: SLACK_WEBHOOK
                 - name: TENANT
                   value: airqo
+                - name: DEVICE_REGISTRY_URL
+                  value: http://staging-platform.airqo.net/api/v1/
+                - name: TIME_INTERVAL
+                  value: 3
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
