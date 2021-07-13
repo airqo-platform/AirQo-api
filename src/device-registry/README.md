@@ -38,9 +38,20 @@ Build the image within the microservice's directory
 docker build -t {IMAGE_NAME} .
 ```
 Then run the container based on the newly created image
-
 ```bash
 docker run -d -n {CONTAINER_NAME} -p host-port:container-port {IMAGE_NAME}
+```
+To build all images
+```bash
+bash stage-docker-build.sh
+```
+To push all images
+```bash
+bash stage-docker-push.sh
+```
+To build build and push at the same time
+```bash
+bash stage-docker-build.sh && bash stage-docker-push.sh
 ```
 
 After successfully runing the container, you can go ahead and test out the respective endpoints
