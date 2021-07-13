@@ -11,7 +11,6 @@ venv.bak/
 production.env
 # pycharm
 .idea/
-greater_kampala_metropolitan_area_kiidp_2012/
 
 # pickle files
 *.pkl
