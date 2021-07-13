@@ -35,6 +35,7 @@
         "express-session": "^1.17.1",
         "express-validation": "^1.0.3",
         "express-validator": "^6.12.0",
+        "flatted": "^3.2.1",
         "helmet": "^3.21.1",
         "http-status": "^1.4.0",
         "install": "^0.13.0",
