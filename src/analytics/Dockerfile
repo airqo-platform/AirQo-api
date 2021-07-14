@@ -10,7 +10,7 @@ WORKDIR /app/
 RUN pip install -r requirements.txt
 # Set "python" as the entry point
 # Set environment variables
-ENV FLASK_APP=app.py
+ENV FLASK_APP=manage.py
 
 # Expose the application's port, default is 5000 for python flask
 EXPOSE 5000
