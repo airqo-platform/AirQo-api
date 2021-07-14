@@ -22,39 +22,40 @@ def notify_slack(data):
     print(response.content)
 
 
-def build_message(url, status_code, request_type, response_body):
+def build_message(url, status_code, request_type, response_body, message):
     return dict({
-            "text": f"*Status Code*: {status_code}",
-            "blocks": [
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Url*: {url}"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Request Type*: {request_type}"
-                    }
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Response Body*: {str(response_body)}"
+            "text": {
+                "type": "mrkdwn",
+                "text": f"@channel, {message}"
+            },
+            "attachments": [
+            {
+                "fallback": f"{message}",
+                "color": "#3067e2",
+                "title": f"{message}",
+                "fields": [
+                    {
+                        "title": "Url",
+                        "value": f"{url}",
                     },
-                },
-                {
-                    "type": "section",
-                    "text": {
-                        "type": "mrkdwn",
-                        "text": f"*Time check was carried out*: {datetime.utcnow().strftime('%Y-%m-%d %H:%M ')} UTC"
+                    {
+                        "title": "Request Type",
+                        "value": f"{request_type}",
                     },
-                },
-            ]
+                    {
+                        "title": "Response Status Code",
+                        "value": f"{status_code}",
+                    },
+                    {
+                        "title": "Response Body",
+                        "color": "#3067e2",
+                        "type": "mrkdwn",
+                        "value": f"{str(response_body)}",
+                    }
+                ],
+                "footer": "AirQo APIs",
+            }
+        ]
         })
 
 
@@ -65,7 +66,8 @@ def run_checks():
     results = requests.get(api_url)
 
     if results.status_code != 200:
-        data = build_message(api_url, results.status_code, results.request.method, str(results.content))
+        data = build_message(api_url, results.status_code, results.request.method, str(results.content),
+                             "Get events endpoint is returning a none 200 status code. Find below the details")
         notify_slack(data)
         return
 
@@ -73,7 +75,8 @@ def run_checks():
     measurements = list(response_data["measurements"])
 
     if len(measurements) == 0:
-        data = build_message(api_url, results.status_code, results.request.method, response_data)
+        data = build_message(api_url, results.status_code, results.request.method, response_data,
+                             "The get events endpoint returns an empty array of measurements. 🤔 🤔")
         notify_slack(data)
         return
 
@@ -89,7 +92,8 @@ def run_checks():
 
     if not has_latest:
         data = build_message(api_url, results.status_code,results.request.method,
-                             "It didn't return latest measurements. It's better you make the query yourself")
+                             "'The response body is too large, its better you make the query using a browser or postman then review the *time* field'",
+                             f"When I query for measurements that were recorded {TIME_INTERVAL} hours ago, I don't find any... :man-shrugging:")
         notify_slack(data)
         return
 
