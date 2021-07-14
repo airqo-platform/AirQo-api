@@ -210,8 +210,6 @@ eventSchema.index(
   { unique: true }
 );
 
-eventSchema.index({ day: 1 }, { unique: true });
-
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
