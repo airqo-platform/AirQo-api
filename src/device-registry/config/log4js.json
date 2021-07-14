@@ -20,10 +20,16 @@
             "type": "logLevelFilter",
             "level": "ERROR",
             "appender": "errorFile"
+        },
+        "alerts": {
+            "type": "@log4js-node/slack",
+            "token": "abc123def",
+            "channel_id": "notifs-service-monitoring",
+            "username": "device-registry"
         }
     },
     "categories": {
-        "default": { "appenders": ["app", "errors"], "level": "DEBUG" },
+        "default": { "appenders": ["app", "errors", "alerts"], "level": "error" },
         "http": { "appenders": ["access"], "level": "DEBUG" }
     }
 }
