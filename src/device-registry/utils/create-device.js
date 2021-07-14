@@ -378,8 +378,6 @@ const registerDeviceUtil = {
         responseFromFilter.success
       );
 
-      logObject("the filter", responseFromFilter.data);
-
       if (responseFromFilter.success) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
@@ -405,8 +403,8 @@ const registerDeviceUtil = {
       });
 
       logElement(
-        "is responseFromListDevice in util a success",
-        !responseFromListDevice.success
+        "is responseFromListDevice in util a success?",
+        responseFromListDevice.success
       );
 
       if (!responseFromListDevice.success) {
