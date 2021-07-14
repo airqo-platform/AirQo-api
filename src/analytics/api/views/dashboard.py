@@ -71,7 +71,8 @@ class ChartDataResource(Resource):
     @swag_from('/api/docs/dashboard/customised_chart_post.yml')
     @validate_request_json(
         'sites|required:list', 'startDate|required:datetime',
-        'endDate|required:datetime', 'frequency|required:str'
+        'endDate|required:datetime', 'frequency|required:str',
+        'pollutant|required:str', 'chartType|required:str'
     )
     def post(self):
         tenant = request.args.get('tenant')
@@ -81,131 +82,77 @@ class ChartDataResource(Resource):
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
+        pollutant = json_data["pollutant"]
+        chart_type = json_data["chartType"]
+
+        colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']
 
         events_model = EventsModel(tenant)
+        data = events_model.get_chart_events(sites, start_date, end_date, pollutant, frequency)
 
-        data = events_model.get_events(sites, start_date, end_date, frequency)
+        chart_datasets = []
+        chart_labels = []
 
-        return create_response("chart data successfully retrieved", data=data), Status.HTTP_200_OK
+        for record in data:
 
+            site = record.get("site", {})
 
-# @rest_api.route('/dashboard/customised_chart')
-# class CustomisedChartResource(Resource):
-#
-#     @swag_from('/api/docs/dashboard/customised_chart_post.yml')
-#     @validate_request_json(
-#         'locations|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
-#         'frequency|required:str', 'pollutant|required:str', 'chartType|required:str', 'orgName|str'
-#     )
-#     def post(self):
-#         tenant = request.args.get('tenant')
-#
-#         json_data = request.get_json()
-#         locations = json_data["locations"]
-#         start_date = json_data["startDate"]
-#         end_date = json_data["endDate"]
-#         frequency = json_data["frequency"]
-#         pollutant = json_data["pollutant"]
-#         chart_type = json_data["chartType"]
-#         org_name = json_data.get("orgName") or tenant
-#
-#         custom_chart_title = f'Mean {frequency.capitalize()} {pollutant} for {", ".join(locations)}'
-#         custom_chart_title_second_section = f'Between {str_date_to_format_str(start_date, frequency)} and ' \
-#                                             f'{str_date_to_format_str(start_date, frequency)}'
-#
-#         colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']
-#
-#         if pollutant.lower() == 'pm 2.5':
-#             category_key = 'pm25'
-#             label_key = 'pm'
-#
-#         elif pollutant.lower() == 'pm 10':
-#             category_key = 'pm10'
-#             label_key = 'pm'
-#
-#         else:
-#             category_key = 'no2'
-#             label_key = 'no2'
-#
-#         ms_model = MonitoringSiteModel(tenant)
-#         dhm_model = DeviceHourlyMeasurementModel(tenant)
-#
-#         results = {
-#             "chart_type": chart_type,
-#             "custom_chart_title": custom_chart_title,
-#             "custom_chart_title_second_section": custom_chart_title_second_section,
-#             "chart_label": f'{pollutant} {POLLUTANT_MEASUREMENT_UNITS.get(label_key, "")}',
-#             "pollutant": pollutant,
-#             "start_date": start_date,
-#             "end_date": end_date,
-#             "frequency": frequency,
-#         }
-#
-#         charts = []
-#
-#         sites = list(ms_model.filter_by(Organisation=org_name).in_filter_by(Parish=locations).exec(
-#             {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 1}
-#         ))
-#
-#         device_codes = [site["DeviceCode"] for site in sites]
-#
-#         device_data = list(dhm_model.get_all_filtered_data(
-#             device_codes, start_date=start_date, end_date=end_date, frequency=frequency, pollutant=pollutant
-#         ))
-#
-#         for device in sites:
-#             device_code = device['DeviceCode']
-#             division = device['Division']
-#             parish = device['Parish']
-#             location_code = device['LocationCode']
-#
-#             dataset = {}
-#
-#             site_data = list(filter(lambda data: data['deviceCode'] == device_code, device_data))
-#
-#             if chart_type.lower() == 'pie':
-#                 category_count = generate_pie_chart_data(
-#                     records=site_data,
-#                     key='pollutant_value',
-#                     pollutant=category_key
-#                 )
-#                 color = None
-#                 try:
-#                     labels, values = zip(*category_count.items())
-#                 except ValueError:
-#                     values = []
-#                     labels = []
-#                 background_colors = [PM_COLOR_CATEGORY.get(label, '#808080') for label in labels]
-#                 dataset['pieBackgroundColors'] = background_colors
-#             else:
-#                 try:
-#                     values, labels = zip(*[(data['pollutant_value'], data['time']) for data in site_data])
-#                 except ValueError:
-#                     values = []
-#                     labels = []
-#
-#                 color = colors.pop()
-#
-#             dataset.update({
-#                 'values': values,
-#                 'labels': labels,
-#                 'key_label': f'{parish} {pollutant}',
-#                 'borderColor': color,
-#                 'backgroundColor': color,
-#                 'fill': False
-#             })
-#
-#             chart_data = {
-#                 "division": division,
-#                 "location_code": location_code,
-#                 "parish": parish,
-#                 "dataset": dataset,
-#             }
-#
-#             charts.append(chart_data)
-#
-#         results["charts"] = charts
-#         return create_response("chart data successfully retrieved", data=results), Status.HTTP_200_OK
+            site_name = f"{site.get('name') or site.get('description') or site.get('generated_name')}"
+
+            dataset = {}
+
+            sorted_values = sorted(record.get('values', []), key=lambda item: item.get('time'))
+            if chart_type.lower() == 'pie':
+                category_count = generate_pie_chart_data(
+                    records=sorted_values,
+                    key='value',
+                    pollutant=pollutant
+                )
+
+                try:
+                    labels, values = zip(*category_count.items())
+                except ValueError:
+                    values = []
+                    labels = []
+                background_colors = [PM_COLOR_CATEGORY.get(label, '#808080') for label in labels]
+                color = background_colors
+
+                dataset.update({
+                    'data': values,
+                    'label': f'{site_name} {pollutant}',
+                    'backgroundColor': color,
+                    'fill': False
+                })
+
+            else:
+                try:
+                    values, labels = zip(*[(data.get('value'), data.get('time')) for data in sorted_values])
+                except ValueError:
+                    values = []
+                    labels = []
+
+                color = colors.pop()
+
+                dataset.update({
+                    'data': values,
+                    'label': f'{site_name} {pollutant}',
+                    'borderColor': color,
+                    'backgroundColor': color,
+                    'fill': False
+                })
+
+            if not chart_labels:
+                chart_labels = labels
+
+            chart_datasets.append(dataset)
+
+        return create_response(
+            "successfully retrieved chart data",
+            data={
+                "labels": chart_labels,
+                "datasets": chart_datasets
+            }
+        ), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/sites')
