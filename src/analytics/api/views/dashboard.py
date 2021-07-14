@@ -18,9 +18,7 @@ from api.utils.request_validators import validate_request_params, validate_reque
 from api.utils.pollutants import (
     generate_pie_chart_data,
     PM_COLOR_CATEGORY,
-    POLLUTANT_MEASUREMENT_UNITS,
     set_pm25_category_background,
-    str_date_to_format_str
 )
 
 
