@@ -87,7 +87,7 @@ def get_pollutant_category(value, pollutant):
     """
 
     mapper = {
-        'pm25': PM_25_CATEGORY,
+        'pm2_5': PM_25_CATEGORY,
         'pm10': PM_10_CATEGORY,
         'no2': NO2_CATEGORY
     }

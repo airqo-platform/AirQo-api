@@ -22,13 +22,12 @@ def generate_pie_chart_data(records, key, pollutant):
         'Unhealthy': 0,
         'VeryUnhealthy': 0,
         'Hazardous': 0,
+        'Other': 0,
     })
 
     for record in records:
         value = record[key]
         category = get_pollutant_category(value, pollutant=pollutant)
         category_count[category] = category_count[category] + 1
-
-    category_count['TOTAL'] = len(records)
 
     return category_count
