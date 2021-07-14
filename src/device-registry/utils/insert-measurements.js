@@ -27,7 +27,7 @@ const insert = async (tenant, transformedMeasurements) => {
         ],
       };
       const options = {
-        $addToSet: { values: measurement },
+        $push: { values: measurement },
         $min: { first: measurement.time },
         $max: { last: measurement.time },
         $inc: { nValues: 1 },
