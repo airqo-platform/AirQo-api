@@ -50,7 +50,6 @@ CACHE_CONFIG = {
     'CACHE_REDIS_HOST': env_var('REDIS_SERVER'),
     'CACHE_REDIS_PORT': env_var('REDIS_PORT'),
     'CACHE_REDIS_URL': f"redis://{env_var('REDIS_SERVER')}:{env_var('REDIS_PORT')}",
-
 }
 
 
