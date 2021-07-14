@@ -7,16 +7,21 @@ class EventsModel(BasePyMongoModel):
     def __init__(self, tenant):
         super().__init__(tenant, collection_name="events")
 
+    @cache.memoize()
     def get_downloadable_events(self, sites, start_date, end_date, frequency, pollutants):
+        print("f pollutants", pollutants)
         return (
             self.date_range("values.time", start_date=start_date, end_date=end_date)
+                .project(**{'values.site_id': 1, 'values.time': 1}, **pollutants)
                 .filter_by(**{"values.frequency": frequency})
                 .unwind("values")
                 .replace_root("values")
                 .project(
                     _id=0,
                     time={"$toString": "$time"},
-                    **pollutants,
+                    pm2_5="$pm2_5.value",
+                    pm10="$pm10.value",
+                    no2="$no2.value",
                     frequency=1,
                     site_id={"$toString": "$site_id"}
                 )
