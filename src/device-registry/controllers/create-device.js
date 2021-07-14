@@ -94,6 +94,56 @@ const device = {
       });
     }
   },
+  generateQRCode: async (req, res) => {
+    try {
+      logger.info(`the generate QR Code operation starts here....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      let { body } = req;
+      let { tenant, device_number, id, name } = req.query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = device_number;
+      request["query"]["id"] = id;
+      request["query"]["name"] = name;
+      request["body"] = body;
+
+      let responseFromGenerateQRCode = await registerDeviceUtil.generateQR(
+        request
+      );
+      logger.info(
+        `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
+      );
+      if (responseFromGenerateQRCode.success) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromGenerateQRCode.message,
+          data: responseFromGenerateQRCode.data,
+        });
+      }
+      if (!responseFromGenerateQRCode.success) {
+        let error = responseFromGenerateQRCode.error
+          ? responseFromGenerateQRCode.error
+          : "";
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromGenerateQRCode.message,
+          error,
+        });
+      }
+    } catch (err) {
+      logger.error(`server side error -- ${err.message}`);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "unable to generate the QR code --server side error",
+        error: err.message,
+      });
+    }
+  },
   delete: async (req, res) => {
     try {
       logger.info(`the general delete device operation starts....`);

@@ -851,6 +851,60 @@ router.put(
   ]),
   deviceController.updateOnPlatform
 );
+/** generate QR code.... */
+router.get(
+  "/qrcode",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant value is not among the expected ones which include: kcca and airqo"
+      ),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value")
+      .toInt(),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  deviceController.generateQRCode
+);
 
 /******************* create-photo use-case ***************/
 /**** delete photos */

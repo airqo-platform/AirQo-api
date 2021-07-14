@@ -20,21 +20,37 @@ const { logger_v2 } = require("../utils/errors");
 const QRCode = require("qrcode");
 
 const registerDeviceUtil = {
-  generateQR: async (text) => {
+  generateQR: async (request) => {
     try {
-      let responseFromQRCode = await QRCode.toDataURL(text);
-      logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
-      if (!isEmpty(responseFromQRCode)) {
+      let responseFromListDevice = await registerDeviceUtil.list(request);
+      if (responseFromListDevice.success) {
+        let deviceBody = responseFromListDevice.data;
+        logger.info(`deviceBody -- ${deviceBody}`);
+        let responseFromQRCode = await QRCode.toDataURL(deviceBody);
+        logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
+        if (!isEmpty(responseFromQRCode)) {
+          return {
+            success: true,
+            message: "successfully generated the QR Code",
+            data: responseFromQRCode,
+          };
+        }
         return {
-          success: true,
-          message: "successfully generated the QR Code",
-          data: responseFromQRCode,
+          success: false,
+          message: "unable to generate the QR code",
         };
       }
-      return {
-        success: false,
-        message: "unable to generate the QR code",
-      };
+
+      if (!responseFromListDevice.success) {
+        let error = responseFromListDevice.error
+          ? responseFromListDevice.error
+          : "";
+        return {
+          success: false,
+          message: responseFromListDevice.message,
+          error,
+        };
+      }
     } catch (err) {
       logger.error(`server side error -- ${err.message}`);
       return {
