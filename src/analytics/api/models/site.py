@@ -8,6 +8,13 @@ class SiteModel(BasePyMongoModel):
     def get_sites(self):
         return self.project(_id=0, site_id={"$toString": "$_id"}, name=1, description=1, generated_name=1).exec()
 
+    def get_specific_sites(self, sites):
+        return (
+            self.project(_id={"$toString": "$_id"}, name=1, description=1, generated_name=1)
+                .match_in(_id=sites)
+                .exec()
+        )
+
     def get_all_sites(self):
         return (
             self
