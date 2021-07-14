@@ -1,5 +1,7 @@
 from api.models.base.base_model import BasePyMongoModel
 
+from main import cache
+
 
 class ExceedanceModel(BasePyMongoModel):
     def __init__(self, tenant):
@@ -50,6 +52,8 @@ class ExceedanceModel(BasePyMongoModel):
             return self.project(site_id={"$toObjectId": "$site_id"}, who=1)
         return self.project(site_id={"$toObjectId": "$site_id"}, aqi=1)
 
+
+    @cache.memoize()
     def get_exceedances(self, start_date, end_date, pollutant, standard):
         return (
             self

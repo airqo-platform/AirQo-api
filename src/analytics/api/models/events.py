@@ -1,5 +1,7 @@
 from api.models.base.base_model import BasePyMongoModel
 
+from main import cache
+
 
 class EventsModel(BasePyMongoModel):
     def __init__(self, tenant):
@@ -22,6 +24,7 @@ class EventsModel(BasePyMongoModel):
                 .exec()
         )
 
+    @cache.memoize()
     def get_averages_by_pollutant(self, start_date, end_date, pollutant):
         return (
             self
@@ -44,6 +47,7 @@ class EventsModel(BasePyMongoModel):
 
         )
 
+    @cache.memoize()
     def get_chart_events(self, sites, start_date, end_date, pollutant, frequency):
         time_format_mapper = {
             'raw': '%Y-%m-%dT%H:%M:%S%z',
