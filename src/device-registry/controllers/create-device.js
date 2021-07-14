@@ -103,11 +103,12 @@ const device = {
         return badRequest(res, "bad request errors", nestedErrors);
       }
       let { body } = req;
-      let { tenant, device_number, id, name } = req.query;
+      let { tenant, device_number, id, name, include_site } = req.query;
       let request = {};
       request["query"] = {};
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = device_number;
+      request["query"]["include_site"] = include_site;
       request["query"]["id"] = id;
       request["query"]["name"] = name;
       request["body"] = body;

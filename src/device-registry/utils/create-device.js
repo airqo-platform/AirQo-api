@@ -22,9 +22,14 @@ const QRCode = require("qrcode");
 const registerDeviceUtil = {
   generateQR: async (request) => {
     try {
+      let { include_site } = request.query;
       let responseFromListDevice = await registerDeviceUtil.list(request);
       if (responseFromListDevice.success) {
         let deviceBody = responseFromListDevice.data;
+        if (!isEmpty(include_site) && include_site === "no") {
+          logger.info(`the site details have been removed from the data`);
+          delete deviceBody.site;
+        }
         logger.info(`deviceBody -- ${deviceBody}`);
         let responseFromQRCode = await QRCode.toDataURL(deviceBody);
         logger.info(`responseFromQRCode -- ${responseFromQRCode}`);

@@ -887,6 +887,17 @@ router.get(
       .matches(constants.WHITE_SPACES_REGEX, "i")
       .withMessage("the device names do not have spaces in them"),
   ]),
+  oneOf([
+    query("include_site")
+      .if(query("include_site").exists())
+      .notEmpty()
+      .trim()
+      .toLowerCase()
+      .isIn(["no", "yes"])
+      .withMessage(
+        "the value is not among the expected ones which can either be NO or YES"
+      ),
+  ]),
   deviceController.generateQRCode
 );
 
