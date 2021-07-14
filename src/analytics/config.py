@@ -7,13 +7,14 @@ from flasgger import LazyString
 env_path = Path('.') / '.env'
 load_dotenv(dotenv_path=env_path, verbose=True)
 
+TWO_HOURS = 7200 # seconds
+
 
 class Config:
     DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = env_var("SECRET_KEY")
-    #SERVER_PORT = 5000
 
     CLARITY_API_BASE_URL = env_var("CLARITY_API_BASE_URL")
     CLARITY_API_KEY = env_var("CLARITY_API_KEY")
@@ -40,6 +41,17 @@ class Config:
             "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
         }'''
     }
+
+
+CACHE_CONFIG = {
+    'CACHE_TYPE': 'RedisCache',
+    'CACHE_DEFAULT_TIMEOUT': TWO_HOURS,
+    'CACHE_KEY_PREFIX': 'Analytics',
+    'CACHE_REDIS_HOST': env_var('REDIS_SERVER'),
+    'CACHE_REDIS_PORT': env_var('REDIS_PORT'),
+    'CACHE_REDIS_URL': f"redis://{env_var('REDIS_SERVER')}:{env_var('REDIS_PORT')}",
+
+}
 
 
 class ProductionConfig(Config):
