@@ -144,18 +144,14 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
   }
   return next();
 });
 
 deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
   }
   return next();
 });
@@ -163,9 +159,7 @@ deviceSchema.pre("update", function(next) {
 deviceSchema.pre("findByIdAndUpdate", function(next) {
   this.options.runValidators = true;
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
   }
   return next();
 });
@@ -227,7 +221,6 @@ deviceSchema.methods = {
   },
 };
 
-// I will add the check for the user after setting up the communications between services
 deviceSchema.statics = {
   createDevice(args) {
     return this.create({

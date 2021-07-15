@@ -75,7 +75,7 @@ const defaultConfig = {
     field7: "Battery Voltage",
     field8: "GpsData",
   },
-  N_VALUES: 120000,
+  N_VALUES: 500,
   LATITUDE_REGEX: /^(-?[1-8]?\d(?:\.\d{1,18})?|90(?:\.0{1,18})?)$/,
   LONGITUDE_REGEX: /^(-?(?:1[0-7]|[1-9])?\d(?:\.\d{1,18})?|180(?:\.0{1,18})?)$/,
   DEFAULT_LIMIT_FOR_QUERYING_SITES: 100,

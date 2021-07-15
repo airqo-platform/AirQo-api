@@ -1,5 +1,6 @@
 PM_25_COLOR_MAPPER = {
-    500.4: '#808080',
+    600.4: '#808080',
+    500.4: '#81202e',
     250.4: '#81202e',
     150.4: '#8639c0',
     55.4: '#fe0000',
@@ -87,7 +88,7 @@ def get_pollutant_category(value, pollutant):
     """
 
     mapper = {
-        'pm25': PM_25_CATEGORY,
+        'pm2_5': PM_25_CATEGORY,
         'pm10': PM_10_CATEGORY,
         'no2': NO2_CATEGORY
     }
