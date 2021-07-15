@@ -1,12 +1,8 @@
 from .dashboard import (
     DownloadCustomisedDataResource,
     ExceedancesResource,
-    ExceedanceLocationsResource,
-    DivisionsResource,
-    DeviceDailyMeasurementsResource,
+    DailyAveragesResource,
     ChartDataResource,
-    CustomisedChartResource,
     MonitoringSiteResource,
 )
 
-from .report import DefaultReportTemplateResource, MonthlyReportResource, MonthlyReportExtraResource

@@ -7,6 +7,7 @@ from flasgger import Swagger
 from flask import Flask, jsonify
 from flask_excel import init_excel
 from flask_restx import Api
+from flask_caching import Cache
 from flask_cors import CORS
 from decouple import config as env_config
 from marshmallow import ValidationError as MarshmallowValidationError
@@ -20,6 +21,7 @@ from config import config
 
 config_name = env_config('FLASK_ENV', 'production')
 rest_api = Api(prefix='/api/v1/analytics', doc=False)
+cache = Cache()
 
 
 def initialize_blueprints(application):
@@ -32,10 +34,12 @@ def create_app(rest_api, config=config[config_name]):
     """creates a flask app object from a config object"""
 
     app = Flask(__name__)
+    app.config.from_object(config)
+
     rest_api.init_app(app)
+    cache.init_app(app)
     init_excel(app)
     CORS(app)
-    app.config.from_object(config)
     Swagger(app)
 
     # Initialize error handlers

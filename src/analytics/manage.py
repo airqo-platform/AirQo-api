@@ -12,9 +12,6 @@ from config import config
 #utils
 from api.utils.pre_request import PreRequest
 
-# models
-# from api.models.database import db
-
 
 config_name = env_config('FLASK_ENV', 'production')
 
@@ -30,11 +27,6 @@ def check_tenant_param():
 @swag_from('/api/docs/status.yml')
 def index():
     return jsonify(dict(message=f'App status - OK.'))
-
-# x = [r for r in app.url_map.iter_rules()]
-# print("all usrls", x)
-# pri
-# print("all rules", [r.rule for r in app.url_map.iter_rules()])
 
 
 if __name__ == '__main__':
