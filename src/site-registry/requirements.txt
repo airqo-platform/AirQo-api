@@ -19,7 +19,7 @@ earthengine-api==0.1.224
 Flask==1.1.2
 Flask-Cache==0.13.1
 Flask-Caching==1.9.0
-Flask-Cors==3.0.8
+Flask-Cors==3.0.9
 Flask-PyMongo==2.3.0
 future==0.18.2
 geographiclib==1.50
