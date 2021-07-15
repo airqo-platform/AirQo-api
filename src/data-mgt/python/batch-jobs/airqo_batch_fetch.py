@@ -3,20 +3,15 @@ import os
 from datetime import datetime, timedelta
 
 import pandas as pd
-import requests
 from google.cloud import bigquery
-from kafka_client import Kafka
 
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
-START_TIME = os.getenv("START_TIME", "2021-01-01")
-END_TIME = os.getenv("END_TIME", "2021-01-02")
-INTERVAL = os.getenv("INTERVAL", "1")
-SIZE = os.getenv("INTERVAL", "1000")
+from config import Config
+from date import str_to_date
+from kafka_client import KafkaWithoutRegistry
+from utils import filter_valid_devices, get_devices, build_channel_id_filter
+
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
-
-BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS", "localhost:9092")
-TOPIC = os.getenv("TOPIC", "airqo-raw-device-measurements-topic")
 
 
 class DataConstants:
@@ -44,60 +39,20 @@ class DataConstants:
 
 def get_device_measurements(devices):
 
-    interval = INTERVAL + "H"
+    interval = f"{Config.TIME_INTERVAL}H"
 
-    dates = pd.date_range(START_TIME, END_TIME, freq=interval)
+    dates = pd.date_range(Config.START_TIME, Config.END_TIME, freq=interval)
 
     for date in dates:
 
         start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-        end_time = datetime.strftime(date + timedelta(hours=int(INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
+        end_time = datetime.strftime(date + timedelta(hours=int(Config.TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
 
         print(start_time + " : " + end_time)
 
         device_measurements_data = get_airqo_device_data(start_time, end_time, devices)
 
         transform_airqo_data(device_measurements_data, devices)
-
-
-def get_airqo_devices():
-    api_url = DEVICE_REGISTRY_URL + "devices?tenant=airqo&active=yes"
-
-    results = requests.get(api_url)
-
-    if results.status_code == 200:
-        response_data = results.json()
-
-        if "devices" not in response_data:
-            print("Error : Device Registry didnt return any devices")
-            return []
-        return response_data["devices"]
-    else:
-        print(f"Device Registry failed to return airqo devices. Status Code : {str(results.status_code)}")
-        return []
-
-
-def filter_valid_devices(devices_data):
-    valid_devices = []
-    for device in devices_data:
-        device_dict = dict(device)
-        if "site" in device_dict.keys() and "device_number" in device_dict.keys():
-            valid_devices.append(device_dict)
-
-    return valid_devices
-
-
-def build_channel_id_filter(devices_data):
-    channel_filter = "channel_id = 0"
-    for device in devices_data:
-        device_dict = dict(device)
-        channel_filter = channel_filter + f" or channel_id = {device_dict.get('device_number')}"
-
-    return channel_filter
-
-
-def str_to_date(string):
-    return datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ').isoformat()
 
 
 def get_airqo_device_data(start_time, end_time, devices):
@@ -153,16 +108,16 @@ def transform_airqo_data(data, devices):
             transformed_data.append(device_data)
 
         if transformed_data:
-            n = int(SIZE)
+            n = int(Config.INSERTION_INTERVAL)
             sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
             for sub_list in sub_lists:
-                kafka = Kafka(boot_strap_servers=BOOT_STRAP_SERVERS, topic=TOPIC)
+                kafka = KafkaWithoutRegistry(boot_strap_servers=Config.BOOT_STRAP_SERVERS, topic=Config.OUTPUT_TOPIC)
                 kafka.produce(json.dumps(sub_list))
 
 
 if __name__ == "__main__":
-    airqo_devices = get_airqo_devices()
+    airqo_devices = get_devices(Config.DEVICE_REGISTRY_URL, "airqo")
     filtered_devices = filter_valid_devices(airqo_devices)
     
     if len(filtered_devices) > 0:

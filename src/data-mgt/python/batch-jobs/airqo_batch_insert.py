@@ -1,11 +1,12 @@
-from airqo.event import DeviceRegistry
+from event import DeviceRegistry
 import os
 from datetime import datetime, timedelta
 
 import pandas as pd
-import requests
 from google.cloud import bigquery
 
+from date import str_to_date
+from utils import filter_valid_devices, get_devices, build_channel_id_filter
 
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
 START_TIME = os.getenv("START_TIME", "2020-01-01")
@@ -57,47 +58,6 @@ def get_device_measurements(devices):
         device_measurements_data = get_airqo_device_data(start_time, end_time, devices)
 
         transform_airqo_data(device_measurements_data, devices)
-
-
-def get_airqo_devices():
-    api_url = DEVICE_REGISTRY_URL + "devices?tenant=airqo&active=yes"
-
-    results = requests.get(api_url)
-
-    if results.status_code == 200:
-        response_data = results.json()
-
-        if "devices" not in response_data:
-            print("Error : Device Registry didnt return any devices")
-            return None
-        return response_data["devices"]
-    else:
-        print(f"Device Registry failed to return airqo devices. Status Code : {str(results.status_code)}")
-        print(results)
-        return None
-
-
-def filter_valid_devices(devices_data):
-    valid_devices = []
-    for device in devices_data:
-        device_dict = dict(device)
-        if "site" in device_dict.keys() and "device_number" in device_dict.keys():
-            valid_devices.append(device_dict)
-
-    return valid_devices
-
-
-def build_channel_id_filter(devices_data):
-    channel_filter = "channel_id = 0"
-    for device in devices_data:
-        device_dict = dict(device)
-        channel_filter = channel_filter + f" or channel_id = {device_dict.get('device_number')}"
-
-    return channel_filter
-
-
-def str_to_date(string):
-    return datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ').isoformat()
 
 
 def get_airqo_device_data(start_time, end_time, devices):
@@ -162,7 +122,7 @@ def transform_airqo_data(data, devices):
 
 
 if __name__ == "__main__":
-    airqo_devices = get_airqo_devices()
+    airqo_devices = get_devices(DEVICE_REGISTRY_URL, "airqo")
     filtered_devices = filter_valid_devices(airqo_devices)
     
     if len(filtered_devices) > 0:

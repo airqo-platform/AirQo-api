@@ -6,18 +6,17 @@ import pandas as pd
 
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
-class DeviceRegistry():
+
+class DeviceRegistry:
     def __init__(self, data, tenant, url) -> None:
-        self.measurements = data
+        self.json_data = json.dumps(data)
         self.tenant = tenant
         self.base_url = url
         
     def send_to_api(self):
-        dataframe = pd.DataFrame(self.measurements)
+        dataframe = pd.DataFrame(self.json_data)
         device = dataframe.iloc[0].get("device")
-        self.json_data = json.dumps(self.measurements)
         self.events_collection_insertion(device)
-
 
     def events_collection_insertion(self,  device):
         try:
