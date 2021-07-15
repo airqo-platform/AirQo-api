@@ -1,7 +1,7 @@
 # api
 flask==1.1.1
 python-dotenv==0.13.0
-Flask-Cors==3.0.8
+Flask-Cors==3.0.9
 #production requirements
 numpy==1.17.4
 scikit-learn==0.21.3

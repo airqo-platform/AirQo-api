@@ -15,7 +15,7 @@ decorator==4.4.2
 dm-tree==0.1.5
 Flask==1.1.1
 Flask-Caching==1.9.0
-Flask-Cors==3.0.8
+Flask-Cors==3.0.9
 Flask-PyMongo==2.3.0
 fsspec==0.8.4
 gast==0.3.3
