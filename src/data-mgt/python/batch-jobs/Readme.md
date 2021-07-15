@@ -1,19 +1,9 @@
-> Start the luigi central scheduler
+> Add the [Google Credentials file](https://airqo.slack.com/archives/GTHGHCB4G/p1616442599002000) to this directory and rename it to `bigquery.json`
 >
-> `docker build -t luigi-central-schedular .`
-> 
-> `docker run -d -p 8082:8082 luigi-central-schedular`
-> 
-> Browse http://localhost:8082 to view the luigi dashboard
-
-> For KCCA
-> 
->  `cd kcca`
+> Build the image
+> `docker build -t airqo-batch .`
 >
->  Follow instructions in the Readme.md
-
-> For AIRQO
-> 
->  `cd airqo`
+> [env.airqo.batch file](https://airqo.slack.com/archives/GTHGHCB4G/p1616436451001100)
 >
->  Follow instructions in the Readme.md
+> Create and start a container
+>`docker run -d --network="host" --env-file env.airqo.batch --rm airqo-batch`
