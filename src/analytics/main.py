@@ -17,11 +17,11 @@ from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 
 # Config
-from config import config, CACHE_CONFIG
+from config import config
 
 config_name = env_config('FLASK_ENV', 'production')
 rest_api = Api(prefix='/api/v1/analytics', doc=False)
-cache = Cache(config=CACHE_CONFIG)
+cache = Cache()
 
 
 def initialize_blueprints(application):
@@ -34,11 +34,12 @@ def create_app(rest_api, config=config[config_name]):
     """creates a flask app object from a config object"""
 
     app = Flask(__name__)
+    app.config.from_object(config)
+
     rest_api.init_app(app)
     cache.init_app(app)
     init_excel(app)
     CORS(app)
-    app.config.from_object(config)
     Swagger(app)
 
     # Initialize error handlers
