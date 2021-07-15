@@ -2,7 +2,7 @@ attrs==19.3.0
 click==7.1.2
 dnspython==1.16.0
 Flask==1.1.2
-Flask-Cors==3.0.8
+Flask-Cors==3.0.9
 Flask-PyMongo==2.3.0
 importlib-metadata==1.6.0
 itsdangerous==1.1.0
