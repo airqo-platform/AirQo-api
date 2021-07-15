@@ -18,6 +18,7 @@ class Config:
     INSERTION_INTERVAL = os.getenv("INSERTION_INTERVAL")
     BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
     OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
+    AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
 
 
 class ProductionConfig(Config):

@@ -1,10 +1,14 @@
 import requests
 
+from config import configuration
+
 
 def get_devices(base_url, tenant):
 
     api_url = f"{base_url}devices?tenant={tenant}&active=yes"
-    results = requests.get(api_url, verify=False)
+    headers = {'x-api-key': configuration.AIRQO_API_KEY}
+
+    results = requests.get(api_url, headers=headers, verify=False)
 
     if results.status_code != 200:
         return []
