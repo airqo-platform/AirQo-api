@@ -1,6 +1,15 @@
+/*
+Changes made to `measurementsSchema` schema may affect the format of messages 
+received from the message broker (Kafka). Consider updating 
+the schema `AirQo-api/kafka/schemas/transformed-device-measurements.avsc`
+and following up on its deployment. :)
+*/
+
 const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
+const ObjectId = Schema.Types.ObjectId;
+const constants = require("../config/constants");
 
 const measurementsSchema = [
   {
@@ -11,127 +20,160 @@ const measurementsSchema = [
     frequency: {
       type: String,
       required: [true, "the frequency is required"],
+      trim: true,
     },
     device: {
       type: String,
       required: [true, "The device name is required"],
       trim: true,
     },
-    channelID: {
+    device_id: {
+      type: ObjectId,
+      required: [true, "The device ID is required"],
+    },
+    device_number: {
       type: Number,
-      trim: true,
+      default: null,
+    },
+    site: {
+      type: String,
+      default: "",
+    },
+    site_id: {
+      type: ObjectId,
+      required: [true, "The site ID is required"],
     },
     pm1: {
       value: {
         type: Number,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     pm2_5: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     s2_pm2_5: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     pm10: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        trim: true,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     s2_pm10: {
       value: {
         type: Number,
-        required: [true, "the raw value is required"],
+        trim: true,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     no2: {
       value: {
         type: Number,
+        default: null,
       },
-      calibratedValue: { type: Number },
-      uncertaintyValue: { type: Number },
-      standardDeviationValue: { type: Number },
+      calibratedValue: { type: Number, default: null },
+      uncertaintyValue: { type: Number, default: null },
+      standardDeviationValue: { type: Number, default: null },
     },
     battery: {
       value: {
         type: Number,
+        default: null,
       },
     },
     location: {
       latitude: {
         value: {
           type: Number,
+          default: null,
         },
       },
       longitude: {
         value: {
           type: Number,
+          default: null,
         },
       },
     },
     altitude: {
       value: {
         type: Number,
+        default: null,
       },
     },
     speed: {
       value: {
         type: Number,
+        default: null,
       },
     },
     satellites: {
       value: {
         type: Number,
+        default: null,
       },
     },
     hdop: {
       value: {
         type: Number,
+        default: null,
       },
     },
     internalTemperature: {
       value: {
         type: Number,
+        default: null,
       },
     },
     internalHumidity: {
       value: {
         type: Number,
+        default: null,
       },
     },
     externalTemperature: {
       value: {
         type: Number,
+        default: null,
       },
     },
     externalHumidity: {
       value: {
         type: Number,
+        default: null,
       },
     },
     externalPressure: {
-      value: { type: Number },
+      value: { type: Number, default: null },
+    },
+    externalAltitude: {
+      value: {
+        type: Number,
+      },
     },
   },
 ];
@@ -140,9 +182,13 @@ const eventSchema = new Schema(
   {
     day: {
       type: String,
+      required: [true, "the day is required"],
     },
-    first: { type: Date },
-    last: { type: Date },
+    first: {
+      type: Date,
+      required: [true, "the first day's event is required"],
+    },
+    last: { type: Date, required: [true, "the last day's event is required"] },
     nValues: {
       type: Number,
     },
@@ -154,11 +200,19 @@ const eventSchema = new Schema(
 );
 
 eventSchema.index(
-  { "values.time": 1, "values.device": 1, day: 1, "values.frequency": 1 },
-  { unique: true }
+  {
+    "values.time": 1,
+    "values.device": 1,
+    "values.device_id": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: `${constants.N_VALUES}` } },
+  }
 );
-
-eventSchema.index({ day: 1 }, { unique: true });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
@@ -221,7 +275,6 @@ eventSchema.statics = {
       .sort({ time: -1 })
       .group({
         _id: "$device",
-        channelID: { $first: "$channelID" },
         time: { $first: "$time" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
@@ -238,9 +291,10 @@ eventSchema.statics = {
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
         externalHumidity: { $first: "$externalHumidity" },
+        externalAltitude: { $first: "$externalAltitude" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
-        deviceDetails: { $first: {$arrayElemAt: [ "$deviceDetails", 0 ]} },
+        deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
       })
       .skip(skipInt)
       .limit(limitInt)

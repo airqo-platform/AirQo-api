@@ -1,4 +1,6 @@
+colored
 pandas
 pymongo
+python-dateutil
 python-dotenv
 requests
