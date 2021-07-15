@@ -3,7 +3,6 @@
 .env
 env
 .env.yaml
-.env
 .env.list
 env.list
 env.kcca.batch

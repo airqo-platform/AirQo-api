@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import requests
 from google.cloud import bigquery
-from kafkaRegistry import Kafka
+from kafka_client import Kafka
 
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
 START_TIME = os.getenv("START_TIME", "2021-01-01")

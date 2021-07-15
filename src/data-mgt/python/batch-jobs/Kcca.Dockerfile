@@ -5,5 +5,6 @@ WORKDIR /
 
 RUN pip install -r requirements.txt
 
-ENTRYPOINT [ "python" ]
-CMD [ "batch_fetch.py" ]
+ENV PYTHONWARNINGS = "ignore:Unverified HTTPS request"
+
+CMD [ "python", "kcca_batch_fetch.py" ]

@@ -5,5 +5,6 @@ WORKDIR /
 
 RUN pip install -r requirements.txt
 
-ENTRYPOINT [ "python" ]
-CMD [ "batch_insert.py" ]
+ENV PYTHONWARNINGS = "ignore:Unverified HTTPS request"
+
+CMD [ "python", "airq_batch_insert.py" ]
