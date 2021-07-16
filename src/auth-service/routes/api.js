@@ -3,6 +3,7 @@ const router = express.Router();
 const joinController = require("../controllers/join");
 const requestController = require("../controllers/request");
 const defaultsController = require("../controllers/defaults");
+const { grantAccess } = require("../services/auth");
 
 const {
   setJWTAuth,

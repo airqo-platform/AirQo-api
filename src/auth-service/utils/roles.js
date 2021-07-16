@@ -1,5 +1,8 @@
 const AccessControl = require("accesscontrol");
 const ac = new AccessControl();
+/**
+ * could we have this interact with a database of sorts?
+ */
 
 const resources = {
   profile: "profile",
