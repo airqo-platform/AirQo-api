@@ -49,7 +49,13 @@ router.get("/defaults/", setJWTAuth, authJWT, defaultsController.list);
 
 //************************ candidates ***********************************************
 router.post("/candidates/register", requestController.create);
-router.get("/candidates", setJWTAuth, authJWT, grantAccess("readAny", "users"),requestController.list);
+router.get(
+  "/candidates",
+  setJWTAuth,
+  authJWT,
+  grantAccess("readAny", "users"),
+  requestController.list
+);
 router.post(
   "/candidates/confirm",
   setJWTAuth,
