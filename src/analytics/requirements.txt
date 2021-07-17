@@ -2,6 +2,7 @@ flask
 flask_excel
 flask-restx
 flask-cors
+Flask-Caching
 flasgger
 pandas
 pymongo
@@ -9,6 +10,7 @@ flask_pymongo
 python-decouple
 python-dotenv
 marshmallow
+redis
 
 # Ports for stable python 3 functionality
 dataclasses # for py < 3.7

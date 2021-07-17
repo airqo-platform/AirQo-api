@@ -11,7 +11,8 @@ const {
 const { validationResult } = require("express-validator");
 const getDetail = require("../utils/get-device-details");
 const isEmpty = require("is-empty");
-const { transformMeasurements } = require("../utils/transform-measurements");
+
+const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const insertMeasurements = require("../utils/insert-measurements");
 const {
   transmitOneSensorValue,

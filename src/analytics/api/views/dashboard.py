@@ -1,5 +1,3 @@
-from collections import OrderedDict
-
 # Third-party libraries
 from flasgger import swag_from
 import flask_excel as excel
@@ -10,40 +8,19 @@ from flask import request
 from main import rest_api
 
 from api.models import (
-    PM25LocationCategoryCountModel,
-    MonitoringSiteModel,
-    DeviceHourlyMeasurementModel,
-    DeviceDailyExceedancesModel,
-    DeviceDailyHistoricalAveragesModel,
     EventsModel,
     SiteModel,
+    ExceedanceModel,
 )
-from api.models.constants import CODE_LOCATIONS
 
 from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_params, validate_request_json
 from api.utils.pollutants import (
-    categorise_pm25_values,
     generate_pie_chart_data,
     PM_COLOR_CATEGORY,
-    POLLUTANT_MEASUREMENT_UNITS,
     set_pm25_category_background,
-    str_date_to_format_str
 )
 
-
-# @rest_api.route("/dashboard/locations/pm25categorycount")
-# class PM25CategoryLocationCountResource(Resource):
-#
-#     @swag_from('/api/docs/dashboard/pm25_location_count_get.yml')
-#     def get(self):
-#         tenant = request.args.get("tenant")
-#         model = PM25LocationCategoryCountModel(tenant)
-#         results = list(model.sort("created_at", ascending=False).limit(1))
-#
-#         data = results and results[0].get('pm25_categories') or []
-#
-#         return create_response("location count successfully fetched", data=data), Status.HTTP_200_OK
 
 
 @rest_api.route("/data/download")
@@ -69,11 +46,11 @@ class DownloadCustomisedDataResource(Resource):
 
         for pollutant in pollutants:
             if pollutant == 'pm2_5':
-                formatted_pollutants['pm2_5.value'] = 1
+                formatted_pollutants['values.pm2_5.value'] = 1
             elif pollutant == 'pm10':
-                formatted_pollutants['pm10.value'] = 1
+                formatted_pollutants['values.pm10.value'] = 1
             elif pollutant == 'no2':
-                formatted_pollutants['no2.value'] = 1
+                formatted_pollutants['values.no2.value'] = 1
 
         events_model = EventsModel(tenant)
         data = events_model.get_downloadable_events(sites, start_date, end_date, frequency, formatted_pollutants)
@@ -92,7 +69,8 @@ class ChartDataResource(Resource):
     @swag_from('/api/docs/dashboard/customised_chart_post.yml')
     @validate_request_json(
         'sites|required:list', 'startDate|required:datetime',
-        'endDate|required:datetime', 'frequency|required:str'
+        'endDate|required:datetime', 'frequency|required:str',
+        'pollutant|required:str', 'chartType|required:str'
     )
     def post(self):
         tenant = request.args.get('tenant')
@@ -102,150 +80,77 @@ class ChartDataResource(Resource):
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
-
-        events_model = EventsModel(tenant)
-
-        data = events_model.get_events(sites, start_date, end_date, frequency)
-
-        return create_response("chart data successfully retrieved", data=data), Status.HTTP_200_OK
-
-
-@rest_api.route('/dashboard/customised_chart')
-class CustomisedChartResource(Resource):
-
-    @swag_from('/api/docs/dashboard/customised_chart_post.yml')
-    @validate_request_json(
-        'locations|required:list', 'startDate|required:datetime', 'endDate|required:datetime',
-        'frequency|required:str', 'pollutant|required:str', 'chartType|required:str', 'orgName|str'
-    )
-    def post(self):
-        tenant = request.args.get('tenant')
-
-        json_data = request.get_json()
-        locations = json_data["locations"]
-        start_date = json_data["startDate"]
-        end_date = json_data["endDate"]
-        frequency = json_data["frequency"]
         pollutant = json_data["pollutant"]
         chart_type = json_data["chartType"]
-        org_name = json_data.get("orgName") or tenant
-
-        custom_chart_title = f'Mean {frequency.capitalize()} {pollutant} for {", ".join(locations)}'
-        custom_chart_title_second_section = f'Between {str_date_to_format_str(start_date, frequency)} and ' \
-                                            f'{str_date_to_format_str(start_date, frequency)}'
 
         colors = ['#7F7F7F', '#E377C2', '#17BECF', '#BCBD22', '#3f51b5']
 
-        if pollutant.lower() == 'pm 2.5':
-            category_key = 'pm25'
-            label_key = 'pm'
+        events_model = EventsModel(tenant)
+        data = events_model.get_chart_events(sites, start_date, end_date, pollutant, frequency)
 
-        elif pollutant.lower() == 'pm 10':
-            category_key = 'pm10'
-            label_key = 'pm'
+        chart_datasets = []
+        chart_labels = []
 
-        else:
-            category_key = 'no2'
-            label_key = 'no2'
+        for record in data:
 
-        ms_model = MonitoringSiteModel(tenant)
-        dhm_model = DeviceHourlyMeasurementModel(tenant)
+            site = record.get("site", {})
 
-        results = {
-            "chart_type": chart_type,
-            "custom_chart_title": custom_chart_title,
-            "custom_chart_title_second_section": custom_chart_title_second_section,
-            "chart_label": f'{pollutant} {POLLUTANT_MEASUREMENT_UNITS.get(label_key, "")}',
-            "pollutant": pollutant,
-            "start_date": start_date,
-            "end_date": end_date,
-            "frequency": frequency,
-        }
-
-        charts = []
-
-        sites = list(ms_model.filter_by(Organisation=org_name).in_filter_by(Parish=locations).exec(
-            {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 1}
-        ))
-
-        device_codes = [site["DeviceCode"] for site in sites]
-
-        device_data = list(dhm_model.get_all_filtered_data(
-            device_codes, start_date=start_date, end_date=end_date, frequency=frequency, pollutant=pollutant
-        ))
-
-        for device in sites:
-            device_code = device['DeviceCode']
-            division = device['Division']
-            parish = device['Parish']
-            location_code = device['LocationCode']
+            site_name = f"{site.get('name') or site.get('description') or site.get('generated_name')}"
 
             dataset = {}
 
-            site_data = list(filter(lambda data: data['deviceCode'] == device_code, device_data))
-
+            sorted_values = sorted(record.get('values', []), key=lambda item: item.get('time'))
             if chart_type.lower() == 'pie':
                 category_count = generate_pie_chart_data(
-                    records=site_data,
-                    key='pollutant_value',
-                    pollutant=category_key
+                    records=sorted_values,
+                    key='value',
+                    pollutant=pollutant
                 )
-                color = None
+
                 try:
                     labels, values = zip(*category_count.items())
                 except ValueError:
                     values = []
                     labels = []
                 background_colors = [PM_COLOR_CATEGORY.get(label, '#808080') for label in labels]
-                dataset['pieBackgroundColors'] = background_colors
+                color = background_colors
+
+                dataset.update({
+                    'data': values,
+                    'label': f'{site_name} {pollutant}',
+                    'backgroundColor': color,
+                    'fill': False
+                })
+
             else:
                 try:
-                    values, labels = zip(*[(data['pollutant_value'], data['time']) for data in site_data])
+                    values, labels = zip(*[(data.get('value'), data.get('time')) for data in sorted_values])
                 except ValueError:
                     values = []
                     labels = []
 
                 color = colors.pop()
 
-            dataset.update({
-                'values': values,
-                'labels': labels,
-                'key_label': f'{parish} {pollutant}',
-                'borderColor': color,
-                'backgroundColor': color,
-                'fill': False
-            })
+                dataset.update({
+                    'data': values,
+                    'label': f'{site_name} {pollutant}',
+                    'borderColor': color,
+                    'backgroundColor': color,
+                    'fill': False
+                })
 
-            chart_data = {
-                "division": division,
-                "location_code": location_code,
-                "parish": parish,
-                "dataset": dataset,
+            if not chart_labels:
+                chart_labels = labels
+
+            chart_datasets.append(dataset)
+
+        return create_response(
+            "successfully retrieved chart data",
+            data={
+                "labels": chart_labels,
+                "datasets": chart_datasets
             }
-
-            charts.append(chart_data)
-
-        results["charts"] = charts
-        return create_response("chart data successfully retrieved", data=results), Status.HTTP_200_OK
-
-
-# @rest_api.route('/dashboard/monitoring_sites/locations')
-# class MonitoringSiteLocationResource(Resource):
-#
-#     @swag_from("/api/docs/dashboard/monitoring_site_location_get.yml")
-#     @validate_request_params('orgName|str')
-#     def get(self):
-#         tenant = request.args.get('tenant')
-#         org_name = request.args.get('orgName') or tenant
-#
-#         ms_model = MonitoringSiteModel(tenant)
-#
-#         org_monitoring_sites = ms_model.get_all_org_monitoring_sites(org_name)
-#
-#         return create_response(
-#             "monitoring site location data successfully fetched",
-#             data=org_monitoring_sites
-#         ), Status.HTTP_200_OK
+        ), Status.HTTP_200_OK
 
 
 @rest_api.route('/dashboard/sites')
@@ -265,85 +170,78 @@ class MonitoringSiteResource(Resource):
         ), Status.HTTP_200_OK
 
 
-@rest_api.route('/dashboard/historical/daily/devices')
-class DeviceDailyMeasurementsResource(Resource):
+@rest_api.route('/dashboard/historical/daily-averages')
+class DailyAveragesResource(Resource):
 
     @swag_from('/api/docs/dashboard/device_daily_measurements_get.yml')
-    def get(self):
+    @validate_request_json('pollutant|required:str', 'startDate|required:datetime', 'endDate|required:datetime')
+    def post(self):
         tenant = request.args.get('tenant')
-        dha_model = DeviceDailyHistoricalAveragesModel(tenant)
+        json_data = request.get_json()
+        pollutant = json_data["pollutant"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
 
-        sites = dha_model.get_last_28_days_measurements()
+        events_model = EventsModel(tenant)
+        site_model = SiteModel(tenant)
+        sites = site_model.get_sites()
+        data = events_model.get_averages_by_pollutant(start_date, end_date, pollutant)
 
-        results = []
         values = []
         labels = []
         background_colors = []
 
-        for site in sites:
-            values.append(int(site["average_pm25"]))
-            labels.append(site["Parish"])
-            background_colors.append(set_pm25_category_background(site["average_pm25"]))
-            results.append(site)
+        for v in data:
+
+            if not v.get("site_id"):
+                continue
+
+            site = list(filter(lambda s: s.get("site_id") == v.get("site_id"), sites))
+
+            if not site:
+                continue
+
+            site = site[0]
+            values.append(v.get('value'))
+            labels.append(
+                site.get('name') or
+                site.get('description') or
+                site.get('generated_name')
+            )
+            background_colors.append(set_pm25_category_background(v.get('value')))
 
         return create_response(
-            "daily measurements successfully fetched",
+            "daily averages successfully fetched",
             data={
-                "average_pm25_values": values,
+                "average_values": values,
                 "labels": labels,
                 "background_colors": background_colors
             }
         ), Status.HTTP_200_OK
 
 
-@rest_api.route('/dashboard/divisions')
-class DivisionsResource(Resource):
-
-    @swag_from('/api/docs/dashboard/divisions_get.yml')
-    def get(self):
-        tenant = request.args.get('tenant')
-
-        ms_model = MonitoringSiteModel(tenant)
-
-        divisions = ms_model.find(
-            {},
-            {"DeviceCode": 1, "Parish": 1, "LocationCode": 1, "Division": 1, "_id": 0}
-        )
-
-        return create_response(
-            "division successfully fetched",
-            data={"divisions": list(divisions)}
-        ),  Status.HTTP_200_OK
-
-
 @rest_api.route('/dashboard/exceedances')
 class ExceedancesResource(Resource):
 
     @swag_from('/api/docs/dashboard/exceedances_post.yml')
-    @validate_request_json('pollutant|required:str', 'standard|required:str')
+    @validate_request_json(
+        'pollutant|required:str', 'standard|required:str',
+        'startDate|required:datetime', 'endDate|required:datetime'
+    )
     def post(self):
         tenant = request.args.get('tenant')
 
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         standard = json_data["standard"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
 
-        de_model = DeviceDailyExceedancesModel(tenant)
+        exc_model = ExceedanceModel(tenant)
 
-        exceedances_data = de_model.get_last_28_days_exceedences(pollutant, standard)
+        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard)
 
         return create_response(
             "exceedance data successfully fetched",
-            data=exceedances_data and exceedances_data[0].get('exceedences') or []
-        ), Status.HTTP_200_OK
-
-
-@rest_api.route('/dashboard/exceedance_locations')
-class ExceedanceLocationsResource(Resource):
-
-    @swag_from('/api/docs/dashboard/exceedances_location_get.yml')
-    def get(self):
-        return create_response(
-            "Exceedance location data successfully fetched",
-            data=list(CODE_LOCATIONS.keys())
+            data=data,
         ), Status.HTTP_200_OK

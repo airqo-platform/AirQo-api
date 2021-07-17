@@ -19,7 +19,6 @@ const createEvent = {
         return {
           day: day,
           ...measurement,
-          success: true,
         };
       } catch (e) {
         logger.error(`transformEvents -- ${e.message}`);

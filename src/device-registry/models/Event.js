@@ -9,6 +9,7 @@ const { Schema, model } = require("mongoose");
 const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
+const constants = require("../config/constants");
 
 const measurementsSchema = [
   {
@@ -207,10 +208,11 @@ eventSchema.index(
     day: 1,
     "values.frequency": 1,
   },
-  { unique: true }
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: `${constants.N_VALUES}` } },
+  }
 );
-
-eventSchema.index({ day: 1 }, { unique: true });
 
 eventSchema.pre("save", function() {
   const err = new Error("something went wrong");
