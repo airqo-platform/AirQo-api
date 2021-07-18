@@ -41,6 +41,9 @@ const createEvent = {
       request["body"] = body;
 
       let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
+
+      logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
+
       logger.info(
         `responseFromAddEventsUtil -- ${JSON.stringify(
           responseFromAddEventsUtil
@@ -48,17 +51,13 @@ const createEvent = {
       );
 
       if (!responseFromAddEventsUtil.success) {
-        let errors = responseFromAddEventsUtil.errors
-          ? responseFromAddEventsUtil.errors
+        let errors = responseFromAddEventsUtil.error
+          ? responseFromAddEventsUtil.error
           : "";
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: "finished the operation with some errors",
-          rejectedCount: responseFromAddEventsUtil.rejectedCount,
-          addedCount: responseFromAddEventsUtil.addedCount,
           errors,
-          valuesRejected: responseFromAddEventsUtil.valuesRejected,
-          valuesAdded: responseFromAddEventsUtil.valuesAdded,
         });
       }
 
@@ -66,8 +65,7 @@ const createEvent = {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: "successfully added all the events",
-          addedCount: responseFromAddEventsUtil.addedCount,
-          valuesAdded: responseFromAddEventsUtil.valuesAdded,
+          stored_events: responseFromAddEventsUtil.data,
         });
       }
     } catch (e) {
