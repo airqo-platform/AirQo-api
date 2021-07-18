@@ -29,7 +29,7 @@
         }
     },
     "categories": {
-        "default": { "appenders": ["app", "errors", "alerts"], "level": "error" },
+        "default": { "appenders": ["app", "errors"], "level": "error" },
         "http": { "appenders": ["access"], "level": "DEBUG" }
     }
 }
