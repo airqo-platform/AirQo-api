@@ -1,4 +1,3 @@
-import argparse
 import os
 
 from confluent_kafka import DeserializingConsumer
@@ -10,10 +9,10 @@ from event import DeviceRegistry
 
 TENANT = os.getenv("TENANT", "")
 BASE_URL = os.getenv("BASE_URL", "")
-BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhoat:9092")
-SCHEMA_REGISTRY = os.getenv("SCHEMA_REGISTRY_URL", "http://localhoat:8081")
-OUTPUT_TOPIC = os.getenv("TOPIC", "quick-starts-topic")
-CONSUMER_GROUP = os.getenv("TOPIC", "quick-starts-topic")
+BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "")
+SCHEMA_REGISTRY = os.getenv("SCHEMA_REGISTRY_URL", "")
+OUTPUT_TOPIC = os.getenv("TOPIC", "quick-start")
+CONSUMER_GROUP = os.getenv("CONSUMER_GROUP", "quick-start-group")
 
 
 def main():
@@ -39,8 +38,9 @@ def main():
 
             msg_value = msg.value()
             if msg_value is not None:
-                device_registry = DeviceRegistry(msg_value, TENANT, BASE_URL)
-                device_registry.send_to_api()
+                measurements = dict(msg_value).get("measurements")
+                device_registry = DeviceRegistry(measurements, TENANT, BASE_URL)
+                device_registry.insert_events()
 
         except KeyboardInterrupt:
             break
