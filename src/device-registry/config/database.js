@@ -20,7 +20,8 @@ const options = {
   socketTimeoutMS: 600000,
   serverSelectionTimeoutMS: 3600000,
   dbName: constants.DB_NAME,
-  autoIndex: false,
+  autoIndex: true,
+  keepAlive: true,
 };
 
 const connect = () => mongoose.createConnection(URI, options);
