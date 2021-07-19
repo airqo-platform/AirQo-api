@@ -9,47 +9,108 @@ const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
 const { generateDateFormatWithoutHrs } = require("./date");
+const jsonify = require("../utils/jsonify");
+const { transform } = require("node-json-transform");
+const dot = require("dot-object");
 
 const createEvent = {
-  transformEvents: async (measurements) => {
+  transformOneEvent: ({ data = {}, map = {}, context = {} } = {}) => {
     try {
-      let promises = measurements.map(async (measurement) => {
-        try {
-          let time = measurement.time;
-          const day = generateDateFormatWithoutHrs(time);
+      const result = transform(data, map, context);
+      logObject("the result", result);
+      if (!isEmpty(result)) {
+        dot.object(result);
+        return {
+          success: true,
+          message: "successfully transformed the json request",
+          data: result,
+        };
+      } else {
+        logger.warn(
+          `the request body for the external system is empty after transformation`
+        );
+        return {
+          success: false,
+          message:
+            "the request body for the external system is empty after transformation",
+        };
+      }
+    } catch (error) {
+      logger.error(`transform -- ${error.message}`);
+      return {
+        success: false,
+        message: "server error - trasform util",
+        error: error.message,
+      };
+    }
+  },
+  transformManyEvents: async (events) => {
+    try {
+      let promises = events.map(async (event) => {
+        let data = event;
+        let map = constants.EVENT_MAPPINGS;
+        let context = event;
+        let responseFromTransformEvent = createEvent.transformOneEvent({
+          data,
+          map,
+          context,
+        });
+        logger.info(
+          `responseFromTransformEvent -- ${responseFromTransformEvent}`
+        );
+        if (responseFromTransformEvent.success) {
+          logger.info(`responseFromTransformEvent is a success`);
           return {
-            day: day,
-            ...measurement,
+            success: true,
+            data: responseFromTransformEvent.data,
+            message: responseFromTransformEvent.message,
           };
-        } catch (e) {
-          logger.error(`transformEvents -- ${e.message}`);
-          let device = measurement.device;
+        }
+
+        if (!responseFromTransformEvent.success) {
+          let error = responseFromTransformEvent.error
+            ? responseFromTransformEvent.error
+            : "";
+          logger.error(
+            `responseFromTransformEvent is not a success -- ${error}`
+          );
           return {
-            device,
             success: false,
-            message: e.message,
+            error,
+            message: "unable to transform",
           };
         }
       });
       return Promise.all(promises).then((results) => {
+        let transforms = [];
+        let errors = [];
         if (results.every((res) => res.success)) {
+          logger.info(`success tranformEvents -- ${results}`);
+          for (const result of results) {
+            transforms.push(result.data);
+          }
           return {
             success: true,
-            data: results,
-            message: "successfully transformed",
+            data: transforms,
+            message: "successful transformations",
           };
-        } else {
-          logger.info(`tranformEvents -- ${results}`);
+        }
+
+        if (results.every((res) => !res.success)) {
+          logger.error(`unsuccessful tranformEvents -- ${results}`);
+          for (const result of results) {
+            let error = result.error ? result.error : "";
+            errors.push(error);
+          }
           return {
-            success: true,
-            data: results,
-            message: "successfully transformed",
+            success: false,
+            error: errors,
+            message: "failed transformations",
           };
         }
       });
     } catch (error) {
       logger.error(`transformEvents -- ${error.message}`);
-      logObject(" transformEvents error", error.message);
       return {
         success: false,
         message: "server side error - transformEvents ",
@@ -59,18 +120,26 @@ const createEvent = {
   },
   addEvents: async (request) => {
     try {
+      /**
+       * 2 main operations happen here:
+       * transformation/enrichment/preprocessing of the incoming events
+       * then actual insertions take place afterwards
+       */
       logText("adding the events insertTransformedEvents to the util.....");
       logger.info(`adding events in the util.....`);
       let { tenant } = request.query;
       let { body } = request;
-      let responseFromTransformEvents = await createEvent.transformEvents(body);
+      let responseFromTransformEvents = await createEvent.transformManyEvents(
+        body
+      );
       logObject("responseFromTransformEvents", responseFromTransformEvents);
       logger.info(
         `responseFromTransformEvents -- ${JSON.stringify(
           responseFromTransformEvents
         )}`
       );
-      if (!responseFromTransformEvents.success) {
+      if (responseFromTransformEvents.success === false) {
+        logElement("responseFromTransformEvents was false?", true);
         let error = responseFromTransformEvents.error
           ? responseFromTransformEvents.error
           : "";
@@ -80,35 +149,38 @@ const createEvent = {
           error,
         };
       }
-      let transformedMeasurements = responseFromTransformEvents.data;
 
-      let responseFromInsertTransformedEvents = await createEvent.insertTransformedEvents(
-        tenant,
-        transformedMeasurements
-      );
+      if (responseFromTransformEvents.success === true) {
+        let transformedMeasurements = responseFromTransformEvents.data;
 
-      logObject(
-        "responseFromInsertTransformedEvents",
-        responseFromInsertTransformedEvents
-      );
+        let responseFromInsertTransformedEvents = await createEvent.insertTransformedEvents(
+          tenant,
+          transformedMeasurements
+        );
 
-      if (responseFromInsertTransformedEvents.success) {
-        return {
-          success: true,
-          message: responseFromInsertTransformedEvents.message,
-          data: responseFromInsertTransformedEvents.data,
-        };
-      }
+        logObject(
+          "responseFromInsertTransformedEvents",
+          responseFromInsertTransformedEvents
+        );
 
-      if (!responseFromInsertTransformedEvents.success) {
-        let error = responseFromInsertTransformedEvents.error
-          ? responseFromInsertTransformedEvents.error
-          : "";
-        return {
-          success: false,
-          message: responseFromInsertTransformedEvents.message,
-          error,
-        };
+        if (responseFromInsertTransformedEvents.success) {
+          return {
+            success: true,
+            message: responseFromInsertTransformedEvents.message,
+            data: responseFromInsertTransformedEvents.data,
+          };
+        }
+
+        if (!responseFromInsertTransformedEvents.success) {
+          let error = responseFromInsertTransformedEvents.error
+            ? responseFromInsertTransformedEvents.error
+            : "";
+          return {
+            success: false,
+            message: responseFromInsertTransformedEvents.message,
+            error,
+          };
+        }
       }
     } catch (error) {
       logger.error(`the server side error -- addEvents -- ${error.message}`);
@@ -119,108 +191,57 @@ const createEvent = {
       };
     }
   },
-  insertTransformedEvents: async (tenant, transformedMeasurements) => {
+  insertTransformedEvents: async (tenant, events) => {
     let errors = [];
     let data = [];
-    let event = {};
-    try {
-      logObject(
-        "the transformed measurements received",
-        transformedMeasurements
-      );
-      for (const measurement of transformedMeasurements) {
-        logObject("the measurement in the insertion process", measurement);
-        event = measurement;
-        const eventBody = {
-          day: measurement.day,
-          nValues: { $lt: `${constants.N_VALUES}` },
-          $or: [
-            { "values.time": { $ne: measurement.time } },
-            { "values.device": { $ne: measurement.device } },
-            { "values.frequency": { $ne: measurement.frequency } },
-            { "values.device_id": { $ne: measurement.device_id } },
-            { "values.site_id": { $ne: measurement.site_id } },
-            { day: { $ne: measurement.day } },
-          ],
-        };
-        const options = {
-          $push: { values: measurement },
-          $min: { first: measurement.time },
-          $max: { last: measurement.time },
-          $inc: { nValues: 1 },
-        };
+    logObject("the transformed events received", events);
+    for (const event of events) {
+      try {
+        let filter = event.filter;
+        let options = event.options;
+        let values = dot.delete(["filter", "options"], event);
+        options["$push"] = { values };
+
         const addedEvents = await getModelByTenant(
           tenant.toLowerCase(),
           "event",
           EventSchema
-        ).updateOne(eventBody, options, {
-          upsert: true,
-        });
-        logObject("addedEvents", addedEvents);
+        ).findOneAndUpdate(filter, options);
+        let event_details = dot.delete("nValues", filter);
+        logObject("addedEvents", jsonify(addedEvents));
+        logger.info(`addedEvents -- ${JSON.stringify(this.addedEvents)}`);
         if (!isEmpty(addedEvents)) {
           logger.info(`successfuly added the transformed event`);
           let insertion = {
             msg: "successfuly added the transformed event",
-            event: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-            },
+            event_details,
           };
           data.push(insertion);
         } else if (isEmpty(addedEvents)) {
+          logger.info(`nothing added, empty response`);
           let errMsg = {
             msg: "unable to add the transformed event",
-            event: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-            },
+            event_details,
           };
           errors.push(errMsg);
         } else {
+          logger.info(`nothing added, empty response`);
           let errMsg = {
             msg: "unable to add the transformed event",
-            event: {
-              ...(measurement.device ? { device: measurement.device } : {}),
-              ...(measurement.frequency
-                ? { frequency: measurement.frequency }
-                : {}),
-              ...(measurement.time ? { time: measurement.time } : {}),
-              ...(measurement.device_id
-                ? { device_id: measurement.device_id }
-                : {}),
-              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
-            },
+            event_details,
           };
           errors.push(errMsg);
         }
+      } catch (error) {
+        logger.error(`insertTransformedEvents -- ${error.message}`);
+        let filter = event.filter;
+        let event_details = dot.delete("nValues", filter);
+        let errMsg = {
+          msg: "server error -- duplicate record?",
+          event_details: filter,
+        };
+        errors.push(errMsg);
       }
-    } catch (error) {
-      logger.error(`insertTransformedEvents -- ${error.message}`);
-      let errMsg = {
-        msg: "duplicate record",
-        event: {
-          ...(event.device ? { device: event.device } : {}),
-          ...(event.frequency ? { frequency: event.frequency } : {}),
-          ...(event.time ? { time: event.time } : {}),
-          ...(event.device_id ? { device_id: event.device_id } : {}),
-          ...(event.site_id ? { site_id: event.site_id } : {}),
-        },
-      };
-      errors.push(errMsg);
     }
 
     if (errors.length > 0) {
@@ -346,7 +367,7 @@ const createEvent = {
                 isCache: true,
                 success: true,
                 message: `successfully listed the Events`,
-                measurements: events,
+                events: events,
               })
             );
             redis.expire(cacheID, constants.EVENTS_CACHE_LIMIT);
@@ -354,7 +375,7 @@ const createEvent = {
               success: true,
               isCache: false,
               message: `successfully listed the Events`,
-              measurements: events,
+              events: events,
             });
           }
         } catch (e) {

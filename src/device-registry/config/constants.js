@@ -1,4 +1,8 @@
 const { logElement } = require("../utils/log");
+const { generateDateFormatWithoutHrs } = require("../utils/date");
+const isEmpty = require("is-empty");
+const { Schema, model } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -112,6 +116,160 @@ const defaultConfig = {
       item.field6 = context.field6;
       item.field7 = context.field7;
       item.field8 = context.field8;
+      return item;
+    },
+  },
+  DEVICE_MAPPINGS: {},
+  SITE_MAPPINGS: {},
+  PHOTO_MAPPINGS: {},
+  EVENT_MAPPINGS: {
+    item: {
+      time: "time",
+      device: "device",
+      device_id: "device_id",
+      site_id: "site_id",
+      day: "time",
+      frequency: "frequency",
+      site: "site",
+      device_number: "device_number",
+      "pm2_5.value": "pm2_5.value",
+      "pm2_5.calibratedValue": "pm2_5.calibratedValue",
+      "pm2_5.uncertaintyValue": "pm2_5.uncertaintyValue",
+      "pm2_5.standardDeviationValue": "pm2_5.standardDeviationValue",
+
+      "s2_pm2_5.value": "s2_pm2_5.value",
+      "s2_pm2_5.calibratedValue": "s2_pm2_5.calibratedValue",
+      "s2_pm2_5.uncertaintyValue": "s2_pm2_5.uncertaintyValue",
+      "s2_pm2_5.standardDeviationValue": "s2_pm2_5.standardDeviationValue",
+
+      "pm10.value": "pm10.value",
+      "pm10.calibratedValue": "pm10.calibratedValue",
+      "pm10.uncertaintyValue": "pm10.uncertaintyValue",
+      "pm10.standardDeviationValue": "pm10.standardDeviationValue",
+
+      "s2_pm10.value": "s2_pm10.value",
+      "s2_pm10.calibratedValue": "s2_pm10.calibratedValue",
+      "s2_pm10.uncertaintyValue": "s2_pm10.uncertaintyValue",
+      "s2_pm10.standardDeviationValue": "s2_pm10.standardDeviationValue",
+
+      "pm1.value": "pm1.value",
+      "pm1.calibratedValue": "pm1.calibratedValue",
+      "pm1.uncertaintyValue": "pm1.uncertaintyValue",
+      "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+
+      "location.latitude.value": "location.latitude.value",
+      "location.longitude.value": "location.longitude.value",
+
+      "no2.value": "no2.value",
+      "no2.calibratedValue": "no2.calibratedValue",
+      "no2.uncertaintyValue": "no2.uncertaintyValue",
+      "no2.standardDeviationValue": "no2.standardDeviationValue",
+
+      "pm1.value": "pm1.value",
+      "pm1.calibratedValue": "pm1.calibratedValue",
+      "pm1.uncertaintyValue": "pm1.uncertaintyValue",
+      "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+
+      "internalTemperature.value": "internalTemperature.value",
+      "externalTemperature.value": "externalTemperature.value",
+
+      "internalHumidity.value": "internalHumidity.value",
+      "externalHumidity.value": "externalHumidity.value",
+
+      "externalPressure.value": "externalPressure.value",
+      "internalPressure.value": "internalPressure.value",
+
+      "speed.value": "speed.value",
+      "altitude.value": "altitude.value",
+      "battery.value": "battery.value",
+      "satellites.value": "satellites.value",
+      "hdop.value": "hdop.value",
+    },
+    remove: [],
+    defaults: {
+      time: null,
+      device: null,
+      device_id: null,
+      site_id: null,
+      day: null,
+      frequency: null,
+      site: null,
+      device_number: null,
+
+      "pm10.value": null,
+      "pm10.calibratedValue": null,
+      "pm10.uncertaintyValue": null,
+      "pm10.standardDeviationValue": null,
+
+      "s2_pm10.value": null,
+      "s2_pm10.calibratedValue": null,
+      "s2_pm10.uncertaintyValue": null,
+      "s2_pm10.standardDeviationValue": null,
+
+      "pm2_5.value": null,
+      "pm2_5.calibratedValue": null,
+      "pm2_5.uncertaintyValue": null,
+      "pm2_5.standardDeviationValue": null,
+
+      "s2_pm2_5.value": null,
+      "s2_pm2_5.calibratedValue": null,
+      "s2_pm2_5.uncertaintyValue": null,
+      "s2_pm2_5.standardDeviationValue": null,
+
+      "location.latitude.value": null,
+      "location.longitude.value": null,
+
+      "no2.value": null,
+      "no2.calibratedValue": null,
+      "no2.uncertaintyValue": null,
+      "no2.standardDeviationValue": null,
+
+      "pm1.value": null,
+      "pm1.calibratedValue": null,
+      "pm1.uncertaintyValue": null,
+      "pm1.standardDeviationValue": null,
+
+      "internalTemperature.value": null,
+      "externalTemperature.value": null,
+
+      "internalHumidity.value": null,
+      "externalHumidity.value": null,
+
+      "externalPressure.value": null,
+      "internalPressure.value": null,
+
+      "speed.value": null,
+      "altitude.value": null,
+      "battery.value": null,
+      "satellites.value": null,
+      "hdop.value": null,
+    },
+    operate: [
+      {
+        run: function(time) {
+          const day = generateDateFormatWithoutHrs(time);
+          return day;
+        },
+        on: "day",
+      },
+    ],
+    each: function(item, index, collection, context) {
+      item.filter = {};
+      item.options = {};
+      item["filter"]["values.device_number"] = context.device_number;
+      item["filter"]["values.site"] = context.site;
+      item["filter"]["values.device_id"] = context.device_id;
+      item["filter"]["values.frequency"] = context.frequency;
+      item["filter"]["values.site_id"] = context.site_id;
+      item["filter"]["values.time"] = context.time;
+      item["filter"]["values.device"] = context.device;
+      item["filter"]["nValues"] = { $lt: defaultConfig.N_VALUES };
+      item["filter"]["day"] = generateDateFormatWithoutHrs(context.time);
+      item["options"]["$min"] = { first: context.time };
+      item["options"]["$max"] = { first: context.time };
+      item["options"]["$inc"] = { nValues: 1 };
+      item["options"]["upsert"] = true;
+      item["options"]["new"] = true;
       return item;
     },
   },
