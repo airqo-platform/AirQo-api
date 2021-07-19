@@ -235,6 +235,9 @@ class ChainableMongoOperations(BaseMongoOperations):
     def sort(self, **conditions):
         return self.add_stages([{"$sort": conditions}])
 
+    def add_fields(self, **fields):
+        return self.add_stages([{"$addFields": fields}])
+
     def match_in(self, **condition):
         for field, value in condition.items():
             if isinstance(value, str) and not isinstance(value, Sequence):
