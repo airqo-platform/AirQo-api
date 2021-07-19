@@ -10,11 +10,7 @@ const middlewareConfig = require("../config/app.middleware");
 var debug = require("debug")("device-registry:server");
 var http = require("http");
 var isEmpty = require("is-empty");
-<<<<<<< HEAD
-const { kafkaMeasurementsConsumer } = require("../controllers/raw-device-measurements-consumer");
-=======
 // const { kafkaMeasurementsConsumer } = require("../controllers/kafka/raw-device-measurements-consumer");
->>>>>>> staging
 
 /****
  * pass the app instance to the middleware configuration

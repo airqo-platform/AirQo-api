@@ -1,6 +1,7 @@
 package net.airqo;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.util.JSONPObject;
@@ -49,19 +50,15 @@ public class ApiProducer {
 
                         List<Measurement> measurements = transformedDeviceMeasurements.getMeasurements();
 
-                        Map<String, List<Measurement>> listMap = measurements.stream().collect(Collectors.groupingBy(m -> m.getDevice().toString()));
+                        Map<String, List<Measurement>> listMap = measurements.stream().collect(Collectors.groupingBy(m -> m.getTenant().toString()));
 
-                        listMap.forEach((deviceName, deviceMeasurements) -> {
-                            String tenant = deviceMeasurements.get(0).getTenant().toString();
+                        listMap.forEach((tenant, deviceMeasurements) -> {
 
-                            logger.info(deviceName);
-                            logger.info(tenant);
-                            logger.info("{}", deviceMeasurements.get(0));
+                            ObjectMapper objectMapper = new ObjectMapper();
+                            List<ApiMeasurement> apiMeasurements = objectMapper.convertValue(deviceMeasurements, new TypeReference<>() {});
 
-                            props.put("tenant", tenant);
-                            props.put("device", deviceName);
-
-                           sendToApi(deviceMeasurements, Action.ADD_EVENTS, props);
+                            logger.info("{}", apiMeasurements);
+//                           sendToApi(deviceMeasurements, Action.ADD_EVENTS, props);
 
                         });
                     } catch (Exception e) {
