@@ -9,6 +9,7 @@ load_dotenv(dotenv_path)
 
 
 class Config:
+
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
     FREQUENCY = os.getenv("FREQUENCY")
@@ -19,6 +20,9 @@ class Config:
     BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
     OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+
+    def __init__(self):
+        pass
 
 
 class ProductionConfig(Config):

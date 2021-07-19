@@ -11,6 +11,7 @@ def get_devices(base_url, tenant):
     results = requests.get(api_url, headers=headers, verify=False)
 
     if results.status_code != 200:
+        print(results.content)
         return []
 
     devices = list(results.json()["devices"])
