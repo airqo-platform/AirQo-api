@@ -79,6 +79,13 @@
             <version>2.12.3</version>
         </dependency>
 
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.20</version>
+            <scope>provided</scope>
+        </dependency>
+
 
     </dependencies>
 
@@ -92,7 +99,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>net.airqo.ApiProducer</mainClass>
+                            <mainClass>airqo.ApiProducer</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

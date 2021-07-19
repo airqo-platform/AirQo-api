@@ -1,17 +1,13 @@
-package net.airqo;
+package airqo;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.util.JSONPObject;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.serializers.KafkaAvroDeserializer;
 import io.confluent.kafka.serializers.KafkaAvroDeserializerConfig;
 import net.airqo.models.Measurement;
 import net.airqo.models.TransformedDeviceMeasurements;
-import org.apache.avro.io.EncoderFactory;
-import org.apache.avro.io.JsonEncoder;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -53,11 +49,12 @@ public class ApiProducer {
                         Map<String, List<Measurement>> listMap = measurements.stream().collect(Collectors.groupingBy(m -> m.getTenant().toString()));
 
                         listMap.forEach((tenant, deviceMeasurements) -> {
+                            logger.info("{}", deviceMeasurements.toArray());
 
-                            ObjectMapper objectMapper = new ObjectMapper();
-                            List<ApiMeasurement> apiMeasurements = objectMapper.convertValue(deviceMeasurements, new TypeReference<>() {});
-
-                            logger.info("{}", apiMeasurements);
+//                            ObjectMapper objectMapper = new ObjectMapper();
+//                            List<TransformedMeasurement> apiMeasurements = objectMapper.readValue(deviceMeasurements.toArray(), new TypeReference<>() {});
+//
+//                            logger.info("{}", apiMeasurements);
 //                           sendToApi(deviceMeasurements, Action.ADD_EVENTS, props);
 
                         });
