@@ -1028,6 +1028,55 @@ router.post(
       body()
         .isArray()
         .withMessage("the request body should be an array"),
+      body("*.device_id")
+        .exists()
+        .trim()
+        .withMessage("device_id is missing")
+        .bail()
+        .isMongoId()
+        .withMessage("device_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("*.site_id")
+        .exists()
+        .trim()
+        .withMessage("site_id is missing")
+        .bail()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("*.time")
+        .exists()
+        .trim()
+        .withMessage("time is missing")
+        .bail()
+        .isISO8601()
+        .withMessage("time must be a valid ISO 8601 date."),
+      body("*.frequency")
+        .exists()
+        .trim()
+        .toLowerCase()
+        .withMessage("frequency is missing")
+        .bail()
+        .isIn(["raw", "hourly", "daily"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: raw, hourly and daily"
+        ),
+      body("*.device")
+        .if(body("*.device").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase(),
+      body("*.site")
+        .if(body("*.site").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase(),
     ],
   ]),
   eventController.addValues
