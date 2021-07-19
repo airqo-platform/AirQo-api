@@ -1,12 +1,8 @@
 import os
 
-from dotenv import load_dotenv
-
 from AirQoApi import AirQoApi
 from Tahmo import TahmoApi
 from utils import array_to_csv, array_to_json
-
-load_dotenv()
 
 
 def map_devices_to_tahmo_station(output_format):

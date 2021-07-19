@@ -1,12 +1,9 @@
 import os
 
 import requests
-from dotenv import load_dotenv
 from geopy import distance
 
 from utils import handle_api_error
-
-load_dotenv()
 
 
 class TahmoApi:

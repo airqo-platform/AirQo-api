@@ -1,6 +1,10 @@
 import sys
 
+from dotenv import load_dotenv
+
 import Tranformation
+
+load_dotenv()
 
 if __name__ == '__main__':
     strings_list = sys.argv
