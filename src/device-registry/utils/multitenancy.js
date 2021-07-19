@@ -1,6 +1,8 @@
 const mongodb = require("../config/database");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
+const log4js = require("log4js");
+const logger = log4js.getLogger("multitenancy");
 
 /****
  * creating a new mongoDB connection by switching tenant
@@ -20,10 +22,27 @@ const getTenantDB = (tenantId, modelName, schema) => {
   we shall use this to create the model
   afterwards, we can be able to use this model to carry out any kinds of CRUD
    */
+
 const getModelByTenant = (tenantId, modelName, schema) => {
   logElement("tenantId", tenantId);
   const tenantDb = getTenantDB(tenantId, modelName, schema);
-  return tenantDb.model(modelName);
+  const model = tenantDb.model(modelName);
+
+  model.ensureIndexes(function(err) {
+    logger.info("ENSURE INDEX");
+    if (err) {
+      logger.error(`ensureIndexes -- ${err}`);
+    }
+  });
+
+  model.on("index", function(err) {
+    logger.info("ON INDEX");
+    if (err) {
+      logger.error(`ensureIndexes -- ${err}`);
+    }
+  });
+
+  return model;
 };
 
 module.exports = { getModelByTenant };
