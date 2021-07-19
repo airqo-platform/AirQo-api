@@ -9,9 +9,8 @@ from utils import array_to_csv, array_to_json
 load_dotenv()
 
 
-def map_devices_to_tahmo_station():
+def map_devices_to_tahmo_station(output_format):
     tenant = os.getenv("TENANT")
-    output_format = os.getenv("OUTPUT_FORMAT")
 
     airqo_api = AirQoApi()
     tahmo_api = TahmoApi()
