@@ -26,6 +26,13 @@ spec:
         - name: stage-kcca-measurements-consumer
           image: us.gcr.io/airqo-250220/stage-stage-measurements-consumer:latest
           imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: "1"
+            requests:
+              memory: 256Mi
+              cpu: "0.2"
           env:
             - name: SCHEMA_REGISTRY_URL
               value: http://stage-schema-registry-svc:8081

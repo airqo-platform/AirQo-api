@@ -26,6 +26,13 @@ spec:
         - name: stage-airqo-raw-measurements-stream
           image: us.gcr.io/airqo-250220/stage-raw-device-measurements-stream:latest
           imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: "1"
+            requests:
+              memory: 256Mi
+              cpu: "0.2"
           env:
             - name: INPUT.TOPIC
               value: kcca-streams-raw-device-measurements-topic

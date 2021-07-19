@@ -11,9 +11,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.*;
 
 public class Utils {
@@ -35,16 +37,20 @@ public class Utils {
             try {
 
                 String tenant = properties.getProperty("tenant");
+                String baseUrl = properties.getProperty("airqo.base.url");
 
                 switch (tenant.trim().toUpperCase()){
                     case "KCCA":
-                        return transformKccaMeasurements(rawMeasurements, properties);
+                        List<TransformedMeasurement> transformedKccaMeasurements =
+                                transformKccaMeasurements(rawMeasurements, properties);
+                        postMeasurements(transformedKccaMeasurements, baseUrl, tenant);
+                        return transformedKccaMeasurements;
 
                     case "AIRQO":
-//                        List<TransformedMeasurement> transformedMeasurements =
-//                        transformAirQoMeasurements(rawMeasurements, properties);
-//                        return addAirQoCalibratedValues(transformedMeasurements);
-                        return transformAirQoMeasurements(rawMeasurements, properties);
+                        List<TransformedMeasurement> transformedMeasurements =
+                        transformAirQoMeasurements(rawMeasurements, properties);
+                        postMeasurements(transformedMeasurements, baseUrl, tenant);
+                        return transformedMeasurements;
 
                     default:
                         return new ArrayList<>();
@@ -54,8 +60,6 @@ public class Utils {
                 e.printStackTrace();
                 return new ArrayList<>();
             }
-
-
     }
 
     public static TransformedDeviceMeasurements generateTransformedOutput(List<TransformedMeasurement> transformedMeasurements) {
@@ -504,5 +508,47 @@ public class Utils {
 
         return optionalDevice.orElse(new Device());
 
+    }
+
+    public static void postMeasurements(List<TransformedMeasurement> transformedMeasurements, String baseUrl, String tenant){
+
+        try {
+
+            if(transformedMeasurements == null)
+                throw new Exception("Invalid Measurements");
+
+            new URL(baseUrl);
+
+            ObjectMapper objectMapper = new ObjectMapper();
+            String requestBody = objectMapper
+                    .writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(transformedMeasurements);
+
+            String urlString = baseUrl + "devices/events/add?tenant=" + tenant;
+
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .build();
+            HttpRequest request = HttpRequest.newBuilder()
+                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
+                    .timeout(Duration.ofMinutes(4))
+                    .uri(URI.create(urlString))
+                    .setHeader("Accept", "application/json")
+                    .setHeader("Content-Type", "application/json")
+                    .build();
+
+            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if(httpResponse.statusCode() == 200){
+                logger.info("Device Registry Response Body => {}", httpResponse.body());
+            }
+            else{
+                logger.error("Device Registry Request Url => {}", urlString);
+                logger.error("Device Registry Response Body => {}", httpResponse.body());
+            }
+
+        }
+        catch (Exception e){
+            e.printStackTrace();
+        }
     }
 }
