@@ -2,7 +2,7 @@ const { logObject, logElement } = require("../utils/log");
 const { Kafka } = require('kafkajs')
 const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 
-const { bulkTransformMeasurements } = require("../utils/transform-measurements");
+const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const { bulkInsert } = require("../utils/insert-measurements");
 const { filterExistingDevices } = require("../utils/does-component-exist");
 
@@ -34,7 +34,7 @@ const rawEventsConsumer = async () => {
         const measurements = decodedValue.measurements
 
         const valid_measurements = await filterExistingDevices(measurements);
-        const transformedMeasurements = await bulkTransformMeasurements(valid_measurements);
+        const transformedMeasurements = await transformMeasurements_v2(valid_measurements);
         const response = await bulkInsert(transformedMeasurements);
 
         logObject("Kafka Data insertion log", JSON.stringify(response));
