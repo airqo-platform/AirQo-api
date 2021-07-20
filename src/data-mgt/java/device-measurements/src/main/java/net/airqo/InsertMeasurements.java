@@ -35,8 +35,11 @@ public class InsertMeasurements implements Runnable {
             new URL(baseUrl);
 
             ObjectMapper objectMapper = new ObjectMapper();
+//            String requestBody = objectMapper
+//                    .writerWithDefaultPrettyPrinter()
+//                    .writeValueAsString(transformedMeasurements);
+
             String requestBody = objectMapper
-                    .writerWithDefaultPrettyPrinter()
                     .writeValueAsString(transformedMeasurements);
 
             String urlString = baseUrl + "devices/events/add?tenant=" + tenant;
@@ -57,6 +60,7 @@ public class InsertMeasurements implements Runnable {
             }
             else{
                 logger.error("Device Registry Request Url => {}", urlString);
+                logger.info("Device Registry Request Body => {}", requestBody);
                 logger.error("Device Registry Response Body => {}", httpResponse.body());
             }
         }
