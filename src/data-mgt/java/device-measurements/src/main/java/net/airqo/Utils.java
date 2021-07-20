@@ -43,13 +43,19 @@ public class Utils {
                     case "KCCA":
                         List<TransformedMeasurement> transformedKccaMeasurements =
                                 transformKccaMeasurements(rawMeasurements, properties);
-                        postMeasurements(transformedKccaMeasurements, baseUrl, tenant);
+                        Runnable runnable = new InsertMeasurements(transformedKccaMeasurements, baseUrl, tenant);
+                        new Thread(runnable).start();
+//                        postMeasurements(transformedKccaMeasurements, baseUrl, tenant);
                         return transformedKccaMeasurements;
 
                     case "AIRQO":
                         List<TransformedMeasurement> transformedMeasurements =
                         transformAirQoMeasurements(rawMeasurements, properties);
-                        postMeasurements(transformedMeasurements, baseUrl, tenant);
+
+                        Runnable runnable1 = new InsertMeasurements(transformedMeasurements, baseUrl, tenant);
+                        new Thread(runnable1).start();
+
+//                        postMeasurements(transformedMeasurements, baseUrl, tenant);
                         return transformedMeasurements;
 
                     default:
@@ -157,7 +163,7 @@ public class Utils {
 
         });
 
-        logger.info("\nTotal Measurements to be : " + measurements.size());
+        logger.info("\nTotal Measurements to be sent: " + measurements.size());
 
         return TransformedDeviceMeasurements.newBuilder()
                 .setMeasurements(measurements)
@@ -271,7 +277,6 @@ public class Utils {
         deviceMeasurements.forEach(rawMeasurement -> {
 
             Device device = getDeviceByName(devices, rawMeasurement.getDevice());
-            logger.info(device.getSite().get_id());
             if(!device.getSite().get_id().isEmpty()){
                 try {
                     TransformedMeasurement transformedMeasurement = new TransformedMeasurement();
@@ -510,45 +515,4 @@ public class Utils {
 
     }
 
-    public static void postMeasurements(List<TransformedMeasurement> transformedMeasurements, String baseUrl, String tenant){
-
-        try {
-
-            if(transformedMeasurements == null)
-                throw new Exception("Invalid Measurements");
-
-            new URL(baseUrl);
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            String requestBody = objectMapper
-                    .writerWithDefaultPrettyPrinter()
-                    .writeValueAsString(transformedMeasurements);
-
-            String urlString = baseUrl + "devices/events/add?tenant=" + tenant;
-
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .build();
-            HttpRequest request = HttpRequest.newBuilder()
-                    .POST(HttpRequest.BodyPublishers.ofString(requestBody))
-                    .timeout(Duration.ofMinutes(4))
-                    .uri(URI.create(urlString))
-                    .setHeader("Accept", "application/json")
-                    .setHeader("Content-Type", "application/json")
-                    .build();
-
-            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if(httpResponse.statusCode() == 200){
-                logger.info("Device Registry Response Body => {}", httpResponse.body());
-            }
-            else{
-                logger.error("Device Registry Request Url => {}", urlString);
-                logger.error("Device Registry Response Body => {}", httpResponse.body());
-            }
-
-        }
-        catch (Exception e){
-            e.printStackTrace();
-        }
-    }
 }
