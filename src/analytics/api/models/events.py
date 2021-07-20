@@ -34,6 +34,15 @@ class EventsModel(BasePyMongoModel):
 
         return range_format, group_format
 
+    @staticmethod
+    def _project_pollutant_filter(pollutants):
+        filtered = {}
+
+        for pollutant in pollutants:
+            filtered[pollutant] = {'$round': [f'${pollutant}', 2]}
+
+        return filtered
+
     @cache.memoize()
     def get_downloadable_events(self, sites, start_date, end_date, frequency, pollutants):
         time_format_mapper = {
@@ -43,6 +52,7 @@ class EventsModel(BasePyMongoModel):
             'monthly': '%Y-%m-01'
         }
         range_format, group_format = self._format_pollutants(pollutants)
+
         return (
             self.date_range("values.time", start_date=start_date, end_date=end_date)
                 .project(**{'values.site_id': 1, 'values.time': 1, "values.frequency": 1}, **range_format)
@@ -77,9 +87,7 @@ class EventsModel(BasePyMongoModel):
                 .project(
                     _id=0,
                     time=1,
-                    pm2_5={'$round': ['$pm2_5', 2]},
-                    pm10={'$round': ['$pm10', 2]},
-                    no2={'$round': ['$no2', 2]},
+                    **self._project_pollutant_filter(pollutants),
                     frequency={"$literal": frequency},
                     site_id={"$toString": "$site_id"},
                     site_name="$site.name",
