@@ -33,7 +33,9 @@ class TahmoApi:
         selected_station = all_stations.get(weather_stations_with_min_distance)
         # print(selected_station)
 
-        return weather_stations_with_min_distance, selected_station
+        # return weather_stations_with_min_distance, selected_station
+
+        return selected_station
 
     def get_stations(self):
         response = self.__request('services/assets/v2/stations', {'sort': 'code'})
