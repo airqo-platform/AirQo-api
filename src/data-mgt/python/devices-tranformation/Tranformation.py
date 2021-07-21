@@ -42,7 +42,7 @@ def map_devices_to_tahmo_station(output_format):
                     "name": device_dict.get("name"),
                     "latitude": device_dict.get("latitude"),
                     "longitude": device_dict.get("longitude"),
-                    "closet_tahmo_station": station_data
+                    "closest_tahmo_station": station_data
                 })
             )
 
