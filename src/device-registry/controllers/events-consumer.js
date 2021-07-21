@@ -4,7 +4,7 @@ const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 
 const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const { bulkInsert } = require("../utils/insert-measurements");
-const { filterExistingDevices } = require("../utils/does-component-exist");
+const { filterMeasurementsWithExistingDevices } = require("../utils/does-component-exist");
 
 
 const constants = require("../config/constants");
@@ -33,7 +33,7 @@ const rawEventsConsumer = async () => {
         const decodedValue = await registry.decode(message.value)
         const measurements = decodedValue.measurements
 
-        const valid_measurements = await filterExistingDevices(measurements);
+        const valid_measurements = await filterMeasurementsWithExistingDevices(measurements);
         const transformedMeasurements = await transformMeasurements_v2(valid_measurements);
         const response = await bulkInsert(transformedMeasurements);
 
