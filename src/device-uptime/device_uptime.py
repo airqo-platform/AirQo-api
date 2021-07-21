@@ -28,7 +28,7 @@ def get_device_records(tenant, channel_id, device_name, mobility):
         "channel_id": channel_id,
         "uptime": uptime,
         "downtime": downtime,
-        "created_at": created_at.isoformat()
+        "created_at": created_at
     }
 
     return record
@@ -85,7 +85,7 @@ def save_device_uptime(tenant):
     network_uptime_record = {
         "network_name": tenant,
         "uptime": network_uptime,
-        "created_at": created_at.isoformat()
+        "created_at": created_at
     }
 
     print("network uptime", network_uptime_record)
