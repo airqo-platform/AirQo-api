@@ -1,27 +1,13 @@
-const DeviceSchema = require("../models/Device");
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
 const isEmpty = require("is-empty");
 const client = new iot.v1.DeviceManagerClient();
-// const privateKeyFile = `./rsa_private.pem`;
-const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
-const {
-  createOnThingSpeak,
-  createOnClarity,
-  registerDeviceUtil,
-} = require("../utils/create-device");
-
-const {
-  updateThingBodies,
-  getChannelID,
-} = require("../utils/does-device-exist");
-const updateDeviceUtil = require("../utils/update-device");
+const { registerDeviceUtil } = require("../utils/create-device");
 const nearestDevices = require("../utils/nearest-device");
 const { validationResult } = require("express-validator");
 const {
   tryCatchErrors,
-  missingQueryParams,
   badRequest,
   logger_v2,
   errorCodes,
