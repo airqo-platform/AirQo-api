@@ -125,13 +125,8 @@ const defaultConfig = {
   EVENT_MAPPINGS: {
     item: {
       time: "time",
-      device: "device",
-      device_id: "device_id",
-      site_id: "site_id",
       day: "time",
       frequency: "frequency",
-      site: "site",
-      device_number: "device_number",
       "pm2_5.value": "pm2_5.value",
       "pm2_5.calibratedValue": "pm2_5.calibratedValue",
       "pm2_5.uncertaintyValue": "pm2_5.uncertaintyValue",
@@ -252,24 +247,31 @@ const defaultConfig = {
         },
         on: "day",
       },
+      {
+        run: function(time) {
+          const cleanedTime = new Date(time);
+          return cleanedTime;
+        },
+        on: "time",
+      },
     ],
     each: function(item, index, collection, context) {
       item.filter = {};
+      item.update = {};
       item.options = {};
-      item["filter"]["values.device_number"] = context.device_number;
-      item["filter"]["values.site"] = context.site;
-      item["filter"]["values.device_id"] = context.device_id;
+      item["filter"]["device_number"] = context.device_number;
+      item["filter"]["site"] = context.site;
+      item["filter"]["device_id"] = context.device_id;
       item["filter"]["values.frequency"] = context.frequency;
-      item["filter"]["values.site_id"] = context.site_id;
+      item["filter"]["site_id"] = context.site_id;
       item["filter"]["values.time"] = context.time;
-      item["filter"]["values.device"] = context.device;
+      item["filter"]["device"] = context.device;
       item["filter"]["nValues"] = { $lt: defaultConfig.N_VALUES };
       item["filter"]["day"] = generateDateFormatWithoutHrs(context.time);
-      item["options"]["$min"] = { first: context.time };
-      item["options"]["$max"] = { first: context.time };
-      item["options"]["$inc"] = { nValues: 1 };
+      item["update"]["$min"] = { first: context.time };
+      item["update"]["$max"] = { last: context.time };
+      item["update"]["$inc"] = { nValues: 1 };
       item["options"]["upsert"] = true;
-      item["options"]["new"] = true;
       return item;
     },
   },
