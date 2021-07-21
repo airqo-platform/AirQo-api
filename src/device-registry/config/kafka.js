@@ -9,18 +9,18 @@ const KAFKA_BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 logElement("Kafka Bootstrap Servers", KAFKA_BOOTSTRAP_SERVERS);
 
 
-const client = new kafka.KafkaClient({
+const kafkaClient = new kafka.KafkaClient({
     kafkaHost: KAFKA_BOOTSTRAP_SERVERS,
     sessionTimeout: 300,
     spinDelay: 100,
     retries: 2
 });
 
-client.on('error', function (error) {
+kafkaClient.on('error', function (error) {
     console.error(error);
 });
 
-module.exports = client;
+module.exports = kafkaClient;
 
 
 
