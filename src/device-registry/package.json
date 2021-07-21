@@ -24,6 +24,7 @@
         "avsc": "^5.4.16",
         "axios": "^0.21.1",
         "body-parser": "^1.18.3",
+        "clean-deep": "^3.4.0",
         "cloudinary": "^1.23.0",
         "compression": "^1.7.4",
         "connect-mongo": "^3.2.0",
