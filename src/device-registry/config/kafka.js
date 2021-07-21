@@ -3,7 +3,7 @@ const kafka = require('kafka-node');
 //more: https://medium.com/@theotow/event-sourcing-with-kafka-and-nodejs-9787a8e47716
 // more: https://www.npmjs.com/package/avro-schema-registry
 
-const { logObject, logElement, logText } = require("../utils/log");
+const { logElement } = require("../utils/log");
 const { Kafka } = require('kafkajs')
 const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 

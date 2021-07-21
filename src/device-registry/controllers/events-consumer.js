@@ -1,4 +1,4 @@
-const { logObject, logElement, logText } = require("../utils/log");
+const { logObject, logElement } = require("../utils/log");
 
 const { kafkaClient, consumerOptions, schemaRegistry, kafkaClientV2, schemaRegistryV2 } = require('../config/kafka');
 
