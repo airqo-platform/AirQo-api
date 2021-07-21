@@ -10,7 +10,8 @@ load_dotenv()
 AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
 TENANT = os.getenv("TENANT")
 SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK")
-TIME_INTERVAL = os.getenv("TIME_INTERVAL")
+HOURS = os.getenv("HOURS")
+MINUTES = os.getenv("MINUTES")
 
 
 def notify_slack(data):
@@ -70,7 +71,7 @@ def run_checks():
 
     if results.status_code != 200:
         data = build_message(api_url, results.status_code, results.request.method, str(results.content),
-                             f"Get events endpoint for {TENANT} returns a none 200 status code. Find details below")
+                             f"Get events endpoint for {TENANT.capitalize()} returns a none 200 status code. Find details below")
         notify_slack(data)
         return
 
@@ -79,12 +80,12 @@ def run_checks():
 
     if len(measurements) == 0:
         data = build_message(api_url, results.status_code, results.request.method, response_data,
-                             f"Get events endpoint for {TENANT} returns an empty array of measurements. 🤔 🤔")
+                             f"Get events endpoint for {TENANT.capitalize()} returns an empty array of measurements. 🤔 🤔")
         notify_slack(data)
         return
 
     has_latest = False
-    check_date = datetime.utcnow() - timedelta(hours=int(TIME_INTERVAL))
+    check_date = datetime.utcnow() - timedelta(hours=int(HOURS), minutes=int(MINUTES))
 
     for measurement in measurements:
         measurement_values = dict(measurement)
@@ -96,7 +97,7 @@ def run_checks():
     if not has_latest:
         data = build_message(api_url, results.status_code, results.request.method,
                              "'The response body is too large, its better you make the query using a browser or postman and review the *time* field'",
-                             f"{TENANT} measurements that were recorded {TIME_INTERVAL} hour(s) ago, are missing... :man-shrugging:")
+                             f"{TENANT.capitalize()} measurements that were recorded {HOURS} hour(s), {MINUTES} minute(s) ago are missing. :man-shrugging:")
         notify_slack(data)
         return
 
