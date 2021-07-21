@@ -6,7 +6,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      app: tem-dev-reg-api
+      app: temp-dev-reg-api
   replicas: 2
   strategy:
     type: RollingUpdate
@@ -17,15 +17,15 @@ spec:
   template:
     metadata:
       labels:
-        app: tem-dev-reg-api
+        app: sta-device-reg-api
     spec:
       containers:
-        - name: tem-dev-reg-api
+        - name: sta-dev-reg-api
           image: us.gcr.io/airqo-250220/airqo-temp-stage-device-registry-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3000
-              name: tem-dev-reg-api
+              name: temp-dev-reg-api
 
 ---
 kind: Service
@@ -35,7 +35,7 @@ metadata:
   namespace: staging
 spec:
   selector:
-    app: tem-dev-reg-api
+    app: temp-dev-reg-api
   ports:
     - protocol: TCP
       port: 3000

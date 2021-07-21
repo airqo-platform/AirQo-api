@@ -10,13 +10,13 @@ spec:
   selector:
     matchLabels:
       app: schema-registry
-  replicas: 1
-  minReadySeconds: 10
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
       labels:
@@ -24,22 +24,22 @@ spec:
     spec:
       containers:
         - name: schema-registry
-          image: us.gcr.io/airqo-250220/stage-schema-registry:latest
+          image: us.gcr.io/airqo-250220/stage-airqo-schema-registry:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8081
               name: schema-registry
           env:
             - name: SCHEMA_REGISTRY_HOST_NAME
-              value: stage-schema-registry
+              value: schema-registry
             - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
-              value: stage-kafka-cluster-kafka-bootstrap:9092
+              value: 127.0.0.1:9092
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: stage-schema-registry-svc
+  name: schema-registry-svc
   namespace: staging
 spec:
   selector:
@@ -48,5 +48,5 @@ spec:
     - protocol: TCP
       port: 8081
       targetPort: 8081
-      nodePort: 31081
+      nodePort: 30081
   type: NodePort
