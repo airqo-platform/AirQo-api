@@ -19,6 +19,9 @@ public class Device implements Serializable {
     @JsonAlias({ "id", "device_id" })
     private String _id = "";
 
+    @JsonAlias({ "nearest_tahmo_station", "device_id" })
+    private TahmoStation tahmoStation = new TahmoStation();
+
     @JsonAlias({ "site_details", "siteDetails" })
     private SiteDetails site = new SiteDetails();
 
