@@ -8,7 +8,6 @@ const { filterMeasurementsWithExistingDevices } = require("../utils/does-compone
 const constants = require("../config/constants");
 const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
 
-
 const rawEventsConsumer = async () => {
 
   const consumer = kafkaClient.consumer(consumerOptions)
@@ -32,7 +31,6 @@ const rawEventsConsumer = async () => {
           const response = await bulkInsert(transformedMeasurements.data);
           
           logObject("Insertion Response", JSON.stringify(response));
-
         }
         else{
           logObject("Invalid Array of measurements", measurements );
@@ -79,6 +77,5 @@ const rawEventsConsumerV2 = () => {
       })
   });
 };
-
 
 module.exports = { rawEventsConsumer, rawEventsConsumerV2 };

@@ -13,9 +13,9 @@
         "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
         "test": "mocha ./**/test/ut_*.js --exit",
-        "kafka-dev-mac": "NODE_ENV=development nodemon ./bin/kafka-connect.js",
-        "kafka-stage-mac": "NODE_ENV=staging nodemon ./bin/kafka-connect.js",
-        "kafka-prod-mac": "NODE_ENV=production nodemon ./bin/kafka-connect.js"
+        "kafka-dev-mac": "NODE_ENV=development nodemon ./bin/kafka-connect",
+        "kafka-stage-mac": "NODE_ENV=staging nodemon ./bin/kafka-connect",
+        "kafka-prod-mac": "NODE_ENV=production nodemon ./bin/kafka-connect"
     },
     "dependencies": {
         "@google-cloud/bigquery": "^5.5.0",

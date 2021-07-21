@@ -136,4 +136,4 @@ const bulkInsert = async (transformedMeasurements) => {
   return bulkResponse;
 };
 
-module.exports = {bulkInsert, insert};
+module.exports = { bulkInsert, insert };

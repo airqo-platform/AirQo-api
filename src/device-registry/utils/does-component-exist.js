@@ -74,7 +74,6 @@ const filterMeasurementsWithExistingDevices = (measurements) => {
       logElement("unable to check device existence in system", e);
       return false;
     }
-
     
   });
   return Promise.all(promises).then((results) => {
