@@ -65,10 +65,8 @@ DB_HOSTS = {
 def connect_mongo(tenant, db_host):
     try:
         mongo_uri = DB_HOSTS[db_host]
-        print("mongo url",  f'{mongo_uri}/{configuration.DB_NAME}_{tenant.lower()}')
         client = MongoClient(mongo_uri)
-
-        print('client string', f'{configuration.DB_NAME}_{tenant.lower()}')
         return client[f'{configuration.DB_NAME}_{tenant.lower()}']
+
     except KeyError:
         raise Exception(f'Unknown db host "{db_host}"')
