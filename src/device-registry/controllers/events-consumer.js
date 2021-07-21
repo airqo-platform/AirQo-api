@@ -1,28 +1,18 @@
 const { logObject, logElement } = require("../utils/log");
 
-// const { Kafka } = require('kafkajs')
-// const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
-
-const kafka = require('kafka-node');
-const kafkaClient = require('../config/kafka');
+const { kafkaClient, kafkaClientV2, schemaRegistry, schemaRegistryV2 } = require('../config/kafka');
 
 const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const { bulkInsert } = require("../utils/insert-measurements");
 const { filterMeasurementsWithExistingDevices } = require("../utils/does-component-exist");
 
 const constants = require("../config/constants");
-const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
-const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
-const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
 const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
 
 const rawEventsConsumer = async () => {
 
-
-  const kafka = new Kafka({ clientId: KAFKA_CLIENT_ID, brokers: [BOOTSTRAP_SERVERS] })
-  const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY })
-  const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP })
+  const consumer = kafkaClient.consumer({ groupId: KAFKA_CLIENT_GROUP })
 
   await consumer.connect();
 
@@ -35,7 +25,7 @@ const rawEventsConsumer = async () => {
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
       try{
-        const decodedValue = await registry.decode(message.value)
+        const decodedValue = await schemaRegistry.decode(message.value)
         const measurements = decodedValue.measurements
 
         const valid_measurements = await filterMeasurementsWithExistingDevices(measurements);
@@ -52,22 +42,16 @@ const rawEventsConsumer = async () => {
   });
 }
 
-// rawEventsConsumer().catch(console.error)
+const rawEventsConsumerV2 = () => {
 
-
-const kafkaNodeConsumer = () => {
-
-  const Consumer = kafka.Consumer;
+  const Consumer = kafkaClientV2.Consumer;
 
   const topics = RAW_MEASUREMENTS_TOPICS.split(",");
   const consumerTopics = [];
 
   for (const topic of topics) {
     consumerTopics.push({topic: topic});
-    break;
-    // await consumer.subscribe({ topic: topic.trim().toLowerCase(), fromBeginning: true });
   }
-
 
   const consumerOptions = {
     autoCommit: false,
@@ -78,8 +62,8 @@ const kafkaNodeConsumer = () => {
   kafkaConsumer.on('message', function (message) {
   
       try {
-  
-          logObject("Kafka Message Received", message);
+          const decodedMessage = schemaRegistryV2.decode(message)
+          logObject("Kafka Message Received", decodedMessage);
   
       } catch (error) {
           logElement("Error Occurred in kafka kcca consumer", error);
@@ -98,4 +82,4 @@ const kafkaNodeConsumer = () => {
 };
 
 
-module.exports = { rawEventsConsumer, kafkaNodeConsumer };
+module.exports = { rawEventsConsumer, rawEventsConsumerV2 };
