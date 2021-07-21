@@ -15,13 +15,16 @@ from pandas import Timestamp
 import pymongo
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import math
+import fiona
+import geopandas
+
 load_dotenv()
 
-
-storage_client = storage.Client('AirQo-e37846081569.json')
-#MONGO_URI = os.getenv("MONGO_URI")
-
-
+MONGO_URI = os.getenv("MONGO_URI")
+CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+storage_client = storage.Client.from_service_account_json(CREDENTIALS)
+shapefile_path = 'greater_kampala_metropolitan_area_kiidp_2012/Greater_Kampala_Metropolitan_Area_KIIDP_2012.shp'
 def get_channels():
     '''
     Gets details of channels whose data is to be used in training
@@ -30,7 +33,6 @@ def get_channels():
         .get_blob('kampala-api-keys.json') \
         .download_as_string()
     return json.loads(blob)
-
 
 def download_seven_days(channel_id, api_key):
     '''
@@ -43,23 +45,20 @@ def download_seven_days(channel_id, api_key):
     start = datetime.strftime(start_time, '%Y-%m-%dT%H:%M:%SZ')
     end = datetime.strftime(end_time, '%Y-%m-%dT%H:%M:%SZ')
     base_url = f'https://api.thingspeak.com/channels/{channel_id}/feeds.json'
-
-    while (end_time > start_time) and (result == 8000):
+    
+    while (end_time > start_time) and (result==8000):
         channel_url = base_url+'?start='+start+'&end='+end
         print(channel_url)
-        data = json.loads(requests.get(
-            channel_url, timeout=100.0).content.decode('utf-8'))
-        if (data != -1 and len(data['feeds']) > 0):
+        data = json.loads(requests.get(channel_url, timeout = 100.0).content.decode('utf-8'))
+        if (data!=-1 and len(data['feeds'])>0):
             channel_data.extend(data['feeds'])
             end = data['feeds'][0]['created_at']
             result = len(data['feeds'])
             print(result)
-            end_time = datetime.strptime(
-                end, '%Y-%m-%dT%H:%M:%SZ') - timedelta(seconds=1)
+            end_time = datetime.strptime(end, '%Y-%m-%dT%H:%M:%SZ') - timedelta(seconds=1)
         else:
             return pd.DataFrame()
     return pd.DataFrame(channel_data)
-
 
 def preprocessing(df):
     '''
@@ -67,14 +66,14 @@ def preprocessing(df):
     '''
     df = df.drop_duplicates()
     df['field1'].fillna(df['field3'], inplace=True)
-    df = df[['created_at', 'field1']]
+    df = df[['created_at','field1']]
     df['created_at'] = pd.to_datetime(df['created_at'])
     df['field1'] = pd.to_numeric(df['field1'], errors='coerce')
-    df = df.sort_values(by='created_at', ascending=False)
+    df = df.sort_values(by='created_at',ascending=False)
     df = df.set_index('created_at')
     hourly_df = df.resample('H').mean()
     hourly_df.dropna(inplace=True)
-    hourly_df = hourly_df.reset_index()
+    hourly_df= hourly_df.reset_index()
 
     return hourly_df
 
@@ -85,37 +84,49 @@ def train_model(X, Y):
     '''
     print('training model function')
     Yset = Y
-    Yset[Yset == 0] = np.nan
-
-    keep = ~np.isnan(Yset[:, 0])
-    Yset = Yset[keep, :]
-    Xset = X[keep, :]
+    Yset[Yset==0] = np.nan
+    
+    keep = ~np.isnan(Yset[:,0]) 
+    Yset = Yset[keep,:]
+    Xset = X[keep,:]
     print('Number of rows in Xset', Xset.shape[0])
-
-    Xtraining = Xset[::2, :]
-    Ytraining = Yset[::2, :]
+    
+    Xtraining = Xset[::2,:]
+    Ytraining = Yset[::2,:]
 
     print('Number of rows in Xtraining', Xtraining.shape[0])
-
+    
     print('creating kernel')
-    k = gpflow.kernels.RBF(
-        lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
+    k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
     print('creating model')
-    m = gpflow.models.GPR(data=(Xtraining, Ytraining),
-                          kernel=k, mean_function=None)
+    m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
     print('setting trainable lengthscales to false ')
-    set_trainable(m.kernel.kernels[0].lengthscales, False)
-
+    set_trainable(m.kernel.kernels[0].lengthscales, False) 
+   
     opt = gpflow.optimizers.Scipy()
 
     def objective_closure():
-        return - m.log_marginal_likelihood()
+             return - m.log_marginal_likelihood()
 
     print('optimization')
-    opt_logs = opt.minimize(
-        objective_closure, m.trainable_variables, options=dict(maxiter=100))
+    opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
 
     return m
+
+def get_bbox_coordinates(shapefile_path):
+    data = geopandas.read_file(shapefile_path)
+    data = data.to_crs(epsg=4326)
+    kampala_polygon = data.iloc[0]['geometry']
+    min_long, min_lat, max_long, max_lat= kampala_polygon.bounds
+    return kampala_polygon, min_long, max_long, min_lat, max_lat
+
+def point_in_polygon(row, polygon):
+    from shapely.geometry import Point, shape
+    mypoint = Point(row.longitude, row.latitude)
+    if polygon.contains(mypoint):
+        return 'True'
+    else:
+        return 'False'
 
 
 def predict_model(m):
@@ -123,57 +134,71 @@ def predict_model(m):
     Makes the predictions and stores them in a database
     '''
     time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
-    min_long, max_long, min_lat, max_lat = 32.4, 32.8, 0.1, 0.5
+    kampala_polygon, min_long, max_long, min_lat, max_lat = get_bbox_coordinates(shapefile_path)
 
     longitudes = np.linspace(min_long, max_long, 100)
     latitudes = np.linspace(min_lat, max_lat, 100)
     locations = np.meshgrid(longitudes, latitudes)
-    locations_flat = np.c_[locations[0].flatten(), locations[1].flatten()]
-    pred_set = np.c_[locations_flat, np.full(locations_flat.shape[0], time)]
-    mean, var = m.predict_f(pred_set)
+    locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
 
+    df = pd.DataFrame(locations_flat, columns=['longitude', 'latitude'])
+    df['point_exists'] = df.apply(lambda row: point_in_polygon(row, kampala_polygon), axis=1)
+    new_df = df[df.point_exists=='True']
+    new_df.drop('point_exists', axis=1, inplace=True)
+    new_df.reset_index(drop=True, inplace=True)
+
+    new_array = np.asarray(new_df)
+    pred_set = np.c_[new_array,np.full(new_array.shape[0], time)]
+    mean, var = m.predict_f(pred_set)
+    
     means = mean.numpy().flatten()
     variances = var.numpy().flatten()
+    std_dev = np.sqrt(variances)
+    # calculate prediction interval
+    interval = 1.96 * std_dev
+    # lower, upper = means - interval, means + interval
+        
     result = []
     for i in range(pred_set.shape[0]):
-        result.append({'latitude': locations_flat[i][1],
-                       'longitude': locations_flat[i][0],
-                       'predicted_value': means[i],
-                       'variance': variances[i]})
+        result.append({'latitude':locations_flat[i][1],
+                      'longitude':locations_flat[i][0],
+                      'predicted_value': means[i],
+                      'variance':variances[i],
+                      'interval':interval[i]})
 
     try:
         client = MongoClient(MONGO_URI)
     except pymongo.errors.ConnectionFailure as e:
-        return {'message': 'unable to connect to database', 'success': False}, 400
+        return {'message':'unable to connect to database', 'success':False}, 400
     db = client['airqo_netmanager_airqo']
     collection = db['gp_predictions']
-
-    if collection.count_documents({}) != 0:
+    
+    if collection.count_documents({})!= 0:
         collection.delete_many({})
-
+    
     collection.insert_many(result)
 
+    return result
 
 def periodic_function():
     '''
     Re-trains the model regularly
     '''
-    X = np.zeros([0, 3])
-    Y = np.zeros([0, 1])
+    X = np.zeros([0,3])
+    Y = np.zeros([0,1])
     channels = get_channels()
     for channel in channels:
         d = download_seven_days(channel['id'], channel['api_key'])
-        if d.shape[0] != 0:
+        if d.shape[0]!=0:
             d = preprocessing(d)
-            df = pd.DataFrame({'channel_id': [channel['id']],
-                               'longitude': [channel['long']],
-                               'latitude': [channel['lat']]})
-
-            Xchan = np.c_[np.repeat(np.array(df)[:, 1:], d.shape[0], 0), [
-                n.timestamp()/3600 for n in d['created_at']]]
+            df = pd.DataFrame({'channel_id':[channel['id']], 
+                                'longitude':[channel['long']], 
+                                'latitude':[channel['lat']]})
+        
+            Xchan = np.c_[np.repeat(np.array(df)[:,1:],d.shape[0],0),[n.timestamp()/3600 for n in d['created_at']]]
             Ychan = np.array(d['field1'])
-            X = np.r_[X, Xchan]
-            Y = np.r_[Y, Ychan[:, None]]
+            X = np.r_[X,Xchan]
+            Y = np.r_[Y,Ychan[:, None]]
     m = train_model(X, Y)
     predict_model(m)
 
