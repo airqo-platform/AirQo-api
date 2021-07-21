@@ -24,7 +24,7 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 
 app.use("/api/v1/devices/", apiV1);
-// app.use("/api/v2/devices/", apiV2);
+app.use("/api/v2/devices/", apiV2);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
