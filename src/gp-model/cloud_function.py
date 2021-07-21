@@ -19,7 +19,7 @@ load_dotenv()
 
 
 storage_client = storage.Client('AirQo-e37846081569.json')
-MONGO_URI = os.getenv("MONGO_URI")
+#MONGO_URI = os.getenv("MONGO_URI")
 
 
 def get_channels():
