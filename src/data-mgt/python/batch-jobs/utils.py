@@ -37,7 +37,7 @@ def build_channel_id_filter(devices_data):
     return channel_filter
 
 
-def get_valid_devices(tenant):
-    devices = get_devices(configuration.AIRQO_BASE_URL, tenant)
+def get_valid_devices(base_url, tenant):
+    devices = get_devices(base_url, tenant)
     filtered_devices = filter_valid_devices(devices)
     return filtered_devices

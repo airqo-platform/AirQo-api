@@ -34,7 +34,7 @@ class KccaBatchFetch:
     def __init__(self):
         self.kafka_client = KafkaWithoutRegistry(boot_strap_servers=configuration.BOOT_STRAP_SERVERS,
                                                  topic=configuration.OUTPUT_TOPIC)
-        self.devices = get_valid_devices("kcca")
+        self.devices = get_valid_devices(configuration.AIRQO_BASE_URL, "kcca")
         self.device_codes_str = self.__get_devices_codes()
         super().__init__()
 

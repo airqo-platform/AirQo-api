@@ -17,7 +17,7 @@ class AirQoBatchFetch:
     def __init__(self):
         self.kafka_client = KafkaWithoutRegistry(boot_strap_servers=configuration.BOOT_STRAP_SERVERS,
                                                  topic=configuration.OUTPUT_TOPIC)
-        self.devices = get_valid_devices("airqo")
+        self.devices = get_valid_devices(configuration.AIRQO_BASE_URL, "airqo")
         super().__init__()
         
     def begin_fetch(self):

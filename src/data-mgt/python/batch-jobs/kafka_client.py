@@ -15,7 +15,7 @@ class KafkaWithoutRegistry:
         self.topic = topic
         super().__init__()
 
-    def delivery_report(self, err, msg):
+    def __delivery_report(self, err, msg):
         if err is not None:
             print(f'Message delivery to Bootstrap servers `{self.boot_strap_servers}`, '
                   f'topic `{self.topic}` failed. Error : {err}')
@@ -32,5 +32,5 @@ class KafkaWithoutRegistry:
 
                 data = json.dumps(sub_list)
                 p = Producer({'bootstrap.servers': self.boot_strap_servers})
-                p.produce(self.topic, data.encode('utf-8'), callback=self.delivery_report)
+                p.produce(self.topic, data.encode('utf-8'), callback=self.__delivery_report)
                 p.flush()

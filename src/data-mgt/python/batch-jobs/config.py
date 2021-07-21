@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -21,9 +22,15 @@ class Config:
     OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
     TENANT = os.getenv("TENANT")
+    PERIODIC = os.getenv("PERIODIC")
+    PERIODIC_INTERVAL = os.getenv("PERIODIC_INTERVAL")
 
     def __init__(self):
-        pass
+
+        if self.PERIODIC.strip().lower() == "true":
+            self.START_TIME = datetime.strftime(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_INTERVAL)),
+                                                '%Y-%m-%dT%H:%M:%SZ')
+            self.END_TIME = datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')
 
 
 class ProductionConfig(Config):
@@ -39,15 +46,15 @@ class StagingConfig(Config):
 
 
 app_config = {
-    "development": DevelopmentConfig,
-    "production": ProductionConfig,
-    "staging": StagingConfig
+    "development": DevelopmentConfig(),
+    "production": ProductionConfig(),
+    "staging": StagingConfig()
 }
 
-environment = os.getenv("ENV")
-print("ENVIRONMENT", environment or 'development')
+environment = os.getenv("ENVIRONMENT")
+print("ENVIRONMENT", environment or 'development', sep=" : ")
 
-configuration = app_config.get(environment, DevelopmentConfig)
-print("TENANT", configuration.TENANT)
-print("START TIME", configuration.START_TIME)
-print("END TIME", configuration.END_TIME)
+configuration = app_config.get(environment, DevelopmentConfig())
+print("TENANT", configuration.TENANT, sep=" : ")
+print("START TIME", configuration.START_TIME, sep=" : ")
+print("END TIME", configuration.END_TIME, sep=" : ")

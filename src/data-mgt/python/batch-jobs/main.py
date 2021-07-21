@@ -16,4 +16,4 @@ if __name__ == "__main__":
         kcca_fetch = KccaBatchFetch()
         kcca_fetch.begin_fetch()
     else:
-        print("Invalid Tenant")
+        print("Error", "Invalid Tenant", sep=" : ")
