@@ -1055,8 +1055,9 @@ router.post(
         .trim()
         .withMessage("time is missing")
         .bail()
-        .isISO8601()
-        .withMessage("time must be a valid ISO 8601 date."),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("time must be a valid datetime."),
       body("*.frequency")
         .exists()
         .trim()
