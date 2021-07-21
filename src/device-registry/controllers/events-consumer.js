@@ -1,7 +1,6 @@
-const { logObject, logElement } = require("../utils/log");
-
 const { kafkaClient, consumerOptions, schemaRegistry, kafkaClientV2, schemaRegistryV2 } = require('../config/kafka');
 
+const { logObject, logElement } = require("../utils/log");
 const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const { bulkInsert } = require("../utils/insert-measurements");
 const { filterMeasurementsWithExistingDevices } = require("../utils/does-component-exist");
@@ -13,11 +12,9 @@ const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
 const rawEventsConsumer = async () => {
 
   const consumer = kafkaClient.consumer(consumerOptions)
-
   await consumer.connect();
 
   const topics = RAW_MEASUREMENTS_TOPICS.split(",");
-
   for (const topic of topics) {
     await consumer.subscribe({ topic: topic.trim().toLowerCase(), fromBeginning: true });
   }
@@ -31,12 +28,9 @@ const rawEventsConsumer = async () => {
         if (Array.isArray(measurements)) {
   
           const valid_measurements = await filterMeasurementsWithExistingDevices(measurements);
-          // logObject("Measurements with devices", JSON.stringify(valid_measurements));
-
           const transformedMeasurements = await transformMeasurements_v2(valid_measurements);
-          // logObject("Transformed Measurements", JSON.stringify(transformedMeasurements));
-
           const response = await bulkInsert(transformedMeasurements.data);
+          
           logObject("Insertion Response", JSON.stringify(response));
 
         }
