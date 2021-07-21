@@ -3,11 +3,14 @@ import os
 from datetime import datetime, timedelta
 
 import requests
+from dotenv import load_dotenv
 
-DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
-TENANT = os.getenv("TENANT", "airqo")
-SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK", "")
-TIME_INTERVAL = os.getenv("TIME_INTERVAL", 3)
+load_dotenv()
+
+AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
+TENANT = os.getenv("TENANT")
+SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK")
+TIME_INTERVAL = os.getenv("TIME_INTERVAL")
 
 
 def notify_slack(data):
@@ -61,13 +64,13 @@ def build_message(url, status_code, request_type, response_body, message):
 
 def run_checks():
 
-    api_url = f"{DEVICE_REGISTRY_BASE_URL}devices/events?tenant={TENANT}&recent=yes"
+    api_url = f"{AIRQO_BASE_URL}devices/events?tenant={TENANT}&recent=yes"
 
     results = requests.get(api_url)
 
     if results.status_code != 200:
         data = build_message(api_url, results.status_code, results.request.method, str(results.content),
-                             "Get events endpoint is returning a none 200 status code. Find below the details")
+                             f"Get events endpoint for {TENANT} returns a none 200 status code. Find details below")
         notify_slack(data)
         return
 
@@ -76,7 +79,7 @@ def run_checks():
 
     if len(measurements) == 0:
         data = build_message(api_url, results.status_code, results.request.method, response_data,
-                             "The get events endpoint returns an empty array of measurements. 🤔 🤔")
+                             f"Get events endpoint for {TENANT} returns an empty array of measurements. 🤔 🤔")
         notify_slack(data)
         return
 
@@ -91,9 +94,9 @@ def run_checks():
             break
 
     if not has_latest:
-        data = build_message(api_url, results.status_code,results.request.method,
-                             "'The response body is too large, its better you make the query using a browser or postman then review the *time* field'",
-                             f"When I query for measurements that were recorded {TIME_INTERVAL} hours ago, I don't find any... :man-shrugging:")
+        data = build_message(api_url, results.status_code, results.request.method,
+                             "'The response body is too large, its better you make the query using a browser or postman and review the *time* field'",
+                             f"{TENANT} measurements that were recorded {TIME_INTERVAL} hour(s) ago, are missing... :man-shrugging:")
         notify_slack(data)
         return
 
