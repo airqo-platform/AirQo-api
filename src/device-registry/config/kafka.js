@@ -9,32 +9,41 @@ const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 
 
 const constants = require("./constants");
-const KAFKA_BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
+const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
+const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
+const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
 
-logElement("Kafka Bootstrap Servers", KAFKA_BOOTSTRAP_SERVERS);
+logElement("Kafka Bootstrap Servers", BOOTSTRAP_SERVERS);
+logElement("Schema Registry", SCHEMA_REGISTRY);
+logElement("Group Id", KAFKA_CLIENT_GROUP);
+logElement("Client Id", KAFKA_CLIENT_ID);
 
 
 const kafkaClient = new Kafka({ clientId: KAFKA_CLIENT_ID, brokers: [BOOTSTRAP_SERVERS] })
 const schemaRegistry = new SchemaRegistry({ host: SCHEMA_REGISTRY })
+const consumerOptions = {
+    autoCommit: false,
+    groupId: KAFKA_CLIENT_GROUP,
+  };
 
 const kafkaClientV2 = new kafka.KafkaClient({
-    kafkaHost: KAFKA_BOOTSTRAP_SERVERS,
+    kafkaHost: BOOTSTRAP_SERVERS,
     sessionTimeout: 300,
     spinDelay: 100,
     retries: 2
 });
-
-const kafkaClientV2 = new kafka.KafkaClient({
-    kafkaHost: KAFKA_BOOTSTRAP_SERVERS,
-});
-
 kafkaClientV2.on('error', function (error) {
     console.error(error);
 });
 const schemaRegistryV2 = require('avro-schema-registry')(SCHEMA_REGISTRY);
 
-module.exports = { kafkaClient, kafkaClientV2, schemaRegistry, schemaRegistryV2 };
+module.exports = { 
+    kafkaClient, 
+    schemaRegistry, 
+    consumerOptions,
+    kafkaClientV2, 
+    schemaRegistryV2 };
 
 
 

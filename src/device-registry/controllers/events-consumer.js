@@ -1,6 +1,6 @@
-const { logObject, logElement } = require("../utils/log");
+const { logObject, logElement, logText } = require("../utils/log");
 
-const { kafkaClient, kafkaClientV2, schemaRegistry, schemaRegistryV2 } = require('../config/kafka');
+const { kafkaClient, consumerOptions, schemaRegistry, kafkaClientV2, schemaRegistryV2 } = require('../config/kafka');
 
 const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const { bulkInsert } = require("../utils/insert-measurements");
@@ -8,11 +8,11 @@ const { filterMeasurementsWithExistingDevices } = require("../utils/does-compone
 
 const constants = require("../config/constants");
 const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
-const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
+
 
 const rawEventsConsumer = async () => {
 
-  const consumer = kafkaClient.consumer({ groupId: KAFKA_CLIENT_GROUP })
+  const consumer = kafkaClient.consumer(consumerOptions)
 
   await consumer.connect();
 
@@ -25,14 +25,24 @@ const rawEventsConsumer = async () => {
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
       try{
-        const decodedValue = await schemaRegistry.decode(message.value)
-        const measurements = decodedValue.measurements
+        const decodedValue = await schemaRegistry.decode(message.value);
+        let measurements = JSON.parse(JSON.stringify(decodedValue.measurements));
 
-        const valid_measurements = await filterMeasurementsWithExistingDevices(measurements);
-        const transformedMeasurements = await transformMeasurements_v2(valid_measurements);
-        const response = await bulkInsert(transformedMeasurements);
+        if (Array.isArray(measurements)) {
+  
+          const valid_measurements = await filterMeasurementsWithExistingDevices(measurements);
+          // logObject("Measurements with devices", JSON.stringify(valid_measurements));
 
-        logObject("Kafka Data insertion log", JSON.stringify(response));
+          const transformedMeasurements = await transformMeasurements_v2(valid_measurements);
+          // logObject("Transformed Measurements", JSON.stringify(transformedMeasurements));
+
+          const response = await bulkInsert(transformedMeasurements.data);
+          logObject("Insertion Response", JSON.stringify(response));
+
+        }
+        else{
+          logObject("Invalid Array of measurements", measurements );
+        }
 
       }
       catch (e) {
@@ -52,11 +62,6 @@ const rawEventsConsumerV2 = () => {
   for (const topic of topics) {
     consumerTopics.push({topic: topic});
   }
-
-  const consumerOptions = {
-    autoCommit: false,
-    groupId: KAFKA_CLIENT_GROUP,
-  };
   
   let kafkaConsumer = new Consumer(kafkaClient, consumerTopics, consumerOptions);
   kafkaConsumer.on('message', function (message) {
