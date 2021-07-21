@@ -337,6 +337,48 @@ const createEvent = {
       };
     }
   },
+  getValues: (req, res) => {
+    try {
+      const {
+        device,
+        tenant,
+        limit,
+        skip,
+        key,
+        recent,
+        frequency,
+        startTime,
+        endTime,
+      } = req.query;
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+      const limitInt = parseInt(limit, 0);
+      const skipInt = parseInt(skip, 0);
+      logText(".......getting values.......");
+      if (tenant) {
+        getMeasurements(
+          res,
+          recent,
+          device,
+          skipInt,
+          limitInt,
+          frequency,
+          tenant,
+          startTime,
+          endTime
+        );
+      } else {
+        missingQueryParams(req, res);
+      }
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
   getMeasurements: async (
     res,
     recent,

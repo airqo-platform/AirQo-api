@@ -268,8 +268,8 @@ eventSchema.statics = {
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
     return this.aggregate()
-      .unwind("values")
       .match(filter)
+      .unwind("values")
       .replaceRoot("values")
       .sort({ time: -1 })
       .project({
@@ -289,18 +289,18 @@ eventSchema.statics = {
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
     return this.aggregate()
-      .unwind("values")
       .match(filter)
-      .replaceRoot("values")
       .lookup({
         from: "devices",
-        localField: "device",
-        foreignField: "name",
+        localField: "device_id",
+        foreignField: "_id",
         as: "deviceDetails",
       })
+      .unwind("values")
+      .replaceRoot("values")
       .sort({ time: -1 })
       .group({
-        _id: "$device",
+        _id: "$device_id",
         time: { $first: "$time" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
