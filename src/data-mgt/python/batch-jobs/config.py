@@ -20,6 +20,7 @@ class Config:
     BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
     OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+    TENANT = os.getenv("TENANT")
 
     def __init__(self):
         pass
@@ -47,4 +48,6 @@ environment = os.getenv("ENV")
 print("ENVIRONMENT", environment or 'development')
 
 configuration = app_config.get(environment, DevelopmentConfig)
-
+print("TENANT", configuration.TENANT)
+print("START TIME", configuration.START_TIME)
+print("END TIME", configuration.END_TIME)

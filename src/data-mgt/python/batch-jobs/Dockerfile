@@ -7,4 +7,4 @@ RUN pip install -r requirements.txt
 
 ENV PYTHONWARNINGS = "ignore:Unverified HTTPS request"
 
-CMD [ "python", "kcca_batch_insert.py" ]
+CMD [ "python", "main.py" ]

@@ -5,7 +5,7 @@ import requests
 
 from config import configuration
 from kafka_client import KafkaWithoutRegistry
-from utils import get_devices, filter_valid_devices
+from utils import get_valid_devices
 
 """
 :Api Documentation: https://api-guide.clarity.io/
@@ -29,14 +29,15 @@ def transform_group_plain(group, site_id, device_id):
     return transformed_data
 
 
-class ProcessMeasurements:
+class KccaBatchFetch:
 
-    def __init__(self, devices) -> None:
-        self.kafka_client = KafkaWithoutRegistry(boot_strap_servers=configuration.BOOT_STRAP_SERVERS, topic=configuration.OUTPUT_TOPIC)
-        self.devices = devices
-        self.device_codes_str = self.get_devices_codes()
+    def __init__(self):
+        self.kafka_client = KafkaWithoutRegistry(boot_strap_servers=configuration.BOOT_STRAP_SERVERS,
+                                                 topic=configuration.OUTPUT_TOPIC)
+        self.devices = get_valid_devices("kcca")
+        self.device_codes_str = self.__get_devices_codes()
         super().__init__()
-    
+
     def begin_fetch(self):
         interval = f"{configuration.TIME_INTERVAL}H"
 
@@ -44,7 +45,8 @@ class ProcessMeasurements:
 
         for date in dates:
             start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-            end_time = datetime.strftime(date + timedelta(hours=int(configuration.TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
+            end_time = datetime.strftime(date +
+                                         timedelta(hours=int(configuration.TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
 
             print(start_time + " : " + end_time)
 
@@ -66,16 +68,12 @@ class ProcessMeasurements:
                     transformed_data = transform_group_plain(group, site_id, device_id)
 
                     if transformed_data:
-                        n = int(configuration.INSERTION_INTERVAL)
-                        sub_lists = [transformed_data[i * n:(i + 1) * n] for i in
-                                     range((len(transformed_data) + n - 1) // n)]
-
-                        for sub_list in sub_lists:
-                            self.kafka_client.produce(sub_list)
+                        self.kafka_client.produce(transformed_data)
 
     def get_raw_measurements(self, start_time, end_time):
 
-        api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
+        api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
+                  f"startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
 
         frequency = configuration.FREQUENCY.strip().lower()
         if frequency == "hour":
@@ -92,7 +90,7 @@ class ProcessMeasurements:
             return []
         return results.json()
 
-    def get_devices_codes(self):
+    def __get_devices_codes(self):
 
         device_data = list(self.devices)
 
@@ -118,14 +116,3 @@ class ProcessMeasurements:
             print(ex)
             print("Site ID not found")
             return None
-
-
-if __name__ == "__main__":
-
-    kcca_devices = get_devices(configuration.AIRQO_BASE_URL, "kcca")
-    filtered_devices = filter_valid_devices(kcca_devices)
-    if len(filtered_devices) > 0:
-        process_measurements = ProcessMeasurements(filtered_devices)
-        process_measurements.begin_fetch()
-    else:
-        print("No valid devices")
