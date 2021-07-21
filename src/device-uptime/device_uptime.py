@@ -42,9 +42,9 @@ def save_device_uptime(tenant):
     executor = ThreadPoolExecutor()
 
     for device in devices:
-        channel_id = device.get("channelID")
-        mobility = device.get("mobility")
-        device_name = device.get("name")
+        channel_id = device["device_number"]
+        mobility = device["mobility"]
+        device_name = device["name"]
         if not (channel_id and device_name):
             print("this device could not be processed", device_name)
             continue
