@@ -1,6 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
-import math
 import requests
 import logging
 from dataclasses import dataclass
@@ -8,7 +7,6 @@ import urllib3
 
 from models import Device, DeviceStatus as DeviceStatusModel
 from config import configuration
-from utils import str_to_date, date_to_str
 
 
 _logger = logging.getLogger(__name__)
