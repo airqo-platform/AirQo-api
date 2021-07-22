@@ -1,14 +1,13 @@
 replicaCount: 1
 
 image:
-  repository: us.gcr.io/airqo-250220/airqo-batch-fetch-measurements
+  repository: us.gcr.io/airqo-250220/stage-batch-fetch-measurements
   pullPolicy: Always
   tag: latest
 
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""
-
 deploymentName: stage-batch-streams
 
 env:
@@ -21,7 +20,6 @@ env:
   schemaRegistryUrl:
   outputTopic:
   
-
 podAnnotations: {}
 podSecurityContext: {}
 securityContext: {}
@@ -29,6 +27,5 @@ resources: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
-
 
 appMode: staging

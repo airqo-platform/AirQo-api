@@ -1,61 +1,49 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "batch-streams.fullname" . }}
-  labels:
-    {{- include "batch-streams.labels" . | nindent 4 }}
+  name: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+  namespace: {{ .Values.appMode }}
 spec:
-  {{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
-  {{- end }}
   selector:
     matchLabels:
-      {{- include "batch-streams.selectorLabels" . | nindent 6 }}
+      app: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
       labels:
-        {{- include "batch-streams.selectorLabels" . | nindent 8 }}
+        app: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
     spec:
-      {{- with .Values.imagePullSecrets }}
-      imagePullSecrets:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      serviceAccountName: {{ include "batch-streams.serviceAccountName" . }}
-      securityContext:
-        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
-        - name: {{ .Chart.Name }}
-          securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        - name: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
-          livenessProbe:
-            httpGet:
-              path: /
-              port: http
-          readinessProbe:
-            httpGet:
-              path: /
-              port: http
-          resources:
-            {{- toYaml .Values.resources | nindent 12 }}
-      {{- with .Values.nodeSelector }}
-      nodeSelector:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.affinity }}
-      affinity:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
-      {{- with .Values.tolerations }}
-      tolerations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+          env:
+            - name: START_TIME
+              value: {{ .Values.env.startTime }}
+            - name: END_TIME
+              value: {{ .Values.env.endTime }}
+            - name: INTERVAL
+              value: {{ .Values.env.interval }}
+            - name: DEVICE_REGISTRY_URL
+              value: {{ .Values.env.airqoBaseUrl }}
+            - name: CLARITY_API_BASE_URL
+              value: {{ .Values.env.airqoBaseUrl }}
+            - name: CLARITY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.secret }}
+                  key: CLARITY_API_KEY
+            - name: BOOT_STRAP_SERVERS
+              value: {{ .Values.env.bootstrapServers }}
+            - name: OUTPUT_TOPIC
+              value: {{ .Values.env.outputTopic }}
+            - name: SCHEMA_REGISTRY_URL
+              value: {{ .Values.env.schemaRegistryUrl }}
+            - name: FREQUENCY
+              value: {{ .Values.env.frequency }}

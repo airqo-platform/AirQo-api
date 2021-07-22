@@ -22,15 +22,12 @@ env:
   tenant: 
   frequency: raw
   
-
 podAnnotations: {}
 podSecurityContext: {}
 securityContext: {}
-
 resources: {}
 nodeSelector: {}
 tolerations: []
 affinity: {}
-
 
 appMode: dev
