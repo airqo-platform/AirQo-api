@@ -49,10 +49,10 @@ def get_device_status(device):
 
     date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
     time_difference = date_time_difference.total_seconds()
-    six_hours = 21600  # in seconds
 
-    if time_difference < six_hours:
+    if time_difference <= configuration.MAX_ONLINE_ACCEPTABLE_DURATION:
         return DeviceStatus(is_online=True, elapsed_time=time_difference, device=device)
+
     return DeviceStatus(is_online=False, elapsed_time=time_difference, device=device)
 
 
@@ -84,18 +84,17 @@ def compute_device_channel_status(tenant):
         device = device_status.device
 
         try:
-            maintenance_status = (device.get("nextMaintenance") - datetime.utcnow()).total_seconds()
+            last_maintained_duration = (datetime.utcnow() - device.get("nextMaintenance")).total_seconds()
 
-            two_weeks_in_seconds = 1209600
-
-            if maintenance_status < 0:
+            if last_maintained_duration <= 0:
+                if abs(last_maintained_duration) <= configuration.DUE_FOR_MAINTENANCE_DURATION:
+                    device["maintenance_status"] = "due"
+                    count_due_maintenance += 1
+                else:
+                    device["maintenance_status"] = "good"
+            else:
                 device["maintenance_status"] = "overdue"
                 count_overdue_maintenance += 1
-            elif maintenance_status < two_weeks_in_seconds:
-                device["maintenance_status"] = "due"
-                count_due_maintenance += 1
-            else:
-                device["maintenance_status"] = "good"
 
         except Exception:
             device["nextMaintenance"] = None
