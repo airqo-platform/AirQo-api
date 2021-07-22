@@ -64,6 +64,7 @@ class KccaBatchFetch:
                 measurement = dict(row.to_dict())
 
                 measurement["tenant"] = "kcca"
+                measurement["average"] = measurement.get("average", "raw")
                 measurement["device"] = measurement.get("deviceCode")
                 transformed_data.append(measurement)
 
@@ -86,7 +87,7 @@ class KccaBatchFetch:
         headers = {'x-api-key': configuration.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)
         if results.status_code != 200:
-            print(f"{results}")
+            print(f"{results.content}")
             return []
         return results.json()
 
