@@ -29,11 +29,7 @@ class AirQoApi:
 
     def update_sites(self, tenant, updated_sites):
         response = self.__request("devices/sites", {"tenant": tenant}, updated_sites)
-
-        if "sites" in response:
-            return response["sites"]
-
-        return []
+        print(response)
 
     def __request(self, endpoint, params, body=None):
 
