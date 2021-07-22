@@ -4,6 +4,8 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+from date import date_to_str
+
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
@@ -19,8 +21,6 @@ class Config:
     TIME_INTERVAL = os.getenv("TIME_INTERVAL")
     INSERTION_INTERVAL = os.getenv("INSERTION_INTERVAL")
     BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
-    OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
-    AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
     TENANT = os.getenv("TENANT")
     PERIODIC = os.getenv("PERIODIC")
     PERIODIC_INTERVAL = os.getenv("PERIODIC_INTERVAL")
@@ -28,21 +28,30 @@ class Config:
     def __init__(self):
 
         if self.PERIODIC.strip().lower() == "true":
-            self.START_TIME = datetime.strftime(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_INTERVAL)),
-                                                '%Y-%m-%dT%H:%M:%SZ')
-            self.END_TIME = datetime.strftime(datetime.utcnow(), '%Y-%m-%dT%H:%M:%SZ')
+            self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_INTERVAL)))
+            self.END_TIME = date_to_str(datetime.utcnow())
+
+        if self.TENANT.strip().lower() == "airqo":
+            self.OUTPUT_TOPIC = os.getenv("AIRQO_OUTPUT_TOPIC")
+        elif self.TENANT.strip().lower() == "kcca":
+            self.OUTPUT_TOPIC = os.getenv("KCCA_OUTPUT_TOPIC")
+        else:
+            self.OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
 
 
 class ProductionConfig(Config):
-    AIRQO_BASE_URL = "https://platform.airqo.net/api/v1/"
-
-
-class DevelopmentConfig(Config):
-    AIRQO_BASE_URL = "http://localhost:3000/api/v1/"
+    AIRQO_BASE_URL = os.getenv("PROD_AIRQO_BASE_URL")
+    AIRQO_API_KEY = os.getenv("PROD_AIRQO_API_KEY")
 
 
 class StagingConfig(Config):
-    AIRQO_BASE_URL = "https://staging-platform.airqo.net/api/v1/"
+    AIRQO_BASE_URL = os.getenv("STAGE_AIRQO_BASE_URL")
+    AIRQO_API_KEY = os.getenv("STAGE_AIRQO_API_KEY")
+
+
+class DevelopmentConfig(Config):
+    AIRQO_BASE_URL = "http://staging-platform.airqo.net/api/v1/"
+    AIRQO_API_KEY = ""
 
 
 app_config = {

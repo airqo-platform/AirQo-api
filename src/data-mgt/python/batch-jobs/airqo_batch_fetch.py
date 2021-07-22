@@ -1,11 +1,11 @@
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pandas as pd
 from google.cloud import bigquery
 
 from config import configuration
-from date import str_to_date
+from date import str_to_date, date_to_str
 from kafka_client import KafkaWithoutRegistry
 from utils import build_channel_id_filter, get_valid_devices
 
@@ -28,8 +28,8 @@ class AirQoBatchFetch:
     
         for date in dates:
     
-            start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-            end_time = datetime.strftime(date + timedelta(hours=int(configuration.TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
+            start_time = date_to_str(date)
+            end_time = date_to_str(date + timedelta(hours=int(configuration.TIME_INTERVAL)))
     
             print(start_time + " : " + end_time)
     

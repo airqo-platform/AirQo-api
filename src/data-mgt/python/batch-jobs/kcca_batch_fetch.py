@@ -1,9 +1,10 @@
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pandas as pd
 import requests
 
 from config import configuration
+from date import date_to_str
 from kafka_client import KafkaWithoutRegistry
 from utils import get_valid_devices
 
@@ -12,7 +13,7 @@ from utils import get_valid_devices
 """
 
 
-def transform_group_plain(group, site_id, device_id):
+def transform_group_plain(group, device_id):
 
     transformed_data = []
 
@@ -22,7 +23,6 @@ def transform_group_plain(group, site_id, device_id):
         row_data["average"] = row.get("average", "raw")
         row_data["tenant"] = 'kcca'
         row_data["device"] = device_id  # overriding default kcca device id
-        row_data["site_id"] = site_id
 
         transformed_data.append(row_data.to_dict())
 
@@ -44,9 +44,8 @@ class KccaBatchFetch:
         dates = pd.date_range(configuration.START_TIME, configuration.END_TIME, freq=interval)
 
         for date in dates:
-            start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-            end_time = datetime.strftime(date +
-                                         timedelta(hours=int(configuration.TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
+            start_time = date_to_str(date)
+            end_time = date_to_str(date + timedelta(hours=int(configuration.TIME_INTERVAL)))
 
             print(start_time + " : " + end_time)
 
@@ -59,16 +58,17 @@ class KccaBatchFetch:
                 print(raw_measurements_df)
                 continue
 
-            raw_measurements_gps = raw_measurements_df.groupby('deviceCode')
-            for _, group in raw_measurements_gps:
-                device_name = group.iloc[0]['deviceCode']
-                site_id, device_id = self.get_site_and_device_id(device_name)
+            transformed_data = []
+            for _, row in raw_measurements_df.iterrows():
 
-                if site_id:
-                    transformed_data = transform_group_plain(group, site_id, device_id)
+                measurement = dict(row.to_dict())
 
-                    if transformed_data:
-                        self.kafka_client.produce(transformed_data)
+                measurement["tenant"] = "kcca"
+                measurement["device"] = measurement.get("deviceCode")
+                transformed_data.append(measurement)
+
+                if transformed_data:
+                    self.kafka_client.produce(transformed_data)
 
     def get_raw_measurements(self, start_time, end_time):
 
