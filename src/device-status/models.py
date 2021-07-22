@@ -13,9 +13,9 @@ class Device:
         return self.db.devices.find(
             {},
             {
-                '_id': 1,
+                '_id': {'$toString': '$_id'},
                 'name': 1,
-                'site_id': 1,
+                'site_id': {'$toString': '$site_id'},
                 'nextMaintenance': 1,
                 'device_number': 1,
                 'isActive': 1,

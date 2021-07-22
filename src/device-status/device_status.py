@@ -42,9 +42,6 @@ def get_device_status(device):
 
     result = device_status.json()
 
-    device["_id"] = str(device.get("_id"))
-    device["site_id"] = str(device.get("site_id"))
-
     current_datetime = datetime.utcnow()
 
     date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
