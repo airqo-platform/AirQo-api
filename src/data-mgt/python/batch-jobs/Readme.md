@@ -1,11 +1,12 @@
 # Batch fetch and Insertion
 This module contains functions to fetch historical device measurements from KCCA and AirQo and feed them into the pipeline for transformation
-## Setup your Environment
+## Environment Setup
 ```bash
     python3 -m venv venv
     source venv/bin/activate
     pip install -r requirements.txt
 ```
+## Stream Measurements
 Add the following files to this directory
 >[.env file](https://docs.google.com/document/d/1vsShgi7LE3BnWLguxXbjXHaWQCnx9Q7Y259CFGlJHeQ/edit)
 > 
@@ -14,8 +15,8 @@ Add the following files to this directory
     python main.py
 ```
 You should see a message that confirms that the measurements have been delivered to a topic on the pipeline.
-## Verification
-To verify that the data exists on the topic, use any of the following. The `BOOTSTRAP_SERVERS` and `TOPIC` can be obtained for the `.env` file
+## Verify Measurements
+To verify whether the measuemrents exist on the topic and are ready for transformation, use any of the following. The `BOOTSTRAP_SERVERS` and `TOPIC` can be obtained for the `.env` file, depending on the `tenant`.
 ### Using kafkacat
 ```bash
 kafkacat -P -b BOOTSTRAP_SERVERS -t TOPIC
