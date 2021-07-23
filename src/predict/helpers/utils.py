@@ -9,7 +9,6 @@ import os
 from os import makedirs
 from os.path import join, isdir, isfile, basename
 import numpy as np
-import tensorflow as tf
 import requests
 import pymongo
 from pymongo import MongoClient

@@ -6,7 +6,6 @@ import sys
 from flask_cors import CORS
 from dotenv import load_dotenv
 from flask_pymongo import PyMongo
-from apscheduler.schedulers.background import BackgroundScheduler
 from google.cloud import storage
 from os.path import join, isdir, isfile, basename
 load_dotenv()
