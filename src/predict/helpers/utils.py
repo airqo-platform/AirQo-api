@@ -13,13 +13,16 @@ import tensorflow as tf
 import requests
 import pymongo
 from pymongo import MongoClient
+from config import constants
 from dotenv import load_dotenv
 load_dotenv()
 
-MET_API_URL= os.getenv("MET_API_UR")
-MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
-MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
-MONGO_URI = os.getenv("MONGO_URI")
+MET_API_URL= os.getenv('MET_API_URL')
+MET_API_CLIENT_ID= os.getenv('MET_API_CLIENT_ID')
+MET_API_CLIENT_SECRET =os.getenv('MET_API_CLIENT_SECRET')
+
+app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
+MONGO_URI = app_configuration.MONGO_URI
 
 def get_hourly_met_forecasts():
     """
