@@ -20,10 +20,9 @@ import java.net.URL;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.SimpleDateFormat;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 public class Calibrate {
 
@@ -108,6 +107,14 @@ public class Calibrate {
         try {
 
             CalibratedBody body = new CalibratedBody(transformedMeasurement);
+            SimpleDateFormat simpleDateFormat = new SimpleDateFormat();
+            simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+            Date recordTime = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss").parse(body.getDatetime());
+
+           Date date = new Date();
+
+            Date nowDate = UTC
 
             ObjectMapper objectMapper = new ObjectMapper();
             String requestBody = objectMapper

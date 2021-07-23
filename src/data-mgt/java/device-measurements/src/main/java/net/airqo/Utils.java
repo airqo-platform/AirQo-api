@@ -43,20 +43,22 @@ public class Utils {
                     case "KCCA":
                         List<TransformedMeasurement> transformedKccaMeasurements =
                                 transformKccaMeasurements(rawMeasurements, properties);
+
                         Runnable runnable = new InsertMeasurements(transformedKccaMeasurements, baseUrl, tenant);
                         new Thread(runnable).start();
-//                        postMeasurements(transformedKccaMeasurements, baseUrl, tenant);
+
                         return transformedKccaMeasurements;
 
                     case "AIRQO":
                         List<TransformedMeasurement> transformedMeasurements =
                         transformAirQoMeasurements(rawMeasurements, properties);
 
-                        Runnable runnable1 = new InsertMeasurements(transformedMeasurements, baseUrl, tenant);
+                        List<TransformedMeasurement> calibratedValues = addAirQoCalibratedValues(transformedMeasurements);
+
+                        Runnable runnable1 = new InsertMeasurements(calibratedValues, baseUrl, tenant);
                         new Thread(runnable1).start();
 
-//                        postMeasurements(transformedMeasurements, baseUrl, tenant);
-                        return transformedMeasurements;
+                        return calibratedValues;
 
                     default:
                         return new ArrayList<>();
