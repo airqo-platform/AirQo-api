@@ -1,23 +1,20 @@
 package airqo;
 
+import airqo.models.AirqoDevice;
+import airqo.models.RawMeasurement;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import airqo.models.AirqoDevice;
-import airqo.models.RawMeasurement;
+import org.apache.commons.lang3.time.DateUtils;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.*;
 
 import static airqo.Utils.getDevices;
 import static airqo.Utils.getMeasurements;
@@ -27,14 +24,15 @@ public class ConnectorSourceTask extends SourceTask {
     static final Logger logger = LoggerFactory.getLogger(ConnectorSourceTask.class);
 
     private static final String AIRQO_URL = "airqoUrl";
-    private static final String FEEDS_URL = "feedsUrl";
     private static final String LAST_READ = "lastRead";
     private static final Long DEVICES_FETCH_INTERVAL = 0L;
-
+    private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
+    private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private String topic;
     private String apiUrl;
-    private String feedsUrl;
     private Long interval;
+    private int batchSize;
+    private int minimumHours;
 
     private Long lastExecution = 0L;
     private Long lastDevicesFetch = 0L;
@@ -55,8 +53,10 @@ public class ConnectorSourceTask extends SourceTask {
 
         topic = props.get(AirqoConnectorConfig.TOPIC_CONFIG);
         apiUrl = props.get(AirqoConnectorConfig.API_BASE_URL);
-        feedsUrl = props.get(AirqoConnectorConfig.FEEDS_BASE_URL);
+        batchSize = Integer.parseInt(props.get(AirqoConnectorConfig.BATCH_SIZE));
         interval = Long.parseLong(props.get(AirqoConnectorConfig.POLL_INTERVAL));
+        minimumHours = -(Integer.parseInt(props.get(AirqoConnectorConfig.MINIMUM_HOURS)));
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
     @Override
@@ -66,8 +66,6 @@ public class ConnectorSourceTask extends SourceTask {
         if (System.currentTimeMillis() > (lastExecution + interval)) {
 
             lastExecution = System.currentTimeMillis();
-
-//            Date lastExecutionTime = new Date(lastExecution - interval);
 
             if(devices.isEmpty() || (System.currentTimeMillis() > (lastDevicesFetch + DEVICES_FETCH_INTERVAL))) {
                 lastDevicesFetch = System.currentTimeMillis();
@@ -79,29 +77,36 @@ public class ConnectorSourceTask extends SourceTask {
             devices.forEach(airqoDevice -> {
 
                 if(!airqoDevice.getSite().get_id().trim().equals("")){
-                    String urlString = feedsUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
+                    String urlString = apiUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
 
                     RawMeasurement measurements = getMeasurements(urlString);
 
                     if(measurements != null){
 
-                        measurements.setChannelID(airqoDevice.getDeviceNumber());
-                        measurements.setDevice(airqoDevice.getDevice());
-                        measurements.setSite_id(airqoDevice.getSite().get_id());
+                        try {
+                            Date measurementTime = dateFormat.parse(measurements.getTime());
+                            Date minimumDate = DateUtils.addHours(simpleDateFormat.parse(simpleDateFormat.format(new Date(System.currentTimeMillis()))), minimumHours);
 
-                        logger.info("\nMeasurements Added => {}", measurements);
+                            if(measurementTime.after(minimumDate)){
 
-                        measurementList.add(measurements);
+                                measurements.setChannelID(airqoDevice.getDeviceNumber());
+                                measurements.setDevice(airqoDevice.getDevice());
+                                measurements.setSite_id(airqoDevice.getSite().get_id());
 
+                                logger.info("\nMeasurements Added => {}", measurements);
+                                measurementList.add(measurements);
+                            }
+
+                        } catch (ParseException e) {
+                            e.printStackTrace();
+                        }
                     }
                 }
-
-
             });
 
             if(!measurementList.isEmpty()){
 
-                List<List<RawMeasurement>> measurementsLists = Lists.partition(measurementList, 10);
+                List<List<RawMeasurement>> measurementsLists = Lists.partition(measurementList, batchSize);
 
                 measurementsLists.forEach(rawMeasurements -> {
 
@@ -111,21 +116,16 @@ public class ConnectorSourceTask extends SourceTask {
                         ObjectMapper mapper = new ObjectMapper();
                         jsonString = mapper.writeValueAsString(rawMeasurements);
 
+                        SourceRecord sourceRecord = new SourceRecord(
+                                null,
+                                null,
+                                topic, Schema.STRING_SCHEMA, jsonString );
+
+                        records.add(sourceRecord);
+
                     } catch (JsonProcessingException e) {
                         e.printStackTrace();
-
-                        Gson gson = new Gson();
-                        Type dataType = new TypeToken<List<RawMeasurement>>() {}.getType();
-                        jsonString = gson.toJson(rawMeasurements, dataType);
                     }
-
-                    SourceRecord sourceRecord = new SourceRecord(
-                            null,
-                            null,
-                            topic, Schema.STRING_SCHEMA, jsonString );
-
-                    records.add(sourceRecord);
-
                 });
             }
 
@@ -140,7 +140,6 @@ public class ConnectorSourceTask extends SourceTask {
     private Map<String, String> buildSourcePartition() {
         Map<String, String> sourcePartition = new HashMap<>();
         sourcePartition.put(AIRQO_URL, apiUrl);
-        sourcePartition.put(FEEDS_URL, feedsUrl);
         return sourcePartition;
 
     }

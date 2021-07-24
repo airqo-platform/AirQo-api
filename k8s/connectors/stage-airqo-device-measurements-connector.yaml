@@ -10,9 +10,10 @@ spec:
   tasksMax: 2
   config:
     topic: airqo-streams-raw-device-measurements-topic
-    feedsBaseUrl: https://staging-platform.airqo.net/api/v1/
     airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
     pollInterval: 30000 # 30 seconds
+    batchSize: 10
+    minimumHours: 24
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter

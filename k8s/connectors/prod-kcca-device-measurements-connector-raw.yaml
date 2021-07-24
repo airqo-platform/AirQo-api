@@ -14,6 +14,8 @@ spec:
     clarityApiBaseUrl: https://clarity-data-api.clarity.io/v1/
     pollInterval: 300000  # set to 5 minutes (5 * 60 * 1000). Note that the connector fetches for last 15 minutes
     average: raw
+    batchSize: 10
+    minimumHours: 24
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter
