@@ -18,6 +18,7 @@ const ObjectId = mongoose.Types.ObjectId;
 middlewareConfig(router);
 
 /******************* create device use-case ***************************/
+/*** decrypt read and write keys */
 router.post(
   "/decrypt",
   oneOf([
@@ -960,14 +961,52 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body("latitude").exists(),
-      body("longitude").exists(),
-      body("latitude").matches(constants.LATITUDE_REGEX, "i"),
-      body("longitude").matches(constants.LONGITUDE_REGEX, "i"),
+      body("latitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid"),
+      body("longitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude provided is not valid"),
     ],
   ]),
   siteController.register
 );
+
+router.post(
+  "/sites/metadata",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+      body("latitude")
+        .exists()
+        .withMessage("the latitude should be provided")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid"),
+      body("longitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude should be provided"),
+    ],
+  ]),
+  siteController.generateMetadata
+);
+
 router.put(
   "/sites",
   oneOf([
@@ -979,12 +1018,82 @@ router.put(
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
-    check("id").exists(),
-    check("lat_long").exists(),
-    check("generated_name").exists(),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_log")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
   ]),
   siteController.update
 );
+router.put(
+  "/sites/refresh",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_log")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  siteController.refresh
+);
+
 router.delete(
   "/sites",
   query("tenant")
