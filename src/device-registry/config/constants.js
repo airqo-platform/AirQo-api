@@ -127,6 +127,8 @@ const defaultConfig = {
       time: "time",
       day: "time",
       frequency: "frequency",
+      is_test_data: "is_test_data",
+
       "pm2_5.value": "pm2_5.value",
       "pm2_5.calibratedValue": "pm2_5.calibratedValue",
       "pm2_5.uncertaintyValue": "pm2_5.uncertaintyValue",
@@ -190,6 +192,8 @@ const defaultConfig = {
       frequency: null,
       site: null,
       device_number: null,
+      is_device_primary: null,
+      is_test_data: null,
 
       "pm10.value": null,
       "pm10.calibratedValue": null,
@@ -262,6 +266,7 @@ const defaultConfig = {
       item["filter"]["device_number"] = context.device_number;
       item["filter"]["site"] = context.site;
       item["filter"]["device_id"] = context.device_id;
+      item["filter"]["is_device_primary"] = context.is_device_primary;
       item["filter"]["values.frequency"] = context.frequency;
       item["filter"]["site_id"] = context.site_id;
       item["filter"]["values.time"] = context.time;

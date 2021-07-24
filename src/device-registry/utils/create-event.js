@@ -38,6 +38,7 @@ const createEvent = {
         modifiedFilter["nValues"] = filter.nValues;
         modifiedFilter["device_id"] = filter.device_id;
         modifiedFilter["site_id"] = filter.site_id;
+        modifiedFilter["is_device_primary"] = filter.is_device_primary;
 
         cleanedResult["modifiedFilter"] = modifiedFilter;
 
@@ -225,8 +226,9 @@ const createEvent = {
           dot.object(filter);
           logger.info(`the filter -- ${JSON.stringify(filter)}`);
 
-          dot.delete(["filter", "update", "options"], value);
-          logger.info(`the values -- ${JSON.stringify(value)}`);
+          dot.delete(["filter", "update", "options", "modifiedFilter"], value);
+          logger.info(`the value -- ${JSON.stringify(value)}`);
+          logObject("the value", value);
 
           update["$push"] = { values: value };
           logger.info(`the update -- ${JSON.stringify(update)}`);

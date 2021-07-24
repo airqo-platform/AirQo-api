@@ -20,6 +20,11 @@ const valueSchema = new Schema({
     required: [true, "the frequency is required"],
     trim: true,
   },
+  is_test_data: {
+    type: Boolean,
+    required: [true, "is_test_data is required field"],
+    trim: true,
+  },
   pm1: {
     value: {
       type: Number,
@@ -166,6 +171,11 @@ const eventSchema = new Schema(
       trim: true,
       default: null,
     },
+    is_device_primary: {
+      type: Boolean,
+      required: [true, "is_device_primary is required field"],
+      trim: true,
+    },
     device_id: {
       type: ObjectId,
       required: [true, "The device ID is required"],
@@ -302,6 +312,7 @@ eventSchema.statics = {
       .group({
         _id: "$device_id",
         time: { $first: "$time" },
+        is_test_data: { $first: "$is_test_data" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
         pm10: { $first: "$pm10" },
@@ -321,6 +332,46 @@ eventSchema.statics = {
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
         deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
+      })
+      .skip(skipInt)
+      .limit(limitInt)
+      .allowDiskUse(true);
+  },
+  listAverage({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
+    logObject("the filter", filter);
+    return this.aggregate()
+      .match(filter)
+      .lookup({
+        from: "devices",
+        localField: "device_id",
+        foreignField: "_id",
+        as: "deviceDetails",
+      })
+      .unwind("values")
+      .replaceRoot("values")
+      .sort({ time: -1 })
+      .group({
+        _id: { $dateToString: { format: "%Y-%m-%d", date: "$time" } },
+        avg_pm2_5: { $avg: "$pm2_5" },
+        avg_s2_pm2_5: { $avg: "$s2_pm2_5" },
+        avg_pm10: { $avg: "$pm10" },
+        avg_s2_pm10: { $avg: "$s2_pm10" },
+        frequency: "$frequency",
+        is_test_data: "$is_test_data",
+        avg_battery: { $avg: "$battery" },
+        avg_location: { $avg: "$location" },
+        avg_altitude: { $avg: "$altitude" },
+        avg_speed: { $avg: "$speed" },
+        avg_satellites: { $avg: "$satellites" },
+        avg_hdop: { $avg: "$hdop" },
+        avg_internalTemperature: { $avg: "$internalTemperature" },
+        avg_externalTemperature: { $avg: "$externalTemperature" },
+        avg_internalHumidity: { $avg: "$internalHumidity" },
+        avg_externalHumidity: { $avg: "$externalHumidity" },
+        avg_externalAltitude: { $avg: "$externalAltitude" },
+        avg_pm1: { $avg: "$pm1" },
+        avg_no2: { $avg: "$no2" },
+        deviceDetails: { $avg: { $arrayElemAt: ["$deviceDetails", 0] } },
       })
       .skip(skipInt)
       .limit(limitInt)
