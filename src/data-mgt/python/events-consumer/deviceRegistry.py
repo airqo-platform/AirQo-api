@@ -25,8 +25,6 @@ class DeviceRegistry:
             temp = dict(row_dict.get("internalTemperature")).get("value")
             hum = dict(row_dict.get("internalHumidity")).get("value")
 
-            print(f"{time} : {device} : {pm2_5} : {pm10} : {temp} : {hum}")
-
             row_dict["pm2_5"]["calibratedValue"] = self.get_calibrated_value(
                 device=device,
                 time=time,
@@ -36,7 +34,6 @@ class DeviceRegistry:
                 temperature=temp
             )
 
-            print(row_dict)
             measurements.append(row_dict)
 
         try:
@@ -72,7 +69,8 @@ class DeviceRegistry:
         }
 
         try:
-            post_request = requests.post(url=self.calibrate_url, json=data)
+            headers = {'Content-Type': 'application/json'}
+            post_request = requests.post(url=self.calibrate_url, data=json.dumps(data), timeout=60000, headers=headers)
         except Exception as ex:
             print(f"Calibrate Url returned an error: {str(ex)}")
             return None
