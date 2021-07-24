@@ -12,3 +12,4 @@ python-dotenv==0.17.0
 scikit_learn==0.24.1
 confluent-avro
 kafka-python
+python-dotenv
