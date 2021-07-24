@@ -2,6 +2,20 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
+const { logObject, logElement } = require("../utils/log");
+const { monthsInfront } = require("../utils/date");
+
+const maxLength = [
+  9,
+  "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
+];
+
+const minLength = [
+  5,
+  "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
+];
+
+const noSpaces = /^\S*$/;
 
 const deviceSchema = new mongoose.Schema(
   {
@@ -24,7 +38,10 @@ const deviceSchema = new mongoose.Schema(
       type: String,
       required: [true, "Device name is required!"],
       trim: true,
+      maxlength: maxLength,
       unique: true,
+      minlength: minLength,
+      match: noSpaces,
     },
     visibility: {
       type: Boolean,
@@ -38,7 +55,7 @@ const deviceSchema = new mongoose.Schema(
       type: Number,
     },
     owner: {
-      type: String,
+      type: ObjectId,
     },
     description: {
       type: String,
@@ -56,6 +73,8 @@ const deviceSchema = new mongoose.Schema(
     mountType: {
       type: String,
       trim: true,
+      default: "wall",
+      lowercase: true,
     },
     ISP: {
       type: String,
@@ -71,32 +90,41 @@ const deviceSchema = new mongoose.Schema(
     },
     device_manufacturer: {
       type: String,
+      default: "airqo",
     },
     product_name: {
       type: String,
+      default: "gen1",
     },
     powerType: {
       type: String,
+      lowercase: true,
     },
-    locationID: {
-      type: String,
+    isRetired: {
+      type: Boolean,
+      default: false,
     },
-    host: {
-      name: String,
-      phone: Number,
+    host_id: {
+      type: ObjectId,
+    },
+    site_id: {
+      type: ObjectId,
     },
     isPrimaryInLocation: {
       type: Boolean,
+      default: false,
     },
     isUsedForCollocation: {
       type: Boolean,
+      default: false,
     },
     nextMaintenance: {
       type: Date,
+      default: monthsInfront(3),
     },
-    channelID: {
+    device_number: {
       type: Number,
-      required: [true, "Channel ID is required!"],
+      required: [true, "device_number is required!"],
       trim: true,
       unique: true,
     },
@@ -116,18 +144,14 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
   }
   return next();
 });
 
 deviceSchema.pre("update", function(next) {
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
   }
   return next();
 });
@@ -135,9 +159,7 @@ deviceSchema.pre("update", function(next) {
 deviceSchema.pre("findByIdAndUpdate", function(next) {
   this.options.runValidators = true;
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     let n = this.name;
-    console.log({ n });
   }
   return next();
 });
@@ -149,7 +171,7 @@ deviceSchema.methods = {
   },
   toJSON() {
     return {
-      id: this.id,
+      id: this._id,
       name: this.name,
       latitude: this.latitude,
       longitude: this.longitude,
@@ -164,14 +186,15 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
-      channelID: this.channelID,
+      device_number: this.device_number,
       powerType: this.powerType,
       mountType: this.mountType,
-      locationID: this.locationID,
       isActive: this.isActive,
       writeKey: this.writeKey,
+      isRetired: this.isRetired,
       readKey: this.readKey,
       pictures: this.pictures,
+      site_id: this.site_id,
       siteName: this.siteName,
       locationName: this.locationName,
       height: this.height,
@@ -193,11 +216,11 @@ deviceSchema.methods = {
       updatedAt: this.updatedAt,
       siteName: this.siteName,
       locationName: this.locationName,
+      site_id: this.site_id,
     };
   },
 };
 
-// I will add the check for the user after setting up the communications between services
 deviceSchema.statics = {
   createDevice(args) {
     return this.create({
@@ -205,11 +228,56 @@ deviceSchema.statics = {
     });
   },
 
-  list({ skip = 0, limit = 5, filter = {} } = {}) {
-    return this.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+  list({ _skip = 0, _limit = 100, filter = {} } = {}) {
+    try {
+      return this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "sites",
+          localField: "site_id",
+          foreignField: "_id",
+          as: "site",
+        })
+        .sort({ createdAt: -1 })
+        .project({
+          _id: 1,
+          name: 1,
+          latitude: 1,
+          longitude: 1,
+          createdAt: 1,
+          owner: 1,
+          device_manufacturer: 1,
+          product_name: 1,
+          ISP: 1,
+          phoneNumber: 1,
+          visibility: 1,
+          description: 1,
+          isPrimaryInLocation: 1,
+          isUsedForCollocation: 1,
+          nextMaintenance: 1,
+          device_number: 1,
+          powerType: 1,
+          mountType: 1,
+          locationID: 1,
+          isActive: 1,
+          writeKey: 1,
+          readKey: 1,
+          pictures: 1,
+          siteName: 1,
+          locationName: 1,
+          height: 1,
+          site: { $arrayElemAt: ["$site", 0] },
+        })
+        .skip(_skip)
+        .limit(_limit)
+        .allowDiskUse(true);
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to retrieve devices",
+        error: error.message,
+      };
+    }
   },
 
   listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {

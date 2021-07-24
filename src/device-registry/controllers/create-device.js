@@ -26,12 +26,17 @@ const {
 const updateDeviceUtil = require("../utils/update-device");
 
 const nearestDevices = require("../utils/nearest-device");
+const generateFilter = require("../utils/generate-filter");
+
+const { validationResult } = require("express-validator");
 
 const {
   tryCatchErrors,
   axiosError,
   missingQueryParams,
   callbackErrors,
+  missingOrInvalidValues,
+  badRequest,
 } = require("../utils/errors");
 
 const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
@@ -91,7 +96,7 @@ const device = {
   deleteThing: async (req, res) => {
     try {
       const { device, tenant } = req.query;
-      res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
+      return res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
         message: "endpoint temporarily disabled",
         success: false,
         device,
@@ -271,40 +276,42 @@ const device = {
   listAll: async (req, res) => {
     try {
       logText(".....................................");
-      logText("list all devices by tenant...");
+      logText("list all devices original...");
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const { tenant, name, chid, loc, site, map, primary, active } = req.query;
-      if (tenant) {
-        const devices = await getDetail(
-          tenant,
-          name,
-          chid,
-          loc,
-          site,
-          map,
-          primary,
-          active,
-          limit,
-          skip
-        );
-        logObject("the devices", devices);
-        if (devices.length) {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "Devices fetched successfully",
-            devices,
-          });
-        } else {
-          return res.status(HTTPStatus.OK).json({
-            success: true,
-            message: "Device(s) not available",
-            devices,
-          });
-        }
-      } else {
+      const { tenant } = req.query;
+      if (!tenant) {
         missingQueryParams(req, res);
       }
+
+      let filter = generateFilter.devices(req);
+      logObject("filter", filter);
+      let responseFromListDevice = await getModelByTenant(
+        tenant.toLowerCase(),
+        "device",
+        DeviceSchema
+      ).list({ skip, limit, filter });
+
+      if (responseFromListDevice.success == false) {
+        if (responseFromListDevice.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromListDevice.message,
+            error: responseFromListDevice.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromListDevice.message,
+          });
+        }
+      }
+
+      return res.status(HTTPStatus.OK).json({
+        success: true,
+        message: "Devices fetched successfully",
+        devices: responseFromListDevice,
+      });
     } catch (e) {
       tryCatchErrors(res, e);
     }
@@ -315,6 +322,7 @@ const device = {
       const { tenant, loc } = req.query;
       logElement("location ", loc);
       try {
+        logText("list all devices by location...");
         if (tenant) {
           const devices = await getModelByTenant(
             tenant.toLowerCase(),
@@ -341,10 +349,9 @@ const device = {
   listAllByNearestCoordinates: async (req, res) => {
     try {
       const { tenant, latitude, longitude, radius } = req.query;
-
+      logText("list all devices by coordinates...");
       try {
-
-        if (!(tenant && latitude && longitude && radius)){
+        if (!(tenant && latitude && longitude && radius)) {
           return res.status(HTTPStatus.BAD_REQUEST).json({
             success: false,
             message: "missing query params, please check documentation",
@@ -356,10 +363,14 @@ const device = {
 
         const devices = await getDetail(tenant);
 
-        const nearest_devices = nearestDevices.findNearestDevices(devices, radius, latitude, longitude);
+        const nearest_devices = nearestDevices.findNearestDevices(
+          devices,
+          radius,
+          latitude,
+          longitude
+        );
 
         return res.status(HTTPStatus.OK).json(nearest_devices);
-
       } catch (e) {
         return res.status(HTTPStatus.BAD_REQUEST).json(e);
       }
@@ -573,6 +584,11 @@ const device = {
 
   createOne: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
       const { tenant } = req.query;
       if (tenant) {
         console.log("creating one device....");

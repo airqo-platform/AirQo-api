@@ -1,11 +1,13 @@
 package net.airqo.connectors.models;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
 import java.io.Serializable;
 import java.util.HashMap;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class RawMeasurements implements Serializable {
 
     private String _id;
@@ -13,8 +15,17 @@ public class RawMeasurements implements Serializable {
     private String time;
     private String device;
     private String deviceCode;
+    private String average = "raw";
     private HashMap<String, Object> location;
     private HashMap<String, HashMap<String, Double>> characteristics;
+
+    public String getAverage() {
+        return average;
+    }
+
+    public void setAverage(String average) {
+        this.average = average;
+    }
 
     public String get_id() {
         return _id;

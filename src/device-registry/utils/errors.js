@@ -22,18 +22,26 @@ const axiosError = (error, req, res) => {
   console.log(error.config);
 };
 
-const tryCatchErrors = (res, error) => {
+const tryCatchErrors = (res, error, message) => {
   res.status(HTTPStatus.BAD_GATEWAY).json({
     success: false,
-    message: "internal server error",
+    message: `server error - ${message}`,
     error: error.message,
   });
 };
 
-const missingQueryParams = (req, res) => {
+const missingQueryParams = (res) => {
   res.status(HTTPStatus.BAD_REQUEST).send({
     success: false,
     message: "misssing request parameters, please check documentation",
+  });
+};
+
+const missingOrInvalidValues = (res) => {
+  res.status(HTTPStatus.BAD_REQUEST).send({
+    success: false,
+    message:
+      "missing or invalid request parameter values, please check documentation",
   });
 };
 
@@ -56,13 +64,14 @@ const unclearError = (res) => {
     .json({ success: false, message: "unclear server error" });
 };
 
-const badRequest = (res, message) => {
-  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message });
+const badRequest = (res, message, errors) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message, errors });
 };
 
 module.exports = {
   axiosError,
   tryCatchErrors,
+  missingOrInvalidValues,
   missingQueryParams,
   callbackErrors,
   unclearError,

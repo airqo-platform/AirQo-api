@@ -1,0 +1,17 @@
+apiVersion: extensions/v1beta1 
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/auth-url: http://airqo-stage-auth-api-svc.staging.svc.cluster.local/api/v1/users
+  namespace: staging
+  name: ingress-with-auth
+spec:
+  rules:
+    - host: staging-platform.airqo.net
+      http:
+        paths:
+          - path: /api/v1/monitor
+            backend:
+              serviceName: airqo-stage-device-monitor-api-svc
+              servicePort: 4001

@@ -1,4 +1,5 @@
 const { logText, logObject, logElement } = require("./log");
+const isEmpty = require("is-empty");
 
 const generateDateFormat = (ISODate) => {
   try {
@@ -30,10 +31,15 @@ const isTimeEmpty = (dateTime) => {
   logElement("mins", mins);
   logElement("secs", secs);
   logElement("millisecs", millisecs);
-  if (hrs == 00 && mins == 00 && secs == 00 && millisecs == 00) {
-    return true;
+  if (
+    Number.isInteger(hrs) &&
+    Number.isInteger(mins) &&
+    Number.isInteger(secs) &&
+    Number.isInteger(millisecs)
+  ) {
+    return false;
   }
-  return false;
+  return true;
 };
 
 const generateDateFormatWithoutHrs = (ISODate) => {
@@ -70,20 +76,6 @@ const addMonthsToProvidedDate = (date, number) => {
   }
 };
 
-const removeMonthsFromProvidedDate = (date, number) => {
-  try {
-    logElement("the day I am receiving", date);
-    let year = date.split("-")[0];
-    let month = date.split("-")[1];
-    let day = date.split("-")[2];
-    let newMonth = parseInt(month, 10) - number;
-    let modifiedMonth = "0" + newMonth;
-    return `${year}-${modifiedMonth}-${day}`;
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
 const addMonthsToProvideDateTime = (dateTime, number) => {
   try {
     if (isTimeEmpty(dateTime) == false) {
@@ -105,38 +97,6 @@ const addMonthsToProvideDateTime = (dateTime, number) => {
       logElement("the new date I am sending", newDate);
       return newDate;
     }
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
-const removeMonthsFromProvideDateTime = (dateTime, number) => {
-  try {
-    if (isTimeEmpty(dateTime) == false) {
-      let newDate = new Date(dateTime);
-      let monthsBehindProvidedDateTime = newDate.setMonth(
-        newDate.getMonth() - number
-      );
-      return new Date(monthsBehindProvidedDateTime);
-    } else {
-      let newDate = removeMonthsFromProvidedDate(dateTime, number);
-      logElement("the new date I am sending", newDate);
-      return newDate;
-    }
-  } catch (e) {
-    console.log("server side error: ", e.message);
-  }
-};
-
-const monthsBehind = (number) => {
-  try {
-    let d = new Date();
-    let targetMonth = d.getMonth() - number;
-    d.setMonth(targetMonth);
-    if (d.getMonth() !== targetMonth % 12) {
-      d.setDate(0);
-    }
-    return d;
   } catch (e) {
     console.log("server side error: ", e.message);
   }
@@ -179,9 +139,7 @@ const getDifferenceInMonths = (d1, d2) => {
 module.exports = {
   generateDateFormat,
   generateDateFormatWithoutHrs,
-  removeMonthsFromProvideDateTime,
   addMonthsToProvideDateTime,
-  monthsBehind,
   monthsInfront,
   isTimeEmpty,
   getDifferenceInMonths,
