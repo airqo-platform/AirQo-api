@@ -1,23 +1,31 @@
-from controllers.calibrate import calibrate_bp
-from flask import Flask
-import logging
 import os
+
+from flask import Flask
 from flask_cors import CORS
 from flask_pymongo import PyMongo
-from dotenv import load_dotenv
-load_dotenv()
 
-# import blue prints
+from config import configuration
+from controllers.calibrate import calibrate_bp
 
-_logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+mongo = PyMongo()
 
-# Allow cross-brower resource sharing
-CORS(app)
 
-app.config["MONGO_URI"] = os.getenv("MONGO_URI")
-mongo = PyMongo(app)
+def create_app(environment):
+    app = Flask(__name__)
+    app.config.from_object(configuration[environment])
 
-# register blueprints
-app.register_blueprint(calibrate_bp)
+    mongo.init_app(app)
+    CORS(app)
+
+    # register blueprints
+    app.register_blueprint(calibrate_bp)
+
+    return app
+
+
+app = create_app(os.getenv("FLASK_ENV"))
+
+
+if __name__ == '__main__':
+    app.run(debug=True)
