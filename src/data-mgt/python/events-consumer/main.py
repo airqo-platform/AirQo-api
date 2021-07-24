@@ -1,5 +1,6 @@
 import os
 import threading
+from time import sleep
 
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -8,7 +9,7 @@ from confluent_kafka.serialization import StringDeserializer
 from dotenv import load_dotenv
 import pandas as pd
 
-from event import DeviceRegistry
+from deviceRegistry import DeviceRegistry
 
 
 load_dotenv()
@@ -60,6 +61,8 @@ def main():
                         insertion_thread = threading.Thread(
                             target=device_registry.insert_events, args=(measurements_list,))
                         insertion_thread.start()
+
+                    sleep(10)
 
         except KeyboardInterrupt:
             break
