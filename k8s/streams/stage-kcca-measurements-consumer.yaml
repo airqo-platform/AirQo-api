@@ -39,7 +39,7 @@ spec:
             - name: BOOTSTRAP_SERVERS
               value: stage-kafka-cluster-kafka-bootstrap:9092
             - name: INPUT_TOPIC
-              value: kcca-streams-transformed-device-measurements-topic
+              value: kcca-streams-processed-device-measurements-topic
             - name: BASE_URL
               value: http://staging-platform.airqo.net/api/v1/
             - name: CONSUMER_GROUP

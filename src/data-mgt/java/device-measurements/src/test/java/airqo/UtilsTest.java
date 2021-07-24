@@ -37,7 +37,7 @@ public class UtilsTest {
         airqoMeasurementsArrayList = composeAirQoInputData();
         kccaMeasurementsArrayList = composeKccaInputData();
         transformedMeasurements = composeTransformedMeasurements();
-        properties = loadPropertiesFile("test.application.properties");
+        properties = loadEnvProperties("test.application.properties");
 
     }
 
@@ -263,13 +263,13 @@ public class UtilsTest {
     @Test
     public void testLoadPropertiesFile(){
 
-        Properties properties = loadPropertiesFile("invalid.file.properties");
+        Properties properties = loadEnvProperties("invalid.file.properties");
         assertNotNull(properties);
 
-        properties = loadPropertiesFile("test.application.properties");
+        properties = loadEnvProperties("test.application.properties");
         assertNotNull(properties.getProperty("properties.test.value"));
 
-        properties = loadPropertiesFile(null);
+        properties = loadEnvProperties("null");
         assertNotNull(properties);
 
     }

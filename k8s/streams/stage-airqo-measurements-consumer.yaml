@@ -26,13 +26,20 @@ spec:
         - name: stage-airqo-measurements-consumer
           image: us.gcr.io/airqo-250220/stage-stage-measurements-consumer:latest
           imagePullPolicy: Always
+          resources:
+            limits:
+              memory: 512Mi
+              cpu: "1"
+            requests:
+              memory: 256Mi
+              cpu: "0.2"
           env:
             - name: SCHEMA_REGISTRY_URL
               value: http://stage-schema-registry-svc:8081
             - name: BOOTSTRAP_SERVERS
               value: stage-kafka-cluster-kafka-bootstrap:9092
             - name: INPUT_TOPIC
-              value: airqo-streams-transformed-device-measurements-topic
+              value: airqo-streams-processed-device-measurements-topic
             - name: BASE_URL
               value: http://staging-platform.airqo.net/api/v1/
             - name: CONSUMER_GROUP

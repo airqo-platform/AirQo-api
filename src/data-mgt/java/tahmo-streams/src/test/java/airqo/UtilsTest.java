@@ -35,7 +35,7 @@ public class UtilsTest {
     static void setup() {
 
         logger.info("Utils tests started");
-        properties = loadPropertiesFile("application.properties");
+        properties = loadEnvProperties("application.properties");
     }
 
     @Test

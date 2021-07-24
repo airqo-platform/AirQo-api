@@ -25,7 +25,7 @@ public class Utils {
     public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
 
-    public static Properties loadPropertiesFile(String propertiesFile){
+    public static Properties loadEnvProperties(String propertiesFile){
 
         if(propertiesFile == null)
             propertiesFile = "application.properties";
@@ -39,6 +39,14 @@ public class Utils {
             logger.error("Error loading properties file `{}` : {}", propertiesFile, ex.toString());
         }
 
+        Set<String> systemKeys = System.getenv().keySet();
+
+        systemKeys.forEach(k -> {
+            String envKey = k.trim().toUpperCase();
+            props.setProperty(envKey, System.getenv(envKey));
+
+        });
+
         return props;
     }
 
@@ -47,12 +55,10 @@ public class Utils {
         Properties props = new Properties();
         Set<String> systemKeys = System.getenv().keySet();
 
-        keys.forEach(k -> {
+        systemKeys.forEach(k -> {
             String envKey = k.trim().toUpperCase();
-            if(systemKeys.contains(envKey)){
-                String propKey = k.trim().toLowerCase();
-                props.setProperty(propKey, System.getenv(envKey));
-            }
+            props.setProperty(envKey, System.getenv(envKey));
+
         });
 
         return props;

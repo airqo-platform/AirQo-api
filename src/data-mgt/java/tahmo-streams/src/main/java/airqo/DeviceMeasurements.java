@@ -24,18 +24,17 @@ public class DeviceMeasurements {
 
     static Properties getStreamsConfig(String propertiesFile) {
 
-        List<String> propKeys = new ArrayList<>();
-        propKeys.add("bootstrap.servers");
-        propKeys.add("input.topic");
-        propKeys.add("tenant");
-        propKeys.add("output.topic");
-        propKeys.add("schema.registry.url");
-        propKeys.add("application.id");
+//        List<String> propKeys = new ArrayList<>();
+//        propKeys.add("bootstrap.servers");
+//        propKeys.add("input.topic");
+//        propKeys.add("tenant");
+//        propKeys.add("output.topic");
+//        propKeys.add("schema.registry.url");
+//        propKeys.add("application.id");
 
-        final Properties properties = Utils.loadPropertiesFile(propertiesFile);
-        final Properties envProperties = Utils.loadEnvProperties(propKeys);
-
-        envProperties.forEach(properties::replace);
+        final Properties properties = Utils.loadEnvProperties(propertiesFile);
+//        final Properties envProperties = Utils.loadEnvProperties(propKeys);
+//        envProperties.forEach(properties::replace);
 
         try {
 
@@ -55,6 +54,7 @@ public class DeviceMeasurements {
         properties.putIfAbsent(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass().getName());
         properties.putIfAbsent(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, SpecificAvroSerde.class);
 
+        logger.info("Env Properties {}", properties );
         return properties;
 
     }

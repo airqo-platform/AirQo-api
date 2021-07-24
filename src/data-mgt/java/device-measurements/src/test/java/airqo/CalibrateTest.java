@@ -28,7 +28,7 @@ public class CalibrateTest {
     public void setup() {
 
         String propertiesUrlFile = "application.properties";
-        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
+        Properties props = Utils.loadEnvProperties(propertiesUrlFile);
         urlString = props.getProperty("airqo.base.url", "");
         urlString = urlString + "calibrate";
 

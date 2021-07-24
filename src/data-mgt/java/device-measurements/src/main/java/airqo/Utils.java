@@ -39,24 +39,12 @@ public class Utils {
 
                 switch (tenant.trim().toUpperCase()){
                     case "KCCA":
-                        List<TransformedMeasurement> transformedKccaMeasurements =
-                                transformKccaMeasurements(rawMeasurements, properties);
-
-                        Runnable runnable = new InsertMeasurements(transformedKccaMeasurements, baseUrl, tenant);
-                        new Thread(runnable).start();
-
-                        return transformedKccaMeasurements;
+                        return transformKccaMeasurements(rawMeasurements, properties);
 
                     case "AIRQO":
-                        List<TransformedMeasurement> transformedMeasurements =
-                        transformAirQoMeasurements(rawMeasurements, properties);
-
-                        // List<TransformedMeasurement> calibratedValues = addAirQoCalibratedValues(transformedMeasurements);
-
-                        Runnable runnable1 = new InsertMeasurements(transformedMeasurements, baseUrl, tenant);
-                        new Thread(runnable1).start();
-
-                        return transformedMeasurements;
+//                        Runnable runnable1 = new InsertMeasurements(transformedMeasurements, baseUrl, tenant);
+//                        new Thread(runnable1).start();
+                        return transformAirQoMeasurements(rawMeasurements, properties);
 
                     default:
                         return new ArrayList<>();
@@ -367,7 +355,7 @@ public class Utils {
         List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
 
         String propertiesUrlFile = "application.properties";
-        Properties props = Utils.loadPropertiesFile(propertiesUrlFile);
+        Properties props = Utils.loadEnvProperties(propertiesUrlFile);
         String urlString = props.getProperty("airqo.base.url", "");
         String finalUrlString = urlString + "calibrate";;
 
@@ -393,7 +381,7 @@ public class Utils {
         return transformedMeasurements;
     }
 
-    public static Properties loadPropertiesFile(String propertiesFile){
+    public static Properties loadEnvProperties(String propertiesFile){
 
         if(propertiesFile == null)
             propertiesFile = "application.properties";
@@ -406,6 +394,13 @@ public class Utils {
         catch (Exception ex){
             logger.error("Error loading properties file `{}` : {}", propertiesFile, ex.toString());
         }
+
+        Set<String> systemKeys = System.getenv().keySet();
+
+        systemKeys.forEach(k -> {
+            String propKey = k.trim().toLowerCase();
+            props.setProperty(propKey, System.getenv(propKey));
+        });
 
         return props;
     }
