@@ -110,11 +110,11 @@ public class Calibrate {
             SimpleDateFormat simpleDateFormat = new SimpleDateFormat();
             simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
-            Date recordTime = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss").parse(body.getDatetime());
-
-           Date date = new Date();
-
-            Date nowDate = UTC
+//            Date recordTime = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss").parse(body.getDatetime());
+//
+//           Date date = new Date();
+//
+//            Date nowDate = UTC
 
             ObjectMapper objectMapper = new ObjectMapper();
             String requestBody = objectMapper

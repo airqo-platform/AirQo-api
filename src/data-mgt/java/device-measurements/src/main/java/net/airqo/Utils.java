@@ -53,12 +53,12 @@ public class Utils {
                         List<TransformedMeasurement> transformedMeasurements =
                         transformAirQoMeasurements(rawMeasurements, properties);
 
-                        List<TransformedMeasurement> calibratedValues = addAirQoCalibratedValues(transformedMeasurements);
+                        // List<TransformedMeasurement> calibratedValues = addAirQoCalibratedValues(transformedMeasurements);
 
-                        Runnable runnable1 = new InsertMeasurements(calibratedValues, baseUrl, tenant);
+                        Runnable runnable1 = new InsertMeasurements(transformedMeasurements, baseUrl, tenant);
                         new Thread(runnable1).start();
 
-                        return calibratedValues;
+                        return transformedMeasurements;
 
                     default:
                         return new ArrayList<>();
