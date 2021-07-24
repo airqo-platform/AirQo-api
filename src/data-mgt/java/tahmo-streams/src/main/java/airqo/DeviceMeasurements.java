@@ -1,12 +1,14 @@
 package airqo;
 
-import airqo.models.Device;
 import airqo.models.TransformedDeviceMeasurements;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
-import org.apache.kafka.streams.*;
+import org.apache.kafka.streams.KafkaStreams;
+import org.apache.kafka.streams.KeyValue;
+import org.apache.kafka.streams.StreamsBuilder;
+import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.kstream.Consumed;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.Produced;
@@ -70,10 +72,7 @@ public class DeviceMeasurements {
 
 
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> {
-
-                    return new KeyValue<>(key, Utils.addHumidityAndTemp(value, props));
-                });
+                .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
 
         transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
     }

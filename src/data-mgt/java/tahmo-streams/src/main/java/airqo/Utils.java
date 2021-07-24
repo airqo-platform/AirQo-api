@@ -3,7 +3,6 @@ package airqo;
 import airqo.models.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.gson.JsonObject;
 import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -24,6 +23,7 @@ public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
     public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
+    private static final HttpClient httpClient = HttpClient.newBuilder().build();
 
     public static Properties loadPropertiesFile(String propertiesFile){
 
@@ -62,18 +62,19 @@ public class Utils {
 
         List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
 
+        List<Measurement> measurements = deviceMeasurements.getMeasurements();
 
-        List<Measurement> measurements = deviceMeasurements.getMeasurements().stream().peek(measurement -> {
+        List<Measurement> measurementList = measurements.stream().peek(measurement -> {
 
-            Optional<Site> deviceSite = sites.stream().findFirst().filter(
-                    site -> site.get_id().equals(measurement.getSiteId().toString()));
+            Optional<Site> deviceSite = sites.stream().filter(
+                    site -> site.get_id().trim().equalsIgnoreCase(measurement.getSiteId().toString().trim())).findFirst();
 
             try {
-                if (deviceSite.isPresent() && !deviceSite.get().getNearestStation().getCode().equals("")){
+                if (deviceSite.isPresent()){
 
                     Site.NearestStation station = deviceSite.get().getNearestStation();
                     Date endTime = dateFormat.parse(measurement.getTime().toString());
-                    Date startTime = DateUtils.addHours(endTime, -3);
+                    Date startTime = DateUtils.addHours(endTime, -24);
 
                     StationResponse stationResponse = getStationMeasurements(
                             props, station.getCode(), startTime, endTime, station.getTimezone());
@@ -95,12 +96,20 @@ public class Utils {
                     measurement.getInternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
                     measurement.getInternalTemperature().setValue(stationTemp.orElseThrow().getValue());
                 }
-            } catch (ParseException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
+
         }).collect(Collectors.toList());
 
-        return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurements).build();
+        measurementList.forEach(measurement -> {
+            logger.info("Humidity : {} , Temperature : {} , Device : {}",
+                    measurement.getInternalHumidity().getValue(),
+                    measurement.getInternalTemperature().getValue(),
+                    measurement.getDevice());
+        });
+
+        return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
     }
 
     public static List<Site> getSites(String baseUrl, String tenant){
@@ -112,9 +121,6 @@ public class Utils {
         try {
 
             String urlString =  String.format("%sdevices/sites?tenant=%s", baseUrl, tenant);
-
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .build();
 
             HttpRequest request = HttpRequest.newBuilder()
                     .GET()
@@ -132,7 +138,7 @@ public class Utils {
             return new ArrayList<>();
         }
 
-        logger.info("\n ====> Sites : {}\n", sitesResponse.getSites());
+//        logger.info("\n ====> Sites : {}\n", sitesResponse.getSites());
         return sitesResponse.getSites();
     }
 
@@ -145,9 +151,6 @@ public class Utils {
         try {
 
             String urlString =  String.format("%sdevices?tenant=%s&active=yes", baseUrl, tenant);
-
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .build();
 
             HttpRequest request = HttpRequest.newBuilder()
                     .GET()
@@ -165,13 +168,13 @@ public class Utils {
             return new ArrayList<>();
         }
 
-//        StringBuilder stringBuilder = new StringBuilder();
-//
-//        devicesResponse.getDevices().forEach(device -> {
-//            stringBuilder.append(" , ").append(device.getDevice_number());
-//        });
+        StringBuilder stringBuilder = new StringBuilder();
 
-//        logger.info("\n ====> Devices : {}\n", stringBuilder);
+        devicesResponse.getDevices().forEach(device -> {
+            stringBuilder.append(" , ").append(device.getDevice_number());
+        });
+
+        logger.info("\n ====> Devices : {}\n", stringBuilder);
         return devicesResponse.getDevices();
     }
 
@@ -192,6 +195,7 @@ public class Utils {
             String urlString =  String.format("%sservices/measurements/v2/stations/%s/measurements/%s?start=%s&end=%s",
                     props.getProperty("tahmo.base.url") , stationCode, "controlled", dateFormat.format(startTime), dateFormat.format(endTime));
 
+            logger.info("Station Measurements url {}", urlString);
             HttpClient httpClient = HttpClient.newBuilder()
                     .build();
 
@@ -223,31 +227,36 @@ public class Utils {
 
     public static List<StationMeasurement> stationResponseToMeasurements(StationResponse stationResponse){
 
-        List<List<Object>> objects = stationResponse.getResults().get(0).getSeries().get(0).getValues();
         List<StationMeasurement> measurements = new ArrayList<>();
+        try {
 
-        objects.forEach(object -> {
+            List<List<Object>> objects = stationResponse.getResults().get(0).getSeries().get(0).getValues();
 
-            String var = String.valueOf(object.get(11)).trim().toLowerCase();
-            String time = String.valueOf(object.get(0)).trim();
+            objects.forEach(object -> {
 
-            try {
-                if(var.equals("te") || var.equals("rh")){
-                    Variable variable = Variable.fromString(var);
-                    Double value = Double.valueOf(object.get(10) + "");
-                    Date dateTime = dateFormat.parse(time);
+                String var = String.valueOf(object.get(11)).trim().toLowerCase();
+                String time = String.valueOf(object.get(0)).trim();
 
-                    StationMeasurement measurement = new StationMeasurement(dateTime, value, variable);
-                    measurements.add(measurement);
-                }
-            } catch (ParseException e) {
-                logger.error("Time {}", object.get(0));
-                logger.error("Value {}", object.get(10));
-                logger.error("Variable {}", object.get(11));
-                e.printStackTrace();
-            }
-        });
-            return measurements;
+                    if(var.equals("te") || var.equals("rh")){
+                        Variable variable = Variable.fromString(var);
+                        Double value = Double.valueOf(object.get(10) + "");
+                        Date dateTime = null;
+
+                        try {
+                            dateTime = dateFormat.parse(time);
+                        } catch (ParseException e) {
+                            e.printStackTrace();
+                        }
+
+                        StationMeasurement measurement = new StationMeasurement(dateTime, value, variable);
+                        measurements.add(measurement);
+                    }
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        return measurements;
     }
 
     public static void getMeasurements(String urlString, String device, int channel){
