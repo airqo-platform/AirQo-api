@@ -166,22 +166,32 @@ const siteSchema = new Schema(
       id: {
         type: Number,
         required: [true, "station id is required!"],
+        trim: true,
+        default: -1
       },
       code: {
         type: String,
         required: [true, "station code is required!"],
+        trim: true,
+        default: ""
       },
       longitude: {
         type: Number,
         required: [true, "longitude is required!"],
+        trim: true,
+        default: -1
       },
       latitude: {
         type: Number,
         required: [true, "latitude is required!"],
+        trim: true,
+        default: -1
       },
       timezone: {
         type: String,
         required: [true, "timezone is required!"],
+        trim: true,
+        default: ""
       },
     },
   },
