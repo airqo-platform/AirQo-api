@@ -26,6 +26,7 @@ class KafkaClient:
         self.bootstrap_servers = [BOOTSTRAP_SERVERS]
         self.input_topic = INPUT_TOPIC
         self.output_topic = OUTPUT_TOPIC
+        self.consumer_group = CONSUMER_GROUP
 
     def produce_measurements(self, measurements):
         avro_serde = AvroKeyValueSerde(self.registry_client, self.output_topic)
@@ -36,7 +37,12 @@ class KafkaClient:
     def consume_measurements(self):
 
         avro_serde = AvroKeyValueSerde(self.registry_client, self.input_topic)
-        consumer = KafkaConsumer(self.input_topic, bootstrap_servers=self.bootstrap_servers)
+        consumer = KafkaConsumer(
+            self.input_topic,
+            group_id=self.consumer_group,
+            bootstrap_servers=self.bootstrap_servers,
+            auto_offset_reset='earliest',
+            enable_auto_commit=False)
 
         rg_model = regression.Regression()
         hourly_combined_dataset = rg_model.hourly_combined_dataset
@@ -62,7 +68,7 @@ class KafkaClient:
                         if pm25 and pm10 and temperature and humidity and datetime:
                             calibrated_value = rg_model.random_forest(datetime, pm25, pm10, temperature,
                                                                       humidity, hourly_combined_dataset)
-                            measurement["pm_2_5"]["calibratedValue"] = calibrated_value
+                            measurement["pm2_5"]["calibratedValue"] = calibrated_value
 
                         calibrated_measurements.append(measurement)
 
@@ -72,7 +78,7 @@ class KafkaClient:
                         continue
 
                 if calibrated_measurements:
-                    print(dict({"measurements": calibrated_measurements}))
+                    print(dict({"calibrated measurements": calibrated_measurements}))
                     self.produce_measurements(dict({"measurements": calibrated_measurements}))
 
             except Exception as e:

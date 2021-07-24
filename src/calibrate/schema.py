@@ -1,6 +1,6 @@
 schema_str = """
 {
-    "namespace": "net.airqo.models",
+    "namespace": "airqo.models",
     "type": "record",
     "name": "TransformedDeviceMeasurements",
     "aliases": ["TransformedDeviceMeasurementsValue"],
@@ -14,8 +14,15 @@ schema_str = """
                     "name":"Measurement",
                     "type":"record",
                     "fields":[
-                        {
-                            "name": "frequency", "type": "string", "default" : "raw"
+                        { 
+                            "name": "frequency",
+                            "type": {
+                                "name": "frequency",
+                                "type": "enum",
+                                "symbols": ["hourly", "daily", "raw"],
+                                "default": "raw"
+                            },
+                            "aliases": ["average"]
                         },
                         {
                             "name": "time", "type": "string"
@@ -27,13 +34,18 @@ schema_str = """
                             "name": "device_id", "type": "string"
                         },
                         {
-                            "name": "site_id",  "type": ["null", "string"], ",default": null
+                            "name": "site_id",  "type": ["null", "string"], "default": null
                         },
                         {
-                            "name": "device_number", "type": ["null", "int"], ",default": null
+                            "name": "device_number", "type": ["null", "int"], "default": null
                         },
                         {
-                            "name": "tenant", "type": "string"
+                            "name": "tenant",
+                            "type": {
+                                "name": "tenant",
+                                "type": "enum",
+                                "symbols": ["airqo", "kcca"]
+                            }
                         },
                         {
                             "name": "location",
