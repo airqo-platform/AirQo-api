@@ -1,12 +1,12 @@
-package net.airqo.connectors;
+package airqo;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
-import net.airqo.models.AirqoDevice;
-import net.airqo.models.RawMeasurement;
+import airqo.models.AirqoDevice;
+import airqo.models.RawMeasurement;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.source.SourceRecord;
 import org.apache.kafka.connect.source.SourceTask;
@@ -19,8 +19,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static net.airqo.connectors.Utils.getDevices;
-import static net.airqo.connectors.Utils.getMeasurements;
+import static airqo.Utils.getDevices;
+import static airqo.Utils.getMeasurements;
 
 public class ConnectorSourceTask extends SourceTask {
 

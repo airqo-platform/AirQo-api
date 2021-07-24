@@ -1,6 +1,7 @@
 package net.airqo.connectors;
 
-import net.airqo.models.AirqoDevice;
+import airqo.VersionUtil;
+import airqo.models.AirqoDevice;
 import org.junit.jupiter.api.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,7 +9,7 @@ import org.slf4j.LoggerFactory;
 import java.util.List;
 import java.util.Properties;
 
-import static net.airqo.connectors.Utils.getDevices;
+import static airqo.Utils.getDevices;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class UtilsTest {

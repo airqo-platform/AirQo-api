@@ -110,7 +110,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>net.airqo.connectors.AirqoSourceConnector</mainClass>
+                            <mainClass>airqo.AirqoSourceConnector</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

@@ -1,4 +1,4 @@
-package net.airqo.connectors;
+package airqo;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
@@ -14,7 +14,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static net.airqo.connectors.AirqoConnectorConfig.CONFIG_DEF;
+import static airqo.AirqoConnectorConfig.CONFIG_DEF;
 
 public class AirqoSourceConnector extends SourceConnector {
 

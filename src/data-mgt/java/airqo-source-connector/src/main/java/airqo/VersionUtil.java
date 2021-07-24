@@ -1,4 +1,4 @@
-package net.airqo.connectors;
+package airqo;
 
 import java.util.Properties;
 

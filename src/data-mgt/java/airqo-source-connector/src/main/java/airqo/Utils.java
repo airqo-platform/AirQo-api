@@ -1,10 +1,10 @@
-package net.airqo.connectors;
+package airqo;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import net.airqo.models.AirQoDevicesResponse;
-import net.airqo.models.AirqoDevice;
-import net.airqo.models.RawMeasurement;
+import airqo.models.AirQoDevicesResponse;
+import airqo.models.AirqoDevice;
+import airqo.models.RawMeasurement;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

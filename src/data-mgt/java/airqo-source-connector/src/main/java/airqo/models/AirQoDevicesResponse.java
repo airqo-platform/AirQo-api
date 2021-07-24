@@ -1,4 +1,4 @@
-package net.airqo.models;
+package airqo.models;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
