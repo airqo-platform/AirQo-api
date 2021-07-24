@@ -15,6 +15,7 @@ class BasePyMongoModel(ModelOperations):
     def __init__(self, tenant, collection_name):
         super().__init__()
         self.tenant = tenant.lower()
+        self.collection_name = collection_name
         self.db = self._connect()
         self.collection = self.db[collection_name]
 
@@ -25,3 +26,6 @@ class BasePyMongoModel(ModelOperations):
         # lets hard code the db here for dev purposes
         # db = client['airqo_analytics']
         return db
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.tenant}, {self.collection_name})"

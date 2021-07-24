@@ -1,6 +1,7 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const { getMeasurements } = require("../utils/get-measurements");
+// const insertMeasurementsService = require("../services/insert-device-measurements");
 
 const {
   tryCatchErrors,
@@ -15,7 +16,7 @@ const getDetail = require("../utils/get-device-details");
 
 const isEmpty = require("is-empty");
 
-const { transformMeasurements } = require("../utils/transform-measurements");
+const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const insertMeasurements = require("../utils/insert-measurements");
 const {
   transmitOneSensorValue,
@@ -27,47 +28,80 @@ const createEvent = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, tenant } = req.query;
+      const { tenant } = req.query;
       const measurements = req.body;
-      if (tenant && device && measurements) {
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
+      let errors = [];
+      if (!Array.isArray(measurements)) {
+        errors.push({
+          location: "body",
+          value_type: typeof measurements,
+          msg: "the the input body should be an array, please crosscheck ",
+        });
+      }
+      if (!tenant) {
+        errors.push({
+          location: "query",
+          value: "",
+          param: "tenant",
+          msg: "the tenant query parameter must be provided ",
+        });
+      }
 
-        if (doesDeviceExist) {
-          const transformedMeasurements = await transformMeasurements(
-            device,
-            measurements
-          );
-          let response = await insertMeasurements(
-            tenant,
-            transformedMeasurements
-          );
-          if (response.success == true) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "successfully added all the events",
-              valuesAdded: response.valuesAdded,
-            });
-          } else if (response.success == false) {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: "finished the operation with some errors",
-              errors: response.errors,
-              valuesRejected: response.valuesRejected,
-              valuesAdded: response.valuesAdded,
-            });
-          }
-        } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: `the device (${device}) does not exist on the network`,
-          });
-        }
+      if (errors.length > 0) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "bad request errors",
+          errors,
+        });
+      }
+
+      const responseFromTransformMeasurements = await transformMeasurements_v2(
+        measurements
+      );
+      logObject(
+        "responseFromTransformMeasurements",
+        responseFromTransformMeasurements
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        let error = responseFromTransformMeasurements.error
+          ? responseFromTransformMeasurements.error
+          : "";
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromTransformMeasurements.message,
+          error,
+        });
+      }
+
+      logObject(
+        "responseFromTransformMeasurements.data",
+        responseFromTransformMeasurements.data
+      );
+
+      let response = await insertMeasurements(
+        tenant,
+        responseFromTransformMeasurements.data
+      );
+
+      if (!response.success) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "finished the operation with some errors",
+          errors: response.errors,
+        });
       } else {
-        missingQueryParams(req, res);
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "successfully added all the events",
+        });
       }
     } catch (e) {
-      tryCatchErrors(res, error);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server side error , create events - controller",
+        error: e.message,
+      });
     }
   },
   getValues: (req, res) => {

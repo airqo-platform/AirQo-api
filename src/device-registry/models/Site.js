@@ -162,6 +162,38 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    nearest_tahmo_station: {
+      id: {
+        type: Number,
+        required: [true, "station id is required!"],
+        trim: true,
+        default: -1
+      },
+      code: {
+        type: String,
+        required: [true, "station code is required!"],
+        trim: true,
+        default: ""
+      },
+      longitude: {
+        type: Number,
+        required: [true, "longitude is required!"],
+        trim: true,
+        default: -1
+      },
+      latitude: {
+        type: Number,
+        required: [true, "latitude is required!"],
+        trim: true,
+        default: -1
+      },
+      timezone: {
+        type: String,
+        required: [true, "timezone is required!"],
+        trim: true,
+        default: ""
+      },
+    },
   },
   {
     timestamps: true,
@@ -214,6 +246,33 @@ siteSchema.methods = {
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
+      country: this.country,
+      district: this.district,
+      sub_county: this.sub_county,
+      parish: this.parish,
+      region: this.region,
+      geometry: this.geometry,
+      village: this.village,
+      city: this.city,
+      street: this.street,
+      county: this.county,
+      altitude: this.altitude,
+      greenness: this.greenness,
+      landform_270: this.landform_270,
+      landform_90: this.landform_90,
+      aspect: this.aspect,
+      distance_to_nearest_road: this.distance_to_nearest_road,
+      distance_to_nearest_primary_road: this.distance_to_nearest_primary_road,
+      distance_to_nearest_secondary_road: this
+        .distance_to_nearest_secondary_road,
+      distance_to_nearest_tertiary_road: this.distance_to_nearest_tertiary_road,
+      distance_to_nearest_unclassified_road: this
+        .distance_to_nearest_unclassified_road,
+      distance_to_nearest_residential_area: this
+        .distance_to_nearest_residential_area,
+      bearing_to_kampala_center: this.bearing_to_kampala_center,
+      distance_to_kampala_center: this.distance_to_kampala_center,
+      nearest_tahmo_station: this.nearest_tahmo_station,
     };
   },
   createSite(args) {
@@ -271,9 +330,11 @@ siteSchema.statics = {
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
+          name: 1,
           latitude: 1,
           longitude: 1,
           description: 1,
+          site_tags: 1,
           lat_long: 1,
           country: 1,
           district: 1,
@@ -281,6 +342,7 @@ siteSchema.statics = {
           parish: 1,
           region: 1,
           geometry: 1,
+          village: 1,
           city: 1,
           street: 1,
           generated_name: 1,
@@ -299,6 +361,7 @@ siteSchema.statics = {
           distance_to_nearest_residential_area: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
+          nearest_tahmo_station: 1,
           devices: "$devices",
         })
         .skip(_skip)

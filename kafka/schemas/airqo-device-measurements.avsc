@@ -3,7 +3,7 @@
     "namespace": "net.airqo.models",
     "type": "record",
     "name": "AirQoDeviceMeasurements",
-    "doc": "https://staging-platform.airqo.net/api/v1/data/feeds/transform/recent?channel=1014687",
+    "doc": "http://34.78.78.202:31001/api/v1/data/feeds/transform/recent?channel=1014687",
     "fields": [
 
         {
