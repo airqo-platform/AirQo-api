@@ -64,6 +64,10 @@ const siteSchema = new Schema(
       type: Number,
       trim: true,
     },
+    distance_to_nearest_residential_road: {
+      type: Number,
+      trim: true,
+    },
     distance_to_kampala_center: {
       type: Number,
       trim: true,
@@ -240,6 +244,8 @@ siteSchema.methods = {
         .distance_to_nearest_residential_area,
       bearing_to_kampala_center: this.bearing_to_kampala_center,
       distance_to_kampala_center: this.distance_to_kampala_center,
+      distance_to_nearest_residential_road: this
+        .distance_to_nearest_residential_road,
     };
   },
   createSite(args) {
@@ -252,13 +258,8 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
-      let modifiedArgs = args;
-      let site_tags = modifiedArgs.site_tags;
-      if (site_tags) {
-        modifiedArgs.$addToSet = { site_tags: { $each: site_tags } };
-      }
       let data = await this.create({
-        ...modifiedArgs,
+        ...args,
       });
       if (!isEmpty(data)) {
         return {
@@ -326,6 +327,7 @@ siteSchema.statics = {
           distance_to_nearest_tertiary_road: 1,
           distance_to_nearest_unclassified_road: 1,
           distance_to_nearest_residential_area: 1,
+          distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
           devices: "$devices",
@@ -345,24 +347,9 @@ siteSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdateBody = update;
-      if (modifiedUpdateBody.site_tags) {
-        delete modifiedUpdateBody.site_tags;
-      }
-      let add_site_tags = modifiedUpdateBody.add_site_tags;
-      let remove_site_tags = modifiedUpdateBody.remove_site_tags;
-
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-
-      if (add_site_tags) {
-        modifiedUpdateBody.$addToSet = { site_tags: { $each: add_site_tags } };
-      }
-
-      if (remove_site_tags) {
-        modifiedUpdateBody.$pullAll = { site_tags: remove_site_tags };
-      }
-
       if (modifiedUpdateBody.latitude) {
         delete modifiedUpdateBody.latitude;
       }

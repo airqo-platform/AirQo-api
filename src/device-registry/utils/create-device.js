@@ -519,7 +519,6 @@ const registerDeviceUtil = {
           message: responseFromTransformRequestBody.message,
         };
       }
-      // return await
       const response = await axios.post(baseURL, transformedBody);
 
       if (isEmpty(response)) {
