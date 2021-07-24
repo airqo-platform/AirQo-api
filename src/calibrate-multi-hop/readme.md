@@ -2,9 +2,21 @@
 
 ## To run in a virtual environment
 
-1. Create a virtual environment
-2. `pip install -r requirements.txt`
-3. `flask run`
+1. Create a virtual environment `python -m venv ./venv`
+2. Create a `.env` file with these keys set
+    * **FLASK_APP**
+    * **FLASK_ENV**
+    * **FLASK_RUN_PORT**
+    * ***MONGO_GCE_URI**
+    * **MONGO_DEV_URI**
+    * **DB_NAME_PROD**
+    * **DB_NAME_STAGE**
+    * **DB_NAME_DEV**
+    * **SECRET_KEY**
+ 
+3. Start the virtual env `source venv/bin/activate`
+4. Install requirements `pip install -r requirements.txt`
+5. Run application `flask run`
 
 ## To build and run with docker desktop
 
