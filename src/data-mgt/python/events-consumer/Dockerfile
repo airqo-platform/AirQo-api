@@ -8,4 +8,4 @@ RUN pip install -r requirements.txt
 
 ENV PYTHONWARNINGS = "ignore:Unverified HTTPS request"
 
-CMD [ "python", "measurements_consumer.py" ]
+CMD [ "python", "main.py" ]
