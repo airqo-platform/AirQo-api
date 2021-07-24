@@ -3,14 +3,18 @@ import pandas as pd
 
 def handle_api_error(api_request):
     json = None
+
     try:
         # Try to parse json and check if body contains a specific error message.
         json = api_request.json()
+        print(api_request.request.url)
+        print(api_request.request.body)
     finally:
         if json and 'error' in json and 'message' in json['error']:
             print(json)
             raise Exception(json['error']['message'])
         else:
+            print(api_request.content)
             raise Exception('API request failed with status code %s' % api_request.status_code)
 
 

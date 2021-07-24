@@ -27,28 +27,35 @@ class AirQoApi:
 
         return []
 
-    def update_sites(self, tenant, updated_sites):
-        response = self.__request("devices/sites", {"tenant": tenant}, updated_sites)
-        print(response)
+    def update_sites(self, updated_sites):
+        for i in updated_sites:
+            site = dict(i)
+            params = {"tenant": site.pop("tenant"), "id": site.pop("_id")}
 
-    def __request(self, endpoint, params, body=None):
+            response = self.__request("devices/sites", params, site, "put")
+            print(response)
+
+    def __request(self, endpoint, params, body=None, method=None):
 
         headers = {'x-api-key': self.AIRQO_API_KEY}
-        if body is None:
+        if method is None:
             api_request = requests.get(
                 '%s%s' % (self.AIRQO_BASE_URL, endpoint),
                 params=params,
                 headers=headers,
                 verify=False,
             )
-        else:
-            api_request = requests.post(
+        elif method == "put":
+            headers['Content-Type'] = 'application/json'
+            api_request = requests.put(
                 '%s%s' % (self.AIRQO_BASE_URL, endpoint),
                 params=params,
                 headers=headers,
+                data=json.dumps(body),
                 verify=False,
-                data=json.dumps(body)
             )
+        else:
+            return handle_api_error("Invalid")
 
         if api_request.status_code == 200:
             return api_request.json()

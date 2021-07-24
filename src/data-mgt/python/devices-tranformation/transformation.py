@@ -66,12 +66,19 @@ class Transformation:
         updated_sites = []
         summarized_updated_sites = []
 
+        size = 0
+
         for site in sites:
             site_dict = dict(site)
 
             if "latitude" in site_dict and "longitude" in site_dict:
                 latitude = site_dict.get("latitude")
                 longitude = site_dict.get("longitude")
+
+                if size > 1:
+                    break
+
+                size = size + 1
 
                 closet_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
 
@@ -83,9 +90,14 @@ class Transformation:
                     "timezone": dict(closet_station.get("location")).get("timezone")
                 })
 
-                site_dict["closet_tahmo_station"] = station_data
+                # site_dict["closet_tahmo_station"] = station_data
+                update = dict({
+                    "nearest_tahmo_station": station_data,
+                    "_id": site_dict.get("_id"),
+                    "tenant": self.tenant
+                })
 
-                updated_sites.append(site_dict)
+                updated_sites.append(update)
                 summarized_updated_sites.append(
                     dict({
                         "_id": site_dict.get("_id"),
@@ -102,7 +114,7 @@ class Transformation:
 
         elif self.output_format.strip().lower() == "api":
             print("Sites to be Updated", updated_sites, sep=" := ")
-            self.airqo_api.update_sites(tenant=self.tenant, updated_sites=updated_sites)
+            self.airqo_api.update_sites(updated_sites=updated_sites)
 
         else:
             array_to_json(data=summarized_updated_sites)
