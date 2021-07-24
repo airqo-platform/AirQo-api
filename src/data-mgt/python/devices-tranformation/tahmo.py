@@ -21,19 +21,13 @@ class TahmoApi:
         specified_coordinates = (latitude, longitude)
 
         for key, station in all_stations.items():
-            # print(station)
             weather_station_coordinates = (station['location']['latitude'], station['location']['longitude'])
-            # print(weather_station_coordinates)
             distance_between_coordinates = distance.distance(specified_coordinates, weather_station_coordinates).km
             weather_stations_with_distances_from_specified_coordinates[station["code"]] = distance_between_coordinates
 
-        # print(weather_stations_with_distances_from_specified_coordinates)
         weather_stations_with_min_distance = min(weather_stations_with_distances_from_specified_coordinates.keys(), key=(
             lambda k: weather_stations_with_distances_from_specified_coordinates[k]))
         selected_station = all_stations.get(weather_stations_with_min_distance)
-        # print(selected_station)
-
-        # return weather_stations_with_min_distance, selected_station
 
         return selected_station
 

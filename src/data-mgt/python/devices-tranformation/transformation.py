@@ -66,31 +66,23 @@ class Transformation:
         updated_sites = []
         summarized_updated_sites = []
 
-        size = 0
-
         for site in sites:
             site_dict = dict(site)
 
             if "latitude" in site_dict and "longitude" in site_dict:
-                latitude = site_dict.get("latitude")
                 longitude = site_dict.get("longitude")
+                latitude = site_dict.get("latitude")
 
-                if size > 1:
-                    break
-
-                size = size + 1
-
-                closet_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
+                nearest_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
 
                 station_data = dict({
-                    "id": closet_station.get("id"),
-                    "code": closet_station.get("code"),
-                    "latitude": dict(closet_station.get("location")).get("latitude"),
-                    "longitude": dict(closet_station.get("location")).get("longitude"),
-                    "timezone": dict(closet_station.get("location")).get("timezone")
+                    "id": nearest_station.get("id"),
+                    "code": nearest_station.get("code"),
+                    "latitude": dict(nearest_station.get("location")).get("latitude"),
+                    "longitude": dict(nearest_station.get("location")).get("longitude"),
+                    "timezone": dict(nearest_station.get("location")).get("timezone")
                 })
 
-                # site_dict["closet_tahmo_station"] = station_data
                 update = dict({
                     "nearest_tahmo_station": station_data,
                     "_id": site_dict.get("_id"),
