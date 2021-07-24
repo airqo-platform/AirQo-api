@@ -18,6 +18,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Utils {
 
@@ -57,11 +58,12 @@ public class Utils {
         return props;
     }
 
-    public static TransformedDeviceMeasurements addHumidityAndTemp(TransformedDeviceMeasurements measurements, Properties props){
+    public static TransformedDeviceMeasurements addHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props){
 
         List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
 
-        measurements.getMeasurements().stream().map(measurement -> {
+
+        List<Measurement> measurements = deviceMeasurements.getMeasurements().stream().peek(measurement -> {
 
             Optional<Site> deviceSite = sites.stream().findFirst().filter(
                     site -> site.get_id().equals(measurement.getSiteId().toString()));
@@ -78,26 +80,27 @@ public class Utils {
 
                     List<StationMeasurement> stationMeasurements = stationResponseToMeasurements(stationResponse);
 
-                    Optional<StationMeasurement> stationMeasurement = stationMeasurements
-                            .stream()
-                            .reduce((measurement1, measurement2) -> {
-                                if (measurement1.getTime().after(measurement2.getTime()))
-                                    return measurement1;
-                                return measurement2;
-                            });
+                    Optional<StationMeasurement> stationTemp = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
+                        if (measurement1.getTime().after(measurement2.getTime()))
+                            return measurement1;
+                        return measurement2;
+                    });
 
-                    logger.info(stationMeasurement.toString());
+                    Optional<StationMeasurement> stationHumidity = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().toString().equals("rh")).reduce((measurement1, measurement2) -> {
+                        if (measurement1.getTime().after(measurement2.getTime()))
+                            return measurement1;
+                        return measurement2;
+                    });
 
-                    measurement.getInternalHumidity().setValue(0.1);
-                    measurement.getInternalTemperature().setValue(0.1);
+                    measurement.getInternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
+                    measurement.getInternalTemperature().setValue(stationTemp.orElseThrow().getValue());
                 }
             } catch (ParseException e) {
                 e.printStackTrace();
             }
-            return measurement;
-        });
+        }).collect(Collectors.toList());
 
-        return measurements;
+        return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurements).build();
     }
 
     public static List<Site> getSites(String baseUrl, String tenant){
@@ -246,7 +249,6 @@ public class Utils {
         });
             return measurements;
     }
-
 
     public static void getMeasurements(String urlString, String device, int channel){
 
