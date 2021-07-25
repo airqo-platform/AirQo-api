@@ -1,10 +1,13 @@
 import os
 import traceback
+
 from confluent_avro import AvroKeyValueSerde, SchemaRegistry
 from dotenv import load_dotenv
 from kafka import KafkaConsumer, KafkaProducer
 from models import regression
 from schema import schema_str
+from datetime import datetime, timedelta
+
 # Ref: https://kafka-python.readthedocs.io/en/master/usage.html
 
 load_dotenv()
@@ -14,9 +17,14 @@ SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
 INPUT_TOPIC = os.getenv("INPUT_TOPIC")
 OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
 CONSUMER_GROUP = os.getenv("CONSUMER_GROUP")
+AUTO_COMMIT = os.getenv("AUTO_COMMIT")
 
 
 class KafkaClient:
+
+    rg_model = None
+    hourly_combined_dataset = None
+    next_initialization = None
 
     def __init__(self):
         self.registry_client = SchemaRegistry(
@@ -27,6 +35,14 @@ class KafkaClient:
         self.input_topic = INPUT_TOPIC
         self.output_topic = OUTPUT_TOPIC
         self.consumer_group = CONSUMER_GROUP
+        self.auto_commit = True if f"{AUTO_COMMIT}".strip().lower() == "true" else False
+
+        self.reload()
+
+    def reload(self):
+        self.rg_model = regression.Regression()
+        self.hourly_combined_dataset = self.rg_model.hourly_combined_dataset
+        self.next_initialization = datetime.now() + timedelta(hours=1)
 
     def produce_measurements(self, measurements):
         avro_serde = AvroKeyValueSerde(self.registry_client, self.output_topic)
@@ -42,17 +58,16 @@ class KafkaClient:
             group_id=self.consumer_group,
             bootstrap_servers=self.bootstrap_servers,
             auto_offset_reset='earliest',
-            enable_auto_commit=False)
-
-        rg_model = regression.Regression()
-        hourly_combined_dataset = rg_model.hourly_combined_dataset
+            enable_auto_commit=self.auto_commit)
 
         for msg in consumer:
             value = avro_serde.value.deserialize(msg.value)
             calibrated_measurements = []
 
-            try:
+            if datetime.now() > self.next_initialization:
+                self.reload()
 
+            try:
                 measurements = list(dict(value).get("measurements"))
                 for measure in measurements:
 
@@ -63,11 +78,11 @@ class KafkaClient:
                         pm10 = measurement.get('pm10').get('value')
                         temperature = measurement.get('internalTemperature').get('value')
                         humidity = measurement.get('internalHumidity').get('value')
-                        datetime = measurement.get('time')
+                        time = measurement.get('time')
 
-                        if pm25 and pm10 and temperature and humidity and datetime:
-                            calibrated_value = rg_model.random_forest(datetime, pm25, pm10, temperature,
-                                                                      humidity, hourly_combined_dataset)
+                        if pm25 and pm10 and temperature and humidity and time:
+                            calibrated_value = self.rg_model.random_forest(time, pm25, pm10, temperature,
+                                                                           humidity, self.hourly_combined_dataset)
                             measurement["pm2_5"]["calibratedValue"] = calibrated_value
 
                         calibrated_measurements.append(measurement)
