@@ -4,6 +4,7 @@ import os
 import requests
 
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
+CALIBRATE = os.getenv("CALIBRATE")
 
 
 class DeviceRegistry:
@@ -18,21 +19,23 @@ class DeviceRegistry:
         measurements = []
         for row in data_dict:
             row_dict = dict(row)
-            time = row_dict.get("time")
-            device = row_dict.get("device")
-            pm2_5 = dict(row_dict.get("pm2_5")).get("value")
-            pm10 = dict(row_dict.get("pm10")).get("value")
-            temp = dict(row_dict.get("internalTemperature")).get("value")
-            hum = dict(row_dict.get("internalHumidity")).get("value")
 
-            row_dict["pm2_5"]["calibratedValue"] = self.get_calibrated_value(
-                device=device,
-                time=time,
-                humidity=hum,
-                pm2_5=pm2_5,
-                pm10=pm10,
-                temperature=temp
-            )
+            if f"{CALIBRATE}".strip().lower() == "true":
+                time = row_dict.get("time")
+                device = row_dict.get("device")
+                pm2_5 = dict(row_dict.get("pm2_5")).get("value")
+                pm10 = dict(row_dict.get("pm10")).get("value")
+                temp = dict(row_dict.get("internalTemperature")).get("value")
+                hum = dict(row_dict.get("internalHumidity")).get("value")
+
+                row_dict["pm2_5"]["calibratedValue"] = self.get_calibrated_value(
+                    device=device,
+                    time=time,
+                    humidity=hum,
+                    pm2_5=pm2_5,
+                    pm10=pm10,
+                    temperature=temp
+                )
 
             measurements.append(row_dict)
 
@@ -54,6 +57,7 @@ class DeviceRegistry:
             print("Error Occurred while inserting measurements: " + str(ex))
 
     def get_calibrated_value(self, device, time, pm2_5, pm10, temperature, humidity):
+        print("getting calibrated value")
 
         data = {
             "datetime": time,

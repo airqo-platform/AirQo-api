@@ -11,7 +11,6 @@ import pandas as pd
 
 from deviceRegistry import DeviceRegistry
 
-
 load_dotenv()
 
 AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
@@ -19,7 +18,8 @@ BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS")
 SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
 TOPIC = os.getenv("TOPIC")
 CONSUMER_GROUP = os.getenv("CONSUMER_GROUP")
-SIZE = os.getenv("SIZE")
+REQUEST_BODY_SIZE = os.getenv("REQUEST_BODY_SIZE")
+SLEEP = os.getenv("SLEEP", 0)
 
 
 def main():
@@ -55,14 +55,14 @@ def main():
                     device_registry = DeviceRegistry(tenant, AIRQO_BASE_URL)
 
                     group_measurements = list(group.to_dict(orient="records"))
-                    for i in range(0, len(group_measurements), int(SIZE)):
-                        measurements_list = group_measurements[i:i + int(SIZE)]
+                    for i in range(0, len(group_measurements), int(REQUEST_BODY_SIZE)):
+                        measurements_list = group_measurements[i:i + int(REQUEST_BODY_SIZE)]
 
                         insertion_thread = threading.Thread(
                             target=device_registry.insert_events, args=(measurements_list,))
                         insertion_thread.start()
 
-                    sleep(10)
+                    sleep(int(SLEEP))
 
         except KeyboardInterrupt:
             break

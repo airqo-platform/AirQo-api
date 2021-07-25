@@ -1,0 +1,42 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-kcca-measurements-consumer
+  namespace: staging
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  selector:
+    matchLabels:
+      app: stage-kcca-measurements-consumer
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: stage-kcca-measurements-consumer
+    spec:
+      containers:
+        - name: stage-kcca-measurements-consumer
+          image: us.gcr.io/airqo-250220/stage-measurements-consumer:latest
+          imagePullPolicy: Always
+          env:
+            - name: SCHEMA_REGISTRY_URL
+              value: http://stage-schema-registry-svc:8081
+            - name: BOOTSTRAP_SERVERS
+              value: stage-kafka-cluster-kafka-bootstrap:9092
+            - name: TOPIC
+              value: airqo-streams-processed-device-measurements-topic
+            - name: AIRQO_BASE_URL
+              value: http://staging-platform.airqo.net/api/v1/
+            - name: CONSUMER_GROUP
+              value: kcca-measurements-consumer-group
+            - name: REQUEST_BODY_SIZE
+              value: 10
+            - name: CALIBRATE
+              value: true
+            - name: SLEEP
+              value: 0
