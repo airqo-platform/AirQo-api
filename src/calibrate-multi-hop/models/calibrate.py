@@ -1,18 +1,17 @@
 import numpy as np
 import pandas as pd
 import os
-from pymongo import MongoClient
+from config.config import connect_mongo
 from simple_calibration import simple as sp 
 from datetime import datetime,timedelta
-
-
 
 class Calibrate():
     """
         The class contains functionality for computing device calibrated values .
     """
-    def __init__(self):
+    def __init__(self, tenant):
         """ initialize """
+        self.tenant = tenant
 
         with open('models/encounters.p','rb') as pickle_file:
             encounters = pd.read_pickle(pickle_file)
@@ -58,6 +57,14 @@ class Calibrate():
             return None
 
         return preds[0]
+
+    def save_ratios(self, records):
+        """
+        """
+        tenant = self.tenant
+        db = connect_mongo(tenant)
+        results = db.calibration_ratios.insert_many(records)
+        return results
 
 if __name__ == "__main__":
     calibrateInstance = Calibrate()
