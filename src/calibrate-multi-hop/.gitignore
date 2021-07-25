@@ -1,10 +1,6 @@
 .env
 __pycache__/
 env/
-__init__test.py
-.gitkeep
 .vscode
 .DS_Store
-airqo-250220-5149c2aac8f2.json
-data/
 
