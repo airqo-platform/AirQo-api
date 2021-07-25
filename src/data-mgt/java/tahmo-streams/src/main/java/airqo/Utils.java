@@ -44,7 +44,7 @@ public class Utils {
         for(String envKey : systemKeys){
             if (System.getenv(envKey) != null){
                 String propKey = envKey.trim().toLowerCase();
-                props.setProperty(propKey, System.getenv(propKey));
+                props.setProperty(propKey, System.getenv(envKey));
             }
         }
 
