@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stage-kcca-measurements-consumer
+  name: stage-airqo-measurements-consumer
   namespace: staging
 spec:
   minReadySeconds: 10
   replicas: 1
   selector:
     matchLabels:
-      app: stage-kcca-measurements-consumer
+      app: stage-airqo-measurements-consumer
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -17,10 +17,10 @@ spec:
   template:
     metadata:
       labels:
-        app: stage-kcca-measurements-consumer
+        app: stage-airqo-measurements-consumer
     spec:
       containers:
-        - name: stage-kcca-measurements-consumer
+        - name: stage-airqo-measurements-consumer
           image: us.gcr.io/airqo-250220/stage-measurements-consumer:latest
           imagePullPolicy: Always
           env:
@@ -33,10 +33,10 @@ spec:
             - name: AIRQO_BASE_URL
               value: http://staging-platform.airqo.net/api/v1/
             - name: CONSUMER_GROUP
-              value: kcca-measurements-consumer-group
+              value: airqo-measurements-consumer-group-kl23-nd8dc-de321
             - name: REQUEST_BODY_SIZE
-              value: 10
+              value: "10"
             - name: CALIBRATE
-              value: true
+              value: "false"
             - name: SLEEP
-              value: 0
+              value: "0"
