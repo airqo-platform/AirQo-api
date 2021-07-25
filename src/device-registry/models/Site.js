@@ -19,6 +19,10 @@ const siteSchema = new Schema(
       unique: true,
       required: [true, "generated name is required!"],
     },
+    airqloud_id: {
+      type: ObjectId,
+      trim: true,
+    },
     formatted_name: {
       type: String,
       trim: true,

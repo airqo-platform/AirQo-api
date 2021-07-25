@@ -84,6 +84,7 @@ const defaultConfig = {
   LATITUDE_REGEX: /^(-?[1-8]?\d(?:\.\d{1,18})?|90(?:\.0{1,18})?)$/,
   LONGITUDE_REGEX: /^(-?(?:1[0-7]|[1-9])?\d(?:\.\d{1,18})?|180(?:\.0{1,18})?)$/,
   DEFAULT_LIMIT_FOR_QUERYING_SITES: 100,
+  DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS: 100,
   DEFAULT_EVENTS_LIMIT: 1000,
   EVENTS_CACHE_LIMIT: 1800,
   WHITE_SPACES_REGEX: /^\S*$/,
