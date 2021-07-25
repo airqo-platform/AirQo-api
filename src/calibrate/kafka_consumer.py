@@ -12,13 +12,6 @@ from datetime import datetime, timedelta
 
 load_dotenv()
 
-BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS")
-SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
-INPUT_TOPIC = os.getenv("INPUT_TOPIC")
-OUTPUT_TOPIC = os.getenv("OUTPUT_TOPIC")
-CONSUMER_GROUP = os.getenv("CONSUMER_GROUP")
-AUTO_COMMIT = os.getenv("AUTO_COMMIT")
-
 
 class KafkaClient:
 
@@ -27,22 +20,24 @@ class KafkaClient:
     next_initialization = None
 
     def __init__(self):
+        self.bootstrap_servers = [os.getenv("BOOTSTRAP_SERVERS")]
+        self.input_topic = os.getenv("INPUT_TOPIC")
+        self.output_topic = os.getenv("OUTPUT_TOPIC")
+        self.consumer_group = os.getenv("CONSUMER_GROUP")
+        self.schema_registry_url = os.getenv("SCHEMA_REGISTRY_URL")
+        self.auto_commit = True if f"{os.getenv('AUTO_COMMIT', False)}".strip().lower() == "true" else False
+        self.reload_interval = os.getenv("RELOAD_INTERVAL", 1)
+
         self.registry_client = SchemaRegistry(
-            SCHEMA_REGISTRY_URL,
+            self.schema_registry_url,
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
         )
-        self.bootstrap_servers = [BOOTSTRAP_SERVERS]
-        self.input_topic = INPUT_TOPIC
-        self.output_topic = OUTPUT_TOPIC
-        self.consumer_group = CONSUMER_GROUP
-        self.auto_commit = True if f"{AUTO_COMMIT}".strip().lower() == "true" else False
-
         self.reload()
 
     def reload(self):
         self.rg_model = regression.Regression()
         self.hourly_combined_dataset = self.rg_model.hourly_combined_dataset
-        self.next_initialization = datetime.now() + timedelta(hours=1)
+        self.next_initialization = datetime.now() + timedelta(hours=int(self.reload_interval))
 
     def produce_measurements(self, measurements):
         avro_serde = AvroKeyValueSerde(self.registry_client, self.output_topic)
