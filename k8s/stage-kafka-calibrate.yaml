@@ -1,0 +1,46 @@
+###########################################################
+# Start deployment of calibrate kafka connection - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-airqo-kafka-calibrate
+  namespace: staging
+spec:
+  minReadySeconds: 10
+  replicas: 2
+  selector:
+    matchLabels:
+      app: stage-airqo-kafka-calibrate
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: stage-airqo-kafka-calibrate
+    spec:
+      containers:
+      - name: stage-airqo-kafka-calibrate
+        image: us.gcr.io/airqo-250220/stage-kafka-calibrate:latest
+        imagePullPolicy: Always
+        env:
+        - name: SCHEMA_REGISTRY_URL
+          value: http://stage-schema-registry-svc:8081
+        - name: BOOTSTRAP_SERVERS
+          value: stage-kafka-cluster-kafka-bootstrap:9092
+        - name: INPUT_TOPIC
+          value: airqo-streams-processed-device-measurements-topic
+        - name: OUTPUT_TOPIC
+          value: airqo-streams-calibrated-device-measurements-topic
+        - name: AIRQO_BASE_URL
+          value: http://staging-platform.airqo.net/api/v1/
+        - name: CONSUMER_GROUP
+          value: calibrate-measurements-group-kl23-nd8dc-de321
+        - name: RELOAD_INTERVAL
+          value: "1"
+        - name: AUTO_COMMIT
+          value: "false"
+        resources: {}
