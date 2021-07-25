@@ -36,7 +36,6 @@ spec:
         - name: STRIMZI_IMAGE_PULL_POLICY
           value: Always
 
-
 ---
 kind: ConfigMap
 apiVersion: v1

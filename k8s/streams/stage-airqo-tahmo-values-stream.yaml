@@ -1,15 +1,15 @@
 ###########################################################
-# Start deployment of AirQo raw device measurements streams application - Staging
+# Start deployment of AirQo tahmo values streams application - Staging
 ###########################################################
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: stage-airqo-raw-measurements-stream
+  name: stage-airqo-tahmo-values-stream
   namespace: staging
 spec:
   selector:
     matchLabels:
-      app: stage-airqo-raw-measurements-stream
+      app: stage-airqo-tahmo-values-stream
   replicas: 1
   minReadySeconds: 10
   strategy:
@@ -20,11 +20,11 @@ spec:
   template:
     metadata:
       labels:
-        app: stage-airqo-raw-measurements-stream
+        app: stage-airqo-tahmo-values-stream
     spec:
       containers:
-        - name: stage-airqo-raw-measurements-stream
-          image: us.gcr.io/airqo-250220/stage-raw-device-measurements-stream:latest
+        - name: stage-airqo-tahmo-values-stream
+          image: us.gcr.io/airqo-250220/stage-tahmo-values-stream:latest
           imagePullPolicy: Always
           resources:
             limits:
@@ -35,13 +35,13 @@ spec:
               cpu: "0.2"
           env:
             - name: INPUT.TOPIC
-              value: airqo-streams-raw-device-measurements-topic
-            - name: OUTPUT.TOPIC
               value: airqo-streams-transformed-device-measurements-topic
+            - name: OUTPUT.TOPIC
+              value: airqo-streams-processed-device-measurements-topic
             - name: TENANT
               value: airqo
             - name: APPLICATION.ID
-              value: airqo-measurements-stream-3d508ddb-5b9f-493a-b96a-9a3c62dc030f
+              value: airqo-tahmo-values-stream-3d50-8ddb-5b9f-493a
             - name: BOOTSTRAP.SERVERS
               value: stage-kafka-cluster-kafka-bootstrap:9092
             - name: SCHEMA.REGISTRY.URL
@@ -50,3 +50,5 @@ spec:
               value: https://staging-platform.airqo.net/api/v1/
             - name: NUM.STREAM.THREADS
               value: "1"
+            - name: TAHMO.BASE.URL
+              value: https://datahub.tahmo.org/

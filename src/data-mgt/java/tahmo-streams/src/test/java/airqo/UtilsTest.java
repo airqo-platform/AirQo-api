@@ -15,7 +15,6 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 import static airqo.Utils.*;
 
@@ -44,7 +43,7 @@ public class UtilsTest {
         List<Device> devices = getDevices(properties.getProperty("airqo.base.url"), "airqo");
 
         devices.forEach(device -> {
-            String url = "http://34.78.78.202:31001/api/v1/data/feeds/transform/recent?channel=" + device.getDevice_number();
+            String url = properties.getProperty("airqo.base.url") + "data/feeds/transform/recent?channel=" + device.getDevice_number();
             getMeasurements(url, device.getName(), device.getDevice_number());
         });
     }

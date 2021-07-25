@@ -397,26 +397,12 @@ public class Utils {
 
         Set<String> systemKeys = System.getenv().keySet();
 
-        systemKeys.forEach(k -> {
-            String propKey = k.trim().toLowerCase();
-            props.setProperty(propKey, System.getenv(propKey));
-        });
-
-        return props;
-    }
-
-    public static Properties loadEnvProperties(List<String> keys){
-
-        Properties props = new Properties();
-        Set<String> systemKeys = System.getenv().keySet();
-
-        keys.forEach(k -> {
-            String envKey = k.trim().toUpperCase();
-            if(systemKeys.contains(envKey)){
-                String propKey = k.trim().toLowerCase();
-                props.setProperty(propKey, System.getenv(envKey));
+        for(String envKey : systemKeys){
+            if (System.getenv(envKey) != null){
+                String propKey = envKey.trim().toLowerCase();
+                props.setProperty(propKey, System.getenv(propKey));
             }
-        });
+        }
 
         return props;
     }

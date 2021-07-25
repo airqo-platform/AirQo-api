@@ -29,7 +29,7 @@ public class ConnectorSourceTask extends SourceTask {
     private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private String topic;
-    private String apiUrl;
+    private String airqoBaseUrl;
     private Long interval;
     private int batchSize;
     private int minimumHours;
@@ -52,10 +52,10 @@ public class ConnectorSourceTask extends SourceTask {
     private void setupTaskConfig(Map<String, String> props) {
 
         topic = props.get(AirqoConnectorConfig.TOPIC_CONFIG);
-        apiUrl = props.get(AirqoConnectorConfig.API_BASE_URL);
-        batchSize = Integer.parseInt(props.get(AirqoConnectorConfig.BATCH_SIZE));
-        interval = Long.parseLong(props.get(AirqoConnectorConfig.POLL_INTERVAL));
-        minimumHours = -(Integer.parseInt(props.get(AirqoConnectorConfig.MINIMUM_HOURS)));
+        airqoBaseUrl = props.get(AirqoConnectorConfig.AIRQO_BASE_URL);
+        batchSize = Integer.parseInt(props.get(AirqoConnectorConfig.BATCH_SIZE_CONFIG));
+        interval = Long.parseLong(props.get(AirqoConnectorConfig.POLL_INTERVAL_CONFIG));
+        minimumHours = -(Integer.parseInt(props.get(AirqoConnectorConfig.MINIMUM_HOURS_CONFIG)));
         simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
 
@@ -69,7 +69,7 @@ public class ConnectorSourceTask extends SourceTask {
 
             if(devices.isEmpty() || (System.currentTimeMillis() > (lastDevicesFetch + DEVICES_FETCH_INTERVAL))) {
                 lastDevicesFetch = System.currentTimeMillis();
-                devices = getDevices(apiUrl);
+                devices = getDevices(airqoBaseUrl);
             }
 
             List<RawMeasurement> measurementList = new ArrayList<>();
@@ -77,7 +77,7 @@ public class ConnectorSourceTask extends SourceTask {
             devices.forEach(airqoDevice -> {
 
                 if(!airqoDevice.getSite().get_id().trim().equals("")){
-                    String urlString = apiUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
+                    String urlString = airqoBaseUrl + "data/feeds/transform/recent?channel=" + airqoDevice.getDeviceNumber();
 
                     RawMeasurement measurements = getMeasurements(urlString);
 
@@ -97,7 +97,7 @@ public class ConnectorSourceTask extends SourceTask {
                                 measurementList.add(measurements);
                             }
 
-                        } catch (ParseException e) {
+                        } catch (Exception e) {
                             e.printStackTrace();
                         }
                     }
@@ -139,7 +139,7 @@ public class ConnectorSourceTask extends SourceTask {
 
     private Map<String, String> buildSourcePartition() {
         Map<String, String> sourcePartition = new HashMap<>();
-        sourcePartition.put(AIRQO_URL, apiUrl);
+        sourcePartition.put(AIRQO_URL, airqoBaseUrl);
         return sourcePartition;
 
     }

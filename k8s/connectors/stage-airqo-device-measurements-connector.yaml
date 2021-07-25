@@ -6,15 +6,16 @@ metadata:
   labels:
     strimzi.io/cluster: airqo-source-connector-cluster
 spec:
-  class: net.airqo.connectors.AirqoSourceConnector
+  class: airqo.AirqoSourceConnector
   tasksMax: 2
   config:
     topic: airqo-streams-raw-device-measurements-topic
     airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
-    pollInterval: 30000 # 30 seconds
+    pollInterval: 300000
     batchSize: 10
     minimumHours: 24
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
     value.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter.schemas.enable: false
+

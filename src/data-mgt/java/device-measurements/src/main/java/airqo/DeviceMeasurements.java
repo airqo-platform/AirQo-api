@@ -25,18 +25,7 @@ public class DeviceMeasurements {
 
     static Properties getStreamsConfig(String propertiesFile) {
 
-//        List<String> propKeys = new ArrayList<>();
-//        propKeys.add("bootstrap.servers");
-//        propKeys.add("input.topic");
-//        propKeys.add("tenant");
-//        propKeys.add("output.topic");
-//        propKeys.add("schema.registry.url");
-//        propKeys.add("application.id");
-
         final Properties properties = Utils.loadEnvProperties(propertiesFile);
-//        final Properties envProperties = Utils.loadEnvProperties(propKeys);
-//
-//        envProperties.forEach(properties::replace);
 
         try {
 

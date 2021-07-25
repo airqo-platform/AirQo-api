@@ -24,23 +24,17 @@ public class DeviceMeasurements {
 
     static Properties getStreamsConfig(String propertiesFile) {
 
-//        List<String> propKeys = new ArrayList<>();
-//        propKeys.add("bootstrap.servers");
-//        propKeys.add("input.topic");
-//        propKeys.add("tenant");
-//        propKeys.add("output.topic");
-//        propKeys.add("schema.registry.url");
-//        propKeys.add("application.id");
-
         final Properties properties = Utils.loadEnvProperties(propertiesFile);
-//        final Properties envProperties = Utils.loadEnvProperties(propKeys);
-//        envProperties.forEach(properties::replace);
 
         try {
 
             if(!properties.containsKey("bootstrap.servers") ||
                     !properties.containsKey("input.topic") ||
                     !properties.containsKey("tenant") ||
+                    !properties.containsKey("tahmo.password") ||
+                    !properties.containsKey("tahmo.base.url") ||
+                    !properties.containsKey("tahmo.user") ||
+                    !properties.containsKey("airqo.base.url") ||
                     !properties.containsKey("output.topic") ||
                     !properties.containsKey(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG) ||
                     !properties.containsKey("application.id"))
@@ -69,7 +63,6 @@ public class DeviceMeasurements {
 
         final KStream<String, TransformedDeviceMeasurements> source = builder
                 .stream(props.getProperty("input.topic"), Consumed.with(Serdes.String(), measurementsSerde));
-
 
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
                 .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
