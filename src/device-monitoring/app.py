@@ -4,6 +4,7 @@ import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from config import constants
+from helpers.pre_request import PreRequest
 
 
 _logger = logging.getLogger(__name__)
@@ -34,6 +35,12 @@ def create_app(environment):
 
 
 app = create_app(os.getenv("FLASK_ENV"))
+
+
+@app.before_request
+def check_tenant_param():
+    return PreRequest.check_tenant()
+
 
 if __name__ == '__main__':
     app.run()
