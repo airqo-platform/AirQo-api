@@ -18,6 +18,9 @@ const {
   missingQueryParams,
   callbackErrors,
   missingOrInvalidValues,
+  badRequest,
+  logger_v2,
+  errorCodes,
 } = require("../utils/errors");
 
 const generateFilter = require("../utils/generate-filter");
@@ -25,6 +28,9 @@ const generateFilter = require("../utils/generate-filter");
 const createSiteUtil = require("../utils/create-site");
 
 const { getModelByTenant } = require("../utils/multitenancy");
+
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-site-util");
 
 const manageSite = {
   register: async (req, res) => {
@@ -61,6 +67,48 @@ const manageSite = {
         }
       }
     } catch (error) {
+      tryCatchErrors(res, error, "manageSite controller");
+    }
+  },
+
+  generateMetadata: async (req, res) => {
+    logText("registering site.............");
+    try {
+      const result = validationResult(req);
+      const hasErrors = !result.isEmpty();
+      if (hasErrors) {
+        return missingOrInvalidValues(res);
+      }
+      const { tenant } = req.query;
+      let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
+        tenant,
+        req
+      );
+      logObject(
+        "responseFromGenerateMetadata in controller",
+        responseFromGenerateMetadata
+      );
+
+      if (responseFromGenerateMetadata.success === true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromGenerateMetadata.message,
+          metadata: responseFromGenerateMetadata.data,
+        });
+      }
+
+      if (responseFromGenerateMetadata.success === false) {
+        let error = responseFromGenerateMetadata.error
+          ? responseFromGenerateMetadata.error
+          : "";
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromGenerateMetadata.message,
+          error,
+        });
+      }
+    } catch (error) {
+      logger.error(`server side error -- ${error.message}`);
       tryCatchErrors(res, error, "manageSite controller");
     }
   },
@@ -106,10 +154,10 @@ const manageSite = {
   update: async (req, res) => {
     try {
       logText("updating site................");
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingQueryParams(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       const { tenant } = req.query;
       let filter = generateFilter.sites(req);
@@ -146,6 +194,45 @@ const manageSite = {
     }
   },
 
+  refresh: async (req, res) => {
+    try {
+      logText("refreshing site details................");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      const { tenant } = req.query;
+      let filter = generateFilter.sites(req);
+      logObject("responseFromFilter", filter);
+      let update = req.body;
+      let responseFromRefreshSite = await createSiteUtil.refresh(tenant, req);
+      logObject("responseFromRefreshSite", responseFromRefreshSite);
+      if (responseFromRefreshSite.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromRefreshSite.message,
+          site: responseFromRefreshSite.data,
+        });
+      } else if (responseFromRefreshSite.success == false) {
+        if (responseFromRefreshSite.error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromRefreshSite.message,
+            error: responseFromRefreshSite.error,
+          });
+        } else {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromRefreshSite.message,
+          });
+        }
+      }
+    } catch (error) {
+      tryCatchErrors(res, error, "manageSite controller");
+    }
+  },
+
   findNearestSite: async (req, res) => {
     try {
     } catch (e) {
@@ -173,14 +260,17 @@ const manageSite = {
         limit,
         skip,
       });
-      logObject("responseFromListSites", responseFromListSites);
-      if (responseFromListSites.success == true) {
+      logElement(
+        "has the response for listing sites been successful?",
+        responseFromListSites.success
+      );
+      if (responseFromListSites.success === true) {
         res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromListSites.message,
           sites: responseFromListSites.data,
         });
-      } else if (responseFromListSites.success == false) {
+      } else if (responseFromListSites.success === false) {
         if (responseFromListSites.error) {
           res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,

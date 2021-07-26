@@ -68,6 +68,23 @@ const badRequest = (res, message, errors) => {
   res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message, errors });
 };
 
+const utillErrors = {
+  tryCatchErrors: (error, message) => {
+    return {
+      success: false,
+      message: `util server error -- ${message}`,
+      error: error.message,
+    };
+  },
+  badRequest: (message, errors) => {
+    return { success: false, message, errors };
+  },
+};
+
+let errorCodes = {
+  serverErrors: [500, 501, 502, 503, 504],
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
@@ -77,4 +94,6 @@ module.exports = {
   unclearError,
   invalidParamsValue,
   badRequest,
+  errorCodes,
+  utillErrors,
 };

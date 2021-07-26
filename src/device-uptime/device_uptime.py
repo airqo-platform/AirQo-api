@@ -28,7 +28,7 @@ def get_device_records(tenant, channel_id, device_name, mobility):
         "channel_id": channel_id,
         "uptime": uptime,
         "downtime": downtime,
-        "created_at": created_at.isoformat()
+        "created_at": created_at
     }
 
     return record
@@ -42,9 +42,9 @@ def save_device_uptime(tenant):
     executor = ThreadPoolExecutor()
 
     for device in devices:
-        channel_id = device.get("channelID")
-        mobility = device.get("mobility")
-        device_name = device.get("name")
+        channel_id = device["device_number"]
+        mobility = device["mobility"]
+        device_name = device["name"]
         if not (channel_id and device_name):
             print("this device could not be processed", device_name)
             continue
@@ -85,7 +85,7 @@ def save_device_uptime(tenant):
     network_uptime_record = {
         "network_name": tenant,
         "uptime": network_uptime,
-        "created_at": created_at.isoformat()
+        "created_at": created_at
     }
 
     print("network uptime", network_uptime_record)
