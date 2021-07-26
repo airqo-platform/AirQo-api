@@ -1,0 +1,4 @@
+confluent-kafka[avro]
+requests
+pandas
+python-dotenv

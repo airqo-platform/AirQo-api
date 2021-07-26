@@ -10,6 +10,8 @@ import pandas as pd
 from google.cloud import bigquery
 import traceback
 
+from date import str_to_date
+
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 CALIBRATE_URL = os.getenv("CALIBRATE_URL")
 START_DATE_TIME = os.getenv("START_DATE_TIME")
@@ -72,10 +74,6 @@ def check_float(string):
         return value
     except Exception:
         return None
-
-
-def str_to_date(string):
-    return datetime.strptime(string, '%Y-%m-%dT%H:%M:%SZ').isoformat()
 
 
 class GetDeviceMeasurements(luigi.Task):
