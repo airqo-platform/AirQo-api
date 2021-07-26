@@ -3,7 +3,7 @@ import logging
 from helpers import convert_dates
 from helpers.convert_object_ids import convert_model_ids
 from helpers.group_by import group_by
-from models import device_status
+from models import DeviceStatus
 import routes
 
 _logger = logging.getLogger(__name__)
@@ -13,10 +13,10 @@ device_status_bp = Blueprint('device_status', __name__)
 
 @device_status_bp.route(routes.DEVICE_STATUS, methods=['GET'])
 def get_device_status():
-    model = device_status.DeviceStatus()
     tenant = request.args.get('tenant')
 
-    documents = model.get_device_status(tenant)
+    model = DeviceStatus(tenant)
+    documents = model.get_device_status()
     converted_documents = convert_model_ids(documents)
 
     response = dict(message="devices status query successful", data=converted_documents)
