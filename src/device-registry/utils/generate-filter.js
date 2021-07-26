@@ -119,78 +119,48 @@ const generateFilter = {
   },
 
   events_v2: (request) => {
-    const { device, frequency, startTime, endTime } = request.query;
-    let oneMonthBack = monthsInfront(-1);
-    let oneMonthInfront = monthsInfront(1);
-    let today = monthsInfront(0);
-    let oneWeekBack = addDays(-7);
-    let oneWeekInfront = addDays(7);
-    let filter = {
-      day: {
-        $gte: generateDateFormatWithoutHrs(oneWeekBack),
-        $lte: generateDateFormatWithoutHrs(today),
-      },
-      "values.time": { $gte: oneWeekBack, $lte: today },
-      "values.device": {},
-    };
+    try {
+      const { device, frequency, startTime, endTime, id } = request.query;
+      let oneMonthBack = monthsInfront(-1);
+      let oneMonthInfront = monthsInfront(1);
+      let today = monthsInfront(0);
+      let oneWeekBack = addDays(-7);
+      let oneWeekInfront = addDays(7);
+      let filter = {
+        "values.time": { $gte: oneWeekBack, $lte: today },
+        device_id: {},
+      };
 
-    if (startTime) {
-      if (isTimeEmpty(startTime) == false) {
-        let start = new Date(startTime);
-        filter["values.time"]["$gte"] = start;
-      } else {
-        delete filter["values.time"];
+      if (startTime) {
+        if (isTimeEmpty(startTime) == false) {
+          let start = new Date(startTime);
+          filter["values.time"]["$gte"] = start;
+        } else {
+          delete filter["values.time"];
+        }
       }
-      filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
-    }
 
-    if (endTime) {
-      if (isTimeEmpty(endTime) == false) {
-        let end = new Date(endTime);
-        filter["values.time"]["$lte"] = end;
-      } else {
-        delete filter["values.time"];
+      if (endTime) {
+        if (isTimeEmpty(endTime) == false) {
+          let end = new Date(endTime);
+          filter["values.time"]["$lte"] = end;
+        } else {
+          delete filter["values.time"];
+        }
       }
-      filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
-    }
 
-    if (startTime && !endTime) {
-      if (isTimeEmpty(startTime) == false) {
-        filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
-          startTime,
-          1
-        );
-      } else {
-        delete filter["values.time"];
+      if (startTime && !endTime) {
+        if (isTimeEmpty(startTime) == false) {
+          filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
+            startTime,
+            1
+          );
+        } else {
+          delete filter["values.time"];
+        }
       }
-      let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
-        startTime,
-        1
-      );
-      filter["day"]["$lte"] = generateDateFormatWithoutHrs(
-        addedOneMonthToProvidedDateTime
-      );
-    }
 
-    if (!startTime && endTime) {
-      if (isTimeEmpty(endTime) == false) {
-        filter["values.time"]["$gte"] = addMonthsToProvideDateTime(endTime, -1);
-      } else {
-        delete filter["values.time"];
-      }
-      let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
-        endTime,
-        -1
-      );
-      filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-        removedOneMonthFromProvidedDateTime
-      );
-    }
-
-    if (startTime && endTime) {
-      let months = getDifferenceInMonths(startTime, endTime);
-      logElement("the number of months", months);
-      if (months > 1) {
+      if (!startTime && endTime) {
         if (isTimeEmpty(endTime) == false) {
           filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
             endTime,
@@ -199,30 +169,54 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
-        let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
-          endTime,
-          -1
-        );
-        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
-          removedOneMonthFromProvidedDateTime
-        );
       }
-    }
 
-    if (device) {
-      let deviceArray = device.split(",");
-      filter["values.device"]["$in"] = deviceArray;
-    }
+      if (startTime && endTime) {
+        let months = getDifferenceInMonths(startTime, endTime);
+        logElement("the number of months", months);
+        if (months > 1) {
+          if (isTimeEmpty(endTime) == false) {
+            filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
+              endTime,
+              -1
+            );
+          } else {
+            delete filter["values.time"];
+          }
+          let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+            endTime,
+            -1
+          );
+          filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+            removedOneMonthFromProvidedDateTime
+          );
+        }
+      }
 
-    if (!device) {
-      delete filter["values.device"];
-    }
+      if (device) {
+        filter["device_id"] = ObjectId(device);
+      }
 
-    if (frequency) {
-      filter["values.frequency"] = frequency;
-    }
+      if (!device) {
+        delete filter["device_id"];
+      }
 
-    return filter;
+      if (frequency) {
+        filter["frequency"] = frequency;
+      }
+
+      return {
+        success: true,
+        data: filter,
+        message: "filter successfully generated",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to generate the filter",
+        error: error.message,
+      };
+    }
   },
 
   generateRegexExpressionFromStringElement: (element) => {

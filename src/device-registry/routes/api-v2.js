@@ -18,6 +18,7 @@ const ObjectId = mongoose.Types.ObjectId;
 middlewareConfig(router);
 
 /******************* create device use-case ***************************/
+/*** decrypt read and write keys */
 router.post(
   "/decrypt",
   oneOf([
@@ -960,14 +961,52 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body("latitude").exists(),
-      body("longitude").exists(),
-      body("latitude").matches(constants.LATITUDE_REGEX, "i"),
-      body("longitude").matches(constants.LONGITUDE_REGEX, "i"),
+      body("latitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid"),
+      body("longitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude provided is not valid"),
     ],
   ]),
   siteController.register
 );
+
+router.post(
+  "/sites/metadata",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+      body("latitude")
+        .exists()
+        .withMessage("the latitude should be provided")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid"),
+      body("longitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude should be provided"),
+    ],
+  ]),
+  siteController.generateMetadata
+);
+
 router.put(
   "/sites",
   oneOf([
@@ -979,12 +1018,82 @@ router.put(
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
-    check("id").exists(),
-    check("lat_long").exists(),
-    check("generated_name").exists(),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_log")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
   ]),
   siteController.update
 );
+router.put(
+  "/sites/refresh",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_log")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  siteController.refresh
+);
+
 router.delete(
   "/sites",
   query("tenant")
@@ -1039,6 +1148,13 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("*.is_device_primary")
+        .exists()
+        .trim()
+        .withMessage("is_device_primary is missing")
+        .bail()
+        .isBoolean()
+        .withMessage("is_device_primary should be Boolean"),
       body("*.site_id")
         .exists()
         .trim()
@@ -1068,6 +1184,13 @@ router.post(
         .withMessage(
           "the frequency value is not among the expected ones which include: raw, hourly and daily"
         ),
+      body("*.is_test_data")
+        .exists()
+        .trim()
+        .withMessage("is_test_data is missing")
+        .bail()
+        .isBoolean()
+        .withMessage("is_test_data should be boolean"),
       body("*.device")
         .if(body("*.device").exists())
         .notEmpty()
@@ -1082,6 +1205,7 @@ router.post(
   ]),
   eventController.addValues
 );
+
 router.get(
   "/events",
   oneOf([
@@ -1094,7 +1218,71 @@ router.get(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
-  eventController.getValues
+  oneOf([
+    [
+      query("startTime")
+        .if(query("startTime").exists())
+        .notEmpty()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("startTime must be a valid datetime."),
+      query("endTime")
+        .if(query("endTime").exists())
+        .notEmpty()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("endTime must be a valid datetime."),
+      query("frequency")
+        .if(query("frequency").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["hourly", "daily", "raw"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: hourly, daily and raw"
+        ),
+      query("device")
+        .if(query("device").exists())
+        .notEmpty()
+        .trim(),
+
+      query("device_number")
+        .if(query("device_number").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .toInt()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      query("site")
+        .if(query("site").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the site must be a valid object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("primary")
+        .if(query("primary").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+      query("test")
+        .if(query("test").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+    ],
+  ]),
+  eventController.viewEvents
 );
 router.post("/events/transmit", eventController.transmitValues);
 /*clear events*/

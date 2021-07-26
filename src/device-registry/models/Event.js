@@ -9,6 +9,7 @@ const uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("../config/constants");
+const { isElement, isEmpty } = require("underscore");
 
 const valueSchema = new Schema({
   time: {
@@ -337,45 +338,147 @@ eventSchema.statics = {
       .limit(limitInt)
       .allowDiskUse(true);
   },
-  listAverage({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    logObject("the filter", filter);
-    return this.aggregate()
-      .match(filter)
-      .lookup({
-        from: "devices",
-        localField: "device_id",
-        foreignField: "_id",
-        as: "deviceDetails",
-      })
-      .unwind("values")
-      .replaceRoot("values")
-      .sort({ time: -1 })
-      .group({
-        _id: { $dateToString: { format: "%Y-%m-%d", date: "$time" } },
-        avg_pm2_5: { $avg: "$pm2_5" },
-        avg_s2_pm2_5: { $avg: "$s2_pm2_5" },
-        avg_pm10: { $avg: "$pm10" },
-        avg_s2_pm10: { $avg: "$s2_pm10" },
-        frequency: "$frequency",
-        is_test_data: "$is_test_data",
-        avg_battery: { $avg: "$battery" },
-        avg_location: { $avg: "$location" },
-        avg_altitude: { $avg: "$altitude" },
-        avg_speed: { $avg: "$speed" },
-        avg_satellites: { $avg: "$satellites" },
-        avg_hdop: { $avg: "$hdop" },
-        avg_internalTemperature: { $avg: "$internalTemperature" },
-        avg_externalTemperature: { $avg: "$externalTemperature" },
-        avg_internalHumidity: { $avg: "$internalHumidity" },
-        avg_externalHumidity: { $avg: "$externalHumidity" },
-        avg_externalAltitude: { $avg: "$externalAltitude" },
-        avg_pm1: { $avg: "$pm1" },
-        avg_no2: { $avg: "$no2" },
-        deviceDetails: { $avg: { $arrayElemAt: ["$deviceDetails", 0] } },
-      })
-      .skip(skipInt)
-      .limit(limitInt)
-      .allowDiskUse(true);
+  async view({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
+    try {
+      logObject("the filter", filter);
+      logElement("filter.frequency", filter.frequency);
+      let frequency = filter.frequency;
+      let device_id = filter.device_id;
+      let site_id = filter.site_id;
+      let groupOperator = "$avg";
+      let search = filter;
+      let groupId = {};
+      if (frequency === "hourly") {
+        groupId = { $dateToString: { format: "%Y-%m-%d-%H", date: "$time" } };
+        delete search["frequency"];
+      }
+
+      if (frequency === "daily") {
+        groupId = { $dateToString: { format: "%Y-%m-%d", date: "$time" } };
+        delete search["frequency"];
+      }
+
+      if (frequency === "raw") {
+        groupId = {
+          $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$time" },
+        };
+        groupOperator = "$first";
+        delete search["frequency"];
+      }
+
+      if (isEmpty(frequency)) {
+        groupId = {
+          $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$time" },
+        };
+        groupOperator = "$first";
+        delete search["frequency"];
+      }
+
+      logElement("the groupId to be used", groupId);
+      logElement("the [groupOperator] to be used", [groupOperator]);
+      logObject("the justing", { [groupOperator]: "$pm2_5.value" });
+      let result = await this.aggregate()
+        .match(search)
+        .lookup({
+          from: "devices",
+          localField: "device_id",
+          foreignField: "_id",
+          as: "deviceDetails",
+        })
+        .unwind("values")
+        .replaceRoot("values")
+        .sort({ time: -1 })
+        .group({
+          _id: groupId,
+          time: { $first: groupId },
+          device_id: { $first: device_id },
+          site_id: { $first: site_id },
+          "pm2_5-value": { [groupOperator]: "$pm2_5.value" },
+          "pm2_5-calibrationValue": {
+            [groupOperator]: "$pm2_5.calibrationValue",
+          },
+          "pm2_5-standardDeviationValue": {
+            [groupOperator]: "$pm2_5.standardDeviationValue",
+          },
+
+          "pm10-value": { [groupOperator]: "$pm10.value" },
+          "pm10-calibrationValue": {
+            [groupOperator]: "$pm10.calibrationValue",
+          },
+          "pm10-standardDeviationValue": {
+            [groupOperator]: "$pm10.standardDeviationValue",
+          },
+
+          location: { $first: "$location" },
+          is_test_data: { $first: "$is_test_data" },
+          "s2_pm10-value": { [groupOperator]: "$s2_pm10.value" },
+          "s2_pm10-calibrationValue": {
+            [groupOperator]: "$s2_pm10.calibrationValue",
+          },
+          "s2_pm10-standardDeviationValue": {
+            [groupOperator]: "$s2_pm10.standardDeviationValue",
+          },
+
+          "battery-value": { [groupOperator]: "$battery.value" },
+          "altitude-value": { [groupOperator]: "$altitude.value" },
+          "speed-value": { [groupOperator]: "$speed.value" },
+          "satellites-value": { [groupOperator]: "$satellites.value" },
+          "hdop-value": { [groupOperator]: "$hdop.value" },
+          "internalTemperature-value": {
+            [groupOperator]: "$internalTemperature.value",
+          },
+          "externalTemperature-value": {
+            [groupOperator]: "$externalTemperature.value",
+          },
+          "internalHumidity-value": {
+            [groupOperator]: "$internalHumidity.value",
+          },
+          "externalHumidity-value": {
+            [groupOperator]: "$externalHumidity.value",
+          },
+          "externalAltitude-value": {
+            [groupOperator]: "$externalAltitude.value",
+          },
+
+          "pm1-value": { [groupOperator]: "$pm1.value" },
+          "pm1-calibrationValue": { [groupOperator]: "$pm1.calibrationValue" },
+          "pm1-standardDeviationValue": {
+            [groupOperator]: "$pm1.standardDeviationValue",
+          },
+
+          "no2-value": { [groupOperator]: "$no2.value" },
+          "no2-calibrationValue": { [groupOperator]: "$no2.calibrationValue" },
+          "no2-standardDeviationValue": {
+            [groupOperator]: "$no2.standardDeviationValue",
+          },
+          deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
+        })
+        .project({
+          _id: 0,
+        })
+        .skip(skipInt)
+        .limit(limitInt)
+        .allowDiskUse(true);
+      if (result) {
+        return {
+          success: true,
+          message: "successfully fetched the measurements",
+          data: result,
+        };
+      } else {
+        return {
+          success: true,
+          message: "no measurements exist for this search",
+          data: result,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "model server error",
+        error: error.message,
+      };
+    }
   },
 };
 

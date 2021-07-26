@@ -1217,6 +1217,70 @@ router.get(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      query("startTime")
+        .if(query("startTime").exists())
+        .notEmpty()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("startTime must be a valid datetime."),
+      query("endTime")
+        .if(query("endTime").exists())
+        .notEmpty()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("endTime must be a valid datetime."),
+      query("frequency")
+        .if(query("frequency").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["hourly", "daily", "raw"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: hourly, daily and raw"
+        ),
+      query("device")
+        .if(query("device").exists())
+        .notEmpty()
+        .trim(),
+
+      query("device_number")
+        .if(query("device_number").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .toInt()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      query("site")
+        .if(query("site").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the site must be a valid object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("primary")
+        .if(query("primary").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+      query("test")
+        .if(query("test").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage("valid values include: YES and NO"),
+    ],
+  ]),
   eventController.getValues
 );
 router.post("/events/transmit", eventController.transmitValues);

@@ -77,6 +77,66 @@ const createEvent = {
       });
     }
   },
+  viewEvents: async (req, res) => {
+    try {
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+      // return res.status(HTTPStatus.OK).json({
+      //   success: true,
+      //   message: "we be testing viewing events",
+      // });
+      logger.info(`viewing events...`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+
+      let responseFromEventsUtil = await createEventUtil.viewEvents(req);
+      logObject("responseFromEventsUtil", responseFromEventsUtil);
+      logger.info(
+        `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
+      );
+      if (responseFromEventsUtil.success === true) {
+        res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromEventsUtil.message,
+          measurements: responseFromEventsUtil.data,
+        });
+      }
+
+      if (responseFromEventsUtil.success === false) {
+        let error = responseFromEventsUtil.error
+          ? responseFromEventsUtil.error
+          : "";
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromEventsUtil.message,
+          error,
+        });
+      }
+    } catch (error) {
+      logger.error(`viewEvents -- ${error.message}`);
+      res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server error",
+        error: error.message,
+      });
+    }
+  },
   getValues: (req, res) => {
     try {
       const {

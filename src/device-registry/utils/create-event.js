@@ -1,6 +1,5 @@
 const eventSchema = require("../models/Event");
 const { getModelByTenant } = require("./multitenancy");
-const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
@@ -9,14 +8,14 @@ const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
 const { generateDateFormatWithoutHrs } = require("./date");
-const jsonify = require("../utils/jsonify");
 const { transform } = require("node-json-transform");
-const dot = require("dot-object");
+const Dot = require("Dot-object");
 const cleanDeep = require("clean-deep");
 
 const createEvent = {
   transformOneEvent: ({ data = {}, map = {}, context = {} } = {}) => {
     try {
+      let dot = new Dot(".");
       let modifiedFilter = {};
       const result = transform(data, map, context);
       logObject("the event", result);
@@ -213,6 +212,7 @@ const createEvent = {
       let value = {};
       let update = {};
       let modifiedFilter = {};
+      let dot = new Dot(".");
       logObject("the transformed events received", events);
       for (const event of events) {
         logObject("the event in events", event);
@@ -243,7 +243,7 @@ const createEvent = {
 
           logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
 
-          dot.delete("nValues", filter);
+          Dot.delete("nValues", filter);
           if (!isEmpty(addedEvents)) {
             logger.info(`successfuly added the event`);
             let insertion = {
@@ -301,16 +301,19 @@ const createEvent = {
       };
     }
   },
-  getEvents: async (request) => {
+  viewEvents: async (request) => {
     let { tenant } = request.query;
+    const dot = new Dot("-");
+    const limit = parseInt(request.query.limit, 0);
+    const skip = parseInt(request.query.skip, 0);
 
-    let responseFromFilter = generateFilter.events(request);
+    let responseFromFilter = generateFilter.events_v2(request);
     let filter = {};
-    if (responseFromFilter.success) {
+    if (responseFromFilter.success === true) {
       filter = responseFromFilter.data;
     }
 
-    if (!responseFromFilter.success) {
+    if (responseFromFilter.success === false) {
       let error = responseFromFilter.error ? responseFromFilter.error : "";
       return {
         success: false,
@@ -318,17 +321,25 @@ const createEvent = {
         error,
       };
     }
+    let _limit = limit ? limit : 100;
+    let _skip = skip ? skip : 0;
+    let responseFromListEvents = await getModelByTenant(
+      tenant.toLowerCase(),
+      "event",
+      eventSchema
+    ).view({ _skip, _limit, filter });
 
-    let responseFromListEvents = {};
-    if (responseFromListEvents.success) {
+    if (responseFromListEvents.success === true) {
+      let eventsArray = responseFromListEvents.data;
+      let dottedEventsArray = eventsArray.map((object) => dot.object(object));
       return {
         success: true,
         message: responseFromListEvents.message,
-        data: responseFromListEvents.data,
+        data: dottedEventsArray,
       };
     }
 
-    if (!responseFromListEvents.success) {
+    if (responseFromListEvents.success === false) {
       let error = responseFromListEvents.error
         ? responseFromListEvents.error
         : "";
