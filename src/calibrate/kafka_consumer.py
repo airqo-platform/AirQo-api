@@ -71,8 +71,8 @@ class KafkaClient:
 
                         pm25 = measurement.get('pm2_5').get('value')
                         pm10 = measurement.get('pm10').get('value')
-                        temperature = measurement.get('internalTemperature').get('value')
-                        humidity = measurement.get('internalHumidity').get('value')
+                        temperature = measurement.get('externalTemperature').get('value')
+                        humidity = measurement.get('externalHumidity').get('value')
                         time = measurement.get('time')
 
                         if pm25 and pm10 and temperature and humidity and time:
