@@ -5,11 +5,26 @@ from main import cache
 
 class EventsModel(BasePyMongoModel):
     def __init__(self, tenant):
+        self.limit_mapper = {
+            'pm2_5': 500.5,
+            'pm10': 604.5,
+            'no2': 2049
+        }
         super().__init__(tenant, collection_name="events")
+
+    def remove_outliers(self, pollutant):
+        return self.add_stages(
+            [
+                {
+                    '$match': {
+                        f'{pollutant}.value': {'$gte': 0, '$lte': self.limit_mapper[pollutant]}
+                    }
+                }
+            ]
+        )
 
     @cache.memoize()
     def get_downloadable_events(self, sites, start_date, end_date, frequency, pollutants):
-        print("f pollutants", pollutants)
         return (
             self.date_range("values.time", start_date=start_date, end_date=end_date)
                 .project(**{'values.site_id': 1, 'values.time': 1}, **pollutants)
@@ -80,6 +95,7 @@ class EventsModel(BasePyMongoModel):
                     **{f"{pollutant}.value": 1},
                     site_id={"$toString": "$site_id"},
                 )
+                .remove_outliers(pollutant)
                 .match_in(site_id=sites)
                 .group(
                     _id={"site_id": "$site_id", "time": "$time"},
