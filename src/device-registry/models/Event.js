@@ -23,7 +23,6 @@ const valueSchema = new Schema({
   },
   is_test_data: {
     type: Boolean,
-    required: [true, "is_test_data is required field"],
     trim: true,
   },
   pm1: {
@@ -174,7 +173,6 @@ const eventSchema = new Schema(
     },
     is_device_primary: {
       type: Boolean,
-      required: [true, "is_device_primary is required field"],
       trim: true,
     },
     device_id: {

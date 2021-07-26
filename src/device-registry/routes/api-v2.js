@@ -1149,10 +1149,9 @@ router.post(
           return ObjectId(value);
         }),
       body("*.is_device_primary")
-        .exists()
+        .if(body("*.is_device_primary").exists())
+        .notEmpty()
         .trim()
-        .withMessage("is_device_primary is missing")
-        .bail()
         .isBoolean()
         .withMessage("is_device_primary should be Boolean"),
       body("*.site_id")
@@ -1185,10 +1184,9 @@ router.post(
           "the frequency value is not among the expected ones which include: raw, hourly and daily"
         ),
       body("*.is_test_data")
-        .exists()
+        .if(body("*.is_test_data").exists())
+        .notEmpty()
         .trim()
-        .withMessage("is_test_data is missing")
-        .bail()
         .isBoolean()
         .withMessage("is_test_data should be boolean"),
       body("*.device")
