@@ -204,17 +204,13 @@ public class KccaSourceTask extends SourceTask {
                 try {
                     ObjectMapper mapper = new ObjectMapper();
                     jsonString = mapper.writeValueAsString(rawMeasurements);
+                    Map<String, String> sourcePartition = buildSourcePartition();
+                    Map<String, Object> sourceOffset = buildSourceOffset(lastExecutionTime.toString(), urlString);
+                    records.add(new SourceRecord(sourcePartition, sourceOffset, topic, Schema.STRING_SCHEMA, jsonString));
 
                 } catch (JsonProcessingException e) {
                     e.printStackTrace();
-                    Gson gson = new Gson();
-                    Type dataType = new TypeToken<List<RawMeasurements>>() {}.getType();
-                    jsonString = gson.toJson(rawMeasurements, dataType);
                 }
-
-                Map<String, String> sourcePartition = buildSourcePartition();
-                Map<String, Object> sourceOffset = buildSourceOffset(lastExecutionTime.toString(), urlString);
-                records.add(new SourceRecord(sourcePartition, sourceOffset, topic, Schema.STRING_SCHEMA, jsonString));
             });
 
             return records.isEmpty() ? new ArrayList<>() : records;
