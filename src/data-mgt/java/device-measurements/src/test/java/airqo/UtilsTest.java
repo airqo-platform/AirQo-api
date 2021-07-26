@@ -285,22 +285,6 @@ public class UtilsTest {
 
     }
 
-    @Test
-    public void testObjectToDouble(){
-
-        List<String> objects = new ArrayList<>(){{
-            add("null");
-            add("invalid");
-        }};
-
-        objects.forEach(s -> {
-            assertThat(Utils.objectToDouble(s), CoreMatchers.equalTo(null));
-        });
-
-        double aDouble = Utils.objectToDouble("90.0");
-        assertThat(aDouble, CoreMatchers.equalTo(90.0));
-    }
-
 
     public static List<TransformedMeasurement> composeTransformedMeasurements(){
         List<TransformedMeasurement> transformedMeasurementArrayList = new ArrayList<>();

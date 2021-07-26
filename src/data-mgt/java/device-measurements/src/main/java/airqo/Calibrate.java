@@ -69,8 +69,8 @@ public class Calibrate {
                 put("device_id", transformedMeasurement.getDevice());
                 put("pm2.5", transformedMeasurement.getPm2_5().getValue());
                 put("pm10", transformedMeasurement.getPm10().getValue());
-                put("temperature", transformedMeasurement.getInternalTemperature().getValue());
-                put("humidity", transformedMeasurement.getInternalHumidity().getValue());
+                put("temperature", transformedMeasurement.getExternalTemperature().getValue());
+                put("humidity", transformedMeasurement.getExternalHumidity().getValue());
             }});
             this.setRaw_values(list);
         }
