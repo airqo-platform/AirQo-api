@@ -1,4 +1,5 @@
 from controllers.prediction import ml_app, cache
+from config import constants
 from flask import Flask
 import logging
 import os
@@ -28,6 +29,7 @@ application = create_app(os.getenv('FLASK_ENV'))
 
 if __name__ == '__main__':
     application.run(debug=True)
+    
 
 
 
