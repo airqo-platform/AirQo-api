@@ -1,0 +1,120 @@
+###########################################################
+# Start deployment of device registry kafka
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-device-registry-kafka
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: device-reg-kafka
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: device-reg-kafka
+    spec:
+      containers:
+        - name: device-reg-kafka
+          image: us.gcr.io/airqo-250220/airqo-device-registry-kafka:latest
+          imagePullPolicy: Always
+          env:
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: MONGO_GCE_URI
+            - name: MONGO_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: MONGO_PROD
+            - name: MONGO_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: MONGO_STAGE
+            - name: REDIS_SERVER
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: REDIS_SERVER
+            - name: REDIS_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: REDIS_PORT
+            - name: TS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: TS_API_KEY
+            - name: READ
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: READ
+            - name: WRITE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: WRITE
+            - name: CHANNEL
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: CHANNEL
+            - name: LICENSE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: LICENSE_ID
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: JWT_SECRET
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: SESSION_SECRET
+            - name: NAME
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: NAME
+            - name: KAFKA_BOOTSTRAP_SERVERS_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: KAFKA_BOOTSTRAP_SERVERS_PROD
+            - name: SCHEMA_REGISTRY_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: SCHEMA_REGISTRY_PROD
+            - name: KAFKA_RAW_MEASUREMENTS_TOPICS
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: KAFKA_RAW_MEASUREMENTS_TOPICS
+            - name: KAFKA_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: KAFKA_CLIENT_ID
+            - name: KAFKA_CLIENT_GROUP
+              valueFrom:
+                secretKeyRef:
+                  name: prod-device-reg-secret
+                  key: KAFKA_CLIENT_GROUP
+          resources: {}
