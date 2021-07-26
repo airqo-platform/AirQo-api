@@ -1,10 +1,9 @@
 FROM python:3.8-slim-buster
 
-COPY / /
+COPY requirements.txt /
+COPY main.py /
+
 WORKDIR /
-
 RUN pip install -r requirements.txt
-
-ENV PYTHONWARNINGS = "ignore:Unverified HTTPS request"
 
 CMD [ "python", "main.py" ]
