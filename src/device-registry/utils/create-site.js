@@ -526,7 +526,6 @@ const manageSite = {
         _limit,
         _skip,
       });
-      logObject("responseFromListSite in util", responseFromListSite);
       if (responseFromListSite.success == false) {
         if (responseFromListSite.error) {
           return {
@@ -541,10 +540,13 @@ const manageSite = {
           };
         }
       } else {
+        data = responseFromListSite.filter(function(obj) {
+          return obj.lat_long !== "4_4";
+        });
         return {
           success: true,
           message: "successfully listed the site(s)",
-          data: responseFromListSite,
+          data,
         };
       }
     } catch (e) {

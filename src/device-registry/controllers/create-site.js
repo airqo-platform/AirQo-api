@@ -260,14 +260,17 @@ const manageSite = {
         limit,
         skip,
       });
-      logObject("responseFromListSites", responseFromListSites);
-      if (responseFromListSites.success == true) {
+      logElement(
+        "has the response for listing sites been successful?",
+        responseFromListSites.success
+      );
+      if (responseFromListSites.success === true) {
         res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromListSites.message,
           sites: responseFromListSites.data,
         });
-      } else if (responseFromListSites.success == false) {
+      } else if (responseFromListSites.success === false) {
         if (responseFromListSites.error) {
           res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
