@@ -1,15 +1,9 @@
-from pathlib import Path
 from flask import Flask
 import logging
 import os
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from config import constants
-from dotenv import load_dotenv
-load_dotenv()
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-print("BASE_DIR", BASE_DIR)
 
 
 _logger = logging.getLogger(__name__)
@@ -25,21 +19,21 @@ def create_app(environment):
     app.config.from_object(constants.app_config[environment])
     mongo.init_app(app)
 
-    # Allow cross-brower resource sharing
+    # Allow cross-browser resource sharing
     CORS(app)
 
     # import blueprints
-    from controllers.check_health import monitor_bp
+    from controllers.check_health import health_check_bp
     from controllers.check_status import device_status_bp
 
     # register blueprints
-    app.register_blueprint(monitor_bp)
+    app.register_blueprint(health_check_bp)
     app.register_blueprint(device_status_bp)
 
     return app
 
 
-application = create_app(os.getenv("FLASK_ENV"))
+app = create_app(os.getenv("FLASK_ENV"))
 
 if __name__ == '__main__':
-    application.run(debug=True)
+    app.run()
