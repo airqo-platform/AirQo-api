@@ -22,7 +22,6 @@ from api.utils.pollutants import (
 )
 
 
-
 @rest_api.route("/data/download")
 class DownloadCustomisedDataResource(Resource):
 
@@ -42,18 +41,8 @@ class DownloadCustomisedDataResource(Resource):
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
 
-        formatted_pollutants = {}
-
-        for pollutant in pollutants:
-            if pollutant == 'pm2_5':
-                formatted_pollutants['values.pm2_5.value'] = 1
-            elif pollutant == 'pm10':
-                formatted_pollutants['values.pm10.value'] = 1
-            elif pollutant == 'no2':
-                formatted_pollutants['values.no2.value'] = 1
-
         events_model = EventsModel(tenant)
-        data = events_model.get_downloadable_events(sites, start_date, end_date, frequency, formatted_pollutants)
+        data = events_model.get_downloadable_events(sites, start_date, end_date, frequency, pollutants)
 
         if download_type == 'json':
             return create_response("air-quality data download successful", data=data), Status.HTTP_200_OK
