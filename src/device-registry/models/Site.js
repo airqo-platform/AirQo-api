@@ -170,6 +170,38 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    nearest_tahmo_station: {
+      id: {
+        type: Number,
+        required: [true, "station id is required!"],
+        trim: true,
+        default: -1,
+      },
+      code: {
+        type: String,
+        required: [true, "station code is required!"],
+        trim: true,
+        default: "",
+      },
+      longitude: {
+        type: Number,
+        required: [true, "longitude is required!"],
+        trim: true,
+        default: -1,
+      },
+      latitude: {
+        type: Number,
+        required: [true, "latitude is required!"],
+        trim: true,
+        default: -1,
+      },
+      timezone: {
+        type: String,
+        required: [true, "timezone is required!"],
+        trim: true,
+        default: "",
+      },
+    },
   },
   {
     timestamps: true,
@@ -250,6 +282,7 @@ siteSchema.methods = {
       distance_to_kampala_center: this.distance_to_kampala_center,
       distance_to_nearest_residential_road: this
         .distance_to_nearest_residential_road,
+      nearest_tahmo_station: this.nearest_tahmo_station,
     };
   },
   createSite(args) {
@@ -334,6 +367,7 @@ siteSchema.statics = {
           distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
+          nearest_tahmo_station: 1,
           devices: "$devices",
         })
         .skip(_skip)
