@@ -10,6 +10,10 @@ const client = new Client({});
 const axiosInstance = () => {
   return axios.create();
 };
+const generateFilter = require("./generate-filter");
+const log4js = require("log4js");
+const { request } = require("express");
+const logger = log4js.getLogger("create-site-util");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -20,7 +24,7 @@ const manageSite = {
     try {
       return name.indexOf(" ") >= 0;
     } catch (e) {
-      logElement("server error", e.message);
+      logger.error(`server error -- ${e.message}`);
     }
   },
 
@@ -32,7 +36,7 @@ const manageSite = {
       }
       return false;
     } catch (e) {
-      logElement("server error", e.message);
+      logger.error(`server error -- ${e.message}`);
     }
   },
 
@@ -45,7 +49,7 @@ const manageSite = {
       }
       return false;
     } catch (e) {
-      logElement("server error", e.message);
+      logger.error(`server error -- ${e.message}`);
     }
   },
 
@@ -110,6 +114,7 @@ const manageSite = {
         }
       }
     } catch (e) {
+      logger.error(`generateName util server error -- ${e.message}`);
       return {
         success: false,
         error: e.message,
@@ -120,94 +125,91 @@ const manageSite = {
 
   create: async (tenant, req) => {
     try {
-      let { latitude, longitude, name, site_tags } = req.body;
-      let body = req.body;
+      let { body } = req;
+      let request = {};
+      request["body"] = body;
+      let { name, latitude, longitude } = body;
+      let generated_name = null;
+      let requestBodyForCreatingSite = {};
+
+      /**
+       * could move this name validation to the route level
+       * using a custom validator
+       */
       let isNameValid = manageSite.validateSiteName(name);
-      let lat_long = manageSite.generateLatLong(latitude, longitude);
-      body["lat_long"] = lat_long;
       if (!isNameValid) {
         return {
           success: false,
           message: "site name is invalid, please check documentation",
         };
       }
+
+      let lat_long = manageSite.generateLatLong(latitude, longitude);
+      request["body"]["lat_long"] = lat_long;
+
       let responseFromGenerateName = await manageSite.generateName(tenant);
       logObject("responseFromGenerateName", responseFromGenerateName);
-
-      let responseFromGetAltitude = await manageSite.getAltitude(
-        latitude,
-        longitude
-      );
-      logObject("responseFromGetAltitude", responseFromGetAltitude);
-      if (responseFromGetAltitude.success == true) {
-        body.altitude = responseFromGetAltitude.data;
+      if (responseFromGenerateName.success === true) {
+        generated_name = responseFromGenerateName.data;
+        request["body"]["generated_name"] = generated_name;
       }
 
-      if (responseFromGenerateName.success == true) {
-        body.generated_name = responseFromGenerateName.data;
+      if (responseFromGenerateName.success === false) {
+        let error = responseFromGenerateName.error
+          ? responseFromGenerateName.error
+          : "";
+        return {
+          success: false,
+          message: responseFromGenerateName.message,
+          error,
+        };
+      }
 
-        let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
-          latitude,
-          longitude
-        );
-        logObject("responseFromReverseGeoCode", responseFromReverseGeoCode);
-        if (responseFromReverseGeoCode.success == true) {
-          let requestBody = { ...responseFromReverseGeoCode.data, ...body };
-          let responseFromCreateSite = await getModelByTenant(
-            tenant.toLowerCase(),
-            "site",
-            SiteSchema
-          ).register(requestBody);
-          if (responseFromCreateSite.success == true) {
-            let createdSite = responseFromCreateSite.data;
-            let jsonifyCreatedSite = jsonify(createdSite);
-            return {
-              success: true,
-              message: "Site successfully created",
-              data: jsonifyCreatedSite,
-            };
-          }
-          if (responseFromCreateSite.success == false) {
-            if (responseFromCreateSite.error) {
-              return {
-                success: false,
-                message: responseFromCreateSite.message,
-                error: responseFromCreateSite.error,
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromCreateSite.message,
-              };
-            }
-          }
-        } else if (responseFromReverseGeoCode.success == false) {
-          if (responseFromReverseGeoCode.error) {
-            return {
-              success: false,
-              message: responseFromReverseGeoCode.message,
-              error: responseFromReverseGeoCode.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromReverseGeoCode.message,
-            };
-          }
-        }
-      } else if (responseFromGenerateName.success == false) {
-        if (responseFromGenerateName.error) {
-          return {
-            success: false,
-            message: responseFromGenerateName.message,
-            error: responseFromGenerateName.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGenerateName.message,
-          };
-        }
+      let responseFromGenerateMetadata = await manageSite.generateMetadata(
+        tenant,
+        request
+      );
+      logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
+      if (responseFromGenerateMetadata.success === true) {
+        requestBodyForCreatingSite = responseFromGenerateMetadata.data;
+      }
+
+      if (responseFromGenerateMetadata.success === false) {
+        let error = responseFromGenerateMetadata.error
+          ? responseFromGenerateMetadata.error
+          : "";
+        return {
+          success: false,
+          message: responseFromGenerateMetadata.message,
+          error,
+        };
+      }
+
+      let responseFromCreateSite = await getModelByTenant(
+        tenant.toLowerCase(),
+        "site",
+        SiteSchema
+      ).register(requestBodyForCreatingSite);
+
+      if (responseFromCreateSite.success === true) {
+        let createdSite = responseFromCreateSite.data;
+        let jsonifyCreatedSite = jsonify(createdSite);
+        return {
+          success: true,
+          message: "Site successfully created",
+          data: jsonifyCreatedSite,
+        };
+      }
+
+      if (responseFromCreateSite.success === false) {
+        let error = responseFromCreateSite.error
+          ? responseFromCreateSite.error
+          : "";
+        return {
+          success: false,
+          message: responseFromCreateSite.message,
+          error,
+        };
       }
     } catch (e) {
       return {
@@ -254,6 +256,223 @@ const manageSite = {
         success: false,
         message: "util server error",
         error: e.message,
+      };
+    }
+  },
+
+  sanitiseName: (name) => {
+    try {
+      let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
+      let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+      let trimmedName = shortenedName.trim();
+      return trimmedName;
+    } catch (error) {
+      logger.error(`sanitiseName -- ${error.message}`);
+    }
+  },
+
+  generateMetadata: async (tenant, req) => {
+    try {
+      let { latitude, longitude } = req.body;
+      let body = req.body;
+
+      logger.info(
+        `the body sent to generate metadata -- ${JSON.stringify(req.body)}`
+      );
+
+      let responseFromGetAltitude = await manageSite.getAltitude(
+        latitude,
+        longitude
+      );
+
+      logger.info(
+        `responseFromGetAltitude -- ${JSON.stringify(responseFromGetAltitude)}`
+      );
+      if (responseFromGetAltitude.success === true) {
+        body.altitude = responseFromGetAltitude.data;
+      }
+
+      let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
+        latitude,
+        longitude
+      );
+      logger.info(
+        `responseFromReverseGeoCode -- ${JSON.stringify(
+          responseFromReverseGeoCode
+        )}`
+      );
+      if (responseFromReverseGeoCode.success === true) {
+        let google_site_tags = responseFromReverseGeoCode.data.site_tags;
+        let existing_site_tags = body.site_tags ? body.site_tags : [];
+        let merged_site_tags = [...google_site_tags, ...existing_site_tags];
+        body["site_tags"] = merged_site_tags;
+        let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+        return {
+          success: true,
+          message: "successfully generated the metadata",
+          data: requestBody,
+        };
+      }
+
+      if (responseFromReverseGeoCode.success === false) {
+        let error = responseFromReverseGeoCode.error
+          ? responseFromReverseGeoCode.error
+          : "";
+        return {
+          success: false,
+          message: responseFromReverseGeoCode.message,
+          error,
+        };
+      }
+    } catch (e) {
+      return {
+        success: false,
+        message: "create site util server error",
+        error: e.message,
+      };
+    }
+  },
+
+  pickAvailableValue: (valuesInObject) => {
+    let arrayOfSiteNames = Object.values(valuesInObject);
+    let availableName = arrayOfSiteNames.find(Boolean);
+    return availableName;
+  },
+
+  refresh: async (tenant, req) => {
+    let filter = generateFilter.sites(req);
+    let update = {};
+    let request = {};
+    let generated_name = null;
+    logObject("the filter being used to filter", filter);
+
+    let responseFromListSite = await getModelByTenant(
+      tenant.toLowerCase(),
+      "site",
+      SiteSchema
+    ).list({
+      filter,
+    });
+
+    logger.info(
+      `refresh -- responseFromListSite -- ${JSON.stringify(
+        responseFromListSite
+      )}`
+    );
+
+    let siteDetails = { ...responseFromListSite[0] };
+    request["body"] = siteDetails;
+    delete siteDetails._id;
+    delete siteDetails.devices;
+
+    let { name, parish, county, district, latitude, longitude } = siteDetails;
+
+    /**
+     * we could move all these name vaslidations and
+     * sanitisations to the api route level before
+     * coming to to the utils
+     */
+    if (!name) {
+      let siteNames = { name, parish, county, district };
+      let availableName = manageSite.pickAvailableValue(siteNames);
+      let isNameValid = manageSite.validateSiteName(availableName);
+      if (!isNameValid) {
+        let sanitisedName = manageSite.sanitiseName(availableName);
+        siteDetails["name"] = sanitisedName;
+      }
+      siteDetails["name"] = availableName;
+    }
+
+    let lat_long = manageSite.generateLatLong(latitude, longitude);
+
+    if (isEmpty(siteDetails.generated_name)) {
+      let responseFromGenerateName = await manageSite.generateName(tenant);
+      logObject("responseFromGenerateName", responseFromGenerateName);
+      if (responseFromGenerateName.success === true) {
+        generated_name = responseFromGenerateName.data;
+        request["body"]["generated_name"] = generated_name;
+      }
+      if (responseFromGenerateName.success === false) {
+        let error = responseFromGenerateName.error
+          ? responseFromGenerateName.error
+          : "";
+        return {
+          success: false,
+          message: responseFromGenerateName.message,
+          error,
+        };
+      }
+    }
+
+    request["body"]["lat_long"] = lat_long;
+
+    let responseFromGenerateMetadata = await manageSite.generateMetadata(
+      tenant,
+      request
+    );
+
+    logger.info(
+      `refresh -- responseFromGenerateMetadata-- ${JSON.stringify(
+        responseFromGenerateMetadata
+      )}`
+    );
+
+    if (responseFromGenerateMetadata.success === true) {
+      update = responseFromGenerateMetadata.data;
+    }
+
+    logObject("the update", update);
+
+    logger.info(`refresh -- update -- ${JSON.stringify(update)}`);
+
+    let responseFromModifySite = await manageSite.update(
+      tenant,
+      filter,
+      update
+    );
+
+    logger.info(
+      `refresh -- responseFromModifySite -- ${JSON.stringify(
+        responseFromModifySite
+      )} `
+    );
+
+    if (responseFromModifySite.success === true) {
+      return {
+        success: true,
+        message: "Site details successfully refreshed",
+        data: responseFromModifySite.data,
+      };
+    }
+
+    if (responseFromModifySite.success === false) {
+      let error = responseFromModifySite.error
+        ? responseFromModifySite.error
+        : "";
+      return {
+        success: false,
+        message: responseFromModifySite.message,
+        error,
+      };
+    }
+
+    if (responseFromGenerateMetadata.success === false) {
+      let error = responseFromGenerateMetadata.error
+        ? responseFromGenerateMetadata.error
+        : "";
+      return {
+        success: false,
+        message: responseFromGenerateMetadata.message,
+        error,
+      };
+    }
+
+    if (responseFromListSite.success === false) {
+      let error = responseFromListSite.error ? responseFromListSite.error : "";
+      return {
+        success: false,
+        message: responseFromListSite.message,
+        error,
       };
     }
   },
@@ -307,7 +526,6 @@ const manageSite = {
         _limit,
         _skip,
       });
-      logObject("responseFromListSite in util", responseFromListSite);
       if (responseFromListSite.success == false) {
         if (responseFromListSite.error) {
           return {
@@ -322,10 +540,13 @@ const manageSite = {
           };
         }
       } else {
+        data = responseFromListSite.filter(function(obj) {
+          return obj.lat_long !== "4_4";
+        });
         return {
           success: true,
           message: "successfully listed the site(s)",
-          data: responseFromListSite,
+          data,
         };
       }
     } catch (e) {
@@ -380,7 +601,7 @@ const manageSite = {
         }
         retrievedAddress.formatted_name = formatted_name;
         retrievedAddress.geometry = geometry;
-        retrievedAddress.$addToSet = { site_tags: { $each: types } };
+        retrievedAddress.site_tags = types;
         retrievedAddress.google_place_id = google_place_id;
       });
       return {
