@@ -80,14 +80,14 @@ public class Utils {
                         return measurement2;
                     });
 
-                    Optional<StationMeasurement> stationHumidity = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().toString().equals("rh")).reduce((measurement1, measurement2) -> {
+                    Optional<StationMeasurement> stationHumidity = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.HUMIDITY)).reduce((measurement1, measurement2) -> {
                         if (measurement1.getTime().after(measurement2.getTime()))
                             return measurement1;
                         return measurement2;
                     });
 
-                    measurement.getInternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
-                    measurement.getInternalTemperature().setValue(stationTemp.orElseThrow().getValue());
+                    measurement.getExternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
+                    measurement.getExternalTemperature().setValue(stationTemp.orElseThrow().getValue());
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -95,12 +95,15 @@ public class Utils {
 
         }).collect(Collectors.toList());
 
-        measurementList.forEach(measurement -> {
-            logger.info("Humidity : {} , Temperature : {} , Device : {}",
-                    measurement.getInternalHumidity().getValue(),
-                    measurement.getInternalTemperature().getValue(),
-                    measurement.getDevice());
-        });
+        measurements.forEach(measurement -> logger.info("Old Humidity : {} , Old Temperature : {} , Device : {}",
+                measurement.getExternalHumidity().getValue(),
+                measurement.getExternalTemperature().getValue(),
+                measurement.getDevice()));
+
+        measurementList.forEach(measurement -> logger.info("New Humidity : {} , New Temperature : {} , Device : {}",
+                measurement.getExternalHumidity().getValue(),
+                measurement.getExternalTemperature().getValue(),
+                measurement.getDevice()));
 
         return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
     }
@@ -131,7 +134,7 @@ public class Utils {
             return new ArrayList<>();
         }
 
-//        logger.info("\n ====> Sites : {}\n", sitesResponse.getSites());
+        logger.info("\n ====> Sites : {}\n", sitesResponse.getSites());
         return sitesResponse.getSites();
     }
 
