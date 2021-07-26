@@ -2,6 +2,9 @@ import json
 import os
 
 import requests
+from dotenv import load_dotenv
+
+load_dotenv()
 
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 CALIBRATE = os.getenv("CALIBRATE")
