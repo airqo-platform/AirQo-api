@@ -25,8 +25,8 @@ class DeviceRegistry:
                 device = row_dict.get("device")
                 pm2_5 = dict(row_dict.get("pm2_5")).get("value")
                 pm10 = dict(row_dict.get("pm10")).get("value")
-                temp = dict(row_dict.get("internalTemperature")).get("value")
-                hum = dict(row_dict.get("internalHumidity")).get("value")
+                temp = dict(row_dict.get("externalTemperature")).get("value")
+                hum = dict(row_dict.get("externalHumidity")).get("value")
 
                 row_dict["pm2_5"]["calibratedValue"] = self.get_calibrated_value(
                     device=device,
