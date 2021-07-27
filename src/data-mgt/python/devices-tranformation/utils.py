@@ -3,11 +3,14 @@ from datetime import datetime
 import pandas as pd
 
 
-def str_to_date(st):
+def str_to_date(str):
     """
     Converts a string to datetime
     """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
+    try:
+        return datetime.strptime(str, '%Y-%m-%dT%H:%M:%S.%fZ')
+    except ValueError:
+        return datetime.strptime(str, '%Y-%m-%dT%H:%M:%SZ')
 
 
 def date_to_str(date):

@@ -1,8 +1,9 @@
 import os
+from datetime import datetime, timedelta
 
 from airqoApi import AirQoApi
 from tahmo import TahmoApi
-from utils import array_to_csv, array_to_json, is_valid_double
+from utils import array_to_csv, array_to_json, is_valid_double, str_to_date
 
 
 class Transformation:
@@ -113,15 +114,21 @@ class Transformation:
 
     def get_devices_invalid_measurement_values(self):
         devices = self.airqo_api.get_devices(tenant='airqo', is_active=True)
+        print(devices)
 
         errors = []
         for device in devices:
             device_data = dict(device)
-            current_measurements = dict(self.airqo_api.get_airqo_device_current_measurements(
-                device_number=device_data["device_number"]
-            ))
+            try:
+                current_measurements = dict(self.airqo_api.get_airqo_device_current_measurements(
+                    device_number=device_data["channelID"]
+                ))
+            except Exception as ex:
+                print(ex)
+                continue
 
-            created_at = current_measurements.get("created_at")
+            created_at = str_to_date(current_measurements.get("created_at"))
+            check_date = datetime.utcnow() - timedelta(days=30)
 
             for key, value in current_measurements.items():
                 key_str = str(key).strip().lower()
@@ -140,13 +147,21 @@ class Transformation:
                         if value < 0 or value > 500.5:
                             has_error = True
 
+                    if not has_error and key_str == 'pm2_5':
+                        value = float(value)
+                        if value < 0 or value > 500.5:
+                            has_error = True
+
+                    if not has_error and (check_date > created_at):
+                        has_error = True
+
                     if has_error:
                         error = dict({
-                            "channelID": device_data["device_number"],
+                            "channelID": device_data["channelID"],
                             "device": device_data["name"],
                             "isActive": device_data["isActive"],
                             key: value,
-                            "created_at": created_at,
+                            "created_at": f"{created_at}",
                         })
                         errors.append(error)
 

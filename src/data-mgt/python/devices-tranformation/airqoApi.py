@@ -16,7 +16,7 @@ class AirQoApi:
             "tenant": tenant
         }
         if is_active is not None:
-            params["isActive"] = is_active
+            params["active"] = "yes" if is_active else "no"
 
         response = self.__request("devices", params)
 
@@ -68,6 +68,7 @@ class AirQoApi:
             return handle_api_error("Invalid")
 
         if api_request.status_code == 200:
+            print(api_request.request.url)
             return api_request.json()
         else:
             return handle_api_error(api_request)
