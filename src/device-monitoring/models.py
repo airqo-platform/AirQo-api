@@ -24,9 +24,7 @@ class DeviceStatus(BaseModel):
     def __init__(self, tenant):
         super().__init__(tenant, 'device_status')
 
-    def _connect(self):
-        return connect_mongo(self.tenant)
-
+    @cache.memoize()
     def get_device_status(self, start_date, end_date, limit):
 
         db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
@@ -41,9 +39,7 @@ class NetworkUptime(BaseModel):
     def __init__(self, tenant):
         super().__init__(tenant, 'network_uptime')
 
-    def _connect(self):
-        return connect_mongo(self.tenant)
-
+    @cache.memoize()
     def get_network_uptime(self, start_date, end_date):
 
         db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
@@ -55,9 +51,7 @@ class DeviceUptime(BaseModel):
     def __init__(self, tenant):
         super().__init__(tenant, 'device_uptime')
 
-    def _connect(self):
-        return connect_mongo(self.tenant)
-
+    @cache.memoize()
     def get_device_uptime(self, start_date, end_date, device_name):
 
         db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
