@@ -121,19 +121,30 @@ class Transformation:
             device_data = dict(device)
             try:
                 current_measurements = dict(self.airqo_api.get_airqo_device_current_measurements(
-                    device_number=device_data["channelID"]
+                    device_number=device_data["device_number"]
                 ))
             except Exception as ex:
-                print(ex)
+                error = dict({
+                    "self_link": f"{os.getenv('AIRQO_BASE_URL')}data/feeds/transform/recent?channel={device_data['device_number']}",
+                    "channelID": device_data["device_number"]
+                })
+                errors.append(error)
                 continue
 
             created_at = str_to_date(current_measurements.get("created_at"))
             check_date = datetime.utcnow() - timedelta(days=30)
+            error = dict({
+                "channelID": device_data["device_number"],
+                "device": device_data["name"],
+                "isActive": device_data["isActive"],
+                "siteName": device_data["siteName"],
+                "created_at": f"{created_at}",
+            })
 
             for key, value in current_measurements.items():
-                key_str = str(key).strip().lower()
+                key_str = f"{key}".strip().lower()
 
-                if key_str == 'externaltemperature' or key_str == 'externalhumidity' or 'pm2_5' or key_str == 'pm10' \
+                if key_str == 'externaltemperature' or key_str == 'externalhumidity' or key_str == 'pm10' \
                         or key_str == 's2_pm2_5' or key_str == 's2_pm10' or key_str == 'internaltemperature' \
                         or key_str == 'internalhumidity':
 
@@ -147,22 +158,26 @@ class Transformation:
                         if value < 0 or value > 500.5:
                             has_error = True
 
-                    if not has_error and key_str == 'pm2_5':
+                    if not has_error and (key_str == 'pm2_5' or key_str == 's2_pm2_5' or key_str == 's2_pm10'
+                                          or key_str == 'pm10'):
                         value = float(value)
                         if value < 0 or value > 500.5:
+                            has_error = True
+
+                    if not has_error and (key_str == 'externaltemperature' or key_str == 'internalhumidity'
+                                          or key_str == 'internaltemperature' or key_str == 'externalhumidity'):
+                        value = float(value)
+                        if value < 0 or value > 50:
                             has_error = True
 
                     if not has_error and (check_date > created_at):
                         has_error = True
 
                     if has_error:
-                        error = dict({
-                            "channelID": device_data["channelID"],
-                            "device": device_data["name"],
-                            "isActive": device_data["isActive"],
-                            key: value,
-                            "created_at": f"{created_at}",
-                        })
-                        errors.append(error)
+                        error[key] = value
+
+            if len(error.keys()) > 5:
+                error["self_link"] = f"{os.getenv('AIRQO_BASE_URL')}data/feeds/transform/recent?channel={device_data['device_number']}"
+                errors.append(error)
 
         array_to_csv(data=errors)

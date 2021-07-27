@@ -24,7 +24,7 @@ def is_valid_double(value):
     try:
         float(value)
         return True
-    except ValueError:
+    except ValueError or TypeError:
         return False
 
 
