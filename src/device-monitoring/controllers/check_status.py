@@ -22,13 +22,13 @@ def get_device_status():
     try:
         start_date = validate_datetime(request.args.get('startDate'))
     except Exception:
-        errors['startDate'] = 'This field is required.' \
+        errors['startDate'] = 'This query param is required.' \
                               'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
     try:
         end_date = validate_datetime(request.args.get('endDate'))
     except Exception:
-        errors['endDate'] = 'This field is required.' \
+        errors['endDate'] = 'This query param is required.' \
                               'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
     if errors:
@@ -53,13 +53,13 @@ def get_network_uptime():
     try:
         start_date = validate_datetime(request.args.get('startDate'))
     except Exception:
-        errors['startDate'] = 'This field is required.' \
+        errors['startDate'] = 'This query param is required.' \
                               'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
     try:
         end_date = validate_datetime(request.args.get('endDate'))
     except Exception:
-        errors['endDate'] = 'This field is required.' \
+        errors['endDate'] = 'This query param is required.' \
                               'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
     if errors:
@@ -85,13 +85,13 @@ def get_device_uptime():
     try:
         start_date = validate_datetime(request.args.get('startDate'))
     except Exception:
-        errors['startDate'] = 'This field is required.' \
+        errors['startDate'] = 'This query param is required.' \
                               'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
     try:
         end_date = validate_datetime(request.args.get('endDate'))
     except Exception:
-        errors['endDate'] = 'This field is required.' \
+        errors['endDate'] = 'This query param is required.' \
                               'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
     if errors:
