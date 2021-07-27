@@ -1,0 +1,70 @@
+###########################################################
+# Start deployment of calibrate kafka connection - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sta-calibrate-kafka
+  namespace: staging
+spec:
+  minReadySeconds: 10
+  replicas: 2
+  selector:
+    matchLabels:
+      app: sta-calibrate-kafka
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: sta-calibrate-kafka
+    spec:
+      containers:
+      - name: sta-calibrate-kafka
+        image: us.gcr.io/airqo-250220/airqo-stage-calibrate-kafka:latest
+        imagePullPolicy: Always
+        env:
+        - name: BOOTSTRAP_SERVERS
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: BOOTSTRAP_SERVERS
+        - name: SCHEMA_REGISTRY_URL
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: SCHEMA_REGISTRY_URL
+        - name: INPUT_TOPIC
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: INPUT_TOPIC
+        - name: OUTPUT_TOPIC
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: OUTPUT_TOPIC
+        - name: AIRQO_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: AIRQO_BASE_URL
+        - name: CONSUMER_GROUP
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: CONSUMER_GROUP
+        - name: RELOAD_INTERVAL
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: RELOAD_INTERVAL
+        - name: AUTO_COMMIT
+          valueFrom:
+            secretKeyRef:
+              name: stage-calibrate-secret
+              key: AUTO_COMMIT
+        resources: {}
