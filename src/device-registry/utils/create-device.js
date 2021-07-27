@@ -65,6 +65,49 @@ const registerDeviceUtil = {
       };
     }
   },
+  retrieveDeviceDetail: async (request, property) => {
+    try {
+      let responseFromListDevice = await registerDeviceUtil.list(request);
+      if (responseFromListDevice.success === true) {
+        let deviceDetail = responseFromListDevice.data[0];
+        let detail = property + "";
+        let data = deviceDetail[detail];
+        logger.info(`the device detail retrieved ${data}`);
+        if (data) {
+          return {
+            success: true,
+            message: "successfully retrieved the device detail",
+            data,
+          };
+        } else {
+          logger.error(`detail does not exist`);
+          return {
+            success: false,
+            message: "the device detail does not exist",
+          };
+        }
+      }
+
+      if (responseFromListDevice.success === false) {
+        let error = responseFromListDevice.error
+          ? responseFromListDevice.error
+          : "";
+        log.error(`unable to retrieve device detail ${error}`);
+        return {
+          success: false,
+          message: "unable to retrieve device detail",
+          error,
+        };
+      }
+    } catch (error) {
+      log.error(`server error -- retrieve device detail ${error.message}`);
+      return {
+        success: false,
+        message: "server error -- retrieve device detail",
+        error: error.message,
+      };
+    }
+  },
   create: async (request) => {
     try {
       if (request.query.tenant !== "airqo") {

@@ -11,9 +11,10 @@ const { generateDateFormatWithoutHrs } = require("./date");
 const { transform } = require("node-json-transform");
 const Dot = require("Dot-object");
 const cleanDeep = require("clean-deep");
+const { registerDeviceUtil } = require("./create-device");
 
 const createEvent = {
-  transformOneEvent: ({ data = {}, map = {}, context = {} } = {}) => {
+  transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {
       let dot = new Dot(".");
       let modifiedFilter = {};
