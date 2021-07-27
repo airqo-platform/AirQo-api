@@ -88,7 +88,7 @@ def save_locate_map():
     return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
 
 
-@locate_blueprint.route('/api/v1/map/getlocatemap/<user_id>')
+@locate_blueprint.route('/api/v1/map/getlocatemap/<user_id>', methods=['GET'])
 @cache.cached(timeout=300)
 def get_locate_map(user_id):
     '''
