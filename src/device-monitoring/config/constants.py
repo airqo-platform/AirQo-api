@@ -9,12 +9,25 @@ load_dotenv(dotenv_path)
 
 print('Environment', os.getenv("FLASK_ENV"))
 
+THIRTY_MINUTES = 1800 # seconds
+
+TWO_HOURS = 7200 # seconds
+
 
 class Config:
     DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
+
+    CACHE_TYPE = 'RedisCache'
+    CACHE_DEFAULT_TIMEOUT = THIRTY_MINUTES
+    CACHE_KEY_PREFIX = 'device-monitoring'
+    CACHE_REDIS_HOST = os.getenv('REDIS_SERVER')
+    CACHE_REDIS_PORT = os.getenv('REDIS_PORT')
+    CACHE_REDIS_URL = f"redis://{os.getenv('REDIS_SERVER')}:{os.getenv('REDIS_PORT')}"
+
     SECRET_KEY = os.getenv("SECRET_KEY")
+
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
 

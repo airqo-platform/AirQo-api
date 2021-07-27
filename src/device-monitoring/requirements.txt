@@ -1,8 +1,10 @@
 flask
+Flask-Caching
 flask-cors
 pymongo
 flask_pymongo
 python-dotenv
+redis
 
 # Ports for stable python 3 functionality
 dataclasses # for py < 3.7

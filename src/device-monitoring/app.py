@@ -1,6 +1,7 @@
 from flask import Flask
 import logging
 import os
+from flask_caching import Cache
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from config import constants
@@ -11,6 +12,7 @@ _logger = logging.getLogger(__name__)
 
 # db initialization
 mongo = PyMongo()
+cache = Cache()
 
 
 def create_app(environment):
@@ -18,7 +20,9 @@ def create_app(environment):
     app = Flask(__name__)
 
     app.config.from_object(constants.app_config[environment])
+
     mongo.init_app(app)
+    cache.init_app(app)
 
     # Allow cross-browser resource sharing
     CORS(app)
