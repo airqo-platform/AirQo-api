@@ -23,8 +23,12 @@ if __name__ == '__main__':
 
     if action.lower().strip() == "device_tahmo_mapping":
         transformation.map_devices_to_tahmo_station()
+
     elif action.lower().strip() == "site_tahmo_mapping":
         transformation.map_sites_to_tahmo_station()
+
+    elif action.lower().strip() == "get_devices_with_invalid_measurements":
+        transformation.get_devices_invalid_measurement_values()
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")
         exit()

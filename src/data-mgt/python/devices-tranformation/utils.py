@@ -17,6 +17,14 @@ def date_to_str(date):
     return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
 
 
+def is_valid_double(value):
+    try:
+        float(value)
+        return True
+    except ValueError:
+        return False
+
+
 def handle_api_error(api_request):
     json = None
 

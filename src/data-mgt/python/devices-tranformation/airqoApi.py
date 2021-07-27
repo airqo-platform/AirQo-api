@@ -11,13 +11,23 @@ class AirQoApi:
         self.AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
         self.AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
 
-    def get_devices(self, tenant):
-        response = self.__request("devices", {"tenant": tenant})
+    def get_devices(self, tenant, is_active=None):
+        params = {
+            "tenant": tenant
+        }
+        if is_active is not None:
+            params["isActive"] = is_active
+
+        response = self.__request("devices", params)
 
         if "devices" in response:
             return response["devices"]
 
         return []
+
+    def get_airqo_device_current_measurements(self, device_number ):
+        response = self.__request("data/feeds/transform/recent", {"channel": device_number})
+        return response
 
     def get_sites(self, tenant):
         response = self.__request("devices/sites", {"tenant": tenant})

@@ -1,5 +1,5 @@
 # Device Transformations
-
+Output depends on arguments passed in.
 ## Setup your Environment
 ```bash
     python3 -m venv venv
@@ -7,8 +7,13 @@
     pip install -r requirements.txt
 ```
 Obtain and add the `.env` to this directory.
+## Get active devices with invalid measurements
+### CSV output
+```bash
+    python main.py get_devices_with_invalid_measurements csv
+```
 ## Map sites to nearest Tahmo stations
-Update sites to include the nearest Tahmo Station. Output depends on arguments passed in.
+Update sites to include the nearest Tahmo Station. 
 ### API post request to microservice managing sites
 ```bash
     python main.py site_tahmo_mapping api

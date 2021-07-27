@@ -2,7 +2,7 @@ import os
 
 from airqoApi import AirQoApi
 from tahmo import TahmoApi
-from utils import array_to_csv, array_to_json
+from utils import array_to_csv, array_to_json, is_valid_double
 
 
 class Transformation:
@@ -110,3 +110,44 @@ class Transformation:
 
         else:
             array_to_json(data=summarized_updated_sites)
+
+    def get_devices_invalid_measurement_values(self):
+        devices = self.airqo_api.get_devices(tenant='airqo', is_active=True)
+
+        errors = []
+        for device in devices:
+            device_data = dict(device)
+            current_measurements = dict(self.airqo_api.get_airqo_device_current_measurements(
+                device_number=device_data["device_number"]
+            ))
+
+            created_at = current_measurements.get("created_at")
+
+            for key, value in current_measurements.items():
+                key_str = str(key).strip().lower()
+
+                if key_str == 'externaltemperature' or key_str == 'externalhumidity' or 'pm2_5' or key_str == 'pm10' \
+                        or key_str == 's2_pm2_5' or key_str == 's2_pm10' or key_str == 'internaltemperature' \
+                        or key_str == 'internalhumidity':
+
+                    has_error = False
+
+                    if not is_valid_double(value=value):
+                        has_error = True
+
+                    if key_str == 'pm2_5' and not has_error:
+                        value = float(value)
+                        if value < 0 or value > 500.5:
+                            has_error = True
+
+                    if has_error:
+                        error = dict({
+                            "channelID": device_data["device_number"],
+                            "device": device_data["name"],
+                            "isActive": device_data["isActive"],
+                            key: value,
+                            "created_at": created_at,
+                        })
+                        errors.append(error)
+
+        array_to_csv(data=errors)
