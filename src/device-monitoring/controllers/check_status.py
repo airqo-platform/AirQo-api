@@ -3,7 +3,7 @@ import logging
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
 from helpers.group_by import group_by
-from models import DeviceStatus
+from models import DeviceStatus, NetworkUptime
 import routes
 
 _logger = logging.getLogger(__name__)
@@ -46,42 +46,35 @@ def get_device_status():
     return jsonify(response), 200
 
 
-@device_status_bp.route(routes.NETWORK_UPTIME, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
+@device_status_bp.route(routes.NETWORK_UPTIME, methods=['GET'])
 def get_network_uptime():
-    '''
-    Get network uptime/downtime status
-    '''
-    model = device_status.DeviceStatus()
-    if request.method == 'GET':
-        REQUIRED_ARGS = ['tenant', 'days']
-        errors = {}
+    errors = {}
+    tenant = request.args.get('tenant')
 
-        for arg in REQUIRED_ARGS:
-            if not request.args.get(arg):
-                errors[arg] = f"'{arg}' is a required parameter"
+    try:
+        start_date = validate_datetime(request.args.get('startDate'))
+    except Exception:
+        errors['startDate'] = 'This field is required.' \
+                              'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
-        tenant = request.args.get('tenant')
+    try:
+        end_date = validate_datetime(request.args.get('endDate'))
+    except Exception:
+        errors['endDate'] = 'This field is required.' \
+                              'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
 
-        try:
-            days = int(request.args.get('days'))
-            if days <= 0:
-                errors["days"] = f"'{request.args.get('days')}' must be greater than zero"
-        except (ValueError, TypeError):
-            errors["days"] = f"'{request.args.get('days')}' is not a valid integer"
+    if errors:
+        return jsonify({
+            'message': 'Some errors occurred while processing this request',
+            'errors': errors
+        }), 400
 
-        if errors:
-            return jsonify(dict(
-                message="Please specify one of the following query parameters. "
-                        "Refer to the API documentation for details.",
-                errors=errors
-            )), 400
+    model = NetworkUptime(tenant)
 
-        result = model.get_network_uptime(tenant, days)
-        result = convert_model_ids(result)
-        response = dict(message="network uptime query successful", data=result)
-        return jsonify(response), 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
+    result = model.get_network_uptime(start_date, end_date)
+    result = convert_model_ids(result)
+    response = dict(message="network uptime query successful", data=result)
+    return jsonify(response), 200
 
 
 @device_status_bp.route(routes.DEVICE_UPTIME, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
