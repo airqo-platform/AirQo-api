@@ -1,0 +1,33 @@
+replicaCount: 1
+
+image:
+  repository: us.gcr.io/airqo-250220/batch-fetch-measurements
+  pullPolicy: Never
+  tag: latest
+
+imagePullSecrets: []
+nameOverride: "batch-fetch-measurements"
+fullnameOverride: "dev-batch-fetch-measurements"
+deploymentName: dev-batch-fetch-measurements
+
+env:
+  secret: dev-batch-fetch-measurements-secret
+  startTime: 2021-01-01
+  endTime: 2021-12-01
+  interval: 1
+  bootstrapServers:
+  airqoBaseUrl:
+  schemaRegistryUrl:
+  outputTopic:
+  tenant: 
+  frequency: raw
+  
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+appMode: dev
