@@ -540,7 +540,8 @@ const join = {
           };
         } else if (responseFromBcrypt == false) {
           return {
-            message: "please crosscheck your old password",
+            message:
+              "either your old password is incorrect or the provided user does not exist",
             success: false,
           };
         }
