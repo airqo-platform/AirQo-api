@@ -5,6 +5,6 @@ __init__test.py
 .gitkeep
 .vscode
 .DS_Store
-airqo-250220-5149c2aac8f2.json
+jobs/airqo-250220-5149c2aac8f2.json
 data/
-
+venv/
