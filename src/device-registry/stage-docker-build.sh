@@ -10,8 +10,8 @@ echo "🛫 Push the image : docker push airqo-stage-device-registry-api:latest"
 
 echo -e "\n ==== 🛠  🔧 🔩 Building Kafka connections docker image 🔩  🔧  🛠  ==== \n"
 
-# docker build -t airqo-stage-device-registry-kafka-connection:latest -f Dockerfile.kafka.stage .
+# docker build -t airqo-stage-device-registry-kafka:latest -f Dockerfile.kafka.stage .
 
 echo "💪 Build complete Kafka connections docker image"
-echo "💫 Image : airqo-stage-device-registry-kafka-connection:latest"
-echo -e "🛫 Push the image : docker push airqo-stage-device-registry-kafka-connection:latest \n"
+echo "💫 Image : airqo-stage-device-registry-kafka:latest"
+echo -e "🛫 Push the image : docker push airqo-stage-device-registry-kafka:latest \n"
