@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
-CALIBRATE = os.getenv("CALIBRATE")
+CALIBRATE = os.getenv("CALIBRATE", "false")
 
 
 class DeviceRegistry:
@@ -45,16 +45,18 @@ class DeviceRegistry:
         try:
 
             headers = {'Content-Type': 'application/json'}
-            url = self.base_url + "devices/events/add?tenant=" + self.tenant
+            url = self.base_url + "devices/events?tenant=" + self.tenant
             json_data = json.dumps(measurements)
 
-            results = requests.post(url, json_data, headers=headers, verify=False)
+            response = requests.post(url, json_data, headers=headers, verify=False)
 
-            if results.status_code == 200:
-                print(results.json())
+            if response.status_code == 200:
+                print(response.json())
             else:
-                print("Device registry failed to insert values. Status Code : " + str(results.status_code))
-                print(results.content)
+                print("Device registry failed to insert values. Status Code : " + str(response.status_code))
+                print(response.content)
+                print(response.request.url)
+                print(response.request.body)
 
         except Exception as ex:
             print("Error Occurred while inserting measurements: " + str(ex))
