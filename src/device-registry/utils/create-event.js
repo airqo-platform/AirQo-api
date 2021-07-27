@@ -72,13 +72,15 @@ const createEvent = {
         let data = event;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
-        let responseFromTransformEvent = createEvent.transformOneEvent({
+        let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
           map,
           context,
         });
         logger.info(
-          `responseFromTransformEvent -- ${responseFromTransformEvent}`
+          `responseFromTransformEvent -- ${JSON.stringify(
+            responseFromTransformEvent
+          )}`
         );
         if (responseFromTransformEvent.success) {
           logger.info(`responseFromTransformEvent is a success`);
