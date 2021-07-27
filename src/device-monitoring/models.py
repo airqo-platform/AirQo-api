@@ -1,12 +1,28 @@
 from config.db_connection import connect_mongo
 from pymongo import DESCENDING, ASCENDING
 
+from app import cache
 
-class DeviceStatus:
-    def __init__(self, tenant):
-        self.tenant = tenant
+
+class BaseModel:
+    __abstract__ = True
+
+    def __init__(self, tenant, collection_name):
+        self.tenant = tenant.lower()
+        self.collection_name = collection_name
         self.db = self._connect()
-        self.collection = self.db['device_status']
+        self.collection = self.db[collection_name]
+
+    def _connect(self):
+        return connect_mongo(self.tenant)
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}({self.tenant}, {self.collection_name})"
+
+
+class DeviceStatus(BaseModel):
+    def __init__(self, tenant):
+        super().__init__(tenant, 'device_status')
 
     def _connect(self):
         return connect_mongo(self.tenant)
@@ -21,11 +37,9 @@ class DeviceStatus:
         return list(self.collection.find(db_filter).sort('created_at', DESCENDING))
 
 
-class NetworkUptime:
+class NetworkUptime(BaseModel):
     def __init__(self, tenant):
-        self.tenant = tenant
-        self.db = self._connect()
-        self.collection = self.db['network_uptime']
+        super().__init__(tenant, 'network_uptime')
 
     def _connect(self):
         return connect_mongo(self.tenant)
@@ -37,11 +51,9 @@ class NetworkUptime:
         return list(self.collection.find(db_filter).sort('created_at', ASCENDING))
 
 
-class DeviceUptime:
+class DeviceUptime(BaseModel):
     def __init__(self, tenant):
-        self.tenant = tenant
-        self.db = self._connect()
-        self.collection = self.db['device_uptime']
+        super().__init__(tenant, 'device_uptime')
 
     def _connect(self):
         return connect_mongo(self.tenant)
@@ -60,7 +72,6 @@ class DeviceUptime:
                     {
                         "$group": {
                             "_id": '$device_name',
-                            # "uptime": {'$push': "$$ROOT"}
                             "values": {'$push': {
                                 '_id': {'$toString': '$_id'},
                                 "battery_voltage": "$battery_voltage",
