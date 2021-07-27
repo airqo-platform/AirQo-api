@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 import logging
-from helpers import convert_dates
+from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
 from helpers.group_by import group_by
 from models import DeviceStatus
@@ -13,41 +13,37 @@ device_status_bp = Blueprint('device_status', __name__)
 
 @device_status_bp.route(routes.DEVICE_STATUS, methods=['GET'])
 def get_device_status():
+    errors = {}
     tenant = request.args.get('tenant')
+    try:
+        limit = abs(int(request.args.get('limit', 0)))
+    except Exception:
+        errors['limit'] = 'limit must be a valid integer'
+
+    try:
+        start_date = validate_datetime(request.args.get('startDate'))
+    except Exception:
+        errors['startDate'] = 'This field is required.' \
+                              'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
+
+    try:
+        end_date = validate_datetime(request.args.get('endDate'))
+    except Exception:
+        errors['endDate'] = 'This field is required.' \
+                              'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
+
+    if errors:
+        return jsonify({
+            'message': 'Some errors occurred while processing this request',
+            'errors': errors
+        }), 400
 
     model = DeviceStatus(tenant)
-    documents = model.get_device_status()
+    documents = model.get_device_status(start_date, end_date, limit)
     converted_documents = convert_model_ids(documents)
 
     response = dict(message="devices status query successful", data=converted_documents)
     return jsonify(response), 200
-
-
-@device_status_bp.route(routes.LATEST_DEVICES_STATUS, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])
-def get_all_devices_latest_status():
-    '''
-    Get all devices latest status
-    '''
-    model = device_status.DeviceStatus()
-    if request.method == 'GET':
-        tenant = request.args.get('tenant')
-        if not tenant:
-            return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        documents = model.get_all_devices_latest_status(tenant)
-        response_ = []
-        if documents:
-            result = documents[0]
-            response = {'online_devices_percentage': result['online_devices_percentage'],
-                        'offline_devices_percentage': result['offline_devices_percentage'], 'created_at': convert_dates.convert_GMT_time_to_EAT_local_time(result['created_at'])}
-        else:
-            response = {
-                "message": "Device status data not available for " + tenant + " organization", "success": False}
-        for document in documents:
-            response_.append(document)
-        data = jsonify({'data': response, 'all_data': response_})
-        return data, 200
-    else:
-        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
 
 @device_status_bp.route(routes.NETWORK_UPTIME, methods=['GET', 'POST', 'PUT', 'DELETE', 'PATCH'])

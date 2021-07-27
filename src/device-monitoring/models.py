@@ -39,5 +39,11 @@ class DeviceStatus:
     def _connect(self):
         return connect_mongo(self.tenant)
 
-    def get_device_status(self):
-        return list(self.collection.find().sort('created_at', DESCENDING).limit(1))
+    def get_device_status(self, start_date, end_date, limit):
+
+        db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
+
+        if limit:
+            return list(self.collection.find(db_filter).sort('created_at', DESCENDING).limit(1))
+
+        return list(self.collection.find(db_filter).sort('created_at', DESCENDING))
