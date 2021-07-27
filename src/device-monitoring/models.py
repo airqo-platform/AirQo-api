@@ -1,5 +1,5 @@
 from config.db_connection import connect_mongo
-from pymongo import DESCENDING
+from pymongo import DESCENDING, ASCENDING
 
 # DEVICE_STATUS_PROJECT = {
 #     '_id': {'$toString': '$_id'},
@@ -47,3 +47,19 @@ class DeviceStatus:
             return list(self.collection.find(db_filter).sort('created_at', DESCENDING).limit(1))
 
         return list(self.collection.find(db_filter).sort('created_at', DESCENDING))
+
+
+class NetworkUptime:
+    def __init__(self, tenant):
+        self.tenant = tenant
+        self.db = self._connect()
+        self.collection = self.db['network_uptime']
+
+    def _connect(self):
+        return connect_mongo(self.tenant)
+
+    def get_network_uptime(self, start_date, end_date):
+
+        db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
+
+        return list(self.collection.find(db_filter).sort('created_at', ASCENDING))
