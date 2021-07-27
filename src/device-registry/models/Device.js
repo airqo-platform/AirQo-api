@@ -397,7 +397,7 @@ deviceSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully removed the platform",
+          message: "successfully deleted device from the platform",
           data,
         };
       } else {
