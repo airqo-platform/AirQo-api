@@ -71,7 +71,6 @@ def get_network_uptime():
     model = NetworkUptime(tenant)
 
     result = model.get_network_uptime(start_date, end_date)
-    result = convert_model_ids(result)
     response = dict(message="network uptime query successful", data=result)
     return jsonify(response), 200
 

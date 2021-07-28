@@ -43,8 +43,23 @@ class NetworkUptime(BaseModel):
     def get_network_uptime(self, start_date, end_date):
 
         db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
-
-        return list(self.collection.find(db_filter).sort('created_at', ASCENDING))
+        return list(self.collection.aggregate(
+            [
+                {"$match": db_filter},
+                {
+                    '$project': {
+                        '_id': {'$toString': '$_id'},
+                        "created_at": {'$dateToString': {
+                            'date': "$created_at",
+                            'format': '%Y-%m-%dT%H:%M:%S%z',
+                            'timezone': 'Africa/Kampala',
+                        }},
+                        "network_name": 1,
+                        'uptime': 1,
+                    }
+                }
+            ]
+        ))
 
 
 class DeviceUptime(BaseModel):
