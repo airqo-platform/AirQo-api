@@ -32,14 +32,6 @@ spec:
             backend:
               serviceName: airqo-stage-device-registry-api-svc
               servicePort: 3000
-          - path: /api/v1/location_registry
-            backend:
-              serviceName: airqo-stage-location-registry-api-svc
-              servicePort: 8080
-          - path: /api/v2/location_registry
-            backend:
-              serviceName: airqo-stage-location-registry-api-svc
-              servicePort: 8080
           - path: /api/v1/data
             backend:
               serviceName: airqo-stage-data-mgt-api-svc

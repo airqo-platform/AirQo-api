@@ -5,7 +5,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: airqo-stage-analytics-api
-  namespace: stage
+  namespace: staging
 spec:
   selector:
     matchLabels:
