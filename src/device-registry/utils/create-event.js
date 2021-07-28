@@ -119,7 +119,7 @@ const createEvent = {
           `the retrieved device details -- ${JSON.stringify(deviceDetails)}`
         );
         enrichedEvent["is_test_data"] = deviceDetails.isActive
-          ? deviceDetails.isActive
+          ? !deviceDetails.isActive
           : false;
         enrichedEvent["is_device_primary"] = deviceDetails.isPrimaryInLocation
           ? deviceDetails.isPrimaryInLocation
