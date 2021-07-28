@@ -54,7 +54,7 @@ const createEvent = {
         let errors = responseFromAddEventsUtil.error
           ? responseFromAddEventsUtil.error
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(HTTPStatus.FORBIDDEN).json({
           success: false,
           message: "finished the operation with some errors",
           errors,
