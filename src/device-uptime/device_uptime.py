@@ -16,8 +16,7 @@ def get_device_records(tenant, channel_id, device_name, mobility):
     sensor_one_pm2_5 = device_records.sensor_one_pm2_5
     sensor_two_pm2_5 = device_records.sensor_two_pm2_5
     battery_voltage = device_records.battery_voltage
-
-    created_at = datetime.utcnow()
+    created_at = device_records.time
     created_at = created_at.replace(tzinfo=UTC)
 
     record = {
