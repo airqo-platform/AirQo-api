@@ -1,10 +1,10 @@
-FROM python:3.7-slim
+FROM thinkwhere/gdal-python
 
-RUN apt-get update && apt-get install -y \
-  binutils \
-  gdal-bin \
-  python-gdal \
-  libspatialindex-dev
+COPY . /app/
+WORKDIR /app/
+
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
 COPY . /app/
 WORKDIR /app/
