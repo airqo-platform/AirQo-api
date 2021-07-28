@@ -347,7 +347,9 @@ eventSchema.statics = {
       let search = filter;
       let groupId = {};
       if (frequency === "hourly") {
-        groupId = { $dateToString: { format: "%Y-%m-%d-%H", date: "$time" } };
+        groupId = {
+          $dateToString: { format: "%Y-%m-%dT%H:00:00.%LZ", date: "$time" },
+        };
         delete search["frequency"];
       }
 
