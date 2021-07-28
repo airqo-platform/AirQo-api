@@ -9,7 +9,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
 const { generateDateFormatWithoutHrs } = require("./date");
 const { transform } = require("node-json-transform");
-const Dot = require("Dot-object");
+const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
 
 const createEvent = {
