@@ -35,7 +35,7 @@ def get_device_records(tenant, channel_id, device_name, mobility):
 
 def save_device_uptime(tenant):
     device_model = Device(tenant)
-    devices = device_model.get_active_devices()
+    devices = device_model.get_all_devices()
     records = []
     futures = []
     executor = ThreadPoolExecutor()

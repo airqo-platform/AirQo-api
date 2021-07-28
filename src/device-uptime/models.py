@@ -9,15 +9,8 @@ class Device:
     def _connect(self):
         return connect_mongo(self.tenant, 'device_registry')
 
-    def get_active_devices(self):
-        return self.db.devices.find(
-            {
-                '$and': [{
-                    "channelID": {'$ne': ''},
-                    'isActive': {'$eq': True}
-                }]
-            }
-        )
+    def get_all_devices(self):
+        return self.db.devices.find()
 
 
 class DeviceUptime:
