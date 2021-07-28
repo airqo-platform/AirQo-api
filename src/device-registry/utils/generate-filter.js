@@ -10,6 +10,8 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const { logElement, logObject } = require("./log");
+const log4js = require("log4js");
+const logger = log4js.getLogger("generate-filter-util");
 
 const generateFilter = {
   events: (device, frequency, startTime, endTime) => {
@@ -302,6 +304,7 @@ const generateFilter = {
         site,
         site_id,
         id,
+        device_id,
         device_number,
       } = req.query;
 
@@ -322,6 +325,10 @@ const generateFilter = {
 
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+
+      if (device_id) {
+        filter["_id"] = ObjectId(device_id);
       }
 
       if (chid) {
@@ -382,12 +389,14 @@ const generateFilter = {
         } else {
         }
       }
+      logger.info(`the filter  -- ${JSON.stringify(filter)}`);
       return {
         success: true,
         message: "successfully generated the filter",
         data: filter,
       };
     } catch (error) {
+      logger.error(`server error - generate device filter -- ${error.message}`);
       return {
         success: false,
         message: "server error - generate device filter",

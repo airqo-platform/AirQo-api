@@ -8,9 +8,9 @@ const Cryptr = require("cryptr");
 const constants = require("../config/constants");
 const cryptr = new Cryptr(`${constants.KEY_ENCRYPTION_KEY}`);
 const isEmpty = require("is-empty");
-const log4js = require("log4js");
-const logger = log4js.getLogger("create-device-util");
 const jsonify = require("../utils/jsonify");
+const log4js = require("log4js");
+const logger = log4js.getLogger("device-model");
 const maxLength = [
   15,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
@@ -279,6 +279,12 @@ deviceSchema.statics = {
 
   async list({ _skip = 0, _limit = 100, filter = {} } = {}) {
     try {
+      logger.info(
+        `the filter received in the model -- ${JSON.stringify(filter)}`
+      );
+      logger.info(
+        `the type of filter received in the model -- ${typeof filter}`
+      );
       let response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -324,6 +330,7 @@ deviceSchema.statics = {
         .allowDiskUse(true);
 
       let data = jsonify(response);
+      logger.info(`the data produced in the model -- ${JSON.stringify(data)}`);
       if (!isEmpty(data)) {
         return {
           success: true,

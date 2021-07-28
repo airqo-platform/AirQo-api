@@ -65,49 +65,6 @@ const registerDeviceUtil = {
       };
     }
   },
-  retrieveDeviceDetail: async (request, property) => {
-    try {
-      let responseFromListDevice = await registerDeviceUtil.list(request);
-      if (responseFromListDevice.success === true) {
-        let deviceDetail = responseFromListDevice.data[0];
-        let detail = property + "";
-        let data = deviceDetail[detail];
-        logger.info(`the device detail retrieved ${data}`);
-        if (data) {
-          return {
-            success: true,
-            message: "successfully retrieved the device detail",
-            data,
-          };
-        } else {
-          logger.error(`detail does not exist`);
-          return {
-            success: false,
-            message: "the device detail does not exist",
-          };
-        }
-      }
-
-      if (responseFromListDevice.success === false) {
-        let error = responseFromListDevice.error
-          ? responseFromListDevice.error
-          : "";
-        log.error(`unable to retrieve device detail ${error}`);
-        return {
-          success: false,
-          message: "unable to retrieve device detail",
-          error,
-        };
-      }
-    } catch (error) {
-      log.error(`server error -- retrieve device detail ${error.message}`);
-      return {
-        success: false,
-        message: "server error -- retrieve device detail",
-        error: error.message,
-      };
-    }
-  },
   create: async (request) => {
     try {
       if (request.query.tenant !== "airqo") {
@@ -416,18 +373,19 @@ const registerDeviceUtil = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      logElement(
-        "is responseFromFilter in util a success?",
-        responseFromFilter.success
+      logger.info(
+        `responseFromFilter -- ${JSON.stringify(responseFromFilter)}`
       );
 
-      if (responseFromFilter.success) {
+      if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
+        logger.info(`the filter in list -- ${JSON.stringify(filter)}`);
       }
 
-      if (!responseFromFilter.success) {
+      if (responseFromFilter.success === false) {
         let error = responseFromFilter.error ? responseFromFilter.error : "";
+        logger.error(`the error from filter in list -- ${error}`);
         return {
           success: false,
           message: responseFromFilter.message,
@@ -445,26 +403,33 @@ const registerDeviceUtil = {
         skip,
       });
 
-      logElement(
-        "is responseFromListDevice in util a success?",
-        responseFromListDevice.success
+      logger.info(
+        `the responseFromListDevice in list -- ${JSON.stringify(
+          responseFromListDevice
+        )} `
       );
 
-      if (!responseFromListDevice.success) {
+      if (responseFromListDevice.success === false) {
         let error = responseFromListDevice.error
           ? responseFromListDevice.error
           : "";
-
+        logger.error(
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${error}`
+        );
         return {
           success: false,
           message: responseFromListDevice.message,
           error,
         };
-      } else {
+      }
+
+      if (responseFromListDevice.success === true) {
+        let data = responseFromListDevice.data;
+        logger.info(`responseFromListDevice was a success -- ${data}`);
         return {
           success: true,
           message: responseFromListDevice.message,
-          data: responseFromListDevice.data,
+          data,
         };
       }
     } catch (e) {
