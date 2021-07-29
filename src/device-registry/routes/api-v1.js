@@ -104,13 +104,11 @@ router.post(
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("device_number")
-        .exists()
-        .withMessage("device_number should be provided")
-        .bail()
+        .if(body("device_number").exists())
+        .notEmpty()
         .trim()
         .isInt()
-        .withMessage("the device_number should be an integer value")
-        .toInt(),
+        .withMessage("the device_number should be an integer value"),
       body("long_name")
         .exists()
         .withMessage("the device long_name should be provided")
@@ -293,8 +291,7 @@ router.delete(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -346,8 +343,7 @@ router.put(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -552,13 +548,11 @@ router.post(
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("device_number")
-        .exists()
-        .withMessage("device_number should be provided")
-        .bail()
+        .if(body("device_number").exists())
+        .notEmpty()
         .trim()
         .isInt()
-        .withMessage("the device_number should be an integer value")
-        .toInt(),
+        .withMessage("the device_number should be an integer value"),
       body("long_name")
         .exists()
         .withMessage("the device long_name should be provided")
@@ -624,8 +618,7 @@ router.delete(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -676,8 +669,7 @@ router.put(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -878,8 +870,7 @@ router.get(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -1331,8 +1322,7 @@ router.delete(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("device_id")
       .exists()
       .withMessage(
