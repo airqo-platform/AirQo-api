@@ -24,127 +24,89 @@ const createEventUtil = require("../utils/create-event");
 const createEvent = {
   addValues: async (req, res) => {
     try {
-      logger.info(`adding values...`);
+      logText("adding values...");
+      const { tenant } = req.query;
+      const measurements = req.body;
+      let errors = [];
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(res, "bad request errors", nestedErrors);
       }
-      logger.info(`adding values...`);
-      const { device, tenant } = req.query;
-      const { body } = req;
+      if (!Array.isArray(measurements)) {
+        errors.push({
+          location: "body",
+          value_type: typeof measurements,
+          msg: "the the input body should be an array, please crosscheck ",
+        });
+      }
+      if (!tenant) {
+        errors.push({
+          location: "query",
+          value: "",
+          param: "tenant",
+          msg: "the tenant query parameter must be provided ",
+        });
+      }
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["device"] = device;
-      request["query"]["tenant"] = tenant;
-      request["body"] = body;
-
-      let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
-
-      logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
-
-      logger.info(
-        `responseFromAddEventsUtil -- ${JSON.stringify(
-          responseFromAddEventsUtil
-        )}`
-      );
-
-      if (!responseFromAddEventsUtil.success) {
-        let errors = responseFromAddEventsUtil.error
-          ? responseFromAddEventsUtil.error
-          : "";
-        return res.status(HTTPStatus.FORBIDDEN).json({
+      if (errors.length > 0) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
-          message: "finished the operation with some errors",
+          message: "bad request errors",
           errors,
         });
       }
 
-      if (responseFromAddEventsUtil.success) {
+      const responseFromTransformMeasurements = await transformMeasurements_v2(
+        measurements
+      );
+      logObject(
+        "responseFromTransformMeasurements",
+        responseFromTransformMeasurements
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        let error = responseFromTransformMeasurements.error
+          ? responseFromTransformMeasurements.error
+          : "";
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromTransformMeasurements.message,
+          error,
+        });
+      }
+
+      logObject(
+        "responseFromTransformMeasurements.data",
+        responseFromTransformMeasurements.data
+      );
+
+      let response = await insertMeasurements(
+        tenant,
+        responseFromTransformMeasurements.data
+      );
+
+      if (!response.success) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "finished the operation with some errors",
+          errors: response.errors,
+        });
+      } else {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: "successfully added all the events",
-          stored_events: responseFromAddEventsUtil.data,
         });
       }
     } catch (e) {
-      logger.error(`addValue -- ${e.message}`);
       return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
-        message: "server error",
+        message: "server side error , create events - controller",
         error: e.message,
       });
     }
   },
-  viewEvents: async (req, res) => {
-    try {
-      if (Array.isArray(req.query.device)) {
-        return badRequest(
-          res,
-          "multiple Device query params not supported, please use one comma separated one",
-          []
-        );
-      }
 
-      if (Array.isArray(req.query.site)) {
-        return badRequest(
-          res,
-          "multiple Site query params not supported, please use one comma separated one",
-          []
-        );
-      }
-      // return res.status(HTTPStatus.OK).json({
-      //   success: true,
-      //   message: "we be testing viewing events",
-      // });
-      logger.info(`viewing events...`);
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
-      }
-
-      if (Array.isArray(req.query.device)) {
-        return badRequest(
-          res,
-          "multiple Device query params not supported, please use one comma separated one",
-          []
-        );
-      }
-
-      let responseFromEventsUtil = await createEventUtil.viewEvents(req);
-      logObject("responseFromEventsUtil", responseFromEventsUtil);
-      logger.info(
-        `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
-      );
-      if (responseFromEventsUtil.success === true) {
-        res.status(HTTPStatus.OK).json({
-          success: true,
-          message: responseFromEventsUtil.message,
-          measurements: responseFromEventsUtil.data,
-        });
-      }
-
-      if (responseFromEventsUtil.success === false) {
-        let error = responseFromEventsUtil.error
-          ? responseFromEventsUtil.error
-          : "";
-        res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: responseFromEventsUtil.message,
-          error,
-        });
-      }
-    } catch (error) {
-      logger.error(`viewEvents -- ${error.message}`);
-      res.status(HTTPStatus.BAD_GATEWAY).json({
-        success: false,
-        message: "server error",
-        error: error.message,
-      });
-    }
-  },
   getValues: (req, res) => {
     try {
       const {
@@ -158,6 +120,13 @@ const createEvent = {
         startTime,
         endTime,
       } = req.query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+
       if (Array.isArray(req.query.device)) {
         return badRequest(
           res,
@@ -187,7 +156,6 @@ const createEvent = {
       tryCatchErrors(res, e);
     }
   },
-
   transmitValues: async (req, res) => {
     try {
       const { type, tenant } = req.query;
@@ -311,6 +279,137 @@ const createEvent = {
       tryCatchErrors(res, e);
     }
   },
+
+  /***********************************************************
+   * api_v2 starts
+   */
+  addEvents: async (req, res) => {
+    try {
+      logger.info(`adding values...`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      logger.info(`adding values...`);
+      const { device, tenant } = req.query;
+      const { body } = req;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["device"] = device;
+      request["query"]["tenant"] = tenant;
+      request["body"] = body;
+
+      let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
+
+      logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
+
+      logger.info(
+        `responseFromAddEventsUtil -- ${JSON.stringify(
+          responseFromAddEventsUtil
+        )}`
+      );
+
+      if (!responseFromAddEventsUtil.success) {
+        let errors = responseFromAddEventsUtil.error
+          ? responseFromAddEventsUtil.error
+          : "";
+        return res.status(HTTPStatus.FORBIDDEN).json({
+          success: false,
+          message: "finished the operation with some errors",
+          errors,
+        });
+      }
+
+      if (responseFromAddEventsUtil.success) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "successfully added all the events",
+          stored_events: responseFromAddEventsUtil.data,
+        });
+      }
+    } catch (e) {
+      logger.error(`addValue -- ${e.message}`);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server error",
+        error: e.message,
+      });
+    }
+  },
+  viewEvents: async (req, res) => {
+    try {
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+
+      if (Array.isArray(req.query.site)) {
+        return badRequest(
+          res,
+          "multiple Site query params not supported, please use one comma separated one",
+          []
+        );
+      }
+      // return res.status(HTTPStatus.OK).json({
+      //   success: true,
+      //   message: "we be testing viewing events",
+      // });
+      logger.info(`viewing events...`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+
+      let responseFromEventsUtil = await createEventUtil.viewEvents(req);
+      logObject("responseFromEventsUtil", responseFromEventsUtil);
+      logger.info(
+        `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
+      );
+      if (responseFromEventsUtil.success === true) {
+        res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromEventsUtil.message,
+          measurements: responseFromEventsUtil.data,
+        });
+      }
+
+      if (responseFromEventsUtil.success === false) {
+        let error = responseFromEventsUtil.error
+          ? responseFromEventsUtil.error
+          : "";
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromEventsUtil.message,
+          error,
+        });
+      }
+    } catch (error) {
+      logger.error(`viewEvents -- ${error.message}`);
+      res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server error",
+        error: error.message,
+      });
+    }
+  },
+
+  /************************************************************
+   * api_v2 ends
+   */
 };
 
 module.exports = createEvent;

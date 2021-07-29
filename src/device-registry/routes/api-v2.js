@@ -1228,7 +1228,7 @@ router.post(
         .toLowerCase(),
     ],
   ]),
-  eventController.addValues
+  eventController.addEvents
 );
 
 router.get(
