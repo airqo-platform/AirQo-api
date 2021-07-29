@@ -218,14 +218,14 @@ const device = {
       logger.info(
         `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
       );
-      if (responseFromUpdateDevice.success) {
+      if (responseFromUpdateDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           message: responseFromUpdateDevice.message,
           success: true,
           updated_device: responseFromUpdateDevice.data,
         });
       }
-      if (!responseFromUpdateDevice.success) {
+      if (responseFromUpdateDevice.success === false) {
         let error = responseFromUpdateDevice.error
           ? responseFromUpdateDevice.error
           : "";
@@ -255,7 +255,7 @@ const device = {
         responseFromListDeviceDetails.success
       );
 
-      if (responseFromListDeviceDetails.success == true) {
+      if (responseFromListDeviceDetails.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromListDeviceDetails.message,
@@ -263,7 +263,7 @@ const device = {
         });
       }
 
-      if (responseFromListDeviceDetails.success == false) {
+      if (responseFromListDeviceDetails.success === false) {
         let error = responseFromListDeviceDetails.error
           ? responseFromListDeviceDetails
           : "";
@@ -323,14 +323,14 @@ const device = {
       const { tenant, device, device_number, name, id } = req.query;
       const { body } = req;
       let requestObject = {};
-      requestObject["query"] = {
-        id,
-        device_number,
-        name,
-        device,
-        tenant,
-        body,
-      };
+      requestObject["query"] = {};
+      requestObject["query"]["id"] = id;
+      requestObject["query"]["device_number"] = device_number;
+      requestObject["query"]["name"] = name;
+      requestObject["query"]["device"] = device;
+      requestObject["query"]["tenant"] = tenant;
+      requestObject["body"] = body;
+
       logObject("we see", requestObject);
       let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
         requestObject
@@ -342,7 +342,7 @@ const device = {
         )}`
       );
 
-      if (responseFromUpdateDeviceOnPlatform.success == true) {
+      if (responseFromUpdateDeviceOnPlatform.success === true) {
         return res.status(HTTPStatus.OK).json({
           message: responseFromUpdateDeviceOnPlatform.message,
           success: true,
@@ -350,11 +350,11 @@ const device = {
         });
       }
 
-      if (responseFromUpdateDeviceOnPlatform.success == false) {
+      if (responseFromUpdateDeviceOnPlatform.success === false) {
         let error = responseFromUpdateDeviceOnPlatform.error
           ? responseFromUpdateDeviceOnPlatform.error
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(HTTPStatus.NOT_MODIFIED).json({
           message: responseFromUpdateDeviceOnPlatform.message,
           success: false,
           error,

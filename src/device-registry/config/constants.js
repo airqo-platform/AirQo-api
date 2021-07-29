@@ -128,7 +128,9 @@ const defaultConfig = {
       time: "time",
       day: "time",
       frequency: "frequency",
+      tenant: "tenant",
       is_test_data: "is_test_data",
+      is_device_primary: "is_device_primary",
 
       "pm2_5.value": "pm2_5.value",
       "pm2_5.calibratedValue": "pm2_5.calibratedValue",
@@ -186,6 +188,7 @@ const defaultConfig = {
     remove: [],
     defaults: {
       time: null,
+      tenant: null,
       device: null,
       device_id: null,
       site_id: null,
@@ -193,8 +196,8 @@ const defaultConfig = {
       frequency: null,
       site: null,
       device_number: null,
-      is_device_primary: null,
       is_test_data: null,
+      is_device_primary: null,
 
       "pm10.value": null,
       "pm10.calibratedValue": null,
@@ -264,14 +267,19 @@ const defaultConfig = {
       item.filter = {};
       item.update = {};
       item.options = {};
-      item["filter"]["device_number"] = context.device_number;
-      item["filter"]["site"] = context.site;
-      item["filter"]["device_id"] = context.device_id;
-      item["filter"]["is_device_primary"] = context.is_device_primary;
-      item["filter"]["values.frequency"] = context.frequency;
-      item["filter"]["site_id"] = context.site_id;
-      item["filter"]["values.time"] = context.time;
-      item["filter"]["device"] = context.device;
+      item["filter"]["device_number"] = context.device_number
+        ? context.device_number
+        : null;
+      item["filter"]["site"] = context.site ? context.site : null;
+      item["filter"]["device_id"] = context.device_id
+        ? context.device_id
+        : null;
+      item["filter"]["values.frequency"] = context.frequency
+        ? context.frequency
+        : null;
+      item["filter"]["site_id"] = context.site_id ? context.site_id : null;
+      item["filter"]["values.time"] = context.time ? context.time : null;
+      item["filter"]["device"] = context.device ? context.device : null;
       item["filter"]["nValues"] = { $lt: defaultConfig.N_VALUES };
       item["filter"]["day"] = generateDateFormatWithoutHrs(context.time);
       item["update"]["$min"] = { first: context.time };

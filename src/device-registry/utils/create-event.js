@@ -11,13 +11,32 @@ const { generateDateFormatWithoutHrs } = require("./date");
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
+const { registerDeviceUtil } = require("./create-device");
+const HTTPStatus = require("http-status");
 
 const createEvent = {
-  transformOneEvent: ({ data = {}, map = {}, context = {} } = {}) => {
+  transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {
       let dot = new Dot(".");
       let modifiedFilter = {};
-      const result = transform(data, map, context);
+
+      let result = {};
+      let transformedEvent = transform(data, map, context);
+      let responseFromEnrichOneEvent = await createEvent.enrichOneEvent(
+        transformedEvent
+      );
+      if (responseFromEnrichOneEvent.success === true) {
+        result = responseFromEnrichOneEvent.data;
+        result["update"]["is_device_primary"] = result["is_device_primary"];
+        dot.delete("is_device_primary", result);
+      }
+
+      if (responseFromEnrichOneEvent.success === false) {
+        return {
+          success: false,
+          message: "unable to enrich event",
+        };
+      }
       logObject("the event", result);
       if (!isEmpty(result)) {
         dot.object(result);
@@ -37,7 +56,6 @@ const createEvent = {
         modifiedFilter["nValues"] = filter.nValues;
         modifiedFilter["device_id"] = filter.device_id;
         modifiedFilter["site_id"] = filter.site_id;
-        modifiedFilter["is_device_primary"] = filter.is_device_primary;
 
         cleanedResult["modifiedFilter"] = modifiedFilter;
 
@@ -65,22 +83,105 @@ const createEvent = {
       };
     }
   },
-  transformManyEvents: async (events) => {
+  enrichOneEvent: async (transformedEvent) => {
     try {
-      let promises = events.map(async (event) => {
+      logger.info(
+        `the transformedEvent received for enrichment -- ${JSON.stringify(
+          transformedEvent
+        )}`
+      );
+      let request = {};
+      let enrichedEvent = transformedEvent;
+      request["query"] = {};
+      request["query"]["device_id"] = transformedEvent.filter.device_id;
+      request["query"]["tenant"] = transformedEvent.tenant;
+
+      logger.info(
+        `the request being sent to list device details -- ${JSON.stringify(
+          request
+        )}`
+      );
+
+      const responseFromGetDeviceDetails = await registerDeviceUtil.list(
+        request
+      );
+      logger.info(
+        `responseFromGetDeviceDetails ${JSON.stringify(
+          responseFromGetDeviceDetails
+        )}`
+      );
+      if (responseFromGetDeviceDetails.success === true) {
+        logger.info(
+          `responseFromGetDeviceDetails ${responseFromGetDeviceDetails}`
+        );
+        let deviceDetails = responseFromGetDeviceDetails.data[0];
+        logger.info(
+          `the retrieved device details -- ${JSON.stringify(deviceDetails)}`
+        );
+        enrichedEvent["is_test_data"] = deviceDetails.isActive
+          ? !deviceDetails.isActive
+          : false;
+        enrichedEvent["is_device_primary"] = deviceDetails.isPrimaryInLocation
+          ? deviceDetails.isPrimaryInLocation
+          : true;
+        logger.info(`enriched event -- ${JSON.stringify(enrichedEvent)}`);
+        return {
+          success: true,
+          message: "successfully enriched",
+          data: enrichedEvent,
+        };
+      }
+      if (responseFromGetDeviceDetails.success === false) {
+        let error = responseFromGetDeviceDetails.error
+          ? responseFromGetDeviceDetails.error
+          : "";
+        logger.error(
+          `responseFromGetDeviceDetails was not a success -- ${responseFromGetDeviceDetails.message} -- ${error}`
+        );
+        return {
+          success: false,
+          message: responseFromGetDeviceDetails.message,
+          error,
+        };
+      }
+    } catch (error) {
+      logger.error(`server side error -- enrich one event -- ${error.message}`);
+      return {
+        success: false,
+        message: "server error",
+        error: error.message,
+      };
+    }
+  },
+  transformManyEvents: async (request) => {
+    try {
+      let { tenant } = request.query;
+      logger.info(`the tenant being sent for transformation -- ${tenant}`);
+      let { body } = request;
+      logger.info(
+        `the body received for transformation -- ${JSON.stringify(body)}`
+      );
+      logger.info(`the tenant received for transformation -- ${tenant}`);
+      let promises = body.map(async (event) => {
         let data = event;
+        data["tenant"] = tenant;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
-        let responseFromTransformEvent = createEvent.transformOneEvent({
+        context["tenant"] = tenant;
+        let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
           map,
           context,
         });
         logger.info(
-          `responseFromTransformEvent -- ${responseFromTransformEvent}`
+          `responseFromTransformEvent -- ${JSON.stringify(
+            responseFromTransformEvent
+          )}`
         );
-        if (responseFromTransformEvent.success) {
-          logger.info(`responseFromTransformEvent is a success`);
+        if (responseFromTransformEvent.success === true) {
+          logger.info(
+            `responseFromTransformEvent is a success -- ${responseFromTransformEvent.message}`
+          );
           return {
             success: true,
             data: responseFromTransformEvent.data,
@@ -88,12 +189,12 @@ const createEvent = {
           };
         }
 
-        if (!responseFromTransformEvent.success) {
+        if (responseFromTransformEvent.success === false) {
           let error = responseFromTransformEvent.error
             ? responseFromTransformEvent.error
             : "";
           logger.error(
-            `responseFromTransformEvent is not a success -- ${error}`
+            `responseFromTransformEvent is not a success -- unable to transform -- ${error}`
           );
           return {
             success: false,
@@ -106,7 +207,7 @@ const createEvent = {
         let transforms = [];
         let errors = [];
         if (results.every((res) => res.success)) {
-          logger.info(`success tranformEvents -- ${results}`);
+          logger.info(`success tranformEvents -- ${JSON.stringify(results)}`);
           for (const result of results) {
             transforms.push(result.data);
           }
@@ -118,11 +219,13 @@ const createEvent = {
         }
 
         if (results.every((res) => !res.success)) {
-          logger.error(`unsuccessful tranformEvents -- ${results}`);
           for (const result of results) {
             let error = result.error ? result.error : "";
             errors.push(error);
           }
+          logger.error(
+            `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
+          );
           return {
             success: false,
             error: errors,
@@ -146,7 +249,7 @@ const createEvent = {
       let { tenant } = request.query;
       let { body } = request;
       let responseFromTransformEvents = await createEvent.transformManyEvents(
-        body
+        request
       );
       logObject("responseFromTransformEvents", responseFromTransformEvents);
       logger.info(
@@ -226,7 +329,10 @@ const createEvent = {
           dot.object(filter);
           logger.info(`the filter -- ${JSON.stringify(filter)}`);
 
-          dot.delete(["filter", "update", "options", "modifiedFilter"], value);
+          dot.delete(
+            ["filter", "update", "options", "modifiedFilter", "tenant", "day"],
+            value
+          );
           logger.info(`the value -- ${JSON.stringify(value)}`);
           logObject("the value", value);
 
@@ -243,12 +349,13 @@ const createEvent = {
 
           logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
 
-          Dot.delete("nValues", filter);
+          dot.delete("nValues", filter);
           if (!isEmpty(addedEvents)) {
             logger.info(`successfuly added the event`);
             let insertion = {
               msg: "successfuly added the event",
               event_details: filter,
+              status: HTTPStatus.CREATED,
             };
             data.push(insertion);
           }
@@ -257,6 +364,7 @@ const createEvent = {
             let errMsg = {
               msg: "unable to add the event",
               event_details: filter,
+              status: HTTPStatus.NOT_MODIFIED,
             };
             errors.push(errMsg);
             logger.info(
@@ -267,10 +375,12 @@ const createEvent = {
           }
         } catch (error) {
           logger.error(`insertTransformedEvents -- ${error.message}`);
+          logObject;
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
             event_details: filter,
+            status: HTTPStatus.FORBIDDEN,
           };
           errors.push(errMsg);
         }
