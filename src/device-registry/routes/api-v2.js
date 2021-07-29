@@ -979,7 +979,7 @@ router.post(
         .withMessage("the latitude must have 5 decimal places in it"),
       body("longitude")
         .exists()
-        .withMessage("the latitude is is missing in your request")
+        .withMessage("the longitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("the longitude provided is not valid")

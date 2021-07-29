@@ -36,11 +36,12 @@ const manageSite = {
   register: async (req, res) => {
     logText("registering site.............");
     try {
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingOrInvalidValues(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
+
       const { tenant } = req.query;
 
       const { latitude, longitude, name } = req.body;
@@ -74,10 +75,10 @@ const manageSite = {
   generateMetadata: async (req, res) => {
     logText("registering site.............");
     try {
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingOrInvalidValues(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       const { tenant } = req.query;
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
@@ -118,10 +119,10 @@ const manageSite = {
       logText(".................................................");
       logText("inside delete site............");
       const { tenant } = req.query;
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingQueryParams(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       let filter = generateFilter.sites(req);
       logObject("filter", filter);
@@ -247,10 +248,10 @@ const manageSite = {
       const { tenant } = req.query;
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingQueryParams(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       let filter = generateFilter.sites(req);
       logObject("filter in the controller", filter);
