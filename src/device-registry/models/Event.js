@@ -382,13 +382,49 @@ eventSchema.statics = {
   async view({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     try {
       logObject("the filter", filter);
+      let { device, site, site_id, device_id, frequency } = filter;
       logElement("filter.frequency", filter.frequency);
-      let frequency = filter.frequency;
-      let device_id = filter.device_id;
-      let site_id = filter.site_id;
       let groupOperator = "$avg";
       let search = filter;
       let groupId = {};
+      let localField = "device_id";
+      let foreignField = "_id";
+      let from = "devices";
+      let as = "deviceDetails";
+      let elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+
+      if (device) {
+        localField = "device";
+        foreignField = "name";
+        from = "devices";
+        as = "deviceDetails";
+        elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+      }
+
+      if (device_id) {
+        localField = "device_id";
+        foreignField = "_id";
+        from = "devices";
+        as = "deviceDetails";
+        elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+      }
+
+      if (site) {
+        localField = "site";
+        foreignField = "name";
+        from = "sites";
+        as = "siteDetails";
+        elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
+      }
+
+      if (site_id) {
+        localField = "site_id";
+        foreignField = "_id";
+        from = "sites";
+        as = "siteDetails";
+        elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
+      }
+
       if (frequency === "hourly") {
         groupId = {
           $dateToString: { format: "%Y-%m-%dT%H:00:00.%LZ", date: "$time" },
@@ -419,16 +455,20 @@ eventSchema.statics = {
 
       logElement("the groupId to be used", groupId);
       logElement("the [groupOperator] to be used", [groupOperator]);
+      logElement("the -as- to be used", as);
+      logElement("the -from- to be used", from);
+      logElement("the -localField- to be used", localField);
+      logElement("the -foreignField- to be used", foreignField);
       logObject("the justing", { [groupOperator]: "$pm2_5.value" });
       let result = await this.aggregate()
         .unwind("values")
         .match(search)
         .replaceRoot("values")
         .lookup({
-          from: "devices",
-          localField: "device",
-          foreignField: "name",
-          as: "deviceDetails",
+          from,
+          localField,
+          foreignField,
+          as,
         })
         .sort({ time: -1 })
         .group({
@@ -436,6 +476,10 @@ eventSchema.statics = {
           time: { $first: groupId },
           device_id: { $first: "$device_id" },
           site_id: { $first: "$site_id" },
+          site: { $first: "$site" },
+          device: { $first: "$device" },
+          frequency: { $first: "$frequency" },
+          is_test_data: { $first: "$is_test_data" },
           "pm2_5-value": { [groupOperator]: "$pm2_5.value" },
           "pm2_5-calibrationValue": {
             [groupOperator]: "$pm2_5.calibrationValue",
@@ -494,7 +538,7 @@ eventSchema.statics = {
           "no2-standardDeviationValue": {
             [groupOperator]: "$no2.standardDeviationValue",
           },
-          deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
+          [as]: elementAtIndex0,
         })
         .project({
           _id: 0,
@@ -502,7 +546,7 @@ eventSchema.statics = {
         .skip(skipInt)
         .limit(limitInt)
         .allowDiskUse(true);
-      if (result) {
+      if (!isEmpty(result)) {
         return {
           success: true,
           message: "successfully fetched the measurements",
