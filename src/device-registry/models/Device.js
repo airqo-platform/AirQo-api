@@ -334,7 +334,7 @@ deviceSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully deleted the device",
+          message: "successfully retrieved the device details",
           data,
         };
       } else {
