@@ -1266,9 +1266,9 @@ router.get(
         .notEmpty()
         .trim()
         .toLowerCase()
-        .isIn(["hourly", "daily", "raw"])
+        .isIn(["hourly", "daily", "raw", "minute"])
         .withMessage(
-          "the frequency value is not among the expected ones which include: hourly, daily and raw"
+          "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
         ),
       query("device")
         .if(query("device").exists())
