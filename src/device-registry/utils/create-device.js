@@ -646,12 +646,12 @@ const registerDeviceUtil = {
         responseFromFilter.success
       );
       logger.info(`the filter ${JSON.stringify(responseFromFilter.data)}`);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
-      if (responseFromFilter.success == false) {
+      if (responseFromFilter.success === false) {
         let error = responseFromFilter.error ? responseFromFilter.error : "";
         logger.error(
           `responseFromFilter.error in create-device util--${responseFromFilter.error}`
@@ -668,7 +668,7 @@ const registerDeviceUtil = {
         DeviceSchema
       ).modify({ filter, update });
 
-      if (responseFromModifyDevice.success == true) {
+      if (responseFromModifyDevice.success === true) {
         return {
           success: true,
           message: responseFromModifyDevice.message,
@@ -676,7 +676,7 @@ const registerDeviceUtil = {
         };
       }
 
-      if (responseFromModifyDevice.success == false) {
+      if (responseFromModifyDevice.success === false) {
         let error = responseFromModifyDevice.error
           ? responseFromModifyDevice.error
           : "";
