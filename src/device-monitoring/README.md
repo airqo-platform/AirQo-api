@@ -34,8 +34,9 @@ set environment variables in the `.env file`
     * **DB_NAME_DEV**
     * **DB_NAME_PROD**
     * **DB_NAME_STAGE**
-    * **REDIS_SERVER**
-    * **REDIS_PORT**
+    * **REDIS_URL_PROD**
+    * **REDIS_URL_DEV**
+    * **REDIS_URL_STAGE**
     * **SECRET_KEY**
 
 
