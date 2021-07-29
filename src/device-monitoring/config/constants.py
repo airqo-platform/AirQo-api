@@ -22,9 +22,7 @@ class Config:
     CACHE_TYPE = 'RedisCache'
     CACHE_DEFAULT_TIMEOUT = THIRTY_MINUTES
     CACHE_KEY_PREFIX = 'device-monitoring'
-    CACHE_REDIS_HOST = os.getenv('REDIS_SERVER')
-    CACHE_REDIS_PORT = os.getenv('REDIS_PORT')
-    CACHE_REDIS_URL = f"redis://{os.getenv('REDIS_SERVER')}:{os.getenv('REDIS_PORT')}"
+    CACHE_REDIS_URL = os.getenv('REDIS_URL_PROD')
 
     SECRET_KEY = os.getenv("SECRET_KEY")
 
@@ -39,6 +37,7 @@ class ProductionConfig(Config):
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
+    CACHE_REDIS_URL = os.getenv('REDIS_URL_DEV')
     MONGO_URI = os.getenv("MONGO_DEV_URI")
     DB_NAME = os.getenv("DB_NAME_DEV")
 
@@ -46,6 +45,7 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
+    CACHE_REDIS_URL = os.getenv('REDIS_URL_STAGE')
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
 

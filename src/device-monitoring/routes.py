@@ -1,6 +1,6 @@
 BASE_URL = '/api/v1/monitor'
 
-HEALTH = '/health'
+HEALTH = f'{BASE_URL}/health'
 
 DEVICE_STATUS = f'{BASE_URL}/devices/status'
 

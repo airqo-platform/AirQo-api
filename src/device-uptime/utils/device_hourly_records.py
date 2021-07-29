@@ -61,7 +61,6 @@ class DeviceChannelRecords:
                 battery_voltage=0
             )
 
-        print("something here", self.device_name)
         return DeviceSensorReadings(
 
             time=time,
