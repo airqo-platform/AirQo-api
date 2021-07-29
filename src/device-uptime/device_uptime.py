@@ -9,7 +9,7 @@ from models import Device, NetworkUptime, DeviceUptime
 _logger = logging.getLogger(__name__)
 
 
-def get_device_records(tenant, channel_id, device_name, mobility):
+def get_device_records(tenant, channel_id, device_name, is_active):
     device_channel_records = DeviceChannelRecords(tenant, device_name, channel_id)
     device_records = device_channel_records.get_sensor_readings()
     uptime, downtime = device_channel_records.calculate_uptime()
@@ -27,7 +27,8 @@ def get_device_records(tenant, channel_id, device_name, mobility):
         "channel_id": channel_id,
         "uptime": uptime,
         "downtime": downtime,
-        "created_at": created_at
+        "created_at": created_at,
+        "is_active": is_active,
     }
 
     return record
@@ -39,11 +40,15 @@ def save_device_uptime(tenant):
     records = []
     futures = []
     executor = ThreadPoolExecutor()
+    active_device_count = 0
 
     for device in devices:
+        if device.get('isActive'):
+            active_device_count += 1
+
         channel_id = device["device_number"]
-        mobility = device["mobility"]
         device_name = device["name"]
+
         if not (channel_id and device_name):
             print("this device could not be processed", device_name)
             continue
@@ -53,7 +58,7 @@ def save_device_uptime(tenant):
                 tenant,
                 channel_id,
                 device_name,
-                mobility
+                device.get('isActive')
             )
         )
     for future in futures:
@@ -71,9 +76,11 @@ def save_device_uptime(tenant):
             print(reset)
 
     network_uptime = 0.0
-
     if records:
-        network_uptime = sum(record.get("uptime", 0.0) for record in records) / len(records)
+        network_uptime = (
+                sum(record.get("uptime", 0.0) for record in records if record.get('is_active'))
+                / active_device_count
+        )
 
     device_uptime_model = DeviceUptime(tenant)
     device_uptime_model.save_device_uptime(records)

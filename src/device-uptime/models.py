@@ -10,7 +10,7 @@ class Device:
         return connect_mongo(self.tenant, 'device_registry')
 
     def get_all_devices(self):
-        return self.db.devices.find()
+        return list(self.db.devices.find())
 
 
 class DeviceUptime:

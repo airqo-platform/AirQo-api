@@ -53,7 +53,7 @@ class DeviceChannelRecords:
         minutes_diff = (now - time).total_seconds() / 60
 
         if minutes_diff > configuration.MONITOR_FREQUENCY_MINUTES:
-            print(f"Device {self.device_name} - record outdated")
+
             return DeviceSensorReadings(
                 time=time,
                 sensor_one_pm2_5=0,
@@ -61,7 +61,9 @@ class DeviceChannelRecords:
                 battery_voltage=0
             )
 
+        print("something here", self.device_name)
         return DeviceSensorReadings(
+
             time=time,
             sensor_one_pm2_5=self.record.get("pm2_5"),
             sensor_two_pm2_5=self.record.get("s2_pm2_5"),
