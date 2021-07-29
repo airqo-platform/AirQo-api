@@ -25,6 +25,32 @@ const valueSchema = new Schema({
     type: Boolean,
     trim: true,
   },
+  /**** */
+  device: {
+    type: String,
+    trim: true,
+    default: null,
+  },
+  is_device_primary: {
+    type: Boolean,
+    trim: true,
+  },
+  device_id: {
+    type: ObjectId,
+    required: [true, "The device ID is required"],
+  },
+  device_number: {
+    type: Number,
+    default: null,
+  },
+  site: {
+    type: String,
+    default: null,
+  },
+  site_id: {
+    type: ObjectId,
+  },
+  /**** */
   pm1: {
     value: {
       type: Number,
@@ -177,7 +203,6 @@ const eventSchema = new Schema(
     },
     device_id: {
       type: ObjectId,
-      required: [true, "The device ID is required"],
     },
     device_number: {
       type: Number,
@@ -219,6 +244,21 @@ eventSchema.index(
   {
     unique: true,
     partialFilterExpression: { nValues: { $lt: constants.N_VALUES } },
+  }
+);
+
+eventSchema.index(
+  {
+    "values.time": 1,
+    "values.device": 1,
+    "values.device_id": 1,
+    "values.site_id": 1,
+    day: 1,
+    "values.frequency": 1,
+  },
+  {
+    unique: true,
+    partialFilterExpression: { nValues: { $lt: `${constants.N_VALUES}` } },
   }
 );
 
@@ -277,8 +317,8 @@ eventSchema.statics = {
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
     return this.aggregate()
-      .match(filter)
       .unwind("values")
+      .match(filter)
       .replaceRoot("values")
       .sort({ time: -1 })
       .project({
@@ -298,20 +338,19 @@ eventSchema.statics = {
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter", filter);
     return this.aggregate()
+      .unwind("values")
       .match(filter)
+      .replaceRoot("values")
       .lookup({
         from: "devices",
-        localField: "device_id",
-        foreignField: "_id",
+        localField: "device",
+        foreignField: "name",
         as: "deviceDetails",
       })
-      .unwind("values")
-      .replaceRoot("values")
       .sort({ time: -1 })
       .group({
-        _id: "$device_id",
+        _id: "$device",
         time: { $first: "$time" },
-        is_test_data: { $first: "$is_test_data" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
         pm10: { $first: "$pm10" },
@@ -378,15 +417,15 @@ eventSchema.statics = {
       logElement("the [groupOperator] to be used", [groupOperator]);
       logObject("the justing", { [groupOperator]: "$pm2_5.value" });
       let result = await this.aggregate()
+        .unwind("values")
         .match(search)
+        .replaceRoot("values")
         .lookup({
           from: "devices",
-          localField: "device_id",
-          foreignField: "_id",
+          localField: "device",
+          foreignField: "name",
           as: "deviceDetails",
         })
-        .unwind("values")
-        .replaceRoot("values")
         .sort({ time: -1 })
         .group({
           _id: groupId,

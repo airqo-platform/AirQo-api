@@ -1272,20 +1272,22 @@ router.get(
         .if(query("device").exists())
         .notEmpty()
         .trim(),
-
+      query("device_id")
+        .if(query("device_id").exists())
+        .notEmpty()
+        .trim(),
       query("device_number")
         .if(query("device_number").exists())
         .notEmpty()
-        .trim()
-        .toLowerCase()
-        .toInt()
-        .isInt()
-        .withMessage("the device_number should be an integer value"),
+        .trim(),
       query("site")
         .if(query("site").exists())
         .notEmpty()
         .trim(),
-
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim(),
       query("primary")
         .if(query("primary").exists())
         .notEmpty()

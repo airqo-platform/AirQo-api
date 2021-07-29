@@ -119,6 +119,9 @@ const createEvent = {
         frequency,
         startTime,
         endTime,
+        device_id,
+        site,
+        site_id,
       } = req.query;
 
       const hasErrors = !validationResult(req).isEmpty();
@@ -142,6 +145,9 @@ const createEvent = {
           res,
           recent,
           device,
+          device_id,
+          site,
+          site_id,
           skipInt,
           limitInt,
           frequency,
