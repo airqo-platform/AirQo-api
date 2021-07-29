@@ -1284,13 +1284,8 @@ router.get(
       query("site")
         .if(query("site").exists())
         .notEmpty()
-        .trim()
-        .isMongoId()
-        .withMessage("the site must be a valid object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
+
       query("primary")
         .if(query("primary").exists())
         .notEmpty()

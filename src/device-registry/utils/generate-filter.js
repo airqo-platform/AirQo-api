@@ -122,7 +122,7 @@ const generateFilter = {
 
   events_v2: (request) => {
     try {
-      const { device, frequency, startTime, endTime, id } = request.query;
+      const { device, site, frequency, startTime, endTime, id } = request.query;
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);
       let today = monthsInfront(0);
@@ -131,6 +131,7 @@ const generateFilter = {
       let filter = {
         "values.time": { $gte: oneWeekBack, $lte: today },
         device_id: {},
+        site_id: {},
       };
 
       if (startTime) {
@@ -196,11 +197,21 @@ const generateFilter = {
       }
 
       if (device) {
-        filter["device_id"] = ObjectId(device);
+        let deviceArray = device.split(",");
+        filter["device_id"]["$in"] = deviceArray;
       }
 
       if (!device) {
         delete filter["device_id"];
+      }
+
+      if (site) {
+        let siteArray = site.split(",");
+        filter["site_id"]["$in"] = siteArray;
+      }
+
+      if (!site) {
+        delete filter["site_id"];
       }
 
       if (frequency) {

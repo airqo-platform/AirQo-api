@@ -391,8 +391,8 @@ eventSchema.statics = {
         .group({
           _id: groupId,
           time: { $first: groupId },
-          device_id: { $first: device_id },
-          site_id: { $first: site_id },
+          device_id: { $first: "$device_id" },
+          site_id: { $first: "$site_id" },
           "pm2_5-value": { [groupOperator]: "$pm2_5.value" },
           "pm2_5-calibrationValue": {
             [groupOperator]: "$pm2_5.calibrationValue",

@@ -86,6 +86,14 @@ const createEvent = {
           []
         );
       }
+
+      if (Array.isArray(req.query.site)) {
+        return badRequest(
+          res,
+          "multiple Site query params not supported, please use one comma separated one",
+          []
+        );
+      }
       // return res.status(HTTPStatus.OK).json({
       //   success: true,
       //   message: "we be testing viewing events",
