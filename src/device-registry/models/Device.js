@@ -99,7 +99,6 @@ const deviceSchema = new mongoose.Schema(
     mountType: {
       type: String,
       trim: true,
-      default: "wall",
       lowercase: true,
     },
     ISP: {
@@ -124,6 +123,7 @@ const deviceSchema = new mongoose.Schema(
     },
     powerType: {
       type: String,
+      trim: true,
       lowercase: true,
     },
     isRetired: {

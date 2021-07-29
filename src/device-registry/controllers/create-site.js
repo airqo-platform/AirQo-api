@@ -292,6 +292,11 @@ const manageSite = {
 
   recallDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(res, "bad request errors", nestedErrors);
+    }
     const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
     if (isRecalled) {
       return res.status(HTTPStatus.CONFLICT).json({
@@ -330,6 +335,12 @@ const manageSite = {
   deployDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
 
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(res, "bad request errors", nestedErrors);
+    }
+
     const isDeployed = await isDeviceDeployed(deviceName, tenant.toLowerCase());
 
     if (isDeployed) {
@@ -338,6 +349,7 @@ const manageSite = {
         message: `Device ${deviceName} already deployed`,
       });
     }
+
     const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
       req,
       res,
@@ -358,6 +370,12 @@ const manageSite = {
   maintenanceField: ["date", "tags", "maintenanceType", "description"],
   maintainDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(res, "bad request errors", nestedErrors);
+    }
+
     const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
       req,
       res,

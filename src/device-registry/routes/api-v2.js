@@ -14,6 +14,7 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("../config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
+const sanitize = require("../utils/sanitize");
 
 middlewareConfig(router);
 
@@ -916,22 +917,202 @@ router.delete("/photos", photoController.deletePhotos);
 /****************** create-site use-case *************************/
 router.post(
   "/activities/recall",
-  checkTenancy,
-  validateRequestQuery(["deviceName"]),
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("deviceName")
+        .exists()
+        .withMessage("the deviceName is is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
   siteController.recallDevice
 );
+
 router.post(
   "/activities/deploy",
-  checkTenancy,
-  validateRequestQuery(["deviceName"]),
-  validateRequestBody(siteController.deploymentFields),
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("deviceName")
+        .exists()
+        .withMessage("the deviceName is is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("latitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .customSanitizer((value) => {
+          return sanitize.roundAccurately(value, 5);
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
+      body("longitude")
+        .exists()
+        .withMessage("the longitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude provided is not valid")
+        .bail()
+        .customSanitizer((value) => {
+          return sanitize.roundAccurately(value, 5);
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
+      body("powerType")
+        .exists()
+        .withMessage("the powerType is is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("mountType")
+        .exists()
+        .withMessage("the mountType is is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("height")
+        .exists()
+        .withMessage("the height is is missing in your request")
+        .bail()
+        .isInt({ gt: 0, lt: 6 })
+        .withMessage("the height must be a number between 0 and 6")
+        .trim()
+        .toLowerCase(),
+      body("isPrimaryInLocation")
+        .exists()
+        .withMessage("the isPrimaryInLocation is is missing in your request")
+        .bail()
+        .isBoolean()
+        .withMessage("isPrimaryInLocation must be Boolean")
+        .trim(),
+      body("isUsedForCollocation")
+        .exists()
+        .withMessage("the isUsedForCollocation is is missing in your request")
+        .bail()
+        .isBoolean()
+        .withMessage("isUsedForCollocation must be Boolean")
+        .trim(),
+      body("site_id")
+        .exists()
+        .withMessage("site_id is missing")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("date")
+        .exists()
+        .withMessage("date is missing")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("date must be a valid datetime."),
+    ],
+  ]),
   siteController.deployDevice
 );
+
 router.post(
   "/activities/maintain",
-  checkTenancy,
-  validateRequestQuery(["deviceName"]),
-  validateRequestBody(siteController.maintenanceField),
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("deviceName")
+        .exists()
+        .withMessage("the deviceName is is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("description")
+        .exists()
+        .withMessage("the description is missing in your request")
+        .trim(),
+      body("tags")
+        .exists()
+        .withMessage("the tags are missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+      body("maintenanceType")
+        .exists()
+        .withMessage("the maintenanceType is is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["preventive", "corrective"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: corrective and preventive"
+        ),
+      body("date")
+        .exists()
+        .withMessage("date is missing")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("date must be a valid datetime."),
+    ],
+  ]),
   siteController.maintainDevice
 );
 router.get("/activities", siteController.getActivities);
