@@ -55,9 +55,12 @@ public class Utils {
 
         List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
 
+        int interval = Integer.parseInt(props.getProperty("interval", "48"));
+
         List<Measurement> measurements = deviceMeasurements.getMeasurements();
 
-        List<Measurement> measurementList = measurements.stream().peek(measurement -> {
+        List<Measurement> measurementList = new ArrayList<>();
+        for( Measurement measurement : measurements){
 
             Optional<Site> deviceSite = sites.stream().filter(
                     site -> site.get_id().trim().equalsIgnoreCase(measurement.getSiteId().toString().trim())).findFirst();
@@ -67,7 +70,7 @@ public class Utils {
 
                     Site.NearestStation station = deviceSite.get().getNearestStation();
                     Date endTime = dateFormat.parse(measurement.getTime().toString());
-                    Date startTime = DateUtils.addHours(endTime, -24);
+                    Date startTime = DateUtils.addHours(endTime, -interval);
 
                     StationResponse stationResponse = getStationMeasurements(
                             props, station.getCode(), startTime, endTime, station.getTimezone());
@@ -88,22 +91,23 @@ public class Utils {
 
                     measurement.getExternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
                     measurement.getExternalTemperature().setValue(stationTemp.orElseThrow().getValue());
+
+                    logger.info("Device : {} , Old Hum : {} , New Hum {}",
+                            measurement.getDevice().toString(),
+                            measurement.getExternalHumidity().getValue(),
+                            stationHumidity.orElseThrow().getValue());
+                    logger.info("Device : {} , Old Temp : {} , New Temp {}",
+                            measurement.getDevice().toString(),
+                            measurement.getExternalTemperature().getValue(),
+                            stationTemp.orElseThrow().getValue());
                 }
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
-        }).collect(Collectors.toList());
+            measurementList.add(measurement);
 
-        measurements.forEach(measurement -> logger.info("Old Humidity : {} , Old Temperature : {} , Device : {}",
-                measurement.getExternalHumidity().getValue(),
-                measurement.getExternalTemperature().getValue(),
-                measurement.getDevice()));
-
-        measurementList.forEach(measurement -> logger.info("New Humidity : {} , New Temperature : {} , Device : {}",
-                measurement.getExternalHumidity().getValue(),
-                measurement.getExternalTemperature().getValue(),
-                measurement.getDevice()));
+        }
 
         return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
     }
