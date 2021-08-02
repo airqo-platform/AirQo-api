@@ -1,14 +1,21 @@
 const { kafkaClient } = require('../config/kafka');
 const { logObject } = require("../utils/log");
+const { getTopic } = require("../utils/kafka-topics");
 
 const kafkaProducer = async (topic, messages) => {
+
+  outputTopic = getTopic(topic);
+
+  if (!Array.isArray(messages)){
+    throw new Error(messages + ' should be an array.');
+  }
 
   const producer = kafkaClient.producer()
   await producer.connect();
 
   try {
     const responses = await producer.send({
-      topic: topic,
+      topic: outputTopic,
       messages: messages
     })
 

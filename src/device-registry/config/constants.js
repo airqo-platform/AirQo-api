@@ -10,9 +10,7 @@ const devConfig = {
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV,
-  SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
-  KAFKA_USERNAME: process.env.KAFKA_USERNAME,
-  KAFKA_PASSWORD: process.env.KAFKA_PASSWORD,
+  SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV
 };
 
 const prodConfig = {
@@ -97,7 +95,6 @@ const defaultConfig = {
   WHITE_SPACES_REGEX: /^\S*$/,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP,
-  KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS,
   DEVICE_THINGSPEAK_MAPPINGS: {
     item: {
       name: "long_name",

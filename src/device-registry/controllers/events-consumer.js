@@ -4,16 +4,16 @@ const { logObject, logElement } = require("../utils/log");
 const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const { bulkInsert } = require("../utils/insert-measurements");
 const { filterMeasurementsWithExistingDevices } = require("../utils/does-component-exist");
+const { getTopic, TOPICS } = require("../utils/kafka-topics")
 
-const constants = require("../config/constants");
-const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
 
 const rawEventsConsumer = async () => {
 
   const consumer = kafkaClient.consumer(consumerOptions)
   await consumer.connect();
 
-  const topics = RAW_MEASUREMENTS_TOPICS.split(",");
+  const topics = getTopic(TOPICS.RAW_MEASUREMENTS_TOPICS).split(",");
+
   for (const topic of topics) {
     await consumer.subscribe({ topic: topic.trim().toLowerCase(), fromBeginning: true });
   }
@@ -48,7 +48,7 @@ const rawEventsConsumerV2 = () => {
 
   const Consumer = kafkaClientV2.Consumer;
 
-  const topics = RAW_MEASUREMENTS_TOPICS.split(",");
+  const topics = getTopic(TOPICS.RAW_MEASUREMENTS_TOPICS).split(",");
   const consumerTopics = [];
 
   for (const topic of topics) {
