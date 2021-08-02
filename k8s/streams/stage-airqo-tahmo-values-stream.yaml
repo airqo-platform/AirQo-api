@@ -33,22 +33,29 @@ spec:
             requests:
               memory: 256Mi
               cpu: "0.2"
+          envFrom:
+            - configMapRef:
+                name: stage-tahmo-streams-config
           env:
-            - name: INPUT.TOPIC
-              value: airqo-streams-transformed-device-measurements-topic
-            - name: OUTPUT.TOPIC
-              value: airqo-streams-processed-device-measurements-topic
-            - name: TENANT
-              value: airqo
-            - name: APPLICATION.ID
-              value: airqo-tahmo-values-stream-3d50-8ddb-5b9f-493a
-            - name: BOOTSTRAP.SERVERS
-              value: stage-kafka-cluster-kafka-bootstrap:9092
-            - name: SCHEMA.REGISTRY.URL
-              value: http://stage-schema-registry-svc:8081
-            - name: AIRQO.BASE.URL
-              value: https://staging-platform.airqo.net/api/v1/
-            - name: NUM.STREAM.THREADS
-              value: "1"
-            - name: TAHMO.BASE.URL
-              value: https://datahub.tahmo.org/
+            - name: tahmo.api.key
+              valueFrom:
+                secretKeyRef:
+                  name: stage-tahmo-streams-secrets
+                  key: tahmo.api.key
+                  
+            # - name: OUTPUT.TOPIC
+            #   value: airqo-streams-processed-device-measurements-topic
+            # - name: TENANT
+            #   value: airqo
+            # - name: APPLICATION.ID
+            #   value: airqo-tahmo-values-stream-3d50-8ddb-5b9f-493a
+            # - name: BOOTSTRAP.SERVERS
+            #   value: stage-kafka-cluster-kafka-bootstrap:9092
+            # - name: SCHEMA.REGISTRY.URL
+            #   value: http://stage-schema-registry-svc:8081
+            # - name: AIRQO.BASE.URL
+            #   value: https://staging-platform.airqo.net/api/v1/
+            # - name: NUM.STREAM.THREADS
+            #   value: "1"
+            # - name: TAHMO.BASE.URL
+            #   value: https://datahub.tahmo.org/

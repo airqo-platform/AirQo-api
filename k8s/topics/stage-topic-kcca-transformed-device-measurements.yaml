@@ -6,6 +6,7 @@ metadata:
   labels:
     strimzi.io/cluster: stage-kafka-cluster
 spec:
+  topicName: kcca-streams-transformed-device-measurements-topic
   partitions: 1
   replicas: 1
   config:
