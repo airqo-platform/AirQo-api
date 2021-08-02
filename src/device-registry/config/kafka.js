@@ -13,6 +13,10 @@ const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
 const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
+const KAFKA_USERNAME = constants.KAFKA_USERNAME;
+const KAFKA_PASSWORD = constants.KAFKA_PASSWORD;
+const SASL = KAFKA_USERNAME && KAFKA_PASSWORD ? { KAFKA_USERNAME, KAFKA_PASSWORD, mechanism: 'plain' } : null
+const SSL = !!sasl
 
 logElement("Kafka Bootstrap Servers", BOOTSTRAP_SERVERS);
 logElement("Schema Registry", SCHEMA_REGISTRY);
@@ -20,8 +24,15 @@ logElement("Group Id", KAFKA_CLIENT_GROUP);
 logElement("Client Id", KAFKA_CLIENT_ID);
 
 
-const kafkaClient = new Kafka({ clientId: KAFKA_CLIENT_ID, brokers: [BOOTSTRAP_SERVERS] })
-const schemaRegistry = new SchemaRegistry({ host: SCHEMA_REGISTRY })
+const kafkaClient = new Kafka({ 
+    clientId: KAFKA_CLIENT_ID, 
+    brokers: [BOOTSTRAP_SERVERS],
+    sasl: SASL,
+    ssl: SSL
+ });
+
+const schemaRegistry = new SchemaRegistry({ host: SCHEMA_REGISTRY });
+
 const consumerOptions = {
     autoCommit: false,
     groupId: KAFKA_CLIENT_GROUP,

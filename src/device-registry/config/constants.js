@@ -11,6 +11,8 @@ const devConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
+  KAFKA_USERNAME: process.env.KAFKA_USERNAME,
+  KAFKA_PASSWORD: process.env.KAFKA_PASSWORD,
 };
 
 const prodConfig = {
@@ -20,6 +22,8 @@ const prodConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
+  KAFKA_USERNAME: process.env.KAFKA_USERNAME,
+  KAFKA_PASSWORD: process.env.KAFKA_PASSWORD,
 };
 
 const stageConfig = {
@@ -29,6 +33,8 @@ const stageConfig = {
   REDIS_PORT: process.env.REDIS_PORT,
   KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
+  KAFKA_USERNAME: process.env.KAFKA_USERNAME,
+  KAFKA_PASSWORD: process.env.KAFKA_PASSWORD,
 };
 
 const defaultConfig = {
