@@ -16,7 +16,7 @@ const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
 const KAFKA_USERNAME = constants.KAFKA_USERNAME;
 const KAFKA_PASSWORD = constants.KAFKA_PASSWORD;
 const SASL = KAFKA_USERNAME && KAFKA_PASSWORD ? { KAFKA_USERNAME, KAFKA_PASSWORD, mechanism: 'plain' } : null
-const SSL = !!sasl
+const SSL = !!SASL
 
 logElement("Kafka Bootstrap Servers", BOOTSTRAP_SERVERS);
 logElement("Schema Registry", SCHEMA_REGISTRY);

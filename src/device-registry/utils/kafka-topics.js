@@ -1,11 +1,12 @@
 const TOPICS = {
-    RAW_MEASUREMENTS_TOPICS,
-    GET_SITE_DISTANCES
+    RAW_MEASUREMENTS_TOPICS: "RAW_MEASUREMENTS_TOPICS",
+    GET_SITE_DISTANCES: "GET_SITE_DISTANCES"
 }
+Object.freeze(TOPICS);
 
-const getTopic = async (topicConstant) => {
+const getTopic = (topicConstant) => {
 
-    let topic;
+    let topic = "";
 
     switch (topicConstant) {
         case TOPICS.GET_SITE_DISTANCES:
