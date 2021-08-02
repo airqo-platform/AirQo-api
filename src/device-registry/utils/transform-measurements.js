@@ -121,8 +121,17 @@ const transformMeasurementFields = async (measurements) => {
   }
 };
 
+// ref : https://gist.github.com/JamieMason/0566f8412af9fe6a1d470aa1e089a752
+const groupMeasurementsBy = key => array =>
+  array.reduce(
+      (objectsByKeyValue, obj) => ({
+        ...objectsByKeyValue,
+        [obj[key]]: (objectsByKeyValue[obj[key]] || []).concat(obj)
+      }), {});
+
 module.exports = {
   transformMeasurements,
   transformMeasurementFields,
   transformMeasurements_v2,
+  groupMeasurementsBy
 };

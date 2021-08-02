@@ -2,6 +2,7 @@ const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
 const EventSchema = require("../models/Event");
+const { groupMeasurementsBy } = require("./transform-measurements");
 
 const insert = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
@@ -112,19 +113,9 @@ const insert = async (tenant, transformedMeasurements) => {
   }
 };
 
-// ref : https://gist.github.com/JamieMason/0566f8412af9fe6a1d470aa1e089a752
-const groupBy = key => array =>
-  array.reduce(
-      (objectsByKeyValue, obj) => ({
-        ...objectsByKeyValue,
-        [obj[key]]: (objectsByKeyValue[obj[key]] || []).concat(obj)
-      }),
-      {}
-    );
-
 const bulkInsert = async (transformedMeasurements) => {
 
-  const groupByTenant = groupBy('tenant');
+  const groupByTenant = groupMeasurementsBy('tenant');
   let bulkResponse = [];
 
   for (const [tenant, measurements] of Object.entries(groupByTenant(transformedMeasurements))) {
