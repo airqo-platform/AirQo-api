@@ -15,6 +15,9 @@ const log4js = require("log4js");
 const { request } = require("express");
 const logger = log4js.getLogger("create-site-util");
 
+const { kafkaProducer } = require("../controllers/kafka-producer");
+const { TOPICS } = require("./kafka-topics");
+
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
@@ -194,6 +197,14 @@ const manageSite = {
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
         let jsonifyCreatedSite = jsonify(createdSite);
+
+        // Send Site data to kafka to add distances
+        try{
+          kafkaProducer(TOPICS.COMPUTE_SITE_DISTANCES, [createdSite]);
+        }catch (error) {
+          logObject('Error sending site details to kafka', error)
+        }
+
         return {
           success: true,
           message: "Site successfully created",
