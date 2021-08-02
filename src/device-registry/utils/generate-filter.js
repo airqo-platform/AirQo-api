@@ -10,9 +10,11 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const { logElement, logObject } = require("./log");
+const log4js = require("log4js");
+const logger = log4js.getLogger("generate-filter-util");
 
 const generateFilter = {
-  events: (device, frequency, startTime, endTime) => {
+  events: (device, device_id, site, site_id, frequency, startTime, endTime) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     let today = monthsInfront(0);
@@ -25,6 +27,9 @@ const generateFilter = {
       },
       "values.time": { $gte: oneWeekBack, $lte: today },
       "values.device": {},
+      "values.site": {},
+      "values.device_id": {},
+      "values.site_id": {},
     };
 
     if (startTime) {
@@ -101,7 +106,9 @@ const generateFilter = {
         );
       }
     }
-
+    /**
+     * unique names for sites and devices
+     */
     if (device) {
       let deviceArray = device.split(",");
       filter["values.device"]["$in"] = deviceArray;
@@ -111,6 +118,41 @@ const generateFilter = {
       delete filter["values.device"];
     }
 
+    if (site) {
+      let deviceArray = site.split(",");
+      filter["values.site"]["$in"] = deviceArray;
+    }
+
+    if (!site) {
+      delete filter["values.site"];
+    }
+
+    /**
+     * unique ids for devices and sites
+     */
+    if (device_id) {
+      let deviceIdArray = device_id.split(",");
+      let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+        return ObjectId(device_id);
+      });
+      filter["values.device_id"]["$in"] = modifiedDeviceIdArray;
+    }
+    if (!device_id) {
+      delete filter["values.device_id"];
+    }
+    if (site_id) {
+      let siteIdArray = site_id.split(",");
+      let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+        return ObjectId(site_id);
+      });
+      filter["values.site_id"]["$in"] = modifiedSiteIdArray;
+    }
+    if (!site_id) {
+      delete filter["values.site_id"];
+    }
+    /**
+     * ends unique site and device ids
+     */
     if (frequency) {
       filter["values.frequency"] = frequency;
     }
@@ -120,7 +162,15 @@ const generateFilter = {
 
   events_v2: (request) => {
     try {
-      const { device, frequency, startTime, endTime, id } = request.query;
+      const {
+        device,
+        site,
+        frequency,
+        startTime,
+        endTime,
+        device_id,
+        site_id,
+      } = request.query;
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);
       let today = monthsInfront(0);
@@ -129,6 +179,9 @@ const generateFilter = {
       let filter = {
         "values.time": { $gte: oneWeekBack, $lte: today },
         device_id: {},
+        site_id: {},
+        site: {},
+        device: {},
       };
 
       if (startTime) {
@@ -192,14 +245,55 @@ const generateFilter = {
           );
         }
       }
+      /**
+       * the unique site and device ids
+       */
+      if (device_id) {
+        let deviceIdArray = device_id.split(",");
+        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+          return ObjectId(device_id);
+        });
+        filter["device_id"]["$in"] = modifiedDeviceIdArray;
+      }
 
+      if (!device_id) {
+        delete filter["device_id"];
+      }
+
+      if (site_id) {
+        let siteIdArray = site_id.split(",");
+        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+          return ObjectId(site_id);
+        });
+        filter["site_id"]["$in"] = modifiedSiteIdArray;
+      }
+
+      if (!site_id) {
+        delete filter["site_id"];
+      }
+      /**
+       * the unique site and device names
+       */
       if (device) {
-        filter["device_id"] = ObjectId(device);
+        let deviceArray = device.split(",");
+        filter["device"]["$in"] = deviceArray;
       }
 
       if (!device) {
-        delete filter["device_id"];
+        delete filter["device"];
       }
+
+      if (site) {
+        let siteArray = site.split(",");
+        filter["site"]["$in"] = siteArray;
+      }
+
+      if (!site) {
+        delete filter["site"];
+      }
+      /**
+       * end unique site and device names
+       */
 
       if (frequency) {
         filter["frequency"] = frequency;
@@ -302,6 +396,7 @@ const generateFilter = {
         site,
         site_id,
         id,
+        device_id,
         device_number,
       } = req.query;
 
@@ -322,6 +417,10 @@ const generateFilter = {
 
       if (id) {
         filter["_id"] = ObjectId(id);
+      }
+
+      if (device_id) {
+        filter["_id"] = ObjectId(device_id);
       }
 
       if (chid) {
@@ -382,12 +481,14 @@ const generateFilter = {
         } else {
         }
       }
+      logger.info(`the filter  -- ${JSON.stringify(filter)}`);
       return {
         success: true,
         message: "successfully generated the filter",
         data: filter,
       };
     } catch (error) {
+      logger.error(`server error - generate device filter -- ${error.message}`);
       return {
         success: false,
         message: "server error - generate device filter",

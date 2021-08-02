@@ -373,18 +373,19 @@ const registerDeviceUtil = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      logElement(
-        "is responseFromFilter in util a success?",
-        responseFromFilter.success
+      logger.info(
+        `responseFromFilter -- ${JSON.stringify(responseFromFilter)}`
       );
 
-      if (responseFromFilter.success) {
+      if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
+        logger.info(`the filter in list -- ${JSON.stringify(filter)}`);
       }
 
-      if (!responseFromFilter.success) {
+      if (responseFromFilter.success === false) {
         let error = responseFromFilter.error ? responseFromFilter.error : "";
+        logger.error(`the error from filter in list -- ${error}`);
         return {
           success: false,
           message: responseFromFilter.message,
@@ -402,26 +403,33 @@ const registerDeviceUtil = {
         skip,
       });
 
-      logElement(
-        "is responseFromListDevice in util a success?",
-        responseFromListDevice.success
+      logger.info(
+        `the responseFromListDevice in list -- ${JSON.stringify(
+          responseFromListDevice
+        )} `
       );
 
-      if (!responseFromListDevice.success) {
+      if (responseFromListDevice.success === false) {
         let error = responseFromListDevice.error
           ? responseFromListDevice.error
           : "";
-
+        logger.error(
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${error}`
+        );
         return {
           success: false,
           message: responseFromListDevice.message,
           error,
         };
-      } else {
+      }
+
+      if (responseFromListDevice.success === true) {
+        let data = responseFromListDevice.data;
+        logger.info(`responseFromListDevice was a success -- ${data}`);
         return {
           success: true,
           message: responseFromListDevice.message,
-          data: responseFromListDevice.data,
+          data,
         };
       }
     } catch (e) {
@@ -638,12 +646,12 @@ const registerDeviceUtil = {
         responseFromFilter.success
       );
       logger.info(`the filter ${JSON.stringify(responseFromFilter.data)}`);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
-      if (responseFromFilter.success == false) {
+      if (responseFromFilter.success === false) {
         let error = responseFromFilter.error ? responseFromFilter.error : "";
         logger.error(
           `responseFromFilter.error in create-device util--${responseFromFilter.error}`
@@ -660,7 +668,7 @@ const registerDeviceUtil = {
         DeviceSchema
       ).modify({ filter, update });
 
-      if (responseFromModifyDevice.success == true) {
+      if (responseFromModifyDevice.success === true) {
         return {
           success: true,
           message: responseFromModifyDevice.message,
@@ -668,7 +676,7 @@ const registerDeviceUtil = {
         };
       }
 
-      if (responseFromModifyDevice.success == false) {
+      if (responseFromModifyDevice.success === false) {
         let error = responseFromModifyDevice.error
           ? responseFromModifyDevice.error
           : "";

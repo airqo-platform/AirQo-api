@@ -24,3 +24,9 @@ def convert_GMT_time_to_EAT_local_time(gmt_datetime):
 def convert_to_date(gmt_datetime):
     return datetime.strftime(gmt_datetime, '%Y-%m-%d')
 
+
+def validate_datetime(value):
+    try:
+        return datetime.strptime(value, '%Y-%m-%dT%H:%M:%S.%fZ')
+    except Exception:
+        raise TypeError("cannot convert {} to datetime type".format(value))

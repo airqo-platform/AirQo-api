@@ -46,11 +46,27 @@ class DeviceChannelRecords:
                 battery_voltage=0
             )
 
+        time = self.record.get("created_at")
+        time = date_parser.isoparse(time)
+        now = datetime.utcnow()
+        now = now.replace(tzinfo=UTC)
+        minutes_diff = (now - time).total_seconds() / 60
+
+        if minutes_diff > configuration.MONITOR_FREQUENCY_MINUTES:
+
+            return DeviceSensorReadings(
+                time=time,
+                sensor_one_pm2_5=0,
+                sensor_two_pm2_5=0,
+                battery_voltage=0
+            )
+
         return DeviceSensorReadings(
-            time=self.record.get("created_at"),
+
+            time=time,
             sensor_one_pm2_5=self.record.get("pm2_5"),
             sensor_two_pm2_5=self.record.get("s2_pm2_5"),
-            battery_voltage=self.record.get("voltage")
+            battery_voltage=self.record.get("battery")
         )
 
     def calculate_uptime(self):

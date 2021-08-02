@@ -22,7 +22,7 @@ spec:
           creationTimestamp: null
         spec:
           containers:
-            - image: us.gcr.io/airqo-250220/airqo-stage-exceedance-job:latest
+            - image: us.gcr.io/airqo-250220/stage-airqo-exceedance-job:latest
               imagePullPolicy: Always
               name: airqo-exceedance-job
               resources: {}

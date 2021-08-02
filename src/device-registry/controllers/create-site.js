@@ -36,11 +36,12 @@ const manageSite = {
   register: async (req, res) => {
     logText("registering site.............");
     try {
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingOrInvalidValues(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
+
       const { tenant } = req.query;
 
       const { latitude, longitude, name } = req.body;
@@ -74,10 +75,10 @@ const manageSite = {
   generateMetadata: async (req, res) => {
     logText("registering site.............");
     try {
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingOrInvalidValues(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       const { tenant } = req.query;
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
@@ -118,10 +119,10 @@ const manageSite = {
       logText(".................................................");
       logText("inside delete site............");
       const { tenant } = req.query;
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingQueryParams(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       let filter = generateFilter.sites(req);
       logObject("filter", filter);
@@ -247,10 +248,10 @@ const manageSite = {
       const { tenant } = req.query;
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      const result = validationResult(req);
-      const hasErrors = !result.isEmpty();
+      const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
-        return missingQueryParams(res);
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
       }
       let filter = generateFilter.sites(req);
       logObject("filter in the controller", filter);
@@ -291,6 +292,11 @@ const manageSite = {
 
   recallDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(res, "bad request errors", nestedErrors);
+    }
     const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
     if (isRecalled) {
       return res.status(HTTPStatus.CONFLICT).json({
@@ -329,6 +335,12 @@ const manageSite = {
   deployDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
 
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(res, "bad request errors", nestedErrors);
+    }
+
     const isDeployed = await isDeviceDeployed(deviceName, tenant.toLowerCase());
 
     if (isDeployed) {
@@ -337,6 +349,7 @@ const manageSite = {
         message: `Device ${deviceName} already deployed`,
       });
     }
+
     const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
       req,
       res,
@@ -357,6 +370,12 @@ const manageSite = {
   maintenanceField: ["date", "tags", "maintenanceType", "description"],
   maintainDevice: async (req, res) => {
     const { tenant, deviceName } = req.query;
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(res, "bad request errors", nestedErrors);
+    }
+
     const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
       req,
       res,
