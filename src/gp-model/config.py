@@ -1,43 +1,28 @@
 import os
+from pymongo import MongoClient
 from dotenv import load_dotenv
 from pathlib import Path
-
-BASE_DIR = Path(__file__).resolve().parent.parent
-
+BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
-
-print('Environment', os.getenv("FLASK_ENV"))
-
-THIRTY_MINUTES = 1800 # seconds
-
-TWO_HOURS = 7200 # seconds
 
 
 class Config:
     DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
-
-    CACHE_TYPE = 'RedisCache'
-    CACHE_DEFAULT_TIMEOUT = THIRTY_MINUTES
-    CACHE_KEY_PREFIX = 'device-monitoring'
-    CACHE_REDIS_URL = os.getenv('REDIS_URL_PROD')
-
     SECRET_KEY = os.getenv("SECRET_KEY")
-
-    DB_NAME = os.getenv("DB_NAME_PROD")
-    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 
 
 class ProductionConfig(Config):
-    DEVELOPMENT = False
+    DB_NAME = os.getenv("DB_NAME_PROD")
+    MONGO_URI = os.getenv('MONGO_GCE_URI')
 
 
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
-    CACHE_REDIS_URL = os.getenv('REDIS_URL_DEV')
     MONGO_URI = os.getenv("MONGO_DEV_URI")
     DB_NAME = os.getenv("DB_NAME_DEV")
 
@@ -45,7 +30,6 @@ class DevelopmentConfig(Config):
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-    CACHE_REDIS_URL = os.getenv('REDIS_URL_STAGE')
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
 
@@ -56,3 +40,14 @@ app_config = {
     "production": ProductionConfig,
     "staging": TestingConfig
 }
+
+environment = os.getenv("ENV")
+print("ENVIRONMENT", environment or 'staging')
+
+configuration = app_config.get(environment, TestingConfig)
+
+
+def connect_mongo(tenant):
+    client = MongoClient(configuration.MONGO_URI)
+    db = client[f'{configuration.DB_NAME}_{tenant.lower()}']
+    return db

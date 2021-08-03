@@ -22,7 +22,7 @@ spec:
           creationTimestamp: null
         spec:
           containers:
-            - image: us.gcr.io/airqo-250220/kcca-stage-exceedance-job:latest
+            - image: us.gcr.io/airqo-250220/stage-kcca-exceedance-job:latest
               imagePullPolicy: Always
               name: kcca-exceedance-job
               resources: {}

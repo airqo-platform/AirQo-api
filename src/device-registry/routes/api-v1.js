@@ -13,6 +13,7 @@ const { validateRequestBody } = require("../utils/validators/requestBody");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("../config/constants");
 const mongoose = require("mongoose");
+const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
 
 middlewareConfig(router);
@@ -104,13 +105,11 @@ router.post(
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("device_number")
-        .exists()
-        .withMessage("device_number should be provided")
-        .bail()
+        .if(body("device_number").exists())
+        .notEmpty()
         .trim()
         .isInt()
-        .withMessage("the device_number should be an integer value")
-        .toInt(),
+        .withMessage("the device_number should be an integer value"),
       body("long_name")
         .exists()
         .withMessage("the device long_name should be provided")
@@ -154,13 +153,19 @@ router.post(
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value"),
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
       body("longitude")
         .if(body("longitude").exists())
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value"),
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
@@ -287,8 +292,7 @@ router.delete(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -340,8 +344,7 @@ router.put(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -420,8 +423,9 @@ router.put(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance date must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -491,13 +495,19 @@ router.put(
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value"),
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
       body("longitude")
         .if(body("longitude").exists())
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value"),
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
@@ -540,13 +550,11 @@ router.post(
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("device_number")
-        .exists()
-        .withMessage("device_number should be provided")
-        .bail()
+        .if(body("device_number").exists())
+        .notEmpty()
         .trim()
         .isInt()
-        .withMessage("the device_number should be an integer value")
-        .toInt(),
+        .withMessage("the device_number should be an integer value"),
       body("long_name")
         .exists()
         .withMessage("the device long_name should be provided")
@@ -612,8 +620,7 @@ router.delete(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -664,8 +671,7 @@ router.put(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -815,13 +821,19 @@ router.put(
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value"),
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
       body("longitude")
         .if(body("longitude").exists())
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value"),
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
@@ -860,8 +872,7 @@ router.get(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("id")
       .exists()
       .withMessage(
@@ -909,22 +920,200 @@ router.delete("/photos", photoController.deletePhotos);
 /****************** create-site use-case *************************/
 router.post(
   "/activities/recall",
-  checkTenancy,
-  validateRequestQuery(["deviceName"]),
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("deviceName")
+        .exists()
+        .withMessage("the deviceName is is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
   siteController.recallDevice
 );
 router.post(
   "/activities/deploy",
-  checkTenancy,
-  validateRequestQuery(["deviceName"]),
-  validateRequestBody(siteController.deploymentFields),
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("deviceName")
+        .exists()
+        .withMessage("the deviceName is is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("latitude")
+        .exists()
+        .withMessage("the latitude is is missing in your request")
+        .bail()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .customSanitizer((value) => {
+          return sanitize.roundAccurately(value, 5);
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
+      body("longitude")
+        .exists()
+        .withMessage("the longitude is is missing in your request")
+        .bail()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("the longitude provided is not valid")
+        .bail()
+        .customSanitizer((value) => {
+          return sanitize.roundAccurately(value, 5);
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
+      body("powerType")
+        .exists()
+        .withMessage("the powerType is is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("mountType")
+        .exists()
+        .withMessage("the mountType is is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("height")
+        .exists()
+        .withMessage("the height is is missing in your request")
+        .bail()
+        .isInt({ gt: 0, lt: 6 })
+        .withMessage("the height must be a number between 0 and 6")
+        .trim()
+        .toLowerCase(),
+      body("isPrimaryInLocation")
+        .exists()
+        .withMessage("the isPrimaryInLocation is is missing in your request")
+        .bail()
+        .isBoolean()
+        .withMessage("isPrimaryInLocation must be Boolean")
+        .trim(),
+      body("isUsedForCollocation")
+        .exists()
+        .withMessage("the isUsedForCollocation is is missing in your request")
+        .bail()
+        .isBoolean()
+        .withMessage("isUsedForCollocation must be Boolean")
+        .trim(),
+      body("site_id")
+        .exists()
+        .withMessage("site_id is missing")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("date")
+        .exists()
+        .withMessage("date is missing")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("date must be a valid datetime."),
+    ],
+  ]),
   siteController.deployDevice
 );
 router.post(
   "/activities/maintain",
-  checkTenancy,
-  validateRequestQuery(["deviceName"]),
-  validateRequestBody(siteController.maintenanceField),
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("deviceName")
+        .exists()
+        .withMessage("the deviceName is is missing in your request")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    [
+      body("description")
+        .exists()
+        .withMessage("the description is missing in your request")
+        .trim(),
+      body("tags")
+        .exists()
+        .withMessage("the tags are missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+      body("maintenanceType")
+        .exists()
+        .withMessage("the maintenanceType is is missing in your request")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["preventive", "corrective"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: corrective and preventive"
+        ),
+      body("date")
+        .exists()
+        .withMessage("date is missing")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("date must be a valid datetime."),
+    ],
+  ]),
   siteController.maintainDevice
 );
 router.get("/activities", siteController.getActivities);
@@ -966,13 +1155,19 @@ router.post(
         .withMessage("the latitude is is missing in your request")
         .bail()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("the latitude provided is not valid"),
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
       body("longitude")
         .exists()
-        .withMessage("the latitude is is missing in your request")
+        .withMessage("the longitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude provided is not valid"),
+        .withMessage("the longitude provided is not valid")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
     ],
   ]),
   siteController.register
@@ -995,13 +1190,19 @@ router.post(
         .withMessage("the latitude should be provided")
         .bail()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("the latitude provided is not valid"),
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have 5 decimal places in it"),
       body("longitude")
         .exists()
         .withMessage("the latitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude should be provided"),
+        .withMessage("the longitude should be provided")
+        .bail()
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have 5 decimal places in it"),
     ],
   ]),
   siteController.generateMetadata
@@ -1236,33 +1437,30 @@ router.get(
         .notEmpty()
         .trim()
         .toLowerCase()
-        .isIn(["hourly", "daily", "raw"])
+        .isIn(["hourly", "daily", "raw", "minute"])
         .withMessage(
-          "the frequency value is not among the expected ones which include: hourly, daily and raw"
+          "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
         ),
       query("device")
         .if(query("device").exists())
         .notEmpty()
         .trim(),
-
+      query("device_id")
+        .if(query("device_id").exists())
+        .notEmpty()
+        .trim(),
       query("device_number")
         .if(query("device_number").exists())
         .notEmpty()
-        .trim()
-        .toLowerCase()
-        .toInt()
-        .isInt()
-        .withMessage("the device_number should be an integer value"),
+        .trim(),
       query("site")
         .if(query("site").exists())
         .notEmpty()
-        .trim()
-        .isMongoId()
-        .withMessage("the site must be a valid object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .trim(),
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim(),
       query("primary")
         .if(query("primary").exists())
         .notEmpty()
@@ -1304,8 +1502,7 @@ router.delete(
       .bail()
       .trim()
       .isInt()
-      .withMessage("the device_number should be an integer value")
-      .toInt(),
+      .withMessage("the device_number should be an integer value"),
     query("device_id")
       .exists()
       .withMessage(

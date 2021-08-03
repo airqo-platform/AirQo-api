@@ -20,23 +20,39 @@ spec:
             backend:
               serviceName: airqo-stage-auth-api-svc
               servicePort: 3000
+          - path: /api/v2/users
+            backend:
+              serviceName: airqo-stage-auth-api-svc
+              servicePort: 3000
           - path: /api/v1/devices
             backend:
               serviceName: airqo-stage-device-registry-api-svc
               servicePort: 3000
-          - path: /api/v1/location_registry
+          - path: /api/v2/devices
             backend:
-              serviceName: airqo-stage-location-registry-api-svc
-              servicePort: 8080
+              serviceName: airqo-stage-device-registry-api-svc
+              servicePort: 3000
           - path: /api/v1/data
+            backend:
+              serviceName: airqo-stage-data-mgt-api-svc
+              servicePort: 3000
+          - path: /api/v2/data
             backend:
               serviceName: airqo-stage-data-mgt-api-svc
               servicePort: 3000
           - path: /api/v1/map
             backend:
-              serviceName: airqo-locate-api-svc
+              serviceName: airqo-stage-locate-api-svc
+              servicePort: 4001
+          - path: /api/v2/map
+            backend:
+              serviceName: airqo-stage-locate-api-svc
               servicePort: 4001
           - path: /api/v1/analytics
+            backend:
+              serviceName: airqo-stage-analytics-api-svc
+              servicePort: 5000
+          - path: /api/v2/analytics
             backend:
               serviceName: airqo-stage-analytics-api-svc
               servicePort: 5000
@@ -52,11 +68,23 @@ spec:
             backend:
               serviceName: airqo-stage-device-monitor-api-svc
               servicePort: 4001
+          - path: /api/v2/monitor
+            backend:
+              serviceName: airqo-stage-device-monitor-api-svc
+              servicePort: 4001
           - path: /api/v1/calibrate
             backend:
               serviceName: airqo-stage-calibrate-api-svc
               servicePort: 4001
+          - path: /api/v2/calibrate
+            backend:
+              serviceName: airqo-stage-calibrate-api-svc
+              servicePort: 4001
           - path: /api/v1/incentives
+            backend:
+              serviceName: airqo-stage-incentives-api-svc
+              servicePort: 3000
+          - path: /api/v2/incentives
             backend:
               serviceName: airqo-stage-incentives-api-svc
               servicePort: 3000
