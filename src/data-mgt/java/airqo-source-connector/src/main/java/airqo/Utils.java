@@ -49,7 +49,7 @@ public class Utils {
             return new ArrayList<>();
         }
 
-        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices().toString());
+        logger.info("\n ====> Devices : {}\n", devicesResponse.getDevices());
         return devicesResponse.getDevices();
     }
 
@@ -71,7 +71,7 @@ public class Utils {
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
             RawMeasurement measurements = new ObjectMapper().readerFor(RawMeasurement.class).readValue(httpResponse.body());
 
-            logger.info("\nApi Device measurements => {}", measurements.toString());
+            logger.info("\nApi Device measurements => {}", measurements);
 
             return measurements;
 
