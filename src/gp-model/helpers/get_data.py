@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 EVENTS_URL = os.getenv('EVENTS_URL')
-MONGO_URI = os.getenv('MONGO_URI')
+MONGO_URI = os.getenv('MONGO_GCE_URI')
 client = MongoClient(MONGO_URI)
 
 def connect_db(owner):
