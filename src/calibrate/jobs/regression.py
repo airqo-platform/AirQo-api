@@ -5,17 +5,14 @@ import datetime
 from sklearn.ensemble import RandomForestRegressor 
 from sklearn.model_selection import train_test_split
 from sklearn import metrics
-import google.auth
-from google.cloud import bigquery
 
-client = bigquery.Client.from_service_account_json("jobs/airqo-250220-5149c2aac8f2.json")
 
 def random_forest(hourly_combined_dataset):
-    X_rf_muk = hourly_combined_dataset[['pm2_5','temperature','humidity','pm10','month','hour']].values
+    X_rf_muk = hourly_combined_dataset[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']].values
     y_rf_muk = hourly_combined_dataset['bam_pm'].values    
 
     X_train_rf_muk, X_test_rf_muk, y_train_rf_muk, y_test_rf_muk = train_test_split(X_rf_muk, y_rf_muk, test_size=0.2, random_state=0)
-    rf_regressor = RandomForestRegressor() 
+    rf_regressor = RandomForestRegressor(random_state=42, max_features='sqrt', n_estimators= 1000, max_depth=50, bootstrap = True)
     # Fitting the model 
     rf_reg = rf_regressor.fit(X_train_rf_muk, y_train_rf_muk) 
     '''RandomForestRegressor(bootstrap=True, ccp_alpha=0.0, criterion='mse', 
@@ -30,7 +27,8 @@ def random_forest(hourly_combined_dataset):
     MAE = metrics.mean_absolute_error(y_test_rf_muk, y_pred_rf_muk)   
     RMSE =  np.sqrt(metrics.mean_squared_error(y_test_rf_muk, y_pred_rf_muk))
     r2_score = metrics.r2_score(y_test_rf_muk, y_pred_rf_muk)
- 
-    return rf_reg, MAE, RMSE, r2_score
+
+    return rf_regressor, MAE, RMSE, r2_score
+
 
     
