@@ -1231,7 +1231,7 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("lat_log")
+    query("lat_long")
       .exists()
       .withMessage(
         "the site identifier is missing in request, consider using lat_long"
@@ -1274,7 +1274,7 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("lat_log")
+    query("lat_long")
       .exists()
       .withMessage(
         "the site identifier is missing in request, consider using lat_long"
