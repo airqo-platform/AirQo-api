@@ -88,8 +88,8 @@ def preprocessing_ts(df):
     hourly_df = df.resample('H').mean()
     hourly_df.dropna(inplace=True)
     hourly_df= hourly_df.reset_index()
-
     return hourly_df
+
 def train_kampala_model(X, Y):
     '''
     Creates a model, trains it using given data and saves it for future use
@@ -119,6 +119,46 @@ def train_kampala_model(X, Y):
     opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
 
     return m
+
+
+def train_kawempe_model(X, Y):
+    '''
+    Creates a model, trains it using given data and saves it for future use
+    '''
+    print('training model function')
+    Yset = Y
+    Yset[Yset==0] = np.nan
+    
+    keep = ~np.isnan(Yset[:,0]) 
+    Yset = Yset[keep,:]
+    Xset = X[keep,:]
+    print('Number of rows in Xset', Xset.shape[0])
+    
+    Xtraining = Xset[::2,:]
+    Ytraining = Yset[::2,:]
+
+    k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
+    m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+    m.likelihood.variance.assign(400)
+    set_trainable(m.kernel.kernels[0].variance, False)
+    set_trainable(m.likelihood.variance, False)
+   
+    opt = gpflow.optimizers.Scipy()
+
+    def objective_closure():
+             return - m.log_marginal_likelihood()
+
+    print('optimization')
+    opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
+
+    return m
+
+def get_bbox_coordinates(shapefile_path):
+    data = geopandas.read_file(shapefile_path)
+    data = data.to_crs(epsg=4326)
+    polygon = data.iloc[0]['geometry']
+    min_long, min_lat, max_long, max_lat= polygon.bounds
+    return polygon, min_long, max_long, min_lat, max_lat
 
 #def download_airqloud_data_mongo(airqloud_name):
 #    '''
