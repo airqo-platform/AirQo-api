@@ -17,11 +17,13 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
     public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
+    public static SimpleDateFormat stationDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
 
     public static Properties loadEnvProperties(String propertiesFile){
@@ -71,18 +73,18 @@ public class Utils {
                     Date endTime = dateFormat.parse(measurement.getTime().toString());
                     Date startTime = DateUtils.addHours(endTime, -interval);
 
-                    StationResponse stationResponse = getStationMeasurements(
+                    StationResponse stationResponse = getStationMeasurements2(
                             props, station.getCode(), startTime, endTime, station.getTimezone());
 
-                    List<StationMeasurement> stationMeasurements = stationResponseToMeasurements(stationResponse);
+                    List<StationMeasurement2> stationMeasurement2s = stationResponseToMeasurements(stationResponse);
 
-                    Optional<StationMeasurement> stationTemp = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
+                    Optional<StationMeasurement2> stationTemp = stationMeasurement2s.stream().filter(stationMeasurement2 -> stationMeasurement2.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
                         if (measurement1.getTime().after(measurement2.getTime()))
                             return measurement1;
                         return measurement2;
                     });
 
-                    Optional<StationMeasurement> stationHumidity = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.HUMIDITY)).reduce((measurement1, measurement2) -> {
+                    Optional<StationMeasurement2> stationHumidity = stationMeasurement2s.stream().filter(stationMeasurement2 -> stationMeasurement2.getVariable().equals(Variable.HUMIDITY)).reduce((measurement1, measurement2) -> {
                         if (measurement1.getTime().after(measurement2.getTime()))
                             return measurement1;
                         return measurement2;
@@ -149,6 +151,11 @@ public class Utils {
         Date startTime, endTime;
 
         try {
+
+            if(!(startMeasurement.isPresent() && endMeasurement.isPresent())){
+                throw new Exception("Not present");
+            }
+
             startTime = DateUtils.addHours(dateFormat.parse(startMeasurement.get().getTime().toString()), -interval);
             endTime = dateFormat.parse(endMeasurement.get().getTime().toString());
         } catch (Exception e) {
@@ -156,77 +163,90 @@ public class Utils {
             return deviceMeasurements;
         }
 
-        List<StationResponse> stationResponses = new ArrayList<>();
+        StationData stationData = new StationData();
+
         for (Site site :sites){
-            StationResponse stationResponse = getStationMeasurements(props, site.getNearestStation().getCode(),
+            StationData stationResponse = getStationMeasurements(props, site.getNearestStation().getCode(),
                     startTime, endTime, site.getNearestStation().getTimezone());
-            stationResponses.add(stationResponse);
+            stationData.getMeasurements().addAll(stationResponse.getMeasurements());
         }
 
         List<Measurement> measurementList = new ArrayList<>();
-        for( Measurement measurement : measurements){
 
-            Optional<StationResponse> stationResponse = stationResponses.stream().filter(stationResponse1 -> {
-                stationResponse1.getResults().stream().filter(result -> {
+        for(Measurement measurement : measurements){
+
+            List<StationMeasurement> stationMeasurements = stationData.getMeasurements().stream().filter(stationMeasurement -> {
+
+                Optional<Site> optionalSite = sites.stream()
+                        .filter(site -> site.get_id().equalsIgnoreCase(measurement.getSiteId().toString()))
+                        .findFirst();
+
+                String timezone = "Africa/Nairobi";
+                if(optionalSite.isPresent())
+                    timezone = optionalSite.get().getNearestStation().getTimezone();
+
+                stationDateFormat.setTimeZone(TimeZone.getTimeZone(timezone));
+
+                Date stationTime;
+                Date measurementStartTime;
+                Date measurementEndTime;
 
 
+                try {
+                    stationTime = stationDateFormat.parse(measurement.getTime().toString());
+                    measurementStartTime = DateUtils.addHours(dateFormat.parse(measurement.getTime().toString()), -12);
+                    measurementEndTime = DateUtils.addHours(dateFormat.parse(measurement.getTime().toString()), 3);
 
-                    return result.getSeries().forEach(serie -> {
+                    return (stationMeasurement.getCode().equalsIgnoreCase(measurement.getSiteId().toString()) &&
+                            stationTime.before(measurementEndTime) && stationTime.after(measurementStartTime));
 
-                    });
-                })
+                } catch (ParseException e) {
+                    e.printStackTrace();
+                }
 
                 return false;
-            }).max((stationResponse1, t1) -> {
 
-                return 0;
+            }).collect(Collectors.toList());
+
+            Optional<StationMeasurement> stationTemp = stationMeasurements
+                    .stream()
+                    .filter(stationMeasurement2 -> (stationMeasurement2.isNotNull() && stationMeasurement2.isTemperature()))
+                    .reduce((measurement1, measurement2) -> {
+                if (measurement1.getTime().after(measurement2.getTime()))
+                    return measurement1;
+                return measurement2;
             });
 
-            Optional<Site> deviceSite = sites.stream().filter(
-                    site -> site.get_id().trim().equalsIgnoreCase(measurement.getSiteId().toString().trim())).findFirst();
+            Optional<StationMeasurement> stationHumidity = stationMeasurements
+                    .stream()
+                    .filter(stationMeasurement2 -> (stationMeasurement2.isNotNull() && stationMeasurement2.isHumidity()))
+                    .reduce((measurement1, measurement2) -> {
+                if (measurement1.getTime().after(measurement2.getTime()))
+                    return measurement1;
+                return measurement2;
+            });
 
-            try {
-                if (deviceSite.isPresent()){
+            stationHumidity.ifPresent(stationMeasurement -> {
+                double oldValue = measurement.getExternalHumidity().getValue();
 
-                    Site.NearestStation station = deviceSite.get().getNearestStation();
-                    Date endTime = dateFormat.parse(measurement.getTime().toString());
-                    Date startTime = DateUtils.addHours(endTime, -interval);
+                measurement.getExternalHumidity().setValue(stationMeasurement.getHumidity());
+                logger.info("Device : {} , Old Hum : {} , New Hum {}",
+                        measurement.getDevice().toString(),
+                        oldValue,
+                        measurement.getExternalHumidity().getValue());
+            });
 
-                    StationResponse stationResponse = getStationMeasurements(
-                            props, station.getCode(), startTime, endTime, station.getTimezone());
+            stationTemp.ifPresent(stationMeasurement -> {
+                double oldValue = measurement.getExternalTemperature().getValue();
+                measurement.getExternalTemperature().setValue(stationMeasurement.getTemperature());
+                logger.info("Device : {} , Old Temp : {} , New Temp {}",
+                        measurement.getDevice().toString(),
+                        oldValue,
+                        measurement.getExternalTemperature().getValue());
 
-                    List<StationMeasurement> stationMeasurements = stationResponseToMeasurements(stationResponse);
-
-                    Optional<StationMeasurement> stationTemp = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
-                        if (measurement1.getTime().after(measurement2.getTime()))
-                            return measurement1;
-                        return measurement2;
-                    });
-
-                    Optional<StationMeasurement> stationHumidity = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.HUMIDITY)).reduce((measurement1, measurement2) -> {
-                        if (measurement1.getTime().after(measurement2.getTime()))
-                            return measurement1;
-                        return measurement2;
-                    });
-
-                    measurement.getExternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
-                    measurement.getExternalTemperature().setValue(stationTemp.orElseThrow().getValue());
-
-                    logger.info("Device : {} , Old Hum : {} , New Hum {}",
-                            measurement.getDevice().toString(),
-                            measurement.getExternalHumidity().getValue(),
-                            stationHumidity.orElseThrow().getValue());
-                    logger.info("Device : {} , Old Temp : {} , New Temp {}",
-                            measurement.getDevice().toString(),
-                            measurement.getExternalTemperature().getValue(),
-                            stationTemp.orElseThrow().getValue());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            });
 
             measurementList.add(measurement);
-
         }
 
         return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
@@ -298,12 +318,12 @@ public class Utils {
         return devicesResponse.getDevices();
     }
 
-    public static StationResponse getStationMeasurements(Properties props, String stationCode, Date startTime,
+    public static StationData getStationMeasurements(Properties props, String stationCode, Date startTime,
                                                          Date endTime, String stationTimeZone){
 
         logger.info("\n\n********** Fetching Station Data **************\n");
 
-        StationResponse stationResponse;
+        StationData stationData = new StationData();
 
         try {
 
@@ -337,20 +357,20 @@ public class Utils {
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             ObjectMapper objectMapper = new ObjectMapper();
+            stationData = objectMapper.readValue(httpResponse.body(), StationData.class);
 
-            stationResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
-            return stationResponse;
         }
         catch (Exception e){
             e.printStackTrace();
-            return new StationResponse();
         }
+
+        return stationData;
 
     }
 
-    public static List<StationMeasurement> stationResponseToMeasurements(StationResponse stationResponse){
+    public static List<StationMeasurement2> stationResponseToMeasurements(StationResponse stationResponse){
 
-        List<StationMeasurement> measurements = new ArrayList<>();
+        List<StationMeasurement2> measurements = new ArrayList<>();
         try {
 
             List<List<Object>> objects = stationResponse.getResults().get(0).getSeries().get(0).getValues();
@@ -371,7 +391,7 @@ public class Utils {
                             e.printStackTrace();
                         }
 
-                        StationMeasurement measurement = new StationMeasurement(dateTime, value, variable);
+                        StationMeasurement2 measurement = new StationMeasurement2(dateTime, value, variable);
                         measurements.add(measurement);
                     }
             });
@@ -424,4 +444,55 @@ public class Utils {
         }
         return false;
     }
+
+    public static StationResponse getStationMeasurements2(Properties props, String stationCode, Date startTime,
+                                                         Date endTime, String stationTimeZone){
+
+        logger.info("\n\n********** Fetching Station Data **************\n");
+
+        StationResponse stationResponse;
+
+        try {
+
+            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
+            dateFormat.setTimeZone(TimeZone.getTimeZone(stationTimeZone));
+
+            logger.info("{}", dateFormat.format(startTime));
+            logger.info("{}", dateFormat.format(endTime));
+
+            String urlString =  String.format("%sservices/measurements/v2/stations/%s/measurements/%s?start=%s&end=%s",
+                    props.getProperty("tahmo.base.url") , stationCode, "controlled",
+                    dateFormat.format(startTime), dateFormat.format(endTime));
+
+            logger.info("Station Measurements url {}", urlString);
+
+            HttpClient httpClient = HttpClient.newBuilder()
+                    .build();
+
+            String auth = props.getProperty("tahmo.user") + ":" + props.getProperty("tahmo.password");
+            byte[] encodedAuth = Base64.getEncoder().encode(
+                    auth.getBytes(StandardCharsets.ISO_8859_1));
+            String authHeader = "Basic " + new String(encodedAuth);
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .GET()
+                    .uri(URI.create(urlString))
+                    .setHeader("Accept", "application/json")
+                    .setHeader(HttpHeaders.AUTHORIZATION, authHeader)
+                    .build();
+
+            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+            ObjectMapper objectMapper = new ObjectMapper();
+
+            stationResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
+            return stationResponse;
+        }
+        catch (Exception e){
+            e.printStackTrace();
+            return new StationResponse();
+        }
+
+    }
+
 }

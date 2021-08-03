@@ -65,7 +65,7 @@ public class DeviceMeasurements {
                 .stream(props.getProperty("input.topic"), Consumed.with(Serdes.String(), measurementsSerde));
 
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
+                .map((key, value) -> new KeyValue<>(key, Utils.batchAddHumidityAndTemp(value, props)));
 
         transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
     }

@@ -2,7 +2,7 @@ package airqo;
 
 
 import airqo.models.Device;
-import airqo.models.StationMeasurement;
+import airqo.models.StationMeasurement2;
 import airqo.models.StationResponse;
 import org.apache.commons.lang3.time.DateUtils;
 import org.junit.jupiter.api.AfterAll;
@@ -51,17 +51,17 @@ public class UtilsTest {
         Date endTime = DateUtils.addHours(new Date(System.currentTimeMillis()), -3);
         Date startTime = DateUtils.addHours(endTime, -3);
 
-        StationResponse stationResponse = getStationMeasurements(properties, "TA00707", startTime, endTime, "Africa/Nairobi");
+        StationResponse stationResponse = getStationMeasurements2(properties, "TA00707", startTime, endTime, "Africa/Nairobi");
 
-        List<StationMeasurement> measurements = stationResponseToMeasurements(stationResponse);
+        List<StationMeasurement2> measurements = stationResponseToMeasurements(stationResponse);
 
-        Optional<StationMeasurement> stationTemp = measurements.stream().filter(measurement -> measurement.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
+        Optional<StationMeasurement2> stationTemp = measurements.stream().filter(measurement -> measurement.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
             if (measurement1.getTime().after(measurement2.getTime()))
                 return measurement1;
             return measurement2;
         });
 
-        Optional<StationMeasurement> stationHumidity = measurements.stream().filter(measurement -> measurement.getVariable().toString().equals("rh")).reduce((measurement1, measurement2) -> {
+        Optional<StationMeasurement2> stationHumidity = measurements.stream().filter(measurement -> measurement.getVariable().toString().equals("rh")).reduce((measurement1, measurement2) -> {
                     if (measurement1.getTime().after(measurement2.getTime()))
                         return measurement1;
                     return measurement2;
