@@ -7,7 +7,6 @@ const { logElement } = require("../utils/log");
 const { Kafka } = require('kafkajs')
 const { SchemaRegistry } = require('@kafkajs/confluent-schema-registry')
 
-
 const constants = require("./constants");
 const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
@@ -22,7 +21,6 @@ logElement("Kafka Bootstrap Servers", BOOTSTRAP_SERVERS);
 logElement("Schema Registry", SCHEMA_REGISTRY);
 logElement("Group Id", KAFKA_CLIENT_GROUP);
 logElement("Client Id", KAFKA_CLIENT_ID);
-
 
 const kafkaClient = new Kafka({ 
     clientId: KAFKA_CLIENT_ID, 
@@ -55,6 +53,3 @@ module.exports = {
     consumerOptions,
     kafkaClientV2, 
     schemaRegistryV2 };
-
-
-
