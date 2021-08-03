@@ -74,7 +74,7 @@ def download_seven_days_ts(channel_id, api_key):
             return pd.DataFrame()
     return pd.DataFrame(channel_data)
 
-def preprocessing(df):
+def preprocessing_ts(df):
     '''
     Preprocesses data for a particular channel
     '''
@@ -90,6 +90,35 @@ def preprocessing(df):
     hourly_df= hourly_df.reset_index()
 
     return hourly_df
+def train_kampala_model(X, Y):
+    '''
+    Creates a model, trains it using given data and saves it for future use
+    '''
+    print('training model function')
+    Yset = Y
+    Yset[Yset==0] = np.nan
+    
+    keep = ~np.isnan(Yset[:,0]) 
+    Yset = Yset[keep,:]
+    Xset = X[keep,:]
+    print('Number of rows in Xset', Xset.shape[0])
+    
+    Xtraining = Xset[::2,:]
+    Ytraining = Yset[::2,:]
+
+    k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
+    m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+    set_trainable(m.kernel.kernels[0].lengthscales, False) 
+   
+    opt = gpflow.optimizers.Scipy()
+
+    def objective_closure():
+             return - m.log_marginal_likelihood()
+
+    print('optimization')
+    opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
+
+    return m
 
 #def download_airqloud_data_mongo(airqloud_name):
 #    '''
