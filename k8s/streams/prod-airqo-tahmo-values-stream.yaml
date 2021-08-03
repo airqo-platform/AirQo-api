@@ -1,0 +1,46 @@
+###########################################################
+# Start deployment of AirQo tahmo values streams application - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-airqo-tahmo-values-stream
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: prod-airqo-tahmo-values-stream
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: prod-airqo-tahmo-values-stream
+    spec:
+      containers:
+        - name: prod-airqo-tahmo-values-stream
+          image: us.gcr.io/airqo-250220/prod-tahmo-values-stream:latest
+          imagePullPolicy: Always
+          resources: {}
+          # resources:
+          #   limits:
+          #     memory: 512Mi
+          #     cpu: "1"
+          #   requests:
+          #     memory: 256Mi
+          #     cpu: "0.2"
+          envFrom:
+            - configMapRef:
+                name: prod-tahmo-streams-config
+          # env:
+          #   - name: tahmo.api.key
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: prod-tahmo-streams-secrets
+          #         key: tahmo.api.key
+

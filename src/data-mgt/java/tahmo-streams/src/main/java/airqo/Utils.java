@@ -17,7 +17,6 @@ import java.nio.charset.StandardCharsets;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
-import java.util.stream.Collectors;
 
 public class Utils {
 
@@ -61,6 +60,127 @@ public class Utils {
 
         List<Measurement> measurementList = new ArrayList<>();
         for( Measurement measurement : measurements){
+
+            Optional<Site> deviceSite = sites.stream().filter(
+                    site -> site.get_id().trim().equalsIgnoreCase(measurement.getSiteId().toString().trim())).findFirst();
+
+            try {
+                if (deviceSite.isPresent()){
+
+                    Site.NearestStation station = deviceSite.get().getNearestStation();
+                    Date endTime = dateFormat.parse(measurement.getTime().toString());
+                    Date startTime = DateUtils.addHours(endTime, -interval);
+
+                    StationResponse stationResponse = getStationMeasurements(
+                            props, station.getCode(), startTime, endTime, station.getTimezone());
+
+                    List<StationMeasurement> stationMeasurements = stationResponseToMeasurements(stationResponse);
+
+                    Optional<StationMeasurement> stationTemp = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
+                        if (measurement1.getTime().after(measurement2.getTime()))
+                            return measurement1;
+                        return measurement2;
+                    });
+
+                    Optional<StationMeasurement> stationHumidity = stationMeasurements.stream().filter(stationMeasurement -> stationMeasurement.getVariable().equals(Variable.HUMIDITY)).reduce((measurement1, measurement2) -> {
+                        if (measurement1.getTime().after(measurement2.getTime()))
+                            return measurement1;
+                        return measurement2;
+                    });
+
+                    measurement.getExternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
+                    measurement.getExternalTemperature().setValue(stationTemp.orElseThrow().getValue());
+
+                    logger.info("Device : {} , Old Hum : {} , New Hum {}",
+                            measurement.getDevice().toString(),
+                            measurement.getExternalHumidity().getValue(),
+                            stationHumidity.orElseThrow().getValue());
+                    logger.info("Device : {} , Old Temp : {} , New Temp {}",
+                            measurement.getDevice().toString(),
+                            measurement.getExternalTemperature().getValue(),
+                            stationTemp.orElseThrow().getValue());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+
+            measurementList.add(measurement);
+
+        }
+
+        return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
+    }
+
+    public static TransformedDeviceMeasurements batchAddHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props){
+
+        List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
+        List<Measurement> measurements = deviceMeasurements.getMeasurements();
+        int interval = Integer.parseInt(props.getProperty("interval", "1"));
+
+        Optional<Measurement> startMeasurement = measurements.stream().reduce((measurement1, measurement2) -> {
+            try {
+                Date measurement1Time = dateFormat.parse(measurement1.getTime().toString());
+                Date measurement2Time = dateFormat.parse(measurement2.getTime().toString());
+
+                if (measurement1Time.before(measurement2Time))
+                    return measurement1;
+                return measurement2;
+
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+            return measurement1;
+        });
+
+        Optional<Measurement> endMeasurement = measurements.stream().reduce((measurement1, measurement2) -> {
+            try {
+                Date measurement1Time = dateFormat.parse(measurement1.getTime().toString());
+                Date measurement2Time = dateFormat.parse(measurement2.getTime().toString());
+
+                if (measurement1Time.after(measurement2Time))
+                    return measurement1;
+                return measurement2;
+
+            } catch (ParseException e) {
+                e.printStackTrace();
+            }
+            return measurement1;
+        });
+        Date startTime, endTime;
+
+        try {
+            startTime = DateUtils.addHours(dateFormat.parse(startMeasurement.get().getTime().toString()), -interval);
+            endTime = dateFormat.parse(endMeasurement.get().getTime().toString());
+        } catch (Exception e) {
+            e.printStackTrace();
+            return deviceMeasurements;
+        }
+
+        List<StationResponse> stationResponses = new ArrayList<>();
+        for (Site site :sites){
+            StationResponse stationResponse = getStationMeasurements(props, site.getNearestStation().getCode(),
+                    startTime, endTime, site.getNearestStation().getTimezone());
+            stationResponses.add(stationResponse);
+        }
+
+        List<Measurement> measurementList = new ArrayList<>();
+        for( Measurement measurement : measurements){
+
+            Optional<StationResponse> stationResponse = stationResponses.stream().filter(stationResponse1 -> {
+                stationResponse1.getResults().stream().filter(result -> {
+
+
+
+                    return result.getSeries().forEach(serie -> {
+
+                    });
+                })
+
+                return false;
+            }).max((stationResponse1, t1) -> {
+
+                return 0;
+            });
 
             Optional<Site> deviceSite = sites.stream().filter(
                     site -> site.get_id().trim().equalsIgnoreCase(measurement.getSiteId().toString().trim())).findFirst();
@@ -178,7 +298,8 @@ public class Utils {
         return devicesResponse.getDevices();
     }
 
-    public static StationResponse getStationMeasurements(Properties props, String stationCode, Date startTime, Date endTime, String stationTimeZone){
+    public static StationResponse getStationMeasurements(Properties props, String stationCode, Date startTime,
+                                                         Date endTime, String stationTimeZone){
 
         logger.info("\n\n********** Fetching Station Data **************\n");
 
@@ -193,9 +314,11 @@ public class Utils {
             logger.info("{}", dateFormat.format(endTime));
 
             String urlString =  String.format("%sservices/measurements/v2/stations/%s/measurements/%s?start=%s&end=%s",
-                    props.getProperty("tahmo.base.url") , stationCode, "controlled", dateFormat.format(startTime), dateFormat.format(endTime));
+                    props.getProperty("tahmo.base.url") , stationCode, "controlled",
+                    dateFormat.format(startTime), dateFormat.format(endTime));
 
             logger.info("Station Measurements url {}", urlString);
+
             HttpClient httpClient = HttpClient.newBuilder()
                     .build();
 

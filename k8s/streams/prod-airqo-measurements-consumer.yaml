@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-airqo-measurements-consumer
+  namespace: production
+spec:
+  minReadySeconds: 10
+  replicas: 1
+  selector:
+    matchLabels:
+      app: prod-airqo-measurements-consumer
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: prod-airqo-measurements-consumer
+    spec:
+      containers:
+      - name: prod-airqo-measurements-consumer
+        image: us.gcr.io/airqo-250220/prod-measurements-consumer:latest
+        imagePullPolicy: Always
+        envFrom:
+          - configMapRef:
+              name: prod-measurements-consumer-config
+        resources: {}

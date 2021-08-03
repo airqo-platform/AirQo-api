@@ -15,10 +15,10 @@ public class Site {
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class NearestStation {
         private int id;
-        private String code;
+        private String code = "";
         private double latitude;
         private double longitude;
-        private String timezone;
+        private String timezone = "";
 
         @Override
         public String toString() {

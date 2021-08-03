@@ -11,10 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-import java.util.Properties;
+import java.util.*;
 
 import static airqo.Utils.*;
 
@@ -77,3 +74,11 @@ public class UtilsTest {
 
 
 }
+
+//    Iterator<Map.Entry<String, String>> it = sitesStations.entrySet().iterator();
+//        while (it.hasNext()) {
+//                Map.Entry<String, String> station = it.next();
+//        StationResponse stationResponse = getStationMeasurements(props, station.getKey(), startTime, endTime, station.getValue());
+//        stationResponses.add(stationResponse);
+//        it.remove();
+//        }

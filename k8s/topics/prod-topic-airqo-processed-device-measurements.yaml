@@ -1,12 +1,12 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: airqo-streams-transformed-device-measurements-topic 
+  name: airqo-streams-processed-device-measurements-topic 
   namespace: production
   labels:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
-  topicName: airqo-streams-transformed-device-measurements-topic 
+  topicName: airqo-streams-processed-device-measurements-topic 
   partitions: 1
   replicas: 1
   config:
