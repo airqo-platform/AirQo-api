@@ -15,6 +15,7 @@ from pandas import Timestamp
 import pymongo
 from pymongo import MongoClient
 from dotenv import load_dotenv
+import math
 load_dotenv()
 
 
@@ -122,15 +123,21 @@ def predict_model(m):
     locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
     pred_set = np.c_[locations_flat,np.full(locations_flat.shape[0],time)]
     mean, var = m.predict_f(pred_set)
-
+    
     means = mean.numpy().flatten()
     variances = var.numpy().flatten()
+    std_dev = np.sqrt(variances)
+    # calculate prediction interval
+    interval = 1.96 * std_dev
+    # lower, upper = means - interval, means + interval
+        
     result = []
     for i in range(pred_set.shape[0]):
         result.append({'latitude':locations_flat[i][1],
                       'longitude':locations_flat[i][0],
                       'predicted_value': means[i],
-                      'variance':variances[i]})
+                      'variance':variances[i],
+                      'interval':interval[i]})
 
     try:
         client = MongoClient(MONGO_URI)
@@ -143,6 +150,8 @@ def predict_model(m):
         collection.delete_many({})
     
     collection.insert_many(result)
+
+    return result
 
 def periodic_function():
     '''

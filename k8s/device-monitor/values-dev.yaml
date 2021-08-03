@@ -1,0 +1,34 @@
+# values for airqo-device-monitor-api.
+env:
+  deployment_name: airqo-dev-device-monitor-api
+  service_name: airqo-dev-device-registry-api-svc
+  labels: sta-dev-monitor
+  secret: stage-device-monitor-secret
+replicaCount: 2
+
+image:
+  repository: airqo-dev-device-monitor-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 32006
+  targetPort: 4001
+  port: 4001
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: development

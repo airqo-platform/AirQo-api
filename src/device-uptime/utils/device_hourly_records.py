@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
-import pandas as pd
+from datetime import datetime
+from dateutil import parser as date_parser
+from dateutil.tz import UTC
 import requests
 import urllib3
 from dataclasses import dataclass
@@ -11,10 +12,10 @@ urllib3.disable_warnings()
 
 @dataclass
 class DeviceSensorReadings:
-    sensor_one_pm2_5: list
-    sensor_two_pm2_5: list
-    battery_voltage: list
-    time: list
+    sensor_one_pm2_5: int
+    sensor_two_pm2_5: int
+    battery_voltage: int
+    time: datetime
 
 
 class DeviceChannelRecords:
@@ -23,85 +24,65 @@ class DeviceChannelRecords:
         self.tenant = tenant
         self.device_name = device_name
         self.channel_id = channel_id
-        self.records = self.get_device_daily_events()
-        self.df = pd.DataFrame(self.flatten_records())
+        self.record = self.get_recent_event()
 
-    def get_device_daily_events(self):
-        yesterday = datetime.strftime(datetime.now() - timedelta(1), '%Y-%m-%d')
+    def get_recent_event(self):
+        api_url = f'{configuration.DEVICE_RECENT_EVENTS_URL}?tenant={self.tenant}&channel={self.channel_id}'
 
-        api_url = f'{configuration.DAILY_EVENTS_URL}?tenant={self.tenant}&device={self.device_name}'
-        api_url = f'{api_url}&startTime={yesterday}&endTime={yesterday}&recent=no'
+        recent_event = requests.get(api_url, verify=False)
 
-        device_events = requests.get(api_url, verify=False)
+        if recent_event.status_code != 200:
+            return {}
 
-        if device_events.status_code != 200:
-            return []
-
-        return device_events.json().get("measurements", [])
-
-    def flatten_records(self):
-        return [
-            {
-              "time": record["time"],
-              "s1_pm2_5": record["pm2_5"]["value"],
-              "s2_pm2_5": record["s2_pm2_5"]["value"],
-              "voltage": record["battery"]["value"],
-            }
-            for record in self.records
-        ]
+        return recent_event.json()
 
     def get_sensor_readings(self):
-        if not self.records:
-            raise Exception(f"Device {self.device_name} has no records")
+        if not self.record:
+            print(f"Device {self.device_name} has no records")
+            return DeviceSensorReadings(
+                time=datetime.utcnow(),
+                sensor_one_pm2_5=0,
+                sensor_two_pm2_5=0,
+                battery_voltage=0
+            )
 
-        self.df['time'] = pd.to_datetime(self.df['time'])
-        time_indexed_data = self.df.set_index('time')
+        time = self.record.get("created_at")
+        time = date_parser.isoparse(time)
+        now = datetime.utcnow()
+        now = now.replace(tzinfo=UTC)
+        minutes_diff = (now - time).total_seconds() / 60
 
-        # change frequency to hours
-        hourly_data = time_indexed_data.resample('H').mean().round(2)
-        daily_data = hourly_data.resample('D').mean().dropna()
-        sensor_one_pm2_5 = daily_data['s1_pm2_5'].tolist()
-        sensor_two_pm2_5 = daily_data['s2_pm2_5'].tolist()
-        battery_voltage = daily_data['voltage'].tolist()
-        time = daily_data.index.tolist()
+        if minutes_diff > configuration.MONITOR_FREQUENCY_MINUTES:
+
+            return DeviceSensorReadings(
+                time=time,
+                sensor_one_pm2_5=0,
+                sensor_two_pm2_5=0,
+                battery_voltage=0
+            )
 
         return DeviceSensorReadings(
+
             time=time,
-            sensor_one_pm2_5=sensor_one_pm2_5,
-            sensor_two_pm2_5=sensor_two_pm2_5,
-            battery_voltage=battery_voltage
+            sensor_one_pm2_5=self.record.get("pm2_5"),
+            sensor_two_pm2_5=self.record.get("s2_pm2_5"),
+            battery_voltage=self.record.get("battery")
         )
 
-    def get_record_count(self):
+    def calculate_uptime(self):
+        time = self.record.get("created_at")
+        uptime, downtime = 0, 100
 
-        time_indexed_data = self.df.set_index('time')
+        if not time:
+            return uptime, downtime
 
-        # change frequency to hours
-        hourly_data = time_indexed_data.resample('H').mean().round(2)
+        time = date_parser.isoparse(time)
+        now = datetime.utcnow()
+        now = now.replace(tzinfo=UTC)
+        minutes_diff = (now - time).total_seconds() / 60
 
-        return hourly_data.dropna().reset_index().shape[0]
-
-    @staticmethod
-    def get_expected_records_count(mobility):
-        """
-        We are considering hourly values
-        So that means that in a day, a static device should generate 24 records
-        Mobile devices should generate 12 (half of that)
-        """
-        total_records_per_day = 24
-        if str(mobility).lower() == 'mobile' or str(mobility).lower() == "true":
-            return total_records_per_day / 2
-        return total_records_per_day
-
-    def calculate_uptime(self, mobility):
-        percent_100 = 100
-        expected_records = self.get_expected_records_count(mobility)
-        actual_records = self.get_record_count()
-        uptime = round((actual_records / expected_records) * percent_100, 2)
-
-        if uptime > percent_100:
-            uptime = percent_100
-
-        downtime = percent_100 - uptime
+        if minutes_diff > configuration.MONITOR_FREQUENCY_MINUTES:
+            return uptime, downtime
+        uptime, downtime = 100, 0
 
         return uptime, downtime

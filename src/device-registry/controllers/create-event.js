@@ -1,75 +1,112 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const { getMeasurements } = require("../utils/get-measurements");
-const insertMeasurementsService = require("../services/insert-device-measurements");
-
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-event-controller");
 const {
   tryCatchErrors,
-  axiosError,
   missingQueryParams,
-  callbackErrors,
-  invalidParamsValue,
+  badRequest,
 } = require("../utils/errors");
-
+const { validationResult } = require("express-validator");
 const getDetail = require("../utils/get-device-details");
-
 const isEmpty = require("is-empty");
 
-const { transformMeasurements } = require("../utils/transform-measurements");
+const { transformMeasurements_v2 } = require("../utils/transform-measurements");
 const insertMeasurements = require("../utils/insert-measurements");
 const {
   transmitOneSensorValue,
   transmitMultipleSensorValues,
   bulkTransmitMultipleSensorValues,
 } = require("../utils/transmit-values");
+const createEventUtil = require("../utils/create-event");
 
 const createEvent = {
   addValues: async (req, res) => {
     try {
       logText("adding values...");
-      const { device, tenant } = req.query;
+      const { tenant } = req.query;
       const measurements = req.body;
-      if (tenant && device && measurements) {
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
+      let errors = [];
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      if (!Array.isArray(measurements)) {
+        errors.push({
+          location: "body",
+          value_type: typeof measurements,
+          msg: "the the input body should be an array, please crosscheck ",
+        });
+      }
+      if (!tenant) {
+        errors.push({
+          location: "query",
+          value: "",
+          param: "tenant",
+          msg: "the tenant query parameter must be provided ",
+        });
+      }
 
-        if (doesDeviceExist) {
-          const transformedMeasurements = await transformMeasurements(
-            device,
-            measurements
-          );
-          let response = await insertMeasurements(
-            tenant,
-            transformedMeasurements
-          );
-          if (response.success == true) {
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              message: "successfully added all the events",
-              valuesAdded: response.valuesAdded,
-            });
-          } else if (response.success == false) {
-            return res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: "finished the operation with some errors",
-              errors: response.errors,
-              valuesRejected: response.valuesRejected,
-              valuesAdded: response.valuesAdded,
-            });
-          }
-        } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: `the device (${device}) does not exist on the network`,
-          });
-        }
+      if (errors.length > 0) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "bad request errors",
+          errors,
+        });
+      }
+
+      const responseFromTransformMeasurements = await transformMeasurements_v2(
+        measurements
+      );
+      logObject(
+        "responseFromTransformMeasurements",
+        responseFromTransformMeasurements
+      );
+
+      if (!responseFromTransformMeasurements.success) {
+        let error = responseFromTransformMeasurements.error
+          ? responseFromTransformMeasurements.error
+          : "";
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromTransformMeasurements.message,
+          error,
+        });
+      }
+
+      logObject(
+        "responseFromTransformMeasurements.data",
+        responseFromTransformMeasurements.data
+      );
+
+      let response = await insertMeasurements(
+        tenant,
+        responseFromTransformMeasurements.data
+      );
+
+      if (!response.success) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "finished the operation with some errors",
+          errors: response.errors,
+        });
       } else {
-        missingQueryParams(req, res);
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "successfully added all the events",
+        });
       }
     } catch (e) {
-      tryCatchErrors(res, error);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server side error , create events - controller",
+        error: e.message,
+      });
     }
   },
+
   getValues: (req, res) => {
     try {
       const {
@@ -82,7 +119,24 @@ const createEvent = {
         frequency,
         startTime,
         endTime,
+        device_id,
+        site,
+        site_id,
       } = req.query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
       const limitInt = parseInt(limit, 0);
       const skipInt = parseInt(skip, 0);
       logText(".......getting values.......");
@@ -91,6 +145,9 @@ const createEvent = {
           res,
           recent,
           device,
+          device_id,
+          site,
+          site_id,
           skipInt,
           limitInt,
           frequency,
@@ -105,8 +162,6 @@ const createEvent = {
       tryCatchErrors(res, e);
     }
   },
-
-  /********************************* trasmit values from device *******************************/
   transmitValues: async (req, res) => {
     try {
       const { type, tenant } = req.query;
@@ -123,6 +178,244 @@ const createEvent = {
       tryCatchErrors(res, error);
     }
   },
+  deleteValues: async () => {},
+  deleteValuesOnPlatform: async (req, res) => {
+    try {
+      logText("the delete values operation starts....");
+      logger.info(`the delete values operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      const { body } = req;
+      let request = {};
+      request["query"] = { ...req.query, body };
+      logger.info(`the request -- ${JSON.stringify(request)}`);
+      let responseFromClearValuesOnPlatform = await createEventUtil.clearEventsOnPlatform(
+        request
+      );
+      logger.info(
+        `responseFromClearValuesOnPlatform -- ${JSON.stringify(
+          responseFromClearValuesOnPlatform
+        )}`
+      );
+
+      if (responseFromClearValuesOnPlatform.success == false) {
+        let error = responseFromClearValuesOnPlatform.error
+          ? responseFromClearValuesOnPlatform.error
+          : "";
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromClearValuesOnPlatform.message,
+          error,
+        });
+      }
+
+      if (responseFromClearValuesOnPlatform.success == true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromClearValuesOnPlatform.message,
+          data: responseFromClearValuesOnPlatform.data,
+        });
+      }
+    } catch (e) {
+      logger.error(`responseFromClearValuesOnPlatform -- ${e.message}`);
+      tryCatchErrors(res, e.message, "responseFromClearValuesOnPlatform");
+    }
+  },
+  deleteValuesOnThingspeak: async (req, res) => {
+    try {
+      const { device, tenant } = req.query;
+
+      if (tenant) {
+        if (!device) {
+          res.status(HTTPStatus.BAD_REQUEST).json({
+            message:
+              "please use the correct query parameter, check API documentation",
+            success: false,
+          });
+        }
+        const deviceDetails = await getDetail(tenant, device);
+        const doesDeviceExist = !isEmpty(deviceDetails);
+        logElement("isDevicePresent ?", doesDeviceExist);
+        if (doesDeviceExist) {
+          const channelID = await getChannelID(
+            req,
+            res,
+            device,
+            tenant.toLowerCase()
+          );
+          logText("...................................");
+          logText("clearing the Thing....");
+          logElement("url", constants.CLEAR_THING_URL(channelID));
+          await axios
+            .delete(constants.CLEAR_THING_URL(channelID))
+            .then(async (response) => {
+              logText("successfully cleared the device in TS");
+              logObject("response from TS", response.data);
+              res.status(HTTPStatus.OK).json({
+                message: `successfully cleared the data for device ${device}`,
+                success: true,
+                updatedDevice,
+              });
+            })
+            .catch(function(error) {
+              console.log(error);
+              res.status(HTTPStatus.BAD_GATEWAY).json({
+                message: `unable to clear the device data, device ${device} does not exist`,
+                success: false,
+              });
+            });
+        } else {
+          logText(`device ${device} does not exist in the system`);
+          res.status(HTTPStatus.OK).json({
+            message: `device ${device} does not exist in the system`,
+            success: false,
+          });
+        }
+      } else {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
+        });
+      }
+    } catch (e) {
+      logText(`unable to clear device ${device}`);
+      tryCatchErrors(res, e);
+    }
+  },
+
+  /***********************************************************
+   * api_v2 starts
+   */
+  addEvents: async (req, res) => {
+    try {
+      logger.info(`adding values...`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+      logger.info(`adding values...`);
+      const { device, tenant } = req.query;
+      const { body } = req;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["device"] = device;
+      request["query"]["tenant"] = tenant;
+      request["body"] = body;
+
+      let responseFromAddEventsUtil = await createEventUtil.addEvents(request);
+
+      logObject("responseFromAddEventsUtil", responseFromAddEventsUtil);
+
+      logger.info(
+        `responseFromAddEventsUtil -- ${JSON.stringify(
+          responseFromAddEventsUtil
+        )}`
+      );
+
+      if (!responseFromAddEventsUtil.success) {
+        let errors = responseFromAddEventsUtil.error
+          ? responseFromAddEventsUtil.error
+          : "";
+        return res.status(HTTPStatus.FORBIDDEN).json({
+          success: false,
+          message: "finished the operation with some errors",
+          errors,
+        });
+      }
+
+      if (responseFromAddEventsUtil.success) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: "successfully added all the events",
+          stored_events: responseFromAddEventsUtil.data,
+        });
+      }
+    } catch (e) {
+      logger.error(`addValue -- ${e.message}`);
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server error",
+        error: e.message,
+      });
+    }
+  },
+  viewEvents: async (req, res) => {
+    try {
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+
+      if (Array.isArray(req.query.site)) {
+        return badRequest(
+          res,
+          "multiple Site query params not supported, please use one comma separated one",
+          []
+        );
+      }
+      // return res.status(HTTPStatus.OK).json({
+      //   success: true,
+      //   message: "we be testing viewing events",
+      // });
+      logger.info(`viewing events...`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(res, "bad request errors", nestedErrors);
+      }
+
+      if (Array.isArray(req.query.device)) {
+        return badRequest(
+          res,
+          "multiple Device query params not supported, please use one comma separated one",
+          []
+        );
+      }
+
+      let responseFromEventsUtil = await createEventUtil.viewEvents(req);
+      logObject("responseFromEventsUtil", responseFromEventsUtil);
+      logger.info(
+        `responseFromEventsUtil -- ${JSON.stringify(responseFromEventsUtil)}`
+      );
+      if (responseFromEventsUtil.success === true) {
+        res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromEventsUtil.message,
+          measurements: responseFromEventsUtil.data,
+        });
+      }
+
+      if (responseFromEventsUtil.success === false) {
+        let error = responseFromEventsUtil.error
+          ? responseFromEventsUtil.error
+          : "";
+        res.status(HTTPStatus.BAD_GATEWAY).json({
+          success: false,
+          message: responseFromEventsUtil.message,
+          error,
+        });
+      }
+    } catch (error) {
+      logger.error(`viewEvents -- ${error.message}`);
+      res.status(HTTPStatus.BAD_GATEWAY).json({
+        success: false,
+        message: "server error",
+        error: error.message,
+      });
+    }
+  },
+
+  /************************************************************
+   * api_v2 ends
+   */
 };
 
 module.exports = createEvent;
