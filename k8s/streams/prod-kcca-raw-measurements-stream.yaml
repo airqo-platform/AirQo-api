@@ -1,5 +1,5 @@
 ###########################################################
-# Start deployment of KCCA raw device measurements streams application - Staging
+# Start deployment of KCCA raw device measurements streams application - production
 ###########################################################
 apiVersion: apps/v1
 kind: Deployment
@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: prod-kcca-raw-measurements-stream
-  replicas: 2
+  replicas: 1
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
@@ -33,18 +33,6 @@ spec:
             limits:
               memory: 512Mi
               cpu: "1"
-          env:
-            - name: INPUT.TOPIC
-              value: kcca-raw-device-measurements-topic
-            - name: OUTPUT.TOPIC
-              value: kcca-transformed-device-measurements-topic
-            - name: TENANT
-              value: kcca
-            - name: APPLICATION.ID
-              value: prod-kcca-measurements-stream-3d508ddb
-            - name: BOOTSTRAP.SERVERS
-              value: prod-kafka-cluster-kafka-bootstrap:9092
-            - name: SCHEMA.REGISTRY.URL
-              value: http://prod-schema-registry-svc:8081
-            - name: AIRQO.BASE.URL
-              value: https://platform.airqo.net/api/v1/
+          envFrom:
+            - configMapRef:
+                name: prod-kcca-raw-measurements-stream-config
