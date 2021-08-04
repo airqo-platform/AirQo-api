@@ -27,6 +27,9 @@ def calibrate():
         if (not datetime or not raw_values):
             return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400     
 
+        rgModel = rg.Regression()
+        hourly_combined_dataset = rgModel.hourly_combined_dataset
+
         # calibrateModel = cb.Calibrate()
         response = []
         for raw_value in raw_values:
@@ -42,27 +45,9 @@ def calibrate():
             if (not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity):
                 return jsonify({"message": "Please specify the device_id, datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
             
-            # features from datetime and PM
-            datetime = pd.to_datetime(datetime)
-            hour = datetime.hour
-            input_variables = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,hour]],
-                                        columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour'],
-                                        dtype='float',
-                                        index=['input'])
-            input_variables["avg_pm2_5"] = input_variables[['pm2_5','s2_pm2_5']].mean(axis=1).round(2)
-            input_variables["avg_pm10"] =  input_variables[['pm10','s2_pm10']].mean(axis=1).round(2)
-            input_variables["error_pm2_5"]=input_variables["pm10"]-input_variables["s2_pm10"]
-            input_variables["error_pm10"]=np.abs(input_variables["pm10"]-input_variables["s2_pm10"])
-            input_variables["error_pm2_5"]=np.abs(input_variables["pm2_5"]-input_variables["s2_pm2_5"])
-            input_variables["pm2_5_pm10"]=input_variables["avg_pm2_5"]-input_variables["avg_pm10"]
-            input_variables["pm2_5_pm10_mod"]=input_variables["pm2_5_pm10"]/input_variables["avg_pm10"]
-            input_variables = input_variables.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)   
-            # rgModel = rg.Regression()
-            # rf_regressor = rgModel.random_forest     
-            
-            rf_reg_model = pickle.load(open('jobs/rf_reg_model.sav', 'rb'))
+            # rf_reg_model = pickle.load(open('jobs/rf_reg_model.sav', 'rb'))
            
-            value = rf_reg_model.predict(input_variables)[0]         
+            value = rgModel.random_forest(hourly_combined_dataset, pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime)           
         
             response.append({'device_id': device_id, 'calibrated_value': value})
         return jsonify(response), 200
