@@ -973,25 +973,13 @@ router.post(
         .withMessage("the latitude is is missing in your request")
         .bail()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("the latitude provided is not valid")
-        .bail()
-        .customSanitizer((value) => {
-          return sanitize.roundAccurately(value, 5);
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude provided is not valid"),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude provided is not valid")
-        .bail()
-        .customSanitizer((value) => {
-          return sanitize.roundAccurately(value, 5);
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have 5 decimal places in it"),
+        .withMessage("the longitude provided is not valid"),
       body("powerType")
         .exists()
         .withMessage("the powerType is is missing in your request")
