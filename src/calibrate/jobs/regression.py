@@ -14,7 +14,7 @@ def random_forest(hourly_combined_dataset):
     X_train_rf_muk, X_test_rf_muk, y_train_rf_muk, y_test_rf_muk = train_test_split(X_rf_muk, y_rf_muk, test_size=0.2, random_state=0)
     rf_regressor = RandomForestRegressor(random_state=42, max_features='sqrt', n_estimators= 1000, max_depth=50, bootstrap = True)
     # Fitting the model 
-    rf_reg = rf_regressor.fit(X_train_rf_muk, y_train_rf_muk) 
+    rf_regressor.fit(X_train_rf_muk, y_train_rf_muk) 
     '''RandomForestRegressor(bootstrap=True, ccp_alpha=0.0, criterion='mse', 
                     max_depth=None, max_features='auto', max_leaf_nodes=None, 
                     max_samples=None, min_impurity_decrease=0.0, 
