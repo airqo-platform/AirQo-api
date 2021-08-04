@@ -190,7 +190,8 @@ def predict_model(m, tenant, airqloud):
                       'predicted_value': means[i],
                       'variance':variances[i],
                       'interval':interval[i],
-                      'airqloud':airqloud})
+                      'airqloud':airqloud,
+                      'created_at': datetime.now()})
 
     
     db = connect_mongo(tenant)
