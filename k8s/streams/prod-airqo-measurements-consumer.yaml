@@ -23,7 +23,14 @@ spec:
       - name: prod-airqo-measurements-consumer
         image: us.gcr.io/airqo-250220/prod-measurements-consumer:latest
         imagePullPolicy: Always
+        resources:
+          limits:
+            memory: 512Mi
+            cpu: "1"
+          requests:
+            memory: 256Mi
+            cpu: "0.2"
         envFrom:
           - configMapRef:
               name: prod-measurements-consumer-config
-        resources: {}
+
