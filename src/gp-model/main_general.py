@@ -196,7 +196,7 @@ def predict_model(m, tenant, airqloud):
     db = connect_mongo(tenant)
     collection = db['gp_predictions']
     
-    if collection.count_documents({})!= 0:
+    if collection.count_documents({'airqloud': airqloud})!= 0:
         collection.delete_many({})
     
     collection.insert_many(result)
@@ -245,5 +245,5 @@ def periodic_function(tenant, airqloud):
 
 
 if __name__=='__main__':
-    print(get_channels_ts('kampala'))
+    print(get_bbox_coordinates('kawempe'))
     #print(download_airqloud_data('kawempe'))
