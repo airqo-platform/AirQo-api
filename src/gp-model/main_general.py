@@ -246,5 +246,6 @@ def periodic_function(tenant, airqloud):
 
 
 if __name__=='__main__':
-    print(get_bbox_coordinates('kawempe'))
+    tenant, airqloud1, airqloud2 = 'airqo', 'kawempe', 'kampala'
+    periodic_function(tenant, airqloud1)
     #print(download_airqloud_data('kawempe'))
