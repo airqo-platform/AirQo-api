@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prod-airqo-measurements-consumer
-  namespace: production
+  name: stage-airqo-measurements-consumer
+  namespace: staging
 spec:
   minReadySeconds: 10
   replicas: 1
   selector:
     matchLabels:
-      app: prod-airqo-measurements-consumer
+      app: stage-airqo-measurements-consumer
   strategy:
     rollingUpdate:
       maxSurge: 1
@@ -17,11 +17,11 @@ spec:
   template:
     metadata:
       labels:
-        app: prod-airqo-measurements-consumer
+        app: stage-airqo-measurements-consumer
     spec:
       containers:
-      - name: prod-airqo-measurements-consumer
-        image: us.gcr.io/airqo-250220/prod-measurements-consumer:latest
+      - name: stage-airqo-measurements-consumer
+        image: us.gcr.io/airqo-250220/stage-measurements-consumer:latest
         imagePullPolicy: Always
         resources:
           requests:
@@ -32,5 +32,5 @@ spec:
             cpu: "1"
         envFrom:
           - configMapRef:
-              name: prod-airqo-measurements-consumer-config
+              name: stage-airqo-measurements-consumer-config
 

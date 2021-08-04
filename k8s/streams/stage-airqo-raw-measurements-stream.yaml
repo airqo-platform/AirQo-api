@@ -33,20 +33,6 @@ spec:
             limits:
               memory: 512Mi
               cpu: "1"
-          env:
-            - name: INPUT.TOPIC
-              value: airqo-streams-raw-device-measurements-topic
-            - name: OUTPUT.TOPIC
-              value: airqo-streams-transformed-device-measurements-topic
-            - name: TENANT
-              value: airqo
-            - name: APPLICATION.ID
-              value: airqo-measurements-stream-3d508ddb-5b9f-493a-b96a-9a3c-62dc-030f
-            - name: BOOTSTRAP.SERVERS
-              value: stage-kafka-cluster-kafka-bootstrap:9092
-            - name: SCHEMA.REGISTRY.URL
-              value: http://stage-schema-registry-svc:8081
-            - name: AIRQO.BASE.URL
-              value: https://staging-platform.airqo.net/api/v1/
-            - name: NUM.STREAM.THREADS
-              value: "1"
+          envFrom:
+            - configMapRef:
+                name: stage-airqo-raw-measurements-stream-config
