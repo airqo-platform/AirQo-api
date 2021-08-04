@@ -18,9 +18,7 @@ calibrate_bp = Blueprint('calibrate_bp', __name__)
 
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
 def calibrate():
-    rgModel = rg.Regression()
-    rf_regressor = rgModel.random_forest
-
+    
     if request.method == 'POST':
         data = request.get_json()
         datetime = data.get('datetime')
@@ -51,8 +49,6 @@ def calibrate():
                                         columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour'],
                                         dtype='float',
                                         index=['input'])
-            input_variables["s2_pm2_5"]= np.where(input_variables["s2_pm2_5"]==0,input_variables["pm2_5"],input_variables["s2_pm2_5"])
-            input_variables["s2_pm10"]= np.where(input_variables["s2_pm10"]==0,input_variables["pm10"],input_variables["s2_pm10"])
             input_variables["avg_pm2_5"] = input_variables[['pm2_5','s2_pm2_5']].mean(axis=1).round(2)
             input_variables["avg_pm10"] =  input_variables[['pm10','s2_pm10']].mean(axis=1).round(2)
             input_variables["error_pm2_5"]=input_variables["pm10"]-input_variables["s2_pm10"]
@@ -60,13 +56,15 @@ def calibrate():
             input_variables["error_pm2_5"]=np.abs(input_variables["pm2_5"]-input_variables["s2_pm2_5"])
             input_variables["pm2_5_pm10"]=input_variables["avg_pm2_5"]-input_variables["avg_pm10"]
             input_variables["pm2_5_pm10_mod"]=input_variables["pm2_5_pm10"]/input_variables["avg_pm10"]
-                
-                
-            # rf_reg = pickle.load(open('../jobs/rf_reg_model.sav', 'rb'))
+            input_variables = input_variables.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)   
+            # rgModel = rg.Regression()
+            # rf_regressor = rgModel.random_forest     
             
-            value = rf_regressor.predict(input_variables)[0]         
+            rf_reg_model = pickle.load(open('jobs/rf_reg_model.sav', 'rb'))
+           
+            value = rf_reg_model.predict(input_variables)[0]         
         
-        response.append({'device_id': device_id, 'calibrated_value': value})
+            response.append({'device_id': device_id, 'calibrated_value': value})
         return jsonify(response), 200
 
 
