@@ -74,12 +74,7 @@ router.get(
       query("name")
         .if(query("name").exists())
         .notEmpty()
-        .trim()
-        .isLowercase()
-        .withMessage("device name should be lower case")
-        .bail()
-        .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device names do not have spaces in them"),
+        .trim(),
     ],
   ]),
   deviceController.list
