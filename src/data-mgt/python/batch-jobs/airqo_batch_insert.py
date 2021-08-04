@@ -5,12 +5,12 @@ from datetime import datetime, timedelta
 import pandas as pd
 from google.cloud import bigquery
 
-from date import str_to_date
+from date import str_to_date, date_to_str
 from utils import filter_valid_devices, get_devices, build_channel_id_filter
 
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://staging-platform.airqo.net/api/v1/")
-START_TIME = os.getenv("START_TIME", "2020-01-01")
-END_TIME = os.getenv("END_TIME", "2020-01-02")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://platform.airqo.net/api/v1/")
+START_TIME = os.getenv("START_TIME", "2021-08-03")
+END_TIME = os.getenv("END_TIME", "2021-08-04")
 INTERVAL = os.getenv("INTERVAL", "23")
 SIZE = os.getenv("INTERVAL", "10")
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
@@ -50,8 +50,8 @@ def get_device_measurements(devices):
     dates = pd.date_range(START_TIME, END_TIME, freq=interval)
 
     for date in dates:
-        start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-        end_time = datetime.strftime(date + timedelta(hours=int(INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
+        start_time = date_to_str(date)
+        end_time = date_to_str(date + timedelta(hours=int(INTERVAL)))
 
         print(start_time + " : " + end_time)
 

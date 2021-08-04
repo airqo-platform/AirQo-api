@@ -6,6 +6,7 @@ import pandas as pd
 import requests
 
 from date import date_to_str
+from event import DeviceRegistry
 from kafka_client import KafkaWithoutRegistry
 from utils import filter_valid_devices, get_devices
 
@@ -129,7 +130,8 @@ class ProcessMeasurements:
                                      range((len(transformed_data) + n - 1) // n)]
 
                         for sub_list in sub_lists:
-                            pass
+                            device_registry = DeviceRegistry(sub_list, "kcca", DEVICE_REGISTRY_URL)
+                            device_registry.send_to_api()
 
     def get_raw_measurements(self, start_time, end_time):
 
