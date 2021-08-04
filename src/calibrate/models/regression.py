@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor 
 import pickle
+from apscheduler.schedulers.blocking import BlockingScheduler
 from jobs import get_data as gd
 from jobs import regression as rg
 
@@ -22,10 +23,14 @@ class Regression():
         print('R2:', r2_score)
 
         # save the model to disk
-        filename = '../jobs/rf_reg_model.sav'
+        filename = 'jobs/rf_reg_model.sav'
         pickle.dump(rf_regressor, open(filename, 'wb'))
 
         return rf_regressor
+
+    # scheduler = BlockingScheduler()
+    # scheduler.add_job(random_forest, 'interval', seconds=300)
+    # scheduler.start()
   
 if __name__ == "__main__":
     calibrateInstance = Regression()
