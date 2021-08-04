@@ -27,12 +27,12 @@ spec:
           image: us.gcr.io/airqo-250220/prod-schema-registry:latest
           imagePullPolicy: Always
           resources:
-            limits:
-              memory: 512Mi
-              cpu: "1"
             requests:
               memory: 256Mi
               cpu: "0.2"
+            limits:
+              memory: 512Mi
+              cpu: "1"
           ports:
             - containerPort: 8081
               name: schema-registry

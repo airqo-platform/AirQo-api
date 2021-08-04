@@ -26,7 +26,13 @@ spec:
       - name: prod-calibrate-kafka
         image: us.gcr.io/airqo-250220/airqo-prod-calibrate-kafka:latest
         imagePullPolicy: Always
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: "0.2"
+          limits:
+            memory: 512Mi
+            cpu: "1"
         envFrom:
           - configMapRef:
               name: prod-calibrate-config
-        resources: {}
