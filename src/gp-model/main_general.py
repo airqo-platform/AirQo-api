@@ -130,15 +130,75 @@ def get_bbox_coordinates(airqloud):
     path = f'{shapefile_path}/kampala_parishes/Kampala_Parishes_Lands_and_Survey_2012.shp'
     data = geopandas.read_file(path)
     data = data.to_crs(epsg=4326)
+    new_data = data[['SNAME_2006', 'DNAME_2006', 'geometry']]
     if airqloud == 'kawempe':
-        kawempe_data = data[data.SNAME_2006=='KAWEMPE DIVISION']
-        min_long, min_lat, max_long, max_lat = kawempe_data.geometry.total_bounds
+        kampala_divisions = new_data.dissolve(by='SNAME_2006')
+        polygon = kampala_divisions.loc['KAWEMPE DIVISION']['geometry']
     elif airqloud == 'kampala':
-        min_long, min_lat, max_long, max_lat = data.geometry.total_bounds
+        kampala_district = new_data.dissolve(by='DNAME_2006')
+        polygon = kampala_district.loc['KAMPALA']['geometry']  
     else:
         #to be documented
         pass
-    return min_long, max_long, min_lat, max_lat
+    min_long, min_lat, max_long, max_lat= polygon.bounds
+    return polygon, min_long, max_long, min_lat, max_lat
+
+def point_in_polygon(row, polygon):
+    from shapely.geometry import Point, shape
+    mypoint = Point(row.longitude, row.latitude)
+    if polygon.contains(mypoint):
+        return 'True'
+    else:
+        return 'False'
+
+def predict_model(m, tenant, airqloud):
+    '''
+    Makes the predictions and stores them in a database
+    '''
+    time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
+    polygon, min_long, max_long, min_lat, max_lat = get_bbox_coordinates(airqloud)
+
+    longitudes = np.linspace(min_long, max_long, 100)
+    latitudes = np.linspace(min_lat, max_lat, 100)
+    locations = np.meshgrid(longitudes, latitudes)
+    locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
+
+    df = pd.DataFrame(locations_flat, columns=['longitude', 'latitude'])
+    df['point_exists'] = df.apply(lambda row: point_in_polygon(row, polygon), axis=1)
+    new_df = df[df.point_exists=='True']
+    new_df.drop('point_exists', axis=1, inplace=True)
+    new_df.reset_index(drop=True, inplace=True)
+
+    new_array = np.asarray(new_df)
+    pred_set = np.c_[new_array,np.full(new_array.shape[0], time)]
+    mean, var = m.predict_f(pred_set)
+    
+    means = mean.numpy().flatten()
+    variances = var.numpy().flatten()
+    std_dev = np.sqrt(variances)
+    # calculate prediction interval
+    interval = 1.96 * std_dev
+    # lower, upper = means - interval, means + interval
+        
+    result = []
+    for i in range(pred_set.shape[0]):
+        result.append({'latitude':locations_flat[i][1],
+                      'longitude':locations_flat[i][0],
+                      'predicted_value': means[i],
+                      'variance':variances[i],
+                      'interval':interval[i],
+                      'airqloud':airqloud})
+
+    
+    db = connect_mongo(tenant)
+    collection = db['gp_predictions']
+    
+    if collection.count_documents({})!= 0:
+        collection.delete_many({})
+    
+    collection.insert_many(result)
+
+    return result
 
 #def download_airqloud_data_mongo(airqloud_name):
 #    '''
