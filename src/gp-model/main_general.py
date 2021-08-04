@@ -34,15 +34,15 @@ kampala_ids = {'aq_79':930434, 'aq_29':718028, 'aq_69':912224, 'aq_71':930426, '
 airqloud_dict = {'kampala':kampala_ids, 'kawempe':kawempe_ids}
 
 
-def get_channels(airqloud_name):
+def get_channels(airqloud):
     'returns a list of the channels in a given airqloud'
-    return airqloud_dict[airqloud_name]
+    return airqloud_dict[airqloud]
 
-def get_channels_ts(airqloud_name):
+def get_channels_ts(airqloud):
     '''
     Gets details of channels whose data is to be used in training
     '''
-    file_name = f'{airqloud_name}-api-keys.json'
+    file_name = f'{airqloud}-api-keys.json'
     blob = storage_client.get_bucket('api-keys-bucket') \
         .get_blob(file_name) \
         .download_as_string()
@@ -116,6 +116,9 @@ def train_model(X, Y, airqloud):
         m.likelihood.variance.assign(400)
         set_trainable(m.kernel.kernels[0].variance, False)
         set_trainable(m.likelihood.variance, False)
+    else:
+        #to be defined --raise exception?
+        pass
     
     opt = gpflow.optimizers.Scipy()
 
@@ -138,7 +141,7 @@ def get_bbox_coordinates(airqloud):
         kampala_district = new_data.dissolve(by='DNAME_2006')
         polygon = kampala_district.loc['KAMPALA']['geometry']  
     else:
-        #to be documented
+        #to be documented .. raise exception?
         pass
     min_long, min_lat, max_long, max_lat= polygon.bounds
     return polygon, min_long, max_long, min_lat, max_lat
@@ -199,6 +202,28 @@ def predict_model(m, tenant, airqloud):
     collection.insert_many(result)
 
     return result
+
+def periodic_function(tenant, airqloud):
+    '''
+    Re-trains the model regularly
+    '''
+    X = np.zeros([0,3])
+    Y = np.zeros([0,1])
+    channels = get_channels_ts(airqloud)
+    for channel in channels:
+        d = download_seven_days_ts(channel['id'], channel['api_key'])
+        if d.shape[0]!=0:
+            d = preprocessing_ts(d)
+            df = pd.DataFrame({'channel_id':[channel['id']], 
+                                'longitude':[channel['long']], 
+                                'latitude':[channel['lat']]})
+        
+            Xchan = np.c_[np.repeat(np.array(df)[:,1:],d.shape[0],0),[n.timestamp()/3600 for n in d['created_at']]]
+            Ychan = np.array(d['field1'])
+            X = np.r_[X,Xchan]
+            Y = np.r_[Y,Ychan[:, None]]
+    m = train_model(X, Y, airqloud)
+    predict_model(m, tenant, airqloud)
 
 #def download_airqloud_data_mongo(airqloud_name):
 #    '''
