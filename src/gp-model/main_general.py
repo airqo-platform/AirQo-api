@@ -198,7 +198,7 @@ def predict_model(m, tenant, airqloud):
     collection = db['gp_predictions']
     
     if collection.count_documents({'airqloud': airqloud})!= 0:
-        collection.delete_many({})
+        collection.delete_many({'airqloud': airqloud})
     
     collection.insert_many(result)
 
