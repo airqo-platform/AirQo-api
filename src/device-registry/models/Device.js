@@ -356,7 +356,7 @@ deviceSchema.statics = {
       logObject("the filter", filter);
       let options = { new: true };
       let modifiedUpdate = update;
-      // delete modifiedUpdate.name;
+      delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
