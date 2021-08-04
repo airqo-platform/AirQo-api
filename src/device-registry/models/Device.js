@@ -277,7 +277,7 @@ deviceSchema.statics = {
     }
   },
 
-  async list({ _skip = 0, _limit = 100, filter = {} } = {}) {
+  async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
     try {
       logger.info(
         `the filter received in the model -- ${JSON.stringify(filter)}`
@@ -356,7 +356,7 @@ deviceSchema.statics = {
       logObject("the filter", filter);
       let options = { new: true };
       let modifiedUpdate = update;
-      delete modifiedUpdate.name;
+      // delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
