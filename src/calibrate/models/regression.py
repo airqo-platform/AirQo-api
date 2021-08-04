@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestRegressor 
 import pickle
-from apscheduler.schedulers.blocking import BlockingScheduler
 from jobs import get_data as gd
 from jobs import regression as rg
 
@@ -16,7 +14,7 @@ class Regression():
         bam_hourly_mean = gd.get_bam_data()
         self.hourly_combined_dataset = gd.combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
 
-    def random_forest(self, hourly_combined_dataset):
+    def random_forest(self, hourly_combined_dataset, pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime):
         rf_regressor, MAE, RMSE, r2_score = rg.random_forest(hourly_combined_dataset)
         print('MAE:', MAE)   
         print('RMSE:', RMSE) 
@@ -25,12 +23,30 @@ class Regression():
         # save the model to disk
         filename = 'jobs/rf_reg_model.sav'
         pickle.dump(rf_regressor, open(filename, 'wb'))
+        
+        # features from datetime and PM
+        datetime = pd.to_datetime(datetime)
+        hour = datetime.hour
+        input_variables = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,hour]],
+                                    columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour'],
+                                    dtype='float',
+                                    index=['input'])
+        input_variables["avg_pm2_5"] = input_variables[['pm2_5','s2_pm2_5']].mean(axis=1).round(2)
+        input_variables["avg_pm10"] =  input_variables[['pm10','s2_pm10']].mean(axis=1).round(2)
+        input_variables["error_pm2_5"]=input_variables["pm10"]-input_variables["s2_pm10"]
+        input_variables["error_pm10"]=np.abs(input_variables["pm10"]-input_variables["s2_pm10"])
+        input_variables["error_pm2_5"]=np.abs(input_variables["pm2_5"]-input_variables["s2_pm2_5"])
+        input_variables["pm2_5_pm10"]=input_variables["avg_pm2_5"]-input_variables["avg_pm10"]
+        input_variables["pm2_5_pm10_mod"]=input_variables["pm2_5_pm10"]/input_variables["avg_pm10"]
+        input_variables = input_variables.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
+        
+        #reorganise
+        input_variables = input_variables[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
 
-        return rf_regressor
-
-    # scheduler = BlockingScheduler()
-    # scheduler.add_job(random_forest, 'interval', seconds=300)
-    # scheduler.start()
-  
+        calibrated_value_rf =  rf_regressor.predict(input_variables)[0]          
+        
+        return calibrated_value_rf
+               
+    
 if __name__ == "__main__":
     calibrateInstance = Regression()
