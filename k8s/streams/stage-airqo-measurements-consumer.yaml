@@ -47,6 +47,3 @@ spec:
           value: "false"
         - name: SLEEP
           value: "0"
-
-
-

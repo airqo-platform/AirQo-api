@@ -1,4 +1,3 @@
-import json
 import os
 from datetime import datetime, timedelta
 
@@ -7,12 +6,11 @@ import requests
 
 from date import date_to_str
 from event import DeviceRegistry
-from kafka_client import KafkaWithoutRegistry
 from utils import filter_valid_devices, get_devices
 
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", None)
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL", "https://clarity-data-api.clarity.io/v1/")
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://platform.airqo.net/api/v1/")
 FREQUENCY = os.getenv("FREQUENCY", "raw")
 START_TIME = os.getenv("START_TIME", date_to_str(datetime.utcnow()))
 END_TIME = os.getenv("END_TIME", date_to_str(datetime.utcnow() + timedelta(hours=1)))
@@ -183,6 +181,7 @@ class ProcessMeasurements:
 if __name__ == "__main__":
 
     kcca_devices = get_devices(DEVICE_REGISTRY_URL, "kcca")
+    print(kcca_devices)
     filtered_devices = filter_valid_devices(kcca_devices)
     if len(filtered_devices) > 0:
         process_measurements = ProcessMeasurements(filtered_devices)

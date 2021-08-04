@@ -26,6 +26,7 @@ spec:
     offset.storage.topic: airqo-source-connector-cluster-offsets
     config.storage.topic: airqo-source-connector-cluster-configs
     status.storage.topic: airqo-source-connector-cluster-status
+    cleanup.policy: compact
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false

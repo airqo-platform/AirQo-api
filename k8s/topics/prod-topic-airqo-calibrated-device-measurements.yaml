@@ -4,11 +4,10 @@ metadata:
   name: airqo-streams-calibrated-device-measurements-topic 
   namespace: production
   labels:
-    strimzi.io/cluster: prod-kafka-cluster
+    strimzi.io/cluster: "prod-kafka-cluster"
 spec:
   topicName: airqo-streams-calibrated-device-measurements-topic 
-  partitions: 1
-  replicas: 1
+  partitions: 3
+  replicas: 2
   config:
     retention.ms: 3600000
-    segment.bytes: 1073741824

@@ -7,7 +7,7 @@ metadata:
     strimzi.io/use-connector-resources: "true"
 spec:
   image: us.gcr.io/airqo-250220/stage-airqo-deivce-measurements-connect:latest
-  replicas: 1
+  replicas: 2
   minReadySeconds: 10
   strategy:
     type: RollingUpdate

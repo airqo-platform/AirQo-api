@@ -7,8 +7,7 @@ metadata:
     strimzi.io/cluster: stage-kafka-cluster
 spec:
   topicName: kcca-streams-raw-device-measurements-topic
-  partitions: 1
+  partitions: 3
   replicas: 1
   config:
     retention.ms: 3600000
-    segment.bytes: 1073741824

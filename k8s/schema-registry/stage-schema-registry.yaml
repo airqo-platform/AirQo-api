@@ -36,11 +36,9 @@ spec:
           ports:
             - containerPort: 8081
               name: schema-registry
-          env:
-            - name: SCHEMA_REGISTRY_HOST_NAME
-              value: stage-schema-registry
-            - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
-              value: stage-kafka-cluster-kafka-bootstrap:9092
+          envFrom:
+            - configMapRef:
+                name: stage-schema-registry-config
 
 ---
 kind: Service

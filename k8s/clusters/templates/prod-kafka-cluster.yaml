@@ -32,16 +32,16 @@ spec:
           brokers:
             - broker: 0
               nodePort: 30001
-              advertisedHost: 34.123.249.54
+              # advertisedHost: 34.123.249.54
             - broker: 1
               nodePort: 30002
-              advertisedHost: 34.69.132.154
+              # advertisedHost: 34.69.132.154
             - broker: 2
               nodePort: 30003
-              advertisedHost: 34.123.24.117
+              # advertisedHost: 34.123.24.117
             - broker: 3
               nodePort: 30004
-              advertisedHost: 34.69.239.46
+              # advertisedHost: 34.69.239.46
     readinessProbe:
       initialDelaySeconds: 15
       timeoutSeconds: 5
