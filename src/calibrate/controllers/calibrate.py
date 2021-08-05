@@ -1,18 +1,6 @@
-import app
 from routes import api
 from flask import Blueprint, request, jsonify
-import logging
-import app
-import json
-import os
-import numpy as np
-import pandas as pd
-import datetime
-from pymongo import MongoClient
 from models import regression as rg
-from models import calibrate as cb
-import pickle
-
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 
