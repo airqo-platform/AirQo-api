@@ -33,4 +33,3 @@ def build_slack_message(url, status_code, request_type, response_body, message):
             }
         ]
     })
-

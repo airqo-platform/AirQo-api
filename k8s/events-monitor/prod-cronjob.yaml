@@ -12,13 +12,21 @@ spec:
     spec:
       template:
         spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
           containers:
           - name: prod-events-monitor-job
-            image: us.gcr.io/airqo-250220/prod-events-monitor-job:latest
+            image: us.gcr.io/airqo-250220/events-monitor-job:latest
             imagePullPolicy: Always
-            resources: {}
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: "0.2"
+              limits:
+                memory: 512Mi
+                cpu: "1"
             envFrom:
               - configMapRef:
                   name: prod-events-monitor-cronjob-config
-              - secretRef:
-                  name: prod-events-monitor-secret-config
+              # - secretRef:
+              #     name: prod-events-monitor-secret-config
