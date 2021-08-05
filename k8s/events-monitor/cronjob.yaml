@@ -1,0 +1,24 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: stage-events-monitor-job
+  namespace: staging
+spec:
+  failedJobsHistoryLimit: 1
+  schedule: "@hourly"
+  jobTemplate:
+    metadata:
+      name: stage-events-monitor-job
+    spec:
+      template:
+        spec:
+          containers:
+          - name: stage-events-monitor-job
+            image: us.gcr.io/airqo-250220/stage-events-monitor-job:latest
+            imagePullPolicy: Always
+            resources: {}
+            envFrom:
+              - configMapRef:
+                  name: stage-events-monitor-cronjob-config
+              - secretRef:
+                  name: stage-events-monitor-secret-config
