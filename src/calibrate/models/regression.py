@@ -15,10 +15,7 @@ class Regression():
         self.hourly_combined_dataset = gd.combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
 
     def random_forest(self, hourly_combined_dataset, pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime):
-        rf_regressor, MAE, RMSE, r2_score = rg.random_forest(hourly_combined_dataset)
-        print('MAE:', MAE)   
-        print('RMSE:', RMSE) 
-        print('R2:', r2_score)
+        rf_regressor = rg.random_forest(hourly_combined_dataset)
 
         # save the model to disk
         filename = 'jobs/rf_reg_model.sav'
