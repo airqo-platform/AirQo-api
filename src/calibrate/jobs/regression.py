@@ -12,9 +12,8 @@ def random_forest(hourly_combined_dataset):
 
     rf_regressor = RandomForestRegressor(random_state=42, max_features='sqrt', n_estimators= 1000, max_depth=50, bootstrap = True)
     # Fitting the model 
-    rf_regressor.fit(X, y) 
+    rf_regressor = rf_regressor.fit(X, y) 
     
-
     return rf_regressor
 
 
