@@ -95,7 +95,7 @@ def date_to_str(mydate):
     return date_string
 
 
-def get_pm_data(device_id, owner, verbose=True, start_time='2021-05-01T01:00:00Z',end_time=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')):
+def get_pm_data(device_id, owner, verbose=True, frequency = 'raw', start_time='2021-05-01T01:00:00Z',end_time=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')):
     """Gets the PM data of a particular device in a specified time period
 
     Parameters
@@ -106,6 +106,8 @@ def get_pm_data(device_id, owner, verbose=True, start_time='2021-05-01T01:00:00Z
         The owner of the device
     verbose: boolean
         Whether download progress is shown
+    frequency: str
+        The time frequency of the data
     start_time:
         The start time for the data download
     end_time:
@@ -117,11 +119,6 @@ def get_pm_data(device_id, owner, verbose=True, start_time='2021-05-01T01:00:00Z
         A list of dictionaries with the device's data
     
     """
-
-    if owner=='airqo':
-        frequency='minute'
-    else:
-        frequency='raw'
 
     lat, lon, name = get_device_details(device_id, owner)
     url = EVENTS_URL #AirQo Platform Get Events endpoint
