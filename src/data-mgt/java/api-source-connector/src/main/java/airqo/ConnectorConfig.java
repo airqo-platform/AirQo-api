@@ -15,7 +15,7 @@ public class ConnectorConfig extends AbstractConfig {
     public static final String MINIMUM_HOURS_CONFIG = "minimumHours";
     public static final String DEVICES_FETCH_INTERVAL_CONFIG = "devicesFetchInterval";
 
-    public static final String TENANT_CONFIG = "minimumHours";
+    public static final String TENANT_CONFIG = "tenant";
 
     public static final String CLARITY_API_KEY = "clarityApiKey";
     public static final String CLARITY_API_BASE_URL = "clarityApiBaseUrl";

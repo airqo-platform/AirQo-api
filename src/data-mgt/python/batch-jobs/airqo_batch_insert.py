@@ -11,7 +11,7 @@ from utils import filter_valid_devices, get_devices, build_channel_id_filter
 
 load_dotenv()
 
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://platform.airqo.net/api/v1/")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
 START_TIME = os.getenv("START_TIME", "2021-08-03")
 END_TIME = os.getenv("END_TIME", "2021-08-04")
 INTERVAL = os.getenv("INTERVAL", "23")

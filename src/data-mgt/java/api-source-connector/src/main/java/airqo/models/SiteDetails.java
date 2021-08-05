@@ -16,4 +16,10 @@ public class SiteDetails {
     public SiteDetails() {
     }
 
+    @Override
+    public String toString() {
+        return "SiteDetails{" +
+                "_id='" + _id + '\'' +
+                '}';
+    }
 }

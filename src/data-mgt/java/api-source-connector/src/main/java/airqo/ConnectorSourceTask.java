@@ -72,6 +72,7 @@ public class ConnectorSourceTask extends SourceTask {
     @Override
     public List<SourceRecord> poll() {
         ArrayList<SourceRecord> records = new ArrayList<>();
+        logger.info("Hello There");
 
         if (new Date(System.currentTimeMillis()).after(nextExecution)) {
 
@@ -86,6 +87,7 @@ public class ConnectorSourceTask extends SourceTask {
                     break;
                 default:
                     logger.error("Invalid Tenant => {}", tenant.trim().toLowerCase());
+                    System.exit(1);
                     break;
             }
 
@@ -133,7 +135,8 @@ public class ConnectorSourceTask extends SourceTask {
 
         if(devices.isEmpty() || (new Date(System.currentTimeMillis()).after(nextDevicesFetch))) {
             nextDevicesFetch = DateUtils.addHours(new Date(System.currentTimeMillis()), devicesFetchInterval);
-            devices = getDevices(airqoBaseUrl, tenant);
+            List<AirqoDevice> deviceList = getDevices(airqoBaseUrl, tenant);
+            devices = deviceList.isEmpty() ? devices : deviceList;
         }
 
         List<AirQoRawMeasurement> measurementList = new ArrayList<>();

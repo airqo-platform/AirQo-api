@@ -1,11 +1,5 @@
-## Source Connector for AirQo device measurements
-This connector fetches AirQo devices measurements from the feeds endpoint
-### Required configurations for the connector file `stage-airqo-device-measurements-connector.yaml` under `AirQo-api/kafka/connectors` folder
-```
-topic
-pollInterval
-airqoBaseUrl
-feedsBaseUrl
-```
+## Source Connect for device measurements
+This connector fetches devices measurements from the API endpoints
+
 ### Building the docker image
-`docker build -t localhost:49160/stage-airqo-deivce-measurements-connect .`
+`docker build -t stage-measurements-connect:latest .`
