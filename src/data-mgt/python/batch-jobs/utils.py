@@ -28,6 +28,16 @@ def filter_valid_devices(devices_data):
     return valid_devices
 
 
+def filter_valid_kcca_devices(devices_data):
+    valid_devices = []
+    for device in devices_data:
+        device_dict = dict(device)
+        if "site" in device_dict.keys():
+            valid_devices.append(device_dict)
+
+    return valid_devices
+
+
 def build_channel_id_filter(devices_data):
     channel_filter = "channel_id = 0"
     for device in devices_data:

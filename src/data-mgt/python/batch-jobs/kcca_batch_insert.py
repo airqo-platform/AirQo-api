@@ -3,14 +3,17 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
+from dotenv import load_dotenv
 
 from date import date_to_str
 from event import DeviceRegistry
-from utils import filter_valid_devices, get_devices
+from utils import get_devices, filter_valid_kcca_devices
+
+load_dotenv()
 
 CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", None)
 CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL", "https://clarity-data-api.clarity.io/v1/")
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://platform.airqo.net/api/v1/")
+DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://platform.airqo.net/api/v1/")
 FREQUENCY = os.getenv("FREQUENCY", "raw")
 START_TIME = os.getenv("START_TIME", date_to_str(datetime.utcnow()))
 END_TIME = os.getenv("END_TIME", date_to_str(datetime.utcnow() + timedelta(hours=1)))
@@ -46,9 +49,8 @@ def transform_group(group, site_id, device):
             'frequency': frequency,
             'time': time,
             'tenant': 'kcca',
-            'channelID': row["deviceCode"],
             'site_id': site_id,
-            "device_": device,
+            "device_id": device,
             'device':  row["deviceCode"],
             'location': dict({
                 "longitude": dict({"value":  location[0]}), "latitude": {"value": location[1]}})
@@ -117,6 +119,7 @@ class ProcessMeasurements:
             raw_measurements_gps = raw_measurements_df.groupby('deviceCode')
             for _, group in raw_measurements_gps:
                 device_name = group.iloc[0]['deviceCode']
+
                 site_id, device_id = self.get_site_and_device_id(device_name)
 
                 if site_id:
@@ -163,15 +166,16 @@ class ProcessMeasurements:
         return device_codes[:-1]
 
     def get_site_and_device_id(self, name):
+        # print(self.devices)
 
         try:
             result = list(filter(lambda device: (device["name"] == name), self.devices))
 
             if not result:
-                print("Site ID not found")
+                print("Device not found")
                 return None
 
-            return result[0]["site"]["_id"], result[0]["_d"]
+            return result[0]["site"]["_id"], result[0]["_id"]
         except Exception as ex:
             print(ex)
             print("Site ID not found")
@@ -181,8 +185,7 @@ class ProcessMeasurements:
 if __name__ == "__main__":
 
     kcca_devices = get_devices(DEVICE_REGISTRY_URL, "kcca")
-    print(kcca_devices)
-    filtered_devices = filter_valid_devices(kcca_devices)
+    filtered_devices = filter_valid_kcca_devices(kcca_devices)
     if len(filtered_devices) > 0:
         process_measurements = ProcessMeasurements(filtered_devices)
         process_measurements.begin_fetch()

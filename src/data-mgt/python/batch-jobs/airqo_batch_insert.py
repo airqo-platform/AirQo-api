@@ -1,12 +1,15 @@
-from event import DeviceRegistry
 import os
-from datetime import datetime, timedelta
+from datetime import timedelta
 
 import pandas as pd
+from dotenv import load_dotenv
 from google.cloud import bigquery
 
 from date import str_to_date, date_to_str
+from event import DeviceRegistry
 from utils import filter_valid_devices, get_devices, build_channel_id_filter
+
+load_dotenv()
 
 DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "http://platform.airqo.net/api/v1/")
 START_TIME = os.getenv("START_TIME", "2021-08-03")
