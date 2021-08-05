@@ -1,8 +1,6 @@
 Flask==1.1.2
 flask_cors==3.0.10
 flask_pymongo==2.3.0
-google-auth
-google-cloud-bigquery
 numpy
 pandas
 protobuf==3.15.8
@@ -14,3 +12,14 @@ schedule
 confluent-avro
 kafka-python
 python-dotenv
+gcsfs
+google-api-core
+google-auth
+google-auth-oauthlib
+google-cloud-bigquery
+google-cloud-core
+google-cloud-storage
+google-crc32c
+google-pasta
+google-resumable-media
+googleapis-common-protos
