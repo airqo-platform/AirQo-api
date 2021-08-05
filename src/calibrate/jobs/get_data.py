@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
-import os
 import datetime
-import google.auth
 from google.cloud import bigquery
 
 
