@@ -4,14 +4,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: sta-calibrate-kafka
+  name: stage-calibrate-kafka
   namespace: staging
 spec:
   minReadySeconds: 10
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
-      app: sta-calibrate-kafka
+      app: stage-calibrate-kafka
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,19 +20,21 @@ spec:
   template:
     metadata:
       labels:
-        app: sta-calibrate-kafka
+        app: stage-calibrate-kafka
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       containers:
-      - name: sta-calibrate-kafka
+      - name: stage-calibrate-kafka
         image: us.gcr.io/airqo-250220/airqo-stage-calibrate-kafka:latest
         imagePullPolicy: Always
         resources:
           requests:
             memory: 256Mi
-            cpu: "0.2"
+            cpu: "500m"
           limits:
-            memory: 512Mi
-            cpu: "1"
+            memory: 1Gi
+            cpu: "2000m"
         envFrom:
           - configMapRef:
               name: stage-calibrate-config

@@ -5,7 +5,7 @@ metadata:
   namespace: production
 spec:
   minReadySeconds: 10
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: prod-airqo-measurements-consumer
@@ -23,13 +23,13 @@ spec:
       - name: prod-airqo-measurements-consumer
         image: us.gcr.io/airqo-250220/prod-measurements-consumer:latest
         imagePullPolicy: Always
-        resources:
-          requests:
-            memory: 256Mi
-            cpu: "0.2"
-          limits:
-            memory: 512Mi
-            cpu: "1"
+        resources: {}
+          # requests:
+          #   memory: 256Mi
+          #   cpu: "200m"
+          # limits:
+          #   memory: 512Mi
+          #   cpu: "800m"
         envFrom:
           - configMapRef:
               name: prod-airqo-measurements-consumer-config

@@ -7,13 +7,13 @@ spec:
   kafka:
     version: 2.8.0
     replicas: 3
-    resources:
-      requests:
-        memory: 2Gi
-        cpu: "700m"
-      limits:
-        memory: 4Gi
-        cpu: "2000m"
+    # resources:
+    #   requests:
+    #     memory: 2Gi
+    #     cpu: "100m"
+    #   limits:
+    #     memory: 4Gi
+    #     cpu: "2000m"
     readinessProbe:
       initialDelaySeconds: 15
       timeoutSeconds: 5
@@ -39,16 +39,16 @@ spec:
           brokers:
             - broker: 0
               nodePort: 30001
-              advertisedHost: 34.123.249.54
+              advertisedHost: XX.XX.XX.XX
             - broker: 1
               nodePort: 30002
-              advertisedHost: 34.69.132.154
+              advertisedHost: XX.XX.XX.XX
             - broker: 2
               nodePort: 30003
-              advertisedHost: 34.123.24.117
+              advertisedHost: XX.XX.XX.XX
             - broker: 3
               nodePort: 30004
-              advertisedHost: 34.69.239.46
+              advertisedHost: XX.XX.XX.XX
     config:
       auto.create.topics.enable: "false"
       offsets.topic.replication.factor: 3
@@ -66,13 +66,13 @@ spec:
     #       key: prod-kafka-cluster-metrics-config.yml
   zookeeper:
     replicas: 3
-    resources:
-      requests:
-        memory: 1Gi
-        cpu: "1"
-      limits:
-        memory: 2Gi
-        cpu: "2"
+    # resources:
+    #   requests:
+    #     memory: 1Gi
+    #     cpu: "200m"
+    #   limits:
+    #     memory: 2Gi
+    #     cpu: "1500m"
     storage:
       type: ephemeral
     readinessProbe:

@@ -8,7 +8,7 @@ metadata:
   namespace: production
 spec:
   minReadySeconds: 10
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: prod-calibrate-kafka
@@ -26,13 +26,13 @@ spec:
       - name: prod-calibrate-kafka
         image: us.gcr.io/airqo-250220/airqo-prod-calibrate-kafka:latest
         imagePullPolicy: Always
-        resources:
-          requests:
-            memory: 256Mi
-            cpu: "0.2"
-          limits:
-            memory: 512Mi
-            cpu: "1"
+        resources: {}
+          # requests:
+          #   memory: 256Mi
+          #   cpu: "500m"
+          # limits:
+          #   memory: 1Gi
+          #   cpu: "2000m"
         envFrom:
           - configMapRef:
               name: prod-calibrate-config

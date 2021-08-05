@@ -10,7 +10,7 @@ spec:
     resources:
       requests:
         memory: 2Gi
-        cpu: "700m"
+        cpu: "100m"
       limits:
         memory: 4Gi
         cpu: "2000m"
@@ -33,13 +33,16 @@ spec:
           brokers:
             - broker: 0
               nodePort: 31001
-              advertisedHost: 10.128.0.87
+              advertisedHost: XX.XX.XX.XX
             - broker: 1
               nodePort: 31002
-              advertisedHost: 10.128.0.13
+              advertisedHost: XX.XX.XX.XX
             - broker: 2
               nodePort: 31003
-              advertisedHost: 10.128.0.14
+              advertisedHost: XX.XX.XX.XX
+            - broker: 3
+              nodePort: 31004
+              advertisedHost: XX.XX.XX.XX
     readinessProbe:
       initialDelaySeconds: 15
       timeoutSeconds: 5
@@ -66,10 +69,10 @@ spec:
     resources:
       requests:
         memory: 1Gi
-        cpu: "500m"
+        cpu: "200m"
       limits:
         memory: 2Gi
-        cpu: "1500m"
+        cpu: "1000m"
     storage:
       type: ephemeral
     readinessProbe:
