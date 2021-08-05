@@ -1,0 +1,24 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: prod-events-monitor-job
+  namespace: production
+spec:
+  failedJobsHistoryLimit: 1
+  schedule: "@hourly"
+  jobTemplate:
+    metadata:
+      name: prod-events-monitor-job
+    spec:
+      template:
+        spec:
+          containers:
+          - name: prod-events-monitor-job
+            image: us.gcr.io/airqo-250220/prod-events-monitor-job:latest
+            imagePullPolicy: Always
+            resources: {}
+            envFrom:
+              - configMapRef:
+                  name: prod-events-monitor-cronjob-config
+              - secretRef:
+                  name: prod-events-monitor-secret-config
