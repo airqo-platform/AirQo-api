@@ -235,4 +235,4 @@ if __name__=='__main__':
 
     args = parser.parse_args()
     periodic_function(args.tenant, 'kampala')
-    periodic_function(arg.tenant, 'kawempe')
+    periodic_function(args.tenant, 'kawempe')
