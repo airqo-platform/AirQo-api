@@ -226,26 +226,13 @@ def periodic_function(tenant, airqloud):
     m = train_model(X, Y, airqloud)
     predict_model(m, tenant, airqloud)
 
-#def download_airqloud_data_mongo(airqloud_name):
-#    '''
-#    downloads data from MongoDB for a specificied airqloud for the past week
-#    '''
-#    aq_dict = get_channels(airqloud_name)
-#    total_records = [] #array to hold all devices' data
-#    end_date =datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
-#    start_date = (datetime.utcnow()-timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ')
-#    for loc, device in aq_dict.items():
-#        print(device)
-#        if 'KCCA' in loc:
-#            owner='kcca'
-#        else:
-#            owner= 'airqo'
-#        pm_data = get_pm_data(device, owner, start_time=start_date, end_time=end_date)
-#        total_records.extend(pm_data)
-#    return total_records
-
 
 if __name__=='__main__':
-    tenant, airqloud1, airqloud2 = 'airqo', 'kawempe', 'kampala'
-    periodic_function(tenant, airqloud1)
-    #print(download_airqloud_data('kawempe'))
+    parser = argparse.ArgumentParser(description='save gpmodel prediction.')
+    parser.add_argument('--tenant',
+                        default="airqo",
+                        help='the tenant key is the organisation name')
+
+    args = parser.parse_args()
+    periodic_function(args.tenant, 'kampala')
+    periodic_function(arg.tenant, 'kawempe')
