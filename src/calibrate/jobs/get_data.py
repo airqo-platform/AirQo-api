@@ -61,6 +61,8 @@ def get_bam_data():
     """
     bam_data = client.query(sql).to_dataframe()
     bam_data = bam_data[(bam_data['bam_pm'] > 0)&(bam_data['bam_pm'] <= 500.4)]
+    bam_data  = bam_data[(bam_data['temperature'] >= 0)&(bam_data ['temperature'] <= 30)]
+    bam_data  = bam_data[(bam_data['humidity'] >= 0)&(bam_data['humidity'] <= 100)]
                                        
     bam_data["TimeStamp"] = pd.to_datetime(bam_data["Time"])
     bam_data.drop_duplicates(subset="TimeStamp", keep='first', inplace=True)
@@ -95,7 +97,6 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
 
     hourly_combined_dataset["s2_pm2_5"]=np.where(hourly_combined_dataset["s2_pm2_5"]==0,hourly_combined_dataset["pm2_5"],hourly_combined_dataset["s2_pm2_5"])
     hourly_combined_dataset["s2_pm10"]=np.where(hourly_combined_dataset["s2_pm10"]==0,hourly_combined_dataset["pm10"],hourly_combined_dataset["s2_pm10"])
-    hourly_combined_dataset["error_pm2_5"]=hourly_combined_dataset["pm10"]-hourly_combined_dataset["s2_pm10"]
     hourly_combined_dataset["error_pm10"]=np.abs(hourly_combined_dataset["pm10"]-hourly_combined_dataset["s2_pm10"])
     hourly_combined_dataset["error_pm2_5"]=np.abs(hourly_combined_dataset["pm2_5"]-hourly_combined_dataset["s2_pm2_5"])
     hourly_combined_dataset["pm2_5_pm10"]=hourly_combined_dataset["avg_pm2_5"]-hourly_combined_dataset["avg_pm10"]
