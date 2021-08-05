@@ -1,20 +1,21 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnect
 metadata:
-  name: airqo-source-connector-cluster
+  name: airqo-measurements-connector-cluster
   namespace: staging
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
   image: us.gcr.io/airqo-250220/stage-airqo-deivce-measurements-connect:latest
   replicas: 2
-  minReadySeconds: 10
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
+  resources:
+    requests:
+      cpu: "250m"
+      memory: 500Mi
+    limits:
+      cpu: "700m"
+      memory: 1Gi
   # metricsConfig:
   #   type: jmxPrometheusExporter
   #   valueFrom:

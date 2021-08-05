@@ -1,0 +1,30 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: airqo-measurements-connector
+  namespace: staging
+  labels:
+    strimzi.io/cluster: airqo-measurements-connector-cluster
+spec:
+  class: airqo.AirqoSourceConnector
+  tasksMax: 2
+  config:
+    topic: airqo-streams-raw-device-measurements-topic
+    airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
+    pollInterval: "300000"
+    batchSize: "20"
+    minimumHours: "24"
+    tenant: "airqo"
+    devicesFetchInterval: "24"
+    clarityApiBaseUrl: https://clarity-data-api.clarity.io/v1/
+    average: raw
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+    # topic: ${configmaps:staging/airqo-measurements-connector-config:topic}
+    # tenant: ${configmaps:staging/airqo-measurements-connector-config:tenant}
+    # airqoBaseUrl: ${configmaps:staging/airqo-measurements-connector-config:airqoBaseUrl}
+    # pollInterval: ${configmaps:staging/airqo-measurements-connector-config:pollInterval}
+    # batchSize: ${configmaps:staging/airqo-measurements-connector-config:batchSize}
+    # minimumHours: ${configmaps:staging/airqo-measurements-connector-config:minimumHours}

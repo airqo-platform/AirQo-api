@@ -4,7 +4,7 @@ metadata:
   name: kcca-source-connector-raw
   namespace: staging
   labels:
-    strimzi.io/cluster: kcca-source-connector-cluster
+    strimzi.io/cluster: kcca-measurements-connector-cluster
 spec:
   class: net.airqo.connectors.KccaSourceConnector
   tasksMax: 2

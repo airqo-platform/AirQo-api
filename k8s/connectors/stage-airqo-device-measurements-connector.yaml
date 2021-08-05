@@ -4,7 +4,7 @@ metadata:
   name: airqo-source-connector
   namespace: staging
   labels:
-    strimzi.io/cluster: airqo-source-connector-cluster
+    strimzi.io/cluster: airqo-measurements-connector-cluster
 spec:
   class: airqo.AirqoSourceConnector
   tasksMax: 2

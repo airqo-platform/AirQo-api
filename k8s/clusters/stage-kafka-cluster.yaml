@@ -7,12 +7,13 @@ spec:
   kafka:
     version: 2.8.0
     replicas: 3
-    minReadySeconds: 10
-    strategy:
-      type: RollingUpdate
-      rollingUpdate:
-        maxSurge: 1
-        maxUnavailable: 0
+    resources:
+      requests:
+        memory: 2Gi
+        cpu: "700m"
+      limits:
+        memory: 4Gi
+        cpu: "2000m"
     listeners:
       - name: plain
         port: 9092
@@ -32,16 +33,13 @@ spec:
           brokers:
             - broker: 0
               nodePort: 31001
-              # advertisedHost: XX.XXX.XXX.XX
+              advertisedHost: 10.128.0.87
             - broker: 1
               nodePort: 31002
-              # advertisedHost: XX.XXX.XXX.XX
+              advertisedHost: 10.128.0.13
             - broker: 2
               nodePort: 31003
-              # advertisedHost: XX.XXX.XXX.XX
-            - broker: 3
-              nodePort: 31004
-              # advertisedHost: XX.XXX.XXX.XX
+              advertisedHost: 10.128.0.14
     readinessProbe:
       initialDelaySeconds: 15
       timeoutSeconds: 5
@@ -49,6 +47,7 @@ spec:
       initialDelaySeconds: 15
       timeoutSeconds: 5
     config:
+      auto.create.topics.enable: "false"
       offsets.topic.replication.factor: 3
       transaction.state.log.replication.factor: 3
       transaction.state.log.min.isr: 2
@@ -64,12 +63,13 @@ spec:
     #       key: stage-kafka-cluster-metrics-config.yml
   zookeeper:
     replicas: 3
-    minReadySeconds: 10
-    strategy:
-      type: RollingUpdate
-      rollingUpdate:
-        maxSurge: 1
-        maxUnavailable: 0
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: "500m"
+      limits:
+        memory: 2Gi
+        cpu: "1500m"
     storage:
       type: ephemeral
     readinessProbe:

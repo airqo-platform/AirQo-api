@@ -1,64 +1,69 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnect
 metadata:
-  name: kcca-measurements-connector-cluster
-  namespace: staging
+  name: measurements-connector-cluster
+  namespace: production
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  image: us.gcr.io/airqo-250220/stage-kcca-deivce-measurements-connect:latest
-  replicas: 2
-  minReadySeconds: 10
-  strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
-  bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
+  image: us.gcr.io/airqo-250220/prod-measurements-connect:latest
+  replicas: 3
+  bootstrapServers: prod-kafka-cluster-kafka-bootstrap:9092
   resources:
     requests:
-      cpu: "250m"
-      memory: 500Mi
+      cpu: "1"
+      memory: 2Gi
     limits:
-      cpu: "700m"
-      memory: 1Gi
-  # metricsConfig:
-  #   type: jmxPrometheusExporter
-  #   valueFrom:
-  #     configMapKeyRef:
-  #       name: stage-kcca-source-connector-cluster-metrics
-  #       key: stage-kcca-source-connector-cluster-metrics-config.yml
+      cpu: "2"
+      memory: 2Gi
+  readinessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
+  livenessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
   externalConfiguration:
     volumes:
-      - name: connector-config
+      - name: clarity-connector-config
         secret:
           secretName: clarity-credentials
   config:
-    group.id: kcca-source-connector-cluster
-    offset.storage.topic: kcca-source-connector-cluster-offsets
-    config.storage.topic: kcca-source-connector-cluster-configs
-    status.storage.topic: kcca-source-connector-cluster-status
+    group.id: airqo-source-connector-cluster
+    offset.storage.topic: airqo-source-connector-cluster-offsets
+    config.storage.topic: airqo-source-connector-cluster-configs
+    status.storage.topic: airqo-source-connector-cluster-status
+    cleanup.policy: compact
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
-    key.converter.schemas.enable: true
-    value.converter.schemas.enable: true
-    config.providers: file
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
+    config.storage.replication.factor: 3
+    offset.storage.replication.factor: 3
+    status.storage.replication.factor: 3
+    config.providers: file,secrets,configmaps
+    config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
+    config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
     config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
   template:
     connectContainer:
       env:
         - name: STRIMZI_IMAGE_PULL_POLICY
           value: Always
-
+  # metricsConfig:
+  #   type: jmxPrometheusExporter
+  #   valueFrom:
+  #     configMapKeyRef:
+  #       name: prod-airqo-source-connector-cluster-metrics
+  #       key: prod-airqo-source-connector-cluster-metrics-config.yml
 # ---
 # kind: ConfigMap
 # apiVersion: v1
 # metadata:
-#   name: stage-kcca-source-connector-cluster-metrics
+#   name: prod-airqo-source-connector-cluster-metrics
 #   labels:
 #     app: strimzi
 # data:
-#   stage-kcca-source-connector-cluster-metrics-config.yml: |
+#   prod-airqo-source-connector-cluster-metrics-config.yml: |
 #     # Inspired by kafka-connect rules
 #     # https://github.com/prometheus/jmx_exporter/blob/master/example_configs/kafka-connect.yml
 #     # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics
