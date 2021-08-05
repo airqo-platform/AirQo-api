@@ -16,12 +16,9 @@ def calibrate():
             return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400     
 
         rgModel = rg.Regression()
-        hourly_combined_dataset = rgModel.hourly_combined_dataset
 
-        # calibrateModel = cb.Calibrate()
         response = []
         for raw_value in raw_values:
-            # value = calibrateModel.calibrate_sensor_raw_data(datetime, raw_value.get('sensor_id'), raw_value.get('raw_value'))
             device_id = raw_value.get('device_id')
             pm2_5 = raw_value.get('sensor1_pm2.5')
             s2_pm2_5 = raw_value.get('sensor2_pm2.5')
@@ -33,9 +30,8 @@ def calibrate():
             if (not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity):
                 return jsonify({"message": "Please specify the device_id, datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
             
-            # rf_reg_model = pickle.load(open('jobs/rf_reg_model.sav', 'rb'))
            
-            value = rgModel.random_forest(hourly_combined_dataset, pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime)           
+            value = rgModel.compute_calibrated_val(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime)           
         
             response.append({'device_id': device_id, 'calibrated_value': value})
         return jsonify(response), 200
