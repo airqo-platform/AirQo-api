@@ -100,6 +100,8 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     hourly_combined_dataset["error_pm2_5"]=np.abs(hourly_combined_dataset["pm2_5"]-hourly_combined_dataset["s2_pm2_5"])
     hourly_combined_dataset["pm2_5_pm10"]=hourly_combined_dataset["avg_pm2_5"]-hourly_combined_dataset["avg_pm10"]
     hourly_combined_dataset["pm2_5_pm10_mod"]=hourly_combined_dataset["pm2_5_pm10"]/hourly_combined_dataset["avg_pm10"]
+
+    # hourly_combined_dataset.to_csv('hourly_combined_dataset.csv')
     
     return hourly_combined_dataset
 
