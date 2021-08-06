@@ -7,13 +7,13 @@ spec:
   kafka:
     version: 2.8.0
     replicas: 3
-    resources:
-      requests:
-        memory: 2Gi
-        cpu: "100m"
-      limits:
-        memory: 4Gi
-        cpu: "2000m"
+    # resources:
+      # requests: {}
+      #   memory: 2Gi
+      #   cpu: "100m"
+      # limits:
+      #   memory: 4Gi
+      #   cpu: "2000m"
     listeners:
       - name: plain
         port: 9092
@@ -66,13 +66,13 @@ spec:
     #       key: stage-kafka-cluster-metrics-config.yml
   zookeeper:
     replicas: 3
-    resources:
-      requests:
-        memory: 1Gi
-        cpu: "200m"
-      limits:
-        memory: 2Gi
-        cpu: "1000m"
+    # resources: {}
+      # requests:
+      #   memory: 1Gi
+      #   cpu: "200m"
+      # limits:
+      #   memory: 2Gi
+      #   cpu: "1000m"
     storage:
       type: ephemeral
     readinessProbe:
