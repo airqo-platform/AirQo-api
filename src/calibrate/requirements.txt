@@ -6,7 +6,6 @@ pandas
 protobuf==3.15.8
 pyarrow==3.0.0
 pymongo==3.11.3
-python-dotenv==0.17.0
 scikit_learn==0.24.1
 schedule
 confluent-avro
@@ -23,3 +22,4 @@ google-crc32c
 google-pasta
 google-resumable-media
 googleapis-common-protos
+gcloud
