@@ -15,7 +15,7 @@ class Config:
 
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
-    FREQUENCY = os.getenv("FREQUENCY")
+    # FREQUENCY = os.getenv("FREQUENCY")
     START_TIME = os.getenv("START_TIME")
     END_TIME = os.getenv("END_TIME")
     TIME_INTERVAL = os.getenv("TIME_INTERVAL")

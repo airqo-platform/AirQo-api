@@ -56,13 +56,13 @@ class KccaBatchFetch:
         api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
                   f"startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
 
-        frequency = configuration.FREQUENCY.strip().lower()
-        if frequency == "hour":
-            api_url = f"{api_url}&average=hour"
-        elif frequency == "day":
-            api_url = f"{api_url}&average=day"
-        else:
-            pass
+        # frequency = configuration.FREQUENCY.strip().lower()
+        # if frequency == "hour":
+        #     api_url = f"{api_url}&average=hour"
+        # elif frequency == "day":
+        #     api_url = f"{api_url}&average=day"
+        # else:
+        #     pass
 
         headers = {'x-api-key': configuration.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)
