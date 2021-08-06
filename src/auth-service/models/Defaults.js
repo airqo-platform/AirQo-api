@@ -31,13 +31,31 @@ const DefaultsSchema = new mongoose.Schema({
     type: String,
     required: [true, "chartTitle is required!"],
   },
+  chartSubTitle: {
+    type: String,
+    required: [true, "chartSubTitle is required!"],
+  },
+  airqloud_id: {
+    type: ObjectId,
+  },
+  airqloud: {
+    type: String,
+  },
+  user_id: {
+    type: ObjectId,
+  },
   user: {
     type: ObjectId,
     required: [true, "user is required"],
   },
-  locations: [
+  sites: [
     {
       type: String,
+    },
+  ],
+  site_ids: [
+    {
+      type: ObjectId,
     },
   ],
   period: { type: String, required: [true, "period is required!"] },
@@ -48,7 +66,9 @@ DefaultsSchema.plugin(uniqueValidator);
 DefaultsSchema.index(
   {
     chartTitle: 1,
+    chartSubTitle: 1,
     user: 1,
+    user_id: 1,
   },
   {
     unique: true,
@@ -62,12 +82,17 @@ DefaultsSchema.methods = {
       pollutant: this.pollutant,
       frequency: this.frequency,
       user: this.user,
+      user_id: this.user_id,
+      airqloud_id: this.airqloud_id,
+      airqloud: this.airqloud,
       startDate: this.startDate,
       endDate: this.endDate,
       chartType: this.chartType,
       chartTitle: this.chartTitle,
-      locations: this.locations,
+      chartSubTitle: this.chartSubTitle,
+      sites: this.sites,
       period: this.period,
+      site_ids: this.site_ids,
     };
   },
 };
@@ -90,7 +115,7 @@ DefaultsSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+  async list({ skip = 0, limit = 20, filter = {} } = {}) {
     try {
       logObject("the filter in the defaults", filter);
       let defaults = await this.find(filter)
@@ -162,7 +187,13 @@ DefaultsSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+        projection: {
+          _id: 0,
+          user: 1,
+          user_id: 1,
+          chartTitle: 1,
+          chartSubTitle: 1,
+        },
       };
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
       logElement("removedDefault", removedDefault);
