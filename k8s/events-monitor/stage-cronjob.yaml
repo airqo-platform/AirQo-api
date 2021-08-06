@@ -4,6 +4,7 @@ metadata:
   name: stage-events-monitor-job
   namespace: staging
 spec:
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   schedule: "@hourly"
   jobTemplate:

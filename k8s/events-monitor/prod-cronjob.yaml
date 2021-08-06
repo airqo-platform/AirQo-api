@@ -4,6 +4,7 @@ metadata:
   name: prod-events-monitor-job
   namespace: production
 spec:
+  successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
   schedule: "@hourly"
   jobTemplate:
