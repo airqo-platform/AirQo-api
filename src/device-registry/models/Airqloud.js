@@ -82,9 +82,11 @@ airqloudSchema.statics = {
           data,
           message: "airqloud created",
         };
-      } else {
+      }
+
+      if (isEmpty(data)) {
         return {
-          success: false,
+          success: true,
           message: "airqloud not created despite successful operation",
         };
       }
@@ -97,12 +99,12 @@ airqloudSchema.statics = {
     }
   },
   async list({
-    _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
+    skip = 0,
+    limit = constants.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
     filter = {},
   } = {}) {
     try {
-      return this.aggregate()
+      let data = this.aggregate()
         .match(filter)
         .lookup({
           from: "airqlouds",
@@ -119,9 +121,25 @@ airqloudSchema.statics = {
           airqloud_tags: 1,
           airqlouds: "$airqlouds",
         })
-        .skip(_skip)
-        .limit(_limit)
+        .skip(skip)
+        .limit(limit)
         .allowDiskUse(true);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully fetched the AirQlouds",
+          data,
+        };
+      }
+
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "there are no records for this search",
+          data,
+        };
+      }
     } catch (error) {
       return {
         success: false,
@@ -170,8 +188,8 @@ airqloudSchema.statics = {
           _id: 1,
           name: 1,
           generated_name: 1,
-          lat_long: 1,
-          country: 1,
+          airqloud_tags: 1,
+          description: 1,
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
@@ -182,7 +200,9 @@ airqloudSchema.statics = {
           message: "successfully removed the airqloud",
           data,
         };
-      } else {
+      }
+
+      if (isEmpty(data)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
