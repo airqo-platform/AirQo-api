@@ -28,8 +28,8 @@ class Config:
     def __init__(self):
 
         if self.PERIODIC.strip().lower() == "true":
-            self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_INTERVAL)))
             self.END_TIME = date_to_str(datetime.utcnow())
+            self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_INTERVAL)))
 
         if self.TENANT.strip().lower() == "airqo":
             self.OUTPUT_TOPIC = os.getenv("AIRQO_OUTPUT_TOPIC")
@@ -50,7 +50,7 @@ class StagingConfig(Config):
 
 
 class DevelopmentConfig(Config):
-    AIRQO_BASE_URL = "http://staging-platform.airqo.net/api/v1/"
+    AIRQO_BASE_URL = "https://staging-platform.airqo.net/api/v1/"
     AIRQO_API_KEY = ""
 
 
@@ -67,3 +67,4 @@ configuration = app_config.get(environment, DevelopmentConfig())
 print("TENANT", configuration.TENANT, sep=" : ")
 print("START TIME", configuration.START_TIME, sep=" : ")
 print("END TIME", configuration.END_TIME, sep=" : ")
+print("PERIODIC", configuration.PERIODIC, sep=" : ")

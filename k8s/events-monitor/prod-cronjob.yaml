@@ -18,13 +18,13 @@ spec:
           - name: prod-events-monitor-job
             image: us.gcr.io/airqo-250220/events-monitor-job:latest
             imagePullPolicy: Always
-            resources:
-              requests:
-                memory: 256Mi
-                cpu: "0.2"
-              limits:
-                memory: 512Mi
-                cpu: "1"
+            # resources:
+            #   requests:
+            #     memory: 256Mi
+            #     cpu: "0.2"
+            #   limits:
+            #     memory: 512Mi
+            #     cpu: "1"
             envFrom:
               - configMapRef:
                   name: prod-events-monitor-cronjob-config

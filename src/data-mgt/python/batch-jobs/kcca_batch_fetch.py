@@ -13,22 +13,6 @@ from utils import get_valid_devices
 """
 
 
-def transform_group_plain(group, device_id):
-
-    transformed_data = []
-
-    for _, row in group.iterrows():
-
-        row_data = row
-        row_data["average"] = row.get("average", "raw")
-        row_data["tenant"] = 'kcca'
-        row_data["device"] = device_id  # overriding default kcca device id
-
-        transformed_data.append(row_data.to_dict())
-
-    return transformed_data
-
-
 class KccaBatchFetch:
 
     def __init__(self):
@@ -49,29 +33,25 @@ class KccaBatchFetch:
 
             print(start_time + " : " + end_time)
 
-            raw_measurements = self.get_raw_measurements(start_time, end_time)
+            measurements = self.__get_measurements(start_time, end_time)
 
-            raw_measurements_df = pd.DataFrame(raw_measurements)
+            measurements_df = pd.DataFrame(measurements)
 
-            if raw_measurements_df.empty:
+            if measurements_df.empty:
                 print("No Data at the moment")
-                print(raw_measurements_df)
+                print(measurements_df)
                 continue
 
             transformed_data = []
-            for _, row in raw_measurements_df.iterrows():
+            for _, row in measurements_df.iterrows():
 
-                measurement = dict(row.to_dict())
-
-                measurement["tenant"] = "kcca"
-                measurement["average"] = measurement.get("average", "raw")
-                measurement["device"] = measurement.get("deviceCode")
+                measurement = row.to_dict()
                 transformed_data.append(measurement)
 
-                if transformed_data:
-                    self.kafka_client.produce(transformed_data)
+            if transformed_data:
+                self.kafka_client.produce(transformed_data)
 
-    def get_raw_measurements(self, start_time, end_time):
+    def __get_measurements(self, start_time, end_time):
 
         api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
                   f"startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
@@ -102,18 +82,3 @@ class KccaBatchFetch:
             device_codes = device_codes + f"{device_data.get('name')},"
 
         return device_codes[:-1]
-
-    def get_site_and_device_id(self, name):
-
-        try:
-            result = list(filter(lambda device: (device["name"] == name), self.devices))
-
-            if not result:
-                print("Site ID not found")
-                return None
-
-            return result[0]["site"]["_id"], result[0]["_d"]
-        except Exception as ex:
-            print(ex)
-            print("Site ID not found")
-            return None
