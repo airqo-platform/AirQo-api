@@ -998,10 +998,9 @@ router.post(
         .exists()
         .withMessage("the height is is missing in your request")
         .bail()
-        .isInt({ gt: 0, lt: 6 })
-        .withMessage("the height must be a number between 0 and 6")
-        .trim()
-        .toLowerCase(),
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("the height must be a number between 0 and 10")
+        .trim(),
       body("isPrimaryInLocation")
         .exists()
         .withMessage("the isPrimaryInLocation is is missing in your request")
