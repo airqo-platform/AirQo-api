@@ -15,6 +15,14 @@ jobs:
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
+      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
+      run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
+      run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
+      run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
+      run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
+      run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
+      run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
+
     runs-on: ubuntu-latest
     steps:
       - name: checkout code
@@ -36,6 +44,13 @@ jobs:
           echo "::set-output name=run_device_registry::false"  
           echo "::set-output name=run_device_monitoring::false" 
           echo "::set-output name=run_data_mgt::false"
+          echo "::set-output name=run_analytics::false"
+          echo "::set-output name=run_device_uptime::false"  
+          echo "::set-output name=run_device_status::false" 
+          echo "::set-output name=run_locate::false"
+          echo "::set-output name=run_predict::false"
+          echo "::set-output name=run_gp_model::false"
+          echo "::set-output name=run_exceedances::false"
 
           while IFS= read -r file
           do
@@ -54,6 +69,34 @@ jobs:
 
             if [[ $file == src/data-mgt/node/* ]]; then
               echo "::set-output name=run_data_mgt::true"
+            fi
+
+            if [[ $file == src/analytics/* ]]; then
+              echo "::set-output name=run_analytics::true"
+            fi
+
+            if [[ $file == src/device-uptime/* ]]; then
+              echo "::set-output name=run_device_uptime::true"
+            fi
+
+            if [[ $file == src/device-status/* ]]; then
+              echo "::set-output name=run_device_status::true"
+            fi
+
+            if [[ $file == src/locate/* ]]; then
+              echo "::set-output name=run_locate::true"
+            fi
+
+            if [[ $file == src/predict/* ]]; then
+              echo "::set-output name=run_predict::true"
+            fi
+
+            if [[ $file == src/gp-model/* ]]; then
+              echo "::set-output name=run_gp_model::true"
+            fi
+
+            if [[ $file == src/exceedances/* ]]; then
+              echo "::set-output name=run_exceedances::true"
             fi
           done < files.txt
 
@@ -79,16 +122,16 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
       - name: Build and Push Docker Image
         run: |
           cd src/auth-service/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest -f Dockerfile.stage.txt .
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest -f Dockerfile.stage .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/
+          cd k8s/auth-service/
           kubectl apply -f stage-auth-api.yaml
           kubectl rollout restart deployment/airqo-stage-auth-api -n staging
 
@@ -113,12 +156,12 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest -f Dockerfile.stage.txt .
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest -f Dockerfile.stage .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
       - name: Deploy to K8S
         run: |
@@ -149,16 +192,16 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
       - name: Build and Push Docker Image
         run: |
           cd src/device-monitoring/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest -f Dockerfile.stage.txt .
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest -f Dockerfile.stage .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/
+          cd k8s/device-monitor/
           kubectl apply -f stage-device-monitor-api.yaml
           kubectl rollout restart deployment/airqo-stage-device-monitor-api -n staging
   
@@ -183,15 +226,237 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-data-mgt-api:latest -f Dockerfile.stage.txt .
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-data-mgt-api:latest -f Dockerfile.stage .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-data-mgt-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/
+          cd k8s/data-mgt/
           kubectl apply -f stage-data-mgt-api.yaml
           kubectl rollout restart deployment/airqo-stage-data-mgt-api -n staging
+  
+  ### analytics ###
+  analytics:
+    name: build-push-deploy-analytics
+    needs: check
+    if: needs.check.outputs.run_analytics == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/analytics/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest -f Dockerfile.stage .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/analytics/
+          kubectl apply -f stage-analytics-api.yaml
+          kubectl rollout restart deployment/airqo-stage-analytics-api -n staging
+  
+  ### device uptime ###
+  device-uptime:
+    name: build-push-deploy-device-uptime
+    needs: check
+    if: needs.check.outputs.run_device_uptime == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/device-uptime/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-uptime-job:latest -f Dockerfile.stage .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-uptime-job:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/device-uptime/
+          kubectl apply -f stage-device-uptime-job.yaml
+          kubectl rollout restart deployment/airqo-stage-device-uptime-job -n staging
+  
+  ### device status ###
+  device-status:
+    name: build-push-deploy-device-status
+    needs: check
+    if: needs.check.outputs.run_device_status == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/device-status/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-status-job:latest -f Dockerfile.stage .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-status-job:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/device-status/
+          kubectl apply -f stage-device-status-job.yaml
+          kubectl rollout restart deployment/airqo-stage-device-status-job -n staging
+
+  ### locate ###
+  locate:
+    name: build-push-deploy-locate
+    needs: check
+    if: needs.check.outputs.run_locate == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/locate/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest -f Dockerfile.stage .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/locate/
+          kubectl apply -f stage-locate-api.yaml
+          kubectl rollout restart deployment/airqo-stage-locate-api -n staging
+
+  ### gp model ###
+  gp-model:
+    name: build-push-deploy-gp-model
+    needs: check
+    if: needs.check.outputs.run_gp_model == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/gp-model/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest -f Dockerfile.stage .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/gp-model/
+          kubectl apply -f stage-gp-model-api.yaml
+          kubectl rollout restart deployment/airqo-stage-gp-model-job -n staging
+
+    ### exceedances ###
+  gp-model:
+    name: build-push-deploy-exceedances
+    needs: check
+    if: needs.check.outputs.run_exceedances == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/exceedances/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest -f Dockerfile.stage.airqo .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
+
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest -f Dockerfile.stage.kcca .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/exceedances/
+          kubectl apply -f stage-airqo-exceedance-job.yaml
+          kubectl apply -f stage-kcca-exceedance-job.yaml
+
+          kubectl rollout restart deployment/stage-airqo-exceedance-job -n staging
+          kubectl rollout restart deployment/stage-kcca-exceedance-job -n staging
