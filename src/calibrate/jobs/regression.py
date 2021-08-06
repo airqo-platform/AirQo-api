@@ -7,6 +7,8 @@ from sklearn.ensemble import RandomForestRegressor
 import pickle
 import gcsfs
 import joblib
+from sklearn import metrics
+from sklearn.model_selection import cross_val_score, KFold
 
 client = bigquery.Client.from_service_account_json("jobs/airqo-250220-5149c2aac8f2.json")
 
@@ -82,6 +84,9 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     bam_hourly_mean["Time"] = bam_hourly_timestamp
 
     hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
+    hourly_combined_dataset=hourly_combined_dataset[(hourly_combined_dataset['avg_pm2_5'].notnull())&
+                                              (hourly_combined_dataset['avg_pm10'].notnull())&
+                                              (hourly_combined_dataset['bam_pm'].notnull())].reset_index(drop=True)
     # BAM timestamp set to ENDING for this period (July to Mar)
     hourly_combined_dataset['bam_pm']=hourly_combined_dataset['bam_pm'].shift(-1)
     #Fill null values
@@ -90,7 +95,6 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     hourly_combined_dataset['hour'] = hourly_combined_dataset['Time'].dt.hour
 
     # Features from PM
-
     # 1)"error_pm2_5" the absolute value of the difference between the two sensor values for pm2_5.
     # 2)"error_pm10","check_symbol_pm10" same as 3 and 4 but for pm10.
     # 3)"pm2.5-pm10" the difference between "Average_PM2.5" and "Average_PM10" columns
@@ -107,10 +111,10 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     
     return hourly_combined_dataset
 
-def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
-    fs = gcsfs.GCSFileSystem(project=project_name)    
-    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-        job = joblib.dump(trained_model,handle)
+# def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
+#     fs = gcsfs.GCSFileSystem(project=project_name)    
+#     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
+#         job = joblib.dump(trained_model,handle)
 
 
 def random_forest(hourly_combined_dataset):
@@ -120,13 +124,18 @@ def random_forest(hourly_combined_dataset):
     rf_regressor = RandomForestRegressor(random_state=42, max_features='sqrt', n_estimators= 1000, max_depth=50, bootstrap = True)
     # Fitting the model 
     rf_regressor = rf_regressor.fit(X, y) 
+    scoring = 'neg_root_mean_squared_error'
+    
+    kfold = KFold(n_splits=20, random_state=0, shuffle=True) # n_splits = no of traning sets, 
+    cv_results = cross_val_score(rf_regressor, X, y, cv=kfold, scoring=scoring)
+    print("rmse:" "%f" % (cv_results.mean()))
 
-    # # save the model to disk
-    # filename = 'jobs/rf_reg_model.sav'
-    # pickle.dump(rf_regressor, open(filename, 'wb'))
+    # save the model to disk
+    filename = 'jobs/rf_reg_model.sav'
+    pickle.dump(rf_regressor, open(filename, 'wb'))
 
     ##dump the model to google cloud storage.
-    save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+    # save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
 
     
     return rf_regressor
