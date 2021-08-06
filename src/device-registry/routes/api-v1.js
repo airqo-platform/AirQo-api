@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
+const airqloudController = require("../controllers/create-airqloud");
 const middlewareConfig = require("../config/router.middleware");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
@@ -999,10 +1000,9 @@ router.post(
         .exists()
         .withMessage("the height is is missing in your request")
         .bail()
-        .isInt({ gt: 0, lt: 6 })
-        .withMessage("the height must be a number between 0 and 6")
-        .trim()
-        .toLowerCase(),
+        .isInt({ gt: 0, lt: 10 })
+        .withMessage("the height must be a number between 0 and 10")
+        .trim(),
       body("isPrimaryInLocation")
         .exists()
         .withMessage("the isPrimaryInLocation is is missing in your request")
@@ -1376,13 +1376,17 @@ router.post(
       body("*.device")
         .if(body("*.device").exists())
         .notEmpty()
-        .trim()
-        .toLowerCase(),
+        .trim(),
       body("*.site")
         .if(body("*.site").exists())
         .notEmpty()
+        .trim(),
+      body("*.device_number")
+        .if(body("*.device_number").exists())
+        .notEmpty()
         .trim()
-        .toLowerCase(),
+        .isInt()
+        .withMessage("the device number should be a number"),
     ],
   ]),
   eventController.addValues
@@ -1526,6 +1530,85 @@ router.delete(
       .withMessage("the device names do not have spaces in them"),
   ]),
   eventController.deleteValuesOnPlatform
+);
+
+/************************** airqlouds usecase  *******************/
+router.post(
+  "/airqlouds",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+    ],
+  ]),
+  airqloudController.register
+);
+
+router.get(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  airqloudController.list
+);
+
+router.put(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  airqloudController.update
 );
 
 module.exports = router;

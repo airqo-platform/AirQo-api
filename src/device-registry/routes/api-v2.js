@@ -998,10 +998,9 @@ router.post(
         .exists()
         .withMessage("the height is is missing in your request")
         .bail()
-        .isInt({ gt: 0, lt: 6 })
-        .withMessage("the height must be a number between 0 and 6")
-        .trim()
-        .toLowerCase(),
+        .isInt({ gt: 0, lt: 10 })
+        .withMessage("the height must be a number between 0 and 10")
+        .trim(),
       body("isPrimaryInLocation")
         .exists()
         .withMessage("the isPrimaryInLocation is is missing in your request")
@@ -1373,13 +1372,17 @@ router.post(
       body("*.device")
         .if(body("*.device").exists())
         .notEmpty()
-        .trim()
-        .toLowerCase(),
+        .trim(),
       body("*.site")
         .if(body("*.site").exists())
         .notEmpty()
+        .trim(),
+      body("*.device_number")
+        .if(body("*.device_number").exists())
+        .notEmpty()
         .trim()
-        .toLowerCase(),
+        .isInt()
+        .withMessage("the device number should be a number"),
     ],
   ]),
   eventController.addEvents
