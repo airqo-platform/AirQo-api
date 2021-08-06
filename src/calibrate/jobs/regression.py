@@ -111,10 +111,10 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     
     return hourly_combined_dataset
 
-# def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
-#     fs = gcsfs.GCSFileSystem(project=project_name)    
-#     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-#         job = joblib.dump(trained_model,handle)
+def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
+    fs = gcsfs.GCSFileSystem(project=project_name)    
+    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
+        job = joblib.dump(trained_model,handle)
 
 
 def random_forest(hourly_combined_dataset):
@@ -124,18 +124,12 @@ def random_forest(hourly_combined_dataset):
     rf_regressor = RandomForestRegressor(random_state=42, max_features='sqrt', n_estimators= 1000, max_depth=50, bootstrap = True)
     # Fitting the model 
     rf_regressor = rf_regressor.fit(X, y) 
-    # scoring = 'neg_root_mean_squared_error'
-
-    # kfold = KFold(n_splits=20, random_state=0, shuffle=True) # n_splits = no of traning sets, 
-    # cv_results = cross_val_score(rf_regressor, X, y, cv=kfold, scoring=scoring)
-    # print("rmse:" "%f" % (cv_results.mean()))
-
-    # save the model to disk
-    filename = 'jobs/rf_reg_model.sav'
-    pickle.dump(rf_regressor, open(filename, 'wb'))
+    # # save the model to disk
+    # filename = 'jobs/rf_reg_model.sav'
+    # pickle.dump(rf_regressor, open(filename, 'wb'))
 
     ##dump the model to google cloud storage.
-    # save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+    save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
 
     
     return rf_regressor
