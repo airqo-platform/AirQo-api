@@ -1376,13 +1376,17 @@ router.post(
       body("*.device")
         .if(body("*.device").exists())
         .notEmpty()
-        .trim()
-        .toLowerCase(),
+        .trim(),
       body("*.site")
         .if(body("*.site").exists())
         .notEmpty()
+        .trim(),
+      body("*.device_number")
+        .if(query("*.device_number").exists())
+        .notEmpty()
         .trim()
-        .toLowerCase(),
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
     ],
   ]),
   eventController.addValues
