@@ -585,6 +585,30 @@ const generateFilter = {
 
     return filter;
   },
+  airqlouds: (req) => {
+    let { id, generated_name, name } = req.query;
+    let filter = {};
+
+    if (name) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        name
+      );
+      filter["name"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (generated_name) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        generated_name
+      );
+      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    return filter;
+  },
 
   activities: (req) => {
     let {
