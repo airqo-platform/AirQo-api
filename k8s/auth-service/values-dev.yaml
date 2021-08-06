@@ -1,0 +1,35 @@
+# values for airqo-auth-api.
+env:
+  deployment_name: airqo-dev-auth-api
+  service_name: airqo-dev-auth-api-svc
+  labels: dev-auth-api
+  secret: dev-auth-secret
+
+replicaCount: 2
+
+image:
+  repository: airqo-dev-auth-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 32000
+  targetPort: 3000
+  port: 3000
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: staging

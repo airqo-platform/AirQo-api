@@ -1,31 +1,39 @@
 const transporter = require("../services/mailer");
 
-function register(req, res, mailOptions, body, entity, tenant) {
+function register(mailOptions, body, entity) {
   try {
     entity
       .findOne({ email: body.email, userName: body.userName })
       .then((user) => {
         if (user) {
-          return res.status(400).json({
+          return {
             success: false,
-            email: `email or userName already exist for this orgnanisation (${tenant})`,
-          });
+            message:
+              "this is a duplicate request, please crosscheck documentation",
+          };
         } else {
-          //this is where I call the registration function
           const user = new entity(body);
-          user.save((error, savedData) => {
+          user.save((error, createdUser) => {
             if (error) {
-              return console.log(error);
+              return {
+                success: false,
+                message: "unable to create the user",
+                error,
+              };
             } else {
-              transporter.sendMail(mailOptions, (err, response) => {
-                if (err) {
-                  console.error("there was an error: ", err);
+              transporter.sendMail(mailOptions, (error, response) => {
+                if (error) {
+                  return {
+                    success: false,
+                    message: "unable to create the user",
+                    error,
+                  };
                 } else {
-                  res.status(200).json({
-                    savedData,
+                  return {
+                    createdUser,
                     success: true,
                     message: "user added successfully",
-                  });
+                  };
                 }
               });
             }
@@ -33,10 +41,11 @@ function register(req, res, mailOptions, body, entity, tenant) {
         }
       });
   } catch (e) {
-    res.status(500).json({
+    return {
       success: false,
       message: e.message,
-    });
+      error: e.message,
+    };
   }
 }
 

@@ -1,6 +1,10 @@
 FROM python:3.8-slim-buster
-MAINTAINER Airqo "airqo"
 
-RUN pip install luigi
+COPY / /
+WORKDIR /
 
-CMD /bin/bash -c "luigid --background --port 8082"
+RUN pip install -r requirements.txt
+
+ENV PYTHONWARNINGS = "ignore:Unverified HTTPS request"
+
+CMD [ "python", "main.py" ]

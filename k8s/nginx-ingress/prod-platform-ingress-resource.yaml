@@ -1,0 +1,91 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: ingress-platform-resource
+  namespace: production
+  annotations:
+    kubernetes.io/ingress.class: nginx 
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  rules:
+    - host: platform.airqo.net
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: airqo-platform-svc
+              servicePort: 80
+          - path: /api/v1/users
+            backend:
+              serviceName: airqo-auth-api-svc
+              servicePort: 3000
+          - path: /api/v2/users
+            backend:
+              serviceName: airqo-auth-api-svc
+              servicePort: 3000
+          - path: /api/v1/devices
+            backend:
+              serviceName: airqo-device-registry-api-svc
+              servicePort: 3000
+          - path: /api/v2/devices
+            backend:
+              serviceName: airqo-device-registry-api-svc
+              servicePort: 3000
+          - path: /api/v1/data
+            backend:
+              serviceName: airqo-data-mgt-api-svc
+              servicePort: 
+          - path: /api/v2/data
+            backend:
+              serviceName: airqo-data-mgt-api-svc
+              servicePort: 3000
+          - path: /api/v1/map
+            backend:
+              serviceName: airqo-locate-api-svc
+              servicePort: 4001
+          - path: /api/v2/map
+            backend:
+              serviceName: airqo-locate-api-svc
+              servicePort: 4001
+          - path: /api/v1/analytics
+            backend:
+              serviceName: airqo-analytics-api-svc
+              servicePort: 5000
+          - path: /api/v2/analytics
+            backend:
+              serviceName: airqo-analytics-api-svc
+              servicePort: 5000
+          - path: /api/v1/predict
+            backend:
+              serviceName: airqo-prediction-api-svc
+              servicePort: 5000
+          - path: /api/v2/predict
+            backend:
+              serviceName: airqo-prediction-api-svc
+              servicePort: 5000
+          - path: /api/v1/monitor
+            backend:
+              serviceName: airqo-device-monitor-api-svc
+              servicePort: 4001
+          - path: /api/v2/monitor
+            backend:
+              serviceName: airqo-device-monitor-api-svc
+              servicePort: 4001
+          - path: /api/v1/calibrate
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v2/calibrate
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v1/incentives
+            backend:
+              serviceName: airqo-incentives-api-svc
+              servicePort: 3000
+          - path: /api/v2/incentives
+            backend:
+              serviceName: airqo-incentives-api-svc
+              servicePort: 3000
+          

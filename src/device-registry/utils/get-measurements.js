@@ -3,6 +3,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("./multitenancy");
 const redis = require("../config/redis");
+const constants = require("../config/constants");
 const {
   axiosError,
   tryCatchErrors,
@@ -11,10 +12,7 @@ const {
 } = require("./errors");
 
 const { logObject, logElement, logText } = require("./log");
-const {
-  generateEventsFilter,
-  generateDeviceFilter,
-} = require("./generate-filter");
+const generateFilter = require("./generate-filter");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -40,6 +38,9 @@ const getDevicesCount = async (tenant) => {
 
 const generateCacheID = (
   device,
+  device_id,
+  site,
+  site_id,
   day,
   tenant,
   skip,
@@ -55,7 +56,9 @@ const generateCacheID = (
     frequency ? frequency : "noFrequency"
   }_${endTime ? endTime : "noEndTime"}_${
     startTime ? startTime : "noStartTime"
-  }`;
+  }_${device_id ? device_id : "noDeviceId"}_${site ? site : "noSite"}_${
+    site_id ? site_id : "noSiteId"
+  }_${day ? day : "noDay"}`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -80,6 +83,9 @@ const getMeasurements = async (
   res,
   recent,
   device,
+  device_id,
+  site,
+  site_id,
   skip,
   limit,
   frequency,
@@ -92,6 +98,9 @@ const getMeasurements = async (
     const day = generateDateFormatWithoutHrs(currentTime);
     let cacheID = generateCacheID(
       device,
+      device_id,
+      site,
+      site_id,
       day,
       tenant,
       skip,
@@ -110,8 +119,11 @@ const getMeasurements = async (
         } else if (err) {
           callbackErrors(err, req, res);
         } else {
-          const filter = generateEventsFilter(
+          const filter = generateFilter.events(
             device,
+            device_id,
+            site,
+            site_id,
             frequency,
             startTime,
             endTime
@@ -119,16 +131,25 @@ const getMeasurements = async (
 
           let devicesCount = await getDevicesCount(tenant);
 
-          let skipInt = skip ? skip : 0;
-          let limitInt = limit ? limit : devicesCount;
+          let _skip = skip ? skip : 0;
+          let _limit = limit ? limit : constants.DEFAULT_EVENTS_LIMIT;
+          let options = {
+            skipInt: _skip,
+            limitInt: _limit,
+          };
+
+          if (!device) {
+            options["skipInt"] = 0;
+            options["limitInt"] = devicesCount;
+          }
 
           let recentFlag = isRecentTrue(recent);
 
           let events = await getEvents(
             tenant,
             recentFlag,
-            skipInt,
-            limitInt,
+            options.skipInt,
+            options.limitInt,
             filter
           );
 
@@ -141,7 +162,7 @@ const getMeasurements = async (
               measurements: events,
             })
           );
-          redis.expire(cacheID, 30);
+          redis.expire(cacheID, constants.EVENTS_CACHE_LIMIT);
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,
