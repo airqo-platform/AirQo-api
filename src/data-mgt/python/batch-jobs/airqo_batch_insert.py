@@ -7,9 +7,8 @@ from google.cloud import bigquery
 from config import configuration as config
 from date import str_to_date, date_to_str
 from event import DeviceRegistry
-from utils import filter_valid_devices, get_devices, build_channel_id_filter
+from utils import build_channel_id_filter
 
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
 
@@ -115,13 +114,3 @@ def transform_airqo_data(data, devices):
             for sub_list in sub_lists:
                 device_registry = DeviceRegistry(sub_list, "airqo", config.AIRQO_BASE_URL)
                 device_registry.send_to_api()
-
-
-if __name__ == "__main__":
-    airqo_devices = get_devices(config.AIRQO_BASE_URL, "airqo")
-    filtered_devices = filter_valid_devices(airqo_devices)
-    
-    if len(filtered_devices) > 0:
-        get_device_measurements(filtered_devices)
-    else:
-        print("No valid devices")

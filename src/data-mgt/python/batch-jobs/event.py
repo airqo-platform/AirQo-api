@@ -1,9 +1,6 @@
 import json
-import os
 
 import requests
-
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 
 class DeviceRegistry:

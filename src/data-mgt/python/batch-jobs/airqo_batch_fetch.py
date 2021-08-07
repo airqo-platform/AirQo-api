@@ -9,7 +9,6 @@ from date import str_to_date, date_to_str
 from kafka_client import KafkaWithoutRegistry
 from utils import build_channel_id_filter, get_valid_devices
 
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
 

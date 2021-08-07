@@ -2,9 +2,12 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import urllib3
 from dotenv import load_dotenv
 
 from date import date_to_str
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
@@ -15,7 +18,7 @@ class Config:
 
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
-    FREQUENCY = os.getenv("FREQUENCY")
+    FREQUENCY = os.getenv("FREQUENCY", "raw")
     START_TIME = os.getenv("START_TIME")
     END_TIME = os.getenv("END_TIME")
     BATCH_FETCH_TIME_INTERVAL = os.getenv("BATCH_FETCH_TIME_INTERVAL")

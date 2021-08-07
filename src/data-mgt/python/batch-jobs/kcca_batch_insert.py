@@ -1,4 +1,3 @@
-import os
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -6,9 +5,6 @@ import requests
 
 from config import configuration as config
 from event import DeviceRegistry
-from utils import get_devices, filter_valid_kcca_devices
-
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 """
 :Api Documentation: https://api-guide.clarity.io/
@@ -169,14 +165,3 @@ class ProcessMeasurements:
             print(ex)
             print("Site ID not found")
             return None
-
-
-if __name__ == "__main__":
-
-    kcca_devices = get_devices(config.AIRQO_BASE_URL, "kcca")
-    filtered_devices = filter_valid_kcca_devices(kcca_devices)
-    if len(filtered_devices) > 0:
-        process_measurements = ProcessMeasurements(filtered_devices)
-        process_measurements.begin_fetch()
-    else:
-        print("No valid devices")
