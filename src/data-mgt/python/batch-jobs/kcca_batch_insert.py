@@ -38,7 +38,9 @@ def transform_group(group, site_id, device):
             "device_id": device,
             'device':  row["deviceCode"],
             'location': dict({
-                "longitude": dict({"value":  location[0]}), "latitude": {"value": location[1]}})
+                "longitude": dict({"value":  location[0]}),
+                "latitude": {"value": location[1]}}
+            )
         })
 
         # create a series to hold the device components
