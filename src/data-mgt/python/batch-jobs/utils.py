@@ -1,6 +1,18 @@
+import math
+
 import requests
 
 from config import configuration
+
+
+def to_float(string):
+    try:
+        value = float(string)
+        if math.isnan(value):
+            return None
+        return value
+    except Exception:
+        return None
 
 
 def get_devices(base_url, tenant):
