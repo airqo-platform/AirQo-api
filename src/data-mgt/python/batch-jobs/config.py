@@ -53,7 +53,7 @@ class StagingConfig(Config):
 
 
 class DevelopmentConfig(Config):
-    AIRQO_BASE_URL = "https://staging-platform.airqo.net/api/v1/"
+    AIRQO_BASE_URL = "https://localhost:3000/api/v1/"
     AIRQO_API_KEY = ""
 
 
