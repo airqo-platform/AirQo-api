@@ -2,20 +2,13 @@ import os
 from datetime import timedelta
 
 import pandas as pd
-from dotenv import load_dotenv
 from google.cloud import bigquery
 
+from config import configuration as config
 from date import str_to_date, date_to_str
 from event import DeviceRegistry
 from utils import filter_valid_devices, get_devices, build_channel_id_filter
 
-load_dotenv()
-
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://staging-platform.airqo.net/api/v1/")
-START_TIME = os.getenv("START_TIME", "2021-08-03")
-END_TIME = os.getenv("END_TIME", "2021-08-04")
-INTERVAL = os.getenv("INTERVAL", "23")
-SIZE = os.getenv("INTERVAL", "10")
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
@@ -48,13 +41,13 @@ class DataConstants:
 
 
 def get_device_measurements(devices):
-    interval = INTERVAL + "H"
+    interval = config.BATCH_FETCH_TIME_INTERVAL + "H"
 
-    dates = pd.date_range(START_TIME, END_TIME, freq=interval)
+    dates = pd.date_range(config.START_TIME, config.END_TIME, freq=interval)
 
     for date in dates:
         start_time = date_to_str(date)
-        end_time = date_to_str(date + timedelta(hours=int(INTERVAL)))
+        end_time = date_to_str(date + timedelta(hours=int(config.BATCH_FETCH_TIME_INTERVAL)))
 
         print(start_time + " : " + end_time)
 
@@ -116,16 +109,16 @@ def transform_airqo_data(data, devices):
             transformed_data.append(device_data)
 
         if transformed_data:
-            n = int(SIZE)
+            n = int(config.BATCH_OUTPUT_SIZE)
             sub_lists = [transformed_data[i * n:(i + 1) * n] for i in range((len(transformed_data) + n - 1) // n)]
 
             for sub_list in sub_lists:
-                device_registry = DeviceRegistry(sub_list, "airqo", DEVICE_REGISTRY_URL)
+                device_registry = DeviceRegistry(sub_list, "airqo", config.AIRQO_BASE_URL)
                 device_registry.send_to_api()
 
 
 if __name__ == "__main__":
-    airqo_devices = get_devices(DEVICE_REGISTRY_URL, "airqo")
+    airqo_devices = get_devices(config.AIRQO_BASE_URL, "airqo")
     filtered_devices = filter_valid_devices(airqo_devices)
     
     if len(filtered_devices) > 0:

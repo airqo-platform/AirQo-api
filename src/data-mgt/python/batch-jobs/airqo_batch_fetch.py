@@ -22,14 +22,14 @@ class AirQoBatchFetch:
         
     def begin_fetch(self):
     
-        interval = f"{configuration.TIME_INTERVAL}H"
+        interval = f"{configuration.BATCH_FETCH_TIME_INTERVAL}H"
     
         dates = pd.date_range(configuration.START_TIME, configuration.END_TIME, freq=interval)
     
         for date in dates:
     
             start_time = date_to_str(date)
-            end_time = date_to_str(date + timedelta(hours=int(configuration.TIME_INTERVAL)))
+            end_time = date_to_str(date + timedelta(hours=int(configuration.BATCH_FETCH_TIME_INTERVAL)))
     
             print(start_time + " : " + end_time)
     

@@ -3,22 +3,11 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 import requests
-from dotenv import load_dotenv
 
-from date import date_to_str
+from config import configuration as config
 from event import DeviceRegistry
 from utils import get_devices, filter_valid_kcca_devices
 
-load_dotenv()
-
-CLARITY_API_KEY = os.getenv("CLARITY_API_KEY", None)
-CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL", "https://clarity-data-api.clarity.io/v1/")
-DEVICE_REGISTRY_URL = os.getenv("DEVICE_REGISTRY_URL", "https://platform.airqo.net/api/v1/")
-FREQUENCY = os.getenv("FREQUENCY", "raw")
-START_TIME = os.getenv("START_TIME", date_to_str(datetime.utcnow()))
-END_TIME = os.getenv("END_TIME", date_to_str(datetime.utcnow() + timedelta(hours=1)))
-TIME_INTERVAL = os.getenv("TIME_INTERVAL", 1)
-INSERTION_INTERVAL = os.getenv("INSERTION_INTERVAL", 10)
 os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 """
@@ -97,13 +86,13 @@ class ProcessMeasurements:
         super().__init__()
     
     def begin_fetch(self):
-        interval = f"{TIME_INTERVAL}H"
+        interval = f"{config.BATCH_FETCH_TIME_INTERVAL}H"
 
-        dates = pd.date_range(START_TIME, END_TIME, freq=interval)
+        dates = pd.date_range(config.START_TIME, config.END_TIME, freq=interval)
 
         for date in dates:
             start_time = datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
-            end_time = datetime.strftime(date + timedelta(hours=int(TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
+            end_time = datetime.strftime(date + timedelta(hours=int(config.BATCH_FETCH_TIME_INTERVAL)), '%Y-%m-%dT%H:%M:%SZ')
 
             print(start_time + " : " + end_time)
 
@@ -126,19 +115,19 @@ class ProcessMeasurements:
                     transformed_data = transform_group(group, site_id, device_id)
 
                     if transformed_data:
-                        n = int(INSERTION_INTERVAL)
+                        n = int(config.BATCH_OUTPUT_SIZE)
                         sub_lists = [transformed_data[i * n:(i + 1) * n] for i in
                                      range((len(transformed_data) + n - 1) // n)]
 
                         for sub_list in sub_lists:
-                            device_registry = DeviceRegistry(sub_list, "kcca", DEVICE_REGISTRY_URL)
+                            device_registry = DeviceRegistry(sub_list, "kcca", config.AIRQO_BASE_URL)
                             device_registry.send_to_api()
 
     def get_raw_measurements(self, start_time, end_time):
 
-        api_url = f"{CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
+        api_url = f"{config.CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
 
-        frequency = FREQUENCY.strip().lower()
+        frequency = config.FREQUENCY.strip().lower()
         if frequency == "hour":
             api_url = f"{api_url}&average=hour"
         elif frequency == "day":
@@ -146,7 +135,7 @@ class ProcessMeasurements:
         else:
             pass
 
-        headers = {'x-api-key': CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
+        headers = {'x-api-key': config.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)
         if results.status_code != 200:
             print(f"{results}")
@@ -184,7 +173,7 @@ class ProcessMeasurements:
 
 if __name__ == "__main__":
 
-    kcca_devices = get_devices(DEVICE_REGISTRY_URL, "kcca")
+    kcca_devices = get_devices(config.AIRQO_BASE_URL, "kcca")
     filtered_devices = filter_valid_kcca_devices(kcca_devices)
     if len(filtered_devices) > 0:
         process_measurements = ProcessMeasurements(filtered_devices)
