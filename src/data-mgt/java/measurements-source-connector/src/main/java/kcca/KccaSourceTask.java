@@ -157,10 +157,6 @@ public class KccaSourceTask extends SourceTask {
 
             List<KccaRawMeasurement> measurements =  Utils.getMeasurements(urlString, apiKey);
 
-//            Gson gson = new Gson();
-//            Type listType = new TypeToken<List<KccaRawMeasurement>>() {}.getType();
-//            JSONArray jsonArray = new JSONArray(measurements);
-//            String data = gson.toJson(measurements, listType);
             String data = "";
 
             Map<String, String> sourcePartition = buildSourcePartition();

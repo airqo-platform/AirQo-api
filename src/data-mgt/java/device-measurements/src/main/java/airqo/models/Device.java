@@ -4,9 +4,13 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.io.Serializable;
 
+@Setter
+@Getter
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Device implements Serializable {
 
@@ -24,31 +28,6 @@ public class Device implements Serializable {
     @Expose
     @JsonAlias({ "site_details", "siteDetails" })
     private SiteDetails site = new SiteDetails();
-
-
-    public String get_id() {
-        return _id;
-    }
-
-    public void set_id(String _id) {
-        this._id = _id;
-    }
-
-    public SiteDetails getSite() {
-        return site;
-    }
-
-    public void setSite(SiteDetails site) {
-        this.site = site;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
 
     @Override
     public String toString() {

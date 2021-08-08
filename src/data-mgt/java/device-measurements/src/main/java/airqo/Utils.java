@@ -35,7 +35,6 @@ public class Utils {
             try {
 
                 String tenant = properties.getProperty("tenant");
-//                String baseUrl = properties.getProperty("airqo.base.url");
 
                 switch (tenant.trim().toUpperCase()){
                     case "KCCA":

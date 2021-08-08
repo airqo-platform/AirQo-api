@@ -7,6 +7,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.annotations.Expose;
 import com.google.gson.annotations.SerializedName;
 import airqo.models.TransformedMeasurement;
+import lombok.Getter;
+import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -25,6 +27,8 @@ public class Calibrate {
 
     private static final Logger logger = LoggerFactory.getLogger(Calibrate.class);
 
+    @Getter
+    @Setter
     @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CalibrateResponse implements Serializable {
 
@@ -58,6 +62,9 @@ public class Calibrate {
         }
     }
 
+    @Getter
+    @Setter
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class CalibratedBody {
         private String datetime;
         private List<HashMap<String, Object>> raw_values;
@@ -73,22 +80,6 @@ public class Calibrate {
                 put("humidity", transformedMeasurement.getExternalHumidity().getValue());
             }});
             this.setRaw_values(list);
-        }
-
-        public String getDatetime() {
-            return datetime;
-        }
-
-        public void setDatetime(String datetime) {
-            this.datetime = datetime;
-        }
-
-        public List<HashMap<String, Object>> getRaw_values() {
-            return raw_values;
-        }
-
-        public void setRaw_values(List<HashMap<String, Object>> raw_values) {
-            this.raw_values = raw_values;
         }
     }
 
@@ -106,12 +97,6 @@ public class Calibrate {
             CalibratedBody body = new CalibratedBody(transformedMeasurement);
             SimpleDateFormat simpleDateFormat = new SimpleDateFormat();
             simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
-
-//            Date recordTime = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss").parse(body.getDatetime());
-//
-//           Date date = new Date();
-//
-//            Date nowDate = UTC
 
             ObjectMapper objectMapper = new ObjectMapper();
             String requestBody = objectMapper

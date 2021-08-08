@@ -3,7 +3,6 @@ WORKDIR /home/app
 COPY pom.xml .
 RUN mvn dependency:go-offline
 COPY src/ /home/app/src
-#RUN mvn package assembly:single -Dmaven.test.skip=true
 RUN mvn package
 
 FROM quay.io/strimzi/kafka:0.22.1-kafka-2.7.0
