@@ -7,6 +7,7 @@ metadata:
     kubernetes.io/ingress.class: nginx 
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/auth-url: https://staging-platform.airqo.net/api/v1/users?tenant=airqo
 spec:
   rules:
     - host: staging-platform.airqo.net
