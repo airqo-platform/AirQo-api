@@ -25,6 +25,7 @@ public class KccaSourceTask extends SourceTask {
     private String apiKey;
     private String clarityBaseUrl;
     private String average;
+    private int batchSize;
 
     private Long interval;
     private Long last_execution = 0L;
@@ -45,6 +46,7 @@ public class KccaSourceTask extends SourceTask {
         topic = props.get(KccaConnectorConfig.TOPIC_CONFIG);
         apiKey = props.get(KccaConnectorConfig.CLARITY_API_KEY);
         clarityBaseUrl = props.get(KccaConnectorConfig.CLARITY_API_BASE_URL);
+        batchSize = Integer.parseInt(props.get(KccaConnectorConfig.BATCH_SIZE_CONFIG));
         interval = Long.parseLong(props.get(KccaConnectorConfig.POLL_INTERVAL));
         average = props.get(KccaConnectorConfig.AVERAGE);
 
@@ -193,7 +195,7 @@ public class KccaSourceTask extends SourceTask {
             if(measurements.isEmpty())
                 return new ArrayList<>();
 
-            List<List<KccaRawMeasurement>> measurementsLists = Lists.partition(measurements, 10);
+            List<List<KccaRawMeasurement>> measurementsLists = Lists.partition(measurements, batchSize);
 
             measurementsLists.forEach(rawMeasurements -> {
 

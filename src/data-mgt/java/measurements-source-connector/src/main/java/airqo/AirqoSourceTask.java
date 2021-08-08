@@ -24,12 +24,13 @@ public class AirqoSourceTask extends SourceTask {
 
     private static final String AIRQO_URL = "airqoUrl";
     private static final String LAST_READ = "lastRead";
-    private static final Long DEVICES_FETCH_INTERVAL = 0L;
+//    private static final Long DEVICES_FETCH_INTERVAL = 0L;
     private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private String topic;
     private String airqoBaseUrl;
     private Long interval;
+    private Long devicesFetchInterval;
     private int batchSize;
     private int minimumHours;
 
@@ -54,6 +55,7 @@ public class AirqoSourceTask extends SourceTask {
         airqoBaseUrl = props.get(AirqoConnectorConfig.AIRQO_BASE_URL);
         batchSize = Integer.parseInt(props.get(AirqoConnectorConfig.BATCH_SIZE_CONFIG));
         interval = Long.parseLong(props.get(AirqoConnectorConfig.POLL_INTERVAL_CONFIG));
+        devicesFetchInterval = Long.parseLong(props.get(AirqoConnectorConfig.DEVICES_FETCH_INTERVAL));
         minimumHours = -(Integer.parseInt(props.get(AirqoConnectorConfig.MINIMUM_HOURS_CONFIG)));
         simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
     }
@@ -63,12 +65,13 @@ public class AirqoSourceTask extends SourceTask {
         ArrayList<SourceRecord> records = new ArrayList<>();
 
         if (System.currentTimeMillis() > (lastExecution + interval)) {
-
             lastExecution = System.currentTimeMillis();
 
-            if(devices.isEmpty() || (System.currentTimeMillis() > (lastDevicesFetch + DEVICES_FETCH_INTERVAL))) {
+            if(devices.isEmpty() || (System.currentTimeMillis() > (lastDevicesFetch + devicesFetchInterval))) {
                 lastDevicesFetch = System.currentTimeMillis();
-                devices = getDevices(airqoBaseUrl);
+                List<AirqoDevice> deviceList = getDevices(airqoBaseUrl);
+                if(!deviceList.isEmpty())
+                    devices = deviceList;
             }
 
             List<AirqoRawMeasurement> measurementList = new ArrayList<>();
