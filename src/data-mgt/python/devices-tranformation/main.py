@@ -1,9 +1,11 @@
 import sys
 
+import urllib3
 from dotenv import load_dotenv
 
 from transformation import Transformation
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 
 if __name__ == '__main__':

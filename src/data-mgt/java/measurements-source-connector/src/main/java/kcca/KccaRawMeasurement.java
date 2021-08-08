@@ -1,4 +1,4 @@
-package airqo.models;
+package kcca;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
@@ -25,7 +25,7 @@ public class KccaRawMeasurement implements Serializable {
 
     @Override
     public String toString() {
-        return "KccaRawMeasurement{" +
+        return "RawMeasurements{" +
                 "_id='" + _id + '\'' +
                 ", recId='" + recId + '\'' +
                 ", time='" + time + '\'' +
