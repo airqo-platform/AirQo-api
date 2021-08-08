@@ -1,21 +1,21 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnect
 metadata:
-  name: measurements-connector-cluster
+  name: prod-measurements-connector-cluster
   namespace: production
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
   image: us.gcr.io/airqo-250220/prod-measurements-connect:latest
-  replicas: 3
+  replicas: 2
   bootstrapServers: prod-kafka-cluster-kafka-bootstrap:9092
-  resources:
-    requests:
-      cpu: "1"
-      memory: 2Gi
-    limits:
-      cpu: "2"
-      memory: 2Gi
+  resources: {}
+    # requests:
+    #   cpu: "250m"
+    #   memory: 1Gi
+    # limits:
+    #   cpu: "700m"
+    #   memory: 2Gi
   readinessProbe:
     initialDelaySeconds: 15
     timeoutSeconds: 5
@@ -28,10 +28,10 @@ spec:
         secret:
           secretName: clarity-credentials
   config:
-    group.id: airqo-source-connector-cluster
-    offset.storage.topic: airqo-source-connector-cluster-offsets
-    config.storage.topic: airqo-source-connector-cluster-configs
-    status.storage.topic: airqo-source-connector-cluster-status
+    group.id: prod-measurements-connector-cluster
+    offset.storage.topic: prod-measurements-connector-cluster-offsets
+    config.storage.topic: prod-measurements-connector-cluster-configs
+    status.storage.topic: prod-measurements-connector-cluster-status
     cleanup.policy: compact
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
@@ -40,9 +40,10 @@ spec:
     config.storage.replication.factor: 3
     offset.storage.replication.factor: 3
     status.storage.replication.factor: 3
-    config.providers: file,secrets,configmaps
-    config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
-    config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
+    # config.providers: file,secrets,configmaps
+    # config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
+    # config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
+    config.providers: file
     config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
   template:
     connectContainer:
@@ -53,17 +54,17 @@ spec:
   #   type: jmxPrometheusExporter
   #   valueFrom:
   #     configMapKeyRef:
-  #       name: prod-airqo-source-connector-cluster-metrics
-  #       key: prod-airqo-source-connector-cluster-metrics-config.yml
+  #       name: prod-measurements-connector-cluster-metrics
+  #       key: prod-measurements-connector-cluster-metrics-config.yml
 # ---
 # kind: ConfigMap
 # apiVersion: v1
 # metadata:
-#   name: prod-airqo-source-connector-cluster-metrics
+#   name: prod-measurements-connector-cluster-metrics
 #   labels:
 #     app: strimzi
 # data:
-#   prod-airqo-source-connector-cluster-metrics-config.yml: |
+#   prod-measurements-connector-cluster-metrics-config.yml: |
 #     # Inspired by kafka-connect rules
 #     # https://github.com/prometheus/jmx_exporter/blob/master/example_configs/kafka-connect.yml
 #     # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics

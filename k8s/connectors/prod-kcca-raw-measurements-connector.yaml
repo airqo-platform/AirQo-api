@@ -2,9 +2,9 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnector
 metadata:
   name: kcca-raw-measurements-connector
-  namespace: staging
+  namespace: production
   labels:
-    strimzi.io/cluster: stage-measurements-connector-cluster
+    strimzi.io/cluster: prod-measurements-connector-cluster
 spec:
   class: kcca.KccaConnector
   tasksMax: 2

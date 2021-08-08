@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnect
 metadata:
-  name: measurements-connector-cluster
+  name: stage-measurements-connector-cluster
   namespace: staging
   annotations:
     strimzi.io/use-connector-resources: "true"
@@ -28,10 +28,10 @@ spec:
         secret:
           secretName: clarity-credentials
   config:
-    group.id: airqo-source-connector-cluster
-    offset.storage.topic: airqo-source-connector-cluster-offsets
-    config.storage.topic: airqo-source-connector-cluster-configs
-    status.storage.topic: airqo-source-connector-cluster-status
+    group.id: stage-measurements-connector-cluster
+    offset.storage.topic: stage-measurements-connector-cluster-offsets
+    config.storage.topic: stage-measurements-connector-cluster-configs
+    status.storage.topic: stage-measurements-connector-cluster-status
     cleanup.policy: compact
     key.converter: org.apache.kafka.connect.json.JsonConverter
     value.converter: org.apache.kafka.connect.json.JsonConverter
@@ -54,17 +54,17 @@ spec:
   #   type: jmxPrometheusExporter
   #   valueFrom:
   #     configMapKeyRef:
-  #       name: stage-airqo-source-connector-cluster-metrics
-  #       key: stage-airqo-source-connector-cluster-metrics-config.yml
+  #       name: stage-measurements-connector-cluster-metrics
+  #       key: stage-measurements-connector-cluster-metrics-config.yml
 # ---
 # kind: ConfigMap
 # apiVersion: v1
 # metadata:
-#   name: stage-airqo-source-connector-cluster-metrics
+#   name: stage-measurements-connector-cluster-metrics
 #   labels:
 #     app: strimzi
 # data:
-#   stage-airqo-source-connector-cluster-metrics-config.yml: |
+#   stage-measurements-connector-cluster-metrics-config.yml: |
 #     # Inspired by kafka-connect rules
 #     # https://github.com/prometheus/jmx_exporter/blob/master/example_configs/kafka-connect.yml
 #     # See https://github.com/prometheus/jmx_exporter for more info about JMX Prometheus Exporter metrics

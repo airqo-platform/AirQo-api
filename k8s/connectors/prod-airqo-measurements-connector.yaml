@@ -2,15 +2,15 @@ apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaConnector
 metadata:
   name: airqo-measurements-connector
-  namespace: staging
+  namespace: production
   labels:
-    strimzi.io/cluster: stage-measurements-connector-cluster
+    strimzi.io/cluster: prod-measurements-connector-cluster
 spec:
   class: airqo.AirqoConnector
   tasksMax: 2
   config:
     topic: airqo-streams-raw-device-measurements-topic
-    airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
+    airqoBaseUrl: https://platform.airqo.net/api/v1/
     pollInterval: "300000"
     batchSize: "20"
     minimumHours: "24"
