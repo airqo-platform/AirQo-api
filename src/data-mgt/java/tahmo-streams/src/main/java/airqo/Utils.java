@@ -116,8 +116,21 @@ public class Utils {
     public static TransformedDeviceMeasurements batchAddHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props){
 
         List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
+        Set<Site> filteredSites = new HashSet<>();
+
         List<Measurement> measurements = deviceMeasurements.getMeasurements();
-        int interval = Integer.parseInt(props.getProperty("interval", "1"));
+
+        measurements.forEach(measurement -> {
+            try {
+                String siteId = measurement.getSiteId().toString();
+                Site site = sites.stream().filter(site1 -> site1.get_id().equalsIgnoreCase(siteId)).findFirst().orElseThrow();
+                filteredSites.add(site);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        });
+
+        int interval = Integer.parseInt(props.getProperty("interval", "6"));
 
         Optional<Measurement> startMeasurement = measurements.stream().reduce((measurement1, measurement2) -> {
             try {
@@ -165,7 +178,7 @@ public class Utils {
 
         StationData stationData = new StationData();
 
-        for (Site site :sites){
+        for (Site site :filteredSites){
             StationData stationResponse = getStationMeasurements(props, site.getNearestStation().getCode(),
                     startTime, endTime, site.getNearestStation().getTimezone());
             stationData.getMeasurements().addAll(stationResponse.getMeasurements());
@@ -177,34 +190,11 @@ public class Utils {
 
             List<StationMeasurement> stationMeasurements = stationData.getMeasurements().stream().filter(stationMeasurement -> {
 
-                Optional<Site> optionalSite = sites.stream()
+                Optional<Site> optionalSite = filteredSites.stream()
                         .filter(site -> site.get_id().equalsIgnoreCase(measurement.getSiteId().toString()))
                         .findFirst();
 
-                String timezone = "Africa/Nairobi";
-                if(optionalSite.isPresent())
-                    timezone = optionalSite.get().getNearestStation().getTimezone();
-
-                stationDateFormat.setTimeZone(TimeZone.getTimeZone(timezone));
-
-                Date stationTime;
-                Date measurementStartTime;
-                Date measurementEndTime;
-
-
-                try {
-                    stationTime = stationDateFormat.parse(measurement.getTime().toString());
-                    measurementStartTime = DateUtils.addHours(dateFormat.parse(measurement.getTime().toString()), -12);
-                    measurementEndTime = DateUtils.addHours(dateFormat.parse(measurement.getTime().toString()), 3);
-
-                    return (stationMeasurement.getCode().equalsIgnoreCase(measurement.getSiteId().toString()) &&
-                            stationTime.before(measurementEndTime) && stationTime.after(measurementStartTime));
-
-                } catch (ParseException e) {
-                    e.printStackTrace();
-                }
-
-                return false;
+                return optionalSite.filter(site -> stationMeasurement.getCode().equalsIgnoreCase(site.getNearestStation().getCode())).isPresent();
 
             }).collect(Collectors.toList());
 
@@ -212,6 +202,7 @@ public class Utils {
                     .stream()
                     .filter(stationMeasurement2 -> (stationMeasurement2.isNotNull() && stationMeasurement2.isTemperature()))
                     .reduce((measurement1, measurement2) -> {
+
                 if (measurement1.getTime().after(measurement2.getTime()))
                     return measurement1;
                 return measurement2;
@@ -226,28 +217,34 @@ public class Utils {
                 return measurement2;
             });
 
-            stationHumidity.ifPresent(stationMeasurement -> {
-                double oldValue = measurement.getExternalHumidity().getValue();
+            try {
+                stationHumidity.ifPresent(stationMeasurement -> {
+                    Double oldValue = measurement.getExternalHumidity().getValue();
 
-                measurement.getExternalHumidity().setValue(stationMeasurement.getHumidity());
-                logger.info("Device : {} , Old Hum : {} , New Hum {}",
-                        measurement.getDevice().toString(),
-                        oldValue,
-                        measurement.getExternalHumidity().getValue());
-            });
+                    measurement.getExternalHumidity().setValue(stationMeasurement.getHumidity());
+                    logger.info("Device : {} , Old Hum : {} , New Hum {}",
+                            measurement.getDevice().toString(),
+                            oldValue,
+                            measurement.getExternalHumidity().getValue());
+                });
 
-            stationTemp.ifPresent(stationMeasurement -> {
-                double oldValue = measurement.getExternalTemperature().getValue();
-                measurement.getExternalTemperature().setValue(stationMeasurement.getTemperature());
-                logger.info("Device : {} , Old Temp : {} , New Temp {}",
-                        measurement.getDevice().toString(),
-                        oldValue,
-                        measurement.getExternalTemperature().getValue());
+                stationTemp.ifPresent(stationMeasurement -> {
+                    Double oldValue = measurement.getExternalTemperature().getValue();
+                    measurement.getExternalTemperature().setValue(stationMeasurement.getTemperature());
+                    logger.info("Device : {} , Old Temp : {} , New Temp {}",
+                            measurement.getDevice().toString(),
+                            oldValue,
+                            measurement.getExternalTemperature().getValue());
+                });
 
-            });
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
 
             measurementList.add(measurement);
         }
+
+        logger.info("Transformed Measurements : {}", measurementList);
 
         return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
     }
@@ -365,7 +362,6 @@ public class Utils {
         }
 
         return stationData;
-
     }
 
     public static List<StationMeasurement2> stationResponseToMeasurements(StationResponse stationResponse){
