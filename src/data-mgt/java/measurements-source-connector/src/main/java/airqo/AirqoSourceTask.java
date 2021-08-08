@@ -24,7 +24,6 @@ public class AirqoSourceTask extends SourceTask {
 
     private static final String AIRQO_URL = "airqoUrl";
     private static final String LAST_READ = "lastRead";
-//    private static final Long DEVICES_FETCH_INTERVAL = 0L;
     private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private String topic;
