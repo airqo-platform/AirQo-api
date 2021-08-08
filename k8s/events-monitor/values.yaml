@@ -5,7 +5,7 @@ image:
 
 env:
   eventsMonitorCredentials: stage-events-monitor-credentials
-  airqoBaseUrl: http://staging-platform.airqo.net/api/v1/
+  airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
   tenant: airqo
   hours: 01
   minutes: 00
