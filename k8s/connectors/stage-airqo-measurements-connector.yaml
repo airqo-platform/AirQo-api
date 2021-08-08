@@ -12,7 +12,7 @@ spec:
     topic: airqo-streams-raw-device-measurements-topic
     airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
     pollInterval: "300000"
-    batchSize: "20"
+    batchSize: "50"
     minimumHours: "24"
     devicesFetchInterval: "7200000"
     key.converter: org.apache.kafka.connect.json.JsonConverter

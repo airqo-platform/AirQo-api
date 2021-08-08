@@ -13,7 +13,7 @@ spec:
     pollInterval: "300000"
     clarityApiBaseUrl: https://clarity-data-api.clarity.io/v1/
     average: raw
-    batchSize: "20"
+    batchSize: "50"
     clarityApiKey: ${file:/opt/kafka/external-configuration/clarity-connector-config/clarity-credentials.properties:clarity_api_key}
     key.converter: org.apache.kafka.connect.json.JsonConverter
     key.converter.schemas.enable: false
