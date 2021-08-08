@@ -27,4 +27,14 @@ public class StationMeasurement {
     public boolean isHumidity() {
         return this.getHumidity() != null;
     }
+
+    @Override
+    public String toString() {
+        return "StationMeasurement{" +
+                "time=" + time +
+                ", code='" + code + '\'' +
+                ", humidity=" + humidity +
+                ", temperature=" + temperature +
+                '}';
+    }
 }

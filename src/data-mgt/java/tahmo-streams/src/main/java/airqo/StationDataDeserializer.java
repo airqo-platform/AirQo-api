@@ -4,8 +4,11 @@ import airqo.models.StationData;
 import airqo.models.StationMeasurement;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
 import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
 
 import java.io.IOException;
@@ -31,12 +34,21 @@ public class StationDataDeserializer extends StdDeserializer<StationData> {
     public StationData deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
             throws IOException, JsonProcessingException {
 
+        ObjectMapper mapper = new ObjectMapper();
+
         JsonNode node = jsonParser.getCodec().readTree(jsonParser);
         List<JsonNode> resultsArray = node.findValues("results" );
         List<JsonNode> seriesArray = resultsArray.get(0).findValues("series" );
-//        List<JsonNode> columnsArray = seriesArray.get(0).findValues("columns" );
-        List<String> columnsArray = seriesArray.get(0).findValuesAsText("columns" );
-        List<JsonNode> valuesArray = seriesArray.get(0).findValues("values" );
+
+        JsonNode columnsNode = seriesArray.get(0).findValues("columns").get(0);
+        ObjectReader columnsReader = mapper.readerFor(new TypeReference<List<String>>() {
+        });
+        List<String> columnsArray = columnsReader.readValue(columnsNode);
+
+        JsonNode valuesNode = seriesArray.get(0).findValues("values").get(0);
+        ObjectReader valuesReader = mapper.readerFor(new TypeReference<List<List<Object>>>() {
+        });
+        List<List<Object>> valuesArray = valuesReader.readValue(valuesNode);
 
         int variablePosition = columnsArray.indexOf("variable");
         int valuePosition = columnsArray.indexOf("value");
@@ -45,22 +57,21 @@ public class StationDataDeserializer extends StdDeserializer<StationData> {
 
         List<StationMeasurement> stationMeasurements = new ArrayList<>();
 
-        for (JsonNode nodeObject : valuesArray) {
-            List<Object> values = Collections.singletonList(nodeObject);
+        for (List<Object> nodeObject : valuesArray) {
 
-            String variable = (String) values.get(variablePosition);
+            String variable = String.valueOf(nodeObject.get(variablePosition));
             if (variable.equalsIgnoreCase("te") || variable.equalsIgnoreCase("rh")) {
 
                 StationMeasurement stationData = new StationMeasurement();
-                stationData.setCode((String) values.get(stationPosition));
+                stationData.setCode(String.valueOf(nodeObject.get(stationPosition)));
 
                 if (variable.equalsIgnoreCase("te"))
-                    stationData.setTemperature(Double.parseDouble(String.valueOf(values.get(valuePosition))));
+                    stationData.setTemperature(Double.parseDouble(String.valueOf(nodeObject.get(valuePosition))));
                 else
-                    stationData.setHumidity(Double.parseDouble(String.valueOf(values.get(valuePosition))));
+                    stationData.setHumidity(Double.parseDouble(String.valueOf(nodeObject.get(valuePosition))));
 
                 try {
-                    stationData.setTime(dateFormat.parse(String.valueOf(values.get(timePosition))));
+                    stationData.setTime(dateFormat.parse(String.valueOf(nodeObject.get(timePosition))));
                 } catch (ParseException e) {
                     e.printStackTrace();
                 }
@@ -70,6 +81,7 @@ public class StationDataDeserializer extends StdDeserializer<StationData> {
                 }
             }
         }
+        System.out.println("Measurements : " + stationMeasurements);
         return new StationData(stationMeasurements);
     }
 }
