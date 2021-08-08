@@ -3,7 +3,6 @@ package airqo;
 import airqo.models.StationData;
 import airqo.models.StationMeasurement;
 import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -15,7 +14,6 @@ import java.io.IOException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 public class StationDataDeserializer extends StdDeserializer<StationData> {
@@ -32,7 +30,7 @@ public class StationDataDeserializer extends StdDeserializer<StationData> {
 
     @Override
     public StationData deserialize(JsonParser jsonParser, DeserializationContext deserializationContext)
-            throws IOException, JsonProcessingException {
+            throws IOException {
 
         ObjectMapper mapper = new ObjectMapper();
 
@@ -81,7 +79,7 @@ public class StationDataDeserializer extends StdDeserializer<StationData> {
                 }
             }
         }
-        System.out.println("Measurements : " + stationMeasurements);
+        System.out.println("Station Measurements : " + stationMeasurements);
         return new StationData(stationMeasurements);
     }
 }

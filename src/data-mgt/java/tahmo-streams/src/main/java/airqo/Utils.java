@@ -23,7 +23,6 @@ public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
     public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
-    public static SimpleDateFormat stationDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
 
     public static Properties loadEnvProperties(String propertiesFile){
@@ -53,67 +52,6 @@ public class Utils {
     }
 
     public static TransformedDeviceMeasurements addHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props){
-
-        List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
-
-        int interval = Integer.parseInt(props.getProperty("interval", "48"));
-
-        List<Measurement> measurements = deviceMeasurements.getMeasurements();
-
-        List<Measurement> measurementList = new ArrayList<>();
-        for( Measurement measurement : measurements){
-
-            Optional<Site> deviceSite = sites.stream().filter(
-                    site -> site.get_id().trim().equalsIgnoreCase(measurement.getSiteId().toString().trim())).findFirst();
-
-            try {
-                if (deviceSite.isPresent()){
-
-                    Site.NearestStation station = deviceSite.get().getNearestStation();
-                    Date endTime = dateFormat.parse(measurement.getTime().toString());
-                    Date startTime = DateUtils.addHours(endTime, -interval);
-
-                    StationResponse stationResponse = getStationMeasurements2(
-                            props, station.getCode(), startTime, endTime, station.getTimezone());
-
-                    List<StationMeasurement2> stationMeasurement2s = stationResponseToMeasurements(stationResponse);
-
-                    Optional<StationMeasurement2> stationTemp = stationMeasurement2s.stream().filter(stationMeasurement2 -> stationMeasurement2.getVariable().equals(Variable.TEMPERATURE)).reduce((measurement1, measurement2) -> {
-                        if (measurement1.getTime().after(measurement2.getTime()))
-                            return measurement1;
-                        return measurement2;
-                    });
-
-                    Optional<StationMeasurement2> stationHumidity = stationMeasurement2s.stream().filter(stationMeasurement2 -> stationMeasurement2.getVariable().equals(Variable.HUMIDITY)).reduce((measurement1, measurement2) -> {
-                        if (measurement1.getTime().after(measurement2.getTime()))
-                            return measurement1;
-                        return measurement2;
-                    });
-
-                    measurement.getExternalHumidity().setValue(stationHumidity.orElseThrow().getValue());
-                    measurement.getExternalTemperature().setValue(stationTemp.orElseThrow().getValue());
-
-                    logger.info("Device : {} , Old Hum : {} , New Hum {}",
-                            measurement.getDevice().toString(),
-                            measurement.getExternalHumidity().getValue(),
-                            stationHumidity.orElseThrow().getValue());
-                    logger.info("Device : {} , Old Temp : {} , New Temp {}",
-                            measurement.getDevice().toString(),
-                            measurement.getExternalTemperature().getValue(),
-                            stationTemp.orElseThrow().getValue());
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            measurementList.add(measurement);
-
-        }
-
-        return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
-    }
-
-    public static TransformedDeviceMeasurements batchAddHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props){
 
         List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
         Set<Site> filteredSites = new HashSet<>();
@@ -279,42 +217,6 @@ public class Utils {
         return sitesResponse.getSites();
     }
 
-    public static List<Device> getDevices(String baseUrl, String tenant){
-
-        logger.info("\n\n********** Fetching Devices **************\n");
-
-        DevicesResponse devicesResponse;
-
-        try {
-
-            String urlString =  String.format("%sdevices?tenant=%s&active=yes", baseUrl, tenant);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .GET()
-                    .uri(URI.create(urlString))
-                    .setHeader("Accept", "application/json")
-                    .build();
-
-            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            ObjectMapper objectMapper = new ObjectMapper();
-            devicesResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
-        }
-        catch (Exception e){
-            e.printStackTrace();
-            return new ArrayList<>();
-        }
-
-        StringBuilder stringBuilder = new StringBuilder();
-
-        devicesResponse.getDevices().forEach(device -> {
-            stringBuilder.append(" , ").append(device.getDevice_number());
-        });
-
-        logger.info("\n ====> Devices : {}\n", stringBuilder);
-        return devicesResponse.getDevices();
-    }
-
     public static StationData getStationMeasurements(Properties props, String stationCode, Date startTime,
                                                          Date endTime, String stationTimeZone){
 
@@ -362,133 +264,6 @@ public class Utils {
         }
 
         return stationData;
-    }
-
-    public static List<StationMeasurement2> stationResponseToMeasurements(StationResponse stationResponse){
-
-        List<StationMeasurement2> measurements = new ArrayList<>();
-        try {
-
-            List<List<Object>> objects = stationResponse.getResults().get(0).getSeries().get(0).getValues();
-
-            objects.forEach(object -> {
-
-                String var = String.valueOf(object.get(11)).trim().toLowerCase();
-                String time = String.valueOf(object.get(0)).trim();
-
-                    if(var.equals("te") || var.equals("rh")){
-                        Variable variable = Variable.fromString(var);
-                        Double value = Double.valueOf(object.get(10) + "");
-                        Date dateTime = null;
-
-                        try {
-                            dateTime = dateFormat.parse(time);
-                        } catch (ParseException e) {
-                            e.printStackTrace();
-                        }
-
-                        StationMeasurement2 measurement = new StationMeasurement2(dateTime, value, variable);
-                        measurements.add(measurement);
-                    }
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-
-        return measurements;
-    }
-
-    public static void getMeasurements(String urlString, String device, int channel){
-
-        logger.info("\n\n**************** Fetching Measurements *************\n");
-        logger.info("\n====> Url : {}\n", urlString);
-
-        try {
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .build();
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .GET()
-                    .uri(URI.create(urlString))
-                    .setHeader("Accept", "application/json")
-                    .build();
-
-            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            RawMeasurement measurements = new ObjectMapper().readerFor(RawMeasurement.class).readValue(httpResponse.body());
-
-            String humidity = measurements.getInternalHumidity().toLowerCase().trim();
-            String temp = measurements.getInternalTemperature().toLowerCase().trim();
-
-            if(isNull(humidity) || isNull(temp) ){
-                logger.info(device + " : " + channel);
-//                logger.info(device);
-            }
-        }
-        catch (Exception e){
-            e.printStackTrace();
-        }
-    }
-
-    public static boolean isNull(String value){
-        try {
-            double data = Double.parseDouble(value);
-            if (data < 0.0 || data > 1000 )
-                return true;
-
-        } catch (NumberFormatException e) {
-            return true;
-        }
-        return false;
-    }
-
-    public static StationResponse getStationMeasurements2(Properties props, String stationCode, Date startTime,
-                                                         Date endTime, String stationTimeZone){
-
-        logger.info("\n\n********** Fetching Station Data **************\n");
-
-        StationResponse stationResponse;
-
-        try {
-
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
-            dateFormat.setTimeZone(TimeZone.getTimeZone(stationTimeZone));
-
-            logger.info("{}", dateFormat.format(startTime));
-            logger.info("{}", dateFormat.format(endTime));
-
-            String urlString =  String.format("%sservices/measurements/v2/stations/%s/measurements/%s?start=%s&end=%s",
-                    props.getProperty("tahmo.base.url") , stationCode, "controlled",
-                    dateFormat.format(startTime), dateFormat.format(endTime));
-
-            logger.info("Station Measurements url {}", urlString);
-
-            HttpClient httpClient = HttpClient.newBuilder()
-                    .build();
-
-            String auth = props.getProperty("tahmo.user") + ":" + props.getProperty("tahmo.password");
-            byte[] encodedAuth = Base64.getEncoder().encode(
-                    auth.getBytes(StandardCharsets.ISO_8859_1));
-            String authHeader = "Basic " + new String(encodedAuth);
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .GET()
-                    .uri(URI.create(urlString))
-                    .setHeader("Accept", "application/json")
-                    .setHeader(HttpHeaders.AUTHORIZATION, authHeader)
-                    .build();
-
-            HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-
-            ObjectMapper objectMapper = new ObjectMapper();
-
-            stationResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
-            return stationResponse;
-        }
-        catch (Exception e){
-            e.printStackTrace();
-            return new StationResponse();
-        }
-
     }
 
 }

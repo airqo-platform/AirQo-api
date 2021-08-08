@@ -22,9 +22,9 @@ import java.util.concurrent.CountDownLatch;
 public class DeviceMeasurements {
     private static final Logger logger = LoggerFactory.getLogger(DeviceMeasurements.class);
 
-    static Properties getStreamsConfig(String propertiesFile) {
+    static Properties getStreamsConfig() {
 
-        final Properties properties = Utils.loadEnvProperties(propertiesFile);
+        final Properties properties = Utils.loadEnvProperties("application.properties");
 
         try {
 
@@ -50,7 +50,6 @@ public class DeviceMeasurements {
 
         logger.info("Env Properties {}", properties );
         return properties;
-
     }
 
     static void createMeasurementsStream(final StreamsBuilder builder, Properties props) {
@@ -65,14 +64,14 @@ public class DeviceMeasurements {
                 .stream(props.getProperty("input.topic"), Consumed.with(Serdes.String(), measurementsSerde));
 
         final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>(key, Utils.batchAddHumidityAndTemp(value, props)));
+                .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
 
         transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
     }
 
     public static void main(final String[] args) {
 
-        final Properties streamsConfiguration = getStreamsConfig("application.properties");
+        final Properties streamsConfiguration = getStreamsConfig();
 
         logger.info("Started Connector");
         logger.info(new Date( System.currentTimeMillis()).toString());
