@@ -41,31 +41,32 @@ const manageSite = {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return badRequest(res, "bad request errors", nestedErrors);
       }
-
       const { tenant } = req.query;
-
-      const { latitude, longitude, name } = req.body;
       let responseFromCreateSite = await createSiteUtil.create(tenant, req);
       logObject("responseFromCreateSite in controller", responseFromCreateSite);
-      if (responseFromCreateSite.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromCreateSite.success === true) {
+        let status = responseFromCreateSite.status
+          ? responseFromCreateSite.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromCreateSite.message,
           site: responseFromCreateSite.data,
         });
-      } else if (responseFromCreateSite.success == false) {
-        if (responseFromCreateSite.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromCreateSite.message,
-            error: responseFromCreateSite.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromCreateSite.message,
-          });
-        }
+      }
+
+      if (responseFromCreateSite.success === false) {
+        let error = responseFromCreateSite.error
+          ? responseFromCreateSite.error
+          : "";
+        let status = responseFromCreateSite.status
+          ? responseFromCreateSite.status
+          : HTTPStatus.CONFLICT;
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateSite.message,
+          error,
+        });
       }
     } catch (error) {
       tryCatchErrors(res, error, "manageSite controller");
@@ -209,25 +210,30 @@ const manageSite = {
       let update = req.body;
       let responseFromRefreshSite = await createSiteUtil.refresh(tenant, req);
       logObject("responseFromRefreshSite", responseFromRefreshSite);
-      if (responseFromRefreshSite.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromRefreshSite.success === true) {
+        let status = responseFromRefreshSite.status
+          ? responseFromRefreshSite.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRefreshSite.message,
           site: responseFromRefreshSite.data,
         });
-      } else if (responseFromRefreshSite.success == false) {
-        if (responseFromRefreshSite.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRefreshSite.message,
-            error: responseFromRefreshSite.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRefreshSite.message,
-          });
-        }
+      }
+
+      if (responseFromRefreshSite.success === false) {
+        let error = responseFromRefreshSite.error
+          ? responseFromRefreshSite.error
+          : "";
+        let status = responseFromRefreshSite.status
+          ? responseFromRefreshSite.status
+          : HTTPStatus.BAD_GATEWAY;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromRefreshSite.message,
+          error,
+        });
       }
     } catch (error) {
       tryCatchErrors(res, error, "manageSite controller");
@@ -266,24 +272,30 @@ const manageSite = {
         responseFromListSites.success
       );
       if (responseFromListSites.success === true) {
-        res.status(HTTPStatus.OK).json({
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : HTTPStatus.OK;
+        res.status(status).json({
           success: true,
           message: responseFromListSites.message,
           sites: responseFromListSites.data,
         });
-      } else if (responseFromListSites.success === false) {
-        if (responseFromListSites.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromListSites.message,
-            error: responseFromListSites.error,
-          });
-        } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromListSites.message,
-          });
-        }
+      }
+
+      if (responseFromListSites.success === false) {
+        let error = responseFromListSites.error
+          ? responseFromListSites.error
+          : "";
+
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : HTTPStatus.BAD_GATEWAY;
+
+        res.status(status).json({
+          success: false,
+          message: responseFromListSites.message,
+          error,
+        });
       }
     } catch (error) {
       tryCatchErrors(res, error, "create site controller");
