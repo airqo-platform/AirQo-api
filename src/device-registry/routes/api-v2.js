@@ -246,8 +246,8 @@ router.post(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat()
-        .withMessage("height must be a float")
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
         .bail()
         .toFloat(),
       body("elevation")
@@ -469,8 +469,8 @@ router.put(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat()
-        .withMessage("height must be a float")
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
         .bail()
         .toFloat(),
       body("elevation")
@@ -802,8 +802,8 @@ router.put(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat()
-        .withMessage("height must be a float")
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
         .bail()
         .toFloat(),
       body("elevation")
