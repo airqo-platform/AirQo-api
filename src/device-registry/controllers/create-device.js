@@ -15,6 +15,7 @@ const {
 const getDetail = require("../utils/get-device-details");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-controller");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const device = {
   decryptKey: async (req, res) => {
@@ -44,7 +45,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
 
       let responseFromCreateDevice = await registerDeviceUtil.create(req);
@@ -86,7 +91,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       let { body } = req;
       let { tenant, device_number, id, name, include_site } = req.query;
@@ -137,7 +146,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { device, name, id, device_number, tenant } = req.query;
 
@@ -199,7 +212,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant, device_number, id, name, device } = req.query;
       const { body } = req;
@@ -247,7 +264,12 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        logObject(" nestedErrors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       let responseFromListDeviceDetails = await registerDeviceUtil.list(req);
       logElement(
@@ -318,7 +340,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant, device, device_number, name, id } = req.query;
       const { body } = req;
@@ -371,7 +397,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { device, name, id, device_number, tenant } = req.query;
 
@@ -424,7 +454,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant } = req.query;
       const { body } = req;
