@@ -208,9 +208,11 @@ def periodic_function(tenant, airqloud):
     '''
     Re-trains the model regularly
     '''
+    print('starting')
     X = np.zeros([0,3])
     Y = np.zeros([0,1])
     channels = get_channels_ts(airqloud)
+    print('ongoing')
     for channel in channels:
         d = download_seven_days_ts(channel['id'], channel['api_key'])
         if d.shape[0]!=0:
