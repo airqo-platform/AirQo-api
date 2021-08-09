@@ -2,13 +2,10 @@ import pandas as pd
 import numpy as np
 import datetime
 from google.cloud import bigquery
-from google.cloud import storage
 from sklearn.ensemble import RandomForestRegressor 
 import pickle
 import gcsfs
 import joblib
-from sklearn import metrics
-from sklearn.model_selection import cross_val_score, KFold
 
 client = bigquery.Client.from_service_account_json("jobs/airqo-250220-5149c2aac8f2.json")
 
@@ -20,10 +17,6 @@ def get_lowcost_data():
         `airqo-250220.thingspeak.clean_feeds_pms`
     WHERE 
         channel_id = 967600
-    AND 
-        created_at >= '2020-07-15 00:00:00'
-    AND 
-        created_at <= '2021-03-23 23:59:59'
     GROUP BY 
         created_at,pm2_5,s2_pm2_5,pm10,s2_pm10
     ORDER BY 
@@ -53,10 +46,6 @@ def get_bam_data():
         `airqo-250220.thingspeak.airqo_bam_data`
     WHERE 
         channel_id = -24516
-    AND 
-        Time >= '2020-07-15 00:00:00'
-    AND 
-        Time <= '2021-03-23 23:59:59'
     GROUP BY 
         Time,ConcHR_ug_m3, AT_C, RH
     ORDER BY 
@@ -111,10 +100,10 @@ def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
     
     return hourly_combined_dataset
 
-def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
-    fs = gcsfs.GCSFileSystem(project=project_name)    
-    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-        job = joblib.dump(trained_model,handle)
+# def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
+#     fs = gcsfs.GCSFileSystem(project=project_name)    
+#     with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
+#         job = joblib.dump(trained_model,handle)
 
 
 def random_forest(hourly_combined_dataset):
@@ -124,12 +113,12 @@ def random_forest(hourly_combined_dataset):
     rf_regressor = RandomForestRegressor(random_state=42, max_features='sqrt', n_estimators= 1000, max_depth=50, bootstrap = True)
     # Fitting the model 
     rf_regressor = rf_regressor.fit(X, y) 
-    # # save the model to disk
-    # filename = 'jobs/rf_reg_model.sav'
-    # pickle.dump(rf_regressor, open(filename, 'wb'))
+    # save the model to disk
+    filename = 'jobs/rf_reg_model.pkl'
+    pickle.dump(rf_regressor, open(filename, 'wb'))
 
     ##dump the model to google cloud storage.
-    save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+    #save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
 
     
     return rf_regressor
