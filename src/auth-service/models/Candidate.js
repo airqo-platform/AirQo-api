@@ -10,7 +10,6 @@ const CandidateSchema = new mongoose.Schema({
     type: String,
     required: [true, "Email is required"],
     trim: true,
-    unique: true,
     validate: {
       validator(email) {
         return validator.isEmail(email);
@@ -40,8 +39,6 @@ const CandidateSchema = new mongoose.Schema({
     type: String,
   },
 });
-
-CandidateSchema.index({ email: 1 }, { unique: true });
 
 CandidateSchema.statics = {
   register(args) {

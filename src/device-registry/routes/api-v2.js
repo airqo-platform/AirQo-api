@@ -72,12 +72,7 @@ router.get(
       query("name")
         .if(query("name").exists())
         .notEmpty()
-        .trim()
-        .isLowercase()
-        .withMessage("device name should be lower case")
-        .bail()
-        .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the device names do not have spaces in them"),
+        .trim(),
     ],
   ]),
   deviceController.list
@@ -972,25 +967,13 @@ router.post(
         .withMessage("the latitude is is missing in your request")
         .bail()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("the latitude provided is not valid")
-        .bail()
-        .customSanitizer((value) => {
-          return sanitize.roundAccurately(value, 5);
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude provided is not valid"),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude provided is not valid")
-        .bail()
-        .customSanitizer((value) => {
-          return sanitize.roundAccurately(value, 5);
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have 5 decimal places in it"),
+        .withMessage("the longitude provided is not valid"),
       body("powerType")
         .exists()
         .withMessage("the powerType is is missing in your request")
@@ -1231,7 +1214,7 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("lat_log")
+    query("lat_long")
       .exists()
       .withMessage(
         "the site identifier is missing in request, consider using lat_long"
@@ -1274,7 +1257,7 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("lat_log")
+    query("lat_long")
       .exists()
       .withMessage(
         "the site identifier is missing in request, consider using lat_long"
