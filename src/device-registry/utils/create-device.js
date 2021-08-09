@@ -197,7 +197,7 @@ const registerDeviceUtil = {
         logger.info(
           `responseFromListDevice -- ${JSON.stringify(responseFromListDevice)}`
         );
-        if (!responseFromListDevice.success) {
+        if (responseFromListDevice.success === false) {
           let error = responseFromListDevice.error
             ? responseFromListDevice.error
             : "";
@@ -212,7 +212,7 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UNmodifiedRequest ", jsonify(request));
+      logObject("the UnmodifiedRequest ", jsonify(request));
       let responseFromUpdateDeviceOnThingspeak = await registerDeviceUtil.updateOnThingspeak(
         modifiedRequest
       );
@@ -221,7 +221,7 @@ const registerDeviceUtil = {
           responseFromUpdateDeviceOnThingspeak
         )}`
       );
-      if (responseFromUpdateDeviceOnThingspeak.success) {
+      if (responseFromUpdateDeviceOnThingspeak.success === true) {
         let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
           request
         );
@@ -230,14 +230,14 @@ const registerDeviceUtil = {
             responseFromUpdateDeviceOnPlatform
           )}`
         );
-        if (responseFromUpdateDeviceOnPlatform.success) {
+        if (responseFromUpdateDeviceOnPlatform.success === true) {
           return {
             success: true,
             message: responseFromUpdateDeviceOnPlatform.message,
             data: responseFromUpdateDeviceOnPlatform.data,
           };
         }
-        if (!responseFromUpdateDeviceOnPlatform.success) {
+        if (responseFromUpdateDeviceOnPlatform.success === false) {
           let error = responseFromUpdateDeviceOnPlatform.error
             ? responseFromUpdateDeviceOnPlatform.error
             : "";
@@ -249,7 +249,7 @@ const registerDeviceUtil = {
         }
       }
 
-      if (!responseFromUpdateDeviceOnThingspeak.success) {
+      if (responseFromUpdateDeviceOnThingspeak.success === false) {
         let error = responseFromUpdateDeviceOnThingspeak.error
           ? responseFromUpdateDeviceOnThingspeak.error
           : "";
