@@ -20,18 +20,18 @@ storage_client = storage.Client.from_service_account_json(CREDENTIALS)
 shapefile_path = os.path.join(BASE_DIR,'shape_files')
 #kawempe_ids = ['aq_54', 'aq_76', 'aq_94','aq_g507','aq_g508','aq_g509', 'aq_g512', 'aq_91', 'ANQ16PZJ', 'ALS2LCWY', 'AB6051M4', 
 #'AW66FF7V', 'A743BPWK']
-kawempe_ids = {'loc_54':832254, 'loc_76':930431, 'loc_80':1014691, 'loc_89':1351535, 'loc_90':1351540, 'loc_91':1351542, 
-'loc_92':1351543, 'loc_93':1351546, 'loc_94':1014687, 'KCCA_KWPE_AQ01':'ANQ16PZJ', 'KCCA_KWPE_AQ02': 'ALS2LCWY', 
-'KCCA_KWPE_AQ03':'AB6051M4', 'KCCA_KWPE_AQ04':'AW66FF7V', 'KCCA_KWPE_AQ05': 'A743BPWK'}
+#kawempe_ids = {'loc_54':832254, 'loc_76':930431, 'loc_80':1014691, 'loc_89':1351535, 'loc_90':1351540, 'loc_91':1351542, 
+#'loc_92':1351543, 'loc_93':1351546, 'loc_94':1014687, 'KCCA_KWPE_AQ01':'ANQ16PZJ', 'KCCA_KWPE_AQ02': 'ALS2LCWY', 
+#'KCCA_KWPE_AQ03':'AB6051M4', 'KCCA_KWPE_AQ04':'AW66FF7V', 'KCCA_KWPE_AQ05': 'A743BPWK'}
 
-kampala_ids = {'aq_79':930434, 'aq_29':718028, 'aq_69':912224, 'aq_71':930426, 'aq_72':930427, 'aq_68':912223, 'aq_67':912222, 
-'aq_65':912220, 'aq_61':870145, 'aq_59':870143, 'aq_60':870144, 'aq_63':870147, 'aq_58':870142, 'aq_56':870139, 'aq_55':832255, 
-'aq_52':832252, 'aq_53':832253, 'aq_54':832254, 'aq_51':832251, 'aq_47':782720, 'aq_46':782719, 'aq_45':782718, 'aq_44':755614, 
-'aq_43':755612, 'aq_62':870146, 'aq_39':737276, 'aq_36':737273, 'aq_26':689761, 'aq_30':718029, 'aq_31':718030, 'aq_32':730014, 
-'aq_48':782721, 'aq_49':782722, 'aq_64':912219, 'aq_66':912221, 'aq_70':912225, 'aq_74':930429} #maybe add kcca devices
+#kampala_ids = {'aq_79':930434, 'aq_29':718028, 'aq_69':912224, 'aq_71':930426, 'aq_72':930427, 'aq_68':912223, 'aq_67':912222, 
+#'aq_65':912220, 'aq_61':870145, 'aq_59':870143, 'aq_60':870144, 'aq_63':870147, 'aq_58':870142, 'aq_56':870139, 'aq_55':832255, 
+#'aq_52':832252, 'aq_53':832253, 'aq_54':832254, 'aq_51':832251, 'aq_47':782720, 'aq_46':782719, 'aq_45':782718, 'aq_44':755614, 
+#'aq_43':755612, 'aq_62':870146, 'aq_39':737276, 'aq_36':737273, 'aq_26':689761, 'aq_30':718029, 'aq_31':718030, 'aq_32':730014, 
+#'aq_48':782721, 'aq_49':782722, 'aq_64':912219, 'aq_66':912221, 'aq_70':912225, 'aq_74':930429} #maybe add kcca devices
 
 
-airqloud_dict = {'kampala':kampala_ids, 'kawempe':kawempe_ids}
+#airqloud_dict = {'kampala':kampala_ids, 'kawempe':kawempe_ids}
 
 
 def get_channels(airqloud):
@@ -230,11 +230,12 @@ def periodic_function(tenant, airqloud):
 
 
 if __name__=='__main__':
-    parser = argparse.ArgumentParser(description='save gpmodel prediction.')
-    parser.add_argument('--tenant',
-                        default="airqo",
-                        help='the tenant key is the organisation name')
+    print('My name is Allen')
+    #parser = argparse.ArgumentParser(description='save gpmodel prediction.')
+    #parser.add_argument('--tenant',
+    #                    default="airqo",
+    #                    help='the tenant key is the organisation name')
 
-    args = parser.parse_args()
-    periodic_function(args.tenant, 'kampala')
-    periodic_function(args.tenant, 'kawempe')
+    #args = parser.parse_args()
+    #periodic_function(args.tenant, 'kampala')
+    #periodic_function(args.tenant, 'kawempe')
