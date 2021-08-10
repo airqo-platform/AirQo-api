@@ -53,7 +53,7 @@ const device = {
           responseFromCreateDevice
         )}`
       );
-      if (responseFromCreateDevice.success == true) {
+      if (responseFromCreateDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromCreateDevice.message,
@@ -61,7 +61,7 @@ const device = {
         });
       }
 
-      if (responseFromCreateDevice.success == false) {
+      if (responseFromCreateDevice.success === false) {
         let error = responseFromCreateDevice.error
           ? responseFromCreateDevice.error
           : "";
@@ -160,7 +160,7 @@ const device = {
         )}`
       );
 
-      if (responseFromRemoveDevice.success == true) {
+      if (responseFromRemoveDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromRemoveDevice.message,
@@ -168,19 +168,13 @@ const device = {
         });
       }
 
-      if (responseFromRemoveDevice.success == false) {
+      if (responseFromRemoveDevice.success === false) {
         let error = responseFromRemoveDevice.error
           ? responseFromRemoveDevice.error
           : "";
-        let status = HTTPStatus.BAD_REQUEST;
-        if (!isEmpty(responseFromRemoveDevice.status)) {
-          status = errorCodes.serverErrors.includes(
-            responseFromRemoveDevice.status
-          )
-            ? HTTPStatus.BAD_GATEWAY
-            : HTTPStatus.NOT_FOUND;
-        }
-
+        let status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveDevice.message,
@@ -394,7 +388,7 @@ const device = {
         )}`
       );
 
-      if (responseFromRemoveDevice.success == true) {
+      if (responseFromRemoveDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromRemoveDevice.message,
@@ -402,12 +396,12 @@ const device = {
         });
       }
 
-      if (responseFromRemoveDevice.success == false) {
+      if (responseFromRemoveDevice.success === false) {
         let error = responseFromRemoveDevice.error
           ? responseFromRemoveDevice.error
           : "";
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: responseFromRemoveDevice.message,
           error,
@@ -442,7 +436,7 @@ const device = {
           responseFromCreateOnPlatform
         )}`
       );
-      if (responseFromCreateOnPlatform.success == true) {
+      if (responseFromCreateOnPlatform.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromCreateOnPlatform.message,
@@ -450,7 +444,7 @@ const device = {
         });
       }
 
-      if (responseFromCreateOnPlatform.success == false) {
+      if (responseFromCreateOnPlatform.success === false) {
         let error = responseFromCreateOnPlatform.error
           ? responseFromCreateOnPlatform.error
           : "";
