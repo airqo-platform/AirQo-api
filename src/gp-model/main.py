@@ -13,6 +13,7 @@ from config import configuration
 import argparse
 from pathlib import Path
 from helpers.get_data import get_pm_data
+from multiprocessing import Process
 
 BASE_DIR = Path(__file__).resolve().parent
 CREDENTIALS = configuration.CREDENTIALS
@@ -230,12 +231,17 @@ def periodic_function(tenant, airqloud):
 
 
 if __name__=='__main__':
-    print('My name is Allen')
-    #parser = argparse.ArgumentParser(description='save gpmodel prediction.')
-    #parser.add_argument('--tenant',
-    #                    default="airqo",
-    #                    help='the tenant key is the organisation name')
+    #print('My name is Allen')
+    start = datetime.now()
+    print(f'Main function started at {start}')
+    parser = argparse.ArgumentParser(description='save gpmodel prediction.')
+    parser.add_argument('--tenant',
+                        default="airqo",
+                        help='the tenant key is the organisation name')
 
-    #args = parser.parse_args()
-    #periodic_function(args.tenant, 'kampala')
-    #periodic_function(args.tenant, 'kawempe')
+    args = parser.parse_args()
+    periodic_function(args.tenant, 'kampala')
+    periodic_function(args.tenant, 'kawempe')
+    end = datetime.now()
+    print(f'Main function completed at {end}')
+    print(f'function took {end-start} time')
