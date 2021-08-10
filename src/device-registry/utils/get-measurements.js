@@ -38,6 +38,7 @@ const getDevicesCount = async (tenant) => {
 
 const generateCacheID = (
   device,
+  device_number,
   device_id,
   site,
   site_id,
@@ -58,7 +59,7 @@ const generateCacheID = (
     startTime ? startTime : "noStartTime"
   }_${device_id ? device_id : "noDeviceId"}_${site ? site : "noSite"}_${
     site_id ? site_id : "noSiteId"
-  }_${day ? day : "noDay"}`;
+  }_${day ? day : "noDay"}_${device_number ? device_number : "noDeviceNumber"}`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -83,6 +84,7 @@ const getMeasurements = async (
   res,
   recent,
   device,
+  device_number,
   device_id,
   site,
   site_id,
@@ -98,6 +100,7 @@ const getMeasurements = async (
     const day = generateDateFormatWithoutHrs(currentTime);
     let cacheID = generateCacheID(
       device,
+      device_number,
       device_id,
       site,
       site_id,
@@ -121,6 +124,7 @@ const getMeasurements = async (
         } else {
           const filter = generateFilter.events(
             device,
+            device_number,
             device_id,
             site,
             site_id,
