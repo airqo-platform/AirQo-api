@@ -12,7 +12,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Config:
     dotenv_path = os.path.join(BASE_DIR, '.env')
-    #print("dotenv", dotenv_path)
     load_dotenv(dotenv_path)
     DEBUG = False
     TESTING = False
