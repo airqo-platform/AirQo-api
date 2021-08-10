@@ -1,10 +1,11 @@
-const AirQloudSchema = require("../models/AirQloud");
+const AirQloudSchema = require("../models/Airqloud");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
 const jsonify = require("./jsonify");
 const axios = require("axios");
+const HTTPStatus = require("http-status");
 const axiosInstance = () => {
   return axios.create();
 };
@@ -15,32 +16,54 @@ const logger = log4js.getLogger("create-airqloud-util");
 
 const createAirqloud = {
   create: async (request) => {
-    let { body } = request;
-    let { tenant } = request.query;
+    try {
+      let { body } = request;
+      let { tenant } = request.query;
+      logObject("body", body);
 
-    let responseFromCreateAirQloud = await getModelByTenant(
-      tenant.toLowerCase(),
-      "airqloud",
-      AirQloudSchema
-    ).create(body);
+      let responseFromRegisterAirQloud = await getModelByTenant(
+        tenant.toLowerCase(),
+        "airqloud",
+        AirQloudSchema
+      ).register(body);
 
-    if (responseFromCreateAirQloud.success === true) {
+      logObject("responseFromRegisterAirQloud", responseFromRegisterAirQloud);
+
+      if (responseFromRegisterAirQloud.success === true) {
+        let status = responseFromRegisterAirQloud.status
+          ? responseFromRegisterAirQloud.status
+          : "";
+        return {
+          success: true,
+          message: responseFromRegisterAirQloud.message,
+          data: responseFromRegisterAirQloud.data,
+          status,
+        };
+      }
+
+      if (responseFromRegisterAirQloud.success === false) {
+        let error = responseFromRegisterAirQloud.error
+          ? responseFromRegisterAirQloud.error
+          : "";
+
+        let status = responseFromRegisterAirQloud.status
+          ? responseFromRegisterAirQloud.status
+          : "";
+
+        return {
+          success: false,
+          message: responseFromRegisterAirQloud.message,
+          error,
+          status,
+        };
+      }
+    } catch (err) {
+      logElement("create AirQlouds util", err.message);
       return {
-        success: true,
-        message: responseFromCreateAirQloud.message,
-        data: responseFromCreateAirQloud.data,
-      };
-    }
-
-    if (responseFromCreateAirQloud.success === false) {
-      let error = responseFromCreateAirQloud.error
-        ? responseFromCreateAirQloud.error
-        : "";
-
-      return {
-        success: true,
-        message: responseFromCreateAirQloud.message,
-        error,
+        success: false,
+        message: "unable to create airqloud",
+        error: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -51,7 +74,7 @@ const createAirqloud = {
       let { tenant } = query;
 
       let update = body;
-      let filter = generateFilter.airqlouds(query);
+      let filter = generateFilter.airqlouds(request);
 
       let responseFromModifyAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
@@ -63,10 +86,14 @@ const createAirqloud = {
       });
 
       if (responseFromModifyAirQloud.success === true) {
+        let status = responseFromModifyAirQloud.status
+          ? responseFromModifyAirQloud.status
+          : "";
         return {
           success: true,
           message: responseFromModifyAirQloud.message,
           data: responseFromModifyAirQloud.data,
+          status,
         };
       }
 
@@ -75,18 +102,24 @@ const createAirqloud = {
           ? responseFromModifyAirQloud.error
           : "";
 
+        let status = responseFromModifyAirQloud.status
+          ? responseFromModifyAirQloud.status
+          : "";
+
         return {
           success: false,
           message: responseFromModifyAirQloud.message,
           error,
+          status,
         };
       }
-    } catch (e) {
-      logElement("update AirQlouds util", e.message);
+    } catch (err) {
+      logElement("update AirQlouds util", err.message);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "unable to update airqloud",
+        error: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -94,7 +127,7 @@ const createAirqloud = {
     try {
       let { query } = request;
       let { tenant } = query;
-      let filter = generateFilter.airqlouds(query);
+      let filter = generateFilter.airqlouds(request);
       let responseFromRemoveAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
         "airqloud",
@@ -102,11 +135,16 @@ const createAirqloud = {
       ).remove({
         filter,
       });
+
       if (responseFromRemoveAirQloud.success === true) {
+        let status = responseFromRemoveAirQloud.status
+          ? responseFromRemoveAirQloud.status
+          : "";
         return {
           success: true,
           message: responseFromRemoveAirQloud.message,
           data: responseFromRemoveAirQloud.data,
+          status,
         };
       }
 
@@ -115,18 +153,24 @@ const createAirqloud = {
           ? responseFromRemoveAirQloud.error
           : "";
 
+        let status = responseFromRemoveAirQloud.status
+          ? responseFromRemoveAirQloud.status
+          : "";
+
         return {
           success: false,
           message: responseFromRemoveAirQloud.message,
           error,
+          status,
         };
       }
-    } catch (e) {
-      logElement("delete AirQloud util", e.message);
+    } catch (err) {
+      logElement("delete AirQloud util", err.message);
       return {
         success: false,
-        message: "delete AirQloud util server error",
-        error: e.message,
+        message: "unable to delete airqloud",
+        error: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -136,7 +180,7 @@ const createAirqloud = {
       let { tenant } = query;
       const limit = parseInt(query.limit, 0);
       const skip = parseInt(query.skip, 0);
-      let filter = generateFilter.airqlouds(query);
+      let filter = generateFilter.airqlouds(request);
 
       let responseFromListAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
@@ -147,31 +191,42 @@ const createAirqloud = {
         limit,
         skip,
       });
+
       if (responseFromListAirQloud.success === false) {
         let error = responseFromListAirQloud.error
           ? responseFromListAirQloud.error
+          : "";
+
+        let status = responseFromListAirQloud.status
+          ? responseFromListAirQloud.status
           : "";
         return {
           success: false,
           message: responseFromListAirQloud.message,
           error,
+          status,
         };
       }
 
       if (responseFromListAirQloud.success === true) {
+        let status = responseFromListAirQloud.status
+          ? responseFromListAirQloud.status
+          : "";
         data = responseFromListAirQloud.data;
         return {
           success: true,
           message: "successfully listed the site(s)",
           data,
+          status,
         };
       }
-    } catch (e) {
-      logElement("list AirQlouds util", e.message);
+    } catch (err) {
+      logElement("list AirQlouds util", err.message);
       return {
         success: false,
-        message: "list AirQlouds util server error",
-        error: e.message,
+        message: "unable to list airqloud",
+        error: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

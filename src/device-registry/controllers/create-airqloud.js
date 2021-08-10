@@ -1,9 +1,7 @@
 const HTTPStatus = require("http-status");
-const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 const { tryCatchErrors, badRequest } = require("../utils/errors");
-const generateFilter = require("../utils/generate-filter");
 const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-util");
@@ -30,7 +28,10 @@ const createAirqloud = {
         responseFromCreateAirQloud
       );
       if (responseFromCreateAirQloud.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromCreateAirQloud.status
+          ? responseFromCreateAirQloud.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromCreateAirQloud.message,
           airqloud: responseFromCreateAirQloud.data,
@@ -38,11 +39,14 @@ const createAirqloud = {
       }
 
       if (responseFromCreateAirQloud.success === false) {
+        let status = responseFromCreateAirQloud.status
+          ? responseFromCreateAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         let error = responseFromCreateAirQloud.error
           ? responseFromCreateAirQloud.error
           : "";
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(status).json({
           success: false,
           message: responseFromCreateAirQloud.message,
           error,
@@ -70,7 +74,10 @@ const createAirqloud = {
       let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
 
       if (responseFromRemoveAirQloud.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromRemoveAirQloud.status
+          ? responseFromRemoveAirQloud.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveAirQloud.message,
           airqloud: responseFromRemoveAirQloud.data,
@@ -81,7 +88,10 @@ const createAirqloud = {
         let error = responseFromRemoveAirQloud.error
           ? responseFromRemoveAirQloud.error
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        let status = responseFromRemoveAirQloud.status
+          ? responseFromRemoveAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
           message: responseFromRemoveAirQloud.message,
           error,
@@ -108,7 +118,10 @@ const createAirqloud = {
       let responseFromUpdateAirQloud = await createAirQloudUtil.update(request);
       logObject("responseFromUpdateAirQloud", responseFromUpdateAirQloud);
       if (responseFromUpdateAirQloud.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromUpdateAirQloud.status
+          ? responseFromUpdateAirQloud.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromUpdateAirQloud.message,
           airqloud: responseFromUpdateAirQloud.data,
@@ -120,7 +133,11 @@ const createAirqloud = {
           ? responseFromUpdateAirQloud.error
           : "";
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        let status = responseFromUpdateAirQloud.status
+          ? responseFromUpdateAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
           success: false,
           message: responseFromUpdateAirQloud.message,
           error,
@@ -149,7 +166,10 @@ const createAirqloud = {
         responseFromListAirQlouds.success
       );
       if (responseFromListAirQlouds.success === true) {
-        res.status(HTTPStatus.OK).json({
+        let status = responseFromListAirQlouds.status
+          ? responseFromListAirQlouds.status
+          : HTTPStatus.OK;
+        res.status(status).json({
           success: true,
           message: responseFromListAirQlouds.message,
           airqlouds: responseFromListAirQlouds.data,
@@ -160,7 +180,10 @@ const createAirqloud = {
         let error = responseFromListAirQlouds.error
           ? responseFromListAirQlouds.error
           : "";
-        res.status(HTTPStatus.BAD_GATEWAY).json({
+        let status = responseFromListAirQlouds.status
+          ? responseFromListAirQlouds.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
           success: false,
           message: responseFromListAirQlouds.message,
           error,
@@ -188,7 +211,10 @@ const createAirqloud = {
       let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
 
       if (responseFromRemoveAirQloud.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromRemoveAirQloud.status
+          ? responseFromRemoveAirQloud.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveAirQloud.message,
           airqloud: responseFromRemoveAirQloud.data,
@@ -199,7 +225,10 @@ const createAirqloud = {
         let error = responseFromRemoveAirQloud.error
           ? responseFromRemoveAirQloud.error
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        let status = responseFromRemoveAirQloud.status
+          ? responseFromRemoveAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
           message: responseFromRemoveAirQloud.message,
           error,
