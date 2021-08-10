@@ -228,7 +228,9 @@ def predictions_for_heatmap():
     '''
     if request.method == 'POST':
         try:
-            data = get_gp_predictions()
+            json_data = request.get_json()
+            airqloud = json_data['airqloud']
+            data = get_gp_predictions(airqloud)
             return {'success': True, 'data': data}, 200
         except:
             return {'message': 'An error occured. Please try again.', 'success': False}, 400
