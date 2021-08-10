@@ -78,7 +78,7 @@ const registerDeviceUtil = {
       );
 
       logger.info(
-        `responseFromCreateOnThingspeak -- ${JSON.stringify(
+        `responseFromCreateOnThingspeak -- ${jsonify(
           responseFromCreateOnThingspeak
         )}`
       );
@@ -87,7 +87,7 @@ const registerDeviceUtil = {
         ? responseFromCreateOnThingspeak.data
         : {};
       logger.info(
-        `enrichmentDataForDeviceCreation -- ${JSON.stringify(
+        `enrichmentDataForDeviceCreation -- ${jsonify(
           enrichmentDataForDeviceCreation
         )}`
       );
@@ -105,7 +105,7 @@ const registerDeviceUtil = {
 
         if (responseFromCreateDeviceOnPlatform.success) {
           logger.info(
-            `successfully create the device --  ${JSON.stringify(
+            `successfully create the device --  ${jsonify(
               responseFromCreateDeviceOnPlatform.data
             )}`
           );
@@ -121,13 +121,13 @@ const registerDeviceUtil = {
           deleteRequest["query"] = {};
           deleteRequest["query"]["device_number"] =
             enrichmentDataForDeviceCreation.device_number;
-          logger.info(`deleteRequest -- ${JSON.stringify(deleteRequest)}`);
+          logger.info(`deleteRequest -- ${jsonify(deleteRequest)}`);
           let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
             deleteRequest
           );
 
           logger.info(
-            ` responseFromDeleteDeviceFromThingspeak -- ${JSON.stringify(
+            ` responseFromDeleteDeviceFromThingspeak -- ${jsonify(
               responseFromDeleteDeviceFromThingspeak
             )}`
           );
@@ -195,9 +195,9 @@ const registerDeviceUtil = {
         logger.info(`the device_number is not present`);
         let responseFromListDevice = await registerDeviceUtil.list(request);
         logger.info(
-          `responseFromListDevice -- ${JSON.stringify(responseFromListDevice)}`
+          `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
         );
-        if (!responseFromListDevice.success) {
+        if (responseFromListDevice.success === false) {
           let error = responseFromListDevice.error
             ? responseFromListDevice.error
             : "";
@@ -212,32 +212,32 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UNmodifiedRequest ", jsonify(request));
+      logObject("the UnmodifiedRequest ", jsonify(request));
       let responseFromUpdateDeviceOnThingspeak = await registerDeviceUtil.updateOnThingspeak(
         modifiedRequest
       );
       logger.info(
-        `responseFromUpdateDeviceOnThingspeak -- ${JSON.stringify(
+        `responseFromUpdateDeviceOnThingspeak -- ${jsonify(
           responseFromUpdateDeviceOnThingspeak
         )}`
       );
-      if (responseFromUpdateDeviceOnThingspeak.success) {
+      if (responseFromUpdateDeviceOnThingspeak.success === true) {
         let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
           request
         );
         logger.info(
-          `responseFromUpdateDeviceOnPlatform -- ${JSON.stringify(
+          `responseFromUpdateDeviceOnPlatform -- ${jsonify(
             responseFromUpdateDeviceOnPlatform
           )}`
         );
-        if (responseFromUpdateDeviceOnPlatform.success) {
+        if (responseFromUpdateDeviceOnPlatform.success === true) {
           return {
             success: true,
             message: responseFromUpdateDeviceOnPlatform.message,
             data: responseFromUpdateDeviceOnPlatform.data,
           };
         }
-        if (!responseFromUpdateDeviceOnPlatform.success) {
+        if (responseFromUpdateDeviceOnPlatform.success === false) {
           let error = responseFromUpdateDeviceOnPlatform.error
             ? responseFromUpdateDeviceOnPlatform.error
             : "";
@@ -249,7 +249,7 @@ const registerDeviceUtil = {
         }
       }
 
-      if (!responseFromUpdateDeviceOnThingspeak.success) {
+      if (responseFromUpdateDeviceOnThingspeak.success === false) {
         let error = responseFromUpdateDeviceOnThingspeak.error
           ? responseFromUpdateDeviceOnThingspeak.error
           : "";
@@ -281,7 +281,7 @@ const registerDeviceUtil = {
         logger.info(`the device_number is not present`);
         let responseFromListDevice = await registerDeviceUtil.list(request);
         logger.info(
-          `responseFromListDevice -- ${JSON.stringify(responseFromListDevice)}`
+          `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
         );
         if (!responseFromListDevice.success) {
           let error = responseFromListDevice.error
@@ -305,7 +305,7 @@ const registerDeviceUtil = {
       );
 
       logger.info(
-        `responseFromDeleteDeviceFromThingspeak -- ${JSON.stringify(
+        `responseFromDeleteDeviceFromThingspeak -- ${jsonify(
           responseFromDeleteDeviceFromThingspeak
         )}`
       );
@@ -315,7 +315,7 @@ const registerDeviceUtil = {
         );
 
         logger.info(
-          `responseFromDeleteDeviceOnPlatform -- ${JSON.stringify(
+          `responseFromDeleteDeviceOnPlatform -- ${jsonify(
             responseFromDeleteDeviceOnPlatform
           )}`
         );
@@ -374,14 +374,12 @@ const registerDeviceUtil = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      logger.info(
-        `responseFromFilter -- ${JSON.stringify(responseFromFilter)}`
-      );
+      logger.info(`responseFromFilter -- ${jsonify(responseFromFilter)}`);
 
       if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
-        logger.info(`the filter in list -- ${JSON.stringify(filter)}`);
+        logger.info(`the filter in list -- ${jsonify(filter)}`);
       }
 
       if (responseFromFilter.success === false) {
@@ -405,7 +403,7 @@ const registerDeviceUtil = {
       });
 
       logger.info(
-        `the responseFromListDevice in list -- ${JSON.stringify(
+        `the responseFromListDevice in list -- ${jsonify(
           responseFromListDevice
         )} `
       );
@@ -468,7 +466,7 @@ const registerDeviceUtil = {
       ).register(body);
 
       logger.info(
-        `the responseFromRegisterDevice --${JSON.stringify(
+        `the responseFromRegisterDevice --${jsonify(
           responseFromRegisterDevice
         )} `
       );
@@ -505,7 +503,7 @@ const registerDeviceUtil = {
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
-      logger.info(`the context -- ${JSON.stringify(context)}`);
+      logger.info(`the context -- ${jsonify(context)}`);
       const responseFromTransformRequestBody = await registerDeviceUtil.transform(
         {
           data,
@@ -514,7 +512,7 @@ const registerDeviceUtil = {
         }
       );
       logger.info(
-        `responseFromTransformRequestBody -- ${JSON.stringify(
+        `responseFromTransformRequestBody -- ${jsonify(
           responseFromTransformRequestBody
         )}`
       );
@@ -566,9 +564,7 @@ const registerDeviceUtil = {
 
   updateOnThingspeak: async (request) => {
     try {
-      logger.info(
-        `  updateOnThingspeak's request -- ${JSON.stringify(request)}`
-      );
+      logger.info(`  updateOnThingspeak's request -- ${jsonify(request)}`);
       const { device_number } = request.query;
       const { body } = request;
       const config = {
@@ -579,7 +575,7 @@ const registerDeviceUtil = {
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
-      logger.info(`the context -- ${JSON.stringify(context)}`);
+      logger.info(`the context -- ${jsonify(context)}`);
       const responseFromTransformRequestBody = await registerDeviceUtil.transform(
         {
           data,
@@ -587,7 +583,7 @@ const registerDeviceUtil = {
         }
       );
       logger.info(
-        `responseFromTransformRequestBody -- ${JSON.stringify(
+        `responseFromTransformRequestBody -- ${jsonify(
           responseFromTransformRequestBody
         )}`
       );
@@ -595,7 +591,7 @@ const registerDeviceUtil = {
         ? responseFromTransformRequestBody.data
         : {};
 
-      logger.info(`transformedBody -- ${JSON.stringify(transformedBody)}`);
+      logger.info(`transformedBody -- ${jsonify(transformedBody)}`);
       if (isEmpty(transformedBody)) {
         return {
           success: false,
@@ -646,7 +642,7 @@ const registerDeviceUtil = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${JSON.stringify(responseFromFilter.data)}`);
+      logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
       if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
@@ -750,7 +746,7 @@ const registerDeviceUtil = {
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
       if (responseFromFilter.success == true) {
-        logger.info(`the filter ${JSON.stringify(responseFromFilter.data)}`);
+        logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
         filter = responseFromFilter.data;
       }
 
@@ -772,9 +768,7 @@ const registerDeviceUtil = {
       ).remove({ filter });
 
       logger.info(
-        `responseFromRemoveDevice --- ${JSON.stringify(
-          responseFromRemoveDevice
-        )}`
+        `responseFromRemoveDevice --- ${jsonify(responseFromRemoveDevice)}`
       );
       if (responseFromRemoveDevice.success == true) {
         return {

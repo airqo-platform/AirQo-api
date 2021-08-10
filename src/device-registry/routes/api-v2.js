@@ -15,6 +15,7 @@ const constants = require("../config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const sanitize = require("../utils/sanitize");
+var numeral = require("numeral");
 
 middlewareConfig(router);
 
@@ -148,8 +149,11 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .if(body("longitude").exists())
         .notEmpty()
@@ -157,8 +161,11 @@ router.post(
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have 5 decimal places in it"),
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
@@ -239,8 +246,8 @@ router.post(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat()
-        .withMessage("height must be a float")
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
         .bail()
         .toFloat(),
       body("elevation")
@@ -462,8 +469,8 @@ router.put(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat()
-        .withMessage("height must be a float")
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
         .bail()
         .toFloat(),
       body("elevation")
@@ -489,8 +496,11 @@ router.put(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .if(body("longitude").exists())
         .notEmpty()
@@ -498,8 +508,11 @@ router.put(
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have 5 decimal places in it"),
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
@@ -789,8 +802,8 @@ router.put(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat()
-        .withMessage("height must be a float")
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
         .bail()
         .toFloat(),
       body("elevation")
@@ -816,8 +829,11 @@ router.put(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .if(body("longitude").exists())
         .notEmpty()
@@ -825,8 +841,11 @@ router.put(
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have 5 decimal places in it"),
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
@@ -967,13 +986,25 @@ router.post(
         .withMessage("the latitude is is missing in your request")
         .bail()
         .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("the latitude provided is not valid"),
+        .withMessage("the latitude provided is not valid")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude provided is not valid"),
+        .withMessage("the longitude provided is not valid")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("powerType")
         .exists()
         .withMessage("the powerType is is missing in your request")
@@ -998,7 +1029,7 @@ router.post(
         .exists()
         .withMessage("the height is is missing in your request")
         .bail()
-        .isInt({ gt: 0, lt: 10 })
+        .isFloat({ gt: 0, lt: 10 })
         .withMessage("the height must be a number between 0 and 10")
         .trim(),
       body("isPrimaryInLocation")
@@ -1139,8 +1170,11 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("the latitude provided is not valid")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
         .withMessage("the longitude is is missing in your request")
@@ -1148,8 +1182,15 @@ router.post(
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("the longitude provided is not valid")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have 5 decimal places in it"),
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .trim(),
     ],
   ]),
   siteController.register
@@ -1174,14 +1215,23 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("the latitude provided is not valid")
         .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
         .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have 5 decimal places in it"),
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
-        .withMessage("the latitude is is missing in your request")
+        .withMessage("the longitude is is missing in your request")
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude should be provided"),
+        .withMessage("the longitude should be provided")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
     ],
   ]),
   siteController.generateMetadata
@@ -1378,11 +1428,11 @@ router.post(
         .notEmpty()
         .trim(),
       body("*.device_number")
-        .if(body("*.device_number").exists())
+        .if(query("*.device_number").exists())
         .notEmpty()
         .trim()
         .isInt()
-        .withMessage("the device number should be a number"),
+        .withMessage("the device_number should be an integer value"),
     ],
   ]),
   eventController.addEvents

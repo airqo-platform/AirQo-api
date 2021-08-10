@@ -38,7 +38,7 @@ const getDetail = async (
       "device",
       DeviceSchema
     ).list({ skip, limit, filter });
-    let parsedDevices = jsonify(devices);
+    let parsedDevices = jsonify(devices.data);
     return parsedDevices;
   } catch (error) {
     logElement("error", error);
