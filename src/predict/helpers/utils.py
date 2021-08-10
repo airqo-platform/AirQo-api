@@ -22,6 +22,7 @@ MET_API_CLIENT_SECRET =os.getenv('MET_API_CLIENT_SECRET')
 
 app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
 MONGO_URI = app_configuration.MONGO_URI
+DB_NAME = app_configuration.DB_NAME
 
 def get_hourly_met_forecasts():
     """
