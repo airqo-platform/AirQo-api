@@ -4,6 +4,7 @@ var uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logText, logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const jsonify = require("../utils/jsonify");
+const HTTPStatus = require("http-status");
 
 const DefaultsSchema = new mongoose.Schema({
   pollutant: {
@@ -100,10 +101,14 @@ DefaultsSchema.methods = {
 DefaultsSchema.statics = {
   async register(args) {
     try {
+      let body = args;
+      if (body.user) {
+        delete body.user;
+      }
       return {
         success: true,
         data: this.create({
-          ...args,
+          ...body,
         }),
         message: "default created",
       };
@@ -169,18 +174,30 @@ DefaultsSchema.statics = {
           success: true,
           message: "successfully modified or created the default",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "defaults do not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
-    } catch (error) {
+    } catch (err) {
+      // logObject("the error", err.code);
+      let error = {};
+      let message = "";
+      let status = "";
+      if (err.code == 11000) {
+        error = err.keyValue;
+        message = "duplicate values provided";
+        status = HTTPStatus.CONFLICT;
+      }
       return {
         success: false,
-        message: "model server error",
-        error: error.message,
+        message,
+        error,
+        status,
       };
     }
   },
@@ -203,11 +220,13 @@ DefaultsSchema.statics = {
           success: true,
           message: "successfully removed the default",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "default does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -215,6 +234,7 @@ DefaultsSchema.statics = {
         success: false,
         message: "model server error",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
