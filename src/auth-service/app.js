@@ -29,18 +29,75 @@ app.use(function (req, res, next) {
   next(err);
 });
 
-// error handler
 app.use(function (err, req, res, next) {
-  // set locals, only providing error in development
-  res.locals.message = err.message;
-  res.locals.error = req.app.get("env") === "development" ? err : {};
+  if (err.status === 404) {
+    res.status(err.status).json({
+      success: false,
+      message: "this endpoint does not exist",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 400) {
+    res.status(err.status).json({
+      success: false,
+      message: "bad request error",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 401) {
+    res.status(err.status).json({
+      success: false,
+      message: "Unauthorized",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 403) {
+    res.status(err.status).json({
+      success: false,
+      message: "Forbidden",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 500) {
+    res.status(err.status).json({
+      success: false,
+      message: "Internal Server Error",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 502) {
+    res.status(err.status).json({
+      success: false,
+      message: "Bad Gateway",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 503) {
+    res.status(err.status).json({
+      success: false,
+      message: "Service Unavailable",
+      error: err.message,
+    });
+  }
+
+  if (err.status === 504) {
+    res.status(err.status).json({
+      success: false,
+      message: " Gateway Timeout.",
+      error: err.message,
+    });
+  }
 
   res.status(err.status || 500).json({
     success: false,
-    message:
-      "this endpoint does not exist OR some request items are missing OR something went wrong during authentication",
+    message: "server side error",
     error: err.message,
-    statusCode: err.statusCode,
   });
 });
 
