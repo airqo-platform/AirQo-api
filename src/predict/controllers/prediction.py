@@ -220,13 +220,13 @@ def predict_channel_next_24_hours():
             return jsonify({'inputs': json_data, 'errors': errors}), 400
 
 
-@ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
+@ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
 @cache.cached(timeout=3600)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
-    if request.method == 'GET':
+    if request.method == 'POST':
         try:
             data = get_gp_predictions()
             return {'success': True, 'data': data}, 200
