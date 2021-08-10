@@ -221,7 +221,7 @@ def predict_channel_next_24_hours():
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['POST'])
-@cache.cached(timeout=3600)
+#@cache.cached(timeout=3600)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
@@ -232,8 +232,11 @@ def predictions_for_heatmap():
             airqloud = json_data['airqloud']
             data = get_gp_predictions(airqloud)
             return {'success': True, 'data': data}, 200
-        except:
+        except Exception as e:
             return {'message': 'An error occured. Please try again.', 'success': False}, 400
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
+
+if __name__=='__main__':
+    print(predictions_for_heatmap())
 
