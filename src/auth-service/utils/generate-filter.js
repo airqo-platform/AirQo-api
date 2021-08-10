@@ -76,18 +76,18 @@ const filter = {
 
   defaults: (req) => {
     try {
-      let { user, chartTitle } = req.body;
-      let { id } = req.query;
+      let { id, user, user_id } = req.query;
       let filter = {};
       if (user) {
         filter["user"] = ObjectId(user);
       }
       if (id) {
-        filter["user"] = ObjectId(id);
+        filter["_id"] = ObjectId(id);
       }
-      if (chartTitle) {
-        filter["chartTitle"] = chartTitle;
+      if (user_id) {
+        filter["user"] = ObjectId(user_id);
       }
+
       return {
         success: true,
         message: "successfully created the filter",
