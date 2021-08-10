@@ -120,19 +120,13 @@ class Transformation:
             client.query(query).result().to_dataframe()
         )
 
-        channel_ids_list = []
-        for _, row in channel_ids_df.iterrows():
-            channel_ids_list.append(row["channel_id"])
-
-        missing_devices = []
+        channel_ids_list = [row["channel_id"] for _, row in channel_ids_df.iterrows()]
 
         devices = self.airqo_api.get_devices(tenant="airqo")
         devices_df = pd.DataFrame(devices)
 
-        for _, row in devices_df.iterrows():
-            device_number = row["device_number"]
-            if device_number not in channel_ids_list:
-                missing_devices.append(device_number)
+        missing_devices = [row["device_number"] for _, row in devices_df.iterrows()
+                           if row["device_number"] not in channel_ids_list]
 
         self.__print(missing_devices)
 
