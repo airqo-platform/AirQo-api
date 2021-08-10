@@ -1,5 +1,3 @@
-const CandidateSchema = require("../models/Candidate");
-const UserSchema = require("../models/User");
 const HTTPStatus = require("http-status");
 const msgs = require("../utils/email.msgs");
 const register = require("../utils/register");
@@ -9,13 +7,9 @@ const requestUtil = require("../utils/request");
 const generateFilter = require("../utils/generate-filter");
 const validations = require("../utils/validations");
 
-const CandidateModel = (tenant) => {
-  return getModelByTenant(tenant, "candidate", CandidateSchema);
-};
-
-const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
-};
+const { validationResult } = require("express-validator");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const { badRequest } = require("../utils/errors");
 
 const { tryCatchErrors, missingQueryParams } = require("utils/errors");
 const { logObject } = require("utils/log");
@@ -26,6 +20,15 @@ const { request } = require("../app");
 const candidate = {
   create: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       const {
         firstName,
@@ -94,6 +97,15 @@ const candidate = {
 
   list: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       if (isEmpty(tenant)) {
         missingQueryParams(req, res);
@@ -158,6 +170,15 @@ const candidate = {
   confirm: async (req, res) => {
     console.log("inside the confirm candidate");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const {
         firstName,
         lastName,
@@ -243,6 +264,15 @@ const candidate = {
   },
   delete: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       if (!tenant) {
         missingQueryParams(req, res);
@@ -301,6 +331,15 @@ const candidate = {
   },
   update: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       if (!tenant) {
         missingQueryParams(req, res);
