@@ -1,5 +1,8 @@
 import os
 
+import pandas as pd
+from google.cloud import bigquery
+
 from airqoApi import AirQoApi
 from tahmo import TahmoApi
 from utils import array_to_csv, array_to_json
@@ -101,12 +104,44 @@ class Transformation:
                     })
                 )
 
-        if self.output_format.strip().lower() == "csv":
-            array_to_csv(data=summarized_updated_sites)
-
-        elif self.output_format.strip().lower() == "api":
+        if self.output_format.strip().lower() == "api":
             print("Sites to be Updated", updated_sites, sep=" := ")
             self.airqo_api.update_sites(updated_sites=updated_sites)
 
         else:
-            array_to_json(data=summarized_updated_sites)
+            self.__print(summarized_updated_sites)
+
+    def get_devices_not_up_to_date_on_big_query(self):
+        client = bigquery.Client()
+
+        query = """SELECT distinct channel_id FROM airqo-250220.thingspeak.clean_feeds_pms"""
+
+        channel_ids_df = (
+            client.query(query).result().to_dataframe()
+        )
+
+        channel_ids_list = []
+        for _, row in channel_ids_df.iterrows():
+            channel_ids_list.append(row["channel_id"])
+
+        missing_devices = []
+
+        devices = self.airqo_api.get_devices(tenant="airqo")
+        devices_df = pd.DataFrame(devices)
+
+        for _, row in devices_df.iterrows():
+            device_number = row["device_number"]
+            if device_number not in channel_ids_list:
+                missing_devices.append(device_number)
+
+        self.__print(missing_devices)
+
+    def __print(self, data):
+        if self.output_format.strip().lower() == "csv":
+            array_to_csv(data=data)
+
+        elif self.output_format.strip().lower() == "api":
+            print("Sites to be Updated", data, sep=" := ")
+            self.airqo_api.update_sites(updated_sites=data)
+        else:
+            array_to_json(data=data)

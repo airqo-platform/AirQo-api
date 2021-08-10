@@ -31,3 +31,12 @@ Creates a `formatted_devices.[json.csv]` file containing devices with the neares
 ```bash
     python main.py device_tahmo_mapping json
 ```
+## Get devices on Netmanager but missing on bigquery
+### CSV output
+```bash
+    python main.py missing_devices_on_bigquery csv
+```
+### JSON output
+```bash
+    python main.py missing_devices_on_bigquery json
+```
