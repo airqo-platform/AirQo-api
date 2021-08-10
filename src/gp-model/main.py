@@ -35,9 +35,9 @@ shapefile_path = os.path.join(BASE_DIR,'shape_files')
 #airqloud_dict = {'kampala':kampala_ids, 'kawempe':kawempe_ids}
 
 
-def get_channels(airqloud):
-    'returns a list of the channels in a given airqloud'
-    return airqloud_dict[airqloud]
+#def get_channels(airqloud):
+#    'returns a list of the channels in a given airqloud'
+#    return airqloud_dict[airqloud]
 
 def get_channels_ts(airqloud):
     '''
