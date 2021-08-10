@@ -13,7 +13,8 @@ from config import configuration
 import argparse
 from pathlib import Path
 from helpers.get_data import get_pm_data
-from multiprocessing import Process
+#from multiprocessing import Process
+from threading import Thread
 
 BASE_DIR = Path(__file__).resolve().parent
 CREDENTIALS = configuration.CREDENTIALS
