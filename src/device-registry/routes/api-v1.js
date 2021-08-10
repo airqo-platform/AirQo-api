@@ -1545,15 +1545,36 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
       body("name")
         .exists()
         .withMessage("the name is is missing in your request")
         .bail()
+        .notEmpty()
+        .withMessage("the name should not be empty")
         .trim(),
       body("description")
         .if(body("description").exists())
         .notEmpty()
         .trim(),
+      body("location.coordinates")
+        .if(body("location.coordinates").exists())
+        .notEmpty()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("airqloud_tags")
+        .if(body("airqloud_tags").exists())
+        .notEmpty()
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
     ],
   ]),
   airqloudController.register
@@ -1570,6 +1591,34 @@ router.get(
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .if(query("id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("name")
+        .if(query("name").exists())
+        .notEmpty()
+        .trim(),
+    ],
   ]),
   airqloudController.list
 );
@@ -1600,15 +1649,38 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("generated_name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using generated_name"
-      )
-      .bail()
-      .trim(),
   ]),
   airqloudController.update
+);
+
+router.put(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  airqloudController.delete
 );
 
 module.exports = router;
