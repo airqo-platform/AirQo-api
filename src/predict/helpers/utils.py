@@ -192,7 +192,7 @@ def get_gp_predictions(airqloud):
     except pymongo.errors.ConnectionFailure as e:
         return {'message':'unable to connect to database', 'success':False}, 400
 
-    db = client['airqo_netmanager_airqo']
+    db = client[DB_NAME]
     query = {'airqloud':airqloud}
     projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1, 'interval': 1, 'created_at':1}
     records = list(db.gp_predictions.find(query, projection))
