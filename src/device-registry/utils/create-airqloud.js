@@ -217,7 +217,7 @@ const createAirqloud = {
         data = responseFromListAirQloud.data;
         return {
           success: true,
-          message: "successfully listed the site(s)",
+          message: responseFromListAirQloud.message,
           data,
           status,
         };

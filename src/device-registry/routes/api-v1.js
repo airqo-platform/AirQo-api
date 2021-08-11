@@ -1723,7 +1723,7 @@ router.put(
   airqloudController.update
 );
 
-router.put(
+router.delete(
   "/airqlouds",
   oneOf([
     query("tenant")

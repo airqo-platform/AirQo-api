@@ -161,7 +161,7 @@ airqloudSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully fetched the AirQlouds",
+          message: "successfully fetched the AirQloud(s)",
           data,
           status: HTTPStatus.OK,
         };
