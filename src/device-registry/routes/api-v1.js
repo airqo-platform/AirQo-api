@@ -1720,6 +1720,52 @@ router.put(
         "The name should be greater than 4 and less than 15 in length, should also not have whitespace in it"
       ),
   ]),
+  oneOf([
+    [
+      body("name")
+        .if(body("name").exists())
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .bail()
+        .customSanitizer((value) => {
+          return createSiteUtil.sanitiseName(value);
+        })
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("location")
+        .if(body("location").exists())
+        .notEmpty()
+        .withMessage("the location should not be empty"),
+      body("location.coordinates")
+        .if(body("location.coordinates").exists())
+        .notEmpty()
+        .withMessage("the location.coordinates should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .if(body("location.type").exists())
+        .notEmpty()
+        .withMessage("the location.type should not be empty")
+        .bail()
+        .toLowerCase()
+        .isIn(["polygon", "point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: polygon and point"
+        ),
+      body("airqloud_tags")
+        .if(body("airqloud_tags").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
   airqloudController.update
 );
 
