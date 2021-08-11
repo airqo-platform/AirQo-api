@@ -121,8 +121,6 @@ const rolesSchema = new mongoose.Schema(
   { _id: false }
 );
 
-organisa;
-
 const DefaultsSchema = new mongoose.Schema({
   user_id: {
     type: ObjectId,
