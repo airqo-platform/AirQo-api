@@ -8,6 +8,14 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/auth-url: https://staging-platform.airqo.net/api/v1/users?tenant=airqo
+    nginx.ingress.kubernetes.io/auth-snippet: |
+      if ($request_uri = "/api/v1/users") {
+          return 200;
+      }
+
+      if ($request_uri = "/api/v2/users") {
+          return 200;
+      }
 spec:
   rules:
     - host: staging-platform.airqo.net
