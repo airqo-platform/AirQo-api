@@ -204,7 +204,7 @@ DefaultsSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully modified or created the default",
+          message: "successfully modified the default",
           data,
           status: HTTPStatus.OK,
         };
