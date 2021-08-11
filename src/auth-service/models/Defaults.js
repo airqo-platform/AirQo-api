@@ -59,10 +59,12 @@ const DefaultsSchema = new mongoose.Schema({
       type: ObjectId,
     },
   ],
-  period: { type: String, required: [true, "period is required!"] },
+  period: { type: {}, required: [true, "period is required!"] },
 });
 
-DefaultsSchema.plugin(uniqueValidator);
+DefaultsSchema.plugin(uniqueValidator, {
+  message: `{VALUE} is a duplicate value!`,
+});
 
 DefaultsSchema.index(
   {
@@ -102,21 +104,48 @@ DefaultsSchema.statics = {
   async register(args) {
     try {
       let body = args;
-      if (body.user) {
-        delete body.user;
+      let data = await this.create({
+        ...body,
+      });
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "default created",
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "default not created despite successful operation",
+          status: HTTPStatus.CREATED,
+        };
+      }
+    } catch (err) {
+      let e = jsonify(err);
+      let response = {};
+      logObject("the err", e);
+      let errors = {};
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      if (err.code === 11000 || err.code === 11001) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = HTTPStatus.CONFLICT;
+      } else {
+        message = "validation errors for some of the provided fields";
+        status = HTTPStatus.CONFLICT;
+        errors = err.errors;
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
       }
       return {
-        success: true,
-        data: this.create({
-          ...body,
-        }),
-        message: "default created",
-      };
-    } catch (error) {
-      return {
-        error: error.message,
-        message: "Default model server error",
+        errors: response,
+        message,
         success: false,
+        status,
       };
     }
   },
@@ -159,7 +188,7 @@ DefaultsSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true, upsert: true };
+      let options = { new: true };
       let udpatedDefault = await this.findOneAndUpdate(
         filter,
         update,

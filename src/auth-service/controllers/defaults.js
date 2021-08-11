@@ -47,8 +47,8 @@ const defaults = {
         }
 
         if (responseFromUpdateDefault.success === false) {
-          let error = responseFromUpdateDefault.error
-            ? responseFromUpdateDefault.error
+          let errors = responseFromUpdateDefault.errors
+            ? responseFromUpdateDefault.errors
             : "";
           let status = responseFromUpdateDefault.status
             ? responseFromUpdateDefault.status
@@ -57,24 +57,73 @@ const defaults = {
             success: false,
             message: responseFromUpdateDefault.message,
             default: responseFromUpdateDefault.data,
-            error,
+            errors,
           });
         }
       }
 
       if (responseFromFilter.success === false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
+        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status
           ? responseFromFilter.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromFilter.message,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "defaults controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "defaults controller");
+    }
+  },
+
+  create: async (req, res) => {
+    try {
+      let { body, query } = req;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = {};
+      request["body"] = body;
+      request["query"] = query;
+
+      let responseFromCreateDefault = await defaultsUtil.create(request);
+      logObject("responseFromCreateDefault", responseFromCreateDefault);
+      if (responseFromCreateDefault.success === true) {
+        let status = responseFromCreateDefault.status
+          ? responseFromCreateDefault.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromCreateDefault.message,
+          default: responseFromCreateDefault.data,
+        });
+      }
+
+      if (responseFromCreateDefault.success === false) {
+        let errors = responseFromCreateDefault.errors
+          ? responseFromCreateDefault.errors
+          : "";
+        let status = responseFromCreateDefault.status
+          ? responseFromCreateDefault.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromCreateDefault.message,
+          default: responseFromCreateDefault.data,
+          errors,
+        });
+      }
+    } catch (errors) {
+      tryCatchErrors(res, errors, "defaults controller");
     }
   },
 
@@ -118,11 +167,11 @@ const defaults = {
         }
 
         if (responseFromListDefaults.success === false) {
-          if (responseFromListDefaults.error) {
+          if (responseFromListDefaults.errors) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
               message: responseFromListDefaults.message,
-              error: responseFromListDefaults.error,
+              errors: responseFromListDefaults.errors,
             });
           } else {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -134,11 +183,11 @@ const defaults = {
       }
 
       if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
+        if (responseFromFilter.errors) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: responseFromFilter.message,
-            error: responseFromFilter.error,
+            errors: responseFromFilter.errors,
           });
         } else {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -147,8 +196,8 @@ const defaults = {
           });
         }
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "join controller");
     }
   },
 
@@ -182,8 +231,8 @@ const defaults = {
       }
 
       if (responseFromDeleteDefault.success === false) {
-        let error = responseFromDeleteDefault.error
-          ? responseFromDeleteDefault.error
+        let errors = responseFromDeleteDefault.errors
+          ? responseFromDeleteDefault.errors
           : "";
 
         let status = responseFromDeleteDefault.status
@@ -194,11 +243,11 @@ const defaults = {
           success: false,
           message: responseFromDeleteDefault.message,
           default: responseFromDeleteDefault.data,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "defaults controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "defaults controller");
     }
   },
 };

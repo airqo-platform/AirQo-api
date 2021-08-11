@@ -25,21 +25,70 @@ const defaults = {
       }
 
       if (responseFromListDefault.success === false) {
-        let error = responseFromListDefault.error
-          ? responseFromListDefault.error
+        let errors = responseFromListDefault.errors
+          ? responseFromListDefault.errors
           : "";
 
         return {
           success: false,
           message: responseFromListDefault.message,
-          error,
+          errors,
         };
       }
     } catch (e) {
       return {
         success: false,
-        message: "utils server error",
-        error: e.message,
+        message: "utils server errors",
+        errors: e.message,
+      };
+    }
+  },
+  create: async (request) => {
+    try {
+      let { body, query } = request;
+      let { tenant } = query;
+
+      logObject("the body", body);
+
+      let responseFromRegisterDefault = await getModelByTenant(
+        tenant.toLowerCase(),
+        "default",
+        DefaultsSchema
+      ).register(body);
+      logObject("responseFromRegisterDefault", responseFromRegisterDefault);
+
+      if (responseFromRegisterDefault.success === true) {
+        let status = responseFromRegisterDefault.status
+          ? responseFromRegisterDefault.status
+          : "";
+        return {
+          success: true,
+          message: responseFromRegisterDefault.message,
+          data: responseFromRegisterDefault.data,
+          status,
+        };
+      } else if (responseFromRegisterDefault.success === false) {
+        let errors = responseFromRegisterDefault.errors
+          ? responseFromRegisterDefault.errors
+          : "";
+
+        let status = responseFromRegisterDefault.status
+          ? responseFromRegisterDefault.status
+          : "";
+
+        return {
+          success: false,
+          message: responseFromRegisterDefault.message,
+          errors,
+          status,
+        };
+      }
+    } catch (e) {
+      return {
+        success: false,
+        message: "defaults util server errors",
+        errors: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -65,8 +114,8 @@ const defaults = {
           status,
         };
       } else if (responseFromModifyDefault.success === false) {
-        let error = responseFromModifyDefault.error
-          ? responseFromModifyDefault.error
+        let errors = responseFromModifyDefault.errors
+          ? responseFromModifyDefault.errors
           : "";
 
         let status = responseFromModifyDefault.status
@@ -76,15 +125,15 @@ const defaults = {
         return {
           success: false,
           message: responseFromModifyDefault.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
       return {
         success: false,
-        message: "defaults util server error",
-        error: e.message,
+        message: "defaults util server errors",
+        errors: e.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -116,12 +165,12 @@ const defaults = {
         };
       }
       if (responseFromRemoveDefault.success === false) {
-        let error = responseFromRemoveDefault.error
-          ? responseFromRemoveDefault.error
+        let errors = responseFromRemoveDefault.errors
+          ? responseFromRemoveDefault.errors
           : "";
         return {
           success: false,
-          error,
+          errors,
           message: responseFromRemoveDefault.message,
           status,
         };
@@ -129,11 +178,11 @@ const defaults = {
     }
 
     if (responseFromFilter.success === false) {
-      let error = responseFromFilter.error ? responseFromFilter.error : "";
+      let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
       return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: responseFromFilter.message,
-        error,
+        errors,
       });
     }
   },
