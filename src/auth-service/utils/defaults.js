@@ -67,7 +67,9 @@ const defaults = {
           data: responseFromRegisterDefault.data,
           status,
         };
-      } else if (responseFromRegisterDefault.success === false) {
+      }
+
+      if (responseFromRegisterDefault.success === false) {
         let errors = responseFromRegisterDefault.errors
           ? responseFromRegisterDefault.errors
           : "";

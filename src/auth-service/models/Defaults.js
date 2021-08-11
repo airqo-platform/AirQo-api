@@ -117,7 +117,7 @@ DefaultsSchema.statics = {
         };
       } else {
         return {
-          success: false,
+          success: true,
           message: "default not created despite successful operation",
           status: HTTPStatus.CREATED,
         };
@@ -133,11 +133,14 @@ DefaultsSchema.statics = {
         errors = err.keyValue;
         message = "duplicate values provided";
         status = HTTPStatus.CONFLICT;
+        Object.entries(errors).forEach(([key, value]) => {
+          return (response[key] = value);
+        });
       } else {
         message = "validation errors for some of the provided fields";
         status = HTTPStatus.CONFLICT;
         errors = err.errors;
-        Object.entries(err.errors).forEach(([key, value]) => {
+        Object.entries(errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
       }
