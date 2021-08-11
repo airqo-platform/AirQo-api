@@ -3,7 +3,7 @@
 ## To run in a virtual environment
 
 1. Create a virtual environment `python -m venv ./venv`
-2. Create a `.env` file with these keys set
+2. Create a `.env` file (e.g. named `environment.env`) with these keys set:
     * **FLASK_APP**
     * **FLASK_ENV**
     * **FLASK_RUN_PORT**
@@ -20,8 +20,8 @@
 
 ## To build and run with docker desktop
 
-1. `docker build -t calibrate-multi-hop .`
-2. `docker run -d -p 4001:4001 --env FLASK_APP=app.py --env FLASK_ENV=development --env MONGO_URI=mongodb://localhost:27017 calibrate-multi-hop`
+1. `docker build -t test-multihop -f Docker.stage .`
+2. `docker run -it --env-file environment.env -p 4001:4001 test-multihop`
 
 It is implicit that `mongodb` should be installed and running.
 
