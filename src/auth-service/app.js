@@ -1,16 +1,17 @@
 require("app-module-path").addPath(__dirname);
-var express = require("express");
-var path = require("path");
-var logger = require("morgan");
+const express = require("express");
+const path = require("path");
+const logger = require("morgan");
 const dotenv = require("dotenv");
 dotenv.config();
-var cookieParser = require("cookie-parser");
-var bodyParser = require("body-parser");
-var api = require("./routes/api");
+const cookieParser = require("cookie-parser");
+const bodyParser = require("body-parser");
+const apiV1 = require("./routes/api-v1");
+const apiV2 = require("./routes/api-v2");
 const { mongodb } = require("./config/dbConnection");
 mongodb;
 
-var app = express();
+const app = express();
 
 app.use(logger("dev"));
 app.use(bodyParser.json());
@@ -20,11 +21,12 @@ app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "public")));
 // app.use(bindCurrentNamespace);
 
-app.use("/api/v1/users", api);
+app.use("/api/v1/users", apiV1);
+app.use("/api/v2/users", apiV2);
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
-  var err = new Error("Not Found");
+  const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });

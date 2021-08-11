@@ -442,6 +442,10 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("airqloud").if(query("airqloud").exists()).notEmpty().trim(),
+      query("airqloud_id").if(query("airqloud_id").exists()).notEmpty().trim(),
+      query("site").if(query("site").exists()).notEmpty().trim(),
+      query("site_id").if(query("site_id").exists()).notEmpty().trim(),
     ],
   ]),
   setJWTAuth,
