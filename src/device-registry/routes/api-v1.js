@@ -16,7 +16,8 @@ const constants = require("../config/constants");
 const mongoose = require("mongoose");
 const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
-var numeral = require("numeral");
+const numeral = require("numeral");
+const createSiteUtil = require("../utils/create-site");
 
 middlewareConfig(router);
 
@@ -1598,18 +1599,35 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the name should not be empty")
+        .bail()
+        .customSanitizer((value) => {
+          return createSiteUtil.sanitiseName(value);
+        })
         .trim(),
       body("description")
         .if(body("description").exists())
         .notEmpty()
         .trim(),
+      body("location")
+        .exists()
+        .withMessage("the location is is missing in your request"),
       body("location.coordinates")
-        .if(body("location.coordinates").exists())
-        .notEmpty()
+        .exists()
+        .withMessage("location.coordinates is is missing in your request")
+        .bail()
         .custom((value) => {
           return Array.isArray(value);
         })
         .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .exists()
+        .withMessage("location.type is is missing in your request")
+        .bail()
+        .toLowerCase()
+        .isIn(["polygon", "point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: polygon and point"
+        ),
       body("airqloud_tags")
         .if(body("airqloud_tags").exists())
         .notEmpty()
@@ -1657,10 +1675,6 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      query("name")
-        .if(query("name").exists())
-        .notEmpty()
-        .trim(),
     ],
   ]),
   airqloudController.list
@@ -1692,6 +1706,19 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using name"
+      )
+      .bail()
+      .trim()
+      .custom((value) => {
+        return createSiteUtil.validateSiteName(value);
+      })
+      .withMessage(
+        "The name should be greater than 4 and less than 15 in length, should also not have whitespace in it"
+      ),
   ]),
   airqloudController.update
 );
@@ -1722,6 +1749,19 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
+
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using the name "
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
   ]),
   airqloudController.delete
 );

@@ -5,6 +5,7 @@ const { tryCatchErrors, badRequest } = require("../utils/errors");
 const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-util");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const createAirqloud = {
   register: async (req, res) => {
@@ -16,7 +17,11 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant } = req.query;
       request["body"] = body;
@@ -42,18 +47,18 @@ const createAirqloud = {
         let status = responseFromCreateAirQloud.status
           ? responseFromCreateAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        let error = responseFromCreateAirQloud.error
-          ? responseFromCreateAirQloud.error
+        let errors = responseFromCreateAirQloud.errors
+          ? responseFromCreateAirQloud.errors
           : "";
 
         return res.status(status).json({
           success: false,
           message: responseFromCreateAirQloud.message,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "createAirqloud controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
@@ -68,7 +73,11 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       request["query"] = query;
       let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
@@ -85,8 +94,8 @@ const createAirqloud = {
       }
 
       if (responseFromRemoveAirQloud.success === false) {
-        let error = responseFromRemoveAirQloud.error
-          ? responseFromRemoveAirQloud.error
+        let errors = responseFromRemoveAirQloud.errors
+          ? responseFromRemoveAirQloud.errors
           : "";
         let status = responseFromRemoveAirQloud.status
           ? responseFromRemoveAirQloud.status
@@ -94,11 +103,11 @@ const createAirqloud = {
         return res.status(status).json({
           success: false,
           message: responseFromRemoveAirQloud.message,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "createAirqloud controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
@@ -111,7 +120,11 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       request["body"] = body;
       request["query"] = query;
@@ -129,8 +142,8 @@ const createAirqloud = {
       }
 
       if (responseFromUpdateAirQloud.success === false) {
-        let error = responseFromUpdateAirQloud.error
-          ? responseFromUpdateAirQloud.error
+        let errors = responseFromUpdateAirQloud.errors
+          ? responseFromUpdateAirQloud.errors
           : "";
 
         let status = responseFromUpdateAirQloud.status
@@ -140,11 +153,11 @@ const createAirqloud = {
         return res.status(status).json({
           success: false,
           message: responseFromUpdateAirQloud.message,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "createAirqloud controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
@@ -157,7 +170,11 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       request["query"] = query;
       let responseFromListAirQlouds = await createAirQloudUtil.list(request);
@@ -177,8 +194,8 @@ const createAirqloud = {
       }
 
       if (responseFromListAirQlouds.success === false) {
-        let error = responseFromListAirQlouds.error
-          ? responseFromListAirQlouds.error
+        let errors = responseFromListAirQlouds.errors
+          ? responseFromListAirQlouds.errors
           : "";
         let status = responseFromListAirQlouds.status
           ? responseFromListAirQlouds.status
@@ -186,11 +203,11 @@ const createAirqloud = {
         res.status(status).json({
           success: false,
           message: responseFromListAirQlouds.message,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "create airqloud controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "create airqloud controller");
     }
   },
 
@@ -204,7 +221,11 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       request["query"] = query;
       request["body"] = body;
@@ -222,8 +243,8 @@ const createAirqloud = {
       }
 
       if (responseFromRemoveAirQloud.success === false) {
-        let error = responseFromRemoveAirQloud.error
-          ? responseFromRemoveAirQloud.error
+        let errors = responseFromRemoveAirQloud.errors
+          ? responseFromRemoveAirQloud.errors
           : "";
         let status = responseFromRemoveAirQloud.status
           ? responseFromRemoveAirQloud.status
@@ -231,11 +252,11 @@ const createAirqloud = {
         return res.status(status).json({
           success: false,
           message: responseFromRemoveAirQloud.message,
-          error,
+          errors,
         });
       }
-    } catch (error) {
-      tryCatchErrors(res, error, "manageAirQloud controller");
+    } catch (errors) {
+      tryCatchErrors(res, errors, "manageAirQloud controller");
     }
   },
 };

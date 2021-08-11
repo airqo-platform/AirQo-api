@@ -42,8 +42,8 @@ const createAirqloud = {
       }
 
       if (responseFromRegisterAirQloud.success === false) {
-        let error = responseFromRegisterAirQloud.error
-          ? responseFromRegisterAirQloud.error
+        let errors = responseFromRegisterAirQloud.errors
+          ? responseFromRegisterAirQloud.errors
           : "";
 
         let status = responseFromRegisterAirQloud.status
@@ -53,7 +53,7 @@ const createAirqloud = {
         return {
           success: false,
           message: responseFromRegisterAirQloud.message,
-          error,
+          errors,
           status,
         };
       }
@@ -62,7 +62,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "unable to create airqloud",
-        error: err.message,
+        errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -98,8 +98,8 @@ const createAirqloud = {
       }
 
       if (responseFromModifyAirQloud.success === false) {
-        let error = responseFromModifyAirQloud.error
-          ? responseFromModifyAirQloud.error
+        let errors = responseFromModifyAirQloud.errors
+          ? responseFromModifyAirQloud.errors
           : "";
 
         let status = responseFromModifyAirQloud.status
@@ -109,7 +109,7 @@ const createAirqloud = {
         return {
           success: false,
           message: responseFromModifyAirQloud.message,
-          error,
+          errors,
           status,
         };
       }
@@ -118,7 +118,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "unable to update airqloud",
-        error: err.message,
+        errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -149,8 +149,8 @@ const createAirqloud = {
       }
 
       if (responseFromRemoveAirQloud.success === false) {
-        let error = responseFromRemoveAirQloud.error
-          ? responseFromRemoveAirQloud.error
+        let errors = responseFromRemoveAirQloud.errors
+          ? responseFromRemoveAirQloud.errors
           : "";
 
         let status = responseFromRemoveAirQloud.status
@@ -160,7 +160,7 @@ const createAirqloud = {
         return {
           success: false,
           message: responseFromRemoveAirQloud.message,
-          error,
+          errors,
           status,
         };
       }
@@ -169,7 +169,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "unable to delete airqloud",
-        error: err.message,
+        errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -178,9 +178,10 @@ const createAirqloud = {
     try {
       let { query } = request;
       let { tenant } = query;
-      const limit = parseInt(query.limit, 0);
-      const skip = parseInt(query.skip, 0);
+      const limit = 1000;
+      const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.airqlouds(request);
+      logObject("filter", filter);
 
       let responseFromListAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
@@ -192,9 +193,10 @@ const createAirqloud = {
         skip,
       });
 
+      logObject("responseFromListAirQloud", responseFromListAirQloud);
       if (responseFromListAirQloud.success === false) {
-        let error = responseFromListAirQloud.error
-          ? responseFromListAirQloud.error
+        let errors = responseFromListAirQloud.errors
+          ? responseFromListAirQloud.errors
           : "";
 
         let status = responseFromListAirQloud.status
@@ -203,7 +205,7 @@ const createAirqloud = {
         return {
           success: false,
           message: responseFromListAirQloud.message,
-          error,
+          errors,
           status,
         };
       }
@@ -225,7 +227,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "unable to list airqloud",
-        error: err.message,
+        errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
