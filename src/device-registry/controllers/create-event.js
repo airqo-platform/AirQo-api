@@ -31,6 +31,10 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        nestedErrors.map((element) => {
+          delete element.value;
+        });
+        logObject("nestedErrors", nestedErrors);
         return badRequest(res, "bad request errors", nestedErrors);
       }
       if (!Array.isArray(measurements)) {
