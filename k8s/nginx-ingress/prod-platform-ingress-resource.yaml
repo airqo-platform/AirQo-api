@@ -7,6 +7,27 @@ metadata:
     kubernetes.io/ingress.class: nginx 
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/auth-url: https://platform.airqo.net/api/v1/users?tenant=airqo
+    nginx.ingress.kubernetes.io/auth-snippet: |
+      if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(api/v1/users/loginUser)|(api/v2/users/loginUser)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(api/v1/users/updatePasswordViaEmail)|(api/v2/users/updatePasswordViaEmail)") {
+          return 200;
+      }
 spec:
   rules:
     - host: platform.airqo.net
@@ -35,7 +56,7 @@ spec:
           - path: /api/v1/data
             backend:
               serviceName: airqo-data-mgt-api-svc
-              servicePort: 
+              servicePort: 3000
           - path: /api/v2/data
             backend:
               serviceName: airqo-data-mgt-api-svc

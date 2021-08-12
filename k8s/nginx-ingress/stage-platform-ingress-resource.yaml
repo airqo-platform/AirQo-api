@@ -9,11 +9,23 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/auth-url: https://staging-platform.airqo.net/api/v1/users?tenant=airqo
     nginx.ingress.kubernetes.io/auth-snippet: |
-      if ($request_uri = "/api/v1/users") {
+      if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
           return 200;
       }
 
-      if ($request_uri = "/api/v2/users") {
+      if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(api/v1/users/loginUser)|(api/v2/users/loginUser)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(api/v1/users/updatePasswordViaEmail)|(api/v2/users/updatePasswordViaEmail)") {
           return 200;
       }
 spec:
