@@ -227,7 +227,7 @@ def predictions_for_heatmap():
     '''
     if request.method == 'GET':
         try:
-            airqloud = request.args.get('airqloud')
+            airqloud = request.args.get('airqloud').lower()
             data = get_gp_predictions(airqloud)
             return {'success': True, 'data': data}, 200
         except Exception as e:
