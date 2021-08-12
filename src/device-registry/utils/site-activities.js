@@ -179,7 +179,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       return { siteActivityBody, deviceBody };
     } else if (type === "recall") {
       /****** recalling bodies ******/
-      let recent_recall_date = new Date();
+      let recall_date = new Date();
       siteActivityBody = {
         device: deviceName || req.query.deviceName,
         date: new Date(),
@@ -201,7 +201,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         description: "",
         siteName: "",
         locationName: "",
-        recent_recall_date,
+        recall_date,
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);

@@ -156,7 +156,7 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
-    recent_recall_date: {
+    recall_date: {
       type: Date,
       default: Date.now,
     },
@@ -242,7 +242,7 @@ deviceSchema.methods = {
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
       maintenance_date: this.maintenance_date,
-      recent_recall_date: this.recent_recall_date,
+      recall_date: this.recall_date,
       device_number: this.device_number,
       powerType: this.powerType,
       mountType: this.mountType,
@@ -327,7 +327,7 @@ deviceSchema.statics = {
           isUsedForCollocation: 1,
           nextMaintenance: 1,
           deployment_date: 1,
-          recent_recall_date: 1,
+          recall_date: 1,
           maintenance_date: 1,
           device_number: 1,
           powerType: 1,
