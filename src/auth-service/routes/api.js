@@ -46,6 +46,8 @@ router.delete("/", setJWTAuth, authJWT, joinController.delete);
 /************************* settings/defaults **********************************/
 router.put("/defaults/", setJWTAuth, authJWT, defaultsController.update);
 router.get("/defaults/", setJWTAuth, authJWT, defaultsController.list);
+router.get("/errors/unauthorized", defaultsController.unauthorized);
+router.get("/errors/forbidden", defaultsController.forbidden);
 
 //************************ candidates ***********************************************
 router.post("/candidates/register", requestController.create);

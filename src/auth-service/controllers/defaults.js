@@ -138,6 +138,22 @@ const defaults = {
       tryCatchErrors(res, error, "join controller");
     }
   },
+
+  unauthorized: (req, res) => {
+    return res.status(HTTPStatus.UNAUTHORIZED).json({
+      success: false,
+      message: "You are not authenticated.",
+      error: "Unauthorized",
+    });
+  },
+
+  forbidden: (req, res) => {
+    return res.status(HTTPStatus.FORBIDDEN).json({
+      success: false,
+      message: "You don't have enough rights to perform this action",
+      error: "Permission Denied",
+    });
+  },
 };
 
 module.exports = defaults;
