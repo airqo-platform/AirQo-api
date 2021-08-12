@@ -122,6 +122,7 @@ const createEvent = {
         device_id,
         site,
         site_id,
+        device_number,
       } = req.query;
 
       const hasErrors = !validationResult(req).isEmpty();
@@ -145,6 +146,7 @@ const createEvent = {
           res,
           recent,
           device,
+          device_number,
           device_id,
           site,
           site_id,
