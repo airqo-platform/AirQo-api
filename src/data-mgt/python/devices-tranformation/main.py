@@ -1,3 +1,4 @@
+import os
 import sys
 
 import urllib3
@@ -7,6 +8,8 @@ from transformation import Transformation
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 if __name__ == '__main__':
     strings_list = sys.argv
@@ -27,6 +30,8 @@ if __name__ == '__main__':
         transformation.map_devices_to_tahmo_station()
     elif action.lower().strip() == "site_tahmo_mapping":
         transformation.map_sites_to_tahmo_station()
+    elif action.lower().strip() == "missing_devices_on_bigquery":
+        transformation.get_devices_not_up_to_date_on_big_query()
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")
         exit()
