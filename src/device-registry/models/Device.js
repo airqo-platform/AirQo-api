@@ -148,7 +148,15 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: monthsInfront(3),
     },
-    deploymentDate: {
+    recent_deployment_date: {
+      type: Date,
+      default: Date.now,
+    },
+    recent_maintenance_date: {
+      type: Date,
+      default: Date.now,
+    },
+    recent_recall_date: {
       type: Date,
       default: Date.now,
     },
@@ -232,7 +240,9 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
-      deploymentDate: this.deploymentDate,
+      recent_deployment_date: this.recent_deployment_date,
+      recent_maintenance_date: this.recent_maintenance_date,
+      recent_recall_date: this.recent_recall_date,
       device_number: this.device_number,
       powerType: this.powerType,
       mountType: this.mountType,
@@ -316,7 +326,9 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           isUsedForCollocation: 1,
           nextMaintenance: 1,
-          deploymentDate: 1,
+          recent_deployment_date: 1,
+          recent_recall_date: 1,
+          recent_maintenance_date: 1,
           device_number: 1,
           powerType: 1,
           mountType: 1,

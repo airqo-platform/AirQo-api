@@ -152,6 +152,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
 
     if (type === "deploy") {
       /****** deploy bodies ******/
+      let recent_deployment_date = new Date(date);
       siteActivityBody = {
         device: deviceName || req.query.deviceName,
         date: (date && new Date(date)) || new Date(),
@@ -171,12 +172,14 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         latitude: latitude,
         longitude: longitude,
         site_id: site_id,
+        recent_deployment_date,
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
     } else if (type === "recall") {
       /****** recalling bodies ******/
+      let recent_recall_date = new Date();
       siteActivityBody = {
         device: deviceName || req.query.deviceName,
         date: new Date(),
@@ -198,12 +201,14 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         description: "",
         siteName: "",
         locationName: "",
+        recent_recall_date,
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
     } else if (type === "maintain") {
       /******** maintaining bodies *************/
+      let recent_maintenance_date = date && new Date(date);
       logObject("the tags", tags);
       siteActivityBody = {
         site: siteName,
@@ -218,6 +223,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       };
       deviceBody = {
         nextMaintenance: threeMonthsFromNow(date),
+        recent_maintenance_date,
       };
 
       logObject("siteActivityBody", siteActivityBody);
