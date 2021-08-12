@@ -123,11 +123,17 @@ def random_forest(hourly_combined_dataset):
     
     return rf_regressor
 
-if __name__ == "__main__":
 
+def main():
     lowcost_hourly_mean = get_lowcost_data()
     bam_hourly_mean = get_bam_data()
     hourly_combined_dataset = combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
     rf_regressor = random_forest(hourly_combined_dataset)
 
-    
+
+if __name__ == "__main__":
+    main()
+    # lowcost_hourly_mean = get_lowcost_data()
+    # bam_hourly_mean = get_bam_data()
+    # hourly_combined_dataset = combine_datasets(lowcost_hourly_mean, bam_hourly_mean)
+    # rf_regressor = random_forest(hourly_combined_dataset)
