@@ -12,15 +12,19 @@ from datetime import datetime
 from flask_caching import Cache
 from routes import api
 from flask_cors import CORS
+from config import constants
 from dotenv import load_dotenv
 load_dotenv()
 
+app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
+
 cache = Cache(config={
     'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_HOST': os.getenv('REDIS_SERVER'),
+    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
     'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
-    'CACHE_REDIS_URL': f"redis://{os.getenv('REDIS_SERVER')}:{os.getenv('REDIS_PORT')}",
+    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
 })
+
 
 _logger = logging.getLogger(__name__)
 
@@ -230,3 +234,4 @@ def predictions_for_heatmap():
             return {'message': 'An error occured. Please try again.', 'success': False}, 400
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
+
