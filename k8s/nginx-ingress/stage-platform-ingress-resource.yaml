@@ -8,10 +8,10 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/auth-method: GET
-    nginx.ingress.kubernetes.io/auth-url: http://airqo-auth-api-svc.staging.svc.cluster.local:3000/api/v1/users?tenant=airqo
+    nginx.ingress.kubernetes.io/auth-url: http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v1/users?tenant=airqo
     nginx.ingress.kubernetes.io/configuration-snippet: |
-      error_page 401 /errors/401;
-      error_page 403 /errors/403;
+      error_page 401 /errors/unauthorized;
+      error_page 403 /errors/forbidden;
     nginx.ingress.kubernetes.io/auth-snippet: |
       if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
           return 200;
@@ -33,14 +33,15 @@ metadata:
           return 200;
       }
     nginx.ingress.kubernetes.io/server-snippet: |
-      location = /errors/401 {
+      location = /errors/unauthorized {
         proxy_method GET;
-        proxy_pass http://airqo-auth-api-svc.staging.svc.cluster.local:3000/api/v1/errors/401;
+        proxy_pass http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v1/users/errors/unauthorized;
       }
-      location = /errors/403 {
+      location = /errors/forbidden {
         proxy_method GET;
-        proxy_pass http://airqo-auth-api-svc.staging.svc.cluster.local:3000/api/v1/errors/403;
+        proxy_pass http://airqo-stage-auth-api-svc.staging.svc.cluster.local:3000/api/v1/users/errors/forbidden;
       }
+
 spec:
   rules:
     - host: staging-platform.airqo.net
