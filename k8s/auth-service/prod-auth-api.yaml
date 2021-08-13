@@ -1,0 +1,130 @@
+###########################################################
+# Start deployment of auth api
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-auth-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: auth-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: auth-api
+    spec:
+      containers:
+        - name: auth-api
+          image: us.gcr.io/airqo-250220/airqo-auth-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: auth-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          env:
+            - name: MONGO_GCE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_URI
+            - name: MONGO_GCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_USERNAME
+            - name: MONGO_GCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_PASSWORD
+            - name: MONGO_GCE_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_HOST
+            - name: MONGO_GCE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_GCE_PORT
+            - name: MONGO_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_PROD
+            - name: MONGO_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_STAGE
+            - name: SESSION_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: SESSION_SECRET
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: JWT_SECRET
+            - name: DB_NAME_PROD
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: DB_NAME_PROD
+            - name: DB_NAME_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: DB_NAME_STAGE
+            - name: MONGO_STAGE
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MONGO_STAGE
+            - name: MAIL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MAIL_PASS
+            - name: MAIL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: MAIL_USER
+            - name: INSTANCE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: prod-auth-secret
+                  key: INSTANCE_ID
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-auth-api-svc
+  namespace: production
+spec:
+  selector:
+    app: auth-api
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30000
+  type: NodePort

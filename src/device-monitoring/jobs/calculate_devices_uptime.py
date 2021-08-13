@@ -13,7 +13,6 @@ import os
 
 
 MONGO_URI = os.getenv("MONGO_URI")
-print(MONGO_URI)
 client = MongoClient(MONGO_URI)
 db = client['airqo_netmanager_airqo']
 
@@ -59,7 +58,7 @@ def date_to_formated_str(date):
 
 
 def get_all_devices():
-    results = list(db.devices.find({"locationID":{ '$ne': '' } }))
+    results = list(db.devices.find({"locationID": {'$ne': ''}}))
     active_devices = []
     for device in results:
         print(device['name'])
@@ -105,15 +104,17 @@ def get_raw_channel_data(channel_id: int, hours=24):
     df['s1_s2_average_pm2_5'] = df[[
         's1_pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
     df['s1_s2_average_pm10'] = df[['s1_pm10', 's2_pm10']].mean(axis=1).round(2)
-    df['battery_voltage'] = pd.to_numeric(df['battery_voltage'], errors='coerce')
+    df['battery_voltage'] = pd.to_numeric(
+        df['battery_voltage'], errors='coerce')
     time_indexed_data = df.set_index('time')
     final_hourly_data = time_indexed_data.resample('H').mean().round(2)
-    
+
     final_hourly_data_copy = final_hourly_data.resample('D').mean().dropna()
     sensor_one_pm2_5_readings = final_hourly_data_copy['s1_pm2_5'].tolist()
     sensor_two_pm2_5_readings = final_hourly_data_copy['s2_pm2_5'].tolist()
-    battery_voltage_readings  = final_hourly_data_copy['battery_voltage'].tolist()
-    time_readings =  final_hourly_data_copy.index.tolist()
+    battery_voltage_readings = final_hourly_data_copy['battery_voltage'].tolist(
+    )
+    time_readings = final_hourly_data_copy.index.tolist()
 
     total_hourly_records_count = final_hourly_data.shape[0]
 
@@ -125,9 +126,10 @@ def get_raw_channel_data(channel_id: int, hours=24):
     invalid_records_count = records_with_valid_values - records_with_valid_values_count
 
     valid_hourly_records_with_out_null_values = records_with_valid_values.dropna().reset_index()
-    valid_hourly_records_with_out_null_values_count = valid_hourly_records_with_out_null_values.shape[0]
+    valid_hourly_records_with_out_null_values_count = valid_hourly_records_with_out_null_values.shape[
+        0]
 
-    return valid_hourly_records_with_out_null_values_count, total_hourly_records_count,sensor_one_pm2_5_readings, sensor_two_pm2_5_readings,battery_voltage_readings,time_readings
+    return valid_hourly_records_with_out_null_values_count, total_hourly_records_count, sensor_one_pm2_5_readings, sensor_two_pm2_5_readings, battery_voltage_readings, time_readings
 
 
 def calculate_device_uptime(expected_total_records_count, actual_valid_records_count):
@@ -207,7 +209,7 @@ def compute_uptime_for_all_devices():
                 # divide the specified hours by 2.. for mobile devices, use 12 hours
                 specified_hours = int(specified_hours/2)
 
-            valid_hourly_records_with_out_null_values_count, total_hourly_records_count,sensor_one_pm2_5_readings, sensor_two_pm2_5_readings,battery_voltage_readings,time_readings = get_raw_channel_data(
+            valid_hourly_records_with_out_null_values_count, total_hourly_records_count, sensor_one_pm2_5_readings, sensor_two_pm2_5_readings, battery_voltage_readings, time_readings = get_raw_channel_data(
                 channel_id, specified_hours)
             print('valid records count' +
                   str(valid_hourly_records_with_out_null_values_count))
@@ -221,14 +223,13 @@ def compute_uptime_for_all_devices():
             all_devices_uptime_series.append(device_uptime_in_percentage)
             device_uptime_record = {"device_uptime_in_percentage": device_uptime_in_percentage,
                                     "device_downtime_in_percentage": device_downtime_in_percentage, "created_at": created_at,
-                                    "device_channel_id": channel_id, "specified_time_in_hours": specified_hours, "device_name":device_name, "device_id":device_id }
+                                    "device_channel_id": channel_id, "specified_time_in_hours": specified_hours, "device_name": device_name, "device_id": device_id}
 
             if time_period['label'] == 'twenty_eight_days':
                 device_uptime_record["device_sensor_one_pm2_5_readings"] = sensor_one_pm2_5_readings
-                device_uptime_record["device_sensor_two_pm2_5_readings"] =sensor_two_pm2_5_readings
-                device_uptime_record["device_battery_voltage_readings"]=battery_voltage_readings
-                device_uptime_record["device_time_readings"] =time_readings
-
+                device_uptime_record["device_sensor_two_pm2_5_readings"] = sensor_two_pm2_5_readings
+                device_uptime_record["device_battery_voltage_readings"] = battery_voltage_readings
+                device_uptime_record["device_time_readings"] = time_readings
 
             device_uptime_records.append(device_uptime_record)
 
@@ -290,8 +291,8 @@ def compute_uptime_for_all_devices():
     all_network_device_uptime_records.append(
         entire_network_uptime_record_for_all_periods)
 
-    #print('average uptime for entire network is : {}%'.format(
-        #entire_network_uptime_record_for_all_periods))
+    # print('average uptime for entire network is : {}%'.format(
+    # entire_network_uptime_record_for_all_periods))
 
     save_network_uptime_analysis_results(all_network_device_uptime_records)
 
@@ -307,4 +308,3 @@ def save_network_uptime_analysis_results(data):
 
 if __name__ == '__main__':
     compute_uptime_for_all_devices()
-    

@@ -1,0 +1,10 @@
+numpy
+pandas
+pymongo
+python-dotenv
+GDAL
+geopandas
+gpflow
+tensorflow
+requests
+google-cloud-storage

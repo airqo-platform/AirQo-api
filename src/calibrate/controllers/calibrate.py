@@ -1,64 +1,39 @@
-import app
 from routes import api
 from flask import Blueprint, request, jsonify
-import logging
-import app
-import json
-import uncertainties.unumpy as unp
-import os
-from pymongo import MongoClient
-import uncertainties.unumpy as unp
 from models import regression as rg
-from models import calibrate as cb
-
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 
-
-MONGO_URI = os.getenv('MONGO_URI')
-client = MongoClient(MONGO_URI)
-db = client['airqo_netmanager_staging_airqo']
-col = db['calibration_ratios']
-
-@calibrate_bp.route(api.route['ratios'], methods=['POST', 'GET'])
-def save_ratios():
-    calibrateModel = cb.Calibrate() 
-    allcals = calibrateModel.allcals
-
-    ratio_list = []
-    for key, val in allcals.items():
-        id, timeidx = key
-        result_ratio = {"channel_index":int(id), "time_index":int(timeidx), "ratio":float(val)}
-        ratio_list.append(result_ratio)
-    
-    col.insert_many(ratio_list)
-
-    return  jsonify(status="done", action="Data saved Succesfully",error="false")
-
-
 @calibrate_bp.route(api.route['calibrate'], methods=['POST', 'GET'])
-def calibrate():
 
+def calibrate():
+    
     if request.method == 'POST':
         data = request.get_json()
         datetime = data.get('datetime')
         raw_values = data.get('raw_values')
-
-        print('data',type(data))
         
         if (not datetime or not raw_values):
-            return jsonify({"message": "Please specify the datetime and raw_values in the body. Refer to the API documentation for details.", "success": False}), 400
-    
-        rgModel = rg.Regression()
-        hourly_combined_dataset = rgModel.hourly_combined_dataset
+            return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400     
 
-        calibrateModel = cb.Calibrate()
+        rgModel = rg.Regression()
+
         response = []
         for raw_value in raw_values:
-            value = calibrateModel.calibrate_sensor_raw_data(datetime, raw_value.get('sensor_id'), raw_value.get('raw_value'))
-            value_lr = rgModel.simple_lr(raw_value.get('raw_value'), hourly_combined_dataset)
-            response.append({'Sensor_id':raw_value.get('sensor_id'),'calibrated_value': value, 'calibrated_value_LR': value_lr})
+            device_id = raw_value.get('device_id')
+            pm2_5 = raw_value.get('sensor1_pm2.5')
+            s2_pm2_5 = raw_value.get('sensor2_pm2.5')
+            pm10 = raw_value.get('sensor1_pm10')
+            s2_pm10 = raw_value.get('sensor2_pm10')
+            temperature = raw_value.get('temperature')
+            humidity = raw_value.get('humidity')
+
+            if (not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity):
+                return jsonify({"message": "Please specify the device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
+            
+            value = rgModel.compute_calibrated_val(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime)           
+        
+            response.append({'device_id': device_id, 'calibrated_value': value})
         return jsonify(response), 200
 
-    
 
