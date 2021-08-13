@@ -13,6 +13,10 @@ metadata:
       error_page 401 /errors/unauthorized;
       error_page 403 /errors/forbidden;
     nginx.ingress.kubernetes.io/auth-snippet: |
+      if ($request_uri = "/") {
+          return 200;
+      }
+
       if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
           return 200;
       }
