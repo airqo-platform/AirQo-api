@@ -10,9 +10,20 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
 const { logElement, logObject } = require("./log");
+const log4js = require("log4js");
+const logger = log4js.getLogger("generate-filter-util");
 
 const generateFilter = {
-  events: (device, frequency, startTime, endTime) => {
+  events: (
+    device,
+    device_number,
+    device_id,
+    site,
+    site_id,
+    frequency,
+    startTime,
+    endTime
+  ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     let today = monthsInfront(0);
@@ -25,6 +36,11 @@ const generateFilter = {
       },
       "values.time": { $gte: oneWeekBack, $lte: today },
       "values.device": {},
+      "values.site": {},
+      "values.device_id": {},
+      "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
     };
 
     if (startTime) {
@@ -101,7 +117,9 @@ const generateFilter = {
         );
       }
     }
-
+    /**
+     * unique names for sites and devices
+     */
     if (device) {
       let deviceArray = device.split(",");
       filter["values.device"]["$in"] = deviceArray;
@@ -111,11 +129,224 @@ const generateFilter = {
       delete filter["values.device"];
     }
 
+    if (device_number) {
+      let deviceArray = device_number.split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
+    }
+
+    if (site) {
+      let deviceArray = site.split(",");
+      filter["values.site"]["$in"] = deviceArray;
+    }
+
+    if (!site) {
+      delete filter["values.site"];
+    }
+
+    /**
+     * unique ids for devices and sites
+     */
+    if (device_id) {
+      let deviceIdArray = device_id.split(",");
+      let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+        return ObjectId(device_id);
+      });
+      filter["values.device_id"]["$in"] = modifiedDeviceIdArray;
+    }
+    if (!device_id) {
+      delete filter["values.device_id"];
+    }
+    if (site_id) {
+      let siteIdArray = site_id.split(",");
+      let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+        return ObjectId(site_id);
+      });
+      filter["values.site_id"]["$in"] = modifiedSiteIdArray;
+    }
+    if (!site_id) {
+      delete filter["values.site_id"];
+    }
+    /**
+     * ends unique site and device ids
+     */
     if (frequency) {
       filter["values.frequency"] = frequency;
     }
 
     return filter;
+  },
+
+  events_v2: (request) => {
+    try {
+      const {
+        device,
+        device_number,
+        site,
+        frequency,
+        startTime,
+        endTime,
+        device_id,
+        site_id,
+      } = request.query;
+      let oneMonthBack = monthsInfront(-1);
+      let oneMonthInfront = monthsInfront(1);
+      let today = monthsInfront(0);
+      let oneWeekBack = addDays(-7);
+      let oneWeekInfront = addDays(7);
+      let filter = {
+        "values.time": { $gte: oneWeekBack, $lte: today },
+        device_id: {},
+        site_id: {},
+        site: {},
+        device: {},
+        device_number: {},
+        "values.device_number": {},
+      };
+
+      if (startTime) {
+        if (isTimeEmpty(startTime) == false) {
+          let start = new Date(startTime);
+          filter["values.time"]["$gte"] = start;
+        } else {
+          delete filter["values.time"];
+        }
+      }
+
+      if (endTime) {
+        if (isTimeEmpty(endTime) == false) {
+          let end = new Date(endTime);
+          filter["values.time"]["$lte"] = end;
+        } else {
+          delete filter["values.time"];
+        }
+      }
+
+      if (startTime && !endTime) {
+        if (isTimeEmpty(startTime) == false) {
+          filter["values.time"]["$lte"] = addMonthsToProvideDateTime(
+            startTime,
+            1
+          );
+        } else {
+          delete filter["values.time"];
+        }
+      }
+
+      if (!startTime && endTime) {
+        if (isTimeEmpty(endTime) == false) {
+          filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
+            endTime,
+            -1
+          );
+        } else {
+          delete filter["values.time"];
+        }
+      }
+
+      if (startTime && endTime) {
+        let months = getDifferenceInMonths(startTime, endTime);
+        logElement("the number of months", months);
+        if (months > 1) {
+          if (isTimeEmpty(endTime) == false) {
+            filter["values.time"]["$gte"] = addMonthsToProvideDateTime(
+              endTime,
+              -1
+            );
+          } else {
+            delete filter["values.time"];
+          }
+          let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+            endTime,
+            -1
+          );
+          filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+            removedOneMonthFromProvidedDateTime
+          );
+        }
+      }
+      /**
+       * the unique site and device ids
+       */
+      if (device_id) {
+        let deviceIdArray = device_id.split(",");
+        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+          return ObjectId(device_id);
+        });
+        filter["device_id"]["$in"] = modifiedDeviceIdArray;
+      }
+
+      if (!device_id) {
+        delete filter["device_id"];
+      }
+
+      if (site_id) {
+        let siteIdArray = site_id.split(",");
+        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+          return ObjectId(site_id);
+        });
+        filter["site_id"]["$in"] = modifiedSiteIdArray;
+      }
+
+      if (!site_id) {
+        delete filter["site_id"];
+      }
+      /**
+       * the unique site and device names
+       */
+      if (device) {
+        let deviceArray = device.split(",");
+        filter["device"]["$in"] = deviceArray;
+      }
+
+      if (!device) {
+        delete filter["device"];
+      }
+
+      if (device_number) {
+        let deviceArray = device_number.split(",");
+        filter["device_number"]["$in"] = deviceArray;
+        filter["values.device_number"]["$in"] = deviceArray;
+      }
+
+      if (!device_number) {
+        delete filter["device_number"];
+        delete filter["values.device_number"];
+      }
+
+      if (site) {
+        let siteArray = site.split(",");
+        filter["site"]["$in"] = siteArray;
+      }
+
+      if (!site) {
+        delete filter["site"];
+      }
+      /**
+       * end unique site and device names
+       */
+
+      if (frequency) {
+        filter["frequency"] = frequency;
+      }
+
+      return {
+        success: true,
+        data: filter,
+        message: "filter successfully generated",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to generate the filter",
+        error: error.message,
+      };
+    }
   },
 
   generateRegexExpressionFromStringElement: (element) => {
@@ -185,93 +416,121 @@ const generateFilter = {
     return filter;
   },
   devices: (req) => {
-    let filter = {};
-    let {
-      name,
-      channel,
-      location,
-      siteName,
-      mapAddress,
-      primary,
-      active,
-      chid,
-      loc,
-      map,
-      site,
-      site_id,
-    } = req.query;
+    try {
+      let filter = {};
+      let {
+        name,
+        channel,
+        location,
+        siteName,
+        mapAddress,
+        primary,
+        active,
+        chid,
+        loc,
+        map,
+        site,
+        site_id,
+        id,
+        device_id,
+        device_number,
+      } = req.query;
 
-    if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (channel) {
-      filter["channelID"] = channel;
-    }
-
-    if (chid) {
-      filter["channelID"] = chid;
-    }
-
-    if (location) {
-      filter["locationID"] = location;
-    }
-    if (loc) {
-      filter["locationID"] = loc;
-    }
-    if (site) {
-      filter["site_id"] = site;
-    }
-
-    if (site_id) {
-      filter["site_id"] = site_id;
-    }
-
-    if (siteName) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        siteName
-      );
-      filter["siteName"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (mapAddress) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        mapAddress
-      );
-      filter["locationName"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (map) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        map
-      );
-      filter["locationName"] = { $regex: regexExpression, $options: "i" };
-    }
-
-    if (primary) {
-      const primaryStr = primary + "";
-      if (primaryStr.toLowerCase() == "yes") {
-        filter["isPrimaryInLocation"] = true;
-      } else if (primaryStr.toLowerCase() == "no") {
-        filter["isPrimaryInLocation"] = false;
-      } else {
+      if (name) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          name
+        );
+        filter["name"] = { $regex: regexExpression, $options: "i" };
       }
-    }
 
-    if (active) {
-      const activeStr = active + "";
-      if (activeStr.toLowerCase() == "yes") {
-        filter["isActive"] = true;
-      } else if (activeStr.toLowerCase() == "no") {
-        filter["isActive"] = false;
-      } else {
+      if (channel) {
+        filter["channelID"] = channel;
       }
-    }
 
-    return filter;
+      if (device_number) {
+        filter["device_number"] = device_number;
+      }
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (device_id) {
+        filter["_id"] = ObjectId(device_id);
+      }
+
+      if (chid) {
+        filter["channelID"] = chid;
+      }
+
+      if (location) {
+        filter["locationID"] = location;
+      }
+      if (loc) {
+        filter["locationID"] = loc;
+      }
+      if (site) {
+        filter["site_id"] = site;
+      }
+
+      if (site_id) {
+        filter["site_id"] = site_id;
+      }
+
+      if (siteName) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          siteName
+        );
+        filter["siteName"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (mapAddress) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          mapAddress
+        );
+        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (map) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          map
+        );
+        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (primary) {
+        const primaryStr = primary + "";
+        if (primaryStr.toLowerCase() == "yes") {
+          filter["isPrimaryInLocation"] = true;
+        } else if (primaryStr.toLowerCase() == "no") {
+          filter["isPrimaryInLocation"] = false;
+        } else {
+        }
+      }
+
+      if (active) {
+        const activeStr = active + "";
+        if (activeStr.toLowerCase() == "yes") {
+          filter["isActive"] = true;
+        } else if (activeStr.toLowerCase() == "no") {
+          filter["isActive"] = false;
+        } else {
+        }
+      }
+      logger.info(`the filter  -- ${JSON.stringify(filter)}`);
+      return {
+        success: true,
+        message: "successfully generated the filter",
+        data: filter,
+      };
+    } catch (error) {
+      logger.error(`server error - generate device filter -- ${error.message}`);
+      return {
+        success: false,
+        message: "server error - generate device filter",
+        error: error.message,
+      };
+    }
   },
   sites: (req) => {
     let {

@@ -1,0 +1,31 @@
+replicaCount: 1
+
+image:
+  repository: us.gcr.io/airqo-250220/stage-batch-fetch-measurements
+  pullPolicy: Always
+  tag: latest
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+deploymentName: stage-batch-streams
+
+env:
+  secret: stage-batch-streams-secrets
+  startTime: 2021-01-01
+  endTime: 2021-12-01
+  interval: 1
+  bootstrapServers:
+  airqoBaseUrl:
+  schemaRegistryUrl:
+  outputTopic:
+  
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+appMode: staging

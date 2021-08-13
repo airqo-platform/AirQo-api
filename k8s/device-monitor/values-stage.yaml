@@ -1,0 +1,35 @@
+# values for airqo-device-monitor-api.
+env:
+  deployment_name: airqo-stage-device-monitor-api
+  service_name: airqo-stage-device-registry-api-svc
+  labels: sta-dev-monitor
+  secret: stage-device-monitor-secret
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-stage-device-monitor-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 31006
+  targetPort: 4001
+  port: 4001
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: staging

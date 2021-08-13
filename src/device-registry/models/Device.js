@@ -2,16 +2,22 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
-const { logObject, logElement } = require("../utils/log");
+const { logObject, logElement, logText } = require("../utils/log");
 const { monthsInfront } = require("../utils/date");
-
+const Cryptr = require("cryptr");
+const constants = require("../config/constants");
+const cryptr = new Cryptr(`${constants.KEY_ENCRYPTION_KEY}`);
+const isEmpty = require("is-empty");
+const jsonify = require("../utils/jsonify");
+const log4js = require("log4js");
+const logger = log4js.getLogger("device-model");
 const maxLength = [
-  9,
+  15,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
 ];
 
 const minLength = [
-  5,
+  7,
   "The value of path `{PATH}` (`{VALUE}`) is shorter than the minimum allowed length ({MINLENGTH}).",
 ];
 
@@ -36,12 +42,18 @@ const deviceSchema = new mongoose.Schema(
     },
     name: {
       type: String,
-      required: [true, "Device name is required!"],
+      required: [true, "the Device name is required!"],
       trim: true,
       maxlength: maxLength,
       unique: true,
       minlength: minLength,
       match: noSpaces,
+      lowercase: true,
+    },
+    long_name: {
+      type: String,
+      required: [true, "the Device long name is required"],
+      trim: true,
     },
     visibility: {
       type: Boolean,
@@ -51,8 +63,22 @@ const deviceSchema = new mongoose.Schema(
     createdAt: {
       type: Date,
     },
+    generation_version: {
+      type: Number,
+      required: [true, "the generation is required"],
+    },
+    generation_count: {
+      type: Number,
+      required: [
+        true,
+        "the number of the device in the provided generation is required",
+      ],
+    },
     elevation: {
       type: Number,
+    },
+    tags: {
+      type: Array,
     },
     owner: {
       type: ObjectId,
@@ -73,7 +99,6 @@ const deviceSchema = new mongoose.Schema(
     mountType: {
       type: String,
       trim: true,
-      default: "wall",
       lowercase: true,
     },
     ISP: {
@@ -90,14 +115,15 @@ const deviceSchema = new mongoose.Schema(
     },
     device_manufacturer: {
       type: String,
-      default: "airqo",
+      default: null,
     },
     product_name: {
       type: String,
-      default: "gen1",
+      default: null,
     },
     powerType: {
       type: String,
+      trim: true,
       lowercase: true,
     },
     isRetired: {
@@ -122,6 +148,18 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: monthsInfront(3),
     },
+    deployment_date: {
+      type: Date,
+      default: Date.now,
+    },
+    maintenance_date: {
+      type: Date,
+      default: Date.now,
+    },
+    recall_date: {
+      type: Date,
+      default: Date.now,
+    },
     device_number: {
       type: Number,
       required: [true, "device_number is required!"],
@@ -130,6 +168,7 @@ const deviceSchema = new mongoose.Schema(
     },
     isActive: {
       type: Boolean,
+      default: false,
     },
     pictures: [{ type: String }],
   },
@@ -144,7 +183,13 @@ deviceSchema.plugin(uniqueValidator, {
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
+    // this.name = this._transformDeviceName(this.name);
+    if (this.writeKey && this.readKey) {
+      this.writeKey = this._encryptKey(this.writeKey);
+      this.readKey = this._encryptKey(this.readKey);
+    }
     let n = this.name;
+    // console.log({ n });
   }
   return next();
 });
@@ -169,10 +214,19 @@ deviceSchema.methods = {
     let transformedName = tranformDeviceName(name);
     return transformedName;
   },
+  _encryptKey(key) {
+    let encryptedKey = cryptr.encrypt(key);
+    return encryptedKey;
+  },
+  _decryptKey(encryptedKey) {
+    let decryptedKey = cryptr.decrypt(encryptedKey);
+    return decryptedKey;
+  },
   toJSON() {
     return {
       id: this._id,
       name: this.name,
+      long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
       createdAt: this.createdAt,
@@ -186,6 +240,9 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
+      deployment_date: this.deployment_date,
+      maintenance_date: this.maintenance_date,
+      recall_date: this.recall_date,
       device_number: this.device_number,
       powerType: this.powerType,
       mountType: this.mountType,
@@ -200,37 +257,50 @@ deviceSchema.methods = {
       height: this.height,
     };
   },
-
-  toUpdateJSON() {
-    return {
-      name: this.name,
-      locationID: this.locationID,
-      height: this.height,
-      mountType: this.mountType,
-      powerType: this.powerType,
-      date: this.date,
-      latitude: this.latitude,
-      longitude: this.longitude,
-      isPrimaryInLocation: this.isPrimaryInLocation,
-      isUsedForCollocaton: this.isUsedForCollocation,
-      updatedAt: this.updatedAt,
-      siteName: this.siteName,
-      locationName: this.locationName,
-      site_id: this.site_id,
-    };
-  },
 };
 
 deviceSchema.statics = {
-  createDevice(args) {
-    return this.create({
-      ...args,
-    });
+  async register(args) {
+    try {
+      logObject("the args", args);
+      logger.info("in the register static fn of the Device model...");
+      let modifiedArgs = args;
+      modifiedArgs.name = `aq_g${args.generation_version}_${args.generation_count}`;
+      let createdDevice = await this.create({
+        ...modifiedArgs,
+      });
+      if (!isEmpty(createdDevice)) {
+        return {
+          success: true,
+          message: "successfully created the device",
+          data: createdDevice,
+        };
+      }
+      logger.warn("operation successful but device is not created");
+      return {
+        success: true,
+        message: "operation successful but device not created",
+        data: createdDevice,
+      };
+    } catch (error) {
+      logger.error(`Device model server error -- ${error.message}`);
+      return {
+        success: false,
+        message: "model server error",
+        error: error.message,
+      };
+    }
   },
 
-  list({ _skip = 0, _limit = 100, filter = {} } = {}) {
+  async list({ _skip = 0, _limit = 1000, filter = {} } = {}) {
     try {
-      return this.aggregate()
+      logger.info(
+        `the filter received in the model -- ${JSON.stringify(filter)}`
+      );
+      logger.info(
+        `the type of filter received in the model -- ${typeof filter}`
+      );
+      let response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "sites",
@@ -242,6 +312,7 @@ deviceSchema.statics = {
         .project({
           _id: 1,
           name: 1,
+          long_name: 1,
           latitude: 1,
           longitude: 1,
           createdAt: 1,
@@ -255,11 +326,15 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           isUsedForCollocation: 1,
           nextMaintenance: 1,
+          deployment_date: 1,
+          recall_date: 1,
+          maintenance_date: 1,
           device_number: 1,
           powerType: 1,
           mountType: 1,
           locationID: 1,
           isActive: 1,
+          isRetired: 1,
           writeKey: 1,
           readKey: 1,
           pictures: 1,
@@ -271,6 +346,21 @@ deviceSchema.statics = {
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      let data = jsonify(response);
+      logger.info(`the data produced in the model -- ${JSON.stringify(data)}`);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully retrieved the device details",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
     } catch (error) {
       return {
         success: false,
@@ -279,12 +369,75 @@ deviceSchema.statics = {
       };
     }
   },
-
-  listByLocation({ skip = 0, limit = 5, loc = "" } = {}) {
-    return this.find({ locationID: loc })
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      logObject("the filter", filter);
+      let options = { new: true };
+      let modifiedUpdate = update;
+      delete modifiedUpdate.name;
+      delete modifiedUpdate.device_number;
+      delete modifiedUpdate._id;
+      delete modifiedUpdate.generation_count;
+      delete modifiedUpdate.generation_version;
+      logObject("modifiedUpdate", modifiedUpdate);
+      if (update.writeKey) {
+        modifiedUpdate.writeKey = cryptr.encrypt(update.writeKey);
+      }
+      if (update.readKey) {
+        modifiedUpdate.readKey = cryptr.encrypt(update.readKey);
+      }
+      let updatedDevice = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdate,
+        options
+      ).exec();
+      let data = jsonify(updatedDevice);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the device",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Device model server error - modify",
+        error: error.message,
+      };
+    }
+  },
+  async remove({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
+      };
+      let removedDevice = await this.findOneAndRemove(filter, options).exec();
+      let data = jsonify(removedDevice);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully deleted device from the platform",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Device model server error - remove",
+        error: error.message,
+      };
+    }
   },
 };
 

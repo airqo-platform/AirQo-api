@@ -1,10 +1,12 @@
 const { Schema } = require("mongoose");
+const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
+const HTTPStatus = require("http-status");
 
 const siteSchema = new Schema(
   {
@@ -18,6 +20,10 @@ const siteSchema = new Schema(
       trim: true,
       unique: true,
       required: [true, "generated name is required!"],
+    },
+    airqloud_id: {
+      type: ObjectId,
+      trim: true,
     },
     formatted_name: {
       type: String,
@@ -61,6 +67,10 @@ const siteSchema = new Schema(
       trim: true,
     },
     distance_to_nearest_residential_area: {
+      type: Number,
+      trim: true,
+    },
+    distance_to_nearest_residential_road: {
       type: Number,
       trim: true,
     },
@@ -162,6 +172,33 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    nearest_tahmo_station: {
+      id: {
+        type: Number,
+        trim: true,
+        default: -1,
+      },
+      code: {
+        type: String,
+        trim: true,
+        default: null,
+      },
+      longitude: {
+        type: Number,
+        trim: true,
+        default: -1,
+      },
+      latitude: {
+        type: Number,
+        trim: true,
+        default: -1,
+      },
+      timezone: {
+        type: String,
+        trim: true,
+        default: null,
+      },
+    },
   },
   {
     timestamps: true,
@@ -198,7 +235,7 @@ siteSchema.index({ lat_long: 1 }, { unique: true });
 siteSchema.index({ generated_name: 1 }, { unique: true });
 
 siteSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
+  message: `{VALUE} must be unique!`,
 });
 
 siteSchema.methods = {
@@ -240,6 +277,9 @@ siteSchema.methods = {
         .distance_to_nearest_residential_area,
       bearing_to_kampala_center: this.bearing_to_kampala_center,
       distance_to_kampala_center: this.distance_to_kampala_center,
+      distance_to_nearest_residential_road: this
+        .distance_to_nearest_residential_road,
+      nearest_tahmo_station: this.nearest_tahmo_station,
     };
   },
   createSite(args) {
@@ -252,24 +292,21 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
-      let modifiedArgs = args;
-      let site_tags = modifiedArgs.site_tags;
-      if (site_tags) {
-        modifiedArgs.$addToSet = { site_tags: { $each: site_tags } };
-      }
       let data = await this.create({
-        ...modifiedArgs,
+        ...args,
       });
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "site created",
+          status: HTTPStatus.CREATED,
         };
       } else {
         return {
           success: false,
           message: "site not create despite successful operation",
+          status: HTTPStatus.ACCEPTED,
         };
       }
     } catch (error) {
@@ -277,6 +314,7 @@ siteSchema.statics = {
         error: error.message,
         message: "Site model server error - register",
         success: false,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -286,7 +324,7 @@ siteSchema.statics = {
     filter = {},
   } = {}) {
     try {
-      return this.aggregate()
+      let response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "devices",
@@ -326,18 +364,38 @@ siteSchema.statics = {
           distance_to_nearest_tertiary_road: 1,
           distance_to_nearest_unclassified_road: 1,
           distance_to_nearest_residential_area: 1,
+          distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
+          nearest_tahmo_station: 1,
           devices: "$devices",
         })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      let data = jsonify(response);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully retrieved the site details",
+          data,
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "site does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
     } catch (error) {
       return {
         success: false,
         message: "Site model server error - list",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -345,24 +403,9 @@ siteSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdateBody = update;
-      if (modifiedUpdateBody.site_tags) {
-        delete modifiedUpdateBody.site_tags;
-      }
-      let add_site_tags = modifiedUpdateBody.add_site_tags;
-      let remove_site_tags = modifiedUpdateBody.remove_site_tags;
-
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-
-      if (add_site_tags) {
-        modifiedUpdateBody.$addToSet = { site_tags: { $each: add_site_tags } };
-      }
-
-      if (remove_site_tags) {
-        modifiedUpdateBody.$pullAll = { site_tags: remove_site_tags };
-      }
-
       if (modifiedUpdateBody.latitude) {
         delete modifiedUpdateBody.latitude;
       }
@@ -380,11 +423,13 @@ siteSchema.statics = {
           success: true,
           message: "successfully modified the site",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "site does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -392,6 +437,7 @@ siteSchema.statics = {
         success: false,
         message: "Site model server error - modify",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -413,11 +459,13 @@ siteSchema.statics = {
           success: true,
           message: "successfully removed the site",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "site does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -425,6 +473,7 @@ siteSchema.statics = {
         success: false,
         message: "Site model server error - remove",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

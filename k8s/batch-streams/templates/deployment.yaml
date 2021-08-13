@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+  namespace: {{ .Values.appMode }}
+spec:
+  selector:
+    matchLabels:
+      app: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+    spec:
+      containers:
+        - name: "{{ .Values.deploymentName }}-{{ .Values.env.tenant }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: START_TIME
+              value: {{ .Values.env.startTime }}
+            - name: END_TIME
+              value: {{ .Values.env.endTime }}
+            - name: INTERVAL
+              value: {{ .Values.env.interval }}
+            - name: DEVICE_REGISTRY_URL
+              value: {{ .Values.env.airqoBaseUrl }}
+            - name: CLARITY_API_BASE_URL
+              value: {{ .Values.env.airqoBaseUrl }}
+            - name: CLARITY_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.env.secret }}
+                  key: CLARITY_API_KEY
+            - name: BOOT_STRAP_SERVERS
+              value: {{ .Values.env.bootstrapServers }}
+            - name: OUTPUT_TOPIC
+              value: {{ .Values.env.outputTopic }}
+            - name: SCHEMA_REGISTRY_URL
+              value: {{ .Values.env.schemaRegistryUrl }}
+            - name: FREQUENCY
+              value: {{ .Values.env.frequency }}
