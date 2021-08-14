@@ -9,9 +9,9 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/auth-method: GET
     nginx.ingress.kubernetes.io/auth-url: http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users?tenant=airqo
-    nginx.ingress.kubernetes.io/configuration-snippet: |
-      error_page 401 /errors/unauthorized;
-      error_page 403 /errors/forbidden;
+    # nginx.ingress.kubernetes.io/configuration-snippet: |
+    #   error_page 401 /errors/unauthorized;
+    #   error_page 403 /errors/forbidden;
     nginx.ingress.kubernetes.io/auth-snippet: |
       if ($request_uri = "/") {
           return 200;
@@ -36,15 +36,15 @@ metadata:
       if ($request_uri ~ "(api/v1/users/updatePasswordViaEmail)|(api/v2/users/updatePasswordViaEmail)") {
           return 200;
       }
-    nginx.ingress.kubernetes.io/server-snippet: |
-      location = /errors/unauthorized {
-        proxy_method GET;
-        proxy_pass http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/errors/unauthorized;
-      }
-      location = /errors/forbidden {
-        proxy_method GET;
-        proxy_pass http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/errors/forbidden;
-      }
+    # nginx.ingress.kubernetes.io/server-snippet: |
+    #   location = /errors/unauthorized {
+    #     proxy_method GET;
+    #     proxy_pass http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/errors/unauthorized;
+    #   }
+    #   location = /errors/forbidden {
+    #     proxy_method GET;
+    #     proxy_pass http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/errors/forbidden;
+    #   }
 
 spec:
   rules:
