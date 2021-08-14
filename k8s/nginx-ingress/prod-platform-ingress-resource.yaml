@@ -7,17 +7,13 @@ metadata:
     kubernetes.io/ingress.class: nginx 
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
-    nginx.ingress.kubernetes.io/auth-method: GET
-    nginx.ingress.kubernetes.io/auth-url: http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users?tenant=airqo
+    nginx.ingress.kubernetes.io/auth-method: POST
+    nginx.ingress.kubernetes.io/auth-url: http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo
     # nginx.ingress.kubernetes.io/configuration-snippet: |
     #   error_page 401 /errors/unauthorized;
     #   error_page 403 /errors/forbidden;
     nginx.ingress.kubernetes.io/auth-snippet: |
       if ($request_uri = "/") {
-          return 200;
-      }
-
-      if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
           return 200;
       }
 
