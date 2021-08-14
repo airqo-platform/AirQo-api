@@ -1,24 +1,29 @@
 const HTTPStatus = require("http-status");
 
-const axiosError = (error, req, res) => {
+const axiosError = ({ error = {}, res = {}, extra = [] } = {}) => {
+  let errors = extra;
   if (error.response) {
     // that falls out of the range of 2xx
     res.status(HTTPStatus.BAD_GATEWAY).json({
       success: false,
-      error: error.response.data,
+      error: errors.push(error.response.data),
+      message:
+        "server error, please crosscheck the Device readKey on Netmanager",
     });
   } else if (error.request) {
     // The request was made but no response was received
     res.status(HTTPStatus.BAD_GATEWAY).json({
       success: false,
-      error: error.request,
+      error: errors.push(error.request),
+      message: "server error, no response",
     });
   } else {
+    errors.push(error.config);
     // Something happened in setting up the request that triggered an Error
     res.status(HTTPStatus.BAD_GATEWAY).json({
       success: false,
-      message: "Server Error",
-      error: error.message,
+      message: "server error",
+      error: errors.push(error.message),
     });
   }
   console.log(error.config);

@@ -1,0 +1,35 @@
+# values for airqo-analytics-api.
+env:
+  deployment_name: airqo-stage-analytics-api
+  service_name: airqo-stage-analytics-api-svc
+  labels: sta-analytics-api
+  secret: stage-analytics-secret
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-stage-analytics-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 31003
+  targetPort: 5000
+  port: 5000
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: staging

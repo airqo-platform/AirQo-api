@@ -7,6 +7,7 @@ const axios = require("axios");
 const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
 const Issue = require("../models/Issue");
+const isEmpty = require("is-empty");
 const {
   getFieldLabel,
   getPositionLabel,
@@ -33,6 +34,7 @@ const {
   GET_LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION,
   GET_DEVICE_COUNT_CACHE_EXPIRATION,
 } = require("../config/constants");
+const { logObject, logElement } = require("../utils/log");
 
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
@@ -68,7 +70,7 @@ const data = {
                 .json({ isCache: false, ...responseJSON });
             })
             .catch((err) => {
-              axiosError(err, req, res);
+              axiosError({ error, res });
             });
         }
       });
@@ -95,8 +97,9 @@ const data = {
             const resultJSON = JSON.parse(result);
             return res.status(HTTPStatus.OK).json(resultJSON);
           } else {
+            let channel = ch_id;
             axios
-              .get(constants.GENERATE_LAST_ENTRY(ch_id))
+              .get(constants.GENERATE_LAST_ENTRY({ channel }))
               .then(async (response) => {
                 let readings = response.data;
 
@@ -121,7 +124,7 @@ const data = {
                 });
               })
               .catch((error) => {
-                axiosError(error, req, res);
+                axiosError({ error, res });
               });
           }
         });
@@ -164,7 +167,7 @@ const data = {
                   .json({ isCache: false, ...responseJSON });
               })
               .catch((err) => {
-                axiosError(err, req, res);
+                axiosError({ error, res });
               });
           }
         });
@@ -183,8 +186,22 @@ const data = {
 
   generateDescriptiveLastEntry: async (req, res) => {
     try {
-      const { channel } = req.query;
+      const { channel, device } = req.query;
       if (channel) {
+        let api_key = "";
+        let errors = [];
+        let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
+        logObject("responseFromGetAPIKey", responseFromGetAPIKey);
+        if (responseFromGetAPIKey.success == true) {
+          api_key = responseFromGetAPIKey.data;
+        } else if (responseFromGetAPIKey.success == false) {
+          if (responseFromGetAPIKey.error) {
+            errors.push(responseFromGetAPIKey.error);
+            errors.push(responseFromGetAPIKey.message);
+          } else {
+            errors.push(responseFromGetAPIKey.message);
+          }
+        }
         let ts = Date.now();
         let day = await generateDateFormat(ts);
         let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
@@ -194,7 +211,7 @@ const data = {
             return res.status(HTTPStatus.OK).json(resultJSON);
           } else {
             axios
-              .get(constants.GENERATE_LAST_ENTRY(channel))
+              .get(constants.GENERATE_LAST_ENTRY({ channel, api_key }))
               .then(async (response) => {
                 let readings = response.data;
                 let lastEntryId = readings.channel.last_entry_id;
@@ -203,30 +220,21 @@ const data = {
                 });
                 let responseData = recentReadings[0];
                 //check the GPS values
-                // if (responseData.field6 == 0.0 || responseData.field5 == 0.0) {
-                //   let location = await handleInaccurate(responseData, req, res);
-                //   console.log("the location object: ", location);
-                //   responseData.field5 = location.latitude;
-                //   responseJSON.field6 = location.longitude;
-                // }
-                // if (
-                //   responseData.field6 == 1000.0 ||
-                //   responseData.field5 == 1000.0
-                // ) {
-                //   let location = await handleInaccurate(responseData, req, res);
-                //   console.log("the location object: ", location);
-                //   responseData.field5 = location.latitude;
-                //   responseData.field6 = location.longitude;
-                // }
-
+                let gpsCods = gpsCheck(responseData, req, res);
+                // responseData.field5 = gpsCods.latitude;
+                // responseData.field6 = gpsCods.longitude;
                 delete responseData.entry_id;
                 let transformedData = await transformMeasurement(responseData);
 
                 let otherData = transformedData.other_data;
                 let transformedField = await trasformFieldValues(otherData);
-
                 delete transformedData.other_data;
-                let newResp = { ...transformedField, ...transformedData };
+                let newResp = {
+                  success: true,
+                  ...transformedData,
+                  ...transformedField,
+                  errors,
+                };
                 redis.set(
                   cacheID,
                   JSON.stringify({ isCache: true, ...newResp })
@@ -241,7 +249,8 @@ const data = {
                 });
               })
               .catch((error) => {
-                axiosError(error, req, res);
+                let extra = errors;
+                axiosError({ error, res, extra });
               });
           }
         });
