@@ -39,7 +39,7 @@ router.put(
   authJWT,
   joinController.updateKnownPassword
 );
-router.post("/forgotPassword", setJWTAuth, authJWT, joinController.forgot);
+router.post("/forgotPassword", joinController.forgot);
 router.put("/", setJWTAuth, authJWT, joinController.update);
 router.delete("/", setJWTAuth, authJWT, joinController.delete);
 
