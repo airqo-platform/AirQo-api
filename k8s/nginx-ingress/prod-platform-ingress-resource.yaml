@@ -9,9 +9,6 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.ingress.kubernetes.io/auth-method: POST
     nginx.ingress.kubernetes.io/auth-url: http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo
-    # nginx.ingress.kubernetes.io/configuration-snippet: |
-    #   error_page 401 /errors/unauthorized;
-    #   error_page 403 /errors/forbidden;
     nginx.ingress.kubernetes.io/auth-snippet: |
       if ($request_uri = "/") {
           return 200;
@@ -29,18 +26,37 @@ metadata:
           return 200;
       }
 
-      if ($request_uri ~ "(api/v1/users/updatePasswordViaEmail)|(api/v2/users/updatePasswordViaEmail)") {
+      if ($request_uri ~ "(/api/v1/incentives)|(/api/v2/incentives)") {
           return 200;
       }
-    # nginx.ingress.kubernetes.io/server-snippet: |
-    #   location = /errors/unauthorized {
-    #     proxy_method GET;
-    #     proxy_pass http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/errors/unauthorized;
-    #   }
-    #   location = /errors/forbidden {
-    #     proxy_method GET;
-    #     proxy_pass http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/errors/forbidden;
-    #   }
+
+      if ($request_uri ~ "(/api/v1/monitor)|(/api/v2/monitor)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/predict)|(/api/v2/predict)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/analytics)|(/api/v2/analytics)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/map)|(/api/v2/map)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/data)|(/api/v2/data)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/devices)|(/api/v2/devices)") {
+          return 200;
+      }
+
+      if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
+          return 200;
+      }
 
 spec:
   rules:
