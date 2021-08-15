@@ -1,0 +1,67 @@
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaUser
+metadata:
+  name: transformed-measurements-producer
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  authentication:
+    type: scram-sha-512
+    # password:
+    #     valueFrom:
+    #       secretKeyRef:
+    #         name: transformed-measurements-producer-credentials
+    #         key: password
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: airqo-streams-calibrated-device-measurements-topic 
+          patternType: literal
+        operation: Write
+        host: "*"
+      - resource:
+          type: topic
+          name: airqo-streams-calibrated-device-measurements-topic 
+          patternType: literal
+        operation: Describe
+        host: "*"
+      - resource:
+          type: topic
+          name: kcca-streams-transformed-device-measurements-topic 
+          patternType: literal
+        operation: Describe
+        operation: Write
+        host: "*"
+
+---
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaUser
+metadata:
+  name: transformed-measurements-consumer
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  authentication:
+    type: scram-sha-512
+    # password:
+    #   valueFrom:
+    #     secretKeyRef:
+    #       name: transformed-measurements-consumer-credentials
+    #       key: password
+  authorization:
+    type: simple
+    acls:
+      - resource:
+          type: topic
+          name: airqo-streams-calibrated-device-measurements-topic 
+          patternType: literal
+        operation: Read
+      - resource:
+          type: topic
+          name: kcca-streams-transformed-device-measurements-topic
+          patternType: literal
+        operation: Read
