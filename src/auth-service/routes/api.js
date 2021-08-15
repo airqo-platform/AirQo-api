@@ -26,6 +26,7 @@ router.use(headers);
 //************************* users ***************************************************
 router.post("/loginUser", setLocalAuth, authLocal, joinController.login);
 router.get("/", setJWTAuth, authJWT, joinController.list);
+router.post("/verify", setJWTAuth, authJWT, joinController.verify);
 router.post("/registerUser", joinController.register);
 router.get("/email/confirm/", setJWTAuth, authJWT, joinController.confirmEmail);
 router.put(
@@ -39,7 +40,7 @@ router.put(
   authJWT,
   joinController.updateKnownPassword
 );
-router.post("/forgotPassword", setJWTAuth, authJWT, joinController.forgot);
+router.post("/forgotPassword", joinController.forgot);
 router.put("/", setJWTAuth, authJWT, joinController.update);
 router.delete("/", setJWTAuth, authJWT, joinController.delete);
 
