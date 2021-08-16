@@ -12,8 +12,8 @@ spec:
   config:
     # Ref: https://debezium.io/documentation/reference/connectors/mongodb.html#mongodb-connector-properties
     # name: stage-device-measurements-source-connector
-    # mongodb.hosts: 35.224.67.244:27017
-    # mongodb.name: device_measurements_db
+    # mongodb.hosts: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:hosts}
+    # mongodb.name: mongodb.hosts: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:name}
     # mongodb.user: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_user}
     # mongodb.password: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_password}
     # database.include.list: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_names}
