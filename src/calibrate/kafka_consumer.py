@@ -35,7 +35,11 @@ class KafkaClient:
         self.reload_interval = os.getenv("RELOAD_INTERVAL")
         self.time_interval = os.getenv("TIME_INTERVAL")
         self.airqo_base_url = os.getenv("AIRQO_BASE_URL").removesuffix("/")
-
+        self.airqo_api_key = os.getenv("AIRQO_API_KEY")
+        self.security_protocol = os.getenv("SECURITY_PROTOCOL")
+        self.sasl_mechanism = os.getenv("SASL_MECHANISM")
+        self.sasl_plain_username = os.getenv("SASL_USERNAME")
+        self.sasl_plain_password = os.getenv("SASL_PASSWORD")
         self.registry_client = SchemaRegistry(
             self.schema_registry_url,
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
@@ -44,7 +48,7 @@ class KafkaClient:
 
     def reload(self):
         print("Generating pkl file")
-        jobs_rg.main()
+        # jobs_rg.main()
         print("Finished generating pkl file")
         self.rg_model = rg.Regression()
         self.next_initialization = datetime.now() + timedelta(days=int(self.reload_interval))
@@ -63,6 +67,10 @@ class KafkaClient:
             group_id=self.consumer_group,
             bootstrap_servers=self.bootstrap_servers,
             auto_offset_reset='earliest',
+            security_protocol=self.security_protocol,
+            sasl_mechanism=self.sasl_mechanism,
+            sasl_plain_username=self.sasl_plain_username,
+            sasl_plain_password=self.sasl_plain_password,
             enable_auto_commit=self.auto_commit)
 
         for msg in consumer:
@@ -74,22 +82,26 @@ class KafkaClient:
 
             try:
                 measurements_df = pd.DataFrame(dict(value).get("measurements", []))
-                measurements_time_df = pd.DataFrame(dict(value).get("measurements", []))
+                # measurements_time_df = pd.DataFrame(dict(value).get("measurements", []))
 
                 if len(measurements_df) == 0:
                     print('No data')
                     continue
 
-                measurements_time_df['time'] = pd.to_datetime(measurements_df['time'])
-                minimum_datetime = min(measurements_time_df['time']) - timedelta(hours=int(self.time_interval))
+                # measurements_time_df['time'] = pd.to_datetime(measurements_df['time'])
+                # minimum_datetime = min(measurements_time_df['time']) - timedelta(hours=int(self.time_interval))
+                # minimum_datetime_str = minimum_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
+
+                measurements_df['time'] = pd.to_datetime(measurements_df['time'])
+                minimum_datetime = min(measurements_df['time']) - timedelta(hours=int(self.time_interval))
                 minimum_datetime_str = minimum_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
+                measurements_df['time'] = measurements_df['time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
                 tenant = measurements_df.iloc[0]['tenant']
-                devices_names = ""
 
+                devices_names = ""
                 for _, row in measurements_df.iterrows():
                     devices_names = f"{devices_names},{row['device']}"
-
                 devices_names = devices_names.strip().removeprefix(',').removesuffix(',')
 
                 historical_data = pd.DataFrame(self.__get_hourly_historical_measurements(
@@ -109,6 +121,12 @@ class KafkaClient:
                     combined_recordings.reset_index(drop=True, inplace=True)
                     combined_recordings = pd.json_normalize(combined_recordings.to_dict(orient="records"))
                     combined_recordings.fillna(method='ffill')
+
+                    start_time = datetime.strptime(measurement.get('time'), '%Y-%m-%dT%H:%M:%SZ') - timedelta(
+                        hours=int(self.time_interval))
+                    combined_recordings['time'] = pd.to_datetime(combined_recordings['time'])
+                    combined_recordings = combined_recordings.loc[combined_recordings['time'] > start_time]
+                    combined_recordings['time'] = combined_recordings['time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
                     average_pm2_5 = combined_recordings["pm2_5.value"].mean()
                     average_pm10 = combined_recordings["pm10.value"].mean()
@@ -140,7 +158,10 @@ class KafkaClient:
     def __get_hourly_historical_measurements(self, devices_names, start_time, tenant):
         try:
 
-            headers = {'Content-Type': 'application/json'}
+            headers = {
+                'Content-Type': 'application/json',
+                'Authorization': f'JWT {self.airqo_api_key}'
+            }
             url = f"{self.airqo_base_url}/devices/events"
             params = {
                 "tenant": tenant,
@@ -160,6 +181,11 @@ class KafkaClient:
             return []
 
 
-if __name__ == "__main__":
+def main():
     kafka_client = KafkaClient()
     kafka_client.consume_measurements()
+
+
+if __name__ == "__main__":
+    main()
+
