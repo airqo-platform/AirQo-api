@@ -8,24 +8,23 @@ topics:
         type: scram-sha-512
       authorization:
         type: simple
-      topics:
-        airqo:
+        acls:
           - name: airqo-streams-calibrated-device-measurements-topic
             operation: Describe
           - name: airqo-streams-calibrated-device-measurements-topic
             operation: Write
-        kcca:
-          topic: kcca-streams-transformed-device-measurements-topic 
+          - name: kcca-streams-transformed-device-measurements-topic 
+            operation: Write
+          - name: kcca-streams-transformed-device-measurements-topic 
+            operation: Describe
     consumer:
       username: transformed-measurements-consumer
       authentication:
         type: scram-sha-512
       authorization:
         type: simple
-      topics:
-        airqo:
+        acls:
           - name: airqo-streams-calibrated-device-measurements-topic
             operation: Read
-        kcca:
           - name: kcca-streams-transformed-device-measurements-topic 
             operation: Read
