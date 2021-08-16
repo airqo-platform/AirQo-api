@@ -44,6 +44,8 @@ router.post(
   authLocal,
   joinController.login
 );
+
+router.post("/verify", setJWTAuth, authJWT, joinController.verify);
 router.get(
   "/",
   oneOf([

@@ -75,7 +75,13 @@ const join = {
       tryCatchErrors(res, error, "join controller");
     }
   },
-
+  verify: (req, res) => {
+    return res.status(HTTPStatus.OK).json({
+      success: true,
+      message: "this token is valid",
+      response: "valid token",
+    });
+  },
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");
