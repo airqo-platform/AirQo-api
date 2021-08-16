@@ -1,4 +1,5 @@
-{{- range $index, $topic := .Values.topics }}
+{{- range $topic := .Values.topics }}
+---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
@@ -12,8 +13,4 @@ spec:
   replicas: {{ $topic.replicas }}
   config:
     retention.ms: {{ $topic.retention }}
-
-{{- if $index -}}
----
-{{- end -}}
 {{- end}}
