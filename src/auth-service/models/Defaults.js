@@ -40,7 +40,7 @@ const DefaultsSchema = new mongoose.Schema({
     type: ObjectId,
   },
   airqloud: {
-    type: String,
+    type: ObjectId,
   },
   user_id: {
     type: ObjectId,
@@ -51,7 +51,7 @@ const DefaultsSchema = new mongoose.Schema({
   },
   sites: [
     {
-      type: String,
+      type: ObjectId,
     },
   ],
   site_ids: [
@@ -72,6 +72,8 @@ DefaultsSchema.index(
     chartSubTitle: 1,
     user: 1,
     user_id: 1,
+    airqloud: 1,
+    airqloud_id: 1,
   },
   {
     unique: true,
