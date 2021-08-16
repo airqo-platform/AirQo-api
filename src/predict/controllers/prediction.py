@@ -1,5 +1,4 @@
 from flask import Blueprint, request, jsonify
-from models.predict import make_prediction, make_prediction_using_averages
 from helpers.utils import checkKey, get_closest_channel, get_gp_predictions
 from models.predict import make_prediction, make_prediction_using_averages, get_next_24hr_predictions_for_channel
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
@@ -145,6 +144,7 @@ def predict():
 
 
 @ml_app.route(api.route['averages_prediction'], methods=['POST'])
+@cache.cached(timeout=int(app_configuration.CACHE_TIME_24_HOUR_PREDICTION))
 def predict_avgs():
     if request.method == 'POST':
         json_data = request.get_json()
@@ -185,6 +185,7 @@ def predict_avgs():
 
 
 @ml_app.route(api.route['predict_channel_next_24hrs'], methods=['POST'])
+@cache.cached(timeout=int(app_configuration.CACHE_TIME_24_HOUR_PREDICTION))
 def predict_channel_next_24_hours():
     '''
     predicts the next pm2.5 values for the next 24 hours for the specified channel

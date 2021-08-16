@@ -21,6 +21,7 @@ class Config:
     DB_NAME = os.getenv('DB_NAME')
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     REDIS_SERVER = os.getenv('REDIS_SERVER_PROD')
+    CACHE_TIME_24_HOUR_PREDICTION = os.getenv('CACHE_TIME_24_HOUR_PREDICTION')
 
 
 class ProductionConfig(Config):
