@@ -1,0 +1,31 @@
+namespace: staging
+cluster: stage-kafka-cluster
+topics:
+  transformedMeasurements:
+    producer:
+      username: transformed-measurements-producer
+      authentication:
+        type: scram-sha-512
+      authorization:
+        type: simple
+      topics:
+        airqo:
+          - name: airqo-streams-calibrated-device-measurements-topic
+            operation: Describe
+          - name: airqo-streams-calibrated-device-measurements-topic
+            operation: Write
+        kcca:
+          topic: kcca-streams-transformed-device-measurements-topic 
+    consumer:
+      username: transformed-measurements-consumer
+      authentication:
+        type: scram-sha-512
+      authorization:
+        type: simple
+      topics:
+        airqo:
+          - name: airqo-streams-calibrated-device-measurements-topic
+            operation: Read
+        kcca:
+          - name: kcca-streams-transformed-device-measurements-topic 
+            operation: Read

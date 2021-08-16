@@ -1,20 +1,15 @@
 apiVersion: kafka.strimzi.io/v1beta1
 kind: KafkaUser
 metadata:
-  name: transformed-measurements-producer
-  namespace: staging
+  name: {{ .Values.topics.transformedMeasurements.producer.username }}
+  namespace: {{ .Values.namespace }}
   labels:
-    strimzi.io/cluster: stage-kafka-cluster
+    strimzi.io/cluster: {{ .Values.cluster }}
 spec:
   authentication:
-    type: scram-sha-512
-    # password:
-    #     valueFrom:
-    #       secretKeyRef:
-    #         name: transformed-measurements-producer-credentials
-    #         key: password
+    type: {{ .Values.topics.transformedMeasurements.producer.authentication.type }}
   authorization:
-    type: simple
+    type: {{ .Values.topics.transformedMeasurements.producer.authorization.type }}
     acls:
       - resource:
           type: topic
@@ -34,25 +29,26 @@ spec:
           patternType: literal
         operation: Describe
         host: "*"
+      - resource:
+          type: topic
+          name: kcca-streams-transformed-device-measurements-topic 
+          patternType: literal
+        operation: Write
+        host: "*"
 
 ---
 apiVersion: kafka.strimzi.io/v1beta1
 kind: KafkaUser
 metadata:
-  name: transformed-measurements-consumer
-  namespace: staging
+  name: {{ .Values.topics.transformedMeasurements.consumer.username }}
+  namespace: {{ .Values.namespace }}
   labels:
-    strimzi.io/cluster: stage-kafka-cluster
+    strimzi.io/cluster: {{ .Values.cluster }}
 spec:
   authentication:
-    type: scram-sha-512
-    # password:
-    #   valueFrom:
-    #     secretKeyRef:
-    #       name: transformed-measurements-consumer-credentials
-    #       key: password
+    type: {{ .Values.topics.transformedMeasurements.consumer.authentication.type }}
   authorization:
-    type: simple
+    type: {{ .Values.topics.transformedMeasurements.producer.authorization.type }}
     acls:
       - resource:
           type: topic
