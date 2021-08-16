@@ -220,9 +220,9 @@ router.put(
         .if(body("pollutant").exists())
         .notEmpty()
         .trim()
-        .isIn(["NO2", "PM 2.5", "PM 10", "PM 1"])
+        .isIn(["no2", "pm2_5", "pm10", "pm1"])
         .withMessage(
-          "the pollutant value is not among the expected ones which include: NO2, PM 2.5, PM 10, PM 1"
+          "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
         ),
       body("frequency")
         .if(body("frequency").exists())
@@ -319,9 +319,9 @@ router.post(
         .if(body("pollutant").exists())
         .notEmpty()
         .trim()
-        .isIn(["NO2", "PM 2.5", "PM 10", "PM 1"])
+        .isIn(["no2", "pm2_5", "pm10", "pm1"])
         .withMessage(
-          "the pollutant value is not among the expected ones which include: NO2, PM 2.5, PM 10, PM 1"
+          "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
         ),
       body("frequency")
         .if(body("frequency").exists())
@@ -526,9 +526,9 @@ router.delete(
         .if(body("pollutant").exists())
         .notEmpty()
         .trim()
-        .isIn(["NO2", "PM 2.5", "PM 10", "PM 1"])
+        .isIn(["no2", "pm2_5", "pm10", "pm1"])
         .withMessage(
-          "the pollutant value is not among the expected ones which include: NO2, PM 2.5, PM 10, PM 1"
+          "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
         ),
       body("frequency")
         .if(body("frequency").exists())
