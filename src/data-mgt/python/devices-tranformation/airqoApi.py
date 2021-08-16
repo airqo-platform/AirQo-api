@@ -9,10 +9,16 @@ from utils import handle_api_error
 class AirQoApi:
     def __init__(self):
         self.AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
-        self.AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+        self.AIRQO_API_KEY = f"JWT {os.getenv('AIRQO_API_KEY')}"
 
-    def get_devices(self, tenant):
-        response = self.__request("devices", {"tenant": tenant})
+    def get_devices(self, tenant, active=True, all_devices=False):
+        params = {
+            "tenant": tenant,
+            "active": "yes" if active else "no"
+        }
+        if all_devices:
+            params.pop("active")
+        response = self.__request("devices", params)
 
         if "devices" in response:
             return response["devices"]
@@ -37,7 +43,7 @@ class AirQoApi:
 
     def __request(self, endpoint, params, body=None, method=None):
 
-        headers = {'x-api-key': self.AIRQO_API_KEY}
+        headers = {'Authorization': self.AIRQO_API_KEY}
         if method is None:
             api_request = requests.get(
                 '%s%s' % (self.AIRQO_BASE_URL, endpoint),

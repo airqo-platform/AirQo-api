@@ -135,7 +135,7 @@ class Transformation:
             array_to_csv(data=data)
 
         elif self.output_format.strip().lower() == "api":
-            print("Sites to be Updated", data, sep=" := ")
+            print("Data to be Updated", data, sep=" := ")
             self.airqo_api.update_sites(updated_sites=data)
         else:
             array_to_json(data=data)
