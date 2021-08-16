@@ -286,6 +286,16 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
       body("period").if(body("period").exists()).notEmpty().trim(),
       body("chartSubTitle")
@@ -381,6 +391,16 @@ router.post(
         .trim()
         .isMongoId()
         .withMessage("the airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -550,6 +570,16 @@ router.delete(
         .trim()
         .isMongoId()
         .withMessage("the airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);

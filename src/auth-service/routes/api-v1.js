@@ -286,6 +286,16 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
       body("period").if(body("period").exists()).notEmpty().trim(),
       body("chartSubTitle")
@@ -385,6 +395,16 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
       body("period")
         .if(body("period").exists())
@@ -410,6 +430,16 @@ router.post(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
       body("site_ids")
         .if(body("site_ids").exists())
         .notEmpty()
@@ -423,14 +453,12 @@ router.post(
         .trim()
         .isMongoId()
         .withMessage("site_id must be an object ID"),
-      body("sites")
-        .if(body("sites").exists())
+      body("sites.*")
+        .if(body("sites.*").exists())
         .notEmpty()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the sites should be an array"),
-      body("sites.*").if(body("sites.*").exists()).notEmpty().trim(),
+        .trim()
+        .isMongoId()
+        .withMessage("site must be an object ID"),
     ],
   ]),
   setJWTAuth,
@@ -588,6 +616,16 @@ router.delete(
         .trim()
         .isMongoId()
         .withMessage("the airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("airqloud")
+        .if(body("airqloud").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
