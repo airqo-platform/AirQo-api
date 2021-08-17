@@ -8,7 +8,7 @@ import urllib3
 from confluent_avro import AvroKeyValueSerde, SchemaRegistry
 from dotenv import load_dotenv
 from kafka import KafkaConsumer, KafkaProducer
-
+from pytz import utc
 
 from models import regression as rg
 from schema import schema_str
@@ -48,7 +48,7 @@ class KafkaClient:
 
     def reload(self):
         print("Generating pkl file")
-        # jobs_rg.main()
+        jobs_rg.main()
         print("Finished generating pkl file")
         self.rg_model = rg.Regression()
         self.next_initialization = datetime.now() + timedelta(days=int(self.reload_interval))
@@ -62,17 +62,23 @@ class KafkaClient:
     def consume_measurements(self):
 
         avro_serde = AvroKeyValueSerde(self.registry_client, self.input_topic)
+        # consumer = KafkaConsumer(
+        #     self.input_topic,
+        #     group_id=self.consumer_group,
+        #     bootstrap_servers=self.bootstrap_servers,
+        #     auto_offset_reset='earliest',
+        #     enable_auto_commit = self.auto_commit,
+        #     security_protocol=self.security_protocol,
+        #     sasl_mechanism=self.sasl_mechanism,
+        #     sasl_plain_username=self.sasl_plain_username,
+        #     sasl_plain_password=self.sasl_plain_password)
+
         consumer = KafkaConsumer(
             self.input_topic,
             group_id=self.consumer_group,
             bootstrap_servers=self.bootstrap_servers,
             auto_offset_reset='earliest',
-            security_protocol=self.security_protocol,
-            sasl_mechanism=self.sasl_mechanism,
-            sasl_plain_username=self.sasl_plain_username,
-            sasl_plain_password=self.sasl_plain_password,
             enable_auto_commit=self.auto_commit)
-
         for msg in consumer:
             value = avro_serde.value.deserialize(msg.value)
             calibrated_measurements = []
@@ -112,40 +118,45 @@ class KafkaClient:
                     continue
 
                 for _, measurement in measurements_df.iterrows():
-                    calibrated_measurement = dict(measurement)
+                    try:
+                        calibrated_measurement = dict(measurement)
 
-                    recent_recordings = measurements_df.loc[measurements_df['device'] == measurement.get('device')]
-                    historical_recordings = historical_data.loc[historical_data['device'] == measurement.get('device')]
+                        recent_recordings = measurements_df.loc[measurements_df['device'] == measurement.get('device')]
+                        historical_recordings = historical_data.loc[historical_data['device'] == measurement.get('device')]
 
-                    combined_recordings = pd.DataFrame(recent_recordings.append(historical_recordings))
-                    combined_recordings.reset_index(drop=True, inplace=True)
-                    combined_recordings = pd.json_normalize(combined_recordings.to_dict(orient="records"))
-                    combined_recordings.fillna(method='ffill')
+                        combined_recordings = pd.DataFrame(recent_recordings.append(historical_recordings))
+                        combined_recordings.reset_index(drop=True, inplace=True)
+                        combined_recordings = pd.json_normalize(combined_recordings.to_dict(orient="records"))
+                        combined_recordings.fillna(method='ffill')
 
-                    start_time = datetime.strptime(measurement.get('time'), '%Y-%m-%dT%H:%M:%SZ') - timedelta(
-                        hours=int(self.time_interval))
-                    combined_recordings['time'] = pd.to_datetime(combined_recordings['time'])
-                    combined_recordings = combined_recordings.loc[combined_recordings['time'] > start_time]
-                    combined_recordings['time'] = combined_recordings['time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        start_time = datetime.strptime(measurement.get('time'), '%Y-%m-%dT%H:%M:%SZ').astimezone(utc) - \
+                                     timedelta(hours=int(self.time_interval))
 
-                    average_pm2_5 = combined_recordings["pm2_5.value"].mean()
-                    average_pm10 = combined_recordings["pm10.value"].mean()
-                    average_s2_pm25 = combined_recordings["s2_pm2_5.value"].mean()
-                    average_s2_pm10 = combined_recordings["s2_pm10.value"].mean()
-                    average_temperature = combined_recordings["externalTemperature.value"].mean()
-                    average_humidity = combined_recordings["externalHumidity.value"].mean()
-                    time = measurement.get('time')
+                        combined_recordings['time'] = pd.to_datetime(combined_recordings['time'])
+                        combined_recordings = combined_recordings.loc[combined_recordings['time'] > start_time]
+                        combined_recordings['time'] = combined_recordings['time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
 
-                    if average_pm2_5 and average_pm10 and average_s2_pm25 and average_s2_pm10 and \
-                            average_temperature and average_humidity and time:
+                        average_pm2_5 = combined_recordings["pm2_5.value"].mean()
+                        average_pm10 = combined_recordings["pm10.value"].mean()
+                        average_s2_pm25 = combined_recordings["s2_pm2_5.value"].mean()
+                        average_s2_pm10 = combined_recordings["s2_pm10.value"].mean()
+                        average_temperature = combined_recordings["internalTemperature.value"].mean()
+                        average_humidity = combined_recordings["internalHumidity.value"].mean()
+                        time = measurement.get('time')
 
-                        calibrated_value = self.rg_model.compute_calibrated_val(
-                            pm2_5=average_pm2_5, s2_pm2_5=average_s2_pm25, pm10=average_pm10, datetime=time,
-                            s2_pm10=average_s2_pm10, temperature=average_temperature, humidity=average_humidity)
+                        if average_pm2_5 and average_pm10 and average_s2_pm25 and average_s2_pm10 and \
+                                average_temperature and average_humidity and time:
 
-                        calibrated_measurement["pm2_5"]["calibratedValue"] = calibrated_value
+                            calibrated_value = self.rg_model.compute_calibrated_val(
+                                pm2_5=average_pm2_5, s2_pm2_5=average_s2_pm25, pm10=average_pm10, datetime=time,
+                                s2_pm10=average_s2_pm10, temperature=average_temperature, humidity=average_humidity)
 
-                    calibrated_measurements.append(calibrated_measurement)
+                            calibrated_measurement["pm2_5"]["calibratedValue"] = calibrated_value
+
+                        calibrated_measurements.append(calibrated_measurement)
+                    except Exception as e:
+                        traceback.print_exc()
+                        print(e)
 
                 if calibrated_measurements:
                     print(dict({"calibrated measurements": calibrated_measurements}))

@@ -1,5 +1,5 @@
 # Inherit from the Python Docker image
-FROM python:3.7-slim
+FROM python:3.9-slim
 
 # Copy the source code to app folder
 COPY . /app/
