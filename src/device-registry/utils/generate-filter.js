@@ -14,7 +14,16 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
 
 const generateFilter = {
-  events: (device, device_id, site, site_id, frequency, startTime, endTime) => {
+  events: (
+    device,
+    device_number,
+    device_id,
+    site,
+    site_id,
+    frequency,
+    startTime,
+    endTime
+  ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     let today = monthsInfront(0);
@@ -30,6 +39,8 @@ const generateFilter = {
       "values.site": {},
       "values.device_id": {},
       "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
     };
 
     if (startTime) {
@@ -118,6 +129,17 @@ const generateFilter = {
       delete filter["values.device"];
     }
 
+    if (device_number) {
+      let deviceArray = device_number.split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
+    }
+
     if (site) {
       let deviceArray = site.split(",");
       filter["values.site"]["$in"] = deviceArray;
@@ -164,6 +186,7 @@ const generateFilter = {
     try {
       const {
         device,
+        device_number,
         site,
         frequency,
         startTime,
@@ -182,6 +205,8 @@ const generateFilter = {
         site_id: {},
         site: {},
         device: {},
+        device_number: {},
+        "values.device_number": {},
       };
 
       if (startTime) {
@@ -281,6 +306,17 @@ const generateFilter = {
 
       if (!device) {
         delete filter["device"];
+      }
+
+      if (device_number) {
+        let deviceArray = device_number.split(",");
+        filter["device_number"]["$in"] = deviceArray;
+        filter["values.device_number"]["$in"] = deviceArray;
+      }
+
+      if (!device_number) {
+        delete filter["device_number"];
+        delete filter["values.device_number"];
       }
 
       if (site) {
@@ -581,6 +617,30 @@ const generateFilter = {
         parish
       );
       filter["parish"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    return filter;
+  },
+  airqlouds: (req) => {
+    let { id, generated_name, name } = req.query;
+    let filter = {};
+
+    if (name) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        name
+      );
+      filter["name"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (generated_name) {
+      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        generated_name
+      );
+      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
     }
 
     return filter;
