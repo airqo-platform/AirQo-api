@@ -26,16 +26,12 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
       required: [true, "name is required!"],
+      unique: true,
     },
     long_name: {
       type: String,
       trim: true,
       default: null,
-    },
-    generated_name: {
-      type: String,
-      trim: true,
-      unique: true,
     },
     description: {
       type: String,
@@ -76,7 +72,7 @@ airqloudSchema.methods = {
     return {
       _id: this._id,
       name: this.name,
-      generated_name: this.generated_name,
+      long_name: this.long_name,
       description: this.description,
       airqloud_tags: this.airqloud_tags,
       location: this.location,
@@ -148,7 +144,7 @@ airqloudSchema.statics = {
         .project({
           _id: 1,
           name: 1,
-          generated_name: 1,
+          long_name: 1,
           description: 1,
           airqloud_tags: 1,
           location: 1,
