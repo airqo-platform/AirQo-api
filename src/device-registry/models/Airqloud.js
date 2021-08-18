@@ -5,19 +5,37 @@ const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
+const HTTPStatus = require("http-status");
+
+const polygonSchema = new Schema({
+  type: {
+    type: String,
+    enum: ["polygon", "point"],
+    required: true,
+  },
+  coordinates: {
+    type: [[[Number]]],
+    required: true,
+  },
+});
 
 const airqloudSchema = new Schema(
   {
+    location: polygonSchema,
     name: {
       type: String,
       trim: true,
       required: [true, "name is required!"],
     },
+    long_name: {
+      type: String,
+      trim: true,
+      default: null,
+    },
     generated_name: {
       type: String,
       trim: true,
       unique: true,
-      required: [true, "generated name is required!"],
     },
     description: {
       type: String,
@@ -47,10 +65,10 @@ airqloudSchema.pre("update", function(next) {
   return next();
 });
 
-airqloudSchema.index({ generated_name: 1 }, { unique: true });
+airqloudSchema.index({ name: 1 }, { unique: true });
 
 airqloudSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
+  message: `{VALUE} is a duplicate value!`,
 });
 
 airqloudSchema.methods = {
@@ -61,54 +79,70 @@ airqloudSchema.methods = {
       generated_name: this.generated_name,
       description: this.description,
       airqloud_tags: this.airqloud_tags,
+      location: this.location,
     };
-  },
-  createAirqloud(args) {
-    return this.create({
-      ...args,
-    });
   },
 };
 
 airqloudSchema.statics = {
   async register(args) {
     try {
-      let data = await this.create({
+      let createdAirQloud = await this.create({
         ...args,
       });
+      let data = jsonify(createdAirQloud);
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "airqloud created",
-        };
-      } else {
-        return {
-          success: false,
-          message: "airqloud not created despite successful operation",
+          status: HTTPStatus.OK,
         };
       }
-    } catch (error) {
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "airqloud not created despite successful operation",
+          status: HTTPStatus.NO_CONTENT,
+        };
+      }
+    } catch (err) {
+      let e = jsonify(err);
+      let response = {};
+      logObject("the err", e);
+      let errors = {};
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      if (err.code === 11000 || err.code === 11001) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = HTTPStatus.CONFLICT;
+      } else {
+        message = "validation errors for some of the provided fields";
+        status = HTTPStatus.CONFLICT;
+        errors = err.errors;
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[key] = value.message);
+        });
+      }
       return {
-        error: error.message,
-        message: "Airqloud model server error - register",
+        errors: response,
+        message,
         success: false,
+        status,
       };
     }
   },
-  async list({
-    _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
-    filter = {},
-  } = {}) {
+  async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
     try {
-      return this.aggregate()
+      logElement("the limit in the model", _limit);
+      let data = await this.aggregate()
         .match(filter)
         .lookup({
-          from: "airqlouds",
+          from: "sites",
           localField: "_id",
           foreignField: "airqloud_id",
-          as: "airqlouds",
+          as: "sites",
         })
         .sort({ createdAt: -1 })
         .project({
@@ -117,16 +151,44 @@ airqloudSchema.statics = {
           generated_name: 1,
           description: 1,
           airqloud_tags: 1,
-          airqlouds: "$airqlouds",
+          location: 1,
+          sites: "$sites",
         })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
-    } catch (error) {
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully fetched the AirQloud(s)",
+          data,
+          status: HTTPStatus.OK,
+        };
+      }
+
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "there are no records for this search",
+          data,
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+    } catch (err) {
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      if (err.code === 11000 || err.code === 11001) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = HTTPStatus.CONFLICT;
+      }
       return {
+        errors,
+        message,
         success: false,
-        message: "Airqloud model server error - list",
-        error: error.message,
+        status,
       };
     }
   },
@@ -136,6 +198,9 @@ airqloudSchema.statics = {
       let modifiedUpdateBody = update;
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
+      }
+      if (modifiedUpdateBody.generated_name) {
+        delete modifiedUpdateBody.generated_name;
       }
       let udpatedUser = await this.findOneAndUpdate(
         filter,
@@ -148,18 +213,29 @@ airqloudSchema.statics = {
           success: true,
           message: "successfully modified the airqloud",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
-    } catch (error) {
+    } catch (err) {
+      let errors = {};
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      if (err.code === 11000 || err.code === 11001) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = HTTPStatus.CONFLICT;
+      }
       return {
+        errors,
+        message,
         success: false,
-        message: "Airqloud model server error - modify",
-        error: error.message,
+        status,
       };
     }
   },
@@ -170,8 +246,8 @@ airqloudSchema.statics = {
           _id: 1,
           name: 1,
           generated_name: 1,
-          lat_long: 1,
-          country: 1,
+          airqloud_tags: 1,
+          description: 1,
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
@@ -181,23 +257,34 @@ airqloudSchema.statics = {
           success: true,
           message: "successfully removed the airqloud",
           data,
+          status: HTTPStatus.OK,
         };
-      } else {
+      }
+
+      if (isEmpty(data)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
-    } catch (error) {
+    } catch (err) {
+      let errors = {};
+      let message = err.message;
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      if (err.code === 11000 || err.code === 11001) {
+        errors = err.keyValue;
+        message = "duplicate values provided";
+        status = HTTPStatus.CONFLICT;
+      }
       return {
         success: false,
-        message: "Airqloud model server error - remove",
-        error: error.message,
+        message,
+        errors,
+        status,
       };
     }
   },
 };
-
-airqloudSchema.methods = {};
 
 module.exports = airqloudSchema;
