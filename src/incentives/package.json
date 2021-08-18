@@ -5,9 +5,14 @@
     "main": "node ./bin/www",
     "scripts": {
         "start": "node ./bin/www",
-        "dev": "NODE_ENV=development nodemon ./bin/www",
-        "prod": "NODE_ENV=production nodemon ./bin/www",
-        "test": "NODE_ENV=test nodemon ./bin/www"
+        "dev-mac": "NODE_ENV=development nodemon ./bin/www",
+        "prod-mac": "NODE_ENV=production nodemon ./bin/www",
+        "stage-mac": "NODE_ENV=staging nodemon ./bin/www",
+        "dev-pc": "SET NODE_ENV=development&&nodemon ./bin/www",
+        "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
+        "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
+        "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
+        "test": "mocha ./**/test/ut_*.js --exit"
     },
     "dependencies": {
         "body-parser": "~1.18.2",
@@ -18,9 +23,10 @@
         "express": "^4.17.1",
         "helmet": "^3.21.1",
         "http-status": "^1.4.0",
-        "mongoose": "^5.7.6",
+        "mongoose": "^5.13.7",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "~1.9.0",
+        "mtn-momo": "^2.0.0",
         "node-fetch": "^2.6.1",
         "nodemon": "^1.19.4",
         "request": "^2.88.0"
