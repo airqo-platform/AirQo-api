@@ -1,74 +1,100 @@
+const { logElement, logObject, logText } = require("../utils/log");
+const { useUserProvisioning, useDisbursements } = require("mtn-momo");
+const mtnMOMO = require("mtn-momo");
 
-// Import the module
-const { useUserProvisioning, useDisbursements } = require('mtn-momo');
+const constants = require("../config/constants");
 
-const subscriptionKey = 'DISBURSEMENTS_PRIMARY_KEY';
+const disburseMoney = async () => {
+  try {
+    const subscriptionKey = constants.DISBURSEMENTS_MOMO_PRIMARY_KEY;
 
-// (sandbox/development environment only) Provision/create a user and api key
-const sandboxUserInfo = await useUserProvisioning.createApiUserAndKey({
-  subscriptionKey: subscriptionKey,
-  providerCallbackHost: 'PROVIDER_CALLBACK_HOST'
-});
-const { userId, apiKey, targetEnvironment } = sandboxUserInfo;
+    // (sandbox/development environment only) Provision/create a user and api key
+    logObject("useUserProvisioning", useUserProvisioning);
+    logObject("useDisbursements", useDisbursements);
+    logObject("mtnMOMO", mtnMOMO);
 
-// Initialize the wrapper
-const disbursements = useDisbursements({
-  subscriptionKey,
-  apiKey,
-  userId,
-  targetEnvironment
-});
+    const sandboxUserInfo = await useUserProvisioning.createApiUserAndKey({
+      subscriptionKey: subscriptionKey,
+      providerCallbackHost: constants.PROVIDER_CALLBACK_HOST,
+    });
+    const { userId, apiKey, targetEnvironment } = sandboxUserInfo;
 
-/* Disbursements API */
+    // Initialize the wrapper
+    const disbursements = useDisbursements({
+      subscriptionKey,
+      apiKey,
+      userId,
+      targetEnvironment,
+    });
 
-// (optional) Get an access token
-const token = await disbursements.getToken();
-const { token_type, access_token, expires_in } = token;
+    /* Disbursements API */
 
-// Check if an account is active. Returns a boolean value
-const isActive = await disbursements.isAccountActive({
-  accountHolderIdType: 'msisdn',
-  accountHolderId: 'PHONE_NUMBER'
-});
+    // (optional) Get an access token
+    const token = await disbursements.getToken();
+    const { token_type, access_token, expires_in } = token;
 
-// Submit a request for payment
-const paymentOptions = {
-  amount: 15000,
-  currency: 'EUR',
-  externalId: '123456789',
-  payee: {
-    partyIdType: 'msisdn',
-    partyId: 'PHONE_NUMBER'
-  },
-  payerMessage: 'message',
-  payeeNote: 'note'
-};
-const transactionId = await disbursements.useiate({
-  callbackUrl: 'http://test1.com',
-  paymentOptions: paymentOptions
-});
+    logElement("token", token);
 
-// Check the status of a request for payment
-const transaction = await disbursements.fetchTransaction(transactionId);
-const {
-  amount,
-  currency,
-  financialTransactionId,
-  externalId,
-  payee: {
-    partyIdType,
-    partyId
-  },
-  status: 'SUCCESSFUL|FAILED|PENDING',
-  reason: {
-    code,
-    message
+    /**
+     * in case we have a group of accounts here, we shall loop through them
+     * accordingly from here---going onwwards
+     */
+
+    // Check if an account is active. Returns a boolean value
+    const isActive = await disbursements.isAccountActive({
+      accountHolderIdType: "msisdn",
+      accountHolderId: constants.PHONE_NUMBER,
+    });
+
+    logElement("isActive", isActive);
+    // Submit a request for payment
+    const paymentOptions = {
+      amount: 15000,
+      currency: "EUR",
+      externalId: "123456789",
+      payee: {
+        partyIdType: "msisdn",
+        partyId: constants.PHONE_NUMBER,
+      },
+      payerMessage: "you have received money from AirQo",
+      payeeNote: "you have received money from AirQo",
+    };
+
+    const transactionId = await disbursements.useiate({
+      callbackUrl: `http://${constants.PROVIDER_CALLBACK_HOST}`,
+      paymentOptions,
+    });
+
+    logElement("the transactionId", transactionId);
+
+    // Check the status of a request for payment
+    const transaction = await disbursements.fetchTransaction(transactionId);
+    const {
+      amount,
+      currency,
+      financialTransactionId,
+      externalId,
+      payee: { partyIdType, partyId },
+      status,
+      reason: { code, message },
+    } = transaction;
+
+    logObject("the transaction", transation);
+
+    // Check my account balance
+    const accountBalance = await disbursements.fetchAccountBalance();
+    // const { currency, availableBalance } = accountBalance;
+
+    return { transaction, accountBalance, success: true, message: "all good" };
+  } catch (error) {
+    return {
+      message: " all bad",
+      error: error.message,
+      success: false,
+    };
   }
-} = transaction;
 
-// Check my account balance
-const accountBalance = await disbursements.fetchAccountBalance();
-const { currency, availableBalance } = accountBalance;
+  /* End Disbursements API */
+};
 
-/* End Disbursements API */
-
+module.exports = disburseMoney;
