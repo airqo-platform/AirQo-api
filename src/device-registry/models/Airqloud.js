@@ -6,6 +6,7 @@ const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
+const createSiteUtil = require("../utils/create-site");
 
 const polygonSchema = new Schema({
   type: {
@@ -83,8 +84,12 @@ airqloudSchema.methods = {
 airqloudSchema.statics = {
   async register(args) {
     try {
+      let body = args;
+      body["long_name"] = args.name;
+      body["name"] = createSiteUtil.sanitiseName(args.name);
+
       let createdAirQloud = await this.create({
-        ...args,
+        ...body,
       });
       let data = jsonify(createdAirQloud);
       if (!isEmpty(data)) {
@@ -109,7 +114,7 @@ airqloudSchema.statics = {
       message = "validation errors for some of the provided fields";
       status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
-        return (response[key] = value.message);
+        return (response[value.path] = value.message);
       });
 
       return {
