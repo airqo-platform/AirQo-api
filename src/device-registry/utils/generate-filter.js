@@ -126,14 +126,17 @@ const generateFilter = {
      */
     if (device) {
       let deviceArray = device.split(",");
-      let regexedArray = deviceArray.map((value) => {
+      let modifiedDeviceArray = deviceArray.map((value) => {
         if (isLowerCase(value)) {
           return value.toUpperCase();
         }
+        if (!isLowerCase(value)) {
+          return value.toLowerCase();
+        }
         return value;
       });
-      logObject("the regexedArray ", regexedArray);
-      let mergedArray = [].concat(regexedArray, deviceArray);
+      logObject("the modifiedDeviceArray ", modifiedDeviceArray);
+      let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
       filter["values.device"]["$in"] = mergedArray;
     }
 
