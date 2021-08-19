@@ -2,7 +2,6 @@ const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
 const EventSchema = require("../models/Event");
-const jsonify = require("./jsonify");
 
 const insert = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
