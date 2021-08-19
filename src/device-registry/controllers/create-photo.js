@@ -3,26 +3,358 @@ const fs = require("fs");
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
-const {
-  axiosError,
-  tryCatchErrors,
-  missingQueryParams,
-  callbackErrors,
-} = require("../utils/errors");
+const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
+const createPhotoUtil = require("../utils/create-photo");
 
 const processImage = {
-  create: async (req, res) => {},
-  update: async (req, res) => {},
-  delete: async (req, res) => {},
-  list: async (req, res) => {},
-  /***platform */
-  createPhotoOnPlatform: async (req, res) => {},
-  deletePhotoOnPlatform: async (req, res) => {},
-  updatePhotoOnPlatform: async (req, res) => {},
-  /***cloudinary */
-  deletePhotoOnCloudinary: async (req, res) => {},
-  updatePhotoOnCloudinary: async (req, res) => {},
-  createPhotoOnCloudinary: async (req, res) => {},
+  /****************** system wide actions *********************************** */
+  create: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromCreatePhotoUtil = await createPhotoUtil.create(request);
+    if (responseFromCreatePhotoUtil.success === true) {
+      let status = responseFromCreatePhotoUtil.status
+        ? responseFromCreatePhotoUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromCreatePhotoUtil.message,
+      });
+    }
+
+    if (responseFromCreatePhotoUtil.success === false) {
+      let status = responseFromCreatePhotoUtil.status
+        ? responseFromCreatePhotoUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromCreatePhotoUtil.error
+        ? responseFromCreatePhotoUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromCreatePhotoUtil.message,
+        error,
+      });
+    }
+  },
+  update: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromUpdatePhotoUtil = await createPhotoUtil.update(request);
+    if (responseFromUpdatePhotoUtil.success === true) {
+      let status = responseFromUpdatePhotoUtil.status
+        ? responseFromUpdatePhotoUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromUpdatePhotoUtil.message,
+      });
+    }
+
+    if (responseFromUpdatePhotoUtil.success === false) {
+      let status = responseFromUpdatePhotoUtil.status
+        ? responseFromUpdatePhotoUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromUpdatePhotoUtil.error
+        ? responseFromUpdatePhotoUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromUpdatePhotoUtil.message,
+        error,
+      });
+    }
+  },
+  delete: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromDeletePhotoUtil = await createPhotoUtil.delete(request);
+    if (responseFromDeletePhotoUtil.success === true) {
+      let status = responseFromDeletePhotoUtil.status
+        ? responseFromDeletePhotoUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromDeletePhotoUtil.message,
+      });
+    }
+
+    if (responseFromDeletePhotoUtil.success === false) {
+      let status = responseFromDeletePhotoUtil.status
+        ? responseFromDeletePhotoUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromDeletePhotoUtil.error
+        ? responseFromDeletePhotoUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromDeletePhotoUtil.message,
+        error,
+      });
+    }
+  },
+  list: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromListPhotoUtil = await createPhotoUtil.list(request);
+    if (responseFromListPhotoUtil.success === true) {
+      let status = responseFromListPhotoUtil.status
+        ? responseFromListPhotoUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromListPhotoUtil.message,
+      });
+    }
+
+    if (responseFromListPhotoUtil.success === false) {
+      let status = responseFromListPhotoUtil.status
+        ? responseFromListPhotoUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromListPhotoUtil.error
+        ? responseFromListPhotoUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromListPhotoUtil.message,
+        error,
+      });
+    }
+  },
+  /*************** platform only actions ******************************/
+  createPhotoOnPlatform: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromCreatePhotoOnPlatformUtil = await createPhotoUtil.createPhotoOnPlatform(
+      request
+    );
+    if (responseFromCreatePhotoOnPlatformUtil.success === true) {
+      let status = responseFromCreatePhotoOnPlatformUtil.status
+        ? responseFromCreatePhotoOnPlatformUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromCreatePhotoOnPlatformUtil.message,
+      });
+    }
+
+    if (responseFromCreatePhotoOnPlatformUtil.success === false) {
+      let status = responseFromCreatePhotoOnPlatformUtil.status
+        ? responseFromCreatePhotoOnPlatformUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromCreatePhotoOnPlatformUtil.error
+        ? responseFromCreatePhotoOnPlatformUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromCreatePhotoOnPlatformUtil.message,
+        error,
+      });
+    }
+  },
+  deletePhotoOnPlatform: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromDeletePhotoOnPlatformUtil = await createPhotoUtil.deletePhotoOnPlatform(
+      request
+    );
+    if (responseFromDeletePhotoOnPlatformUtil.success === true) {
+      let status = responseFromDeletePhotoOnPlatformUtil.status
+        ? responseFromDeletePhotoOnPlatformUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromDeletePhotoOnPlatformUtil.message,
+      });
+    }
+
+    if (responseFromDeletePhotoOnPlatformUtil.success === false) {
+      let status = responseFromDeletePhotoOnPlatformUtil.status
+        ? responseFromDeletePhotoOnPlatformUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromDeletePhotoOnPlatformUtil.error
+        ? responseFromDeletePhotoOnPlatformUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromDeletePhotoOnPlatformUtil.message,
+        error,
+      });
+    }
+  },
+  updatePhotoOnPlatform: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromUpdatePhotoOnPlatformUtil = await createPhotoUtil.updatePhotoOnPlatform(
+      request
+    );
+    if (responseFromUpdatePhotoOnPlatformUtil.success === true) {
+      let status = responseFromUpdatePhotoOnPlatformUtil.status
+        ? responseFromUpdatePhotoOnPlatformUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromUpdatePhotoOnPlatformUtil.message,
+      });
+    }
+
+    if (responseFromUpdatePhotoOnPlatformUtil.success === false) {
+      let status = responseFromUpdatePhotoOnPlatformUtil.status
+        ? responseFromUpdatePhotoOnPlatformUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromUpdatePhotoOnPlatformUtil.error
+        ? responseFromUpdatePhotoOnPlatformUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromUpdatePhotoOnPlatformUtil.message,
+        error,
+      });
+    }
+  },
+
+  /******************* cloudinary only actions ******************************/
+  deletePhotoOnCloudinary: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromDeletePhotoOnCloudinaryUtil = await createPhotoUtil.deletePhotoOnCloudinary(
+      request
+    );
+    if (responseFromDeletePhotoOnCloudinaryUtil.success === true) {
+      let status = responseFromDeletePhotoOnCloudinaryUtil.status
+        ? responseFromDeletePhotoOnCloudinaryUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromDeletePhotoOnCloudinaryUtil.message,
+      });
+    }
+
+    if (responseFromDeletePhotoOnCloudinaryUtil.success === false) {
+      let status = responseFromDeletePhotoOnCloudinaryUtil.status
+        ? responseFromDeletePhotoOnCloudinaryUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromDeletePhotoOnCloudinaryUtil.error
+        ? responseFromDeletePhotoOnCloudinaryUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromDeletePhotoOnCloudinaryUtil.message,
+        error,
+      });
+    }
+  },
+  updatePhotoOnCloudinary: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromUpdatePhotoOnCloudinaryUtil = await createPhotoUtil.updatePhotoOnCloudinary(
+      request
+    );
+    if (responseFromUpdatePhotoOnCloudinaryUtil.success === true) {
+      let status = responseFromUpdatePhotoOnCloudinaryUtil.status
+        ? responseFromUpdatePhotoOnCloudinaryUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromUpdatePhotoOnCloudinaryUtil.message,
+      });
+    }
+
+    if (responseFromUpdatePhotoOnCloudinaryUtil.success === false) {
+      let status = responseFromUpdatePhotoOnCloudinaryUtil.status
+        ? responseFromUpdatePhotoOnCloudinaryUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromUpdatePhotoOnCloudinaryUtil.error
+        ? responseFromUpdatePhotoOnCloudinaryUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromUpdatePhotoOnCloudinaryUtil.message,
+        error,
+      });
+    }
+  },
+  createPhotoOnCloudinary: async (req, res) => {
+    let { body, query } = req;
+    let request = {};
+    request["body"] = body;
+    request["query"] = query;
+    let responseFromCreatePhotoOnCloudinaryUtil = await createPhotoUtil.createPhotoOnCloudinary(
+      request
+    );
+    if (responseFromCreatePhotoOnCloudinaryUtil.success === true) {
+      let status = responseFromCreatePhotoOnCloudinaryUtil.status
+        ? responseFromCreatePhotoOnCloudinaryUtil.status
+        : HTTPStatus.OK;
+
+      return res.status(status).json({
+        success: true,
+        message: responseFromCreatePhotoOnCloudinaryUtil.message,
+      });
+    }
+
+    if (responseFromCreatePhotoOnCloudinaryUtil.success === false) {
+      let status = responseFromCreatePhotoOnCloudinaryUtil.status
+        ? responseFromCreatePhotoOnCloudinaryUtil.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      let error = responseFromCreatePhotoOnCloudinaryUtil.error
+        ? responseFromCreatePhotoOnCloudinaryUtil.error
+        : "";
+
+      return res.status(status).json({
+        success: false,
+        message: responseFromCreatePhotoOnCloudinaryUtil.message,
+        error,
+      });
+    }
+  },
+
+  /***************** other methods from cloudinary ****************************/
   uploadManyPhotosOnCloudinary: async (req, res) => {
     try {
       const { tenant } = req.query;
