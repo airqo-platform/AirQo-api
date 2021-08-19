@@ -9,9 +9,13 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
-const { logElement, logObject } = require("./log");
+const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
+
+const isLowerCase = (str) => {
+  return str === str.toLowerCase();
+};
 
 const generateFilter = {
   events: (
@@ -122,7 +126,15 @@ const generateFilter = {
      */
     if (device) {
       let deviceArray = device.split(",");
-      filter["values.device"]["$in"] = deviceArray;
+      let regexedArray = deviceArray.map((value) => {
+        if (isLowerCase(value)) {
+          return value.toUpperCase();
+        }
+        return value;
+      });
+      logObject("the regexedArray ", regexedArray);
+      let mergedArray = [].concat(regexedArray, deviceArray);
+      filter["values.device"]["$in"] = mergedArray;
     }
 
     if (!device) {
