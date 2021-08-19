@@ -42,6 +42,7 @@ class KafkaClient:
         # self.sasl_mechanism = os.getenv("SASL_MECHANISM")
         # self.sasl_plain_username = os.getenv("SASL_USERNAME")
         # self.sasl_plain_password = os.getenv("SASL_PASSWORD")
+        
         self.registry_client = SchemaRegistry(
             self.schema_registry_url,
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},

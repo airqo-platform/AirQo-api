@@ -248,6 +248,7 @@ siteSchema.methods = {
       lat_long: this.lat_long,
       latitude: this.latitude,
       longitude: this.longitude,
+      airqloud_id: this.airqloud_id,
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
