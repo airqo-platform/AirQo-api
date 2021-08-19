@@ -3,11 +3,14 @@ from datetime import datetime
 import pandas as pd
 
 
-def str_to_date(st):
+def str_to_date(str):
     """
     Converts a string to datetime
     """
-    return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
+    try:
+        return datetime.strptime(str, '%Y-%m-%dT%H:%M:%S.%fZ')
+    except ValueError:
+        return datetime.strptime(str, '%Y-%m-%dT%H:%M:%SZ')
 
 
 def date_to_str(date):
@@ -15,6 +18,14 @@ def date_to_str(date):
     Converts datetime to a string
     """
     return datetime.strftime(date, '%Y-%m-%dT%H:%M:%S.%fZ')
+
+
+def is_valid_double(value):
+    try:
+        float(value)
+        return True
+    except ValueError or TypeError:
+        return False
 
 
 def handle_api_error(api_request):
