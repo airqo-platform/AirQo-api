@@ -15,6 +15,7 @@ const {
 const getDetail = require("../utils/get-device-details");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-controller");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const device = {
   decryptKey: async (req, res) => {
@@ -44,7 +45,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
 
       let responseFromCreateDevice = await registerDeviceUtil.create(req);
@@ -53,7 +58,7 @@ const device = {
           responseFromCreateDevice
         )}`
       );
-      if (responseFromCreateDevice.success == true) {
+      if (responseFromCreateDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromCreateDevice.message,
@@ -61,7 +66,7 @@ const device = {
         });
       }
 
-      if (responseFromCreateDevice.success == false) {
+      if (responseFromCreateDevice.success === false) {
         let error = responseFromCreateDevice.error
           ? responseFromCreateDevice.error
           : "";
@@ -86,7 +91,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       let { body } = req;
       let { tenant, device_number, id, name, include_site } = req.query;
@@ -137,7 +146,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { device, name, id, device_number, tenant } = req.query;
 
@@ -160,7 +173,7 @@ const device = {
         )}`
       );
 
-      if (responseFromRemoveDevice.success == true) {
+      if (responseFromRemoveDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromRemoveDevice.message,
@@ -168,19 +181,13 @@ const device = {
         });
       }
 
-      if (responseFromRemoveDevice.success == false) {
+      if (responseFromRemoveDevice.success === false) {
         let error = responseFromRemoveDevice.error
           ? responseFromRemoveDevice.error
           : "";
-        let status = HTTPStatus.BAD_REQUEST;
-        if (!isEmpty(responseFromRemoveDevice.status)) {
-          status = errorCodes.serverErrors.includes(
-            responseFromRemoveDevice.status
-          )
-            ? HTTPStatus.BAD_GATEWAY
-            : HTTPStatus.NOT_FOUND;
-        }
-
+        let status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromRemoveDevice.message,
@@ -199,7 +206,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant, device_number, id, name, device } = req.query;
       const { body } = req;
@@ -247,7 +258,12 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        logObject(" nestedErrors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       let responseFromListDeviceDetails = await registerDeviceUtil.list(req);
       logElement(
@@ -318,7 +334,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant, device, device_number, name, id } = req.query;
       const { body } = req;
@@ -371,7 +391,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { device, name, id, device_number, tenant } = req.query;
 
@@ -394,7 +418,7 @@ const device = {
         )}`
       );
 
-      if (responseFromRemoveDevice.success == true) {
+      if (responseFromRemoveDevice.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromRemoveDevice.message,
@@ -402,12 +426,12 @@ const device = {
         });
       }
 
-      if (responseFromRemoveDevice.success == false) {
+      if (responseFromRemoveDevice.success === false) {
         let error = responseFromRemoveDevice.error
           ? responseFromRemoveDevice.error
           : "";
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
           success: false,
           message: responseFromRemoveDevice.message,
           error,
@@ -424,7 +448,11 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       const { tenant } = req.query;
       const { body } = req;
@@ -442,7 +470,7 @@ const device = {
           responseFromCreateOnPlatform
         )}`
       );
-      if (responseFromCreateOnPlatform.success == true) {
+      if (responseFromCreateOnPlatform.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromCreateOnPlatform.message,
@@ -450,7 +478,7 @@ const device = {
         });
       }
 
-      if (responseFromCreateOnPlatform.success == false) {
+      if (responseFromCreateOnPlatform.success === false) {
         let error = responseFromCreateOnPlatform.error
           ? responseFromCreateOnPlatform.error
           : "";

@@ -1,8 +1,12 @@
 import os
+from datetime import datetime, timedelta
+
+import pandas as pd
+from google.cloud import bigquery
 
 from airqoApi import AirQoApi
 from tahmo import TahmoApi
-from utils import array_to_csv, array_to_json
+from utils import array_to_csv, array_to_json, is_valid_double, str_to_date
 
 
 class Transformation:
@@ -101,12 +105,104 @@ class Transformation:
                     })
                 )
 
+        self.__print(data=updated_sites)
+
+    def get_devices_invalid_measurement_values(self):
+        devices = self.airqo_api.get_devices(tenant='airqo', is_active=True)
+        print(devices)
+
+        errors = []
+        for device in devices:
+            device_data = dict(device)
+            try:
+                current_measurements = dict(self.airqo_api.get_airqo_device_current_measurements(
+                    device_number=device_data["device_number"]
+                ))
+            except Exception as ex:
+                error = dict({
+                    "self_link": f"{os.getenv('AIRQO_BASE_URL')}data/feeds/transform/recent?channel={device_data['device_number']}",
+                    "channelID": device_data["device_number"]
+                })
+                errors.append(error)
+                continue
+
+            created_at = str_to_date(current_measurements.get("created_at"))
+            check_date = datetime.utcnow() - timedelta(days=30)
+            error = dict({
+                "channelID": device_data["device_number"],
+                "device": device_data["name"],
+                "isActive": device_data["isActive"],
+                "siteName": device_data["siteName"],
+                "created_at": f"{created_at}",
+            })
+
+            for key, value in current_measurements.items():
+                key_str = f"{key}".strip().lower()
+
+                if key_str == 'externaltemperature' or key_str == 'externalhumidity' or key_str == 'pm10' \
+                        or key_str == 's2_pm2_5' or key_str == 's2_pm10' or key_str == 'internaltemperature' \
+                        or key_str == 'internalhumidity':
+
+                    has_error = False
+
+                    if not is_valid_double(value=value):
+                        has_error = True
+
+                    if key_str == 'pm2_5' and not has_error:
+                        value = float(value)
+                        if value < 0 or value > 500.5:
+                            has_error = True
+
+                    if not has_error and (key_str == 'pm2_5' or key_str == 's2_pm2_5' or key_str == 's2_pm10'
+                                          or key_str == 'pm10'):
+                        value = float(value)
+                        if value < 0 or value > 500.5:
+                            has_error = True
+
+                    if not has_error and (key_str == 'externaltemperature' or key_str == 'internalhumidity'
+                                          or key_str == 'internaltemperature' or key_str == 'externalhumidity'):
+                        value = float(value)
+                        if value < 0 or value > 50:
+                            has_error = True
+
+                    if not has_error and (check_date > created_at):
+                        has_error = True
+
+                    if has_error:
+                        error[key] = value
+
+            if len(error.keys()) > 5:
+                error["self_link"] = f"{os.getenv('AIRQO_BASE_URL')}data/feeds/transform/recent?channel={device_data['device_number']}"
+                errors.append(error)
+
+        self.__print(data=errors)
+
+    def get_devices_not_up_to_date_on_big_query(self):
+        client = bigquery.Client()
+
+        query = """SELECT distinct channel_id FROM airqo-250220.thingspeak.clean_feeds_pms"""
+
+        channel_ids_df = (
+            client.query(query).result().to_dataframe()
+        )
+
+        channel_ids_list = [row["channel_id"] for _, row in channel_ids_df.iterrows()]
+
+        devices = self.airqo_api.get_devices(tenant="airqo")
+        devices_df = pd.DataFrame(devices)
+
+        missing_devices = [row["device_number"] for _, row in devices_df.iterrows()
+                           if row["device_number"] not in channel_ids_list]
+
+        self.__print(missing_devices)
+
+    def __print(self, data):
         if self.output_format.strip().lower() == "csv":
-            array_to_csv(data=summarized_updated_sites)
+            array_to_csv(data=data)
 
         elif self.output_format.strip().lower() == "api":
-            print("Sites to be Updated", updated_sites, sep=" := ")
-            self.airqo_api.update_sites(updated_sites=updated_sites)
-
+            print("Data to be Updated", data, sep=" := ")
+            self.airqo_api.update_sites(updated_sites=data)
         else:
-            array_to_json(data=summarized_updated_sites)
+            array_to_json(data=data)
+

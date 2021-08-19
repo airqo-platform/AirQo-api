@@ -12,6 +12,7 @@ const mailer = {
         to: `${email}`,
         subject: "AirQo Platform JOIN request",
         text: msgs.joinRequest(firstName, lastName),
+        bcc: constants.REQUEST_ACCESS_EMAILS,
       };
 
       let response = transporter.sendMail(mailOptions);
