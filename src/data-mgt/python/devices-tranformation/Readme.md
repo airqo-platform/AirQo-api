@@ -36,3 +36,7 @@ Creates a `formatted_devices.[json.csv]` file containing devices with the neares
 ```bash
     python main.py sites_without_a_primary_device csv
 ```
+## Update primary devices based on csv file
+```bash
+    python main.py update_primary_devices
+```

@@ -37,6 +37,16 @@ class AirQoApi:
 
         return []
 
+    def update_primary_device(self, tenant, name, primary=False):
+
+        params = {"tenant": tenant, "name": name}
+        body = {
+            "isPrimaryInLocation": "true" if primary else "false"
+        }
+
+        response = self.__request(endpoint="devices", params=params, body=body, method="put")
+        print(response)
+
     def update_sites(self, updated_sites):
         for i in updated_sites:
             site = dict(i)
@@ -46,6 +56,12 @@ class AirQoApi:
             print(response)
 
     def __request(self, endpoint, params, body=None, method=None):
+
+        # [PUT]
+        # https: // platform.airqo.net / api / v1 / devices?tenant = airqo & name = aq_04
+        # {
+        #     "isPrimaryInLocation": "true"
+        # }
 
         headers = {'Authorization': self.AIRQO_API_KEY}
         if method is None:

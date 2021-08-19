@@ -38,6 +38,9 @@ if __name__ == '__main__':
     elif action.lower().strip() == "missing_devices_on_bigquery":
         transformation.get_devices_not_up_to_date_on_big_query()
 
+    elif action.lower().strip() == "update_primary_devices":
+        transformation.update_primary_devices()
+
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")
         exit()

@@ -16,6 +16,26 @@ class Transformation:
         self.airqo_api = AirQoApi()
         self.tahmo_api = TahmoApi()
 
+    def update_primary_devices(self):
+
+        devices = pd.read_csv("devices.csv")
+        for _, device in devices.iterrows():
+
+            device_dict = dict(device.to_dict())
+
+            tenant = device_dict.get("tenant", "airqo")
+            name = device_dict.get("deviceName", None)
+            primary = f'{device_dict.get("primary")}'
+
+            deployed = f'{device_dict.get("status", "none")}'
+
+            is_primary = False
+            if primary.strip().lower() == 'primary':
+                is_primary = True
+
+            if name and deployed.strip().lower() == "deployed":
+                self.airqo_api.update_primary_device(tenant=tenant, name=name, primary=is_primary)
+
     def map_devices_to_tahmo_station(self):
 
         devices = self.airqo_api.get_devices(self.tenant)
@@ -128,15 +148,14 @@ class Transformation:
                     break
 
             if not has_primary:
-                site_summary = dict({
-                    "name": site.get("name", None),
-                    "generated_name": site.get("name", None),
-                    "description": site.get("name", None),
-                    "formatted_name": site.get("Unnamed Road, Uganda", None),
-                    "latitude": site.get("latitude", None),
-                    "longitude": site.get("longitude", None)
-                })
-                sites_without_primary_devices.append(site_summary)
+
+                if '_id' in site_dict:
+                    site_dict.pop('_id')
+
+                if 'nearest_tahmo_station' in site_dict:
+                    site_dict.pop('nearest_tahmo_station')
+
+                sites_without_primary_devices.append(site_dict)
 
         self.__print(data=sites_without_primary_devices)
 
