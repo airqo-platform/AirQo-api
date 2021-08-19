@@ -25,6 +25,10 @@ class AirQoApi:
 
         return []
 
+    def get_airqo_device_current_measurements(self, device_number ):
+        response = self.__request("data/feeds/transform/recent", {"channel": device_number})
+        return response
+
     def get_sites(self, tenant):
         response = self.__request("devices/sites", {"tenant": tenant})
 
@@ -64,6 +68,7 @@ class AirQoApi:
             return handle_api_error("Invalid")
 
         if api_request.status_code == 200:
+            print(api_request.request.url)
             return api_request.json()
         else:
             return handle_api_error(api_request)

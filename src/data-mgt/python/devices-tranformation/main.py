@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 
 from transformation import Transformation
 
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

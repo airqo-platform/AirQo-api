@@ -1,0 +1,38 @@
+###########################################################
+# Start deployment of KCCA raw device measurements streams application - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-kcca-raw-measurements-stream
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: prod-kcca-raw-measurements-stream
+  replicas: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: prod-kcca-raw-measurements-stream
+    spec:
+      containers:
+        - name: prod-kcca-raw-measurements-stream
+          image: us.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
+          imagePullPolicy: Always
+          resources: {}
+            # requests:
+            #   memory: 256Mi
+            #   cpu: "200m"
+            # limits:
+            #   memory: 700Mi
+            #   cpu: "1000m"
+          envFrom:
+            - configMapRef:
+                name: prod-kcca-raw-measurements-stream-config
