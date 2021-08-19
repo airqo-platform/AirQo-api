@@ -1,0 +1,28 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: airqo-measurements-connector
+  namespace: production
+  labels:
+    strimzi.io/cluster: prod-measurements-connector-cluster
+spec:
+  class: airqo.AirqoConnector
+  tasksMax: 2
+  config:
+    topic: airqo-streams-raw-device-measurements-topic
+    airqoBaseUrl: https://platform.airqo.net/api/v1/
+    pollInterval: "300000"
+    batchSize: "50"
+    minimumHours: "24"
+    devicesFetchInterval: "7200000"
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
+
+    # topic: ${configmaps:staging/airqo-measurements-connector-config:topic}
+    # tenant: ${configmaps:staging/airqo-measurements-connector-config:tenant}
+    # airqoBaseUrl: ${configmaps:staging/airqo-measurements-connector-config:airqoBaseUrl}
+    # pollInterval: ${configmaps:staging/airqo-measurements-connector-config:pollInterval}
+    # batchSize: ${configmaps:staging/airqo-measurements-connector-config:batchSize}
+    # minimumHours: ${configmaps:staging/airqo-measurements-connector-config:minimumHours}

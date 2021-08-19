@@ -1,10 +1,6 @@
 import json
-import os
 
 import requests
-import pandas as pd
-
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 
 
 class DeviceRegistry:
@@ -14,22 +10,22 @@ class DeviceRegistry:
         self.base_url = url
         
     def send_to_api(self):
-        dataframe = pd.DataFrame(self.json_data)
-        device = dataframe.iloc[0].get("device")
-        self.events_collection_insertion(device)
+        self.events_collection_insertion()
 
-    def events_collection_insertion(self,  device):
+    def events_collection_insertion(self):
         try:
 
             headers = {'Content-Type': 'application/json'}
-            url = self.base_url + "devices/events/add?device=" + device + "&tenant=" + self.tenant
+            url = self.base_url + "devices/events?tenant=" + self.tenant
 
             results = requests.post(url, self.json_data, headers=headers, verify=False)
 
             if results.status_code == 200:
                 print(results.json())
             else:
-                print("Device registry failed to insert values. Status Code : " + str(results.status_code))
-
+                print(f"Device registry failed to insert values. Status Code : {results.status_code}")
+                print(f"Response : {results.content}")
+                print(f"Request Url : {url}")
+                print(f"Request body : {self.json_data}")
         except Exception as ex:
             print("Error Occurred while inserting measurements: " + str(ex))

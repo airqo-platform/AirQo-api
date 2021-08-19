@@ -12,13 +12,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 class Config:
     dotenv_path = os.path.join(BASE_DIR, '.env')
-    #print("dotenv", dotenv_path)
     load_dotenv(dotenv_path)
     DEBUG = False
     TESTING = False
     CSRF_ENABLED = True
     SECRET_KEY = os.getenv('SECRET_KEY')
-    DB_NAME = os.getenv('DB_NAME')
+    DB_NAME = os.getenv('DB_NAME_PROD')
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     REDIS_SERVER = os.getenv('REDIS_SERVER_PROD')
 
@@ -34,6 +33,7 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = os.getenv('MONGO_DEV_URI')
     REDIS_SERVER = os.getenv('REDIS_SERVER_DEV')
+    DB_NAME =os.getenv('DB_NAME_DEV')
 
 class TestingConfig(Config):
     dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
