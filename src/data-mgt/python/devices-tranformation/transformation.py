@@ -107,8 +107,41 @@ class Transformation:
 
         self.__print(data=updated_sites)
 
+    def get_sites_without_a_primary_device(self):
+
+        sites = self.airqo_api.get_sites(tenant=self.tenant)
+        sites_without_primary_devices = []
+
+        for site in sites:
+            site_dict = dict(site)
+            if 'devices' not in site_dict:
+                print(f"site doesnt have devices => {site_dict}")
+                continue
+
+            devices = site_dict.get('devices')
+            has_primary = False
+
+            for device in devices:
+                device_dict = dict(device)
+                if device_dict.get("isPrimaryInLocation", False) is True:
+                    has_primary = True
+                    break
+
+            if not has_primary:
+                site_summary = dict({
+                    "name": site.get("name", None),
+                    "generated_name": site.get("name", None),
+                    "description": site.get("name", None),
+                    "formatted_name": site.get("Unnamed Road, Uganda", None),
+                    "latitude": site.get("latitude", None),
+                    "longitude": site.get("longitude", None)
+                })
+                sites_without_primary_devices.append(site_summary)
+
+        self.__print(data=sites_without_primary_devices)
+
     def get_devices_invalid_measurement_values(self):
-        devices = self.airqo_api.get_devices(tenant='airqo', is_active=True)
+        devices = self.airqo_api.get_devices(tenant='airqo', active=True)
         print(devices)
 
         errors = []
