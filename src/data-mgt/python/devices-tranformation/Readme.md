@@ -1,5 +1,5 @@
 # Device Transformations
-Output depends on arguments passed in.
+Contains Utils for performing transformations on devices
 ## Setup your Environment
 ```bash
     python3 -m venv venv
@@ -7,9 +7,9 @@ Output depends on arguments passed in.
     pip install -r requirements.txt
 ```
 Obtain and add the `.env` to this directory.
-<output_format> can be csv or json
+
+In scenarios where the output is  **csv** or **json**, a file named `output.json` or `output.csv` is generated with the data.
 ## Get active devices with invalid measurements
-### CSV output
 ```bash
     python main.py get_devices_with_invalid_measurements csv
 ```
@@ -24,7 +24,6 @@ Update sites to include the nearest Tahmo Station.
     python main.py site_tahmo_mapping csv
 ```
 ## Map devices to nearest Tahmo stations
-Creates a `formatted_devices.[json.csv]` file containing devices with the nearest tahmo station added to devices that have `latitude` and `longitude` values.
 ```bash
     python main.py device_tahmo_mapping json
 ```
