@@ -198,22 +198,27 @@ const candidate = {
 
         logObject("responseFromConfirmCandidate", responseFromConfirmCandidate);
         if (responseFromConfirmCandidate.success == true) {
-          return res.status(HTTPStatus.OK).json({
+          let status = responseFromConfirmCandidate.status
+            ? responseFromConfirmCandidate.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
             message: responseFromConfirmCandidate.message,
             user: responseFromConfirmCandidate.data,
           });
         } else if (responseFromConfirmCandidate.success == false) {
+          let status = responseFromConfirmCandidate.status
+            ? responseFromConfirmCandidate.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          let error = responseFromConfirmCandidate.error
+            ? responseFromConfirmCandidate.error
+            : "";
           if (responseFromConfirmCandidate.error) {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
+            res.status(status).json({
               success: false,
               message: responseFromConfirmCandidate.message,
-              error: responseFromConfirmCandidate.error,
-            });
-          } else {
-            res.status(HTTPStatus.BAD_REQUEST).json({
-              success: false,
-              message: responseFromConfirmCandidate.message,
+              error,
             });
           }
         }

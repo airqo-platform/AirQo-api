@@ -2,18 +2,18 @@ const HTTPStatus = require("http-status");
 
 const axiosError = (error, req, res) => {
   if (error.response) {
-    res.status(HTTPStatus.BAD_GATEWAY).json({
+    res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: error.response.data,
     });
   } else if (error.request) {
-    res.status(HTTPStatus.BAD_GATEWAY).json({
+    res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       error: error.request,
       message: "The request was made but no response was received",
     });
   } else {
-    res.status(HTTPStatus.BAD_GATEWAY).json({
+    res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
       success: false,
       message: "Server Error",
       error: error.message,
@@ -23,7 +23,7 @@ const axiosError = (error, req, res) => {
 };
 
 const tryCatchErrors = (res, error, message) => {
-  res.status(HTTPStatus.BAD_GATEWAY).json({
+  res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
     success: false,
     message: `server error - ${message}`,
     error: error.message,
@@ -54,13 +54,13 @@ const invalidParamsValue = (req, res) => {
 
 const callbackErrors = (error, req, res) => {
   res
-    .status(HTTPStatus.BAD_GATEWAY)
+    .status(HTTPStatus.INTERNAL_SERVER_ERROR)
     .json({ success: false, message: "server error", error: error });
 };
 
 const unclearError = (res) => {
   res
-    .status(HTTPStatus.BAD_GATEWAY)
+    .status(HTTPStatus.INTERNAL_SERVER_ERROR)
     .json({ success: false, message: "unclear server error" });
 };
 

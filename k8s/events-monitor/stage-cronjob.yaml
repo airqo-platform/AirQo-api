@@ -1,0 +1,33 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: stage-events-monitor-job
+  namespace: staging
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "@hourly"
+  jobTemplate:
+    metadata:
+      name: stage-events-monitor-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          containers:
+          - name: stage-events-monitor-job
+            image: us.gcr.io/airqo-250220/events-monitor-job:latest
+            imagePullPolicy: Always
+            # resources:
+            #   requests:
+            #     memory: 256Mi
+            #     cpu: "0.2"
+            #   limits:
+            #     memory: 512Mi
+            #     cpu: "1"
+            envFrom:
+              - configMapRef:
+                  name: stage-events-monitor-cronjob-config
+              # - secretRef:
+              #     name: stage-events-monitor-secret-config

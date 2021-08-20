@@ -621,6 +621,20 @@ const generateFilter = {
 
     return filter;
   },
+  airqlouds: (req) => {
+    let { id, name } = req.query;
+    let filter = {};
+
+    if (name) {
+      filter["name"] = name;
+    }
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    return filter;
+  },
 
   activities: (req) => {
     let {
