@@ -1205,6 +1205,17 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .trim()
+        .custom((value) => {
+          return createSiteUtil.validateSiteName(value);
+        })
+        .withMessage(
+          "The name should be greater than 5 and less than 50 in length"
+        ),
     ],
   ]),
   siteController.register
@@ -1349,9 +1360,21 @@ router.delete(
     .isIn(["kcca", "airqo"])
     .withMessage("the tenant value is not among the expected ones"),
   oneOf([
-    check("id").exists(),
-    check("lat_long").exists(),
-    check("generated_name").exists(),
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      ),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      ),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      ),
   ]),
   siteController.delete
 );
@@ -1733,7 +1756,7 @@ router.put(
         return createSiteUtil.validateSiteName(value);
       })
       .withMessage(
-        "The name should be greater than 4 and less than 15 in length, should also not have whitespace in it"
+        "The name should be greater than 5 and less than 50 in length"
       ),
   ]),
   oneOf([
