@@ -385,6 +385,22 @@ router.put(
         .if(body("long_name").exists())
         .notEmpty()
         .trim(),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn([
+          "recalled",
+          "ready",
+          "deployed",
+          "undeployed",
+          "decommissioned",
+          "assembly",
+        ])
+        .withMessage(
+          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly "
+        ),
       body("mountType")
         .if(body("mountType").exists())
         .notEmpty()

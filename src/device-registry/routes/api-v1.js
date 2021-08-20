@@ -396,6 +396,22 @@ router.put(
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn([
+          "recalled",
+          "ready",
+          "deployed",
+          "undeployed",
+          "decommissioned",
+          "assembly",
+        ])
+        .withMessage(
+          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly "
+        ),
       body("powerType")
         .if(body("powerType").exists())
         .notEmpty()
