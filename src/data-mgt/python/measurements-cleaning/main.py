@@ -1,14 +1,10 @@
 from dotenv import load_dotenv
 
-from clean import Clean
+from kafka_client import MeasurementsClient
 
 load_dotenv()
 
-
-def run_app(name):
-    print(f'Hi, {name}')  # Press ⌘F8 to toggle the breakpoint.
-
-
 if __name__ == '__main__':
-    run_app('PyCharm')
+    measurements_client = MeasurementsClient()
+    measurements_client.consume_measurements()
 

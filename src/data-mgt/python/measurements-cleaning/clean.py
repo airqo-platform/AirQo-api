@@ -2,18 +2,7 @@ import json
 
 import pandas as pd
 
-
-def convert_to_numeric(original_value):
-    return pd.to_numeric(original_value, errors='coerce')
-
-
-def convert_to_tenant(original_value):
-    if f'{original_value}'.strip().lower() == 'kcca':
-        return 'kcca'
-    elif f'{original_value}'.strip().lower() == 'airqo':
-        return 'airqo'
-    else:
-        return None
+from utils import convert_to_tenant, convert_to_numeric
 
 
 class Clean:
@@ -49,17 +38,24 @@ class Clean:
     def __remove_outliers(self):
 
         self.__raw_measurements = self.__raw_measurements[
-            (self.__raw_measurements['pm2_5'] >= 0) & (self.__raw_measurements['pm2_5'] <= 500.4)]
+            (self.__raw_measurements['pm2_5.value'] >= 0) & (self.__raw_measurements['pm2_5.value'] <= 500.4)]
+
         self.__raw_measurements = self.__raw_measurements[
-            (self.__raw_measurements['s2_pm2_5'] >= 0) & (self.__raw_measurements['s2_pm2_5'] <= 500.4)]
+            (self.__raw_measurements['s2_pm2_5.value'] >= 0) & (self.__raw_measurements['s2_pm2_5.value'] <= 500.4)]
+
         self.__raw_measurements = self.__raw_measurements[
-            (self.__raw_measurements['pm10'] >= 0) & (self.__raw_measurements['pm10'] <= 500.4)]
+            (self.__raw_measurements['pm10.value'] >= 0) & (self.__raw_measurements['pm10.value'] <= 500.4)]
+
         self.__raw_measurements = self.__raw_measurements[
-            (self.__raw_measurements['s2_pm10'] >= 0) & (self.__raw_measurements['s2_pm10'] <= 500.4)]
+            (self.__raw_measurements['s2_pm10.value'] >= 0) & (self.__raw_measurements['s2_pm10.value'] <= 500.4)]
+
         self.__raw_measurements = self.__raw_measurements[
-            (self.__raw_measurements['temperature'] >= 0) & (self.__raw_measurements['temperature'] <= 45)]
+            (self.__raw_measurements['externalTemperature.value'] >= 0) &
+            (self.__raw_measurements['externalTemperature.value'] <= 45)]
+
         self.__raw_measurements = self.__raw_measurements[
-            (self.__raw_measurements['humidity'] >= 0) & (self.__raw_measurements['humidity'] <= 99)]
+            (self.__raw_measurements['externalHumidity.value'] >= 0) &
+            (self.__raw_measurements['externalHumidity.value'] <= 99)]
 
     def get_cleaned_measurements(self):
         cleaned_measurements = []
@@ -75,7 +71,7 @@ class Clean:
                 "device_number": row["device_number"],
                 "location": {
                     "latitude": row["location.latitude"],
-                    "longitude": row["longitude.latitude"],
+                    "longitude": row["location.latitude"],
                 },
                 "internalTemperature": {
                     "value": row["internalTemperature.value"]
@@ -142,7 +138,7 @@ class Clean:
                     "calibratedValue": row["s2_pm2_5.calibratedValue"],
                     "uncertaintyValue": row["s2_pm2_5.uncertaintyValue"],
                     "standardDeviationValue": row["s2_pm2_5.standardDeviationValue"]
-                },
+                }
             })
             cleaned_measurements.append(cleaned_measurement)
 
