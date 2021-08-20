@@ -196,7 +196,8 @@ const join = {
             lastName,
             email,
             password,
-            tenant
+            tenant,
+            "user"
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
           if (responseFromSendEmail.success == true) {
