@@ -28,10 +28,19 @@ if __name__ == '__main__':
 
     if action.lower().strip() == "device_tahmo_mapping":
         transformation.map_devices_to_tahmo_station()
+
     elif action.lower().strip() == "site_tahmo_mapping":
         transformation.map_sites_to_tahmo_station()
+
+    elif action.lower().strip() == "sites_without_a_primary_device":
+        transformation.get_sites_without_a_primary_device()
+
     elif action.lower().strip() == "missing_devices_on_bigquery":
         transformation.get_devices_not_up_to_date_on_big_query()
+
+    elif action.lower().strip() == "update_primary_devices":
+        transformation.update_primary_devices()
+
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")
         exit()
