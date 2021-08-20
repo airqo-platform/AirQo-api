@@ -16,12 +16,12 @@ module.exports = {
   },
   joinRequest: (firstName, lastName) => {
     return (
-      `Dear ${firstName + " " + lastName} \n\n` +
+      `Dear ${firstName + " " + lastName}, \n\n` +
       "Your request to join the AirQo platform has been received.\n" +
       "We shall get back to you as soon as possible. \n\n" +
       "Before utilising airqo data, your application record has to undergo \n" +
       "the process of approval by platform administration. Once your \n" +
-      "application reviewed, you will receive an email on the mailbox \n\n" +
+      "application is reviewed, you will receive an email on the mailbox \n\n" +
       "Please visit our website to learn more about us. \n" +
       `https://airqo.net/`
     );
