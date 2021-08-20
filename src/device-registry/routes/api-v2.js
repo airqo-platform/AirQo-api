@@ -928,8 +928,18 @@ router.get(
 );
 
 /******************* create-photo use-case ***************/
-/**** delete photos */
-router.delete("/photos", photoController.deletePhotos);
+router.delete("/photos", photoController.delete);
+router.put("/photos", photoController.update);
+router.get("/photos", photoController.list);
+router.post("/photos", photoController.create);
+
+router.post("/photos/platform", photoController.createPhotoOnPlatform);
+router.delete("/photos/platform", photoController.deletePhotoOnPlatform);
+router.put("/photos/platform", photoController.updatePhotoOnPlatform);
+
+router.delete("/photos/cloud", photoController.deletePhotoOnCloudinary);
+router.put("/photos/cloud", photoController.updatePhotoOnCloudinary);
+router.post("/photos/cloud", photoController.createPhotoOnCloudinary);
 
 /****************** create-site use-case *************************/
 router.post(
