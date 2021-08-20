@@ -674,6 +674,34 @@ router.put(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the candidate identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["pending", "rejected"])
+        .withMessage(
+          "the status value is not among the expected ones which include: rejected and pending"
+        ),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   requestController.update
