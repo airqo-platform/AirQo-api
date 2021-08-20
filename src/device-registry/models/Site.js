@@ -310,12 +310,21 @@ siteSchema.statics = {
           status: HTTPStatus.ACCEPTED,
         };
       }
-    } catch (error) {
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[key] = value.message);
+      });
+
       return {
-        error: error.message,
-        message: "Site model server error - register",
+        error: response,
+        message,
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status,
       };
     }
   },
