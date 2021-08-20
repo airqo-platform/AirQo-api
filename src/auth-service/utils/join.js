@@ -319,36 +319,38 @@ const join = {
         responseFromGenerateResetToken
       );
       logObject("filter", filter);
-      if (responseFromGenerateResetToken.success == true) {
+      if (responseFromGenerateResetToken.success === true) {
         let token = responseFromGenerateResetToken.data;
         let update = {
           resetPasswordToken: token,
           resetPasswordExpires: Date.now() + 3600000,
         };
-        let responseFromUpdateUser = await join.update(tenant, filter, update);
-        logObject(
-          "responseFromUpdateUser in forgotPassword",
-          responseFromUpdateUser
-        );
-        if (responseFromUpdateUser.success == true) {
+        let responseFromModifyUser = await UserModel(
+          tenant.toLowerCase()
+        ).modify({
+          filter,
+          update,
+        });
+        if (responseFromModifyUser.success === true) {
           let responseFromSendEmail = await mailer.forgot(
             filter.email,
             token,
             tenant
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success == true) {
+          if (responseFromSendEmail.success === true) {
             return {
               success: true,
-              message: "email successfully sent",
-              data: responseFromSendEmail.data,
+              message: "forgot email successfully sent",
             };
-          } else if (responseFromSendEmail.success == false) {
+          }
+
+          if (responseFromSendEmail.success === false) {
             if (responseFromSendEmail.error) {
               return {
                 success: false,
                 error: responseFromSendEmail.error,
-                message: responseFromSendEmail.message,
+                message: "unable to send the email request",
               };
             } else {
               return {
@@ -357,21 +359,25 @@ const join = {
               };
             }
           }
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
+        }
+
+        if (responseFromModifyUser.success === false) {
+          if (responseFromModifyUser.error) {
             return {
               success: false,
-              error: responseFromUpdateUser.error,
-              message: responseFromUpdateUser.message,
+              error: responseFromModifyUser.error,
+              message: responseFromModifyUser.message,
             };
           } else {
             return {
               success: false,
-              message: responseFromUpdateUser.message,
+              message: responseFromModifyUser.message,
             };
           }
         }
-      } else if (responseFromGenerateResetToken.success == false) {
+      }
+
+      if (responseFromGenerateResetToken.success === false) {
         if (responseFromGenerateResetToken.error) {
           return {
             success: false,
