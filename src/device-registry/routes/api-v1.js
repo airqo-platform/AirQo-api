@@ -1401,9 +1401,15 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body()
-        .isArray()
-        .withMessage("the request body should be an array"),
+    ],
+  ]),
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
       body("*.device_id")
         .exists()
         .trim()
@@ -1465,11 +1471,12 @@ router.post(
         .notEmpty()
         .trim(),
       body("*.device_number")
-        .if(query("*.device_number").exists())
+        .if(body("*.device_number").exists())
         .notEmpty()
-        .trim()
         .isInt()
-        .withMessage("the device_number should be an integer value"),
+        .withMessage("the device_number should be an integer value")
+        .bail()
+        .trim(),
     ],
   ]),
   eventController.addValues
