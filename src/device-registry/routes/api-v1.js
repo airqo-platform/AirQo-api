@@ -1189,6 +1189,17 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .trim()
+        .custom((value) => {
+          return createSiteUtil.validateSiteName(value);
+        })
+        .withMessage(
+          "The name should be greater than 4 and less than 15 in length, should also not have whitespace in it"
+        ),
     ],
   ]),
   siteController.register

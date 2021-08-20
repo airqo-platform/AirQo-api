@@ -1192,7 +1192,14 @@ router.post(
       body("name")
         .exists()
         .withMessage("the name is is missing in your request")
-        .trim(),
+        .bail()
+        .trim()
+        .custom((value) => {
+          return createSiteUtil.validateSiteName(value);
+        })
+        .withMessage(
+          "The name should be greater than 4 and less than 15 in length, should also not have whitespace in it"
+        ),
     ],
   ]),
   siteController.register
