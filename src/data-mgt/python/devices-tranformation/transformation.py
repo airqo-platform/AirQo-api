@@ -16,6 +16,26 @@ class Transformation:
         self.airqo_api = AirQoApi()
         self.tahmo_api = TahmoApi()
 
+    def update_primary_devices(self):
+
+        devices = pd.read_csv("devices.csv")
+        for _, device in devices.iterrows():
+
+            device_dict = dict(device.to_dict())
+
+            tenant = device_dict.get("tenant", "airqo")
+            name = device_dict.get("deviceName", None)
+            primary = f'{device_dict.get("primary")}'
+
+            deployed = f'{device_dict.get("status", "none")}'
+
+            is_primary = False
+            if primary.strip().lower() == 'primary':
+                is_primary = True
+
+            if name and deployed.strip().lower() == "deployed":
+                self.airqo_api.update_primary_device(tenant=tenant, name=name, primary=is_primary)
+
     def map_devices_to_tahmo_station(self):
 
         devices = self.airqo_api.get_devices(self.tenant)
@@ -107,8 +127,40 @@ class Transformation:
 
         self.__print(data=updated_sites)
 
+    def get_sites_without_a_primary_device(self):
+
+        sites = self.airqo_api.get_sites(tenant=self.tenant)
+        sites_without_primary_devices = []
+
+        for site in sites:
+            site_dict = dict(site)
+            if 'devices' not in site_dict:
+                print(f"site doesnt have devices => {site_dict}")
+                continue
+
+            devices = site_dict.get('devices')
+            has_primary = False
+
+            for device in devices:
+                device_dict = dict(device)
+                if device_dict.get("isPrimaryInLocation", False) is True:
+                    has_primary = True
+                    break
+
+            if not has_primary:
+
+                if '_id' in site_dict:
+                    site_dict.pop('_id')
+
+                if 'nearest_tahmo_station' in site_dict:
+                    site_dict.pop('nearest_tahmo_station')
+
+                sites_without_primary_devices.append(site_dict)
+
+        self.__print(data=sites_without_primary_devices)
+
     def get_devices_invalid_measurement_values(self):
-        devices = self.airqo_api.get_devices(tenant='airqo', is_active=True)
+        devices = self.airqo_api.get_devices(tenant='airqo', active=True)
         print(devices)
 
         errors = []
