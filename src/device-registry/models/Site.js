@@ -451,6 +451,7 @@ siteSchema.statics = {
           generated_name: 1,
           lat_long: 1,
           country: 1,
+          district: 1,
         },
       };
       let removedSite = await this.findOneAndRemove(filter, options).exec();
