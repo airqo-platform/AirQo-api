@@ -23,6 +23,7 @@ const albumSchema = new Schema({
   device: { type: String },
   site: { type: String },
   name: { type: String },
+  count: { type: Number },
   photos: [photoSchema],
 });
 
@@ -32,7 +33,7 @@ albumSchema.pre("save", function() {
 });
 
 albumSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
+  message: `{VALUE} must be unique!`,
 });
 
 albumSchema.methods = {
@@ -69,21 +70,11 @@ albumSchema.statics = {
       let e = jsonify(err);
       let response = {};
       logObject("the err", e);
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[value.path] = value.message);
+      });
       return {
         errors: response,
         message,
