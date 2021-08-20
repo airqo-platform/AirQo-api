@@ -298,7 +298,7 @@ const manageSite = {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
       let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
       let trimmedName = shortenedName.trim();
-      return trimmedName;
+      return trimmedName.toLowerCase();
     } catch (error) {
       logger.error(`sanitiseName -- create site util -- ${error.message}`);
     }

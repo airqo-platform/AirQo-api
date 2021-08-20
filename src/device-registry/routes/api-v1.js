@@ -1638,10 +1638,6 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the name should not be empty")
-        .bail()
-        .customSanitizer((value) => {
-          return createSiteUtil.sanitiseName(value);
-        })
         .trim(),
       body("description")
         .if(body("description").exists())
