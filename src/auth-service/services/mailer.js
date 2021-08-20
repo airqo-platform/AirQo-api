@@ -5,14 +5,20 @@ const constants = require("../config/constants");
 const msgs = require("../utils/email.msgs");
 
 const mailer = {
-  candidate: async (firstName, lastName, email) => {
+  candidate: async (firstName, lastName, email, tenant) => {
     try {
+      let bcc = "";
+
+      if (tenant.toLowerCase() === "airqo") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+      }
+
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
         subject: "AirQo Platform JOIN request",
         text: msgs.joinRequest(firstName, lastName),
-        bcc: constants.REQUEST_ACCESS_EMAILS,
+        bcc,
       };
 
       let response = transporter.sendMail(mailOptions);
@@ -38,8 +44,13 @@ const mailer = {
     }
   },
 
-  user: async (firstName, lastName, email, password, tenant) => {
+  user: async (firstName, lastName, email, password, tenant, type) => {
     try {
+      let bcc = "";
+      if (type === "confirm") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+      }
+
       let mailOptions = {};
       if (tenant.toLowerCase() == "kcca") {
         mailOptions = {
@@ -47,6 +58,7 @@ const mailer = {
           to: `${email}`,
           subject: "Welcome to the AirQo KCCA Platform",
           text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
+          bcc,
         };
       } else {
         mailOptions = {
@@ -54,6 +66,7 @@ const mailer = {
           to: `${email}`,
           subject: "Welcome to the AirQo Platform",
           text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
+          bcc,
         };
       }
 
