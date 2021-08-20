@@ -812,6 +812,112 @@ const generateFilter = {
 
     return filter;
   },
+
+  photos: (request) => {
+    try {
+      const {
+        id,
+        device,
+        device_id,
+        site,
+        site_id,
+        user,
+        user_id,
+        name,
+      } = request.query;
+      let filter = {
+        device_id: {},
+        device: {},
+        site_id: {},
+        site: {},
+        user_id: {},
+        user: {},
+      };
+
+      if (id) {
+        filter["_id"] = ObjectId(id);
+      }
+
+      if (name) {
+        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+          name
+        );
+        filter["name"] = { $regex: regexExpression, $options: "i" };
+      }
+
+      if (device_id) {
+        let deviceIdArray = device_id.split(",");
+        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+          return ObjectId(device_id);
+        });
+        filter["device_id"]["$in"] = modifiedDeviceIdArray;
+      }
+
+      if (!device_id) {
+        delete filter["device_id"];
+      }
+
+      if (device) {
+        let deviceArray = device.split(",");
+        filter["device"]["$in"] = deviceArray;
+      }
+      if (!device) {
+        delete filter["device"];
+      }
+
+      if (site_id) {
+        let siteIdArray = site_id.split(",");
+        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+          return ObjectId(site_id);
+        });
+        filter["site_id"]["$in"] = modifiedSiteIdArray;
+      }
+
+      if (!site_id) {
+        delete filter["site_id"];
+      }
+
+      if (site) {
+        let siteArray = site.split(",");
+        filter["site"]["$in"] = siteArray;
+      }
+      if (!site) {
+        delete filter["site"];
+      }
+
+      if (user_id) {
+        let userIdArray = user_id.split(",");
+        let modifiedUserIdArray = userIdArray.map((user_id) => {
+          return ObjectId(user_id);
+        });
+        filter["user_id"]["$in"] = modifiedUserIdArray;
+      }
+
+      if (!user_id) {
+        delete filter["user_id"];
+      }
+
+      if (user) {
+        let userArray = user.split(",");
+        filter["user"]["$in"] = userArray;
+      }
+      if (!user) {
+        delete filter["user"];
+      }
+
+      return {
+        success: true,
+        data: filter,
+        message: "filter successfully generated",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to generate the filter",
+        error: error.message,
+      };
+    }
+  },
 };
 
 module.exports = generateFilter;
