@@ -5,9 +5,10 @@ const { logObject, logElement, logText } = require("./log");
 const { deleteFromCloudinary } = require("./delete-cloudinary-image");
 const { tryCatchErrors, missingQueryParams } = require("./errors");
 const cloudinary = require("../config/cloudinary");
+const uploadImages = require("../utils/upload-images");
 
 const createPhoto = {
-  /*************** for integrated system actions *********** */
+  /*************** for integrated system actions ************/
   create: async (request) => {
     try {
       let responseFromCreatePhotoOnCloudinary = await createPhoto.createPhotoOnCloudinary(
@@ -31,6 +32,19 @@ const createPhoto = {
         }
 
         if (responseFromCreatePhotoOnPlatform.success === false) {
+          let status = responseFromCreatePhotoOnPlatform.status
+            ? responseFromCreatePhotoOnPlatform.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          let errors = responseFromCreatePhotoOnPlatform.errors
+            ? responseFromCreatePhotoOnPlatform.errors
+            : "";
+          return {
+            message: responseFromCreatePhotoOnPlatform.message,
+            success: false,
+            status,
+            errors,
+          };
         }
       }
 
@@ -39,69 +53,75 @@ const createPhoto = {
           ? responseFromCreatePhotoOnCloudinary.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-        let error = responseFromCreatePhotoOnCloudinary.error
-          ? responseFromCreatePhotoOnCloudinary.error
+        let errors = responseFromCreatePhotoOnCloudinary.errors
+          ? responseFromCreatePhotoOnCloudinary.errors
           : "";
-
         return {
           message: responseFromCreatePhotoOnCloudinary.message,
-          error,
+          errors,
           success: false,
           status,
         };
       }
     } catch (err) {
-      logElement("the error in create photo util", err.message);
+      logElement("the errors in create photo util", err.message);
       return {
-        message: "internal server error",
+        message: "internal server errors",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   update: async (request) => {
     try {
-      let { query } = request;
-      let { body } = request;
-      let { tenant } = query;
+      let responseFromUpdatePhotoOnCloudinary = await createPhoto.updatePhotoOnCloudinary(
+        request
+      );
 
-      let update = body;
-      let filter = generateFilter.photos(request);
+      if (responseFromUpdatePhotoOnCloudinary.success === true) {
+        let responseFromUpdatePhotoOnPlatform = await createPhoto.updatePhotoOnPlatform(
+          request
+        );
 
-      let responseFromModifyPhoto = await getModelByTenant(
-        tenant.toLowerCase(),
-        "photo",
-        PhotoSchema
-      ).modify({
-        filter,
-        update,
-      });
+        if (responseFromUpdatePhotoOnPlatform.success === true) {
+          let status = responseFromUpdatePhotoOnPlatform.status
+            ? responseFromUpdatePhotoOnPlatform.status
+            : HTTPStatus.OK;
+          return {
+            success: true,
+            status,
+            message: responseFromUpdatePhotoOnPlatform.message,
+          };
+        }
 
-      if (responseFromModifyPhoto.success === true) {
-        let status = responseFromModifyPhoto.status
-          ? responseFromModifyPhoto.status
-          : "";
-        return {
-          success: true,
-          message: responseFromModifyPhoto.message,
-          data: responseFromModifyPhoto.data,
-          status,
-        };
+        if (responseFromUpdatePhotoOnPlatform.success === false) {
+          let status = responseFromUpdatePhotoOnPlatform.status
+            ? responseFromUpdatePhotoOnPlatform.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          let errors = responseFromUpdatePhotoOnPlatform.errors
+            ? responseFromUpdatePhotoOnPlatform.errors
+            : "";
+
+          return {
+            success: false,
+            errors,
+            status,
+            message: responseFromUpdatePhotoOnPlatform.message,
+          };
+        }
       }
 
-      if (responseFromModifyPhoto.success === false) {
-        let errors = responseFromModifyPhoto.errors
-          ? responseFromModifyPhoto.errors
+      if (responseFromUpdatePhotoOnCloudinary.success === false) {
+        let status = responseFromUpdatePhotoOnCloudinary.status
+          ? responseFromUpdatePhotoOnCloudinary.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromUpdatePhotoOnCloudinary.errors
+          ? responseFromUpdatePhotoOnCloudinary.errors
           : "";
-
-        let status = responseFromModifyPhoto.status
-          ? responseFromModifyPhoto.status
-          : "";
-
         return {
           success: false,
-          message: responseFromModifyPhoto.message,
-          errors,
+          message: responseFromUpdatePhotoOnCloudinary.message,
           status,
+          errors,
         };
       }
     } catch (err) {
@@ -109,50 +129,61 @@ const createPhoto = {
       return {
         success: false,
         message: "unable to update photo",
-        errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   delete: async (request) => {
     try {
-      let { query } = request;
-      let { tenant } = query;
-      let filter = generateFilter.photos(request);
-      let responseFromRemovePhoto = await getModelByTenant(
-        tenant.toLowerCase(),
-        "photo",
-        PhotoSchema
-      ).remove({
-        filter,
-      });
+      let responseFromDeletePhotoOnCloudinary = await createPhoto.deletePhotoOnCloudinary(
+        request
+      );
 
-      if (responseFromRemovePhoto.success === true) {
-        let status = responseFromRemovePhoto.status
-          ? responseFromRemovePhoto.status
-          : "";
-        return {
-          success: true,
-          message: responseFromRemovePhoto.message,
-          data: responseFromRemovePhoto.data,
-          status,
-        };
+      if (responseFromDeletePhotoOnCloudinary.success === true) {
+        let responseFromDeletePhotoOnPlatform = await createPhoto.deletePhotoOnPlatform(
+          request
+        );
+
+        if (responseFromDeletePhotoOnPlatform.success === true) {
+          let status = responseFromDeletePhotoOnPlatform.status
+            ? responseFromDeletePhotoOnPlatform.status
+            : HTTPStatus.OK;
+          return {
+            success: true,
+            status,
+            message: responseFromDeletePhotoOnPlatform.message,
+          };
+        }
+
+        if (responseFromDeletePhotoOnPlatform.success === false) {
+          let status = responseFromDeletePhotoOnPlatform.status
+            ? responseFromDeletePhotoOnPlatform.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          let errors = responseFromDeletePhotoOnPlatform.errors
+            ? responseFromDeletePhotoOnPlatform.errors
+            : "";
+
+          return {
+            success: false,
+            errors,
+            status,
+            message: responseFromDeletePhotoOnPlatform.message,
+          };
+        }
       }
 
-      if (responseFromRemovePhoto.success === false) {
-        let errors = responseFromRemovePhoto.errors
-          ? responseFromRemovePhoto.errors
+      if (responseFromDeletePhotoOnCloudinary.success === false) {
+        let status = responseFromDeletePhotoOnCloudinary.status
+          ? responseFromDeletePhotoOnCloudinary.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromDeletePhotoOnCloudinary.errors
+          ? responseFromDeletePhotoOnCloudinary.errors
           : "";
-
-        let status = responseFromRemovePhoto.status
-          ? responseFromRemovePhoto.status
-          : "";
-
         return {
           success: false,
-          message: responseFromRemovePhoto.message,
-          errors,
+          message: responseFromDeletePhotoOnCloudinary.message,
           status,
+          errors,
         };
       }
     } catch (err) {
@@ -185,6 +216,7 @@ const createPhoto = {
       });
 
       logObject("responseFromListPhoto", responseFromListPhoto);
+
       if (responseFromListPhoto.success === false) {
         let errors = responseFromListPhoto.errors
           ? responseFromListPhoto.errors
@@ -192,7 +224,8 @@ const createPhoto = {
 
         let status = responseFromListPhoto.status
           ? responseFromListPhoto.status
-          : "";
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
         return {
           success: false,
           message: responseFromListPhoto.message,
@@ -204,7 +237,7 @@ const createPhoto = {
       if (responseFromListPhoto.success === true) {
         let status = responseFromListPhoto.status
           ? responseFromListPhoto.status
-          : "";
+          : HTTPStatus.OK;
         data = responseFromListPhoto.data;
         return {
           success: true,
@@ -239,10 +272,11 @@ const createPhoto = {
       logger.info(
         `the responseFromRegisterPhoto --${jsonify(responseFromRegisterPhoto)} `
       );
-      let status = responseFromRegisterPhoto.status
-        ? responseFromRegisterPhoto.status
-        : "";
+
       if (responseFromRegisterPhoto.success === true) {
+        let status = responseFromRegisterPhoto.status
+          ? responseFromRegisterPhoto.status
+          : HTTPStatus.OK;
         return {
           success: true,
           data: responseFromRegisterPhoto.data,
@@ -252,18 +286,21 @@ const createPhoto = {
       }
 
       if (responseFromRegisterPhoto.success === false) {
-        let error = responseFromRegisterPhoto.error
-          ? responseFromRegisterPhoto.error
+        let status = responseFromRegisterPhoto.status
+          ? responseFromRegisterPhoto.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromRegisterPhoto.errors
+          ? responseFromRegisterPhoto.errors
           : "";
         return {
           success: false,
           message: responseFromRegisterPhoto.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (err) {
-      logElement("update Photo util", err.message);
+      logElement("update Photo util errors", err.message);
       return {
         success: false,
         message: "unable to create photo on the platform",
@@ -293,7 +330,7 @@ const createPhoto = {
       if (responseFromModifyPhoto.success === true) {
         let status = responseFromModifyPhoto.status
           ? responseFromModifyPhoto.status
-          : "";
+          : HTTPStatus.OK;
         return {
           success: true,
           message: responseFromModifyPhoto.message,
@@ -309,8 +346,7 @@ const createPhoto = {
 
         let status = responseFromModifyPhoto.status
           ? responseFromModifyPhoto.status
-          : "";
-
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         return {
           success: false,
           message: responseFromModifyPhoto.message,
@@ -344,7 +380,7 @@ const createPhoto = {
       if (responseFromRemovePhoto.success === true) {
         let status = responseFromRemovePhoto.status
           ? responseFromRemovePhoto.status
-          : "";
+          : HTTPStatus.OK;
         return {
           success: true,
           message: responseFromRemovePhoto.message,
@@ -360,7 +396,7 @@ const createPhoto = {
 
         let status = responseFromRemovePhoto.status
           ? responseFromRemovePhoto.status
-          : "";
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return {
           success: false,
@@ -381,9 +417,84 @@ const createPhoto = {
   },
 
   /************ for cloudinary only activities *************** */
-  createPhotoOnCloudinary: async (request) => {},
-  updatePhotoOnCloudinary: async (request) => {},
-  deletePhotoOnCloudinary: async (request) => {},
+  createPhotoOnCloudinary: async (request) => {
+    try {
+      const uploader = async (path) => {
+        await uploadImages.uploads(path, "Images");
+      };
+      const urls = [];
+      const files = req.files;
+
+      for (const file of files) {
+        const { path } = file;
+        const newPath = await uploader(path);
+        urls.push(newPath);
+        fs.unlinkSync(path);
+      }
+
+      return {
+        success: true,
+        message: "images uploaded successfully",
+        data: urls,
+      };
+    } catch (err) {}
+  },
+  updatePhotoOnCloudinary: async (request) => {
+    try {
+    } catch (err) {}
+  },
+
+  getLastPath: async (photo) => {
+    const segements = photo.split("/").filter((segment) => segment);
+    const lastSegment = segements[segements.length - 1];
+    const removeFileExtension = lastSegment
+      .split(".")
+      .slice(0, -1)
+      .join(".");
+    return removeFileExtension;
+  },
+
+  deletePhotoOnCloudinary: async (request) => {
+    try {
+      let { query, body } = request;
+      const { photos } = body;
+
+      photos.forEach((photo) => {
+        if (photo) {
+          photoNameWithoutExtension.push(createPhoto.getLastPath(photo));
+        }
+      });
+      let imageIDs = photoNameWithoutExtension;
+
+      cloudinary.api.delete_resources(imageIDs, (errors, result) => {
+        if (result) {
+          logObject("response from cloudinary", result);
+          return {
+            success: true,
+            message: "images deleted successfully",
+            status: HTTPStatus.OK,
+          };
+        }
+
+        if (errors) {
+          logObject("unable to delete from cloudinary", errors);
+          logObject("unable to delete from cloudinary");
+          return {
+            success: false,
+            message: "unable to delete from cloudinary",
+            errors: errors,
+            status: HTTPStatus.BAD_GATEWAY,
+          };
+        }
+      });
+    } catch (err) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = createPhoto;
