@@ -30,14 +30,14 @@ const processImage = {
         ? responseFromCreatePhotoUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromCreatePhotoUtil.error
-        ? responseFromCreatePhotoUtil.error
+      let errors = responseFromCreatePhotoUtil.errors
+        ? responseFromCreatePhotoUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromCreatePhotoUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -63,14 +63,14 @@ const processImage = {
         ? responseFromUpdatePhotoUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromUpdatePhotoUtil.error
-        ? responseFromUpdatePhotoUtil.error
+      let errors = responseFromUpdatePhotoUtil.errors
+        ? responseFromUpdatePhotoUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromUpdatePhotoUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -96,14 +96,14 @@ const processImage = {
         ? responseFromDeletePhotoUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromDeletePhotoUtil.error
-        ? responseFromDeletePhotoUtil.error
+      let errors = responseFromDeletePhotoUtil.errors
+        ? responseFromDeletePhotoUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromDeletePhotoUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -129,14 +129,14 @@ const processImage = {
         ? responseFromListPhotoUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromListPhotoUtil.error
-        ? responseFromListPhotoUtil.error
+      let errors = responseFromListPhotoUtil.errors
+        ? responseFromListPhotoUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromListPhotoUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -165,14 +165,14 @@ const processImage = {
         ? responseFromCreatePhotoOnPlatformUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromCreatePhotoOnPlatformUtil.error
-        ? responseFromCreatePhotoOnPlatformUtil.error
+      let errors = responseFromCreatePhotoOnPlatformUtil.errors
+        ? responseFromCreatePhotoOnPlatformUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromCreatePhotoOnPlatformUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -200,14 +200,14 @@ const processImage = {
         ? responseFromDeletePhotoOnPlatformUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromDeletePhotoOnPlatformUtil.error
-        ? responseFromDeletePhotoOnPlatformUtil.error
+      let errors = responseFromDeletePhotoOnPlatformUtil.errors
+        ? responseFromDeletePhotoOnPlatformUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromDeletePhotoOnPlatformUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -235,14 +235,14 @@ const processImage = {
         ? responseFromUpdatePhotoOnPlatformUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromUpdatePhotoOnPlatformUtil.error
-        ? responseFromUpdatePhotoOnPlatformUtil.error
+      let errors = responseFromUpdatePhotoOnPlatformUtil.errors
+        ? responseFromUpdatePhotoOnPlatformUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromUpdatePhotoOnPlatformUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -272,14 +272,14 @@ const processImage = {
         ? responseFromDeletePhotoOnCloudinaryUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromDeletePhotoOnCloudinaryUtil.error
-        ? responseFromDeletePhotoOnCloudinaryUtil.error
+      let errors = responseFromDeletePhotoOnCloudinaryUtil.errors
+        ? responseFromDeletePhotoOnCloudinaryUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromDeletePhotoOnCloudinaryUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -307,14 +307,14 @@ const processImage = {
         ? responseFromUpdatePhotoOnCloudinaryUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromUpdatePhotoOnCloudinaryUtil.error
-        ? responseFromUpdatePhotoOnCloudinaryUtil.error
+      let errors = responseFromUpdatePhotoOnCloudinaryUtil.errors
+        ? responseFromUpdatePhotoOnCloudinaryUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromUpdatePhotoOnCloudinaryUtil.message,
-        error,
+        errors,
       });
     }
   },
@@ -342,14 +342,14 @@ const processImage = {
         ? responseFromCreatePhotoOnCloudinaryUtil.status
         : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-      let error = responseFromCreatePhotoOnCloudinaryUtil.error
-        ? responseFromCreatePhotoOnCloudinaryUtil.error
+      let errors = responseFromCreatePhotoOnCloudinaryUtil.errors
+        ? responseFromCreatePhotoOnCloudinaryUtil.errors
         : "";
 
       return res.status(status).json({
         success: false,
         message: responseFromCreatePhotoOnCloudinaryUtil.message,
-        error,
+        errors,
       });
     }
   },
