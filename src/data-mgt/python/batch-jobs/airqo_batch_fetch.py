@@ -9,7 +9,6 @@ from date import str_to_date, date_to_str
 from kafka_client import KafkaWithoutRegistry
 from utils import build_channel_id_filter, get_valid_devices
 
-os.environ["PYTHONWARNINGS"] = "ignore:Unverified HTTPS request"
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
 
@@ -22,14 +21,14 @@ class AirQoBatchFetch:
         
     def begin_fetch(self):
     
-        interval = f"{configuration.TIME_INTERVAL}H"
+        interval = f"{configuration.BATCH_FETCH_TIME_INTERVAL}H"
     
         dates = pd.date_range(configuration.START_TIME, configuration.END_TIME, freq=interval)
     
         for date in dates:
     
             start_time = date_to_str(date)
-            end_time = date_to_str(date + timedelta(hours=int(configuration.TIME_INTERVAL)))
+            end_time = date_to_str(date + timedelta(hours=int(configuration.BATCH_FETCH_TIME_INTERVAL)))
     
             print(start_time + " : " + end_time)
     

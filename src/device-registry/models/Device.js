@@ -101,6 +101,9 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    status: {
+      type: String,
+    },
     ISP: {
       type: String,
     },
@@ -244,6 +247,7 @@ deviceSchema.methods = {
       maintenance_date: this.maintenance_date,
       recall_date: this.recall_date,
       device_number: this.device_number,
+      status: this.status,
       powerType: this.powerType,
       mountType: this.mountType,
       isActive: this.isActive,
@@ -341,6 +345,7 @@ deviceSchema.statics = {
           siteName: 1,
           locationName: 1,
           height: 1,
+          status: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .skip(_skip)

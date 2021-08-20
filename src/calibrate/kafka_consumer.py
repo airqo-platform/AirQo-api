@@ -25,7 +25,7 @@ class KafkaClient:
         self.output_topic = os.getenv("OUTPUT_TOPIC")
         self.consumer_group = os.getenv("CONSUMER_GROUP")
         self.schema_registry_url = os.getenv("SCHEMA_REGISTRY_URL")
-        self.auto_commit = True if f"{os.getenv('AUTO_COMMIT', False)}".strip().lower() == "true" else False
+        self.auto_commit = True if f"{os.getenv('AUTO_COMMIT', True)}".strip().lower() == "true" else False
         self.reload_interval = os.getenv("RELOAD_INTERVAL", 1)
 
         self.registry_client = SchemaRegistry(

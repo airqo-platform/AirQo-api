@@ -58,11 +58,10 @@ const createAirqloud = {
         };
       }
     } catch (err) {
-      logElement("create AirQlouds util", err.message);
+      logElement(" the util server error,", err.message);
       return {
         success: false,
         message: "unable to create airqloud",
-        errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
