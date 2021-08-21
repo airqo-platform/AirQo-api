@@ -111,7 +111,7 @@ public class Utils {
             endTime = dateFormat.parse(endMeasurement.get().getTime().toString());
         } catch (Exception e) {
             e.printStackTrace();
-            return deviceMeasurements;
+            return new TransformedDeviceMeasurements();
         }
 
         StationData stationData = new StationData();
@@ -179,12 +179,24 @@ public class Utils {
                 e.printStackTrace();
             }
 
-            measurementList.add(measurement);
+            if(!hasOutliers(measurement))
+                measurementList.add(measurement);
         }
 
         logger.info("Transformed Measurements : {}", measurementList);
 
         return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
+    }
+
+    public static boolean hasOutliers(Measurement  measurement){
+
+        if (measurement.getExternalHumidity().getValue() < 0.0 || measurement.getExternalHumidity().getValue() > 99)
+            return true;
+
+        if (measurement.getExternalTemperature().getValue() < 0.0 || measurement.getExternalTemperature().getValue() > 45)
+            return true;
+
+        return false;
     }
 
     public static List<Site> getSites(String baseUrl, String tenant){
