@@ -9,15 +9,15 @@ from utils import handle_api_error
 class AirQoApi:
     def __init__(self):
         self.AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
-        self.AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+        self.AIRQO_API_KEY = f"JWT {os.getenv('AIRQO_API_KEY')}"
 
-    def get_devices(self, tenant, is_active=None):
+    def get_devices(self, tenant, active=True, all_devices=False):
         params = {
-            "tenant": tenant
+            "tenant": tenant,
+            "active": "yes" if active else "no"
         }
-        if is_active is not None:
-            params["active"] = "yes" if is_active else "no"
-
+        if all_devices:
+            params.pop("active")
         response = self.__request("devices", params)
 
         if "devices" in response:
@@ -37,6 +37,16 @@ class AirQoApi:
 
         return []
 
+    def update_primary_device(self, tenant, name, primary=False):
+
+        params = {"tenant": tenant, "name": name}
+        body = {
+            "isPrimaryInLocation": "true" if primary else "false"
+        }
+
+        response = self.__request(endpoint="devices", params=params, body=body, method="put")
+        print(response)
+
     def update_sites(self, updated_sites):
         for i in updated_sites:
             site = dict(i)
@@ -47,7 +57,13 @@ class AirQoApi:
 
     def __request(self, endpoint, params, body=None, method=None):
 
-        headers = {'x-api-key': self.AIRQO_API_KEY}
+        # [PUT]
+        # https: // platform.airqo.net / api / v1 / devices?tenant = airqo & name = aq_04
+        # {
+        #     "isPrimaryInLocation": "true"
+        # }
+
+        headers = {'Authorization': self.AIRQO_API_KEY}
         if method is None:
             api_request = requests.get(
                 '%s%s' % (self.AIRQO_BASE_URL, endpoint),

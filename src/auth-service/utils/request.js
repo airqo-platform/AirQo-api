@@ -7,6 +7,7 @@ const generatePassword = require("./generate-password");
 var jsonify = require("./jsonify");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -50,7 +51,8 @@ const request = {
         let responseFromSendEmail = await mailer.candidate(
           firstName,
           lastName,
-          email
+          email,
+          tenant
         );
         if (responseFromSendEmail.success == true) {
           return {
@@ -232,7 +234,8 @@ const request = {
               lastName,
               email,
               password,
-              tenant
+              tenant,
+              "confirm"
             );
             logObject(
               "responseFromSendEmail during confirmation",
@@ -337,10 +340,19 @@ const request = {
         }
       }
     } catch (e) {
+      if (e.code === 11000) {
+        return {
+          success: false,
+          message: "duplicate entry",
+          error: e.keyValue,
+          status: httpStatus.BAD_REQUEST,
+        };
+      }
       return {
         success: false,
         message: "util server error",
         error: e.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
