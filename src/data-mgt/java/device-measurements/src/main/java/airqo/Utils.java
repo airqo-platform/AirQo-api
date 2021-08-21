@@ -338,7 +338,9 @@ public class Utils {
                         setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
                     }});
 
-                    transformedMeasurements.add(transformedMeasurement);
+                    if(!hasOutliers(transformedMeasurement))
+                        transformedMeasurements.add(transformedMeasurement);
+
                 }catch (Exception e){
                     e.printStackTrace();
                 }
@@ -347,6 +349,23 @@ public class Utils {
         });
 
         return transformedMeasurements;
+    }
+
+    public static boolean hasOutliers(TransformedMeasurement  transformedMeasurement){
+
+        if (transformedMeasurement.getPm2_5().getValue() < 0.0 || transformedMeasurement.getPm2_5().getValue() > 500.4)
+            return true;
+
+        if (transformedMeasurement.getS2_pm2_5().getValue() < 0.0 || transformedMeasurement.getS2_pm2_5().getValue() > 500.4)
+            return true;
+
+        if (transformedMeasurement.getPm10().getValue() < 0.0 || transformedMeasurement.getPm10().getValue() > 500.4)
+            return true;
+
+        if (transformedMeasurement.getS2_pm10().getValue() < 0.0 || transformedMeasurement.getS2_pm10().getValue() > 500.4)
+            return true;
+
+        return false;
     }
 
     public static List<TransformedMeasurement> addAirQoCalibratedValues(List<TransformedMeasurement> measurements) {
