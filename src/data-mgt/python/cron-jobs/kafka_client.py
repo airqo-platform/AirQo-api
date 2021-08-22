@@ -23,7 +23,7 @@ class MeasurementsClient:
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
         )
 
-    def __produce_measurements(self, measurements):
+    def produce_measurements(self, measurements):
         avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
         producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers)
         bytes_data = avro_serde.value.serialize(measurements, schema_str)

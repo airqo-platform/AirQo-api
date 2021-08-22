@@ -29,4 +29,5 @@ class AirQoApi:
             if "measurements" in api_request.json():
                 return api_request.json()["measurements"]
 
+        print(api_request.content)
         return []
