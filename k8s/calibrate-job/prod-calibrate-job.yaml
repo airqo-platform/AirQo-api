@@ -1,0 +1,29 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: airqo-calibrate-job
+  namespace: production
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  schedule: "@hourly"
+  successfulJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      name: airqo-calibrate-job
+    spec:
+      template:
+        spec:
+          containers:
+            - image: us.gcr.io/airqo-250220/airqo-prod-calibrate-job:latest
+              imagePullPolicy: Always
+              name: airqo-calibrate-job
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+
