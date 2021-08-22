@@ -9,9 +9,13 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
-const { logElement, logObject } = require("./log");
+const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
+
+const isLowerCase = (str) => {
+  return str === str.toLowerCase();
+};
 
 const generateFilter = {
   events: (
@@ -122,7 +126,18 @@ const generateFilter = {
      */
     if (device) {
       let deviceArray = device.split(",");
-      filter["values.device"]["$in"] = deviceArray;
+      let modifiedDeviceArray = deviceArray.map((value) => {
+        if (isLowerCase(value)) {
+          return value.toUpperCase();
+        }
+        if (!isLowerCase(value)) {
+          return value.toLowerCase();
+        }
+        return value;
+      });
+      logObject("the modifiedDeviceArray ", modifiedDeviceArray);
+      let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+      filter["values.device"]["$in"] = mergedArray;
     }
 
     if (!device) {
@@ -622,25 +637,15 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, generated_name, name } = req.query;
+    let { id, name } = req.query;
     let filter = {};
 
     if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
+      filter["name"] = name;
     }
 
     if (id) {
       filter["_id"] = ObjectId(id);
-    }
-
-    if (generated_name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        generated_name
-      );
-      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
     }
 
     return filter;
