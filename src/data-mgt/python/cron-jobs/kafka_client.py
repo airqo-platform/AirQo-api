@@ -9,14 +9,9 @@ from schema import schema_str
 class MeasurementsClient:
 
     def __init__(self):
-
         self.__bootstrap_servers = [os.getenv("BOOTSTRAP_SERVERS")]
-        self.__input_topic = os.getenv("INPUT_TOPIC")
         self.__output_topic = os.getenv("OUTPUT_TOPIC")
-        self.__consumer_group = os.getenv("CONSUMER_GROUP")
         self.__schema_registry_url = os.getenv("SCHEMA_REGISTRY_URL")
-        self.__auto_commit = True if f"{os.getenv('AUTO_COMMIT', True)}".strip().lower() == "true" else False
-        self.__reload_interval = os.getenv("RELOAD_INTERVAL", 1)
 
         self.__registry_client = SchemaRegistry(
             self.__schema_registry_url,

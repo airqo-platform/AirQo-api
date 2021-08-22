@@ -9,12 +9,11 @@ class AirQoApi:
         self.AIRQO_API_KEY = f"JWT {os.getenv('AIRQO_API_KEY')}"
 
     def get_events(self, tenant, start_time, end_time):
-
         headers = {'Authorization': self.AIRQO_API_KEY}
 
         params = {
             "tenant": tenant,
-            "start_time":  start_time,
+            "start_time": start_time,
             "end_time": end_time
         }
 
@@ -25,9 +24,10 @@ class AirQoApi:
             verify=False,
         )
 
-        if api_request.status_code == 200:
-            if "measurements" in api_request.json():
-                return api_request.json()["measurements"]
+        if api_request.status_code == 200 and "measurements" in api_request.json():
+            return api_request.json()["measurements"]
 
+        print(api_request.request.url)
+        print(api_request.request.body)
         print(api_request.content)
         return []

@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 
-from airqo_api import AirQoApi
 import pandas as pd
 
+from airqo_api import AirQoApi
 from kafka_client import MeasurementsClient
 
 
@@ -45,7 +45,6 @@ def get_measurements():
         columns = averages.columns
 
         for index, row in averages.iterrows():
-
             hourly_measurement = dict({
 
                 "tenant": "airqo",
@@ -141,9 +140,3 @@ def get_measurements():
         print(hourly_measurements)
         measurements_client = MeasurementsClient()
         measurements_client.produce_measurements(hourly_measurements)
-
-
-
-
-
-
