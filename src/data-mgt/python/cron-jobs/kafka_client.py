@@ -1,9 +1,9 @@
+import json
 import os
+import traceback
 
-from confluent_avro import SchemaRegistry, AvroKeyValueSerde
+from confluent_avro import SchemaRegistry
 from kafka import KafkaProducer
-
-from schema import schema_str
 
 
 class MeasurementsClient:
@@ -19,7 +19,10 @@ class MeasurementsClient:
         )
 
     def produce_measurements(self, measurements):
-        avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
-        producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers)
-        bytes_data = avro_serde.value.serialize(measurements, schema_str)
-        producer.send(self.__output_topic, bytes_data)
+        try:
+            # avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
+            # bytes_data = avro_serde.value.serialize(measurements, schema_str)
+            producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers)
+            producer.send(self.__output_topic, json.dumps(measurements).encode('utf-8'))
+        except:
+            traceback.print_exc()
