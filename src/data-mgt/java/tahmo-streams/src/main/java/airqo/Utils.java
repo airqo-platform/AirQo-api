@@ -179,7 +179,8 @@ public class Utils {
                 e.printStackTrace();
             }
 
-            if(!hasOutliers(measurement))
+            if((measurement.getExternalHumidity().getValue() == null &&
+                    measurement.getExternalTemperature().getValue() == null) || !hasOutliers(measurement))
                 measurementList.add(measurement);
         }
 
@@ -190,11 +191,16 @@ public class Utils {
 
     public static boolean hasOutliers(Measurement  measurement){
 
-        if (measurement.getExternalHumidity().getValue() < 0.0 || measurement.getExternalHumidity().getValue() > 99)
-            return true;
+        try {
+            if (measurement.getExternalHumidity().getValue() < 0.0 || measurement.getExternalHumidity().getValue() > 99)
+                return true;
 
-        if (measurement.getExternalTemperature().getValue() < 0.0 || measurement.getExternalTemperature().getValue() > 45)
+            if (measurement.getExternalTemperature().getValue() < 0.0 || measurement.getExternalTemperature().getValue() > 45)
+                return true;
+        } catch (Exception e) {
+            e.printStackTrace();
             return true;
+        }
 
         return false;
     }
