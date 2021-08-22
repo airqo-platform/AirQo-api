@@ -4,25 +4,20 @@ import traceback
 from datetime import datetime, timedelta
 
 import pandas as pd
-import requests
 import urllib3
 from confluent_avro import AvroKeyValueSerde, SchemaRegistry
 from dotenv import load_dotenv
 from kafka import KafkaConsumer, KafkaProducer
-from pytz import utc
 
+from jobs import regression as jobs_rg
 from models import regression as rg
 from schema import schema_str
-from jobs import regression as jobs_rg
-
-# Ref: https://kafka-python.readthedocs.io/en/master/usage.html
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class KafkaClient:
-
     rg_model = None
     next_initialization = None
 
@@ -42,7 +37,7 @@ class KafkaClient:
         # self.sasl_mechanism = os.getenv("SASL_MECHANISM")
         # self.sasl_plain_username = os.getenv("SASL_USERNAME")
         # self.sasl_plain_password = os.getenv("SASL_PASSWORD")
-        
+
         self.registry_client = SchemaRegistry(
             self.schema_registry_url,
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
@@ -86,66 +81,28 @@ class KafkaClient:
                 self.reload()
 
             try:
-                measurements_df = pd.DataFrame(dict(value).get("measurements", []))
+                measurements_list = list(dict(value).get("measurements", []))
 
-                if len(measurements_df) == 0:
+                if len(measurements_list) == 0:
                     print('No data')
                     continue
 
-                measurements_df['time'] = pd.to_datetime(measurements_df['time'])
-                minimum_datetime = min(measurements_df['time']) - timedelta(hours=int(self.time_interval))
-                minimum_datetime_str = minimum_datetime.strftime('%Y-%m-%dT%H:%M:%SZ')
-                measurements_df['time'] = measurements_df['time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
+                for measurement in measurements_list:
 
-                tenant = measurements_df.iloc[0]['tenant']
-
-                devices_names = ""
-                for _, row in measurements_df.iterrows():
-                    devices_names = f"{devices_names},{row['device']}"
-                devices_names = devices_names.strip().removeprefix(',').removesuffix(',')
-
-                historical_data = pd.DataFrame(self.__get_hourly_historical_measurements(
-                    devices_names=devices_names, start_time=minimum_datetime_str, tenant=tenant))
-
-                if len(historical_data) == 0:
-                    print('No historical data')
-                    continue
-
-                for _, measurement in measurements_df.iterrows():
                     calibrated_measurement = dict(measurement)
+                    measurement_df = pd.DataFrame(calibrated_measurement)
 
                     try:
+                        measurement_df = pd.json_normalize(measurement_df.to_dict(orient="records"))
+                        measurement_dict = measurement_df.to_dict(orient="records")
 
-                        recent_recordings = measurements_df.loc[measurements_df['device'] == measurement.get('device')]
-                        historical_recordings = historical_data.loc[historical_data['device'] == measurement.get('device')]
-
-                        combined_recordings = pd.DataFrame(recent_recordings.append(historical_recordings))
-                        combined_recordings.reset_index(drop=True, inplace=True)
-
-                        start_time = datetime.strptime(measurement.get('time'), '%Y-%m-%dT%H:%M:%SZ').astimezone(utc) - \
-                                     timedelta(hours=int(self.average_frequency))
-
-                        combined_recordings['time'] = pd.to_datetime(combined_recordings['time'])
-                        combined_recordings = combined_recordings.loc[combined_recordings['time'] > start_time]
-                        combined_recordings['time'] = combined_recordings['time'].dt.strftime('%Y-%m-%dT%H:%M:%SZ')
-
-                        combined_recordings = pd.json_normalize(combined_recordings.to_dict(orient="records"))
-
-                        combined_recordings = combined_recordings.fillna(method='ffill')
-                        combined_recordings = combined_recordings[combined_recordings['pm2_5.value'].notna()]
-                        combined_recordings = combined_recordings[combined_recordings['pm10.value'].notna()]
-                        combined_recordings = combined_recordings[combined_recordings['s2_pm2_5.value'].notna()]
-                        combined_recordings = combined_recordings[combined_recordings['s2_pm10.value'].notna()]
-                        combined_recordings = combined_recordings[combined_recordings['internalTemperature.value'].notna()]
-                        combined_recordings = combined_recordings[combined_recordings['internalHumidity.value'].notna()]
-
-                        average_pm2_5 = combined_recordings["pm2_5.value"].mean()
-                        average_pm10 = combined_recordings["pm10.value"].mean()
-                        average_s2_pm25 = combined_recordings["s2_pm2_5.value"].mean()
-                        average_s2_pm10 = combined_recordings["s2_pm10.value"].mean()
-                        average_temperature = combined_recordings["internalTemperature.value"].mean()
-                        average_humidity = combined_recordings["internalHumidity.value"].mean()
-                        time = measurement.get('time')
+                        average_pm2_5 = measurement_dict.get("pm2_5.value")
+                        average_pm10 = measurement_dict.get("pm10.value")
+                        average_s2_pm25 = measurement_dict.get("s2_pm2_5.value")
+                        average_s2_pm10 = measurement_dict.get("s2_pm10.value")
+                        average_temperature = measurement_dict.get("internalTemperature.value")
+                        average_humidity = measurement_dict.get("internalHumidity.value")
+                        time = measurement_df.get('time')
 
                         if (average_pm2_5 and not math.isnan(average_pm2_5)) and \
                                 (average_pm10 and not math.isnan(average_pm10)) and \
@@ -154,7 +111,6 @@ class KafkaClient:
                                 (average_temperature and not math.isnan(average_temperature)) and \
                                 (average_humidity and not math.isnan(average_humidity)) and \
                                 time:
-
                             calibrated_value = self.rg_model.compute_calibrated_val(
                                 pm2_5=average_pm2_5, s2_pm2_5=average_s2_pm25, pm10=average_pm10, datetime=time,
                                 s2_pm10=average_s2_pm10, temperature=average_temperature, humidity=average_humidity)
@@ -175,31 +131,6 @@ class KafkaClient:
                 traceback.print_exc()
                 print(e)
 
-    def __get_hourly_historical_measurements(self, devices_names, start_time, tenant):
-        try:
-
-            headers = {
-                'Content-Type': 'application/json',
-                'Authorization': f'JWT {self.airqo_api_key}'
-            }
-            url = f"{self.airqo_base_url}/devices/events"
-            params = {
-                "tenant": tenant,
-                "device": devices_names,
-                "startTime": start_time
-            }
-            results = requests.get(url, headers=headers, params=params, verify=False)
-
-            if results.status_code == 200:
-                return results.json()["measurements"]
-            else:
-                print(f"Device registry failed to get measurements. Status Code : {results.status_code}")
-                print(f"Response : {results.content}")
-                print(f"Request Url : {results.request.url}")
-        except Exception as ex:
-            print(f"Error Occurred while getting measurements: {ex}")
-            return []
-
 
 def main():
     kafka_client = KafkaClient()
@@ -208,4 +139,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
