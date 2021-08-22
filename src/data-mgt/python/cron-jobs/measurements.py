@@ -3,13 +3,15 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 from airqo_api import AirQoApi
-from kafka_client import MeasurementsClient
 
 
-def get_measurements():
+def average_measurements_by_hour():
     time = datetime.utcnow()
     start_time = (time - timedelta(hours=1)).strftime('%Y-%m-%dT%H:00:00Z')
     end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=1)).strftime('%Y-%m-%dT%H:00:00Z')
+
+    print(f'UTC start time : {start_time}')
+    print(f'UTC end time : {end_time}')
 
     airqo_api = AirQoApi()
 
@@ -95,7 +97,8 @@ def get_measurements():
                     "pm2_5": {
                         "value": row["pm2_5.value"] if "pm2_5.value" in columns else None,
                         "calibratedValue": row["pm2_5.calibratedValue"] if "pm2_5.calibratedValue" in columns else None,
-                        "uncertaintyValue": row["pm2_5.uncertaintyValue"] if "pm2_5.uncertaintyValue" in columns else None,
+                        "uncertaintyValue": row[
+                            "pm2_5.uncertaintyValue"] if "pm2_5.uncertaintyValue" in columns else None,
                         "standardDeviationValue": row["pm2_5.standardDeviationValue"]
                         if "pm2_5.standardDeviationValue" in columns else None
                     },
@@ -136,8 +139,4 @@ def get_measurements():
         except:
             pass
 
-    if hourly_measurements:
-        data = dict({"measurements": hourly_measurements})
-        print(data)
-        measurements_client = MeasurementsClient()
-        measurements_client.produce_measurements(data)
+    return hourly_measurements
