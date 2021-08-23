@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import requests
 import os
 from dotenv import load_dotenv
+import pandas as pd
 load_dotenv()
 
 EVENTS_URI = os.getenv('EVENTS_URI')
@@ -95,19 +96,30 @@ def date_to_str(mydate):
     return date_string
 
 
-def get_pm_data(device_id, owner, verbose=True, frequency = 'raw', start_time='2021-05-01T01:00:00Z',end_time=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')):
+def get_pm_data(name,
+                lat,
+                lon,
+                tenant, 
+                frequency='raw', 
+                verbose=True, 
+                start_time=(datetime.utcnow()-timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                end_time=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')):
     """Gets the PM data of a particular device in a specified time period
 
     Parameters
     ----------
-    device_id : str
-        The channel ID of the device
-    owner: str
+    name : str
+        The name of the device
+    lat : float
+        The latitude coordinate of the device
+    long: float
+        The longitude coordinate of the device
+    tenant: str
         The owner of the device
-    verbose: boolean
-        Whether download progress is shown
     frequency: str
         The time frequency of the data
+    verbose: boolean
+        Whether download progress is shown
     start_time:
         The start time for the data download
     end_time:
@@ -164,6 +176,6 @@ def get_pm_data(device_id, owner, verbose=True, frequency = 'raw', start_time='2
 
 if __name__=='__main__':
     #example: getting data for one device
-    test_array = get_pm_data('AW66FF7V', 'kcca')
+    test_array = get_pm_data('aq_29', 0.3075, 32.6206, 'airqo')
     print(test_array)
         
