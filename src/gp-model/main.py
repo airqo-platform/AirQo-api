@@ -201,26 +201,35 @@ def periodic_function(tenant, airqloud):
     
     poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(tenant, airqloud)
     devices = get_devices_in_airqloud(poly, tenant)
-    
-    for device in devices:
-        df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
-        if df.shape[0]!=0:
-            prep_df = preprocessing(df)
-            Xchan = np.asarray(prep_df.iloc[:, :3])
-            Ychan = np.asarray(prep_df.iloc[:, -1])
-            X = np.r_[X,Xchan]
-            Y = np.r_[Y,Ychan[:, None]]
-    m = train_model(X, Y, airqloud)
-    predict_model(m, tenant, airqloud, poly, min_long, max_long, min_lat, max_lat)
+    if len(devices)>0:
+        for device in devices:
+            df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+            if df.shape[0]!=0:
+                prep_df = preprocessing(df)
+                Xchan = np.asarray(prep_df.iloc[:, :3])
+                Ychan = np.asarray(prep_df.iloc[:, -1])
+                X = np.r_[X,Xchan]
+                Y = np.r_[Y,Ychan[:, None]]
+        m = train_model(X, Y, airqloud)
+        predict_model(m, tenant, airqloud, poly, min_long, max_long, min_lat, max_lat)
+    else:
+        pass
+
+def get_all_airqlouds(tenant):
+    params = {'tenant':tenant}
+    airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
+    names = [aq['name'] for aq in airqlouds]
+    return names
 
 if __name__=='__main__':
+    airqloud_names = get_all_airqlouds('airqo')
     parser = argparse.ArgumentParser(description='save gpmodel prediction.')
     parser.add_argument('--tenant',
                         default="airqo",
                         help='the tenant key is the organisation name')
 
     args = parser.parse_args()
-    thread1 = Thread(target=periodic_function, args=[args.tenant, 'kampala'])
-    thread1.start()
-    thread2 = Thread(target=periodic_function, args=[args.tenant, 'kawempe'])
-    thread2.start()
+    for index, name in enumerate(airqloud_names):
+        print(f'{name} starting ...')
+        exec(f'thread{index} = Thread(target=periodic_function, args = [args.tenant, name])')
+        exec(f'thread{index}.start()')
