@@ -419,47 +419,57 @@ const createPhoto = {
   /************ for cloudinary only activities *************** */
   createPhotoOnCloudinary: async (request) => {
     try {
-      const uploader = async (path) => {
-        await uploadImages.uploads(path, "Images");
-      };
-      const urls = [];
-      const files = req.files;
+      let { body } = request;
+      let { query } = request;
 
-      for (const file of files) {
-        const { path } = file;
-        const newPath = await uploader(path);
-        urls.push(newPath);
-        fs.unlinkSync(path);
-      }
-
+      cloudinary.uploader
+        .upload(body.path, { resource_type: "image" })
+        .then((result) => {
+          logText("we have created the photo");
+          return {
+            success: true,
+            data: result,
+            message: "photo created",
+            status: HTTPStatus.CREATED,
+          };
+        })
+        .catch((error) => {
+          logText("the bad gateway error");
+          logObject("error", error);
+          return {
+            success: false,
+            error,
+            message: "Unable to upload image",
+            status: HTTPStatus.BAD_GATEWAY,
+          };
+        });
+    } catch (err) {
+      logText("the server side error");
       return {
-        success: true,
-        message: "images uploaded successfully",
-        data: urls,
+        success: false,
+        message: "Server Side Error",
+        err: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
-    } catch (err) {}
+    }
   },
   updatePhotoOnCloudinary: async (request) => {
     try {
-    } catch (err) {}
-  },
-
-  getLastPath: async (photo) => {
-    const segements = photo.split("/").filter((segment) => segment);
-    const lastSegment = segements[segements.length - 1];
-    const removeFileExtension = lastSegment
-      .split(".")
-      .slice(0, -1)
-      .join(".");
-    return removeFileExtension;
+    } catch (err) {
+      return {
+        success: false,
+        message: "Server Side Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
 
   deletePhotoOnCloudinary: async (request) => {
     try {
       let { query, body } = request;
-      const { photos } = body;
+      const { photo_urls } = body;
 
-      photos.forEach((photo) => {
+      photo_urls.forEach((photo) => {
         if (photo) {
           photoNameWithoutExtension.push(createPhoto.getLastPath(photo));
         }
@@ -478,11 +488,11 @@ const createPhoto = {
 
         if (errors) {
           logObject("unable to delete from cloudinary", errors);
-          logObject("unable to delete from cloudinary");
+          logObject("unable to delete from cloudinary", errors);
           return {
             success: false,
             message: "unable to delete from cloudinary",
-            errors: errors,
+            errors,
             status: HTTPStatus.BAD_GATEWAY,
           };
         }
@@ -494,6 +504,33 @@ const createPhoto = {
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
+  },
+  getLastPath: async (photo) => {
+    const segements = photo.split("/").filter((segment) => segment);
+    const lastSegment = segements[segements.length - 1];
+    const removeFileExtension = lastSegment
+      .split(".")
+      .slice(0, -1)
+      .join(".");
+    return removeFileExtension;
+  },
+
+  uploads: (file, folder) => {
+    return new Promise((resolve) => {
+      cloudinary.uploader.upload(
+        file,
+        (result) => {
+          resolve({
+            url: result.url,
+            id: result.public_id,
+          });
+        },
+        {
+          resource_type: "auto",
+          folder: folder,
+        }
+      );
+    });
   },
 };
 

@@ -22,6 +22,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromCreatePhotoUtil.message,
+        data: responseFromCreatePhotoUtil.data,
       });
     }
 
@@ -55,6 +56,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromUpdatePhotoUtil.message,
+        data: responseFromUpdatePhotoUtil.data,
       });
     }
 
@@ -88,6 +90,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromDeletePhotoUtil.message,
+        data: responseFromDeletePhotoUtil.data,
       });
     }
 
@@ -121,6 +124,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromListPhotoUtil.message,
+        data: responseFromListPhotoUtil.data,
       });
     }
 
@@ -157,6 +161,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromCreatePhotoOnPlatformUtil.message,
+        data: responseFromCreatePhotoOnPlatformUtil.data,
       });
     }
 
@@ -192,6 +197,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromDeletePhotoOnPlatformUtil.message,
+        data: responseFromDeletePhotoOnPlatformUtil.data,
       });
     }
 
@@ -227,6 +233,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromUpdatePhotoOnPlatformUtil.message,
+        data: responseFromUpdatePhotoOnPlatformUtil.data,
       });
     }
 
@@ -264,6 +271,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromDeletePhotoOnCloudinaryUtil.message,
+        data: responseFromDeletePhotoOnCloudinaryUtil.data,
       });
     }
 
@@ -299,6 +307,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromUpdatePhotoOnCloudinaryUtil.message,
+        data: responseFromUpdatePhotoOnCloudinaryUtil.data,
       });
     }
 
@@ -323,9 +332,16 @@ const processImage = {
     let request = {};
     request["body"] = body;
     request["query"] = query;
+    logText("we are creating on cloud...");
     let responseFromCreatePhotoOnCloudinaryUtil = await createPhotoUtil.createPhotoOnCloudinary(
       request
     );
+
+    logText(
+      "responseFromCreatePhotoOnCloudinaryUtil",
+      responseFromCreatePhotoOnCloudinaryUtil
+    );
+
     if (responseFromCreatePhotoOnCloudinaryUtil.success === true) {
       let status = responseFromCreatePhotoOnCloudinaryUtil.status
         ? responseFromCreatePhotoOnCloudinaryUtil.status
@@ -334,6 +350,7 @@ const processImage = {
       return res.status(status).json({
         success: true,
         message: responseFromCreatePhotoOnCloudinaryUtil.message,
+        data: responseFromCreatePhotoOnCloudinaryUtil.data,
       });
     }
 
