@@ -53,6 +53,16 @@ def get_all_devices(tenant):
         print('an exception occured')
         print(e)
 
+def get_airqloud_polygon(tenant, airqloud):
+    params = {'tenant':tenant,
+              'name': airqloud
+             }
+    coords = requests.get(view_airqloud_uri, params=params).json()['airqlouds'][0]['location']['coordinates']
+    geo = {'type': 'Polygon', 'coordinates': coords}
+    polygon = Polygon([tuple(l) for l in geo['coordinates'][0]])
+    min_long, min_lat, max_long, max_lat= polygon.bounds
+    return polygon, min_long, max_long, min_lat, max_lat
+
 
 
 
