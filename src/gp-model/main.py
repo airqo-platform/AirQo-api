@@ -148,20 +148,19 @@ def point_in_polygon(row, polygon):
     else:
         return 'False'
 
-def predict_model(m, tenant, airqloud):
+def predict_model(m, tenant, airqloud, poly, x1, x2, y1, y2):
     '''
     Makes the predictions and stores them in a database
     '''
     time = datetime.now().replace(microsecond=0, second=0, minute=0).timestamp()/3600
-    polygon, min_long, max_long, min_lat, max_lat = get_bbox_coordinates(airqloud)
 
-    longitudes = np.linspace(min_long, max_long, 100)
-    latitudes = np.linspace(min_lat, max_lat, 100)
+    longitudes = np.linspace(x1, x2, 100)
+    latitudes = np.linspace(y1, y2, 100)
     locations = np.meshgrid(longitudes, latitudes)
     locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
 
     df = pd.DataFrame(locations_flat, columns=['longitude', 'latitude'])
-    df['point_exists'] = df.apply(lambda row: point_in_polygon(row, polygon), axis=1)
+    df['point_exists'] = df.apply(lambda row: point_in_polygon(row, poly), axis=1)
     new_df = df[df.point_exists=='True']
     new_df.drop('point_exists', axis=1, inplace=True)
     new_df.reset_index(drop=True, inplace=True)
@@ -173,9 +172,7 @@ def predict_model(m, tenant, airqloud):
     means = mean.numpy().flatten()
     variances = var.numpy().flatten()
     std_dev = np.sqrt(variances)
-    # calculate prediction interval
     interval = 1.96 * std_dev
-    # lower, upper = means - interval, means + interval
         
     result = []
     for i in range(pred_set.shape[0]):
@@ -202,26 +199,22 @@ def periodic_function(tenant, airqloud):
     '''
     Re-trains the model regularly
     '''
-    print('starting')
     X = np.zeros([0,3])
     Y = np.zeros([0,1])
-    channels = get_channels_ts(airqloud)
-    print('ongoing')
-    for channel in channels:
-        d = download_seven_days_ts(channel['id'], channel['api_key'])
-        if d.shape[0]!=0:
-            d = preprocessing_ts(d)
-            df = pd.DataFrame({'channel_id':[channel['id']], 
-                                'longitude':[channel['long']], 
-                                'latitude':[channel['lat']]})
-        
-            Xchan = np.c_[np.repeat(np.array(df)[:,1:],d.shape[0],0),[n.timestamp()/3600 for n in d['created_at']]]
-            Ychan = np.array(d['field1'])
+    
+    poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(tenant, airqloud)
+    devices = get_devices_in_airqloud(poly, tenant)
+    
+    for device in devices:
+        df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+        if df.shape[0]!=0:
+            prep_df = preprocessing(df)
+            Xchan = np.asarray(prep_df.iloc[:, :3])
+            Ychan = np.asarray(prep_df.iloc[:, -1])
             X = np.r_[X,Xchan]
             Y = np.r_[Y,Ychan[:, None]]
     m = train_model(X, Y, airqloud)
-    predict_model(m, tenant, airqloud)
-
+    predict_model(m, tenant, airqloud, poly, min_long, max_long, min_lat, max_lat)
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='save gpmodel prediction.')
