@@ -29,11 +29,13 @@ def average_measurements_by_hour():
 
         try:
             columns = device_group.columns
+            # print(columns)
+            # print(device_group.head())
 
             device = device_group.iloc[0]['device'] if 'device' in columns else ''
             device_id = device_group.iloc[0]['device_id'] if 'device_id' in columns else ''
             site_id = device_group.iloc[0]['site_id'] if 'site_id' in columns else ''
-            device_number = int(device_group.iloc[0]['device_number']) if 'device_number' in columns else None
+            # device_number = int(device_group.iloc[0]['device_number']) if 'device_number' in columns else 0
             location = device_group.iloc[0]['location']
 
             measurements = pd.json_normalize(device_group.to_dict(orient='records'))
@@ -53,7 +55,6 @@ def average_measurements_by_hour():
                     "device": device,
                     "device_id": device_id,
                     "site_id": site_id,
-                    "device_number": device_number,
                     "location": location,
                     "internalTemperature": {
                         "value": row["internalTemperature.value"] if "internalTemperature.value" in columns else None
