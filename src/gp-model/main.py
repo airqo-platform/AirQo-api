@@ -14,12 +14,9 @@ import argparse
 from pathlib import Path
 from shapely.geometry import Point, Polygon, shape
 from helpers.get_data import get_pm_data
-#from multiprocessing import Process
 from threading import Thread
 
 BASE_DIR = Path(__file__).resolve().parent
-#CREDENTIALS = configuration.CREDENTIALS
-#storage_client = storage.Client.from_service_account_json(CREDENTIALS)
 LIST_DEVICES_URI=os.getenv('LIST_DEVICES_URI')
 VIEW_AIRQLOUD_URI=os.getenv('VIEW_AIRQLOUD_URI')
 
