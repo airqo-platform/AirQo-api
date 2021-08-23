@@ -14,6 +14,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -24,6 +25,7 @@ public class Utils {
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
     public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
+    private static final DecimalFormat decimalFormat = new DecimalFormat("#.##");
 
     public static Properties loadEnvProperties(String propertiesFile){
 
@@ -159,7 +161,11 @@ public class Utils {
                 stationHumidity.ifPresent(stationMeasurement -> {
                     Double oldValue = measurement.getExternalHumidity().getValue();
 
-                    measurement.getExternalHumidity().setValue(stationMeasurement.getHumidity());
+                    Double humidityValue = null;
+                    if(stationMeasurement.getHumidity() != null)
+                        humidityValue = Double.valueOf(decimalFormat.format(stationMeasurement.getHumidity()));
+
+                    measurement.getExternalHumidity().setValue(humidityValue);
                     logger.info("Device : {} , Old Hum : {} , New Hum {}",
                             measurement.getDevice().toString(),
                             oldValue,
@@ -168,7 +174,12 @@ public class Utils {
 
                 stationTemp.ifPresent(stationMeasurement -> {
                     Double oldValue = measurement.getExternalTemperature().getValue();
-                    measurement.getExternalTemperature().setValue(stationMeasurement.getTemperature());
+
+                    Double tempValue = null;
+                    if(stationMeasurement.getTemperature() != null)
+                        tempValue = Double.valueOf(decimalFormat.format(stationMeasurement.getTemperature()));
+
+                    measurement.getExternalTemperature().setValue(tempValue);
                     logger.info("Device : {} , Old Temp : {} , New Temp {}",
                             measurement.getDevice().toString(),
                             oldValue,

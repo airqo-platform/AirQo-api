@@ -14,11 +14,13 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.text.DecimalFormat;
 import java.util.*;
 
 public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
+    private static final DecimalFormat decimalFormat = new DecimalFormat("#.##");
 
     public static List<TransformedMeasurement> transformMeasurements(String rawMeasurements, Properties properties) {
 
@@ -278,64 +280,64 @@ public class Utils {
                     transformedMeasurement.setTime(rawMeasurement.getTime());
 
                     transformedMeasurement.setLocation(new TransformedLocation(){{
-                        setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude())));
-                        setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude())));
+                        setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude(), false)));
+                        setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude(), false)));
                     }});
 
                     transformedMeasurement.setPm2_5(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getPm25()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getPm25(), true));
                     }});
 
                     transformedMeasurement.setPm10(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getPm10()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getPm10(), true));
                     }});
 
                     transformedMeasurement.setS2_pm2_5(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm25()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm25(), true));
                     }});
 
                     transformedMeasurement.setS2_pm10(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm10()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm10(), true));
                     }});
 
                     transformedMeasurement.setAltitude(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getAltitude()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getAltitude(), true));
                     }});
 
                     transformedMeasurement.setSpeed(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getSpeed()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getSpeed(), true));
                     }});
 
                     transformedMeasurement.setBattery(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getBattery()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getBattery(), true));
                     }});
 
                     transformedMeasurement.setSatellites(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getSatellites()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getSatellites(), true));
                     }});
 
                     transformedMeasurement.setHdop(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getHdop()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getHdop(), true));
                     }});
 
                     transformedMeasurement.setExternalHumidity(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getExternalHumidity()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getExternalHumidity(), true));
                     }});
 
                     transformedMeasurement.setExternalPressure(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getExternalPressure()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getExternalPressure(), true));
                     }});
 
                     transformedMeasurement.setExternalTemperature(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getExternalTemperature()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getExternalTemperature(), true));
                     }});
 
                     transformedMeasurement.setInternalTemperature(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getInternalTemperature()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getInternalTemperature(), true));
                     }});
 
                     transformedMeasurement.setInternalHumidity(new TransformedValue(){{
-                        setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity()));
+                        setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity(), true));
                     }});
 
                     if(!hasOutliers(transformedMeasurement))
@@ -463,12 +465,14 @@ public class Utils {
         }
     }
 
-    public static Double stringToDouble(String s){
+    public static Double stringToDouble(String s, boolean trim){
 
         double aDouble;
 
         try {
             aDouble = Double.parseDouble(s);
+            if (trim)
+                return Double.parseDouble(decimalFormat.format(aDouble));
             return aDouble;
         }
         catch (NumberFormatException ignored){
