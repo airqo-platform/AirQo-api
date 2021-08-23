@@ -15,9 +15,18 @@ spec:
       template:
         spec:
           containers:
-            - image: us.gcr.io/airqo-250220/airqo-prod-calibrate-job:latest
+            - image: us.gcr.io/airqo-250220/prod-calibrate-job:latest
               imagePullPolicy: Always
               name: airqo-calibrate-job
+              env:
+                - name: BOOTSTRAP_SERVERS
+                  value: prod-kafka-cluster-kafka-bootstrap:9092
+                - name: OUTPUT_TOPIC
+                  value: hourly-measurements-topic
+                - name: SCHEMA_REGISTRY_URL
+                  value: http://prod-schema-registry-svc:8081
+                - name: AIRQO_BASE_URL
+                  value: https://platform.airqo.net/api/v1/
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
