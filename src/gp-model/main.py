@@ -21,6 +21,9 @@ LIST_DEVICES_URI=os.getenv('LIST_DEVICES_URI')
 VIEW_AIRQLOUD_URI=os.getenv('VIEW_AIRQLOUD_URI')
 
 def get_all_devices(tenant):
+    '''
+    Returns a list of all the devices for a given tenant
+    '''
     if tenant=='airqo':
         params = {'tenant':tenant,
                   'active': 'yes',
@@ -50,6 +53,9 @@ def get_all_devices(tenant):
         print(e)
 
 def get_airqloud_polygon(tenant, airqloud):
+    '''
+    Gets the geometric polygon of a given airqloud
+    '''
     params = {'tenant':tenant,
               'name': airqloud
              }
@@ -78,7 +84,7 @@ def get_devices_in_airqloud(polygon, tenant):
 
 def preprocessing(df):
     '''
-    Preprocesses data for a particular channel
+    Preprocesses data from a device
     '''
     df = df.drop_duplicates()
     df['time'] = pd.to_datetime(df['time'])
@@ -93,7 +99,7 @@ def preprocessing(df):
 
 def train_model(X, Y, airqloud):
     '''
-    Creates a model, trains it using given data and saves it for future use
+    Creates a model and trains it using given data
     '''
     print('training model function')
     Yset = Y
@@ -138,7 +144,9 @@ def train_model(X, Y, airqloud):
     return m
 
 def point_in_polygon(row, polygon):
-    from shapely.geometry import Point, shape
+    '''
+    Checks whether a geometric point lies within a given polygon
+    '''
     mypoint = Point(row.longitude, row.latitude)
     if polygon.contains(mypoint):
         return 'True'
@@ -216,6 +224,9 @@ def periodic_function(tenant, airqloud):
         pass
 
 def get_all_airqlouds(tenant):
+    '''
+    Returns a list of all the airqlouds for a particuar tenant
+    '''
     params = {'tenant':tenant}
     airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
