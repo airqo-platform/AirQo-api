@@ -64,6 +64,23 @@ def get_airqloud_polygon(tenant, airqloud):
     min_long, min_lat, max_long, max_lat= polygon.bounds
     return polygon, min_long, max_long, min_lat, max_lat
 
+def get_devices_in_airqloud(polygon, tenant):
+    '''
+    Gets all the devices in a given polygon
+    '''
+    airqloud_devices = []
+    devices = get_all_devices(tenant)
+    for device in devices:
+        if device['latitude'] and device['longitude']:
+            device_point = Point(device['longitude'], device['latitude'])
+            if polygon.contains(device_point):
+                airqloud_devices.append(device)
+            else:
+                pass
+        else:
+            pass
+    return airqloud_devices
+
 
 
 
