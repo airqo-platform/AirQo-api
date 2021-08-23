@@ -20,10 +20,8 @@ from threading import Thread
 BASE_DIR = Path(__file__).resolve().parent
 #CREDENTIALS = configuration.CREDENTIALS
 #storage_client = storage.Client.from_service_account_json(CREDENTIALS)
-#shapefile_path = os.path.join(BASE_DIR,'shape_files')
-EVENTS_URI=os.getenv('https://staging-platform.airqo.net/api/v1/devices/events')
-LIST_DEVICES_URI=os.getenv('https://platform.airqo.net/api/v1/devices')
-VIEW_AIRQLOUD_URI=os.getenv('https://staging-platform.airqo.net/api/v1/devices/airqlouds')
+LIST_DEVICES_URI=os.getenv('LIST_DEVICES_URI')
+VIEW_AIRQLOUD_URI=os.getenv('VIEW_AIRQLOUD_URI')
 
 def get_all_devices(tenant):
     if tenant=='airqo':

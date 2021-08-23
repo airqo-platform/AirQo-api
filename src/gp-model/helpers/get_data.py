@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-EVENTS_URL = os.getenv('EVENTS_URL')
+EVENTS_URI = os.getenv('EVENTS_URI')
 MONGO_URI = os.getenv('MONGO_GCE_URI')
 client = MongoClient(MONGO_URI)
 
@@ -120,15 +120,14 @@ def get_pm_data(device_id, owner, verbose=True, frequency = 'raw', start_time='2
     
     """
 
-    lat, lon, name = get_device_details(device_id, owner)
-    url = EVENTS_URL #AirQo Platform Get Events endpoint
-    result = [] #array to store all data downloaded for a device
-    measurements_length= 1000 #standard response length from api
-    count = 0 #iteration number
+    url = EVENTS_URI
+    result = []
+    measurements_length= 1000
+    count = 0
     while measurements_length==1000:
         count+=1
         parameters = {
-            'tenant': owner,
+            'tenant': tenant,
             'device': name,
             'startTime': start_time,
             'endTime': end_time,
@@ -158,9 +157,9 @@ def get_pm_data(device_id, owner, verbose=True, frequency = 'raw', start_time='2
                      'longitude': lon,
                      'pm2_5': x['pm2_5']['value'],
                      #'calibrated_pm2_5': x['pm2_5']['calibratedValue'],
-                     'pm10': x['pm10']['value'],
+                     #'pm10': x['pm10']['value'],
                     } for x in result]
-    return modified_result
+    return pd.DataFrame(modified_result)
 
 
 if __name__=='__main__':
