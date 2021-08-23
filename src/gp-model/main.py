@@ -94,8 +94,6 @@ def preprocessing(df):
     hourly_df = hourly_df[['longitude', 'latitude', 'time', 'pm2_5']]
     return hourly_df
 
-
-
 def train_model(X, Y, airqloud):
     '''
     Creates a model, trains it using given data and saves it for future use
@@ -109,8 +107,13 @@ def train_model(X, Y, airqloud):
     Xset = X[keep,:]
     print('Number of rows in Xset', Xset.shape[0])
     
-    Xtraining = Xset[::2,:]
-    Ytraining = Yset[::2,:]
+    if Xset.shape[0]>9000:
+        Xtraining = Xset[::2,:]
+        Ytraining = Yset[::2,:]
+    else:
+        Xtraining = Xset
+        Ytraining = Yset
+    print('Number of rows in Xtraining', Xtraining.shape[0])
     
     if airqloud == 'kampala':
         k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
@@ -123,8 +126,10 @@ def train_model(X, Y, airqloud):
         set_trainable(m.kernel.kernels[0].variance, False)
         set_trainable(m.likelihood.variance, False)
     else:
-        #to be defined --raise exception?
-        pass
+        k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+        m.likelihood.variance.assign(400)
+        set_trainable(m.likelihood.variance, False)
     
     opt = gpflow.optimizers.Scipy()
 
@@ -134,7 +139,7 @@ def train_model(X, Y, airqloud):
     opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
 
     return m
-
+    
 def get_bbox_coordinates(airqloud):
     path = f'{shapefile_path}/kampala_parishes/Kampala_Parishes_Lands_and_Survey_2012.shp'
     data = geopandas.read_file(path)
