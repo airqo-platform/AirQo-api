@@ -113,7 +113,6 @@ class KafkaClient:
                 for _, measurement in value_df.iterrows():
                     measurements_list.append(measurement.to_dict()["measurements"])
 
-                # measurements_list = list(dict(value).get("measurements", []))
                 print(measurements_list)
                 if len(measurements_list) == 0:
                     print('No data')
@@ -132,16 +131,11 @@ class KafkaClient:
                         humidity = dict(calibrated_measurement.get("internalHumidity")).get('value')
                         time = calibrated_measurement.get('time')
 
-                        if pm2_5 and pm10 and s2_pm25 and s2_pm25 and s2_pm10 and temperature and humidity and time:
-                            calibrated_value = self.rg_model.compute_calibrated_val(
-                                pm2_5=pm2_5, s2_pm2_5=s2_pm25, pm10=pm10, datetime=time,
-                                s2_pm10=s2_pm10, temperature=temperature, humidity=humidity)
+                        calibrated_value = self.rg_model.compute_calibrated_val(
+                            pm2_5=pm2_5, s2_pm2_5=s2_pm25, pm10=pm10, datetime=time,
+                            s2_pm10=s2_pm10, temperature=temperature, humidity=humidity)
 
-                            calibrated_measurement["pm2_5"]["calibratedValue"] = calibrated_value
-
-                            # print(f"pm2.5 : {pm2_5}, pm10 : {pm10}, s2_pm25 : {s2_pm25}, s2_pm10 : {s2_pm10}, "
-                            #       f"temperature : {temperature}, humidity : {humidity}, "
-                            #       f"time : {time}, calibrated_value : {calibrated_value}, ")
+                        calibrated_measurement["pm2_5"]["calibratedValue"] = calibrated_value
 
                     except:
                         traceback.print_exc()
