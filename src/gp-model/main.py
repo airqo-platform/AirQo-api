@@ -17,9 +17,41 @@ from helpers.get_data import get_pm_data
 from threading import Thread
 
 BASE_DIR = Path(__file__).resolve().parent
-CREDENTIALS = configuration.CREDENTIALS
-storage_client = storage.Client.from_service_account_json(CREDENTIALS)
-shapefile_path = os.path.join(BASE_DIR,'shape_files')
+#CREDENTIALS = configuration.CREDENTIALS
+#storage_client = storage.Client.from_service_account_json(CREDENTIALS)
+#shapefile_path = os.path.join(BASE_DIR,'shape_files')
+EVENTS_URI=os.getenv('https://staging-platform.airqo.net/api/v1/devices/events')
+LIST_DEVICES_URI=os.getenv('https://platform.airqo.net/api/v1/devices')
+VIEW_AIRQLOUD_URI=os.getenv('https://staging-platform.airqo.net/api/v1/devices/airqlouds')
+
+def get_all_devices(tenant):
+    if tenant=='airqo':
+        params = {'tenant':tenant,
+                  'active': 'yes',
+                  'primary': 'yes'
+                 }
+    else:
+        params = {'tenant':tenant,
+                  'active': 'yes',
+                 }
+        
+    response = requests.get(LIST_DEVICES_URI, params=params)
+    try:
+        devices = response.json()['devices']
+        if tenant == 'airqo':
+            modified_devices = [{'name': device['name'],
+                                 'chan_id': device['device_number'],
+                                 'latitude': device['latitude'],
+                                 'longitude': device['longitude']} for device in devices]
+        elif tenant=='kcca':
+             modified_devices = [{'name': device['name'],
+                                 'chan_id': device['name'],
+                                 'latitude': device['latitude'],
+                                 'longitude': device['longitude']} for device in devices]
+        return modified_devices
+    except Exception as e:
+        print('an exception occured')
+        print(e)
 
 
 
