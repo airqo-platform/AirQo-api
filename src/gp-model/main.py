@@ -139,23 +139,6 @@ def train_model(X, Y, airqloud):
     opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
 
     return m
-    
-def get_bbox_coordinates(airqloud):
-    path = f'{shapefile_path}/kampala_parishes/Kampala_Parishes_Lands_and_Survey_2012.shp'
-    data = geopandas.read_file(path)
-    data = data.to_crs(epsg=4326)
-    new_data = data[['SNAME_2006', 'DNAME_2006', 'geometry']]
-    if airqloud == 'kawempe':
-        kampala_divisions = new_data.dissolve(by='SNAME_2006')
-        polygon = kampala_divisions.loc['KAWEMPE DIVISION']['geometry']
-    elif airqloud == 'kampala':
-        kampala_district = new_data.dissolve(by='DNAME_2006')
-        polygon = kampala_district.loc['KAMPALA']['geometry']  
-    else:
-        #to be documented .. raise exception?
-        pass
-    min_long, min_lat, max_long, max_lat= polygon.bounds
-    return polygon, min_long, max_long, min_lat, max_lat
 
 def point_in_polygon(row, polygon):
     from shapely.geometry import Point, shape
