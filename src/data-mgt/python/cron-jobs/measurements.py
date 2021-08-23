@@ -29,14 +29,13 @@ def average_measurements_by_hour():
 
         try:
             columns = device_group.columns
-            # print(columns)
-            # print(device_group.head())
 
             device = device_group.iloc[0]['device'] if 'device' in columns else ''
             device_id = device_group.iloc[0]['device_id'] if 'device_id' in columns else ''
             site_id = device_group.iloc[0]['site_id'] if 'site_id' in columns else ''
-            # device_number = int(device_group.iloc[0]['device_number']) if 'device_number' in columns else 0
-            location = device_group.iloc[0]['location']
+            device_number = int(device_group.iloc[0]['device_number']) if 'device_number' in columns else 0
+            location = pd.DataFrame(device_group.iloc[0]['location'])
+            # location = location.fillna(0.0)
 
             measurements = pd.json_normalize(device_group.to_dict(orient='records'))
             measurements['time'] = pd.to_datetime(measurements['time'])
@@ -48,14 +47,14 @@ def average_measurements_by_hour():
 
             for index, row in averages.iterrows():
                 hourly_measurement = dict({
-
                     "tenant": "airqo",
                     "frequency": "hourly",
                     "time": datetime.strftime(index, '%Y-%m-%dT%H:%M:%SZ'),
                     "device": device,
+                    "device_number": device_number,
                     "device_id": device_id,
                     "site_id": site_id,
-                    "location": location,
+                    "location": location.to_dict(),
                     "internalTemperature": {
                         "value": row["internalTemperature.value"] if "internalTemperature.value" in columns else None
                     },
