@@ -366,6 +366,7 @@ eventSchema.statics = {
         device_id: { $first: "$device_id" },
         site: { $first: "$site" },
         device: { $first: "$device" },
+        device_number: { $first: "$device_number" },
         internalTemperature: { $first: "$internalTemperature" },
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
