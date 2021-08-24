@@ -8,18 +8,11 @@ metadata:
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
     # https://nginx.org/en/docs/http/ngx_http_auth_request_module.html
-    nginx.org/rewrites: "
-    serviceName=airqo-stage-incentives-api-svc rewrite=/;
-    serviceName=airqo-stage-calibrate-api-svc rewrite=/;serviceName=airqo-stage-device-monitor-api-svc rewrite=/;
-    serviceName=airqo-stage-prediction-api-svc rewrite=/;serviceName=airqo-stage-analytics-api-svc rewrite=/;
-    serviceName=airqo-stage-locate-api-svc rewrite=/;serviceName=airqo-stage-data-mgt-api-svc rewrite=/;
-    serviceName=airqo-stage-device-registry-api-svc rewrite=/;serviceName=airqo-stage-auth-api-svc rewrite=/
-    "
     nginx.org/location-snippets: |
       auth_request /auth;
     nginx.org/server-snippets: |
       location = /auth {
-        if ($request_uri = "/") {
+        if ($$request_uri = "/") {
             return 200;
         }
 
@@ -36,10 +29,6 @@ metadata:
         }
 
         if ($request_uri ~ "(/api/v1/incentives)|(/api/v2/incentives)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/monitor)|(/api/v2/monitor)") {
             return 200;
         }
 
