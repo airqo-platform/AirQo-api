@@ -1,0 +1,88 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: airqo-streams-calibrated-device-measurements-topic 
+  namespace: dev
+  labels:
+    strimzi.io/cluster: "dev-kafka-cluster"
+spec:
+  topicName: airqo-streams-calibrated-device-measurements-topic 
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 3600000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: airqo-streams-processed-device-measurements-topic 
+  namespace: dev
+  labels:
+    strimzi.io/cluster: "dev-kafka-cluster"
+spec:
+  topicName: airqo-streams-processed-device-measurements-topic 
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 3600000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: airqo-streams-raw-device-measurements-topic 
+  namespace: dev
+  labels:
+    strimzi.io/cluster: dev-kafka-cluster
+spec:
+  topicName: airqo-streams-raw-device-measurements-topic 
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 3600000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: airqo-streams-transformed-device-measurements-topic 
+  namespace: dev
+  labels:
+    strimzi.io/cluster: dev-kafka-cluster
+spec:
+  topicName: airqo-streams-transformed-device-measurements-topic 
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 3600000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: kcca-streams-raw-device-measurements-topic
+  namespace: dev
+  labels:
+    strimzi.io/cluster: dev-kafka-cluster
+spec:
+  topicName: kcca-streams-raw-device-measurements-topic
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 3600000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: kcca-streams-transformed-device-measurements-topic
+  namespace: dev
+  labels:
+    strimzi.io/cluster: dev-kafka-cluster
+spec:
+  topicName: kcca-streams-transformed-device-measurements-topic
+  partitions: 3
+  replicas: 2
+  config:
+    retention.ms: 3600000

@@ -1,6 +1,18 @@
+import math
+
 import requests
 
 from config import configuration
+
+
+def to_float(string):
+    try:
+        value = float(string)
+        if math.isnan(value):
+            return None
+        return value
+    except Exception:
+        return None
 
 
 def get_devices(base_url, tenant):
@@ -23,6 +35,16 @@ def filter_valid_devices(devices_data):
     for device in devices_data:
         device_dict = dict(device)
         if "site" in device_dict.keys() and "device_number" in device_dict.keys():
+            valid_devices.append(device_dict)
+
+    return valid_devices
+
+
+def filter_valid_kcca_devices(devices_data):
+    valid_devices = []
+    for device in devices_data:
+        device_dict = dict(device)
+        if "site" in device_dict.keys():
             valid_devices.append(device_dict)
 
     return valid_devices

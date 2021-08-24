@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
+const airqloudController = require("../controllers/create-airqloud");
 const middlewareConfig = require("../config/router.middleware");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
@@ -15,7 +16,8 @@ const constants = require("../config/constants");
 const mongoose = require("mongoose");
 const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
-var numeral = require("numeral");
+const numeral = require("numeral");
+const createSiteUtil = require("../utils/create-site");
 
 middlewareConfig(router);
 
@@ -393,6 +395,22 @@ router.put(
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn([
+          "recalled",
+          "ready",
+          "deployed",
+          "undeployed",
+          "decommissioned",
+          "assembly",
+        ])
+        .withMessage(
+          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly "
         ),
       body("powerType")
         .if(body("powerType").exists())
@@ -1187,6 +1205,17 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .trim()
+        .custom((value) => {
+          return createSiteUtil.validateSiteName(value);
+        })
+        .withMessage(
+          "The name should be greater than 5 and less than 50 in length"
+        ),
     ],
   ]),
   siteController.register
@@ -1331,9 +1360,21 @@ router.delete(
     .isIn(["kcca", "airqo"])
     .withMessage("the tenant value is not among the expected ones"),
   oneOf([
-    check("id").exists(),
-    check("lat_long").exists(),
-    check("generated_name").exists(),
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      ),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      ),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      ),
   ]),
   siteController.delete
 );
@@ -1360,9 +1401,15 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body()
-        .isArray()
-        .withMessage("the request body should be an array"),
+    ],
+  ]),
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
       body("*.device_id")
         .exists()
         .trim()
@@ -1424,11 +1471,12 @@ router.post(
         .notEmpty()
         .trim(),
       body("*.device_number")
-        .if(query("*.device_number").exists())
+        .if(body("*.device_number").exists())
         .notEmpty()
-        .trim()
         .isInt()
-        .withMessage("the device_number should be an integer value"),
+        .withMessage("the device_number should be an integer value")
+        .bail()
+        .trim(),
     ],
   ]),
   eventController.addValues
@@ -1572,6 +1620,238 @@ router.delete(
       .withMessage("the device names do not have spaces in them"),
   ]),
   eventController.deleteValuesOnPlatform
+);
+
+/************************** airqlouds usecase  *******************/
+router.post(
+  "/airqlouds",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("location")
+        .exists()
+        .withMessage("the location is is missing in your request"),
+      body("location.coordinates")
+        .exists()
+        .withMessage("location.coordinates is is missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .exists()
+        .withMessage("location.type is is missing in your request")
+        .bail()
+        .toLowerCase()
+        .isIn(["polygon", "point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: polygon and point"
+        ),
+      body("airqloud_tags")
+        .if(body("airqloud_tags").exists())
+        .notEmpty()
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  airqloudController.register
+);
+
+router.get(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .if(query("id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  airqloudController.list
+);
+
+router.put(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using name"
+      )
+      .bail()
+      .trim()
+      .custom((value) => {
+        return createSiteUtil.validateSiteName(value);
+      })
+      .withMessage(
+        "The name should be greater than 5 and less than 50 in length"
+      ),
+  ]),
+  oneOf([
+    [
+      body("name")
+        .if(body("name").exists())
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .bail()
+        .customSanitizer((value) => {
+          return createSiteUtil.sanitiseName(value);
+        })
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("location")
+        .if(body("location").exists())
+        .notEmpty()
+        .withMessage("the location should not be empty"),
+      body("location.coordinates")
+        .if(body("location.coordinates").exists())
+        .notEmpty()
+        .withMessage("the location.coordinates should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .if(body("location.type").exists())
+        .notEmpty()
+        .withMessage("the location.type should not be empty")
+        .bail()
+        .toLowerCase()
+        .isIn(["polygon", "point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: polygon and point"
+        ),
+      body("airqloud_tags")
+        .if(body("airqloud_tags").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  airqloudController.update
+);
+
+router.delete(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using the name "
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  airqloudController.delete
 );
 
 module.exports = router;
