@@ -293,8 +293,10 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
+      let modifiedArgs = args;
+      modifiedArgs.description = modifiedArgs.name;
       let data = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {
