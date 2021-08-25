@@ -200,7 +200,7 @@ def predict_model(m, tenant, airqloud, poly, x1, x2, y1, y2):
 
     return result
 
-def periodic_function(tenant, airqloud):
+def periodic_function(tenant, airqloud, aq_id):
     '''
     Re-trains the model regularly
     '''
@@ -230,10 +230,11 @@ def get_all_airqlouds(tenant):
     params = {'tenant':tenant}
     airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
-    return names
+    aq_ids = [aq['_id'] for aq in airqlouds]
+    return names, aq_ids
 
 if __name__=='__main__':
-    airqloud_names = get_all_airqlouds('airqo')
+    airqloud_names, aq_ids = get_all_airqlouds('airqo')
     parser = argparse.ArgumentParser(description='save gpmodel prediction.')
     parser.add_argument('--tenant',
                         default="airqo",
