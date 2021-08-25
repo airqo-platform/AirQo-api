@@ -221,12 +221,12 @@ def str_to_date(st):
 
 if __name__ == '__main__':
     
-    get_closest_channel(0.540184, 31.439622)
+    #get_closest_channel(0.540184, 31.439622)
     #get_all_coordinates()
 
-    #print('main')
+    print('main')
 
-    #get_hourly_met_forecasts()
+    get_hourly_met_forecasts()
     #print(get_gp_predictions('kampala'))
     
     
