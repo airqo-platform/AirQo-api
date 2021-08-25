@@ -23,6 +23,31 @@ const polygonSchema = new Schema(
   { _id: false }
 );
 
+const metadataSchema = new Schema(
+  {
+    region: { type: String },
+    district: { type: String },
+    county: { type: String },
+    subcounty: { type: String },
+    parish: { type: String },
+    centroid: { type: "Point" },
+    km2: { type: Number },
+    population: { type: Number },
+    households: { type: Number },
+    population_density: { type: Number },
+    household_density: { type: Number },
+    charcoal_per_km2: { type: Number },
+    firewood_per_km2: { type: Number },
+    cowdung_per_km2: { type: Number },
+    grass_per_km2: { type: Number },
+    wasteburning_per_km2: { type: Number },
+    kitch_outsidebuilt_per_km2: { type: Number },
+    kitch_makeshift_per_km2: { type: Number },
+    kitch_openspace_per_km2: { type: Number },
+  },
+  { _id: false }
+);
+
 const airqloudSchema = new Schema(
   {
     location: polygonSchema,
@@ -36,6 +61,9 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
       default: null,
+    },
+    metadata: {
+      type: metadataSchema,
     },
     description: {
       type: String,
