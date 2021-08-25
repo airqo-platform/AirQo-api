@@ -220,7 +220,7 @@ def periodic_function(tenant, airqloud, aq_id):
                 X = np.r_[X,Xchan]
                 Y = np.r_[Y,Ychan[:, None]]
         m = train_model(X, Y, airqloud)
-        predict_model(m, tenant, airqloud, poly, min_long, max_long, min_lat, max_lat)
+        predict_model(m, tenant, airqloud, aq_id, poly, min_long, max_long, min_lat, max_lat)
     else:
         pass
 
