@@ -320,16 +320,69 @@ eventSchema.statics = {
       .unwind("values")
       .match(filter)
       .replaceRoot("values")
+      .lookup({
+        from: "devices",
+        localField: "device",
+        foreignField: "name",
+        as: "deviceDetails",
+      })
       .sort({ time: -1 })
       .project({
+        _device: "$device",
+        _time: "$time",
+        _pm2_5: "$pm2_5",
+        _s2_pm2_5: "$s2_pm2_5",
+        _pm10: "$pm10",
+        _s2_pm10: "$s2_pm10",
+        _frequency: "$frequency",
+        _battery: "$battery",
+        _location: "$location",
+        _altitude: "$altitude",
+        _speed: "$speed",
+        _satellites: "$satellites",
+        _hdop: "$hdop",
+        _site_id: "$site_id",
+        _device_id: "$device_id",
+        _site: "$site",
+        _device_number: "$device_number",
+        _internalTemperature: "$internalTemperature",
+        _externalTemperature: "$externalTemperature",
+        _internalHumidity: "$internalHumidity",
+        _externalHumidity: "$externalHumidity",
+        _externalAltitude: "$externalAltitude",
+        _pm1: "$ pm1",
+        _no2: "$no2",
+        _deviceDetails: { $arrayElemAt: ["$deviceDetails", 0] },
+      })
+      .project({
+        device: "$_device",
+        device_id: "$_device_id",
+        device_number: "$_device_number",
+        site: "$_site",
+        site_id: "$_site_id",
+        time: "$_time",
+        pm2_5: "$_pm2_5",
+        s2_pm2_5: "$_s2_pm2_5",
+        pm10: "$_pm10",
+        s2_pm10: "$_s2_pm10",
+        frequency: "$_frequency",
+        battery: "$_battery",
+        location: "_$location",
+        altitude: "$_altitude",
+        speed: "$_speed",
+        satellites: "$_satellites",
+        hdop: "$_hdop",
+        internalTemperature: "$_internalTemperature",
+        externalTemperature: "$_externalTemperature",
+        internalHumidity: "$_internalHumidity",
+        externalHumidity: "$_externalHumidity",
+        externalAltitude: "$_externalAltitude",
+        pm1: "$_pm1",
+        no2: "$_no2",
+        deviceDetails: "$_deviceDetails",
+      })
+      .project({
         _id: 0,
-        day: 0,
-        __v: 0,
-        createdAt: 0,
-        first: 0,
-        last: 0,
-        nValues: 0,
-        updatedAt: 0,
       })
       .skip(skipInt)
       .limit(limitInt)
@@ -350,6 +403,11 @@ eventSchema.statics = {
       .sort({ time: -1 })
       .group({
         _id: "$device",
+        device: { $first: "$device" },
+        device_id: { $first: "$device_id" },
+        device_number: { $first: "$device_number" },
+        site: { $first: "$site" },
+        site_id: { $first: "$site_id" },
         time: { $first: "$time" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
@@ -362,11 +420,6 @@ eventSchema.statics = {
         speed: { $first: "$speed" },
         satellites: { $first: "$satellites" },
         hdop: { $first: "$hdop" },
-        site_id: { $first: "$site_id" },
-        device_id: { $first: "$device_id" },
-        site: { $first: "$site" },
-        device: { $first: "$device" },
-        device_number: { $first: "$device_number" },
         internalTemperature: { $first: "$internalTemperature" },
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
@@ -375,6 +428,9 @@ eventSchema.statics = {
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
         deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
+      })
+      .project({
+        _id: 0,
       })
       .skip(skipInt)
       .limit(limitInt)
