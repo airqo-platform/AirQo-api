@@ -153,7 +153,7 @@ def point_in_polygon(row, polygon):
     else:
         return 'False'
 
-def predict_model(m, tenant, airqloud, poly, x1, x2, y1, y2):
+def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     '''
     Makes the predictions and stores them in a database
     '''
@@ -187,6 +187,7 @@ def predict_model(m, tenant, airqloud, poly, x1, x2, y1, y2):
                       'variance':variances[i],
                       'interval':interval[i],
                       'airqloud':airqloud,
+                      'airqloud_id': aq_id,
                       'created_at': datetime.now()})
 
     
@@ -243,5 +244,5 @@ if __name__=='__main__':
     args = parser.parse_args()
     for index, name in enumerate(airqloud_names):
         print(f'{name} starting ...')
-        exec(f'thread{index} = Thread(target=periodic_function, args = [args.tenant, name])')
+        exec(f'thread{index} = Thread(target=periodic_function, args = [args.tenant, name, aq_ids[index]])')
         exec(f'thread{index}.start()')
