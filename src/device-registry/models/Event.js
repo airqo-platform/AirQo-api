@@ -549,6 +549,7 @@ eventSchema.statics = {
       let groupOperator = "$avg";
       let search = filter;
       let groupId = {};
+      let average = frequency;
       let localField = "device_id";
       let foreignField = "_id";
       let from = "devices";
@@ -591,11 +592,13 @@ eventSchema.statics = {
         groupId = {
           $dateToString: { format: "%Y-%m-%dT%H:00:00.%LZ", date: "$time" },
         };
+        average = "hourly";
         delete search["frequency"];
       }
 
       if (frequency === "daily") {
         groupId = { $dateToString: { format: "%Y-%m-%d", date: "$time" } };
+        average = "daily";
         delete search["frequency"];
       }
 
@@ -604,6 +607,7 @@ eventSchema.statics = {
           $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$time" },
         };
         groupOperator = "$first";
+        average = "average";
         delete search["frequency"];
       }
 
@@ -640,7 +644,6 @@ eventSchema.statics = {
           site_id: { $first: "$site_id" },
           site: { $first: "$site" },
           device: { $first: "$device" },
-          frequency: { $first: "$frequency" },
           is_test_data: { $first: "$is_test_data" },
           "pm2_5-value": { [groupOperator]: "$pm2_5.value" },
           "pm2_5-calibrationValue": {
