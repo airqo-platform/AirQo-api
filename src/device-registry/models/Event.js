@@ -178,14 +178,22 @@ const valueSchema = new Schema({
   average_pm2_5: {
     value: {
       type: Number,
+      trim: true,
       default: null,
     },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
   },
   average_pm10: {
     value: {
       type: Number,
+      trim: true,
       default: null,
     },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
   },
   externalPressure: {
     value: { type: Number, default: null },
