@@ -128,6 +128,11 @@ def train_model(X, Y, airqloud):
         m.likelihood.variance.assign(400)
         set_trainable(m.kernel.kernels[0].variance, False)
         set_trainable(m.likelihood.variance, False)
+    elif airqloud == 'kira':
+        k = gpflow.kernels.RBF() + gpflow.kernels.Bias()
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+        m.likelihood.variance.assign(400)
+        set_trainable(m.likelihood.variance, False)
     else:
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
