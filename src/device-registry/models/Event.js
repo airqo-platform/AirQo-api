@@ -175,6 +175,18 @@ const valueSchema = new Schema({
       default: null,
     },
   },
+  average_pm2_5: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  average_pm10: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
   externalPressure: {
     value: { type: Number, default: null },
   },
@@ -330,8 +342,10 @@ eventSchema.statics = {
       .project({
         _device: "$device",
         _time: "$time",
+        _average_pm2_5: "$average_pm2_5",
         _pm2_5: "$pm2_5",
         _s2_pm2_5: "$s2_pm2_5",
+        _average_pm10: "$average_pm10",
         _pm10: "$pm10",
         _s2_pm10: "$s2_pm10",
         _frequency: "$frequency",
@@ -361,8 +375,10 @@ eventSchema.statics = {
         site: "$_site",
         site_id: "$_site_id",
         time: "$_time",
+        average_pm2_5: "$_average_pm2_5",
         pm2_5: "$_pm2_5",
         s2_pm2_5: "$_s2_pm2_5",
+        average_pm10: "$_average_pm10",
         pm10: "$_pm10",
         s2_pm10: "$_s2_pm10",
         frequency: "$_frequency",
@@ -409,8 +425,10 @@ eventSchema.statics = {
         site: { $first: "$site" },
         site_id: { $first: "$site_id" },
         time: { $first: "$time" },
+        average_pm2_5: { $first: "$average_pm2_5" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
+        average_pm10: { $first: "$average_pm10" },
         pm10: { $first: "$pm10" },
         s2_pm10: { $first: "$s2_pm10" },
         frequency: { $first: "$frequency" },
