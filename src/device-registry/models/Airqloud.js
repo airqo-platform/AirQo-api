@@ -8,17 +8,20 @@ const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
 const createSiteUtil = require("../utils/create-site");
 
-const polygonSchema = new Schema({
-  type: {
-    type: String,
-    enum: ["polygon", "point"],
-    required: true,
+const polygonSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["polygon", "point"],
+      required: true,
+    },
+    coordinates: {
+      type: [[[Number]]],
+      required: true,
+    },
   },
-  coordinates: {
-    type: [[[Number]]],
-    required: true,
-  },
-});
+  { _id: false }
+);
 
 const airqloudSchema = new Schema(
   {
