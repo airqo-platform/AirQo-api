@@ -546,7 +546,9 @@ const createEvent = {
             let devicesCount = await getDevicesCount(tenant);
 
             let _skip = skip ? skip : 0;
-            let _limit = limit ? limit : constants.DEFAULT_EVENTS_LIMIT;
+            let _limit = limit
+              ? limit
+              : parseInt(constants.DEFAULT_EVENTS_LIMIT);
             let options = {
               skipInt: _skip,
               limitInt: _limit,
@@ -576,7 +578,7 @@ const createEvent = {
                 events: events,
               })
             );
-            redis.expire(cacheID, constants.EVENTS_CACHE_LIMIT);
+            redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
             return res.status(HTTPStatus.OK).json({
               success: true,
               isCache: false,
