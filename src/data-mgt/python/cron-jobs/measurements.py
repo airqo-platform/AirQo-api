@@ -61,12 +61,12 @@ def average_measurements_by_hour(hours=1):
 
                 averages = measurements.resample('1H', on='time').mean().round(2)
 
-                # averages = averages[averages['pm2_5.value'].notna()]
-                # averages = averages[averages['s2_pm2_5.value'].notna()]
-                # averages = averages[averages['pm10.value'].notna()]
-                # averages = averages[averages['s2_pm10.value'].notna()]
-                # averages = averages[averages['externalTemperature.value'].notna()]
-                # averages = averages[averages['externalHumidity.value'].notna()]
+                averages = averages[averages['pm2_5.value'].notna()]
+                averages = averages[averages['s2_pm2_5.value'].notna()]
+                averages = averages[averages['pm10.value'].notna()]
+                averages = averages[averages['s2_pm10.value'].notna()]
+                averages = averages[averages['externalTemperature.value'].notna()]
+                averages = averages[averages['externalHumidity.value'].notna()]
 
                 averages["average_pm2_5.value"] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1).round(2)
                 averages["average_pm10.value"] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1).round(2)
