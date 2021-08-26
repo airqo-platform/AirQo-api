@@ -2,7 +2,7 @@ name: deploy-apis-to-production
 
 on:
   pull_request:
-    branch: 
+    branches: 
       - master
     types:
       - closed

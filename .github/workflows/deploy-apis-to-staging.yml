@@ -2,7 +2,7 @@ name: deploy-apis-to-staging
 
 on:
   pull_request:
-    branch: 
+    branches: 
       - staging
     types:
       - closed
