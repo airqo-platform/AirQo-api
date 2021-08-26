@@ -330,7 +330,7 @@ siteSchema.statics = {
   },
   async list({
     _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
