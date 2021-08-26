@@ -1,4 +1,4 @@
-const DefaultsSchema = require("../models/Defaults");
+const SettingsSchema = require("../models/Settings");
 const { getModelByTenant } = require("./multitenancy");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
@@ -9,22 +9,18 @@ const defaults = {
     try {
       let responseFromListDefault = await getModelByTenant(
         tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
+        "setting",
+        SettingsSchema
       ).list({
         filter,
         limit,
         skip,
       });
       if (responseFromListDefault.success === true) {
-        let status = responseFromListDefault.status
-          ? responseFromListDefault.status
-          : "";
         return {
           success: true,
           message: responseFromListDefault.message,
           data: responseFromListDefault.data,
-          status,
         };
       }
 
@@ -33,15 +29,10 @@ const defaults = {
           ? responseFromListDefault.errors
           : "";
 
-        let status = responseFromListDefault.status
-          ? responseFromListDefault.status
-          : "";
-
         return {
           success: false,
           message: responseFromListDefault.message,
           errors,
-          status,
         };
       }
     } catch (e) {
@@ -49,7 +40,6 @@ const defaults = {
         success: false,
         message: "utils server errors",
         errors: e.message,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -62,8 +52,8 @@ const defaults = {
 
       let responseFromRegisterDefault = await getModelByTenant(
         tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
+        "setting",
+        SettingsSchema
       ).register(body);
       logObject("responseFromRegisterDefault", responseFromRegisterDefault);
 
@@ -108,8 +98,8 @@ const defaults = {
     try {
       let responseFromModifyDefault = await getModelByTenant(
         tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
+        "setting",
+        SettingsSchema
       ).modify({
         filter,
         update,
@@ -159,16 +149,16 @@ const defaults = {
     if (responseFromFilter.success === true) {
       let responseFromRemoveDefault = await getModelByTenant(
         tenant.toLowerCase(),
-        "default",
-        DefaultsSchema
+        "setting",
+        SettingsSchema
       ).remove({
         filter,
       });
 
+      let status = responseFromRemoveDefault.status
+        ? responseFromRemoveDefault.status
+        : "";
       if (responseFromRemoveDefault.success === true) {
-        let status = responseFromRemoveDefault.status
-          ? responseFromRemoveDefault.status
-          : "";
         return {
           success: true,
           message: responseFromRemoveDefault.message,
@@ -180,11 +170,6 @@ const defaults = {
         let errors = responseFromRemoveDefault.errors
           ? responseFromRemoveDefault.errors
           : "";
-
-        let status = responseFromRemoveDefault.status
-          ? responseFromRemoveDefault.status
-          : "";
-
         return {
           success: false,
           errors,
@@ -196,11 +181,11 @@ const defaults = {
 
     if (responseFromFilter.success === false) {
       let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-      return {
+      return res.status(HTTPStatus.BAD_GATEWAY).json({
         success: false,
         message: responseFromFilter.message,
         errors,
-      };
+      });
     }
   },
 };

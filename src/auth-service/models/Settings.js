@@ -6,67 +6,178 @@ const isEmpty = require("is-empty");
 const jsonify = require("../utils/jsonify");
 const HTTPStatus = require("http-status");
 
-const DefaultsSchema = new mongoose.Schema(
+const minValue = 0;
+const getPeriod = ({ maxValue }) => ({
+  type: new Schema(
+    {
+      value: {
+        type: Number,
+        min: minValue,
+        max: maxValue,
+      },
+      maxValue: Number,
+    },
+    { _id: false }
+  ),
+  required: true,
+  default: {
+    value: minValue,
+    maxValue,
+  },
+});
+
+const periodSchema = new mongoose.Schema(
+  {
+    value: { type: String },
+    label: { type: String },
+    unitValue: getPeriod({ maxValue: 30 }),
+    unit: { type: String },
+  },
+  { _id: false }
+);
+
+const chartSchema = new mongoose.Schema(
   {
     pollutant: {
       type: String,
       trim: true,
-      required: [true, "pollutant is required!"],
     },
     frequency: {
       type: String,
-      required: [true, "frequency is required!"],
     },
     startDate: {
       type: Date,
-      required: [true, "startDate is required!"],
     },
     endDate: {
       type: Date,
-      required: [true, "endDate is required!"],
     },
     chartType: {
       type: String,
-      required: [true, "chartTyoe is required!"],
     },
     chartTitle: {
       type: String,
-      required: [true, "chartTitle is required!"],
     },
     chartSubTitle: {
       type: String,
-      required: [true, "chartSubTitle is required!"],
     },
-    airqloud: {
-      type: ObjectId,
-    },
-    user: {
-      type: ObjectId,
-      required: [true, "user is required"],
-    },
-    sites: [
+    airqloud_ids: [
       {
         type: ObjectId,
       },
     ],
-    period: { type: {}, required: [true, "period is required!"] },
+    airqlouds: [
+      {
+        type: String,
+      },
+    ],
+    sites: [
+      {
+        type: String,
+      },
+    ],
+    site_ids: [
+      {
+        type: ObjectId,
+      },
+    ],
+    period: {
+      type: periodSchema,
+      default: {},
+    },
+  },
+  { _id: false }
+);
+
+const activitiesSchema = new mongoose.Schema(
+  {
+    activity_type: {
+      type: String,
+    },
+    next_maintenance_period: {
+      type: Number,
+    },
+  },
+  { _id: false }
+);
+
+const devicesSchema = new mongoose.Schema(
+  {
+    generation: { type: Number },
+    powerTypes: [{ type: String }],
+    mountTypes: [{ type: String }],
+  },
+  { _id: false }
+);
+
+const rolesSchema = new mongoose.Schema(
+  {
+    name: {
+      type: String,
+    },
+    resources: {
+      type: [{ type: String }],
+    },
+  },
+  { _id: false }
+);
+
+const SettingsSchema = new mongoose.Schema({
+  user_id: {
+    type: ObjectId,
+  },
+  user: {
+    type: ObjectId,
+    required: [true, "user is required"],
+  },
+  organisation: {
+    type: ObjectId,
+    required: [true, "organisation is required"],
+  },
+  /** the chartTitle and subTitle */
+  charts: {
+    type: chartSchema,
+    default: {},
+  },
+  /** the activity_type */
+  activities: {
+    type: activitiesSchema,
+    default: {},
+  },
+  /** the generation */
+  devices: {
+    type: devicesSchema,
+    default: {},
+  },
+  /*** the role name */
+  roles: {
+    type: rolesSchema,
+    default: {},
+  },
+});
+
+SettingsSchema.plugin(uniqueValidator, {
+  message: `{VALUE} is a duplicate value!`,
+});
+
+SettingsSchema.index(
+  {
+    user: 1,
+    user_id: 1,
   },
   {
-    timestamps: true,
+    unique: true,
   }
 );
 
-DefaultsSchema.plugin(uniqueValidator, {
-  message: `{VALUE} should be unique!`,
-});
-
-DefaultsSchema.methods = {
+SettingsSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
       pollutant: this.pollutant,
       frequency: this.frequency,
       user: this.user,
+      user_id: this.user_id,
+      airqloud_id: this.airqloud_id,
       airqloud: this.airqloud,
       startDate: this.startDate,
       endDate: this.endDate,
@@ -75,18 +186,15 @@ DefaultsSchema.methods = {
       chartSubTitle: this.chartSubTitle,
       sites: this.sites,
       period: this.period,
-      createdAt: this.createdAt,
+      site_ids: this.site_ids,
     };
   },
 };
 
-DefaultsSchema.statics = {
+SettingsSchema.statics = {
   async register(args) {
     try {
       let body = args;
-      if (body._id) {
-        delete body._id;
-      }
       let data = await this.create({
         ...body,
       });
@@ -100,7 +208,7 @@ DefaultsSchema.statics = {
         };
       } else {
         return {
-          success: true,
+          success: false,
           message: "default not created despite successful operation",
           status: HTTPStatus.CREATED,
         };
@@ -116,14 +224,11 @@ DefaultsSchema.statics = {
         errors = err.keyValue;
         message = "duplicate values provided";
         status = HTTPStatus.CONFLICT;
-        Object.entries(errors).forEach(([key, value]) => {
-          return (response[key] = value);
-        });
       } else {
         message = "validation errors for some of the provided fields";
         status = HTTPStatus.CONFLICT;
         errors = err.errors;
-        Object.entries(errors).forEach(([key, value]) => {
+        Object.entries(err.errors).forEach(([key, value]) => {
           return (response[key] = value.message);
         });
       }
@@ -150,38 +255,31 @@ DefaultsSchema.statics = {
           success: true,
           data,
           message: "successfully listed the defaults",
-          status: HTTPStatus.OK,
         };
       }
       if (isEmpty(data)) {
         return {
           success: true,
-          message: "no defaults found for this search",
+          message: "no defaults exist",
           data,
-          status: HTTPStatus.NOT_FOUND,
         };
       }
       return {
         success: false,
         message: "unable to retrieve defaults",
         data,
-        status: HTTPStatus.BAD_GATEWAY,
       };
     } catch (error) {
       return {
         success: false,
         message: "unable to list the defaults",
-        errors: error.message,
-        status: HTTPStatus.CONFLICT,
+        error: error.message,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      if (update._id) {
-        delete update._id;
-      }
       let udpatedDefault = await this.findOneAndUpdate(
         filter,
         update,
@@ -194,31 +292,30 @@ DefaultsSchema.statics = {
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully modified the default",
+          message: "successfully modified or created the default",
           data,
           status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
-          message: "the default does not exist, please crosscheck",
+          message: "defaults do not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (err) {
-      logObject("the error", err);
-      let errors = {};
+      let error = {};
       let message = "";
       let status = "";
       if (err.code == 11000) {
-        errors = err.keyValue;
+        error = err.keyValue;
         message = "duplicate values provided";
         status = HTTPStatus.CONFLICT;
       }
       return {
         success: false,
         message,
-        errors,
+        error,
         status,
       };
     }
@@ -229,9 +326,9 @@ DefaultsSchema.statics = {
         projection: {
           _id: 1,
           user: 1,
+          user_id: 1,
           chartTitle: 1,
           chartSubTitle: 1,
-          airqloud: 1,
         },
       };
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
@@ -255,11 +352,11 @@ DefaultsSchema.statics = {
       return {
         success: false,
         message: "model server error",
-        errors: error.message,
+        error: error.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 };
 
-module.exports = DefaultsSchema;
+module.exports = SettingsSchema;
