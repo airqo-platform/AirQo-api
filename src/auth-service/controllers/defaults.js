@@ -20,19 +20,18 @@ const defaults = {
         );
       }
 
-      const { tenant, id, user_id, user } = req.query;
+      const { tenant } = req.query;
 
       const responseFromFilter = generateFilter.defaults(req);
       logObject("responseFromFilter", responseFromFilter);
 
       if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
-        let requestBody = req.body;
-        requestBody["user"] = id || user || user_id;
+        let request = req.body;
         let responseFromUpdateDefault = await defaultsUtil.update(
           tenant,
           filter,
-          requestBody
+          request
         );
         logObject("responseFromUpdateDefault", responseFromUpdateDefault);
         if (responseFromUpdateDefault.success === true) {
@@ -157,9 +156,11 @@ const defaults = {
           limit,
           skip
         );
-        // logObject("responseFromListDefaults", responseFromListDefaults);
         if (responseFromListDefaults.success === true) {
-          res.status(HTTPStatus.OK).json({
+          let status = responseFromListDefaults.status
+            ? responseFromListDefaults.status
+            : HTTPStatus.OK;
+          res.status(status).json({
             success: true,
             message: responseFromListDefaults.message,
             defaults: responseFromListDefaults.data,
@@ -167,34 +168,32 @@ const defaults = {
         }
 
         if (responseFromListDefaults.success === false) {
-          if (responseFromListDefaults.errors) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListDefaults.message,
-              errors: responseFromListDefaults.errors,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListDefaults.message,
-            });
-          }
+          let errors = responseFromListDefaults.errors
+            ? responseFromListDefaults.errors
+            : "";
+
+          let status = responseFromListDefaults.status
+            ? responseFromListDefaults.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromListDefaults.message,
+            errors,
+          });
         }
       }
 
       if (responseFromFilter.success === false) {
-        if (responseFromFilter.errors) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            errors: responseFromFilter.errors,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        let status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (errors) {
       tryCatchErrors(res, errors, "join controller");

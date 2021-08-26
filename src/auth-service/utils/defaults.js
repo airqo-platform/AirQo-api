@@ -17,10 +17,14 @@ const defaults = {
         skip,
       });
       if (responseFromListDefault.success === true) {
+        let status = responseFromListDefault.status
+          ? responseFromListDefault.status
+          : "";
         return {
           success: true,
           message: responseFromListDefault.message,
           data: responseFromListDefault.data,
+          status,
         };
       }
 
@@ -29,10 +33,15 @@ const defaults = {
           ? responseFromListDefault.errors
           : "";
 
+        let status = responseFromListDefault.status
+          ? responseFromListDefault.status
+          : "";
+
         return {
           success: false,
           message: responseFromListDefault.message,
           errors,
+          status,
         };
       }
     } catch (e) {
@@ -40,6 +49,7 @@ const defaults = {
         success: false,
         message: "utils server errors",
         errors: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -155,10 +165,10 @@ const defaults = {
         filter,
       });
 
-      let status = responseFromRemoveDefault.status
-        ? responseFromRemoveDefault.status
-        : "";
       if (responseFromRemoveDefault.success === true) {
+        let status = responseFromRemoveDefault.status
+          ? responseFromRemoveDefault.status
+          : "";
         return {
           success: true,
           message: responseFromRemoveDefault.message,
@@ -170,6 +180,11 @@ const defaults = {
         let errors = responseFromRemoveDefault.errors
           ? responseFromRemoveDefault.errors
           : "";
+
+        let status = responseFromRemoveDefault.status
+          ? responseFromRemoveDefault.status
+          : "";
+
         return {
           success: false,
           errors,
@@ -181,11 +196,11 @@ const defaults = {
 
     if (responseFromFilter.success === false) {
       let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return {
         success: false,
         message: responseFromFilter.message,
         errors,
-      });
+      };
     }
   },
 };
