@@ -171,26 +171,26 @@ public class UtilsTest {
         assertEquals(transformedMeasurements.get(0).getDevice(), rawMeasurements.getDevice());
         assertEquals(transformedMeasurements.get(0).getTenant().trim().toLowerCase(), "airqo");
 
-        assertEquals(transformedMeasurements.get(0).getInternalHumidity().getValue(), Utils.stringToDouble(rawMeasurements.getInternalHumidity(), true));
-        assertEquals(transformedMeasurements.get(0).getInternalTemperature().getValue(), Utils.stringToDouble(rawMeasurements.getInternalTemperature(), true));
+        assertEquals(transformedMeasurements.get(0).getInternalHumidity().getValue(), Utils.stringToDouble(rawMeasurements.getInternalHumidity(), false));
+        assertEquals(transformedMeasurements.get(0).getInternalTemperature().getValue(), Utils.stringToDouble(rawMeasurements.getInternalTemperature(), false));
 
-        assertEquals(transformedMeasurements.get(0).getPm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getPm25(), true));
+        assertEquals(transformedMeasurements.get(0).getPm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getPm25(), false));
 //        assertNotNull(transformedMeasurements.get(0).getPm2_5().getCalibratedValue());
 
-        assertEquals(transformedMeasurements.get(0).getPm10().getValue(), Utils.stringToDouble(rawMeasurements.getPm10(), true));
+        assertEquals(transformedMeasurements.get(0).getPm10().getValue(), Utils.stringToDouble(rawMeasurements.getPm10(), false));
 
-        assertEquals(transformedMeasurements.get(0).getS2_pm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm25(), true));
-        assertEquals(transformedMeasurements.get(0).getS2_pm10().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm10(), true));
+        assertEquals(transformedMeasurements.get(0).getS2_pm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm25(), false));
+        assertEquals(transformedMeasurements.get(0).getS2_pm10().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm10(), false));
 
-        assertEquals(transformedMeasurements.get(0).getBattery().getValue(), Utils.stringToDouble(rawMeasurements.getBattery(), true));
-        assertEquals(transformedMeasurements.get(0).getSatellites().getValue(), Utils.stringToDouble(rawMeasurements.getSatellites(), true));
-        assertEquals(transformedMeasurements.get(0).getHdop().getValue(), Utils.stringToDouble(rawMeasurements.getHdop(), true));
+        assertEquals(transformedMeasurements.get(0).getBattery().getValue(), Utils.stringToDouble(rawMeasurements.getBattery(), false));
+        assertEquals(transformedMeasurements.get(0).getSatellites().getValue(), Utils.stringToDouble(rawMeasurements.getSatellites(), false));
+        assertEquals(transformedMeasurements.get(0).getHdop().getValue(), Utils.stringToDouble(rawMeasurements.getHdop(), false));
 
-        assertEquals(transformedMeasurements.get(0).getSpeed().getValue(), Utils.stringToDouble(rawMeasurements.getSpeed(), true));
-        assertEquals(transformedMeasurements.get(0).getAltitude().getValue(), Utils.stringToDouble(rawMeasurements.getAltitude(), true));
+        assertEquals(transformedMeasurements.get(0).getSpeed().getValue(), Utils.stringToDouble(rawMeasurements.getSpeed(), false));
+        assertEquals(transformedMeasurements.get(0).getAltitude().getValue(), Utils.stringToDouble(rawMeasurements.getAltitude(), false));
 
-        assertEquals(transformedMeasurements.get(0).getLocation().getLatitude().getValue(), Utils.stringToDouble(rawMeasurements.getLatitude(), true));
-        assertEquals(transformedMeasurements.get(0).getLocation().getLongitude().getValue(), Utils.stringToDouble(rawMeasurements.getLongitude(), true));
+        assertEquals(transformedMeasurements.get(0).getLocation().getLatitude().getValue(), Utils.stringToDouble(rawMeasurements.getLatitude(), false));
+        assertEquals(transformedMeasurements.get(0).getLocation().getLongitude().getValue(), Utils.stringToDouble(rawMeasurements.getLongitude(), false));
 
     }
 
