@@ -6,79 +6,59 @@ const isEmpty = require("is-empty");
 const jsonify = require("../utils/jsonify");
 const HTTPStatus = require("http-status");
 
-const DefaultsSchema = new mongoose.Schema({
-  pollutant: {
-    type: String,
-    trim: true,
-    required: [true, "pollutant is required!"],
-  },
-  frequency: {
-    type: String,
-    required: [true, "frequency is required!"],
-  },
-  startDate: {
-    type: Date,
-    required: [true, "startDate is required!"],
-  },
-  endDate: {
-    type: Date,
-    required: [true, "endDate is required!"],
-  },
-  chartType: {
-    type: String,
-    required: [true, "chartTyoe is required!"],
-  },
-  chartTitle: {
-    type: String,
-    required: [true, "chartTitle is required!"],
-  },
-  chartSubTitle: {
-    type: String,
-    required: [true, "chartSubTitle is required!"],
-  },
-  airqloud_id: {
-    type: ObjectId,
-  },
-  airqloud: {
-    type: ObjectId,
-  },
-  user_id: {
-    type: ObjectId,
-  },
-  user: {
-    type: ObjectId,
-    required: [true, "user is required"],
-  },
-  sites: [
-    {
+const DefaultsSchema = new mongoose.Schema(
+  {
+    pollutant: {
+      type: String,
+      trim: true,
+      required: [true, "pollutant is required!"],
+    },
+    frequency: {
+      type: String,
+      required: [true, "frequency is required!"],
+    },
+    startDate: {
+      type: Date,
+      required: [true, "startDate is required!"],
+    },
+    endDate: {
+      type: Date,
+      required: [true, "endDate is required!"],
+    },
+    chartType: {
+      type: String,
+      required: [true, "chartTyoe is required!"],
+    },
+    chartTitle: {
+      type: String,
+      required: [true, "chartTitle is required!"],
+    },
+    chartSubTitle: {
+      type: String,
+      required: [true, "chartSubTitle is required!"],
+    },
+    airqloud: {
       type: ObjectId,
     },
-  ],
-  site_ids: [
-    {
+    user: {
       type: ObjectId,
+      required: [true, "user is required"],
     },
-  ],
-  period: { type: {}, required: [true, "period is required!"] },
-});
-
-DefaultsSchema.plugin(uniqueValidator, {
-  message: `{VALUE} is a duplicate value!`,
-});
-
-DefaultsSchema.index(
-  {
-    chartTitle: 1,
-    chartSubTitle: 1,
-    user: 1,
-    user_id: 1,
-    airqloud: 1,
-    airqloud_id: 1,
+    sites: [
+      {
+        type: ObjectId,
+      },
+    ],
+    period: { type: {}, required: [true, "period is required!"] },
   },
   {
-    unique: true,
+    timestamps: true,
   }
 );
+
+DefaultsSchema.plugin(uniqueValidator, {
+  message: `{VALUE} should be unique!`,
+});
 
 DefaultsSchema.methods = {
   toJSON() {
@@ -87,8 +67,6 @@ DefaultsSchema.methods = {
       pollutant: this.pollutant,
       frequency: this.frequency,
       user: this.user,
-      user_id: this.user_id,
-      airqloud_id: this.airqloud_id,
       airqloud: this.airqloud,
       startDate: this.startDate,
       endDate: this.endDate,
@@ -97,7 +75,7 @@ DefaultsSchema.methods = {
       chartSubTitle: this.chartSubTitle,
       sites: this.sites,
       period: this.period,
-      site_ids: this.site_ids,
+      createdAt: this.createdAt,
     };
   },
 };
@@ -106,6 +84,9 @@ DefaultsSchema.statics = {
   async register(args) {
     try {
       let body = args;
+      if (body._id) {
+        delete body._id;
+      }
       let data = await this.create({
         ...body,
       });
@@ -169,31 +150,38 @@ DefaultsSchema.statics = {
           success: true,
           data,
           message: "successfully listed the defaults",
+          status: HTTPStatus.OK,
         };
       }
       if (isEmpty(data)) {
         return {
           success: true,
-          message: "no defaults exist",
+          message: "no defaults found for this search",
           data,
+          status: HTTPStatus.NOT_FOUND,
         };
       }
       return {
         success: false,
         message: "unable to retrieve defaults",
         data,
+        status: HTTPStatus.BAD_GATEWAY,
       };
     } catch (error) {
       return {
         success: false,
         message: "unable to list the defaults",
-        error: error.message,
+        errors: error.message,
+        status: HTTPStatus.CONFLICT,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
+      if (update._id) {
+        delete update._id;
+      }
       let udpatedDefault = await this.findOneAndUpdate(
         filter,
         update,
@@ -213,24 +201,24 @@ DefaultsSchema.statics = {
       } else {
         return {
           success: false,
-          message: "defaults do not exist, please crosscheck",
+          message: "the default does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (err) {
-      // logObject("the error", err.code);
-      let error = {};
+      logObject("the error", err);
+      let errors = {};
       let message = "";
       let status = "";
       if (err.code == 11000) {
-        error = err.keyValue;
+        errors = err.keyValue;
         message = "duplicate values provided";
         status = HTTPStatus.CONFLICT;
       }
       return {
         success: false,
         message,
-        error,
+        errors,
         status,
       };
     }
@@ -239,11 +227,11 @@ DefaultsSchema.statics = {
     try {
       let options = {
         projection: {
-          _id: 0,
+          _id: 1,
           user: 1,
-          user_id: 1,
           chartTitle: 1,
           chartSubTitle: 1,
+          airqloud: 1,
         },
       };
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
@@ -267,7 +255,7 @@ DefaultsSchema.statics = {
       return {
         success: false,
         message: "model server error",
-        error: error.message,
+        errors: error.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
