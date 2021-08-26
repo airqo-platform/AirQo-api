@@ -1539,6 +1539,15 @@ router.get(
         .toLowerCase()
         .isIn(["yes", "no"])
         .withMessage("valid values include: YES and NO"),
+      query("metadata")
+        .if(query("metadata").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["site", "site_id", "device", "device_id"])
+        .withMessage(
+          "valid values include: site, site_id, device and device_id"
+        ),
       query("test")
         .if(query("test").exists())
         .notEmpty()

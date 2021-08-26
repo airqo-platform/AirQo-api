@@ -1,0 +1,12 @@
+name: airqo-calibrate-job
+namespace: staging
+concurrencyPolicy: Allow
+failedJobsHistoryLimit: 1
+schedule: "@hourly"
+successfulJobsHistoryLimit: 3
+terminationGracePeriodSeconds: 30
+
+image: 
+  repository: us.gcr.io/airqo-250220/airqo-stage-calibrate-job
+  pullPolicy: Always
+  tag: latest
