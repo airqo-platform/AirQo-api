@@ -54,19 +54,23 @@ public class DeviceMeasurements {
 
     static void createMeasurementsStream(final StreamsBuilder builder, Properties props) {
 
-        final Map<String, String> serdeConfig = Collections.singletonMap(
-                AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, props.getProperty("schema.registry.url"));
+        try {
+            final Map<String, String> serdeConfig = Collections.singletonMap(
+                    AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, props.getProperty("schema.registry.url"));
 
-        final Serde<TransformedDeviceMeasurements> measurementsSerde = new SpecificAvroSerde<>();
-        measurementsSerde.configure(serdeConfig, false); // `false` for record values
+            final Serde<TransformedDeviceMeasurements> measurementsSerde = new SpecificAvroSerde<>();
+            measurementsSerde.configure(serdeConfig, false); // `false` for record values
 
-        final KStream<String, TransformedDeviceMeasurements> source = builder
-                .stream(props.getProperty("input.topic"), Consumed.with(Serdes.String(), measurementsSerde));
+            final KStream<String, TransformedDeviceMeasurements> source = builder
+                    .stream(props.getProperty("input.topic"), Consumed.with(Serdes.String(), measurementsSerde));
 
-        final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
+            final KStream<String, TransformedDeviceMeasurements> transformedList = source
+                    .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
 
-        transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
+            transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static void main(final String[] args) {

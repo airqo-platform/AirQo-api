@@ -293,8 +293,10 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
+      let modifiedArgs = args;
+      modifiedArgs.description = modifiedArgs.name;
       let data = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {
@@ -330,7 +332,7 @@ siteSchema.statics = {
   },
   async list({
     _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
