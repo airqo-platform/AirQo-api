@@ -5,10 +5,11 @@ import pandas as pd
 from airqo_api import AirQoApi
 
 
-def average_measurements_by_hour():
+def average_measurements_by_hour(hours=1):
     time = datetime.utcnow()
     start_time = (time - timedelta(hours=1)).strftime('%Y-%m-%dT%H:00:00Z')
-    end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=1)).strftime('%Y-%m-%dT%H:00:00Z')
+    end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=hours))\
+        .strftime('%Y-%m-%dT%H:00:00Z')
 
     print(f'UTC start time : {start_time}')
     print(f'UTC end time : {end_time}')
@@ -35,14 +36,23 @@ def average_measurements_by_hour():
             site_id = device_group.iloc[0]['site_id'] if 'site_id' in columns else ''
             device_number = int(device_group.iloc[0]['device_number']) if 'device_number' in columns else 0
             location = pd.DataFrame(device_group.iloc[0]['location'])
-            # location = location.fillna(0.0)
 
             measurements = pd.json_normalize(device_group.to_dict(orient='records'))
             measurements['time'] = pd.to_datetime(measurements['time'])
             measurements.set_index('time')
-            measurements = measurements.fillna(0)
 
             averages = measurements.resample('1H', on='time').mean().round(2)
+
+            averages = averages[averages['pm2_5.value'].notna()]
+            averages = averages[averages['s2_pm2_5.value'].notna()]
+            averages = averages[averages['pm10.value'].notna()]
+            averages = averages[averages['s2_pm10.value'].notna()]
+            averages = averages[averages['externalTemperature.value'].notna()]
+            averages = averages[averages['externalHumidity.value'].notna()]
+
+            averages["average_pm2_5.value"] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1).round(2)
+            averages["average_pm10.value"] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1).round(2)
+
             columns = averages.columns
 
             for index, row in averages.iterrows():
@@ -133,6 +143,12 @@ def average_measurements_by_hour():
                         if "s2_pm2_5.uncertaintyValue" in columns else None,
                         "standardDeviationValue": row["s2_pm2_5.standardDeviationValue"]
                         if "s2_pm2_5.standardDeviationValue" in columns else None
+                    },
+                    "average_pm2_5": {
+                        "value": row["average_pm2_5.value"] if "average_pm2_5.value" in columns else None,
+                    },
+                    "average_pm10": {
+                        "value": row["average_pm10.value"] if "average_pm10.value" in columns else None,
                     }
                 })
                 hourly_measurements.append(hourly_measurement)

@@ -1,4 +1,5 @@
 import json
+import os
 
 import urllib3
 from dotenv import load_dotenv
@@ -11,7 +12,8 @@ load_dotenv()
 
 
 def main():
-    average_measurements_by_hour()
+    hours = int(os.getenv("HOURS", 1))
+    average_measurements_by_hour(hours=hours)
     hourly_measurements = average_measurements_by_hour()
     data = json.dumps(dict({"measurements": hourly_measurements}))
     print(data)
