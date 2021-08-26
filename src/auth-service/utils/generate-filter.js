@@ -76,7 +76,7 @@ const filter = {
 
   defaults: (req) => {
     try {
-      let { id, user, user_id } = req.query;
+      let { id, user, site, airqloud } = req.query;
       let filter = {};
       if (user) {
         filter["user"] = ObjectId(user);
@@ -84,8 +84,12 @@ const filter = {
       if (id) {
         filter["_id"] = ObjectId(id);
       }
-      if (user_id) {
-        filter["user"] = ObjectId(user_id);
+      if (site) {
+        filter["site"] = ObjectId(site);
+      }
+
+      if (airqloud) {
+        filter["airqloud"] = ObjectId(airqloud);
       }
 
       return {
