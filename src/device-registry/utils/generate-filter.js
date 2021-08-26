@@ -9,12 +9,26 @@ const {
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 
-const { logElement, logObject } = require("./log");
+const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
 
+const isLowerCase = (str) => {
+  return str === str.toLowerCase();
+};
+
 const generateFilter = {
-  events: (device, device_id, site, site_id, frequency, startTime, endTime) => {
+  events: (
+    device,
+    device_number,
+    device_id,
+    site,
+    site_id,
+    frequency,
+    startTime,
+    endTime,
+    metadata
+  ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     let today = monthsInfront(0);
@@ -30,7 +44,13 @@ const generateFilter = {
       "values.site": {},
       "values.device_id": {},
       "values.site_id": {},
+      "values.device_number": {},
+      device_number: {},
     };
+
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
 
     if (startTime) {
       if (isTimeEmpty(startTime) == false) {
@@ -111,11 +131,33 @@ const generateFilter = {
      */
     if (device) {
       let deviceArray = device.split(",");
-      filter["values.device"]["$in"] = deviceArray;
+      let modifiedDeviceArray = deviceArray.map((value) => {
+        if (isLowerCase(value)) {
+          return value.toUpperCase();
+        }
+        if (!isLowerCase(value)) {
+          return value.toLowerCase();
+        }
+        return value;
+      });
+      logObject("the modifiedDeviceArray ", modifiedDeviceArray);
+      let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+      filter["values.device"]["$in"] = mergedArray;
     }
 
     if (!device) {
       delete filter["values.device"];
+    }
+
+    if (device_number) {
+      let deviceArray = device_number.split(",");
+      filter["device_number"]["$in"] = deviceArray;
+      filter["values.device_number"]["$in"] = deviceArray;
+    }
+
+    if (!device_number) {
+      delete filter["device_number"];
+      delete filter["values.device_number"];
     }
 
     if (site) {
@@ -164,6 +206,7 @@ const generateFilter = {
     try {
       const {
         device,
+        device_number,
         site,
         frequency,
         startTime,
@@ -182,6 +225,8 @@ const generateFilter = {
         site_id: {},
         site: {},
         device: {},
+        device_number: {},
+        "values.device_number": {},
       };
 
       if (startTime) {
@@ -281,6 +326,17 @@ const generateFilter = {
 
       if (!device) {
         delete filter["device"];
+      }
+
+      if (device_number) {
+        let deviceArray = device_number.split(",");
+        filter["device_number"]["$in"] = deviceArray;
+        filter["values.device_number"]["$in"] = deviceArray;
+      }
+
+      if (!device_number) {
+        delete filter["device_number"];
+        delete filter["values.device_number"];
       }
 
       if (site) {
@@ -581,6 +637,20 @@ const generateFilter = {
         parish
       );
       filter["parish"] = { $regex: regexExpression, $options: "i" };
+    }
+
+    return filter;
+  },
+  airqlouds: (req) => {
+    let { id, name } = req.query;
+    let filter = {};
+
+    if (name) {
+      filter["name"] = name;
+    }
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
     }
 
     return filter;

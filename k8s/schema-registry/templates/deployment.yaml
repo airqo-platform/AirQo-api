@@ -1,0 +1,45 @@
+###########################################################
+# Schema registry deployment
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-schema-registry
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: schema-registry
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: schema-registry
+    spec:
+      containers:
+        - name: schema-registry
+          image: us.gcr.io/airqo-250220/stage-schema-registry:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+              name: schema-registry
+          env:
+            - name: SCHEMA_REGISTRY_HOST_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: stage-schema-registry-config
+                  key: schema.registry.host.name
+            - name: SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS
+              valueFrom:
+                configMapKeyRef:
+                  name: stage-schema-registry-config
+                  key: schema.registry.kafkastore.bootstrap.servers
+          envFrom: 
+            - configMapRef:
+                name: stage-schema-registry-config

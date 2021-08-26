@@ -4,9 +4,8 @@ const uniqueValidator = require("mongoose-unique-validator");
 const tranformDeviceName = require("../utils/transform-device-name");
 const { logObject, logElement, logText } = require("../utils/log");
 const { monthsInfront } = require("../utils/date");
-const Cryptr = require("cryptr");
 const constants = require("../config/constants");
-const cryptr = new Cryptr(`${constants.KEY_ENCRYPTION_KEY}`);
+const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
 const jsonify = require("../utils/jsonify");
 const log4js = require("log4js");
@@ -101,6 +100,9 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       lowercase: true,
     },
+    status: {
+      type: String,
+    },
     ISP: {
       type: String,
     },
@@ -148,6 +150,18 @@ const deviceSchema = new mongoose.Schema(
       type: Date,
       default: monthsInfront(3),
     },
+    deployment_date: {
+      type: Date,
+      default: Date.now,
+    },
+    maintenance_date: {
+      type: Date,
+      default: Date.now,
+    },
+    recall_date: {
+      type: Date,
+      default: Date.now,
+    },
     device_number: {
       type: Number,
       required: [true, "device_number is required!"],
@@ -166,18 +180,16 @@ const deviceSchema = new mongoose.Schema(
 );
 
 deviceSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
+  message: `{VALUE} must be unique!`,
 });
 
 deviceSchema.pre("save", function(next) {
   if (this.isModified("name")) {
-    // this.name = this._transformDeviceName(this.name);
     if (this.writeKey && this.readKey) {
       this.writeKey = this._encryptKey(this.writeKey);
       this.readKey = this._encryptKey(this.readKey);
     }
     let n = this.name;
-    // console.log({ n });
   }
   return next();
 });
@@ -198,17 +210,12 @@ deviceSchema.pre("findByIdAndUpdate", function(next) {
 });
 
 deviceSchema.methods = {
-  _transformDeviceName(name) {
-    let transformedName = tranformDeviceName(name);
-    return transformedName;
-  },
   _encryptKey(key) {
-    let encryptedKey = cryptr.encrypt(key);
+    let encryptedKey = cryptoJS.AES.encrypt(
+      key,
+      constants.KEY_ENCRYPTION_KEY
+    ).toString();
     return encryptedKey;
-  },
-  _decryptKey(encryptedKey) {
-    let decryptedKey = cryptr.decrypt(encryptedKey);
-    return decryptedKey;
   },
   toJSON() {
     return {
@@ -228,7 +235,11 @@ deviceSchema.methods = {
       isPrimaryInLocation: this.isPrimaryInLocation,
       isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
+      deployment_date: this.deployment_date,
+      maintenance_date: this.maintenance_date,
+      recall_date: this.recall_date,
       device_number: this.device_number,
+      status: this.status,
       powerType: this.powerType,
       mountType: this.mountType,
       isActive: this.isActive,
@@ -311,6 +322,9 @@ deviceSchema.statics = {
           isPrimaryInLocation: 1,
           isUsedForCollocation: 1,
           nextMaintenance: 1,
+          deployment_date: 1,
+          recall_date: 1,
+          maintenance_date: 1,
           device_number: 1,
           powerType: 1,
           mountType: 1,
@@ -323,6 +337,7 @@ deviceSchema.statics = {
           siteName: 1,
           locationName: 1,
           height: 1,
+          status: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .skip(_skip)
@@ -363,10 +378,18 @@ deviceSchema.statics = {
       delete modifiedUpdate.generation_version;
       logObject("modifiedUpdate", modifiedUpdate);
       if (update.writeKey) {
-        modifiedUpdate.writeKey = cryptr.encrypt(update.writeKey);
+        let key = update.writeKey;
+        modifiedUpdate.writeKey = cryptoJS.AES.encrypt(
+          key,
+          constants.KEY_ENCRYPTION_KEY
+        ).toString();
       }
       if (update.readKey) {
-        modifiedUpdate.readKey = cryptr.encrypt(update.readKey);
+        let key = update.readKey;
+        modifiedUpdate.readKey = cryptoJS.AES.encrypt(
+          key,
+          constants.KEY_ENCRYPTION_KEY
+        ).toString();
       }
       let updatedDevice = await this.findOneAndUpdate(
         filter,
@@ -387,6 +410,7 @@ deviceSchema.statics = {
         };
       }
     } catch (error) {
+      logObject("the error", error);
       return {
         success: false,
         message: "Device model server error - modify",

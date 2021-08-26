@@ -1,10 +1,12 @@
 const { Schema } = require("mongoose");
+const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
+const HTTPStatus = require("http-status");
 
 const siteSchema = new Schema(
   {
@@ -233,7 +235,7 @@ siteSchema.index({ lat_long: 1 }, { unique: true });
 siteSchema.index({ generated_name: 1 }, { unique: true });
 
 siteSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
+  message: `{VALUE} must be unique!`,
 });
 
 siteSchema.methods = {
@@ -246,6 +248,7 @@ siteSchema.methods = {
       lat_long: this.lat_long,
       latitude: this.latitude,
       longitude: this.longitude,
+      airqloud_id: this.airqloud_id,
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
@@ -290,36 +293,50 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
+      let modifiedArgs = args;
+      modifiedArgs.description = modifiedArgs.name;
       let data = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "site created",
+          status: HTTPStatus.CREATED,
         };
       } else {
         return {
           success: false,
           message: "site not create despite successful operation",
+          status: HTTPStatus.ACCEPTED,
         };
       }
-    } catch (error) {
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[key] = value.message);
+      });
+
       return {
-        error: error.message,
-        message: "Site model server error - register",
+        error: response,
+        message,
         success: false,
+        status,
       };
     }
   },
   async list({
     _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
-      return this.aggregate()
+      let response = await this.aggregate()
         .match(filter)
         .lookup({
           from: "devices",
@@ -368,11 +385,29 @@ siteSchema.statics = {
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
+
+      let data = jsonify(response);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully retrieved the site details",
+          data,
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "site does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
     } catch (error) {
       return {
         success: false,
         message: "Site model server error - list",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -400,11 +435,13 @@ siteSchema.statics = {
           success: true,
           message: "successfully modified the site",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "site does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -412,6 +449,7 @@ siteSchema.statics = {
         success: false,
         message: "Site model server error - modify",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -424,6 +462,7 @@ siteSchema.statics = {
           generated_name: 1,
           lat_long: 1,
           country: 1,
+          district: 1,
         },
       };
       let removedSite = await this.findOneAndRemove(filter, options).exec();
@@ -433,11 +472,13 @@ siteSchema.statics = {
           success: true,
           message: "successfully removed the site",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "site does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -445,6 +486,7 @@ siteSchema.statics = {
         success: false,
         message: "Site model server error - remove",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

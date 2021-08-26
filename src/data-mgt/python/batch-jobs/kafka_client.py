@@ -25,7 +25,7 @@ class KafkaWithoutRegistry:
     def produce(self, data):
 
         if data:
-            n = int(configuration.INSERTION_INTERVAL)
+            n = int(configuration.BATCH_OUTPUT_SIZE)
             sub_lists = [data[i * n:(i + 1) * n] for i in range((len(data) + n - 1) // n)]
 
             for sub_list in sub_lists:

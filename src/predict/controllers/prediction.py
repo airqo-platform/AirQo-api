@@ -12,15 +12,19 @@ from datetime import datetime
 from flask_caching import Cache
 from routes import api
 from flask_cors import CORS
+from config import constants
 from dotenv import load_dotenv
 load_dotenv()
 
+app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
+
 cache = Cache(config={
     'CACHE_TYPE': 'redis',
-    'CACHE_REDIS_HOST': os.getenv('REDIS_SERVER'),
+    'CACHE_REDIS_HOST': app_configuration.REDIS_SERVER,
     'CACHE_REDIS_PORT': os.getenv('REDIS_PORT'),
-    'CACHE_REDIS_URL': f"redis://{os.getenv('REDIS_SERVER')}:{os.getenv('REDIS_PORT')}",
+    'CACHE_REDIS_URL': f"redis://{app_configuration.REDIS_SERVER}:{os.getenv('REDIS_PORT')}",
 })
+
 
 _logger = logging.getLogger(__name__)
 
@@ -217,16 +221,20 @@ def predict_channel_next_24_hours():
 
 
 @ml_app.route(api.route['predict_for_heatmap'], methods=['GET'])
-@cache.cached(timeout=3600)
 def predictions_for_heatmap():
     '''
     makes predictions for a specified location at a given time.
     '''
     if request.method == 'GET':
         try:
-            data = get_gp_predictions()
+            airqloud = request.args.get('airqloud').lower()
+            data = get_gp_predictions(airqloud)
             return {'success': True, 'data': data}, 200
-        except:
+        except Exception as e:
             return {'message': 'An error occured. Please try again.', 'success': False}, 400
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
+
+if __name__=='__main__':
+    print(predictions_for_heatmap())
+

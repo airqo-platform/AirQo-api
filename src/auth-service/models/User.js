@@ -135,21 +135,31 @@ UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
   async register(args) {
-    logObject("the args", args);
     try {
+      data = this.create({
+        ...args,
+      });
+      if (data) {
+        return {
+          success: true,
+          data,
+          message: "user created",
+        };
+      }
       return {
         success: true,
-        data: this.create({
-          ...args,
-        }),
-        message: "user created",
+        data,
+        message: "operation successful but user NOT successfully created",
       };
     } catch (error) {
-      return {
-        error: error.message,
-        message: "User model server error - register",
-        success: false,
-      };
+      logObject("the error", error);
+      if (error.code == 11000) {
+        return {
+          error: error.keyValue,
+          message: "duplicate value",
+          success: false,
+        };
+      }
     }
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {

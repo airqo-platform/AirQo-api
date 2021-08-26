@@ -28,6 +28,7 @@ const defaultConfig = {
   BCRYPT_SALT_ROUNDS: 12,
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
+  REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
   YOUTUBE_CHANNEL: "https://www.youtube.com/channel/UCx7YtV55TcqKGeKsDdT5_XQ",
   ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
   RANDOM_PASSWORD_CONFIGURATION: {
