@@ -131,11 +131,12 @@ class KafkaClient:
                         humidity = dict(calibrated_measurement.get("internalHumidity")).get('value')
                         time = calibrated_measurement.get('time')
 
-                        calibrated_value = self.rg_model.compute_calibrated_val(
-                            pm2_5=pm2_5, s2_pm2_5=s2_pm25, pm10=pm10, datetime=time,
-                            s2_pm10=s2_pm10, temperature=temperature, humidity=humidity)
+                        if pm2_5 and pm10 and s2_pm25 and s2_pm10 and temperature and humidity and time:
+                            calibrated_value = self.rg_model.compute_calibrated_val(
+                                pm2_5=pm2_5, s2_pm2_5=s2_pm25, pm10=pm10, datetime=time,
+                                s2_pm10=s2_pm10, temperature=temperature, humidity=humidity)
 
-                        calibrated_measurement["average_pm2_5"]["calibratedValue"] = round(calibrated_value, 2)
+                            calibrated_measurement["average_pm2_5"]["calibratedValue"] = round(calibrated_value, 2)
 
                     except:
                         traceback.print_exc()
