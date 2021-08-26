@@ -1,10 +1,11 @@
 name: deploy-apis-to-staging
 
 on:
-  #push:
   pull_request:
-    branches: staging
-    types: [closed]
+    branch: 
+      - staging
+    types:
+      - closed
 jobs:
   check:
     if: github.event.pull_request.merged == 'true'
