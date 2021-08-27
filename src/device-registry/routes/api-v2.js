@@ -93,13 +93,6 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body("visibility")
-        .exists()
-        .withMessage("visibility should be provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("visibility must be Boolean"),
       body("device_number")
         .if(body("device_number").exists())
         .notEmpty()
