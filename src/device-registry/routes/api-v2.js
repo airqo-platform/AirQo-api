@@ -1125,16 +1125,6 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
-      body("maintenanceType")
-        .exists()
-        .withMessage("the maintenanceType is is missing in your request")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["preventive", "corrective"])
-        .withMessage(
-          "the mountType value is not among the expected ones which include: corrective and preventive"
-        ),
       body("date")
         .exists()
         .withMessage("date is missing")
