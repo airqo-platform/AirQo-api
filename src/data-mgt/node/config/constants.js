@@ -44,6 +44,8 @@ const defaultConfig = {
     channel = process.env.TS_TEST_CHANNEL,
     api_key = process.env.TS_API_KEY_TEST_DEVICE,
   } = {}) => {
+    // logElement("the channel inside", channel);
+    // logElement("the api_key", api_key);
     return `https://api.thingspeak.com/channels/${channel}/feeds.json?api_key=${api_key}`;
   },
   GET_FEEDS: (channel) => {
@@ -58,13 +60,14 @@ const defaultConfig = {
   },
   GET_API_KEY: async (channel) => {
     logText("GET_API_KEY...........");
-    let url = `https://platform.airqo.net/api/v1/devices?tenant=airqo&chid=${channel.trim()}`;
+    // logElement("the channel", channel);
+    let url = `https://platform.airqo.net/api/v1/devices?tenant=airqo&device_number=${channel.trim()}`;
     return axios
       .get(url)
       .then(async (response) => {
         let responseJSON = response.data;
         logObject("the response", responseJSON);
-        if (responseJSON.success == true) {
+        if (responseJSON.success === true) {
           let deviceDetails = responseJSON.devices[0];
           let readKey = deviceDetails.readKey;
           if (!isEmpty(readKey)) {
@@ -79,7 +82,7 @@ const defaultConfig = {
               message: "readKey unavailable, please update device details",
             };
           }
-        } else if (responseJSON.success == false) {
+        } else if (responseJSON.success === false) {
           if (responseJSON.error) {
             return {
               success: false,

@@ -1,0 +1,46 @@
+###########################################################
+# Start deployment of AirQo tahmo values streams application - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-airqo-tahmo-values-stream
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: stage-airqo-tahmo-values-stream
+  replicas: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: stage-airqo-tahmo-values-stream
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: stage-airqo-tahmo-values-stream
+          image: us.gcr.io/airqo-250220/stage-tahmo-values-stream:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "200m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
+          envFrom:
+            - configMapRef:
+                name: stage-tahmo-streams-config
+          # env:
+          #   - name: tahmo.api.key
+          #     valueFrom:
+          #       secretKeyRef:
+          #         name: stage-tahmo-streams-secrets
+          #         key: tahmo.api.key
