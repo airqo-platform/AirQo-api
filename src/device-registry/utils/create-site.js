@@ -151,10 +151,6 @@ const manageSite = {
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
-      /**
-       * could move this name validation to the route level
-       * using a custom validator
-       */
       let isNameValid = manageSite.validateSiteName(name);
       if (!isNameValid) {
         return {

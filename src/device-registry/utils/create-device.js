@@ -5,10 +5,9 @@ const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
 const deleteChannel = require("./delete-channel");
-var { transform } = require("node-json-transform");
-const Cryptr = require("cryptr");
+const { transform } = require("node-json-transform");
 const constants = require("../config/constants");
-const cryptr = new Cryptr(`${constants.KEY_ENCRYPTION_KEY}`);
+const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
 const { utillErrors } = require("./errors");
 const jsonify = require("./jsonify");
@@ -803,23 +802,23 @@ const registerDeviceUtil = {
 
   decryptKey: (encryptedKey) => {
     try {
-      let decryptedKey = cryptr.decrypt(encryptedKey);
-      if (decryptedKey) {
-        return {
-          success: true,
-          message: "successfully decrypted the key",
-          data: decryptedKey,
-        };
-      }
+      logText("we are inside the decrypt key");
+      let bytes = cryptoJS.AES.decrypt(
+        encryptedKey,
+        constants.KEY_ENCRYPTION_KEY
+      );
+      let originalText = bytes.toString(cryptoJS.enc.Utf8);
       return {
-        success: false,
-        message: "unable to retrieve the decrypted key",
+        success: true,
+        message: "successfully decrypted the text",
+        data: originalText,
       };
-    } catch (error) {
+    } catch (err) {
+      logObject("the err", err);
       return {
         success: false,
         message: "unable to decrypt the key",
-        error: error.message,
+        error: err.message,
       };
     }
   },

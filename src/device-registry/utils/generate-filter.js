@@ -26,7 +26,8 @@ const generateFilter = {
     site_id,
     frequency,
     startTime,
-    endTime
+    endTime,
+    metadata
   ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
@@ -46,6 +47,10 @@ const generateFilter = {
       "values.device_number": {},
       device_number: {},
     };
+
+    if (metadata) {
+      filter["metadata"] = metadata;
+    }
 
     if (startTime) {
       if (isTimeEmpty(startTime) == false) {

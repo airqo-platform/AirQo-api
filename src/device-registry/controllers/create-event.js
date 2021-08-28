@@ -20,6 +20,7 @@ const {
   bulkTransmitMultipleSensorValues,
 } = require("../utils/transmit-values");
 const createEventUtil = require("../utils/create-event");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const createEvent = {
   addValues: async (req, res) => {
@@ -27,38 +28,14 @@ const createEvent = {
       logText("adding values...");
       const { tenant } = req.query;
       const measurements = req.body;
-      let errors = [];
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        nestedErrors.map((element) => {
-          delete element.value;
-        });
-        logObject("nestedErrors", nestedErrors);
-        return badRequest(res, "bad request errors", nestedErrors);
-      }
-      if (!Array.isArray(measurements)) {
-        errors.push({
-          location: "body",
-          value_type: typeof measurements,
-          msg: "the the input body should be an array, please crosscheck ",
-        });
-      }
-      if (!tenant) {
-        errors.push({
-          location: "query",
-          value: "",
-          param: "tenant",
-          msg: "the tenant query parameter must be provided ",
-        });
-      }
-
-      if (errors.length > 0) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "bad request errors",
-          errors,
-        });
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
 
       const responseFromTransformMeasurements = await transformMeasurements_v2(
@@ -127,19 +104,16 @@ const createEvent = {
         site,
         site_id,
         device_number,
+        metadata,
       } = req.query;
 
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
-      }
-
-      if (Array.isArray(req.query.device)) {
         return badRequest(
           res,
-          "multiple Device query params not supported, please use one comma separated one",
-          []
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
       const limitInt = parseInt(limit, 0);
@@ -159,7 +133,8 @@ const createEvent = {
           frequency,
           tenant,
           startTime,
-          endTime
+          endTime,
+          metadata
         );
       } else {
         missingQueryParams(req, res);
@@ -234,56 +209,52 @@ const createEvent = {
     try {
       const { device, tenant } = req.query;
 
-      if (tenant) {
-        if (!device) {
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message:
-              "please use the correct query parameter, check API documentation",
-            success: false,
-          });
-        }
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
-        logElement("isDevicePresent ?", doesDeviceExist);
-        if (doesDeviceExist) {
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
-          logText("...................................");
-          logText("clearing the Thing....");
-          logElement("url", constants.CLEAR_THING_URL(channelID));
-          await axios
-            .delete(constants.CLEAR_THING_URL(channelID))
-            .then(async (response) => {
-              logText("successfully cleared the device in TS");
-              logObject("response from TS", response.data);
-              res.status(HTTPStatus.OK).json({
-                message: `successfully cleared the data for device ${device}`,
-                success: true,
-                updatedDevice,
-              });
-            })
-            .catch(function(error) {
-              console.log(error);
-              res.status(HTTPStatus.BAD_GATEWAY).json({
-                message: `unable to clear the device data, device ${device} does not exist`,
-                success: false,
-              });
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const deviceDetails = await getDetail(tenant, device);
+      const doesDeviceExist = !isEmpty(deviceDetails);
+      logElement("isDevicePresent ?", doesDeviceExist);
+      if (doesDeviceExist) {
+        const channelID = await getChannelID(
+          req,
+          res,
+          device,
+          tenant.toLowerCase()
+        );
+        logText("...................................");
+        logText("clearing the Thing....");
+        logElement("url", constants.CLEAR_THING_URL(channelID));
+        await axios
+          .delete(constants.CLEAR_THING_URL(channelID))
+          .then(async (response) => {
+            logText("successfully cleared the device in TS");
+            logObject("response from TS", response.data);
+            res.status(HTTPStatus.OK).json({
+              message: `successfully cleared the data for device ${device}`,
+              success: true,
+              updatedDevice,
             });
-        } else {
-          logText(`device ${device} does not exist in the system`);
-          res.status(HTTPStatus.OK).json({
-            message: `device ${device} does not exist in the system`,
-            success: false,
+          })
+          .catch(function(error) {
+            console.log(error);
+            res.status(HTTPStatus.BAD_GATEWAY).json({
+              message: `unable to clear the device data, device ${device} does not exist`,
+              success: false,
+            });
           });
-        }
       } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
+        logText(`device ${device} does not exist in the system`);
+        res.status(HTTPStatus.OK).json({
+          message: `device ${device} does not exist in the system`,
           success: false,
-          message: "missing query params, please check documentation",
         });
       }
     } catch (e) {
@@ -301,7 +272,11 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
       logger.info(`adding values...`);
       const { device, tenant } = req.query;
@@ -352,37 +327,14 @@ const createEvent = {
   },
   viewEvents: async (req, res) => {
     try {
-      if (Array.isArray(req.query.device)) {
-        return badRequest(
-          res,
-          "multiple Device query params not supported, please use one comma separated one",
-          []
-        );
-      }
-
-      if (Array.isArray(req.query.site)) {
-        return badRequest(
-          res,
-          "multiple Site query params not supported, please use one comma separated one",
-          []
-        );
-      }
-      // return res.status(HTTPStatus.OK).json({
-      //   success: true,
-      //   message: "we be testing viewing events",
-      // });
       logger.info(`viewing events...`);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
-      }
-
-      if (Array.isArray(req.query.device)) {
         return badRequest(
           res,
-          "multiple Device query params not supported, please use one comma separated one",
-          []
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
 
