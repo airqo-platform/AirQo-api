@@ -526,7 +526,6 @@ router.put(
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
-        .notEmpty()
         .trim(),
       body("product_name")
         .if(body("product_name").exists())
