@@ -53,21 +53,25 @@ public class DeviceMeasurements {
 
     static void createMeasurementsStream(final StreamsBuilder builder, Properties properties) {
 
-        final Map<String, String> serdeConfig = Collections.singletonMap(
-                AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
+        try {
+            final Map<String, String> serdeConfig = Collections.singletonMap(
+                    AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
 
-        // `TransformedDeviceMeasurements` are Java classes generated from Avro schemas
-        final Serde<TransformedDeviceMeasurements>
-                valueSpecificAvroSerde = new SpecificAvroSerde<>();
-        valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
+            // `TransformedDeviceMeasurements` are Java classes generated from Avro schemas
+            final Serde<TransformedDeviceMeasurements>
+                    valueSpecificAvroSerde = new SpecificAvroSerde<>();
+            valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
 
-        final KStream<String, String> source = builder
-                .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
+            final KStream<String, String> source = builder
+                    .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
 
-        final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
+            final KStream<String, TransformedDeviceMeasurements> transformedList = source
+                    .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
 
-        transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde) );
+            transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde) );
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static void main(final String[] args) {
