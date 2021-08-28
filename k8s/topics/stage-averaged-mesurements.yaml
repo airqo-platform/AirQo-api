@@ -11,3 +11,18 @@ spec:
   replicas: 1
   config:
     retention.ms: 10800000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: hourly-calibrated-measurements-topic
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  topicName: hourly-calibrated-measurements-topic
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 10800000
