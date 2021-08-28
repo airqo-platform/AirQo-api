@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-stage-analytics-api
   service_name: airqo-stage-analytics-api-svc
   labels: sta-analytics-api
-  secret: stage-analytics-secret
+  secret: env-analytics-staging
 
 replicaCount: 2
 

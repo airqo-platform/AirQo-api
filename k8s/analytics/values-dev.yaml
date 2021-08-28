@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-dev-analytics-api
   service_name: airqo-dev-analytics-api-svc
   labels: dev-analytics-api
-  secret: dev-analytics-secret
+  secret: env-analytics-development
 
 replicaCount: 2
 
