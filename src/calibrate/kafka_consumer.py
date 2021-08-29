@@ -38,6 +38,7 @@ class KafkaClient:
         self.sasl_mechanism = os.getenv("SASL_MECHANISM")
         self.sasl_plain_username = os.getenv("SASL_USERNAME")
         self.sasl_plain_password = os.getenv("SASL_PASSWORD")
+        self.timeout = os.getenv("TIMEOUT")
 
         self.registry_client = SchemaRegistry(
             self.schema_registry_url,
@@ -62,7 +63,7 @@ class KafkaClient:
             url = f'{self.airqo_base_url}devices/events?tenant={self.tenant}'
             json_data = json.dumps(measurements)
 
-            response = requests.post(url, json_data, headers=headers, verify=False)
+            response = requests.post(url, json_data, headers=headers, verify=False, timeout=int(self.timeout))
 
             if response.status_code == 200:
                 print(response.json())
