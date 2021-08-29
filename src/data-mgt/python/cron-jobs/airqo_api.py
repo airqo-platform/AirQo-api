@@ -6,6 +6,7 @@ import requests
 class AirQoApi:
     def __init__(self):
         self.AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
+        self.timeout = os.getenv("TIMEOUT")
         self.AIRQO_API_KEY = f"JWT {os.getenv('AIRQO_API_KEY')}"
 
     def get_events(self, tenant, start_time, end_time, device):
@@ -24,6 +25,7 @@ class AirQoApi:
             params=params,
             headers=headers,
             verify=False,
+            timeout=int(self.timeout)
         )
 
         if api_request.status_code == 200 and "measurements" in api_request.json():
@@ -47,6 +49,7 @@ class AirQoApi:
             params=params,
             headers=headers,
             verify=False,
+            timeout=int(self.timeout)
         )
 
         if api_request.status_code == 200 and "devices" in api_request.json():
