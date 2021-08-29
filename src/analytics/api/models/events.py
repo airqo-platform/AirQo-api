@@ -110,6 +110,7 @@ class EventsModel(BasePyMongoModel):
                     **{f"{pollutant}":1},
                     site_id={"$toString": "$site_id"},
                 )
+                .remove_outliers(pollutant)
                 .group(
                     _id="$site_id",
                     site_id={"$first": "$site_id"},

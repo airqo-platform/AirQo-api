@@ -37,7 +37,7 @@ const manageSite = {
   checkStringLength: (name) => {
     try {
       let length = name.length;
-      if (length >= 4 && length <= 15) {
+      if (length >= 5 && length <= 50) {
         return true;
       }
       return false;
@@ -50,9 +50,9 @@ const manageSite = {
 
   validateSiteName: (name) => {
     try {
-      let nameHasWhiteSpace = manageSite.hasWhiteSpace(name);
+      // let nameHasWhiteSpace = manageSite.hasWhiteSpace(name);
       let isValidStringLength = manageSite.checkStringLength(name);
-      if (!nameHasWhiteSpace && isValidStringLength) {
+      if (isValidStringLength) {
         return true;
       }
       return false;
@@ -154,10 +154,6 @@ const manageSite = {
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
-      /**
-       * could move this name validation to the route level
-       * using a custom validator
-       */
       let isNameValid = manageSite.validateSiteName(name);
       if (!isNameValid) {
         return {
@@ -309,7 +305,7 @@ const manageSite = {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
       let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
       let trimmedName = shortenedName.trim();
-      return trimmedName;
+      return trimmedName.toLowerCase();
     } catch (error) {
       logger.error(`sanitiseName -- create site util -- ${error.message}`);
     }

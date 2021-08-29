@@ -46,9 +46,9 @@ def handle_api_error(api_request):
 
 def array_to_csv(data):
     df = pd.DataFrame(data)
-    df.to_csv(path_or_buf="formatted_devices.csv", index=False)
+    df.to_csv(path_or_buf="output.csv", index=False)
 
 
 def array_to_json(data):
     df = pd.DataFrame(data)
-    df.to_json(path_or_buf="formatted_devices.json", orient="records")
+    df.to_json(path_or_buf="output.json", orient="records")
