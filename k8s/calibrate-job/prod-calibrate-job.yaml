@@ -29,6 +29,8 @@ spec:
                   value: https://platform.airqo.net/api/v1/
                 - name: TIMEOUT
                   value: "20"
+                - name: HOURS
+                  value: "1"
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
