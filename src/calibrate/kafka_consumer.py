@@ -82,6 +82,10 @@ class KafkaClient:
         bytes_data = avro_serde.value.serialize(measurements, schema_str)
         producer.send(self.output_topic, bytes_data)
 
+    def __produce_measurements_v2(self, measurements):
+        producer = KafkaProducer(bootstrap_servers=self.bootstrap_servers)
+        producer.send(self.output_topic, json.dumps(measurements).encode('utf-8'))
+
     def consume_measurements(self):
 
         # avro_serde = AvroKeyValueSerde(self.registry_client, self.input_topic)
@@ -147,11 +151,11 @@ class KafkaClient:
                 if calibrated_measurements:
                     print(dict({"calibrated measurements": calibrated_measurements}))
 
-                    for i in range(0, len(calibrated_measurements), int(self.request_body_size)):
-                        values = calibrated_measurements[i:i + int(self.request_body_size)]
-                        self.__post_events(values)
+                    # for i in range(0, len(calibrated_measurements), int(self.request_body_size)):
+                    #     values = calibrated_measurements[i:i + int(self.request_body_size)]
+                    #     self.__post_events(values)
 
-                    # self.__produce_measurements(dict({"measurements": calibrated_measurements}))
+                    self.__produce_measurements_v2(dict({"measurements": calibrated_measurements}))
 
             except:
                 traceback.print_exc()
