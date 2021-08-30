@@ -1,6 +1,7 @@
 const TOPICS = {
     AIRQO_RAW_MEASUREMENTS: "AIRQO_RAW_MEASUREMENTS",
     KCCA_RAW_MEASUREMENTS: "KCCA_RAW_MEASUREMENTS",
+    AIRQO_CALIBRATED_MEASUREMENTS: "AIRQO_CALIBRATED_MEASUREMENTS",
     SITE_DISTANCES: "SITE_DISTANCES",
     COMPUTE_SITE_DISTANCES: "COMPUTE_SITE_DISTANCES"
 }
@@ -19,6 +20,10 @@ const getTopic = (topicConstant) => {
             topic = process.env.KCCA_RAW_MEASUREMENTS_TOPIC;
             break;
 
+        case TOPICS.AIRQO_CALIBRATED_MEASUREMENTS:
+            topic = process.env.AIRQO_CALIBRATED_MEASUREMENTS_TOPIC;
+            break;
+        
         case TOPICS.SITE_DISTANCES:
             topic = process.env.SITE_DISTANCES_TOPIC;
             break;
@@ -41,11 +46,11 @@ const getTopic = (topicConstant) => {
 
 const getTopics = () => {
 
-    let topics = getTopic(TOPICS.AIRQO_RAW_MEASUREMENTS) + "," + 
+    let topics = getTopic(TOPICS.AIRQO_CALIBRATED_MEASUREMENTS) + "," + 
+    getTopic(TOPICS.AIRQO_RAW_MEASUREMENTS) + "," + 
     getTopic(TOPICS.KCCA_RAW_MEASUREMENTS);
-    topics = [...new Set(topics.split(","))];
 
-    return topics;
+    return [...new Set(topics.split(","))];
 }
 
 module.exports = { getTopic, TOPICS, getTopics };

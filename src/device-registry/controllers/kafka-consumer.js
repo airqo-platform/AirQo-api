@@ -22,12 +22,20 @@ const kafkaConsumer = async () => {
   await consumer.run({
     eachMessage: async ({ topic, partition, message }) => {
 
-      if (topic == getTopic(TOPICS.AIRQO_RAW_MEASUREMENTS) || topic == getTopic(TOPICS.KCCA_RAW_MEASUREMENTS) ){
+      if (topic == getTopic(TOPICS.AIRQO_RAW_MEASUREMENTS) || topic == getTopic(TOPICS.KCCA_RAW_MEASUREMENTS) || 
+      topic == getTopic(TOPICS.AIRQO_CALIBRATED_MEASUREMENTS) ){
 
         try{
-          const decodedValue = await schemaRegistry.decode(message.value);
-          let measurements = JSON.parse(JSON.stringify(decodedValue.measurements));
-  
+          let measurements = [];
+
+          if(topic != getTopic(TOPICS.AIRQO_CALIBRATED_MEASUREMENTS)){
+            const decodedValue = await schemaRegistry.decode(message.value);
+            measurements = JSON.parse(JSON.stringify(decodedValue.measurements));
+          }
+          else{
+            measurements = JSON.parse(JSON.stringify(message.value.measurements));
+          }
+
           if (Array.isArray(measurements)) {
     
             const valid_measurements = await filterMeasurementsWithExistingDevices(measurements);
@@ -41,7 +49,7 @@ const kafkaConsumer = async () => {
           }
         }
         catch (e) {
-          logObject("Kafka Raw Measurements consumer", e);
+          logObject("Measurements consumer", e);
         }
 
       }
