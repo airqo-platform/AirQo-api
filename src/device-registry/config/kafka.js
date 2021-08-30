@@ -12,6 +12,7 @@ const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
 const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
 const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
 const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
+const AUTO_COMMIT = constants.AUTO_COMMIT;
 const KAFKA_USERNAME = constants.KAFKA_USERNAME;
 const KAFKA_PASSWORD = constants.KAFKA_PASSWORD;
 const SASL = KAFKA_USERNAME && KAFKA_PASSWORD ? { KAFKA_USERNAME, KAFKA_PASSWORD, mechanism: 'plain' } : null
@@ -32,7 +33,7 @@ const kafkaClient = new Kafka({
 const schemaRegistry = new SchemaRegistry({ host: SCHEMA_REGISTRY });
 
 const consumerOptions = {
-    autoCommit: false,
+    autoCommit: AUTO_COMMIT,
     groupId: KAFKA_CLIENT_GROUP,
   };
 
