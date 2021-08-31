@@ -15,6 +15,7 @@ const log4js = require("log4js");
 const { request } = require("express");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
+const{ distanceBtnTwoPoints } = require('./distance');
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -852,6 +853,22 @@ const manageSite = {
       logElement("server error", e.message);
     }
   },
+
+  findNearestSitesByCoordinates: (sites, radius, latitude, longitude ) => {
+    let nearest_sites = []
+    sites.forEach(site => {
+      if ('latitude' in site && 'longitude' in site) {
+        distance = distanceBtnTwoPoints(latitude, longitude, site['latitude'], site['longitude']);
+
+          if (distance < radius) {
+            site['distance'] = distance;
+            nearest_sites.push(site);
+          }
+        }
+      });
+      return nearest_sites;
+  },
+
 };
 
 module.exports = manageSite;

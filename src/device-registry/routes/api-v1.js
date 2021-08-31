@@ -1361,6 +1361,7 @@ router.delete(
   siteController.delete
 );
 router.post("/sites/nearest", siteController.findNearestSite);
+router.post("/sites/nearestSiteByCoordinates", siteController.findNearestSiteByCoordinates);
 
 /******************* create-component use-case **************************/
 router.get("/list/components/", componentController.listAll);
