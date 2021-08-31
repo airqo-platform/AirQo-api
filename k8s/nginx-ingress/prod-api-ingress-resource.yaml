@@ -1,0 +1,146 @@
+apiVersion: networking.k8s.io/v1beta1
+kind: Ingress
+metadata:
+  name: api-ingress-resource
+  namespace: production
+  annotations:
+    kubernetes.io/ingress.class: "nginx" 
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.org/location-snippets: |
+      auth_request /auth;
+    nginx.org/server-snippets: |
+      location = /auth {
+        if ($request_uri = "/") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(api/v1/users/loginUser)|(api/v2/users/loginUser)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/incentives)|(/api/v2/incentives)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/predict)|(/api/v2/predict)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/analytics)|(/api/v2/analytics)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/map)|(/api/v2/map)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/data)|(/api/v2/data)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/devices)|(/api/v2/devices)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
+            return 200;
+        }
+        
+        internal;
+        proxy_method            POST;
+        proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
+        proxy_pass_request_body off;
+        proxy_set_header        Content-Length "";
+        proxy_set_header        X-Original-URI $request_uri;
+      }
+
+spec:
+  rules:
+    - host: api.airqo.net
+      http:
+        paths:
+          - path: /
+            backend:
+              serviceName: airqo-auth-api-svc
+              servicePort: 3000
+          - path: /api/v1/users
+            backend:
+              serviceName: airqo-auth-api-svc
+              servicePort: 3000
+          - path: /api/v2/users
+            backend:
+              serviceName: airqo-auth-api-svc
+              servicePort: 3000
+          - path: /api/v1/devices
+            backend:
+              serviceName: airqo-device-registry-api-svc
+              servicePort: 3000
+          - path: /api/v2/devices
+            backend:
+              serviceName: airqo-device-registry-api-svc
+              servicePort: 3000
+          - path: /api/v1/data
+            backend:
+              serviceName: airqo-data-mgt-api-svc
+              servicePort: 3000
+          - path: /api/v2/data
+            backend:
+              serviceName: airqo-data-mgt-api-svc
+              servicePort: 3000
+          - path: /api/v1/map
+            backend:
+              serviceName: airqo-locate-api-svc
+              servicePort: 4001
+          - path: /api/v2/map
+            backend:
+              serviceName: airqo-locate-api-svc
+              servicePort: 4001
+          - path: /api/v1/analytics
+            backend:
+              serviceName: airqo-analytics-api-svc
+              servicePort: 5000
+          - path: /api/v2/analytics
+            backend:
+              serviceName: airqo-analytics-api-svc
+              servicePort: 5000
+          - path: /api/v1/predict
+            backend:
+              serviceName: airqo-prediction-api-svc
+              servicePort: 5000
+          - path: /api/v2/predict
+            backend:
+              serviceName: airqo-prediction-api-svc
+              servicePort: 5000
+          - path: /api/v1/monitor
+            backend:
+              serviceName: airqo-device-monitor-api-svc
+              servicePort: 4001
+          - path: /api/v2/monitor
+            backend:
+              serviceName: airqo-device-monitor-api-svc
+              servicePort: 4001
+          - path: /api/v1/calibrate
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v2/calibrate
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v1/incentives
+            backend:
+              serviceName: airqo-incentives-api-svc
+              servicePort: 3000
+          - path: /api/v2/incentives
+            backend:
+              serviceName: airqo-incentives-api-svc
+              servicePort: 3000
