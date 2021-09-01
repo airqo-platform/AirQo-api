@@ -891,6 +891,7 @@ const manageSite = {
           success: false,
           error: responseFromListSites.error,
           message: responseFromListSites.message,
+          status: responseFromListSites.status,
         };
       }
     } catch (error) {
