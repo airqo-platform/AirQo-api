@@ -264,13 +264,6 @@ const manageSite = {
 
   findNearestSite: async (req, res) => {
     try {
-    } catch (e) {
-      logElement("server error", e.message);
-    }
-  },
-
-  findNearestSiteByCoordinates: async (req, res) => {
-    try {
       const { tenant, latitude, longitude, radius } = req.query;
       logText("list all sites by coordinates...");
       try {
