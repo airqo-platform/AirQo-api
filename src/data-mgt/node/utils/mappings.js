@@ -1,3 +1,5 @@
+const { logObject, logElement } = require("./log");
+
 const fieldsAndLabels = {
   field1: "pm2_5",
   field2: "pm10",
@@ -26,22 +28,38 @@ const positionsAndLabels = {
 };
 
 function getFieldLabel(field) {
-  return fieldsAndLabels[field];
+  try {
+    return fieldsAndLabels[field];
+  } catch (error) {
+    logElement("the getFieldLabel error", error.message);
+  }
 }
 
 function getFieldByLabel(value) {
-  return Object.keys(fieldsAndLabels).find(
-    (key) => fieldsAndLabels[key] === value
-  );
+  try {
+    return Object.keys(fieldsAndLabels).find(
+      (key) => fieldsAndLabels[key] === value
+    );
+  } catch (error) {
+    logElement("the getFieldByLabel error", error.message);
+  }
 }
 
 function getPositionLabel(position) {
-  return positionsAndLabels[position];
+  try {
+    return positionsAndLabels[position];
+  } catch (error) {
+    logElement("the getPositionLabel error", error.message);
+  }
 }
 
 function getValuesFromString(stringValues) {
-  arrayValues = stringValues.split(",");
-  return arrayValues;
+  try {
+    arrayValues = stringValues.split(",");
+    return arrayValues;
+  } catch (error) {
+    logElement("the getValuesFromString error", error.message);
+  }
 }
 
 const trasformFieldValues = async (field) => {
@@ -49,14 +67,16 @@ const trasformFieldValues = async (field) => {
     let arrayValues = getValuesFromString(field);
     let newObj = await Object.entries(arrayValues).reduce(
       (newObj, [position, value]) => {
-        let transformedPosition = getPositionLabel(position);
-        return { ...newObj, [transformedPosition]: value.trim() };
+        if (value) {
+          let transformedPosition = getPositionLabel(position);
+          return { ...newObj, [transformedPosition]: value.trim() };
+        }
       },
       {}
     );
     return newObj;
   } catch (e) {
-    console.log(e.message);
+    console.log("the trasformFieldValues error", e.message);
   }
 };
 
@@ -64,18 +84,20 @@ const transformMeasurement = async (measurement) => {
   try {
     let newObj = await Object.entries(measurement).reduce(
       (newObj, [field, value]) => {
-        let transformedField = getFieldLabel(field);
+        if (value) {
+          let transformedField = getFieldLabel(field);
 
-        return {
-          ...newObj,
-          [transformedField]: value.trim(),
-        };
+          return {
+            ...newObj,
+            [transformedField]: value,
+          };
+        }
       },
       {}
     );
     return newObj;
   } catch (e) {
-    console.log(e.message);
+    console.log("the transformMeasurement error", e.message);
   }
 };
 

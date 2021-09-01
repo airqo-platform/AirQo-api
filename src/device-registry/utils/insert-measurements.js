@@ -16,7 +16,7 @@ const insert = async (tenant, transformedMeasurements) => {
       logObject("the measurement in the insertion process", measurement);
       const eventBody = {
         day: measurement.day,
-        nValues: { $lt: `${constants.N_VALUES}` },
+        nValues: { $lt: parseInt(constants.N_VALUES) },
         $or: [
           { "values.time": { $ne: measurement.time } },
           { "values.device": { $ne: measurement.device } },

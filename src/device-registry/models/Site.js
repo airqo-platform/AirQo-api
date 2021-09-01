@@ -248,6 +248,7 @@ siteSchema.methods = {
       lat_long: this.lat_long,
       latitude: this.latitude,
       longitude: this.longitude,
+      airqloud_id: this.airqloud_id,
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
@@ -292,8 +293,10 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
+      let modifiedArgs = args;
+      modifiedArgs.description = modifiedArgs.name;
       let data = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {
@@ -309,18 +312,27 @@ siteSchema.statics = {
           status: HTTPStatus.ACCEPTED,
         };
       }
-    } catch (error) {
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[key] = value.message);
+      });
+
       return {
-        error: error.message,
-        message: "Site model server error - register",
+        error: response,
+        message,
         success: false,
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        status,
       };
     }
   },
   async list({
     _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
@@ -450,6 +462,7 @@ siteSchema.statics = {
           generated_name: 1,
           lat_long: 1,
           country: 1,
+          district: 1,
         },
       };
       let removedSite = await this.findOneAndRemove(filter, options).exec();

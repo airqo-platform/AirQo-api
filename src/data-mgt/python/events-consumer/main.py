@@ -45,24 +45,28 @@ def main():
 
             msg_value = msg.value()
             if msg_value is not None:
-                measurements = list(dict(msg_value).get("measurements"))
-                measurements_df = pd.DataFrame(measurements)
+                try:
+                    measurements = list(dict(msg_value).get("measurements"))
+                    measurements_df = pd.DataFrame(measurements)
 
-                groups = measurements_df.groupby("tenant")
+                    groups = measurements_df.groupby("tenant")
 
-                for _, group in groups:
-                    tenant = group.iloc[0]['tenant']
-                    device_registry = DeviceRegistry(tenant, AIRQO_BASE_URL)
+                    for _, group in groups:
+                        tenant = group.iloc[0]['tenant']
+                        device_registry = DeviceRegistry(tenant, AIRQO_BASE_URL)
 
-                    group_measurements = list(group.to_dict(orient="records"))
-                    for i in range(0, len(group_measurements), int(REQUEST_BODY_SIZE)):
-                        measurements_list = group_measurements[i:i + int(REQUEST_BODY_SIZE)]
+                        group_measurements = list(group.to_dict(orient="records"))
+                        for i in range(0, len(group_measurements), int(REQUEST_BODY_SIZE)):
+                            measurements_list = group_measurements[i:i + int(REQUEST_BODY_SIZE)]
 
-                        insertion_thread = threading.Thread(
-                            target=device_registry.insert_events, args=(measurements_list,))
-                        insertion_thread.start()
+                            insertion_thread = threading.Thread(
+                                target=device_registry.insert_events, args=(measurements_list,))
+                            insertion_thread.start()
 
-                    sleep(int(SLEEP))
+                        sleep(int(SLEEP))
+
+                except Exception as ex:
+                    print(ex)
 
         except KeyboardInterrupt:
             break

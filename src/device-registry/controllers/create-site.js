@@ -62,7 +62,7 @@ const manageSite = {
       }
 
       if (responseFromCreateSite.success === false) {
-        let error = responseFromCreateSite.error
+        let errors = responseFromCreateSite.error
           ? responseFromCreateSite.error
           : "";
         let status = responseFromCreateSite.status
@@ -71,7 +71,7 @@ const manageSite = {
         return res.status(status).json({
           success: false,
           message: responseFromCreateSite.message,
-          error,
+          errors,
         });
       }
     } catch (error) {

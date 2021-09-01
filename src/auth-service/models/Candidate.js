@@ -37,6 +37,7 @@ const CandidateSchema = new mongoose.Schema({
   },
   status: {
     type: String,
+    default: "pending",
   },
 });
 
@@ -164,6 +165,7 @@ CandidateSchema.methods = {
       organization: this.organization,
       jobTitle: this.jobTitle,
       website: this.website,
+      status: this.status,
     };
   },
 };
