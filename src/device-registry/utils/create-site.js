@@ -15,7 +15,7 @@ const log4js = require("log4js");
 const { request } = require("express");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
-const{ distanceBtnTwoPoints } = require('./distance');
+const { distanceBtnTwoPoints } = require("./distance");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -854,21 +854,54 @@ const manageSite = {
     }
   },
 
-  findNearestSitesByCoordinates: (sites, radius, latitude, longitude ) => {
-    let nearest_sites = []
-    sites.forEach(site => {
-      if ('latitude' in site && 'longitude' in site) {
-        distance = distanceBtnTwoPoints(latitude, longitude, site['latitude'], site['longitude']);
-
-          if (distance < radius) {
-            site['distance'] = distance;
-            nearest_sites.push(site);
-          }
-        }
+  findNearestSitesByCoordinates: async (request) => {
+    try {
+      let { radius, latitude, longitude, tenant } = request;
+      const responseFromListSites = await manageSite.list({
+        tenant,
       });
-      return nearest_sites;
-  },
 
+      if (responseFromListSites.success === true) {
+        let sites = responseFromListSites.data;
+        let nearest_sites = [];
+        sites.forEach((site) => {
+          if ("latitude" in site && "longitude" in site) {
+            let distance = distanceBtnTwoPoints(
+              latitude,
+              longitude,
+              site["latitude"],
+              site["longitude"]
+            );
+
+            if (distance < radius) {
+              site["distance"] = distance;
+              nearest_sites.push(site);
+            }
+          }
+        });
+        return {
+          success: true,
+          data: nearest_sites,
+          message: "successfully retrieved the nearest sites",
+          status: HTTPStatus.OK,
+        };
+      }
+      if (responseFromListSites.success === false) {
+        return {
+          success: false,
+          error: responseFromListSites.error,
+          message: responseFromListSites.message,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "internal server error",
+        error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
 };
 
 module.exports = manageSite;

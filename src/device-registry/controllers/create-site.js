@@ -264,49 +264,48 @@ const manageSite = {
 
   findNearestSite: async (req, res) => {
     try {
-    } catch (e) {
-      logElement("server error", e.message);
-    }
-  },
-
-  findNearestSiteByCoordinates: async (req, res) => {
-    try {
       const { tenant, latitude, longitude, radius } = req.query;
       logText("list all sites by coordinates...");
-      try {
-        if (!(tenant && latitude && longitude && radius)) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: "missing query params, please check documentation",
-          });
-        }
 
-        logElement("latitude ", latitude);
-        logElement("longitude ", longitude);
-
-        const responseFromListSites = await createSiteUtil.list({
-          tenant
+      if (!(tenant && latitude && longitude && radius)) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
         });
+      }
 
-        if (responseFromListSites.success === true) {
-          const nearest_sites = createSiteUtil.findNearestSitesByCoordinates(
-            responseFromListSites.data,
-            radius,
-            latitude,
-            longitude
-          );
-  
-          return res.status(HTTPStatus.OK).json({
-            sites: nearest_sites,
-            success: true
-          });
+      logElement("latitude ", latitude);
+      logElement("longitude ", longitude);
 
-        }
-      } catch (e) {
-        return res.status(HTTPStatus.BAD_REQUEST).json(e);
+      let request = {};
+      request["radius"] = radius;
+      request["latitude"] = latitude;
+      request["longitude"] = longitude;
+      request["tenant"] = tenant;
+      const responseFromFindNearestSite = await createSiteUtil.findNearestSitesByCoordinates(
+        request
+      );
+
+      logObject("responseFromFindNearestSite", responseFromFindNearestSite);
+      if (responseFromFindNearestSite.success === true) {
+        let nearestSites = responseFromFindNearestSite.data;
+
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromFindNearestSite.message,
+          sites: nearestSites,
+        });
+      }
+
+      if (responseFromFindNearestSite.success === false) {
+        return {
+          success: false,
+          message: responseFromFindNearestSite.message,
+        };
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      logElement("server error", e.message);
+      tryCatchErrors(res, e, "create site controller");
     }
   },
 

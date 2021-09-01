@@ -941,7 +941,7 @@ router.get(
 /**** delete photos */
 router.delete("/photos", photoController.deletePhotos);
 
-/****************** create-site use-case *************************/
+/****************** create activities use-case *************************/
 router.post(
   "/activities/recall",
   oneOf([
@@ -1137,6 +1137,8 @@ router.post(
   imageUpload.array("image"),
   photoController.uploadManyPhotosOnCloudinary
 );
+
+/****************************** create sites usecase *************** */
 router.get(
   "/sites",
   oneOf([
@@ -1360,8 +1362,7 @@ router.delete(
   ]),
   siteController.delete
 );
-router.post("/sites/nearest", siteController.findNearestSite);
-router.post("/sites/nearestSiteByCoordinates", siteController.findNearestSiteByCoordinates);
+router.get("/sites/nearest", siteController.findNearestSite);
 
 /******************* create-component use-case **************************/
 router.get("/list/components/", componentController.listAll);
