@@ -264,8 +264,48 @@ const manageSite = {
 
   findNearestSite: async (req, res) => {
     try {
+      const { tenant, latitude, longitude, radius } = req.query;
+      logText("list all sites by coordinates...");
+
+      if (!(tenant && latitude && longitude && radius)) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          success: false,
+          message: "missing query params, please check documentation",
+        });
+      }
+
+      logElement("latitude ", latitude);
+      logElement("longitude ", longitude);
+
+      let request = {};
+      request["radius"] = radius;
+      request["latitude"] = latitude;
+      request["longitude"] = longitude;
+      request["tenant"] = tenant;
+      const responseFromFindNearestSite = await createSiteUtil.findNearestSitesByCoordinates(
+        request
+      );
+
+      logObject("responseFromFindNearestSite", responseFromFindNearestSite);
+      if (responseFromFindNearestSite.success === true) {
+        let nearestSites = responseFromFindNearestSite.data;
+
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          message: responseFromFindNearestSite.message,
+          sites: nearestSites,
+        });
+      }
+
+      if (responseFromFindNearestSite.success === false) {
+        return {
+          success: false,
+          message: responseFromFindNearestSite.message,
+        };
+      }
     } catch (e) {
       logElement("server error", e.message);
+      tryCatchErrors(res, e, "create site controller");
     }
   },
 

@@ -95,13 +95,6 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body("visibility")
-        .exists()
-        .withMessage("visibility should be provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("visibility must be Boolean"),
       body("device_number")
         .if(body("device_number").exists())
         .notEmpty()
@@ -536,7 +529,6 @@ router.put(
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
-        .notEmpty()
         .trim(),
       body("product_name")
         .if(body("product_name").exists())
@@ -949,7 +941,7 @@ router.get(
 /**** delete photos */
 router.delete("/photos", photoController.deletePhotos);
 
-/****************** create-site use-case *************************/
+/****************** create activities use-case *************************/
 router.post(
   "/activities/recall",
   oneOf([
@@ -1125,16 +1117,6 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
-      body("maintenanceType")
-        .exists()
-        .withMessage("the maintenanceType is is missing in your request")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["preventive", "corrective"])
-        .withMessage(
-          "the mountType value is not among the expected ones which include: corrective and preventive"
-        ),
       body("date")
         .exists()
         .withMessage("date is missing")
@@ -1155,6 +1137,8 @@ router.post(
   imageUpload.array("image"),
   photoController.uploadManyPhotosOnCloudinary
 );
+
+/****************************** create sites usecase *************** */
 router.get(
   "/sites",
   oneOf([
@@ -1378,7 +1362,7 @@ router.delete(
   ]),
   siteController.delete
 );
-router.post("/sites/nearest", siteController.findNearestSite);
+router.get("/sites/nearest", siteController.findNearestSite);
 
 /******************* create-component use-case **************************/
 router.get("/list/components/", componentController.listAll);

@@ -56,8 +56,8 @@ const deviceSchema = new mongoose.Schema(
     },
     visibility: {
       type: Boolean,
-      require: [true, "visibility is required"],
       trim: true,
+      default: false,
     },
     createdAt: {
       type: Date,
