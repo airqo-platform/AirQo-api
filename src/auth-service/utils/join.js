@@ -156,15 +156,17 @@ const join = {
     }
   },
 
-  create: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    privilege
-  ) => {
+  create: async (request) => {
     try {
+      let {
+        tenant,
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        privilege,
+      } = request;
       let response = {};
       logText("...........create user util...................");
       let responseFromGeneratePassword = generatePassword();
@@ -176,6 +178,7 @@ const join = {
           lastName,
           email,
           organization,
+          long_organization,
           privilege,
           userName: email,
           password,

@@ -171,7 +171,14 @@ const join = {
       }
       const { errors, isValid } = validations.register(req.body);
       const { tenant } = req.query;
-      const { firstName, lastName, email, organization, privilege } = req.body;
+      const {
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        privilege,
+      } = req.body;
 
       if (!isValid) {
         return res
@@ -179,14 +186,16 @@ const join = {
           .json({ success: false, errors, message: "validation error" });
       }
 
-      let responseFromCreateUser = await joinUtil.create(
-        tenant.toLowerCase(),
-        firstName,
-        lastName,
-        email,
-        organization,
-        privilege
-      );
+      let request = {};
+      request["tenant"] = tenant.toLowerCase();
+      request["firstName"] = firstName;
+      request["lastName"] = lastName;
+      request["email"] = email;
+      request["organization"] = organization;
+      request["long_organization"] = long_organization;
+      request["privilege"] = privilege;
+
+      let responseFromCreateUser = await joinUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
         return res.status(HTTPStatus.OK).json({
