@@ -26,6 +26,9 @@ spec:
             - name: prod-device-uptime-job
               image: us.gcr.io/airqo-250220/airqo-device-uptime-job:latest
               imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: env-device-uptime-production
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
