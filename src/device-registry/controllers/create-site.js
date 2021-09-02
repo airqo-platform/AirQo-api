@@ -91,9 +91,7 @@ const manageSite = {
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
-        tenant,
         req
       );
       logObject(

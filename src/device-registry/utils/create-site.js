@@ -182,7 +182,6 @@ const manageSite = {
       }
 
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
-        tenant,
         request
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
@@ -301,7 +300,7 @@ const manageSite = {
     }
   },
 
-  generateMetadata: async (tenant, req) => {
+  generateMetadata: async (req) => {
     try {
       let { latitude, longitude } = req.body;
       let body = req.body;
@@ -459,7 +458,6 @@ const manageSite = {
       }
 
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
-        tenant,
         request
       );
 

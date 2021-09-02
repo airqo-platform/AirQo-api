@@ -1207,14 +1207,6 @@ router.post(
   "/sites/metadata",
   oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
       body("latitude")
         .exists()
         .withMessage("the latitude should be provided")
@@ -1284,6 +1276,208 @@ router.put(
       )
       .bail()
       .trim(),
+  ]),
+  oneOf([
+    [
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["active", "decommissioned"])
+        .withMessage(
+          "the status value is not among the expected ones which include: decommissioned, active"
+        ),
+      body("nearest_tahmo_station")
+        .if(body("nearest_tahmo_station").exists())
+        .notEmpty()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .bail()
+        .withMessage("the nearest_tahmo_station should be an object"),
+      body("createdAt")
+        .if(body("createdAt").exists())
+        .notEmpty()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("createdAt date must be a valid datetime."),
+      body("airqloud_id")
+        .if(body("airqloud_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("distance_to_nearest_road")
+        .if(body("distance_to_nearest_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_primary_road")
+        .if(body("distance_to_nearest_primary_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_primary_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_secondary_road")
+        .if(body("distance_to_nearest_secondary_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_secondary_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_tertiary_road")
+        .if(body("distance_to_nearest_tertiary_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_tertiary_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_unclassified_road")
+        .if(body("distance_to_nearest_unclassified_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_unclassified_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_residential_road")
+        .if(body("distance_to_nearest_residential_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_residential_road must be a number")
+        .bail()
+        .toFloat(),
+      body("bearing_to_kampala_center")
+        .if(body("bearing_to_kampala_center").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("bearing_to_kampala_center must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_kampala_center")
+        .if(body("distance_to_kampala_center").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_kampala_center must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_residential_road")
+        .if(body("distance_to_nearest_residential_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_residential_road must be a number")
+        .bail()
+        .toFloat(),
+      body(" distance_to_nearest_city")
+        .if(body(" distance_to_nearest_city").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage(" distance_to_nearest_city must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_motorway")
+        .if(body("distance_to_nearest_motorway").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_motorway must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_road")
+        .if(body("distance_to_nearest_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_road must be a number")
+        .bail()
+        .toFloat(),
+      body("landform_270")
+        .if(body("landform_270").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("landform_270 must be a number")
+        .bail()
+        .toFloat(),
+      body("landform_90")
+        .if(body("landform_90").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("landform_90 must be a number")
+        .bail()
+        .toFloat(),
+      body("greenness")
+        .if(body("greenness").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("greenness must be a number")
+        .bail()
+        .toFloat(),
+      body("altitude")
+        .if(body("altitude").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("altitude must be a number")
+        .bail()
+        .toFloat(),
+      body("city")
+        .if(body("city").exists())
+        .notEmpty()
+        .trim(),
+      body("street")
+        .if(body("street").exists())
+        .notEmpty()
+        .trim(),
+      body("latitude")
+        .if(body("latitude").exists())
+        .notEmpty()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+      body("longitude")
+        .if(body("longitude").exists())
+        .notEmpty()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+    ],
   ]),
   siteController.update
 );
