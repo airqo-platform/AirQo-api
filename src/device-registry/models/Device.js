@@ -279,6 +279,7 @@ deviceSchema.statics = {
         data: createdDevice,
       };
     } catch (error) {
+      logObject("the error", error);
       logger.error(`Device model server error -- ${error.message}`);
       return {
         success: false,
