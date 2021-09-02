@@ -186,8 +186,8 @@ airqloudSchema.statics = {
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-      if (modifiedUpdateBody.generated_name) {
-        delete modifiedUpdateBody.generated_name;
+      if (modifiedUpdateBody.name) {
+        delete modifiedUpdateBody.name;
       }
       let udpatedUser = await this.findOneAndUpdate(
         filter,
