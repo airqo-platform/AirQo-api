@@ -9,7 +9,22 @@ metadata:
     nginx.ingress.kubernetes.io/use-regex: "true"
     nginx.org/location-snippets: |
       auth_request /auth;
+      error_page 404 = @page_not_found;
+      error_page 403 = @unauthorized;
+      error_page 401 = @access_denied;
     nginx.org/server-snippets: |
+      location @page_not_found {
+       return 404 '{"error": "Page Not Found"}';
+      }
+
+      location @unauthorized {
+       return 403 '{"error": "Unauthorized"}';
+      }
+
+      location @access_denied {
+       return 401 '{"error": "Access Denied"}';
+      }
+
       location = /auth {
         if ($request_uri = "/") {
             return 200;
