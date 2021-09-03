@@ -198,24 +198,30 @@ const join = {
       let responseFromCreateUser = await joinUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
       if (responseFromCreateUser.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromCreateUser.message,
           user: responseFromCreateUser.data,
         });
-      } else if (responseFromCreateUser.success === false) {
-        if (responseFromCreateUser.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromCreateUser.message,
-            error: responseFromCreateUser.error,
-          });
-        } else {
-          return res.status(HTTPStatus).json({
-            success: false,
-            message: responseFromCreateUser.message,
-          });
-        }
+      }
+
+      if (responseFromCreateUser.success === false) {
+        let status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        let error = responseFromCreateUser.error
+          ? responseFromCreateUser.error
+          : "";
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateUser.message,
+          errors: error,
+        });
       }
     } catch (error) {
       tryCatchErrors(res, error, "join controller");

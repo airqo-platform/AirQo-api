@@ -8,6 +8,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
 
 const UserModel = (tenant) => {
   try {
@@ -171,7 +172,7 @@ const join = {
       logText("...........create user util...................");
       let responseFromGeneratePassword = generatePassword();
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-      if (responseFromGeneratePassword.success == true) {
+      if (responseFromGeneratePassword.success === true) {
         let password = responseFromGeneratePassword.data;
         let requestBody = {
           firstName,
@@ -188,12 +189,11 @@ const join = {
           requestBody
         );
         logObject("responseFromCreateUser", responseFromCreateUser);
-        let createdUser = await responseFromCreateUser.data;
-        let jsonifyCreatedUser = jsonify(createdUser);
 
-        logObject("created user in util", jsonifyCreatedUser);
-
-        if (responseFromCreateUser.success == true) {
+        if (responseFromCreateUser.success === true) {
+          let createdUser = await responseFromCreateUser.data;
+          let jsonifyCreatedUser = jsonify(createdUser);
+          logObject("created user in util", jsonifyCreatedUser);
           let responseFromSendEmail = await mailer.user(
             firstName,
             lastName,
@@ -203,64 +203,70 @@ const join = {
             "user"
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success == true) {
+          if (responseFromSendEmail.success === true) {
             return {
               success: true,
               message: "user successfully created",
               data: jsonifyCreatedUser,
             };
-          } else if (responseFromSendEmail.success == false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-                error: responseFromSendEmail.error,
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
+          }
+
+          if (responseFromSendEmail.success === false) {
+            let status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+            let error = responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : "";
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+              error,
+              status,
+            };
           }
         }
 
-        if (responseFromCreateUser.success == false) {
-          if (responseFromCreateUser.error) {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-              error: responseFromCreateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-            };
-          }
+        if (responseFromCreateUser.success === false) {
+          let error = responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : "";
+          let status = responseFromCreateUser.status
+            ? responseFromCreateUser.status
+            : "";
+          logElement("the error from the model", error);
+          return {
+            success: false,
+            message: responseFromCreateUser.message,
+            error,
+            status,
+          };
         }
       }
 
-      if (responseFromGeneratePassword.success == false) {
-        if (responseFromGeneratePassword.error) {
-          return {
-            success: false,
-            message: responseFromGeneratePassword.message,
-            error: responseFromGeneratePassword.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGeneratePassword.message,
-          };
-        }
+      if (responseFromGeneratePassword.success === false) {
+        let error = responseFromGeneratePassword.error
+          ? responseFromGeneratePassword.error
+          : "";
+        let status = responseFromGeneratePassword.status
+          ? responseFromGeneratePassword.status
+          : "";
+        logElement("error when password generation fails", error);
+        return {
+          success: false,
+          message: responseFromGeneratePassword.message,
+          error,
+          status,
+        };
       }
     } catch (e) {
       logElement("create users util", e.message);
+      logObject("create user util error", e);
       return {
         success: false,
         message: "util server error",
         error: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

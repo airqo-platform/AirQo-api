@@ -11,6 +11,7 @@ const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
 const { log } = require("debug");
 const saltRounds = constants.SALT_ROUNDS;
+const HTTPStatus = require("http-status");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -140,7 +141,7 @@ UserSchema.index({ userName: 1 }, { unique: true });
 UserSchema.statics = {
   async register(args) {
     try {
-      data = this.create({
+      data = await this.create({
         ...args,
       });
       if (data) {
@@ -155,15 +156,22 @@ UserSchema.statics = {
         data,
         message: "operation successful but user NOT successfully created",
       };
-    } catch (error) {
-      logObject("the error", error);
-      if (error.code == 11000) {
-        return {
-          error: error.keyValue,
-          message: "duplicate value",
-          success: false,
-        };
-      }
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(e.keyValue).forEach(([key, value]) => {
+        return (response[key] = `the ${key} must be unique`);
+      });
+      logObject("the response", response);
+      return {
+        error: response,
+        message,
+        success: false,
+        status,
+      };
     }
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
