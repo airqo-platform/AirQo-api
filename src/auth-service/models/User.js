@@ -88,6 +88,7 @@ const UserSchema = new Schema({
     type: String,
   },
   website: { type: String },
+  description: { type: String },
   category: {
     type: String,
   },
