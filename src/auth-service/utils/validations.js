@@ -94,7 +94,6 @@ const validation = {
   register: (data) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions
-    data.userName = !isEmpty(data.userName) ? data.userName : "";
     data.firstName = !isEmpty(data.firstName) ? data.firstName : "";
     data.lastName = !isEmpty(data.lastName) ? data.lastName : "";
     data.email = !isEmpty(data.email) ? data.email : "";
@@ -125,12 +124,6 @@ const validation = {
 
     if (Validator.isEmpty(data.long_organization)) {
       errors.long_organization = "long_organization name is required";
-    }
-
-    //userName checks
-    if (Validator.isEmpty(data.userName || data.email)) {
-      errors.userName = "userName field is required";
-      errors.email = "userName field is required";
     }
 
     // Email checks
