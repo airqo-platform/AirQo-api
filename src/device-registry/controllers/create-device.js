@@ -114,18 +114,24 @@ const device = {
       logger.info(
         `responseFromGenerateQRCode -- ${responseFromGenerateQRCode}`
       );
-      if (responseFromGenerateQRCode.success) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromGenerateQRCode.success === true) {
+        let status = responseFromGenerateQRCode.status
+          ? responseFromGenerateQRCode.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromGenerateQRCode.message,
           data: responseFromGenerateQRCode.data,
         });
       }
-      if (!responseFromGenerateQRCode.success) {
+      if (responseFromGenerateQRCode.success === false) {
         let error = responseFromGenerateQRCode.error
           ? responseFromGenerateQRCode.error
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        let status = responseFromGenerateQRCode.status
+          ? responseFromGenerateQRCode.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
           message: responseFromGenerateQRCode.message,
           error,
@@ -133,7 +139,7 @@ const device = {
       }
     } catch (err) {
       logger.error(`server side error -- ${err.message}`);
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "unable to generate the QR code --server side error",
         error: err.message,
@@ -374,14 +380,21 @@ const device = {
         let errors = responseFromUpdateDeviceOnPlatform.errors
           ? responseFromUpdateDeviceOnPlatform.errors
           : "";
-        return res.status(HTTPStatus.NOT_MODIFIED).json({
+        let status = responseFromUpdateDeviceOnPlatform.status
+          ? responseFromUpdateDeviceOnPlatform.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           message: responseFromUpdateDeviceOnPlatform.message,
           success: false,
           errors,
         });
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
     }
   },
 
@@ -419,7 +432,10 @@ const device = {
       );
 
       if (responseFromRemoveDevice.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveDevice.message,
           deleted_device: responseFromRemoveDevice.data,
@@ -431,7 +447,11 @@ const device = {
           ? responseFromRemoveDevice.error
           : "";
 
-        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        let status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
           success: false,
           message: responseFromRemoveDevice.message,
           error,
