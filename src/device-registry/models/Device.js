@@ -374,7 +374,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "unable to retrieve devices",
-        error: error.message,
+        errors: error.message,
       };
     }
   },
@@ -426,7 +426,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "Device model server error - modify",
-        error: error.message,
+        errors: error.message,
       };
     }
   },

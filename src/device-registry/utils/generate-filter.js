@@ -548,7 +548,7 @@ const generateFilter = {
       return {
         success: false,
         message: "server error - generate device filter",
-        error: error.message,
+        errors: error.message,
       };
     }
   },

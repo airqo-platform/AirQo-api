@@ -67,21 +67,21 @@ const device = {
       }
 
       if (responseFromCreateDevice.success === false) {
-        let error = responseFromCreateDevice.error
-          ? responseFromCreateDevice.error
+        let errors = responseFromCreateDevice.errors
+          ? responseFromCreateDevice.errors
           : "";
 
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromCreateDevice.message,
-          error,
+          errors,
         });
       }
     } catch (e) {
       logger.error(`server error in the create controller -- ${e.message}`);
       return res.status(HTTPStatus.BAD_GATEWAY).json({
         message: "server error in the create controller",
-        error: e.message,
+        errors: e.message,
       });
     }
   },
@@ -237,13 +237,13 @@ const device = {
         });
       }
       if (responseFromUpdateDevice.success === false) {
-        let error = responseFromUpdateDevice.error
-          ? responseFromUpdateDevice.error
+        let errors = responseFromUpdateDevice.error
+          ? responseFromUpdateDevice.errors
           : "";
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           message: responseFromUpdateDevice.message,
           success: false,
-          error,
+          errors,
         });
       }
     } catch (e) {
@@ -280,13 +280,13 @@ const device = {
       }
 
       if (responseFromListDeviceDetails.success === false) {
-        let error = responseFromListDeviceDetails.error
+        let errors = responseFromListDeviceDetails.errors
           ? responseFromListDeviceDetails
           : "";
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromListDeviceDetails.message,
-          error: responseFromListDeviceDetails.error,
+          errors,
         });
       }
     } catch (e) {
@@ -371,13 +371,13 @@ const device = {
       }
 
       if (responseFromUpdateDeviceOnPlatform.success === false) {
-        let error = responseFromUpdateDeviceOnPlatform.error
-          ? responseFromUpdateDeviceOnPlatform.error
+        let errors = responseFromUpdateDeviceOnPlatform.errors
+          ? responseFromUpdateDeviceOnPlatform.errors
           : "";
         return res.status(HTTPStatus.NOT_MODIFIED).json({
           message: responseFromUpdateDeviceOnPlatform.message,
           success: false,
-          error,
+          errors,
         });
       }
     } catch (e) {

@@ -46,13 +46,13 @@ const registerDeviceUtil = {
       }
 
       if (!responseFromListDevice.success) {
-        let error = responseFromListDevice.error
-          ? responseFromListDevice.error
+        let errors = responseFromListDevice.errors
+          ? responseFromListDevice.errors
           : "";
         return {
           success: false,
           message: responseFromListDevice.message,
-          error,
+          errors,
         };
       }
     } catch (err) {
@@ -60,7 +60,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "unable to generate the QR code --server side error",
-        error: err.message,
+        errors: err.message,
       };
     }
   },
@@ -137,7 +137,7 @@ const registerDeviceUtil = {
               ? responseFromCreateDeviceOnPlatform.errors
               : "";
             logger.error(
-              `creation operation failed -- successfully undid the successfull operations -- ${error}`
+              `creation operation failed -- successfully undid the successfull operations -- ${errors}`
             );
             return {
               success: false,
@@ -148,33 +148,33 @@ const registerDeviceUtil = {
           }
 
           if (responseFromDeleteDeviceFromThingspeak.success === false) {
-            let error = responseFromDeleteDeviceFromThingspeak.error
-              ? responseFromDeleteDeviceFromThingspeak.error
+            let errors = responseFromDeleteDeviceFromThingspeak.errors
+              ? responseFromDeleteDeviceFromThingspeak.errors
               : "";
             logger.error(
-              `creation operation failed -- also failed to undo the successfull operations --${error}`
+              `creation operation failed -- also failed to undo the successfull operations --${errors}`
             );
             return {
               success: false,
               message:
                 "creation operation failed -- also failed to undo the successfull operations",
-              error,
+              errors,
             };
           }
         }
       }
 
       if (isEmpty(enrichmentDataForDeviceCreation)) {
-        let error = responseFromCreateOnThingspeak.error
-          ? responseFromCreateOnThingspeak.error
+        let errors = responseFromCreateOnThingspeak.errors
+          ? responseFromCreateOnThingspeak.errors
           : "";
         logger.error(
-          `unable to generate enrichment data for the device -- ${error}`
+          `unable to generate enrichment data for the device -- ${errors}`
         );
         return {
           success: false,
           message: "unable to generate enrichment data for the device",
-          error,
+          errors,
         };
       }
     } catch (error) {
@@ -182,7 +182,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "server error",
-        error: error.message,
+        errors: error.message,
       };
     }
   },
@@ -198,13 +198,13 @@ const registerDeviceUtil = {
           `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
         );
         if (responseFromListDevice.success === false) {
-          let error = responseFromListDevice.error
-            ? responseFromListDevice.error
+          let errors = responseFromListDevice.errors
+            ? responseFromListDevice.errors
             : "";
           return {
             success: false,
             message: responseFromListDevice.message,
-            error,
+            errors,
           };
         }
         let device_number = responseFromListDevice.data[0].device_number;
@@ -238,25 +238,25 @@ const registerDeviceUtil = {
           };
         }
         if (responseFromUpdateDeviceOnPlatform.success === false) {
-          let error = responseFromUpdateDeviceOnPlatform.error
-            ? responseFromUpdateDeviceOnPlatform.error
+          let errors = responseFromUpdateDeviceOnPlatform.errors
+            ? responseFromUpdateDeviceOnPlatform.errors
             : "";
           return {
             success: false,
             message: responseFromUpdateDeviceOnPlatform.message,
-            error,
+            errors,
           };
         }
       }
 
       if (responseFromUpdateDeviceOnThingspeak.success === false) {
-        let error = responseFromUpdateDeviceOnThingspeak.error
-          ? responseFromUpdateDeviceOnThingspeak.error
+        let errors = responseFromUpdateDeviceOnThingspeak.errors
+          ? responseFromUpdateDeviceOnThingspeak.errors
           : "";
         return {
           success: false,
           message: responseFromUpdateDeviceOnThingspeak.message,
-          error,
+          errors,
         };
       }
     } catch (e) {
@@ -264,7 +264,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "",
-        error: e.message,
+        errors: e.message,
       };
     }
   },
@@ -284,13 +284,13 @@ const registerDeviceUtil = {
           `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
         );
         if (!responseFromListDevice.success) {
-          let error = responseFromListDevice.error
-            ? responseFromListDevice.error
+          let errors = responseFromListDevice.errors
+            ? responseFromListDevice.errors
             : "";
           return {
             success: false,
             message: responseFromListDevice.message,
-            error,
+            errors,
           };
         }
         let device_number = responseFromListDevice.data[0].device_number;
@@ -320,7 +320,7 @@ const registerDeviceUtil = {
           )}`
         );
 
-        if (responseFromDeleteDeviceOnPlatform.success) {
+        if (responseFromDeleteDeviceOnPlatform.success === true) {
           return {
             success: true,
             message: responseFromDeleteDeviceOnPlatform.message,
@@ -328,21 +328,21 @@ const registerDeviceUtil = {
           };
         }
 
-        if (!responseFromDeleteDeviceOnPlatform.success) {
-          let error = responseFromDeleteDeviceOnPlatform.error
-            ? responseFromDeleteDeviceOnPlatform.error
+        if (responseFromDeleteDeviceOnPlatform.success === false) {
+          let errors = responseFromDeleteDeviceOnPlatform.errors
+            ? responseFromDeleteDeviceOnPlatform.errors
             : "";
           return {
             success: false,
             message: responseFromDeleteDeviceOnPlatform.message,
-            error,
+            errors,
           };
         }
       }
 
-      if (!responseFromDeleteDeviceFromThingspeak.success) {
-        let error = responseFromDeleteDeviceFromThingspeak.error
-          ? responseFromDeleteDeviceFromThingspeak.error
+      if (responseFromDeleteDeviceFromThingspeak.success === false) {
+        let errors = responseFromDeleteDeviceFromThingspeak.errors
+          ? responseFromDeleteDeviceFromThingspeak.errors
           : "";
         let status = parseInt(
           `${
@@ -354,7 +354,7 @@ const registerDeviceUtil = {
         return {
           success: false,
           message: responseFromDeleteDeviceFromThingspeak.message,
-          error,
+          errors,
           status,
         };
       }
@@ -363,7 +363,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "server error --delete -- create-device util",
-        error: e.message,
+        errors: e.message,
       };
     }
   },
@@ -383,12 +383,12 @@ const registerDeviceUtil = {
       }
 
       if (responseFromFilter.success === false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
-        logger.error(`the error from filter in list -- ${error}`);
+        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        logger.error(`the error from filter in list -- ${errors}`);
         return {
           success: false,
           message: responseFromFilter.message,
-          error,
+          errors,
         };
       }
 
@@ -409,26 +409,34 @@ const registerDeviceUtil = {
       );
 
       if (responseFromListDevice.success === false) {
-        let error = responseFromListDevice.error
-          ? responseFromListDevice.error
+        let errors = responseFromListDevice.errors
+          ? responseFromListDevice.errors
+          : "";
+        let status = responseFromListDevice.status
+          ? responseFromListDevice.status
           : "";
         logger.error(
-          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${error}`
+          `responseFromListDevice was not a success -- ${responseFromListDevice.message} -- ${errors}`
         );
         return {
           success: false,
           message: responseFromListDevice.message,
-          error,
+          errors,
+          status,
         };
       }
 
       if (responseFromListDevice.success === true) {
         let data = responseFromListDevice.data;
+        let status = responseFromListDevice.status
+          ? responseFromListDevice.status
+          : "";
         logger.info(`responseFromListDevice was a success -- ${data}`);
         return {
           success: true,
           message: responseFromListDevice.message,
           data,
+          status,
         };
       }
     } catch (e) {
@@ -436,7 +444,8 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "list devices util - server error",
-        error: e.message,
+        errors: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -564,10 +573,12 @@ const registerDeviceUtil = {
       };
     } catch (error) {
       logger.error(` createOnThingSpeak -- ${error.message}`);
-      utillErrors.tryCatchErrors(
-        error,
-        "server error - createOnThingSpeak util"
-      );
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: error.message,
+      };
     }
   },
 
@@ -636,7 +647,7 @@ const registerDeviceUtil = {
     return {
       success: false,
       message: "coming soon...",
-      error: "not yet integrated with the clarity system",
+      errors: "not yet integrated with the clarity system",
     };
   },
   updateOnPlatform: async (request) => {
@@ -658,14 +669,14 @@ const registerDeviceUtil = {
       }
 
       if (responseFromFilter.success === false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
+        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         logger.error(
-          `responseFromFilter.error in create-device util--${responseFromFilter.error}`
+          `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
         );
         return {
           success: false,
           message: responseFromFilter.message,
-          error,
+          errors,
         };
       }
       let responseFromModifyDevice = await getModelByTenant(
@@ -683,13 +694,13 @@ const registerDeviceUtil = {
       }
 
       if (responseFromModifyDevice.success === false) {
-        let error = responseFromModifyDevice.error
-          ? responseFromModifyDevice.error
+        let errors = responseFromModifyDevice.errors
+          ? responseFromModifyDevice.errors
           : "";
         return {
           success: false,
           message: responseFromModifyDevice.message,
-          error,
+          errors,
         };
       }
     } catch (error) {
@@ -708,11 +719,11 @@ const registerDeviceUtil = {
           logger.error(`error.response.status -- ${e.response.status}`);
           logger.error(`error.response.headers -- ${e.response.headers}`);
           if (e.response) {
-            let error = e.response.data.error;
+            let errors = e.response.data.error;
             let status = e.response.data.status;
             return {
               success: false,
-              error,
+              errors,
               status,
               message:
                 "device does not exist on external system, consider SOFT delete",
@@ -725,7 +736,7 @@ const registerDeviceUtil = {
         return {
           success: false,
           message: `${response.message}`,
-          error: `${response.error}`,
+          errors: `${response.error}`,
           status: `${response.status}`,
         };
       }
@@ -760,14 +771,14 @@ const registerDeviceUtil = {
       }
 
       if (responseFromFilter.success == false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
+        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         logger.error(
-          `responseFromFilter.error in create-device util--${responseFromFilter.error}`
+          `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
         );
         return {
           success: false,
           message: responseFromFilter.message,
-          error,
+          errors,
         };
       }
       let responseFromRemoveDevice = await getModelByTenant(
@@ -788,13 +799,13 @@ const registerDeviceUtil = {
       }
 
       if (responseFromRemoveDevice.success == false) {
-        let error = responseFromRemoveDevice.error
-          ? responseFromRemoveDevice.error
+        let errors = responseFromRemoveDevice.errors
+          ? responseFromRemoveDevice.errors
           : "";
         return {
           success: false,
           message: responseFromRemoveDevice.message,
-          error,
+          errors,
         };
       }
     } catch (error) {
@@ -806,7 +817,7 @@ const registerDeviceUtil = {
     return {
       success: false,
       message: "coming soon",
-      error: "not yet integrated with the clarity system",
+      errors: "not yet integrated with the clarity system",
     };
   },
 
@@ -828,7 +839,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "unable to decrypt the key",
-        error: err.message,
+        errors: err.message,
       };
     }
   },
@@ -857,7 +868,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "server error - trasform util",
-        error: error.message,
+        errors: error.message,
       };
     }
   },
