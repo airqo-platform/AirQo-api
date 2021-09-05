@@ -19,21 +19,40 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const device = {
   decryptKey: async (req, res) => {
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(
+        res,
+        "bad request errors",
+        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+      );
+    }
+
     let { encrypted_key } = req.body;
     let responseFromDecryptKey = await registerDeviceUtil.decryptKey(
       encrypted_key
     );
-    if (responseFromDecryptKey.success) {
-      return res.status(HTTPStatus.OK).json({
+    logObject("responseFromDecryptKey", responseFromDecryptKey);
+    if (responseFromDecryptKey.success === true) {
+      let status = responseFromDecryptKey.status
+        ? responseFromDecryptKey.status
+        : HTTPStatus.OK;
+      return res.status(status).json({
         success: true,
         message: responseFromDecryptKey.message,
         decrypted_key: responseFromDecryptKey.data,
       });
-    } else {
+    }
+
+    if (responseFromDecryptKey.success === false) {
       let error = responseFromDecryptKey.error
         ? responseFromDecryptKey.error
         : "";
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      let status = responseFromDecryptKey.status
+        ? responseFromDecryptKey.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+      return res.status(status).json({
         success: false,
         message: responseFromDecryptKey.message,
         error,
@@ -278,7 +297,10 @@ const device = {
       );
 
       if (responseFromListDeviceDetails.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromListDeviceDetails.status
+          ? responseFromListDeviceDetails.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromListDeviceDetails.message,
           devices: responseFromListDeviceDetails.data,
@@ -289,14 +311,22 @@ const device = {
         let errors = responseFromListDeviceDetails.errors
           ? responseFromListDeviceDetails
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        let status = responseFromListDeviceDetails.status
+          ? responseFromListDeviceDetails.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
           message: responseFromListDeviceDetails.message,
           errors,
         });
       }
     } catch (e) {
-      tryCatchErrors(res, e, "create device controller");
+      logger.error(`listing devices  ${e.message}`);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
     }
   },
 

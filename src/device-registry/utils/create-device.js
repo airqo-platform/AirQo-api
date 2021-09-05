@@ -868,10 +868,19 @@ const registerDeviceUtil = {
         constants.KEY_ENCRYPTION_KEY
       );
       let originalText = bytes.toString(cryptoJS.enc.Utf8);
+      let status = HTTPStatus.OK;
+      let message = "successfully decrypted the text";
+      let isKeyUnknown = isEmpty(originalText);
+      logElement("isKeyUnknown", isKeyUnknown);
+      if (isKeyUnknown) {
+        status = HTTPStatus.NOT_FOUND;
+        message = "the provided encrypted key is not recognizable";
+      }
       return {
         success: true,
-        message: "successfully decrypted the text",
+        message,
         data: originalText,
+        status,
       };
     } catch (err) {
       logObject("the err", err);
@@ -879,6 +888,7 @@ const registerDeviceUtil = {
         success: false,
         message: "unable to decrypt the key",
         errors: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
