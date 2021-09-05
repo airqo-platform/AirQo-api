@@ -317,6 +317,7 @@ deviceSchema.statics = {
           as: "site",
         })
         .sort({ createdAt: -1 })
+        .sort({ isActive: -1 })
         .project({
           _id: 1,
           name: 1,
@@ -352,6 +353,7 @@ deviceSchema.statics = {
           status: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
+
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
