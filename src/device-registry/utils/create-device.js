@@ -102,7 +102,7 @@ const registerDeviceUtil = {
           modifiedRequest
         );
 
-        if (responseFromCreateDeviceOnPlatform.success) {
+        if (responseFromCreateDeviceOnPlatform.success === true) {
           logger.info(
             `successfully create the device --  ${jsonify(
               responseFromCreateDeviceOnPlatform.data
@@ -112,10 +112,11 @@ const registerDeviceUtil = {
             success: true,
             message: responseFromCreateDeviceOnPlatform.message,
             data: responseFromCreateDeviceOnPlatform.data,
+            status: responseFromCreateDeviceOnPlatform.status,
           };
         }
 
-        if (!responseFromCreateDeviceOnPlatform.success) {
+        if (responseFromCreateDeviceOnPlatform.success === false) {
           let deleteRequest = {};
           deleteRequest["query"] = {};
           deleteRequest["query"]["device_number"] =
@@ -131,9 +132,9 @@ const registerDeviceUtil = {
             )}`
           );
 
-          if (responseFromDeleteDeviceFromThingspeak.success) {
-            let error = responseFromCreateDeviceOnPlatform.error
-              ? responseFromCreateDeviceOnPlatform.error
+          if (responseFromDeleteDeviceFromThingspeak.success === true) {
+            let errors = responseFromCreateDeviceOnPlatform.errors
+              ? responseFromCreateDeviceOnPlatform.errors
               : "";
             logger.error(
               `creation operation failed -- successfully undid the successfull operations -- ${error}`
@@ -142,11 +143,11 @@ const registerDeviceUtil = {
               success: false,
               message:
                 "creation operation failed -- successfully undid the successfull operations",
-              error,
+              errors,
             };
           }
 
-          if (!responseFromDeleteDeviceFromThingspeak.success) {
+          if (responseFromDeleteDeviceFromThingspeak.success === false) {
             let error = responseFromDeleteDeviceFromThingspeak.error
               ? responseFromDeleteDeviceFromThingspeak.error
               : "";
@@ -455,6 +456,7 @@ const registerDeviceUtil = {
 
   createOnPlatform: async (request) => {
     try {
+      logText("createOnPlatform util....");
       const { tenant } = request.query;
       const { body } = request;
 
@@ -464,34 +466,42 @@ const registerDeviceUtil = {
         DeviceSchema
       ).register(body);
 
+      logObject("responseFromRegisterDevice", responseFromRegisterDevice);
       logger.info(
         `the responseFromRegisterDevice --${jsonify(
           responseFromRegisterDevice
         )} `
       );
 
-      if (responseFromRegisterDevice.success == true) {
+      if (responseFromRegisterDevice.success === true) {
         return {
           success: true,
           data: responseFromRegisterDevice.data,
           message: responseFromRegisterDevice.message,
+          status: responseFromRegisterDevice.status,
         };
       }
 
-      if (responseFromRegisterDevice.success == false) {
-        let error = responseFromRegisterDevice.error
-          ? responseFromRegisterDevice.error
+      if (responseFromRegisterDevice.success === false) {
+        let errors = responseFromRegisterDevice.errors
+          ? responseFromRegisterDevice.errors
           : "";
 
         return {
           success: false,
           message: responseFromRegisterDevice.message,
-          error,
+          errors,
+          status: responseFromRegisterDevice.status,
         };
       }
     } catch (error) {
       logger.error("server error - createOnPlatform util");
-      utillErrors.tryCatchErrors(error, "server error - createOnPlatform util");
+      return {
+        success: false,
+        errors: error.message,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 

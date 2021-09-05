@@ -471,7 +471,10 @@ const device = {
         )}`
       );
       if (responseFromCreateOnPlatform.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromCreateOnPlatform.status
+          ? responseFromCreateOnPlatform.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromCreateOnPlatform.message,
           created_device: responseFromCreateOnPlatform.data,
@@ -479,21 +482,24 @@ const device = {
       }
 
       if (responseFromCreateOnPlatform.success === false) {
-        let error = responseFromCreateOnPlatform.error
-          ? responseFromCreateOnPlatform.error
+        let errors = responseFromCreateOnPlatform.errors
+          ? responseFromCreateOnPlatform.errors
           : "";
+        let status = responseFromCreateOnPlatform.status
+          ? responseFromCreateOnPlatform.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(status).json({
           success: false,
           message: responseFromCreateOnPlatform.message,
-          error,
+          errors,
         });
       }
     } catch (e) {
       logger.error(`server error in the create one controller -- ${e.message}`);
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "server error in the createOnPlatform controller",
-        error: e.message,
+        errors: e.message,
       });
     }
   },

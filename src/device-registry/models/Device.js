@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const jsonify = require("../utils/jsonify");
 const log4js = require("log4js");
 const logger = log4js.getLogger("device-model");
+const HTTPStatus = require("http-status");
 const maxLength = [
   15,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
@@ -270,6 +271,7 @@ deviceSchema.statics = {
           success: true,
           message: "successfully created the device",
           data: createdDevice,
+          status: HTTPStatus.CREATED,
         };
       }
       logger.warn("operation successful but device is not created");
@@ -277,14 +279,23 @@ deviceSchema.statics = {
         success: true,
         message: "operation successful but device not created",
         data: createdDevice,
+        status: HTTPStatus.OK,
       };
-    } catch (error) {
-      logObject("the error", error);
-      logger.error(`Device model server error -- ${error.message}`);
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[key] = value.message);
+      });
+
       return {
+        errors: response,
+        message,
         success: false,
-        message: "model server error",
-        error: error.message,
+        status,
       };
     }
   },
