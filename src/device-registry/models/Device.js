@@ -317,7 +317,6 @@ deviceSchema.statics = {
           as: "site",
         })
         .sort({ createdAt: -1 })
-        .sort({ isActive: -1 })
         .project({
           _id: 1,
           name: 1,
