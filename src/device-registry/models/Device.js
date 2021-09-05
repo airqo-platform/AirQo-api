@@ -363,11 +363,13 @@ deviceSchema.statics = {
           success: true,
           message: "successfully retrieved the device details",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -375,6 +377,7 @@ deviceSchema.statics = {
         success: false,
         message: "unable to retrieve devices",
         errors: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -414,11 +417,13 @@ deviceSchema.statics = {
           success: true,
           message: "successfully modified the device",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -427,6 +432,7 @@ deviceSchema.statics = {
         success: false,
         message: "Device model server error - modify",
         errors: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -442,11 +448,13 @@ deviceSchema.statics = {
           success: true,
           message: "successfully deleted device from the platform",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
@@ -454,6 +462,7 @@ deviceSchema.statics = {
         success: false,
         message: "Device model server error - remove",
         error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

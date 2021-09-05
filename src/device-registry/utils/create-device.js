@@ -37,22 +37,28 @@ const registerDeviceUtil = {
             success: true,
             message: "successfully generated the QR Code",
             data: responseFromQRCode,
+            status: HTTPStatus.OK,
           };
         }
         return {
           success: false,
           message: "unable to generate the QR code",
+          status: HTTPStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
-      if (!responseFromListDevice.success) {
+      if (responseFromListDevice.success === false) {
         let errors = responseFromListDevice.errors
           ? responseFromListDevice.errors
+          : "";
+        let status = responseFromListDevice.status
+          ? responseFromListDevice.status
           : "";
         return {
           success: false,
           message: responseFromListDevice.message,
           errors,
+          status,
         };
       }
     } catch (err) {
@@ -61,6 +67,7 @@ const registerDeviceUtil = {
         success: false,
         message: "unable to generate the QR code --server side error",
         errors: err.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -384,11 +391,13 @@ const registerDeviceUtil = {
 
       if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        let status = responseFromFilter.status ? responseFromFilter.status : "";
         logger.error(`the error from filter in list -- ${errors}`);
         return {
           success: false,
           message: responseFromFilter.message,
           errors,
+          status,
         };
       }
 
@@ -685,11 +694,17 @@ const registerDeviceUtil = {
         DeviceSchema
       ).modify({ filter, update });
 
+      logObject("responseFromModifyDevice ", responseFromModifyDevice);
+
       if (responseFromModifyDevice.success === true) {
+        let status = responseFromModifyDevice.status
+          ? responseFromModifyDevice.status
+          : "";
         return {
           success: true,
           message: responseFromModifyDevice.message,
           data: responseFromModifyDevice.data,
+          status,
         };
       }
 
@@ -697,15 +712,24 @@ const registerDeviceUtil = {
         let errors = responseFromModifyDevice.errors
           ? responseFromModifyDevice.errors
           : "";
+        let status = responseFromModifyDevice.status
+          ? responseFromModifyDevice.status
+          : "";
         return {
           success: false,
           message: responseFromModifyDevice.message,
           errors,
+          status,
         };
       }
     } catch (error) {
       logger.error(`updateOnPlatform util -- ${error.message}`);
-      utillErrors.tryCatchErrors(error, "server error - updateOnPlatform util");
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: error.message,
+      };
     }
   },
   deleteOnThingspeak: async (request) => {
@@ -765,13 +789,14 @@ const registerDeviceUtil = {
       );
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
         filter = responseFromFilter.data;
       }
 
-      if (responseFromFilter.success == false) {
+      if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        let status = responseFromFilter.status ? responseFromFilter.status : "";
         logger.error(
           `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
         );
@@ -779,6 +804,7 @@ const registerDeviceUtil = {
           success: false,
           message: responseFromFilter.message,
           errors,
+          status,
         };
       }
       let responseFromRemoveDevice = await getModelByTenant(
@@ -790,27 +816,40 @@ const registerDeviceUtil = {
       logger.info(
         `responseFromRemoveDevice --- ${jsonify(responseFromRemoveDevice)}`
       );
-      if (responseFromRemoveDevice.success == true) {
+      if (responseFromRemoveDevice.success === true) {
+        let status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
+          : "";
         return {
           success: true,
           message: responseFromRemoveDevice.message,
           data: responseFromRemoveDevice.data,
+          status,
         };
       }
 
-      if (responseFromRemoveDevice.success == false) {
+      if (responseFromRemoveDevice.success === false) {
         let errors = responseFromRemoveDevice.errors
           ? responseFromRemoveDevice.errors
+          : "";
+        let status = responseFromRemoveDevice.status
+          ? responseFromRemoveDevice.status
           : "";
         return {
           success: false,
           message: responseFromRemoveDevice.message,
           errors,
+          status,
         };
       }
     } catch (error) {
       logger.error(`updateOnPlatform util -- ${error.message}`);
-      utillErrors.badRequest("updateOnPlatform util", error.message);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
   deleteOnclarity: (request) => {
