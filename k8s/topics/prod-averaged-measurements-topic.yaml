@@ -1,13 +1,13 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: hourly-measurements-topic
+  name: airqo-hourly-measurements-topic
   namespace: production
   labels:
     strimzi.io/cluster: prod-kafka-cluster
 spec:
-  topicName: hourly-measurements-topic
+  topicName: airqo-hourly-measurements-topic
   partitions: 3
   replicas: 1
   config:
-    retention.ms: 10800000
+    retention.ms: 10800000 # 3 hours
