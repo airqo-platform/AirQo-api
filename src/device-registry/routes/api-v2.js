@@ -233,8 +233,12 @@ router.post(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
@@ -472,8 +476,12 @@ router.put(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
@@ -804,8 +812,12 @@ router.put(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
