@@ -1,5 +1,6 @@
 # Inherit from the Python Docker image
-FROM python:3.9-slim
+#FROM python:3.9-slim
+FROM python:3.7-slim
 
 # Copy the source code to app folder
 COPY . /app/
@@ -11,4 +12,4 @@ WORKDIR /app/
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 
 # Run the application
-CMD ["python", "kafka_consumer.py"]
+CMD ["python", "calibrate_measurements.py"]
