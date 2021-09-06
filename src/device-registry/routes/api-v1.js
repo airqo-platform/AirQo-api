@@ -1556,7 +1556,59 @@ router.delete(
   ]),
   siteController.delete
 );
-router.get("/sites/nearest", siteController.findNearestSite);
+router.get(
+  "/sites/nearest",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("longitude")
+        .exists()
+        .withMessage("the longitude is missing in request")
+        .bail()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      query("radius")
+        .exists()
+        .withMessage("the radius is missing in request")
+        .bail()
+        .trim()
+        .isFloat()
+        .withMessage("the radius must be a number")
+        .bail()
+        .toFloat(),
+      query("latitude")
+        .exists()
+        .withMessage("the latitude is missing in the request")
+        .bail()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+    ],
+  ]),
+  siteController.findNearestSite
+);
 
 /******************* create-component use-case **************************/
 router.get("/list/components/", componentController.listAll);

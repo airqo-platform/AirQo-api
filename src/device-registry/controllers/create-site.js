@@ -262,15 +262,17 @@ const manageSite = {
 
   findNearestSite: async (req, res) => {
     try {
-      const { tenant, latitude, longitude, radius } = req.query;
       logText("list all sites by coordinates...");
-
-      if (!(tenant && latitude && longitude && radius)) {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          message: "missing query params, please check documentation",
-        });
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
       }
+      const { tenant, latitude, longitude, radius } = req.query;
 
       logElement("latitude ", latitude);
       logElement("longitude ", longitude);
@@ -287,8 +289,11 @@ const manageSite = {
       logObject("responseFromFindNearestSite", responseFromFindNearestSite);
       if (responseFromFindNearestSite.success === true) {
         let nearestSites = responseFromFindNearestSite.data;
+        let status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : HTTPStatus.OK;
 
-        return res.status(HTTPStatus.OK).json({
+        return res.status(status).json({
           success: true,
           message: responseFromFindNearestSite.message,
           sites: nearestSites,
@@ -296,14 +301,25 @@ const manageSite = {
       }
 
       if (responseFromFindNearestSite.success === false) {
-        return {
+        let errors = responseFromFindNearestSite.errors
+          ? responseFromFindNearestSite.errors
+          : "";
+        let status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
           message: responseFromFindNearestSite.message,
-        };
+          errors,
+        });
       }
     } catch (e) {
       logElement("server error", e.message);
-      tryCatchErrors(res, e, "create site controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
     }
   },
 
