@@ -418,7 +418,7 @@ jobs:
           kubectl rollout restart deployment/airqo-gp-model-job -n production
 
     ### exceedances ###
-  gp-model:
+  exceedance:
     name: build-push-deploy-exceedances
     needs: check
     if: needs.check.outputs.run_exceedances == 'true'
