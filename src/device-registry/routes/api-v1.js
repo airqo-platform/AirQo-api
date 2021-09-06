@@ -18,6 +18,8 @@ const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
+const { logElement } = require("../utils/log");
+const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 
 middlewareConfig(router);
 
@@ -235,8 +237,12 @@ router.post(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
@@ -475,8 +481,12 @@ router.put(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
@@ -806,8 +816,12 @@ router.put(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
