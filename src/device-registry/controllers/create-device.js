@@ -78,7 +78,10 @@ const device = {
         )}`
       );
       if (responseFromCreateDevice.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromCreateDevice.status
+          ? responseFromCreateDevice.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromCreateDevice.message,
           created_device: responseFromCreateDevice.data,
@@ -89,8 +92,11 @@ const device = {
         let errors = responseFromCreateDevice.errors
           ? responseFromCreateDevice.errors
           : "";
+        let status = responseFromCreateDevice.status
+          ? responseFromCreateDevice.status
+          : HTTPStatus.BAD_GATEWAY;
 
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(status).json({
           success: false,
           message: responseFromCreateDevice.message,
           errors,
@@ -98,7 +104,7 @@ const device = {
       }
     } catch (e) {
       logger.error(`server error in the create controller -- ${e.message}`);
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "server error in the create controller",
         errors: e.message,
       });
@@ -255,24 +261,34 @@ const device = {
         `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
       );
       if (responseFromUpdateDevice.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromUpdateDevice.status
+          ? responseFromUpdateDevice.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           message: responseFromUpdateDevice.message,
           success: true,
           updated_device: responseFromUpdateDevice.data,
         });
       }
       if (responseFromUpdateDevice.success === false) {
-        let errors = responseFromUpdateDevice.error
+        let status = responseFromUpdateDevice.status
+          ? responseFromUpdateDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromUpdateDevice.errors
           ? responseFromUpdateDevice.errors
           : "";
-        return res.status(HTTPStatus.BAD_GATEWAY).json({
+        return res.status(status).json({
           message: responseFromUpdateDevice.message,
           success: false,
           errors,
         });
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
     }
   },
 

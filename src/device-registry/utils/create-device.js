@@ -17,6 +17,7 @@ const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const { logger_v2 } = require("../utils/errors");
 const QRCode = require("qrcode");
+const cleanDeep = require("clean-deep");
 
 const registerDeviceUtil = {
   generateQR: async (request) => {
@@ -115,11 +116,14 @@ const registerDeviceUtil = {
               responseFromCreateDeviceOnPlatform.data
             )}`
           );
+          let status = responseFromCreateDeviceOnPlatform.status
+            ? responseFromCreateDeviceOnPlatform.status
+            : "";
           return {
             success: true,
             message: responseFromCreateDeviceOnPlatform.message,
             data: responseFromCreateDeviceOnPlatform.data,
-            status: responseFromCreateDeviceOnPlatform.status,
+            status,
           };
         }
 
@@ -143,6 +147,9 @@ const registerDeviceUtil = {
             let errors = responseFromCreateDeviceOnPlatform.errors
               ? responseFromCreateDeviceOnPlatform.errors
               : "";
+            let status = responseFromCreateDeviceOnPlatform.status
+              ? responseFromCreateDeviceOnPlatform.status
+              : "";
             logger.error(
               `creation operation failed -- successfully undid the successfull operations -- ${errors}`
             );
@@ -151,12 +158,16 @@ const registerDeviceUtil = {
               message:
                 "creation operation failed -- successfully undid the successfull operations",
               errors,
+              status,
             };
           }
 
           if (responseFromDeleteDeviceFromThingspeak.success === false) {
             let errors = responseFromDeleteDeviceFromThingspeak.errors
               ? responseFromDeleteDeviceFromThingspeak.errors
+              : "";
+            let status = responseFromDeleteDeviceFromThingspeak.status
+              ? responseFromDeleteDeviceFromThingspeak.status
               : "";
             logger.error(
               `creation operation failed -- also failed to undo the successfull operations --${errors}`
@@ -166,6 +177,7 @@ const registerDeviceUtil = {
               message:
                 "creation operation failed -- also failed to undo the successfull operations",
               errors,
+              status,
             };
           }
         }
@@ -175,13 +187,18 @@ const registerDeviceUtil = {
         let errors = responseFromCreateOnThingspeak.errors
           ? responseFromCreateOnThingspeak.errors
           : "";
+        let status = responseFromCreateOnThingspeak.status
+          ? responseFromCreateOnThingspeak.status
+          : "";
         logger.error(
           `unable to generate enrichment data for the device -- ${errors}`
         );
+
         return {
           success: false,
           message: "unable to generate enrichment data for the device",
           errors,
+          status,
         };
       }
     } catch (error) {
@@ -190,6 +207,7 @@ const registerDeviceUtil = {
         success: false,
         message: "server error",
         errors: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -238,20 +256,28 @@ const registerDeviceUtil = {
           )}`
         );
         if (responseFromUpdateDeviceOnPlatform.success === true) {
+          let status = responseFromUpdateDeviceOnPlatform.status
+            ? responseFromUpdateDeviceOnPlatform.status
+            : "";
           return {
             success: true,
             message: responseFromUpdateDeviceOnPlatform.message,
             data: responseFromUpdateDeviceOnPlatform.data,
+            status,
           };
         }
         if (responseFromUpdateDeviceOnPlatform.success === false) {
           let errors = responseFromUpdateDeviceOnPlatform.errors
             ? responseFromUpdateDeviceOnPlatform.errors
             : "";
+          let status = responseFromUpdateDeviceOnPlatform.status
+            ? responseFromUpdateDeviceOnPlatform.status
+            : "";
           return {
             success: false,
             message: responseFromUpdateDeviceOnPlatform.message,
             errors,
+            status,
           };
         }
       }
@@ -260,18 +286,23 @@ const registerDeviceUtil = {
         let errors = responseFromUpdateDeviceOnThingspeak.errors
           ? responseFromUpdateDeviceOnThingspeak.errors
           : "";
+        let status = responseFromUpdateDeviceOnThingspeak.status
+          ? responseFromUpdateDeviceOnThingspeak.status
+          : "";
         return {
           success: false,
           message: responseFromUpdateDeviceOnThingspeak.message,
           errors,
+          status,
         };
       }
     } catch (e) {
       logger.error(`update -- ${e.message}`);
       return {
         success: false,
-        message: "",
+        message: "Internal Server Error",
         errors: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -290,14 +321,18 @@ const registerDeviceUtil = {
         logger.info(
           `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
         );
-        if (!responseFromListDevice.success) {
+        if (responseFromListDevice.success === false) {
           let errors = responseFromListDevice.errors
             ? responseFromListDevice.errors
+            : "";
+          let status = responseFromListDevice.status
+            ? responseFromListDevice.status
             : "";
           return {
             success: false,
             message: responseFromListDevice.message,
             errors,
+            status,
           };
         }
         let device_number = responseFromListDevice.data[0].device_number;
@@ -316,7 +351,7 @@ const registerDeviceUtil = {
           responseFromDeleteDeviceFromThingspeak
         )}`
       );
-      if (responseFromDeleteDeviceFromThingspeak.success) {
+      if (responseFromDeleteDeviceFromThingspeak.success === true) {
         let responseFromDeleteDeviceOnPlatform = await registerDeviceUtil.deleteOnPlatform(
           modifiedRequest
         );
@@ -328,10 +363,14 @@ const registerDeviceUtil = {
         );
 
         if (responseFromDeleteDeviceOnPlatform.success === true) {
+          let status = responseFromDeleteDeviceOnPlatform.status
+            ? responseFromDeleteDeviceOnPlatform.status
+            : "";
           return {
             success: true,
             message: responseFromDeleteDeviceOnPlatform.message,
             data: responseFromDeleteDeviceOnPlatform.data,
+            status,
           };
         }
 
@@ -339,10 +378,14 @@ const registerDeviceUtil = {
           let errors = responseFromDeleteDeviceOnPlatform.errors
             ? responseFromDeleteDeviceOnPlatform.errors
             : "";
+          let status = responseFromDeleteDeviceOnPlatform.status
+            ? responseFromDeleteDeviceOnPlatform.status
+            : "";
           return {
             success: false,
             message: responseFromDeleteDeviceOnPlatform.message,
             errors,
+            status,
           };
         }
       }
@@ -371,6 +414,7 @@ const registerDeviceUtil = {
         success: false,
         message: "server error --delete -- create-device util",
         errors: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -595,6 +639,7 @@ const registerDeviceUtil = {
     try {
       logger.info(`  updateOnThingspeak's request -- ${jsonify(request)}`);
       const { device_number } = request.query;
+      logElement("device_number", device_number);
       const { body } = request;
       const config = {
         headers: {
@@ -621,35 +666,30 @@ const registerDeviceUtil = {
         : {};
 
       logger.info(`transformedBody -- ${jsonify(transformedBody)}`);
-      if (isEmpty(transformedBody)) {
-        return {
-          success: false,
-          message: responseFromTransformRequestBody.message,
-        };
-      }
+
       const response = await axios.put(
         constants.UPDATE_THING(device_number),
         qs.stringify(transformedBody),
         config
       );
-      if (isEmpty(response)) {
-        return {
-          success: false,
-          message: "unable to update the device_number on thingspeak",
-        };
-      }
+
       logger.info(`successfully updated the device on thingspeak`);
       return {
         success: true,
         message: "successfully updated the device on thingspeak",
         data: response.data,
+        status: HTTPStatus.OK,
       };
     } catch (error) {
       logger.error(`updateOnThingspeak util -- ${error.message}`);
-      utillErrors.tryCatchErrors(
-        error,
-        "server error - updateOnThingspeak util"
-      );
+      let e = jsonify(error);
+      return {
+        success: false,
+        message:
+          "corresponding device_number does not exist on external system, consider SOFT update",
+        status: HTTPStatus.NOT_FOUND,
+        errors: e.message,
+      };
     }
   },
   updateOnClarity: (request) => {
@@ -750,7 +790,7 @@ const registerDeviceUtil = {
               errors,
               status,
               message:
-                "device does not exist on external system, consider SOFT delete",
+                "corresponding device_number does not exist on external system, consider SOFT delete",
             };
           }
         });
