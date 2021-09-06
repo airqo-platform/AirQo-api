@@ -59,7 +59,6 @@ class EventsJob:
                 measurements = pd.json_normalize(site_events.to_dict(orient='records'))
                 measurements['time'] = pd.to_datetime(measurements['time'])
                 measurements.set_index('time')
-                print(measurements.columns)
 
                 site_id = measurements.iloc[0]['site_id']
                 if measurements.iloc[0]['siteDetails.description'] != '':

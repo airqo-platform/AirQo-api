@@ -48,19 +48,24 @@ def send_alerts(alerts):
     firebase_admin.initialize_app()
 
     for alert in alerts:
-        alert_data = dict(alert)
-        topic = alert_data.get("topic")
+        try:
+            alert_data = dict(alert)
+            topic = alert_data.get("topic")
 
-        message = messaging.Message(
-            data={
-                'message': alert_data.get("message"),
-                'site_id': alert_data.get("site_id"),
-            },
-            topic=topic,
-        )
+            message = messaging.Message(
+                data={
+                    'message': alert_data.get("message"),
+                    'site_id': alert_data.get("site_id"),
+                },
+                topic=topic,
+            )
 
-        response = messaging.send(message)
-        print('Successfully sent message:', response)
+            print(message)
+            response = messaging.send(message)
+            print('Successfully sent message:', response)
+
+        except:
+            pass
 
 
 class AirQoApi:
