@@ -26,6 +26,9 @@ spec:
             - name: stage-device-uptime-job
               image: us.gcr.io/airqo-250220/airqo-stage-device-uptime-job:latest
               imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: env-device-uptime-staging
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File
