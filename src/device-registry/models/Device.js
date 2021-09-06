@@ -30,9 +30,6 @@ const deviceSchema = new mongoose.Schema(
     longitude: {
       type: Number,
     },
-    license: {
-      type: String,
-    },
     writeKey: {
       type: String,
     },
@@ -73,14 +70,8 @@ const deviceSchema = new mongoose.Schema(
         "the number of the device in the provided generation is required",
       ],
     },
-    elevation: {
-      type: Number,
-    },
     tags: {
       type: Array,
-    },
-    owner: {
-      type: ObjectId,
     },
     description: {
       type: String,
@@ -106,31 +97,13 @@ const deviceSchema = new mongoose.Schema(
     ISP: {
       type: String,
     },
-    siteName: {
-      type: String,
-    },
-    locationName: {
-      type: String,
-    },
     phoneNumber: {
       type: Number,
-    },
-    device_manufacturer: {
-      type: String,
-      default: null,
-    },
-    product_name: {
-      type: String,
-      default: null,
     },
     powerType: {
       type: String,
       trim: true,
       lowercase: true,
-    },
-    isRetired: {
-      type: Boolean,
-      default: false,
     },
     host_id: {
       type: ObjectId,
@@ -139,10 +112,6 @@ const deviceSchema = new mongoose.Schema(
       type: ObjectId,
     },
     isPrimaryInLocation: {
-      type: Boolean,
-      default: false,
-    },
-    isUsedForCollocation: {
       type: Boolean,
       default: false,
     },
@@ -225,15 +194,11 @@ deviceSchema.methods = {
       latitude: this.latitude,
       longitude: this.longitude,
       createdAt: this.createdAt,
-      owner: this.owner,
-      device_manufacturer: this.device_manufacturer,
-      product_name: this.product_name,
       ISP: this.ISP,
       phoneNumber: this.phoneNumber,
       visibility: this.visibility,
       description: this.description,
       isPrimaryInLocation: this.isPrimaryInLocation,
-      isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
       maintenance_date: this.maintenance_date,
@@ -248,8 +213,6 @@ deviceSchema.methods = {
       readKey: this.readKey,
       pictures: this.pictures,
       site_id: this.site_id,
-      siteName: this.siteName,
-      locationName: this.locationName,
       height: this.height,
     };
   },
@@ -312,15 +275,11 @@ deviceSchema.statics = {
           latitude: 1,
           longitude: 1,
           createdAt: 1,
-          owner: 1,
-          device_manufacturer: 1,
-          product_name: 1,
           ISP: 1,
           phoneNumber: 1,
           visibility: 1,
           description: 1,
           isPrimaryInLocation: 1,
-          isUsedForCollocation: 1,
           nextMaintenance: 1,
           deployment_date: 1,
           recall_date: 1,
@@ -328,14 +287,10 @@ deviceSchema.statics = {
           device_number: 1,
           powerType: 1,
           mountType: 1,
-          locationID: 1,
           isActive: 1,
-          isRetired: 1,
           writeKey: 1,
           readKey: 1,
           pictures: 1,
-          siteName: 1,
-          locationName: 1,
           height: 1,
           status: 1,
           site: { $arrayElemAt: ["$site", 0] },

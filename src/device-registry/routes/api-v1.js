@@ -1050,13 +1050,6 @@ router.post(
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean")
         .trim(),
-      body("isUsedForCollocation")
-        .exists()
-        .withMessage("the isUsedForCollocation is is missing in your request")
-        .bail()
-        .isBoolean()
-        .withMessage("isUsedForCollocation must be Boolean")
-        .trim(),
       body("site_id")
         .exists()
         .withMessage("site_id is missing")
