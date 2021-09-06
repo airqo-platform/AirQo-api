@@ -1,0 +1,49 @@
+connectors:
+  - name: stage-device-measurements-source-connector-mongo
+    namespace: staging
+    cluster: stage-device-measurements-connector-cluster
+    specs:
+      class: com.mongodb.kafka.connect.MongoSourceConnector 
+      tasksMax: 1
+      config:
+        connection.uri: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_uri}
+        database: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_name}
+        collection: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_collection}
+        topic.prefix: db
+
+  - name: stage-device-measurements-source-connector-debezium
+    namespace: staging
+    cluster: stage-device-measurements-connector-cluster
+    specs:
+      class: io.debezium.connector.mongodb.MongoDbConnector
+      tasksMax: 1
+      config:
+        name: stage-device-measurements-source-connector
+        mongodb.hosts: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_host}
+        mongodb.name: device_measurements_db
+        mongodb.user: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_user}
+        mongodb.password: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_password}
+        database.include.list: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_names}
+        collection.include.list: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_collections}
+
+connectList:
+  - name: stage-device-measurements-connector-cluster
+    namespace: staging
+    specs:
+      replicas: 1
+      bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
+      image:
+        repository: us.gcr.io/airqo-250220
+        pullPolicy: Always
+        tag: "latest"
+      config:
+        group.id: stage-device-measurements-connector-cluster
+        offset.storage.topic: stage-device-measurements-connector-cluster-offsets
+        config.storage.topic: stage-device-measurements-connector-cluster-configs
+        status.storage.topic: stage-device-measurements-connector-cluster-status
+        key.converter: org.apache.kafka.connect.json.JsonConverter
+        value.converter: org.apache.kafka.connect.json.JsonConverter
+        key.converter.schemas.enable: false
+        value.converter.schemas.enable: false
+        config.providers: file
+        config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
