@@ -431,12 +431,15 @@ siteSchema.statics = {
       if (modifiedUpdateBody.generated_name) {
         delete modifiedUpdateBody.generated_name;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      if (modifiedUpdateBody.lat_long) {
+        delete modifiedUpdateBody.lat_long;
+      }
+      let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
+      let data = jsonify(updatedSite);
       if (!isEmpty(data)) {
         return {
           success: true,
