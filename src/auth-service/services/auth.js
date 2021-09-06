@@ -19,6 +19,10 @@ const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
 };
 
+const { validationResult } = require("express-validator");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const { badRequest } = require("../utils/errors");
+
 const setLocalOptions = (req) => {
   try {
     let authenticationFields = {};
@@ -199,16 +203,17 @@ const setJWTStrategy = (tenant, req, res, next) => {
 
 function setLocalAuth(req, res, next) {
   try {
-    if (req.query.tenant) {
-      setLocalStrategy(req.query.tenant, req, res, next);
-      next();
-    } else {
-      res.json({
-        success: false,
-        message:
-          "the organization is missing in the query params, please check documentation",
-      });
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(
+        res,
+        "bad request errors",
+        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+      );
     }
+    setLocalStrategy(req.query.tenant, req, res, next);
+    next();
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);
     res.json({ success: false, message: e.message });
@@ -217,16 +222,17 @@ function setLocalAuth(req, res, next) {
 
 function setJWTAuth(req, res, next) {
   try {
-    if (req.query.tenant) {
-      setJWTStrategy(req.query.tenant, req, res, next);
-      next();
-    } else {
-      res.status(HTTPStatus.BAD_REQUEST).json({
-        success: false,
-        message:
-          "the organization is missing in the query params, please check documentation",
-      });
+    const hasErrors = !validationResult(req).isEmpty();
+    if (hasErrors) {
+      let nestedErrors = validationResult(req).errors[0].nestedErrors;
+      return badRequest(
+        res,
+        "bad request errors",
+        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+      );
     }
+    setJWTStrategy(req.query.tenant, req, res, next);
+    next();
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);
     res
