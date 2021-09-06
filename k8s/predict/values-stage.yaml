@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-stage-prediction-api
   service_name: airqo-stage-prediction-api-svc
   labels: prediction-api
-  secret: stage-prediction-secret
+  secret: env-predict-staging
 
 replicaCount: 2
 

@@ -25,6 +25,9 @@ spec:
             - image: us.gcr.io/airqo-250220/kcca-exceedance-job:latest
               imagePullPolicy: Always
               name: airqo-exceedance-job
+              envFrom:
+                - configMapRef:
+                    name: env-exceedance-production
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File

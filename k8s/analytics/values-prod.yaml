@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-analytics-api
   service_name: airqo-analytics-api-svc
   labels: sta-analytics-api
-  secret: prod-analytics-secret
+  secret: env-analytics-production
 
 replicaCount: 2
 
