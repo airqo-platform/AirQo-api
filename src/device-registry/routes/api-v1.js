@@ -35,6 +35,219 @@ router.post(
   ]),
   deviceController.decryptKey
 );
+
+router.put(
+  "/encrypt",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  oneOf([
+    [
+      body("visibility")
+        .if(body("visibility").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("visibility must be Boolean"),
+      body("long_name")
+        .if(body("long_name").exists())
+        .notEmpty()
+        .trim(),
+      body("mountType")
+        .if(body("mountType").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
+        .withMessage(
+          "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("powerType")
+        .if(body("powerType").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["solar", "mains", "alternator"])
+        .withMessage(
+          "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("isActive")
+        .if(body("isActive").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("isActive must be Boolean"),
+      body("isRetired")
+        .if(body("isRetired").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("isRetired must be Boolean"),
+      body("mobility")
+        .if(body("mobility").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("mobility must be Boolean"),
+      body("nextMaintenance")
+        .if(body("nextMaintenance").exists())
+        .notEmpty()
+        .trim()
+        .isDate()
+        .withMessage("nextMaintenance must be a Date"),
+      body("isPrimaryInLocation")
+        .if(body("isPrimaryInLocation").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("isPrimaryInLocation must be Boolean"),
+      body("isUsedForCollocation")
+        .if(body("isUsedForCollocation").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("isUsedForCollocation must be Boolean"),
+      body("owner")
+        .if(body("owner").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the owner must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("host_id")
+        .if(body("host_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the host_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("phoneNumber")
+        .if(body("phoneNumber").exists())
+        .notEmpty()
+        .trim()
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
+        .bail()
+        .toInt(),
+      body("height")
+        .if(body("height").exists())
+        .notEmpty()
+        .trim()
+        .isFloat({ gt: 0, lt: 10 })
+        .withMessage("height must be a number between 0 and 10")
+        .bail()
+        .toFloat(),
+      body("elevation")
+        .if(body("elevation").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("elevation must be a float")
+        .bail()
+        .toFloat(),
+      body("writeKey")
+        .if(body("writeKey").exists())
+        .notEmpty()
+        .withMessage("writeKey should not be empty")
+        .trim(),
+      body("readKey")
+        .if(body("readKey").exists())
+        .notEmpty()
+        .withMessage("readKey should not be empty")
+        .trim(),
+      body("latitude")
+        .if(body("latitude").exists())
+        .notEmpty()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+      body("longitude")
+        .if(body("longitude").exists())
+        .notEmpty()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("product_name")
+        .if(body("product_name").exists())
+        .notEmpty()
+        .trim(),
+      body("device_manufacturer")
+        .if(body("device_manufacturer").exists())
+        .notEmpty()
+        .trim(),
+    ],
+  ]),
+  deviceController.encryptKeys
+);
 /***list devices */
 router.get(
   "/",
@@ -888,6 +1101,7 @@ router.put(
   ]),
   deviceController.updateOnPlatform
 );
+
 /** generate QR code.... */
 router.get(
   "/qrcode",

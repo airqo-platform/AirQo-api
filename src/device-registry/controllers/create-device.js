@@ -292,6 +292,72 @@ const device = {
     }
   },
 
+  encryptKeys: async (req, res) => {
+    try {
+      logText("the soft update operation starts....");
+      logger.info(`the soft update operation starts....`);
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { tenant, device, device_number, name, id } = req.query;
+      const { body } = req;
+      let requestObject = {};
+      requestObject["query"] = {};
+      requestObject["query"]["id"] = id;
+      requestObject["query"]["device_number"] = device_number;
+      requestObject["query"]["name"] = name;
+      requestObject["query"]["device"] = device;
+      requestObject["query"]["tenant"] = tenant;
+      requestObject["body"] = body;
+
+      logObject("we see", requestObject);
+      let responseFromEncryptKeys = await registerDeviceUtil.encryptKeys(
+        requestObject
+      );
+
+      logger.info(
+        `responseFromEncryptKeys ${JSON.stringify(responseFromEncryptKeys)}`
+      );
+
+      if (responseFromEncryptKeys.success === true) {
+        let status = responseFromEncryptKeys.status
+          ? responseFromEncryptKeys.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          message: responseFromEncryptKeys.message,
+          success: true,
+          updated_device: responseFromEncryptKeys.data,
+        });
+      }
+
+      if (responseFromEncryptKeys.success === false) {
+        let errors = responseFromEncryptKeys.errors
+          ? responseFromEncryptKeys.errors
+          : "";
+        let status = responseFromEncryptKeys.status
+          ? responseFromEncryptKeys.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          message: responseFromEncryptKeys.message,
+          success: false,
+          errors,
+        });
+      }
+    } catch (e) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
+    }
+  },
+
   list: async (req, res) => {
     try {
       logText(".....................................");
@@ -415,7 +481,10 @@ const device = {
       );
 
       if (responseFromUpdateDeviceOnPlatform.success === true) {
-        return res.status(HTTPStatus.OK).json({
+        let status = responseFromUpdateDeviceOnPlatform.status
+          ? responseFromUpdateDeviceOnPlatform.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           message: responseFromUpdateDeviceOnPlatform.message,
           success: true,
           updated_device: responseFromUpdateDeviceOnPlatform.data,

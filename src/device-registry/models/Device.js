@@ -393,6 +393,53 @@ deviceSchema.statics = {
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
       logObject("modifiedUpdate", modifiedUpdate);
+      let updatedDevice = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdate,
+        options
+      ).exec();
+      let data = jsonify(updatedDevice);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the device",
+          data,
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      logObject("the error", error);
+      return {
+        success: false,
+        message: "Device model server error - modify",
+        errors: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  async encryptKeys({ filter = {}, update = {} } = {}) {
+    try {
+      logObject("the filter", filter);
+      let options = { new: true };
+      let modifiedUpdate = update;
+      delete modifiedUpdate.name;
+      delete modifiedUpdate.device_number;
+      delete modifiedUpdate._id;
+      delete modifiedUpdate.generation_count;
+      delete modifiedUpdate.generation_version;
+
+      validKeys = ["writeKey", "readKey"];
+      Object.keys(modifiedUpdate).forEach(
+        (key) => validKeys.includes(key) || delete modifiedUpdate[key]
+      );
+
+      logObject("modifiedUpdate", modifiedUpdate);
       if (update.writeKey) {
         let key = update.writeKey;
         modifiedUpdate.writeKey = cryptoJS.AES.encrypt(
@@ -431,7 +478,7 @@ deviceSchema.statics = {
       logObject("the error", error);
       return {
         success: false,
-        message: "Device model server error - modify",
+        message: "Internal Server Error",
         errors: error.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };

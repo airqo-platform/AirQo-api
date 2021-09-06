@@ -306,6 +306,79 @@ const registerDeviceUtil = {
       };
     }
   },
+  encryptKeys: async (request) => {
+    try {
+      const { id, device_number, name, tenant } = request.query;
+      const { body } = request;
+      logObject("The request", request);
+      let update = body;
+      let filter = {};
+      let responseFromFilter = generateFilter.devices(request);
+      logElement(
+        "is responseFromFilter in util a success?",
+        responseFromFilter.success
+      );
+      logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
+      if (responseFromFilter.success === true) {
+        logObject("the filter", responseFromFilter.data);
+        filter = responseFromFilter.data;
+      }
+
+      if (responseFromFilter.success === false) {
+        let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
+        logger.error(
+          `responseFromFilter.error in create-device util--${responseFromFilter.errors}`
+        );
+        return {
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        };
+      }
+      let responseFromEncryptKeys = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).encryptKeys({ filter, update });
+
+      logObject("responseFromEncryptKeys ", responseFromEncryptKeys);
+
+      if (responseFromEncryptKeys.success === true) {
+        let status = responseFromEncryptKeys.status
+          ? responseFromEncryptKeys.status
+          : "";
+        return {
+          success: true,
+          message: responseFromEncryptKeys.message,
+          data: responseFromEncryptKeys.data,
+          status,
+        };
+      }
+
+      if (responseFromEncryptKeys.success === false) {
+        let errors = responseFromEncryptKeys.errors
+          ? responseFromEncryptKeys.errors
+          : "";
+        let status = responseFromEncryptKeys.status
+          ? responseFromEncryptKeys.status
+          : "";
+        return {
+          success: false,
+          message: responseFromEncryptKeys.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      logger.error(`updateOnPlatform util -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: error.message,
+      };
+    }
+  },
   delete: async (request) => {
     try {
       return {
