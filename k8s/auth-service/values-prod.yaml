@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-auth-api
   service_name: airqo-auth-api-svc
   labels: auth-api
-  secret: prod-auth-secret
+  secret: env-auth-production
 
 replicaCount: 2
 

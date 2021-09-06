@@ -36,72 +36,10 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          env:
-            - name: MONGO_GCE_URI
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: MONGO_GCE_URI
-            - name: MONGO_STAGE
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: MONGO_STAGE
-            - name: MONGO_PROD
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: MONGO_PROD
-            - name: REDIS_SERVER
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: REDIS_SERVER
-            - name: REDIS_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: REDIS_PORT
-            - name: TS_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: TS_API_KEY
-            - name: READ
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: READ
-            - name: WRITE
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: WRITE
-            - name: CHANNEL
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: CHANNEL
-            - name: LICENSE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: LICENSE_ID
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: JWT_SECRET
-            - name: SESSION_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: SESSION_SECRET
-            - name: NAME
-              valueFrom:
-                secretKeyRef:
-                  name: stage-device-reg-secret
-                  key: NAME
+          envFrom:
+            - configMapRef:
+                name: env-device-registry-staging
+
 
 ---
 kind: Service
