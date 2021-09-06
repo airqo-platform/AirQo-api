@@ -241,8 +241,8 @@ router.post(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100")
         .bail()
         .toFloat(),
       body("elevation")
@@ -480,8 +480,8 @@ router.put(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100")
         .bail()
         .toFloat(),
       body("elevation")
@@ -812,8 +812,8 @@ router.put(
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100")
         .bail()
         .toFloat(),
       body("elevation")
@@ -1039,8 +1039,8 @@ router.post(
         .exists()
         .withMessage("the height is is missing in your request")
         .bail()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("the height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("the height must be a number between 0 and 100")
         .trim(),
       body("isPrimaryInLocation")
         .exists()
