@@ -19,7 +19,7 @@ connectors:
       tasksMax: 1
       config:
         name: stage-device-measurements-source-connector
-        mongodb.hosts: 35.224.67.244:27017
+        mongodb.hosts: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_host}
         mongodb.name: device_measurements_db
         mongodb.user: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_user}
         mongodb.password: ${file:/opt/kafka/external-configuration/connector-config/device-measurements-credentials.properties:db_password}
