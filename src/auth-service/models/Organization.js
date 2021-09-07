@@ -226,7 +226,8 @@ OrganizationSchema.statics = {
         return {
           success: false,
           message: "organization does not exist, please crosscheck",
-          status: HTTPStatus.NO_CONTENT,
+          status: HTTPStatus.NOT_FOUND,
+          errors: "Not Found",
         };
       }
     } catch (err) {

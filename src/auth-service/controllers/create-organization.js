@@ -111,7 +111,6 @@ const createOrganization = {
           success: false,
           message: responseFromUpdateOrganization.message,
           errors,
-          status,
         });
       }
     } catch (error) {
