@@ -15,6 +15,7 @@ const log4js = require("log4js");
 const { request } = require("express");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
+const { distanceBtnTwoPoints } = require("./distance");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -181,7 +182,6 @@ const manageSite = {
       }
 
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
-        tenant,
         request
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
@@ -300,7 +300,7 @@ const manageSite = {
     }
   },
 
-  generateMetadata: async (tenant, req) => {
+  generateMetadata: async (req) => {
     try {
       let { latitude, longitude } = req.body;
       let body = req.body;
@@ -458,7 +458,6 @@ const manageSite = {
       }
 
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
-        tenant,
         request
       );
 
@@ -850,6 +849,65 @@ const manageSite = {
       return `${lat}_${long}`;
     } catch (e) {
       logElement("server error", e.message);
+    }
+  },
+
+  findNearestSitesByCoordinates: async (request) => {
+    try {
+      let { radius, latitude, longitude, tenant } = request;
+      const responseFromListSites = await manageSite.list({
+        tenant,
+      });
+
+      if (responseFromListSites.success === true) {
+        let sites = responseFromListSites.data;
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        let nearest_sites = [];
+        sites.forEach((site) => {
+          if ("latitude" in site && "longitude" in site) {
+            let distance = distanceBtnTwoPoints(
+              latitude,
+              longitude,
+              site["latitude"],
+              site["longitude"]
+            );
+
+            if (distance < radius) {
+              site["distance"] = distance;
+              nearest_sites.push(site);
+            }
+          }
+        });
+        return {
+          success: true,
+          data: nearest_sites,
+          message: "successfully retrieved the nearest sites",
+          status,
+        };
+      }
+      if (responseFromListSites.success === false) {
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        let errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
+        return {
+          success: false,
+          errors,
+          message: responseFromListSites.message,
+          status,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        error: error.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 };
