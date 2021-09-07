@@ -41,17 +41,10 @@ spec:
           #   httpGet:
           #     path: /
           #     port: http
-          env:
-            - name: REDIS_SERVER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: REDIS_SERVER
-            - name: REDIS_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: REDIS_PORT
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.env.secret }}
+    
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

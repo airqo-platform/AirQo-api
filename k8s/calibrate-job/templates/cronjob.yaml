@@ -1,0 +1,29 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ $Values.name }}
+  namespace:  {{ $Values.namespace }}
+spec:
+  concurrencyPolicy:  {{ $Values.concurrencyPolicy }}
+  failedJobsHistoryLimit:  {{ $Values.failedJobsHistoryLimit }}
+  schedule: {{ $Values.schedule }}
+  successfulJobsHistoryLimit:  {{ $Values.successfulJobsHistoryLimit }}
+  jobTemplate:
+    metadata:
+      name: {{ $Values.name }}
+    spec:
+      template:
+        spec:
+          containers:
+            - image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+              imagePullPolicy: {{ $Values.image.pullPolicy }}
+              name: {{ $Values.name }}
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: {{ $Values.terminationGracePeriodSeconds }}
+

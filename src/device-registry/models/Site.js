@@ -66,10 +66,6 @@ const siteSchema = new Schema(
       type: Number,
       trim: true,
     },
-    distance_to_nearest_residential_area: {
-      type: Number,
-      trim: true,
-    },
     distance_to_nearest_residential_road: {
       type: Number,
       trim: true,
@@ -113,6 +109,9 @@ const siteSchema = new Schema(
       type: String,
     },
     aspect: {
+      type: String,
+    },
+    status: {
       type: String,
     },
     landform_90: {
@@ -215,6 +214,9 @@ siteSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
+  if (this.isModified("generated_name")) {
+    delete this.generated_name;
+  }
   return next();
 });
 
@@ -227,6 +229,9 @@ siteSchema.pre("update", function(next) {
   }
   if (this.isModified("_id")) {
     delete this._id;
+  }
+  if (this.isModified("generated_name")) {
+    delete this.generated_name;
   }
   return next();
 });
@@ -267,6 +272,7 @@ siteSchema.methods = {
       landform_270: this.landform_270,
       landform_90: this.landform_90,
       aspect: this.aspect,
+      status: this.status,
       distance_to_nearest_road: this.distance_to_nearest_road,
       distance_to_nearest_primary_road: this.distance_to_nearest_primary_road,
       distance_to_nearest_secondary_road: this
@@ -274,8 +280,6 @@ siteSchema.methods = {
       distance_to_nearest_tertiary_road: this.distance_to_nearest_tertiary_road,
       distance_to_nearest_unclassified_road: this
         .distance_to_nearest_unclassified_road,
-      distance_to_nearest_residential_area: this
-        .distance_to_nearest_residential_area,
       bearing_to_kampala_center: this.bearing_to_kampala_center,
       distance_to_kampala_center: this.distance_to_kampala_center,
       distance_to_nearest_residential_road: this
@@ -293,8 +297,10 @@ siteSchema.methods = {
 siteSchema.statics = {
   async register(args) {
     try {
+      let modifiedArgs = args;
+      modifiedArgs.description = modifiedArgs.name;
       let data = await this.create({
-        ...args,
+        ...modifiedArgs,
       });
       if (!isEmpty(data)) {
         return {
@@ -330,7 +336,7 @@ siteSchema.statics = {
   },
   async list({
     _skip = 0,
-    _limit = constants.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
@@ -368,12 +374,12 @@ siteSchema.statics = {
           landform_270: 1,
           landform_90: 1,
           aspect: 1,
+          status: 1,
           distance_to_nearest_road: 1,
           distance_to_nearest_primary_road: 1,
           distance_to_nearest_secondary_road: 1,
           distance_to_nearest_tertiary_road: 1,
           distance_to_nearest_unclassified_road: 1,
-          distance_to_nearest_residential_area: 1,
           distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
@@ -422,12 +428,18 @@ siteSchema.statics = {
       if (modifiedUpdateBody.longitude) {
         delete modifiedUpdateBody.longitude;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      if (modifiedUpdateBody.generated_name) {
+        delete modifiedUpdateBody.generated_name;
+      }
+      if (modifiedUpdateBody.lat_long) {
+        delete modifiedUpdateBody.lat_long;
+      }
+      let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
+      let data = jsonify(updatedSite);
       if (!isEmpty(data)) {
         return {
           success: true,
