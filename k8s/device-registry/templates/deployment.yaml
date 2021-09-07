@@ -41,72 +41,9 @@ spec:
           #   httpGet:
           #     path: /
           #     port: http
-          env:
-            - name: MONGO_GCE_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_GCE_URI
-            - name: MONGO_STAGE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_STAGE
-            - name: MONGO_PROD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_PROD
-            - name: REDIS_SERVER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: REDIS_SERVER
-            - name: REDIS_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: REDIS_PORT
-            - name: TS_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: TS_API_KEY
-            - name: READ
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: READ
-            - name: WRITE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: WRITE
-            - name: CHANNEL
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: CHANNEL
-            - name: LICENSE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: LICENSE_ID
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: JWT_SECRET
-            - name: SESSION_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: SESSION_SECRET
-            - name: NAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: NAME
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.env.secret }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

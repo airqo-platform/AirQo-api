@@ -8,6 +8,7 @@ const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
 const Issue = require("../models/Issue");
 const isEmpty = require("is-empty");
+const cleanMeasurements = require("../utils/clean-measurements");
 const {
   getFieldLabel,
   getPositionLabel,
@@ -192,9 +193,11 @@ const data = {
         let errors = [];
         let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
         logObject("responseFromGetAPIKey", responseFromGetAPIKey);
-        if (responseFromGetAPIKey.success == true) {
+        if (responseFromGetAPIKey.success === true) {
           api_key = responseFromGetAPIKey.data;
-        } else if (responseFromGetAPIKey.success == false) {
+        }
+
+        if (responseFromGetAPIKey.success === false) {
           if (responseFromGetAPIKey.error) {
             errors.push(responseFromGetAPIKey.error);
             errors.push(responseFromGetAPIKey.message);
@@ -214,39 +217,58 @@ const data = {
               .get(constants.GENERATE_LAST_ENTRY({ channel, api_key }))
               .then(async (response) => {
                 let readings = response.data;
-
                 let lastEntryId = readings.channel.last_entry_id;
+
                 let recentReadings = await readings.feeds.filter((item) => {
                   return item.entry_id === lastEntryId;
                 });
                 let responseData = recentReadings[0];
-                //check the GPS values
-                let gpsCods = gpsCheck(responseData, req, res);
-                // responseData.field5 = gpsCods.latitude;
-                // responseData.field6 = gpsCods.longitude;
+
                 delete responseData.entry_id;
 
-                let transformedData = await transformMeasurement(responseData);
+                let cleanedDeviceMeasurements = cleanMeasurements(responseData);
+                logObject("cleanedMeasurement", cleanedDeviceMeasurements);
+
+                let transformedData = await transformMeasurement(
+                  cleanedDeviceMeasurements
+                );
+                let transformedField = {};
                 let otherData = transformedData.other_data;
-                let transformedField = await trasformFieldValues(otherData);
-                delete transformedData.other_data;
+
+                if (otherData) {
+                  transformedField = await trasformFieldValues(otherData);
+                  delete transformedData.other_data;
+                }
+
                 let newResp = {
                   success: true,
                   ...transformedData,
                   ...transformedField,
                   errors,
                 };
+
+                let cleanedFinalTransformation = cleanMeasurements(newResp);
+
+                logObject(
+                  "cleanedTransformedMeasurement",
+                  cleanedFinalTransformation
+                );
                 redis.set(
                   cacheID,
-                  JSON.stringify({ isCache: true, ...newResp })
+                  JSON.stringify({
+                    isCache: true,
+                    ...cleanedFinalTransformation,
+                  })
                 );
+
                 redis.expire(
                   cacheID,
                   GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
                 );
+
                 return res.status(HTTPStatus.OK).json({
                   isCache: false,
-                  ...newResp,
+                  ...cleanedFinalTransformation,
                 });
               })
               .catch((error) => {

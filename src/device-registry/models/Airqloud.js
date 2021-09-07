@@ -6,6 +6,7 @@ const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
+const createSiteUtil = require("../utils/create-site");
 
 const polygonSchema = new Schema({
   type: {
@@ -26,16 +27,12 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
       required: [true, "name is required!"],
+      unique: true,
     },
     long_name: {
       type: String,
       trim: true,
       default: null,
-    },
-    generated_name: {
-      type: String,
-      trim: true,
-      unique: true,
     },
     description: {
       type: String,
@@ -76,7 +73,7 @@ airqloudSchema.methods = {
     return {
       _id: this._id,
       name: this.name,
-      generated_name: this.generated_name,
+      long_name: this.long_name,
       description: this.description,
       airqloud_tags: this.airqloud_tags,
       location: this.location,
@@ -87,8 +84,12 @@ airqloudSchema.methods = {
 airqloudSchema.statics = {
   async register(args) {
     try {
+      let body = args;
+      body["long_name"] = args.name;
+      body["name"] = createSiteUtil.sanitiseName(args.name);
+
       let createdAirQloud = await this.create({
-        ...args,
+        ...body,
       });
       let data = jsonify(createdAirQloud);
       if (!isEmpty(data)) {
@@ -110,21 +111,12 @@ airqloudSchema.statics = {
       let e = jsonify(err);
       let response = {};
       logObject("the err", e);
-      let errors = {};
-      let message = "Internal Server Error";
-      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
-      } else {
-        message = "validation errors for some of the provided fields";
-        status = HTTPStatus.CONFLICT;
-        errors = err.errors;
-        Object.entries(err.errors).forEach(([key, value]) => {
-          return (response[key] = value.message);
-        });
-      }
+      message = "validation errors for some of the provided fields";
+      status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[value.path] = value.message);
+      });
+
       return {
         errors: response,
         message,
@@ -148,7 +140,7 @@ airqloudSchema.statics = {
         .project({
           _id: 1,
           name: 1,
-          generated_name: 1,
+          long_name: 1,
           description: 1,
           airqloud_tags: 1,
           location: 1,
@@ -179,11 +171,6 @@ airqloudSchema.statics = {
       let errors = { message: err.message };
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
-      }
       return {
         errors,
         message,
@@ -199,8 +186,8 @@ airqloudSchema.statics = {
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-      if (modifiedUpdateBody.generated_name) {
-        delete modifiedUpdateBody.generated_name;
+      if (modifiedUpdateBody.name) {
+        delete modifiedUpdateBody.name;
       }
       let udpatedUser = await this.findOneAndUpdate(
         filter,
@@ -223,14 +210,9 @@ airqloudSchema.statics = {
         };
       }
     } catch (err) {
-      let errors = {};
+      let errors = { message: err.message };
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
-      }
       return {
         errors,
         message,
@@ -269,14 +251,10 @@ airqloudSchema.statics = {
         };
       }
     } catch (err) {
-      let errors = {};
+      let errors = { message: err.message };
       let message = err.message;
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
-      if (err.code === 11000 || err.code === 11001) {
-        errors = err.keyValue;
-        message = "duplicate values provided";
-        status = HTTPStatus.CONFLICT;
-      }
+
       return {
         success: false,
         message,

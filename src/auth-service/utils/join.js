@@ -8,6 +8,7 @@ const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
 
 const UserModel = (tenant) => {
   try {
@@ -156,26 +157,29 @@ const join = {
     }
   },
 
-  create: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    privilege
-  ) => {
+  create: async (request) => {
     try {
+      let {
+        tenant,
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        privilege,
+      } = request;
       let response = {};
       logText("...........create user util...................");
       let responseFromGeneratePassword = generatePassword();
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-      if (responseFromGeneratePassword.success == true) {
+      if (responseFromGeneratePassword.success === true) {
         let password = responseFromGeneratePassword.data;
         let requestBody = {
           firstName,
           lastName,
           email,
           organization,
+          long_organization,
           privilege,
           userName: email,
           password,
@@ -185,78 +189,84 @@ const join = {
           requestBody
         );
         logObject("responseFromCreateUser", responseFromCreateUser);
-        let createdUser = await responseFromCreateUser.data;
-        let jsonifyCreatedUser = jsonify(createdUser);
 
-        logObject("created user in util", jsonifyCreatedUser);
-
-        if (responseFromCreateUser.success == true) {
+        if (responseFromCreateUser.success === true) {
+          let createdUser = await responseFromCreateUser.data;
+          let jsonifyCreatedUser = jsonify(createdUser);
+          logObject("created user in util", jsonifyCreatedUser);
           let responseFromSendEmail = await mailer.user(
             firstName,
             lastName,
             email,
             password,
-            tenant
+            tenant,
+            "user"
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success == true) {
+          if (responseFromSendEmail.success === true) {
             return {
               success: true,
               message: "user successfully created",
               data: jsonifyCreatedUser,
             };
-          } else if (responseFromSendEmail.success == false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-                error: responseFromSendEmail.error,
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
+          }
+
+          if (responseFromSendEmail.success === false) {
+            let status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+            let error = responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : "";
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+              error,
+              status,
+            };
           }
         }
 
-        if (responseFromCreateUser.success == false) {
-          if (responseFromCreateUser.error) {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-              error: responseFromCreateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-            };
-          }
+        if (responseFromCreateUser.success === false) {
+          let error = responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : "";
+          let status = responseFromCreateUser.status
+            ? responseFromCreateUser.status
+            : "";
+          logElement("the error from the model", error);
+          return {
+            success: false,
+            message: responseFromCreateUser.message,
+            error,
+            status,
+          };
         }
       }
 
-      if (responseFromGeneratePassword.success == false) {
-        if (responseFromGeneratePassword.error) {
-          return {
-            success: false,
-            message: responseFromGeneratePassword.message,
-            error: responseFromGeneratePassword.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGeneratePassword.message,
-          };
-        }
+      if (responseFromGeneratePassword.success === false) {
+        let error = responseFromGeneratePassword.error
+          ? responseFromGeneratePassword.error
+          : "";
+        let status = responseFromGeneratePassword.status
+          ? responseFromGeneratePassword.status
+          : "";
+        logElement("error when password generation fails", error);
+        return {
+          success: false,
+          message: responseFromGeneratePassword.message,
+          error,
+          status,
+        };
       }
     } catch (e) {
       logElement("create users util", e.message);
+      logObject("create user util error", e);
       return {
         success: false,
         message: "util server error",
         error: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -318,36 +328,38 @@ const join = {
         responseFromGenerateResetToken
       );
       logObject("filter", filter);
-      if (responseFromGenerateResetToken.success == true) {
+      if (responseFromGenerateResetToken.success === true) {
         let token = responseFromGenerateResetToken.data;
         let update = {
           resetPasswordToken: token,
           resetPasswordExpires: Date.now() + 3600000,
         };
-        let responseFromUpdateUser = await join.update(tenant, filter, update);
-        logObject(
-          "responseFromUpdateUser in forgotPassword",
-          responseFromUpdateUser
-        );
-        if (responseFromUpdateUser.success == true) {
+        let responseFromModifyUser = await UserModel(
+          tenant.toLowerCase()
+        ).modify({
+          filter,
+          update,
+        });
+        if (responseFromModifyUser.success === true) {
           let responseFromSendEmail = await mailer.forgot(
             filter.email,
             token,
             tenant
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success == true) {
+          if (responseFromSendEmail.success === true) {
             return {
               success: true,
-              message: "email successfully sent",
-              data: responseFromSendEmail.data,
+              message: "forgot email successfully sent",
             };
-          } else if (responseFromSendEmail.success == false) {
+          }
+
+          if (responseFromSendEmail.success === false) {
             if (responseFromSendEmail.error) {
               return {
                 success: false,
                 error: responseFromSendEmail.error,
-                message: responseFromSendEmail.message,
+                message: "unable to send the email request",
               };
             } else {
               return {
@@ -356,21 +368,25 @@ const join = {
               };
             }
           }
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
+        }
+
+        if (responseFromModifyUser.success === false) {
+          if (responseFromModifyUser.error) {
             return {
               success: false,
-              error: responseFromUpdateUser.error,
-              message: responseFromUpdateUser.message,
+              error: responseFromModifyUser.error,
+              message: responseFromModifyUser.message,
             };
           } else {
             return {
               success: false,
-              message: responseFromUpdateUser.message,
+              message: responseFromModifyUser.message,
             };
           }
         }
-      } else if (responseFromGenerateResetToken.success == false) {
+      }
+
+      if (responseFromGenerateResetToken.success === false) {
         if (responseFromGenerateResetToken.error) {
           return {
             success: false,

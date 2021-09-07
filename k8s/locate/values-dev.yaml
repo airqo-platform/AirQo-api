@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-dev-locate-api
   service_name: airqo-dev-locate-api-svc
   labels: dev-locate-api
-  secret: dev-locate-secret
+  secret: env-locate-development
 
 replicaCount: 2
 

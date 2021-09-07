@@ -31,6 +31,7 @@
         "express-jwt": "^5.3.1",
         "express-session": "^1.17.0",
         "express-validation": "^1.0.3",
+        "express-validator": "^6.12.1",
         "generate-password": "^1.5.1",
         "gstore-node": "^7.2.4",
         "helmet": "^3.21.1",

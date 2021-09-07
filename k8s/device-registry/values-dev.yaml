@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-dev-device-registry-api
   service_name: airqo-dev-device-registry-api-svc
   labels: dev-dev-reg-api
-  secret: dev-device-reg-secret
+  secret: env-device-registry-development
 
 replicaCount: 2
 
