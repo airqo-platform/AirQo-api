@@ -1,0 +1,57 @@
+###########################################################
+# Start deployment of device registry api
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-device-registry-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: device-reg-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: device-reg-api
+    spec:
+      containers:
+        - name: device-reg-api
+          image: us.gcr.io/airqo-250220/airqo-device-registry-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: device-reg-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          envFrom:
+            - configMapRef:
+                name: env-device-registry-production
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-device-registry-api-svc
+  namespace: production
+spec:
+  selector:
+    app: device-reg-api
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 30002
+  type: NodePort

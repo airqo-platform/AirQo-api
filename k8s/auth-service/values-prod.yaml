@@ -1,0 +1,35 @@
+# values for airqo-auth-api.
+env:
+  deployment_name: airqo-auth-api
+  service_name: airqo-auth-api-svc
+  labels: auth-api
+  secret: env-auth-production
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-auth-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 30000
+  targetPort: 3000
+  port: 3000
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: production

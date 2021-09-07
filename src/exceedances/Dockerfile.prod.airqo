@@ -1,0 +1,11 @@
+# Inherit from the Python Docker image
+FROM python:3.7-slim
+
+COPY . /app/
+WORKDIR /app/
+
+RUN pip install -r requirements.txt
+
+ENV ENV=production
+
+CMD ["python", "main.py", "--tenant=airqo"]

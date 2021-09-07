@@ -1,5 +1,14 @@
 */data
 *.json
+.env
+env
+.env.yaml
+.env.list
+env.list
 env.kcca.batch
 env.airqo.batch
 venv
+bigquery.json
+venv/
+.idea/
+__pycache__/

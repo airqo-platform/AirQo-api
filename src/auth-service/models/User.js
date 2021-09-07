@@ -1,12 +1,17 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const validator = require("validator");
-const { passwordReg } = require("../utils/validations");
 const bcrypt = require("bcrypt");
-const saltRounds = 10;
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
+const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
+const jsonify = require("../utils/jsonify");
+const validations = require("../utils/validations");
+const isEmpty = require("is-empty");
+const { log } = require("debug");
+const saltRounds = constants.SALT_ROUNDS;
+const HTTPStatus = require("http-status");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -58,9 +63,9 @@ const UserSchema = new Schema({
     minlength: [6, "Password is required"],
     validate: {
       validator(password) {
-        return passwordReg.test(password);
+        return validations.passwordReg.test(password);
       },
-      message: "{VALUE} is not a valid password!",
+      message: "{VALUE} is not a valid password, please check documentation!",
     },
   },
   privilege: { type: String, required: [true, "the role is required!"] },
@@ -69,6 +74,10 @@ const UserSchema = new Schema({
   organization: {
     type: String,
     required: [true, "the organization is required!"],
+  },
+  long_organization: {
+    type: String,
+    required: [true, "the long_organization is required!"],
   },
   country: { type: String },
   phoneNumber: { type: Number },
@@ -79,6 +88,7 @@ const UserSchema = new Schema({
     type: String,
   },
   website: { type: String },
+  description: { type: String },
   category: {
     type: String,
   },
@@ -95,7 +105,7 @@ const UserSchema = new Schema({
 
 UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
-    this.password = this._hashPassword(this.password);
+    this.password = bcrypt.hashSync(this.password, saltRounds);
   }
   return next();
 });
@@ -121,85 +131,151 @@ UserSchema.pre("findOneAndUpdate", function () {
 
 UserSchema.pre("update", function (next) {
   if (this.isModified("password")) {
-    this.password = this._hashPassword(this.password);
+    this.password = bcrypt.hashSync(this.password, saltRounds);
   }
   return next();
 });
 
-UserSchema.methods = {
-  _hashPassword(password) {
-    // bcrypt.hash(password, saltRounds).then(function (hash) {
-    //     return hash;
-    // })
-    return bcrypt.hashSync(password, saltRounds);
-  },
-  authenticateUser(password) {
-    // bcrypt.compare(password, this.password).then(function (res) {
-    //     return res;
-    // })
-    return bcrypt.compareSync(password, this.password);
-  },
-  createToken() {
-    return jwt.sign(
-      {
-        _id: this._id,
-        firstName: this.firstName,
-        lastName: this.lastName,
-        email: this.email,
-        pref_locations: this.pref_locations,
-        privilege: this.privilege,
-      },
-      constants.JWT_SECRET
-    );
-  },
-  toAuthJSON() {
-    return {
-      _id: this._id,
-      userName: this.userName,
-      token: `JWT ${this.createToken()}`,
-      email: this.email,
-    };
-  },
-  toJSON() {
-    return {
-      _id: this._id,
-      userName: this.userName,
-      email: this.email,
-      firstName: this.firstName,
-      lastName: this.lastName,
-      graph_defaults: this.graph_defaults,
-      pref_locations: this.pref_locations,
-      privilege: this.privilege,
-      phoneNumber: this.phoneNumber,
-    };
-  },
-};
-
-const user = mongoose.model("user", UserSchema);
-
-module.exports = user;
-
-// module.exports = tenantModel("user", UserSchema);
+UserSchema.index({ email: 1 }, { unique: true });
+UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
-  createUser(args) {
-    return this.create({
-      ...args,
-    });
+  async register(args) {
+    try {
+      data = await this.create({
+        ...args,
+      });
+      if (data) {
+        return {
+          success: true,
+          data,
+          message: "user created",
+        };
+      }
+      return {
+        success: true,
+        data,
+        message: "operation successful but user NOT successfully created",
+      };
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(e.keyValue).forEach(([key, value]) => {
+        return (response[key] = `the ${key} must be unique`);
+      });
+      logObject("the response", response);
+      return {
+        error: response,
+        message,
+        success: false,
+        status,
+      };
+    }
+  },
+  async list({ skip = 0, limit = 5, filter = {} } = {}) {
+    try {
+      let users = await this.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .exec();
+      let data = jsonify(users);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "successfully listed the users",
+        };
+      }
+
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "no users exist",
+          data,
+        };
+      }
+      return {
+        success: false,
+        message: "unable to retrieve users",
+        data,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "User model server error - list",
+        error: error.message,
+      };
+    }
+  },
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      let options = { new: true };
+      let modifiedUpdate = update;
+      logObject("modifiedUpdate", modifiedUpdate);
+      if (update.password) {
+        modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
+      }
+      let udpatedUser = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdate,
+        options
+      ).exec();
+      let data = jsonify(udpatedUser);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the user",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "user does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "User model server error - modify",
+        error: error.message,
+      };
+    }
+  },
+  async remove({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+      };
+      let removedUser = await this.findOneAndRemove(filter, options).exec();
+      let data = jsonify(removedUser);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully removed the user",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "user does not exist, please crosscheck",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "User model server error - remove",
+        error: error.message,
+      };
+    }
   },
 };
 
 UserSchema.methods = {
-  _hashPassword(password) {
-    // bcrypt.hash(password, saltRounds).then(function (hash) {
-    //     return hash;
-    // })
-    return bcrypt.hashSync(password, saltRounds);
-  },
   authenticateUser(password) {
-    // bcrypt.compare(password, this.password).then(function (res) {
-    //     return res;
-    // })
     return bcrypt.compareSync(password, this.password);
   },
   createToken() {
@@ -208,6 +284,7 @@ UserSchema.methods = {
         _id: this._id,
         locationCount: this.locationCount,
         organization: this.organization,
+        long_organization: this.long_organization,
         firstName: this.firstName,
         lastName: this.lastName,
         userName: this.userName,
@@ -238,6 +315,7 @@ UserSchema.methods = {
       privilege: this.privilege,
       website: this.website,
       organization: this.organization,
+      long_organization: this.long_organization,
       category: this.category,
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
