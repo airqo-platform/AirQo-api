@@ -1,6 +1,5 @@
 import traceback
 
-import firebase_admin
 import requests
 import urllib3
 from firebase_admin import messaging
@@ -45,8 +44,6 @@ def get_topic(pm2_5, site_id):
 
 
 def send_alerts(alerts):
-    firebase_admin.initialize_app()
-
     for alert in alerts:
         try:
             alert_data = dict(alert)
@@ -65,7 +62,7 @@ def send_alerts(alerts):
             print('Successfully sent message:', response)
 
         except:
-            pass
+            traceback.print_exc()
 
 
 class AirQoApi:
