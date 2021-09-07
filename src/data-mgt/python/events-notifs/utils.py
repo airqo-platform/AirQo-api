@@ -28,17 +28,17 @@ def compose_notification_message(pm2_5, site_name):
 
 def get_topic(pm2_5, site_id):
     if 0.00 <= pm2_5 <= 12.09:
-        return f'{site_id}-good'
+        return f'{site_id}-good'.strip().lower()
     elif 12.10 <= pm2_5 <= 35.49:
-        return f'{site_id}-moderate'
+        return f'{site_id}-moderate'.strip().lower()
     if 35.50 <= pm2_5 <= 55.49:
-        return f'{site_id}-sensitive'
+        return f'{site_id}-sensitive'.strip().lower()
     elif 55.50 <= pm2_5 <= 150.49:
-        return f'{site_id}-unhealthy'
+        return f'{site_id}-unhealthy'.strip().lower()
     elif 150.50 <= pm2_5 <= 250.49:
-        return f'{site_id}-very-unhealthy'
+        return f'{site_id}-very-unhealthy'.strip().lower()
     elif 250.50 <= pm2_5 <= 500.40:
-        return f'{site_id}-hazardous'
+        return f'{site_id}-hazardous'.strip().lower()
     else:
         return None
 
