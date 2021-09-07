@@ -457,10 +457,10 @@ const generateFilter = {
       } = req.query;
 
       if (name) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          name
-        );
-        filter["name"] = { $regex: regexExpression, $options: "i" };
+        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        //   name
+        // );
+        filter["name"] = name;
       }
 
       if (channel) {
@@ -537,6 +537,7 @@ const generateFilter = {
         } else {
         }
       }
+
       logger.info(`the filter  -- ${JSON.stringify(filter)}`);
       return {
         success: true,
@@ -548,7 +549,7 @@ const generateFilter = {
       return {
         success: false,
         message: "server error - generate device filter",
-        error: error.message,
+        errors: error.message,
       };
     }
   },

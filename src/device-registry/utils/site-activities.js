@@ -144,10 +144,8 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       date,
       tags,
       isPrimaryInLocation,
-      isUsedForCollocation,
       maintenanceType,
       site_id,
-      locationName,
     } = req.body;
 
     if (type === "deploy") {
@@ -166,7 +164,6 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         mountType: mountType,
         powerType: powerType,
         isPrimaryInLocation: isPrimaryInLocation,
-        isUsedForCollocation: isUsedForCollocation,
         nextMaintenance: threeMonthsFromNow(date),
         isActive: true,
         latitude: latitude,
@@ -192,7 +189,6 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         mountType: "",
         powerType: "",
         isPrimaryInLocation: false,
-        isUsedForCollocation: false,
         nextMaintenance: "",
         longitude: "",
         latitude: "",
@@ -298,8 +294,7 @@ const bodyFilterOptions = async (req, res) => {
       description,
       activityType,
       nextMaintenance,
-      add_tags,
-      remove_tags,
+      tags,
       maintenanceType,
     } = req.body;
 
@@ -311,8 +306,7 @@ const bodyFilterOptions = async (req, res) => {
       ...(!isEmpty(activityType) && { activityType }),
       ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
       ...(!isEmpty(maintenanceType) && { maintenanceType }),
-      ...(!isEmpty(add_tags) && { $addToSet: { tags: add_tags } }),
-      ...(!isEmpty(remove_tags) && { $pullAll: { tags: remove_tags } }),
+      ...(!isEmpty(tags) && { tags }),
     };
     return { activityBody };
   } catch (e) {
