@@ -1,7 +1,4 @@
-const OrganizationSchema = require("../models/Organization");
-const { getModelByTenant } = require("../utils/multitenancy");
 const { logElement, logText, logObject } = require("../utils/log");
-const generateFilter = require("../utils/generate-filter");
 const HTTPStatus = require("http-status");
 const createOrganizationUtil = require("../utils/create-organization");
 const { validationResult } = require("express-validator");
@@ -10,6 +7,7 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const createOrganization = {
   create: async (req, res) => {
     try {
+      logText("we are creating the organization....");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -27,6 +25,11 @@ const createOrganization = {
 
       let responseFromCreateOrganization = await createOrganizationUtil.create(
         request
+      );
+
+      logObject(
+        "responseFromCreateOrganization",
+        responseFromCreateOrganization
       );
 
       if (responseFromCreateOrganization.success === true) {
@@ -92,7 +95,7 @@ const createOrganization = {
 
         return res.status(status).json({
           message: responseFromUpdateOrganization.message,
-          data: responseFromUpdateOrganization.data,
+          updated_organization: responseFromUpdateOrganization.data,
           success: true,
         });
       }
@@ -140,6 +143,11 @@ const createOrganization = {
         request
       );
 
+      logObject(
+        "responseFromDeleteOrganization",
+        responseFromDeleteOrganization
+      );
+
       if (responseFromDeleteOrganization.success === true) {
         let status = responseFromDeleteOrganization.status
           ? responseFromDeleteOrganization.status
@@ -147,7 +155,7 @@ const createOrganization = {
 
         return res.status(status).json({
           message: responseFromDeleteOrganization.message,
-          data: responseFromDeleteOrganization.data,
+          deleted_organization: responseFromDeleteOrganization.data,
           success: true,
         });
       }
@@ -202,7 +210,7 @@ const createOrganization = {
         return res.status(status).json({
           success: true,
           message: responseFromListOrganizations.message,
-          data: responseFromListOrganizations.data,
+          organizations: responseFromListOrganizations.data,
         });
       }
 

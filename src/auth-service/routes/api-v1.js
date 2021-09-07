@@ -653,7 +653,7 @@ router.put(
 );
 
 router.get(
-  "/organizations/me",
+  "/organizations",
   oneOf([
     query("tenant")
       .exists()
@@ -689,6 +689,13 @@ router.post(
         .bail()
         .isEmail()
         .withMessage("the pollutant value is not a valid email address")
+        .trim(),
+      body("website")
+        .exists()
+        .withMessage("the organization's website is required")
+        .bail()
+        .isURL()
+        .withMessage("the website is not a valid URL")
         .trim(),
       body("status")
         .if(body("status").exists())

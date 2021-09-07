@@ -17,7 +17,6 @@ const createOrganization = {
   },
   create: async (request) => {
     try {
-      logObject("request", request);
       let { body, query } = request;
       let { tenant } = query;
       let responseFromRegisterOrganization = await getModelByTenant(
@@ -62,7 +61,7 @@ const createOrganization = {
     } catch (err) {
       return {
         success: false,
-        message: "defaults util server errors",
+        message: "organization util server errors",
         errors: err.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -137,11 +136,14 @@ const createOrganization = {
   },
   delete: async (request) => {
     try {
+      logText("the delete operation.....");
       let { query, body } = request;
       let { tenant } = query;
       let filter = {};
 
       let responseFromGenerateFilter = generateFilter.organizations(request);
+
+      logObject("responseFromGenerateFilter", responseFromGenerateFilter);
 
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
@@ -161,11 +163,18 @@ const createOrganization = {
         };
       }
 
+      logObject("the filter", filter);
+
       let responseFromRemoveOrganization = await getModelByTenant(
         tenant.toLowerCase(),
         "organization",
         OrganizationSchema
       ).remove({ filter });
+
+      logObject(
+        "responseFromRemoveOrganization",
+        responseFromRemoveOrganization
+      );
 
       if (responseFromRemoveOrganization.success === true) {
         let status = responseFromRemoveOrganization.status
@@ -176,6 +185,7 @@ const createOrganization = {
           status,
           message: responseFromRemoveOrganization.message,
           data: responseFromRemoveOrganization.data,
+          success: true,
         };
       }
 
@@ -191,6 +201,7 @@ const createOrganization = {
           message: responseFromRemoveOrganization.message,
           errors,
           status,
+          success: false,
         };
       }
     } catch (error) {
@@ -198,6 +209,7 @@ const createOrganization = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: error.message,
+        success: false,
       };
     }
   },
