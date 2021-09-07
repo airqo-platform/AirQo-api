@@ -62,7 +62,7 @@ const manageSite = {
       }
 
       if (responseFromCreateSite.success === false) {
-        let error = responseFromCreateSite.error
+        let errors = responseFromCreateSite.error
           ? responseFromCreateSite.error
           : "";
         let status = responseFromCreateSite.status
@@ -71,7 +71,7 @@ const manageSite = {
         return res.status(status).json({
           success: false,
           message: responseFromCreateSite.message,
-          error,
+          errors,
         });
       }
     } catch (error) {
@@ -91,9 +91,7 @@ const manageSite = {
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
-        tenant,
         req
       );
       logObject(
@@ -264,8 +262,64 @@ const manageSite = {
 
   findNearestSite: async (req, res) => {
     try {
+      logText("list all sites by coordinates...");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { tenant, latitude, longitude, radius } = req.query;
+
+      logElement("latitude ", latitude);
+      logElement("longitude ", longitude);
+
+      let request = {};
+      request["radius"] = radius;
+      request["latitude"] = latitude;
+      request["longitude"] = longitude;
+      request["tenant"] = tenant;
+      const responseFromFindNearestSite = await createSiteUtil.findNearestSitesByCoordinates(
+        request
+      );
+
+      logObject("responseFromFindNearestSite", responseFromFindNearestSite);
+      if (responseFromFindNearestSite.success === true) {
+        let nearestSites = responseFromFindNearestSite.data;
+        let status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : HTTPStatus.OK;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromFindNearestSite.message,
+          sites: nearestSites,
+        });
+      }
+
+      if (responseFromFindNearestSite.success === false) {
+        let errors = responseFromFindNearestSite.errors
+          ? responseFromFindNearestSite.errors
+          : "";
+        let status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFindNearestSite.message,
+          errors,
+        });
+      }
     } catch (e) {
       logElement("server error", e.message);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: e.message,
+      });
     }
   },
 

@@ -175,6 +175,26 @@ const valueSchema = new Schema({
       default: null,
     },
   },
+  average_pm2_5: {
+    value: {
+      type: Number,
+      trim: true,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  average_pm10: {
+    value: {
+      type: Number,
+      trim: true,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
   externalPressure: {
     value: { type: Number, default: null },
   },
@@ -243,7 +263,7 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: constants.N_VALUES } },
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
   }
 );
 
@@ -258,7 +278,7 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: `${constants.N_VALUES}` } },
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
   }
 );
 
@@ -315,44 +335,195 @@ eventSchema.statics = {
     }
   },
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    logObject("the filter", filter);
+    const { metadata } = filter;
+    let search = filter;
+    let groupId = "$device";
+    let localField = "device";
+    let foreignField = "name";
+    let from = "devices";
+    let _as = "_deviceDetails";
+    let as = "deviceDetails";
+    let elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
+
+    if (!metadata || metadata === "device") {
+      delete search["metadata"];
+    }
+
+    if (metadata === "site") {
+      groupId = "$site";
+      localField = "site";
+      foreignField = "generated_name";
+      from = "sites";
+      _as = "_siteDetails";
+      as = "siteDetails";
+      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
+      delete search["metadata"];
+    }
+
+    if (metadata === "site_id") {
+      groupId = "$site_id";
+      localField = "site_id";
+      foreignField = "_id";
+      from = "sites";
+      _as = "_siteDetails";
+      as = "siteDetails";
+      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
+      delete search["metadata"];
+    }
+
+    if (metadata === "device_id") {
+      groupId = "$device_id";
+      localField = "device_id";
+      foreignField = "_id";
+      from = "devices";
+      _as = "_deviceDetails";
+      as = "deviceDetails";
+      elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
+      delete search["metadata"];
+    }
     return this.aggregate()
       .unwind("values")
-      .match(filter)
+      .match(search)
       .replaceRoot("values")
+      .lookup({
+        from,
+        localField,
+        foreignField,
+        as,
+      })
       .sort({ time: -1 })
       .project({
+        _device: "$device",
+        _time: "$time",
+        _average_pm2_5: "$average_pm2_5",
+        _pm2_5: "$pm2_5",
+        _s2_pm2_5: "$s2_pm2_5",
+        _average_pm10: "$average_pm10",
+        _pm10: "$pm10",
+        _s2_pm10: "$s2_pm10",
+        _frequency: "$frequency",
+        _battery: "$battery",
+        _location: "$location",
+        _altitude: "$altitude",
+        _speed: "$speed",
+        _satellites: "$satellites",
+        _hdop: "$hdop",
+        _site_id: "$site_id",
+        _device_id: "$device_id",
+        _site: "$site",
+        _device_number: "$device_number",
+        _internalTemperature: "$internalTemperature",
+        _externalTemperature: "$externalTemperature",
+        _internalHumidity: "$internalHumidity",
+        _externalHumidity: "$externalHumidity",
+        _externalAltitude: "$externalAltitude",
+        _pm1: "$pm1",
+        _no2: "$no2",
+        [_as]: elementAtIndex0,
+      })
+      .project({
+        device: "$_device",
+        device_id: "$_device_id",
+        device_number: "$_device_number",
+        site: "$_site",
+        site_id: "$_site_id",
+        time: "$_time",
+        average_pm2_5: "$_average_pm2_5",
+        pm2_5: "$_pm2_5",
+        s2_pm2_5: "$_s2_pm2_5",
+        average_pm10: "$_average_pm10",
+        pm10: "$_pm10",
+        s2_pm10: "$_s2_pm10",
+        frequency: "$_frequency",
+        battery: "$_battery",
+        location: "$_location",
+        altitude: "$_altitude",
+        speed: "$_speed",
+        satellites: "$_satellites",
+        hdop: "$_hdop",
+        internalTemperature: "$_internalTemperature",
+        externalTemperature: "$_externalTemperature",
+        internalHumidity: "$_internalHumidity",
+        externalHumidity: "$_externalHumidity",
+        externalAltitude: "$_externalAltitude",
+        pm1: "$_pm1",
+        no2: "$_no2",
+        [as]: "$" + _as,
+      })
+      .project({
         _id: 0,
-        day: 0,
-        __v: 0,
-        createdAt: 0,
-        first: 0,
-        last: 0,
-        nValues: 0,
-        updatedAt: 0,
       })
       .skip(skipInt)
       .limit(limitInt)
       .allowDiskUse(true);
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    logObject("the filter", filter);
+    const { metadata } = filter;
+    let search = filter;
+    let groupId = "$device";
+    let localField = "device";
+    let foreignField = "name";
+    let from = "devices";
+    let as = "deviceDetails";
+    let elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+
+    if (!metadata || metadata === "device") {
+      delete search["metadata"];
+    }
+
+    if (metadata === "site") {
+      groupId = "$site";
+      localField = "site";
+      foreignField = "generated_name";
+      from = "sites";
+      as = "siteDetails";
+      elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
+      delete search["metadata"];
+    }
+
+    if (metadata === "site_id") {
+      groupId = "$site_id";
+      localField = "site_id";
+      foreignField = "_id";
+      from = "sites";
+      as = "siteDetails";
+      elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
+      delete search["metadata"];
+    }
+
+    if (metadata === "device_id") {
+      groupId = "$device_id";
+      localField = "device_id";
+      foreignField = "_id";
+      from = "devices";
+      as = "deviceDetails";
+      elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+      delete search["metadata"];
+    }
+
     return this.aggregate()
       .unwind("values")
-      .match(filter)
+      .match(search)
       .replaceRoot("values")
       .lookup({
-        from: "devices",
-        localField: "device",
-        foreignField: "name",
-        as: "deviceDetails",
+        from,
+        localField,
+        foreignField,
+        as,
       })
       .sort({ time: -1 })
       .group({
         _id: "$device",
+        device: { $first: "$device" },
+        device_id: { $first: "$device_id" },
+        device_number: { $first: "$device_number" },
+        site: { $first: "$site" },
+        site_id: { $first: "$site_id" },
         time: { $first: "$time" },
+        average_pm2_5: { $first: "$average_pm2_5" },
         pm2_5: { $first: "$pm2_5" },
         s2_pm2_5: { $first: "$s2_pm2_5" },
+        average_pm10: { $first: "$average_pm10" },
         pm10: { $first: "$pm10" },
         s2_pm10: { $first: "$s2_pm10" },
         frequency: { $first: "$frequency" },
@@ -362,10 +533,6 @@ eventSchema.statics = {
         speed: { $first: "$speed" },
         satellites: { $first: "$satellites" },
         hdop: { $first: "$hdop" },
-        site_id: { $first: "$site_id" },
-        device_id: { $first: "$device_id" },
-        site: { $first: "$site" },
-        device: { $first: "$device" },
         internalTemperature: { $first: "$internalTemperature" },
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
@@ -373,7 +540,10 @@ eventSchema.statics = {
         externalAltitude: { $first: "$externalAltitude" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
-        deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
+        [as]: elementAtIndex0,
+      })
+      .project({
+        _id: 0,
       })
       .skip(skipInt)
       .limit(limitInt)
@@ -387,6 +557,7 @@ eventSchema.statics = {
       let groupOperator = "$avg";
       let search = filter;
       let groupId = {};
+      let average = frequency;
       let localField = "device_id";
       let foreignField = "_id";
       let from = "devices";
@@ -429,11 +600,13 @@ eventSchema.statics = {
         groupId = {
           $dateToString: { format: "%Y-%m-%dT%H:00:00.%LZ", date: "$time" },
         };
+        average = "hourly";
         delete search["frequency"];
       }
 
       if (frequency === "daily") {
         groupId = { $dateToString: { format: "%Y-%m-%d", date: "$time" } };
+        average = "daily";
         delete search["frequency"];
       }
 
@@ -442,6 +615,7 @@ eventSchema.statics = {
           $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$time" },
         };
         groupOperator = "$first";
+        average = "average";
         delete search["frequency"];
       }
 
@@ -478,7 +652,6 @@ eventSchema.statics = {
           site_id: { $first: "$site_id" },
           site: { $first: "$site" },
           device: { $first: "$device" },
-          frequency: { $first: "$frequency" },
           is_test_data: { $first: "$is_test_data" },
           "pm2_5-value": { [groupOperator]: "$pm2_5.value" },
           "pm2_5-calibrationValue": {

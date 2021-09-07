@@ -1,0 +1,94 @@
+
+{
+    "namespace": "net.airqo.models",
+    "type": "record",
+    "name": "AirQoDeviceMeasurements",
+    "doc": "https://staging-platform.airqo.net/api/v1/data/feeds/transform/recent?channel=1014687",
+    "fields": [
+
+        {
+            "name":"measurements",
+            "type":{
+                "type": "array",  
+                "items":{
+                    "name":"Measurement",
+                    "type":"record",
+                    "fields":[
+                        {
+                            "name": "isCache", "type": "boolean", "default": false
+                        },
+                        {
+                            "name": "created_at", "type": "string"
+                        },
+                        {
+                            "name": "channelID", "type": "int"
+                        },
+                        {
+                            "name": "latitude", "type": "string"
+                        },
+                        {
+                            "name": "longitude", "type": "string"
+                        },
+                        {
+                            "name": "pm2_5",
+                            "type": "string"
+                        },
+                        {
+                            "name": "pm10",
+                            "type": "string"
+                        },
+                        {
+                            "name": "s2_pm2_5",
+                            "type": "string"
+                        },
+                        {
+                            "name": "s2_pm10",
+                            "type": "string"
+                        },
+                        {
+                            "name": "battery",
+                            "type": "string"
+                        },
+                        {
+                            "name": "altitude",
+                            "type": "string"
+                        },
+                        {
+                            "name": "speed",
+                            "type": "string"
+                        },
+                        {
+                            "name": "satellites",
+                            "type": "string"
+                        },
+                        {
+                            "name": "hdop",
+                            "type": "string"
+                        },
+                        {
+                            "name": "internalTemperature",
+                            "type": "string"
+                        },
+                        {
+                            "name": "internalHumidity",
+                            "type": "string"
+                        },
+                        {
+                            "name": "externalTemperature",
+                            "type": "string"
+                        },
+                        {
+                            "name": "ExternalHumidity",
+                            "type": "string"
+                        },
+                        {
+                            "name": "ExternalPressure",
+                            "type": "string"
+                        }
+                    ]
+                }
+            }
+        }
+        
+    ]
+}

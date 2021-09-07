@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-stage-device-registry-api
   service_name: airqo-stage-device-registry-api-svc
   labels: sta-dev-reg-api
-  secret: stage-device-reg-secret
+  secret: env-device-registry-staging
 
 replicaCount: 2
 

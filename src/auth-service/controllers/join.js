@@ -4,21 +4,31 @@ const { logElement, logText, logObject } = require("../utils/log");
 const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
 const joinUtil = require("../utils/join");
 const generateFilter = require("../utils/generate-filter");
+const { validationResult } = require("express-validator");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const { badRequest } = require("../utils/errors");
 
 const join = {
   list: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       logText(".....................................");
       logText("list all users by query params provided");
       const { tenant, id } = req.query;
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
-      if (!tenant) {
-        return missingQueryParams(req, res);
-      }
+
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         let responseFromListUsers = await joinUtil.list(
           tenant,
@@ -27,13 +37,13 @@ const join = {
           skip
         );
         logObject("responseFromListUsers", responseFromListUsers);
-        if (responseFromListUsers.success == true) {
+        if (responseFromListUsers.success === true) {
           res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromListUsers.message,
             users: responseFromListUsers.data,
           });
-        } else if (responseFromListUsers.success == false) {
+        } else if (responseFromListUsers.success === false) {
           if (responseFromListUsers.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -47,7 +57,7 @@ const join = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
@@ -65,11 +75,26 @@ const join = {
       tryCatchErrors(res, error, "join controller");
     }
   },
-
+  verify: (req, res) => {
+    return res.status(HTTPStatus.OK).json({
+      success: true,
+      message: "this token is valid",
+      response: "valid token",
+    });
+  },
   forgot: async (req, res) => {
     logText("...........................................");
     logText("forgot password...");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       let { email } = req.body;
       let { tenant } = req.query;
       if (!tenant && !email) {
@@ -82,7 +107,7 @@ const join = {
       }
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         let update = { email };
         let responseFromForgotPassword = await joinUtil.forgotPassword(
@@ -91,13 +116,13 @@ const join = {
           update
         );
         logObject("responseFromForgotPassword", responseFromForgotPassword);
-        if (responseFromForgotPassword.success == true) {
+        if (responseFromForgotPassword.success === true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromForgotPassword.message,
             response: responseFromForgotPassword.data,
           });
-        } else if (responseFromForgotPassword.success == false) {
+        } else if (responseFromForgotPassword.success === false) {
           if (responseFromForgotPassword.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -111,7 +136,7 @@ const join = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
@@ -135,9 +160,25 @@ const join = {
     logText("..................................................");
     logText("register user.............");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { errors, isValid } = validations.register(req.body);
       const { tenant } = req.query;
-      const { firstName, lastName, email, organization, privilege } = req.body;
+      const {
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        privilege,
+      } = req.body;
 
       if (!isValid) {
         return res
@@ -145,34 +186,42 @@ const join = {
           .json({ success: false, errors, message: "validation error" });
       }
 
-      let responseFromCreateUser = await joinUtil.create(
-        tenant.toLowerCase(),
-        firstName,
-        lastName,
-        email,
-        organization,
-        privilege
-      );
+      let request = {};
+      request["tenant"] = tenant.toLowerCase();
+      request["firstName"] = firstName;
+      request["lastName"] = lastName;
+      request["email"] = email;
+      request["organization"] = organization;
+      request["long_organization"] = long_organization;
+      request["privilege"] = privilege;
+
+      let responseFromCreateUser = await joinUtil.create(request);
       logObject("responseFromCreateUser in controller", responseFromCreateUser);
-      if (responseFromCreateUser.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromCreateUser.success === true) {
+        let status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromCreateUser.message,
           user: responseFromCreateUser.data,
         });
-      } else if (responseFromCreateUser.success == false) {
-        if (responseFromCreateUser.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromCreateUser.message,
-            error: responseFromCreateUser.error,
-          });
-        } else {
-          return res.status(HTTPStatus).json({
-            success: false,
-            message: responseFromCreateUser.message,
-          });
-        }
+      }
+
+      if (responseFromCreateUser.success === false) {
+        let status = responseFromCreateUser.status
+          ? responseFromCreateUser.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        let error = responseFromCreateUser.error
+          ? responseFromCreateUser.error
+          : "";
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateUser.message,
+          errors: error,
+        });
       }
     } catch (error) {
       tryCatchErrors(res, error, "join controller");
@@ -183,13 +232,22 @@ const join = {
     logText(".......................................................");
     logText("confirming email...............");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant, id } = req.query;
       if (!tenant) {
         missingQueryParams(req, res);
       }
       let responseFromFilter = generateFilter.users(req);
       logElement("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         filter["emailConfirmed"] = false;
         update = { confirmed: true };
@@ -198,12 +256,12 @@ const join = {
           filter,
           update
         );
-        if (responseFromConfirmEmail.success == true) {
+        if (responseFromConfirmEmail.success === true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromConfirmEmail.message,
           });
-        } else if (responseFromConfirmEmail.success == false) {
+        } else if (responseFromConfirmEmail.success === false) {
           if (responseFromConfirmEmail.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -217,7 +275,7 @@ const join = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
@@ -242,11 +300,20 @@ const join = {
     logText("..................................");
     logText("user login......");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { errors, isValid } = validations.login(req.body);
       if (!isValid) {
         return res.status(HTTPStatus.BAD_REQUEST).json(errors);
       }
-      if (req.auth.success == true) {
+      if (req.auth.success === true) {
         res.status(HTTPStatus.OK).json(req.user.toAuthJSON());
       } else {
         if (req.auth.error) {
@@ -267,50 +334,54 @@ const join = {
   },
 
   delete: async (req, res) => {
-    logText(".................................................");
-    logText("inside delete user............");
-    const { tenant, id } = req.query;
-    if (!tenant && !id) {
-      return missingQueryParams(req, res);
-    }
-    let responseFromFilter = generateFilter.users(req);
-    logObject("responseFromFilter", responseFromFilter);
-    if (responseFromFilter.success == true) {
-      let filter = responseFromFilter.data;
-      let responseFromRemoveUser = await joinUtil.delete(tenant, filter);
-      if (responseFromRemoveUser.success == true) {
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: responseFromRemoveUser.message,
-          user: responseFromRemoveUser.data,
-        });
-      } else if (responseFromRemoveUser.success == false) {
-        if (responseFromRemoveUser.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
+    try {
+      logText(".................................................");
+      logText("inside delete user............");
+      const { tenant, id } = req.query;
+      if (!tenant && !id) {
+        return missingQueryParams(req, res);
+      }
+      let responseFromFilter = generateFilter.users(req);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === true) {
+        let filter = responseFromFilter.data;
+        let responseFromRemoveUser = await joinUtil.delete(tenant, filter);
+        if (responseFromRemoveUser.success === true) {
+          return res.status(HTTPStatus.OK).json({
+            success: true,
             message: responseFromRemoveUser.message,
-            error: responseFromRemoveUser.error,
+            user: responseFromRemoveUser.data,
+          });
+        } else if (responseFromRemoveUser.success === false) {
+          if (responseFromRemoveUser.error) {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: responseFromRemoveUser.message,
+              error: responseFromRemoveUser.error,
+            });
+          } else {
+            return res.status(HTTPStatus.BAD_GATEWAY).json({
+              success: false,
+              message: responseFromRemoveUser.message,
+            });
+          }
+        }
+      } else if (responseFromFilter.success === false) {
+        if (responseFromFilter.error) {
+          res.status(HTTPStatus.BAD_GATEWAY).json({
+            success: false,
+            message: responseFromFilter.message,
+            error: responseFromFilter.error,
           });
         } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
+          res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
-            message: responseFromRemoveUser.message,
+            message: responseFromFilter.message,
           });
         }
       }
-    } else if (responseFromFilter.success == false) {
-      if (responseFromFilter.error) {
-        res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: responseFromFilter.message,
-          error: responseFromFilter.error,
-        });
-      } else {
-        res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: responseFromFilter.message,
-        });
-      }
+    } catch (error) {
+      tryCatchErrors(res, error, "join controller");
     }
   },
 
@@ -318,13 +389,22 @@ const join = {
     try {
       logText(".................................................");
       logText("inside user update................");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant, id } = req.query;
       if (!tenant && !id) {
         return missingQueryParams(req, res);
       }
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         let update = req.body;
         delete update.password;
@@ -335,13 +415,13 @@ const join = {
           update
         );
         logObject("responseFromUpdateUser", responseFromUpdateUser);
-        if (responseFromUpdateUser.success == true) {
+        if (responseFromUpdateUser.success === true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromUpdateUser.message,
             user: responseFromUpdateUser.data,
           });
-        } else if (responseFromUpdateUser.success == false) {
+        } else if (responseFromUpdateUser.success === false) {
           if (responseFromUpdateUser.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -355,7 +435,7 @@ const join = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
@@ -376,6 +456,15 @@ const join = {
 
   updateForgottenPassword: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       const { password, resetPasswordToken } = req.body;
       if (!tenant && !resetPasswordToken && !password) {
@@ -383,7 +472,7 @@ const join = {
       }
       let responseFromFilter = generateFilter.users(req);
       // logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let update = {
           password,
           resetPasswordToken,
@@ -397,13 +486,13 @@ const join = {
           "responseFromUpdateForgottenPassword",
           responseFromUpdateForgottenPassword
         );
-        if (responseFromUpdateForgottenPassword.success == true) {
+        if (responseFromUpdateForgottenPassword.success === true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromUpdateForgottenPassword.message,
             user: responseFromUpdateForgottenPassword.data,
           });
-        } else if (responseFromUpdateForgottenPassword.success == false) {
+        } else if (responseFromUpdateForgottenPassword.success === false) {
           if (responseFromUpdateForgottenPassword.error) {
             res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -417,7 +506,7 @@ const join = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
@@ -439,6 +528,15 @@ const join = {
   updateKnownPassword: async (req, res) => {
     try {
       logText("update known password............");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { errors, isValid } = validations.updateKnownPassword(req.body);
       if (!isValid) {
         return res.status(400).json(errors);
@@ -451,7 +549,7 @@ const join = {
 
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         let responseFromUpdatePassword = await joinUtil.updateKnownPassword(
           tenant,
@@ -459,13 +557,13 @@ const join = {
           old_password,
           filter
         );
-        if (responseFromUpdatePassword.success == true) {
+        if (responseFromUpdatePassword.success === true) {
           return res.status(HTTPStatus.OK).json({
             success: true,
             message: responseFromUpdatePassword.message,
             user: responseFromUpdatePassword.data,
           });
-        } else if (responseFromUpdatePassword.success == false) {
+        } else if (responseFromUpdatePassword.success === false) {
           if (responseFromUpdatePassword.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
               success: false,
@@ -479,7 +577,7 @@ const join = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,

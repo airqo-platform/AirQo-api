@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
+const airqloudController = require("../controllers/create-airqloud");
 const middlewareConfig = require("../config/router.middleware");
 const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
@@ -16,6 +17,7 @@ const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
 const sanitize = require("../utils/sanitize");
 var numeral = require("numeral");
+const createSiteUtil = require("../utils/create-site");
 
 middlewareConfig(router);
 
@@ -91,13 +93,6 @@ router.post(
         .toLowerCase()
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
-      body("visibility")
-        .exists()
-        .withMessage("visibility should be provided")
-        .bail()
-        .trim()
-        .isBoolean()
-        .withMessage("visibility must be Boolean"),
       body("device_number")
         .if(body("device_number").exists())
         .notEmpty()
@@ -238,16 +233,20 @@ router.post(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100")
         .bail()
         .toFloat(),
       body("elevation")
@@ -383,6 +382,22 @@ router.put(
         .if(body("long_name").exists())
         .notEmpty()
         .trim(),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn([
+          "recalled",
+          "ready",
+          "deployed",
+          "undeployed",
+          "decommissioned",
+          "assembly",
+        ])
+        .withMessage(
+          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly "
+        ),
       body("mountType")
         .if(body("mountType").exists())
         .notEmpty()
@@ -461,16 +476,20 @@ router.put(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100")
         .bail()
         .toFloat(),
       body("elevation")
@@ -515,7 +534,6 @@ router.put(
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
         .if(body("description").exists())
-        .notEmpty()
         .trim(),
       body("product_name")
         .if(body("product_name").exists())
@@ -794,16 +812,20 @@ router.put(
         .if(body("phoneNumber").exists())
         .notEmpty()
         .trim()
-        .isInt()
-        .withMessage("phoneNumber must be an integer")
+        .custom((value) => {
+          let parsedPhoneNumber = phoneUtil.parse(value);
+          let isValid = phoneUtil.isValidNumber(parsedPhoneNumber);
+          return isValid;
+        })
+        .withMessage("phoneNumber must be a valid one")
         .bail()
         .toInt(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
         .trim()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("height must be a number between 0 and 100")
         .bail()
         .toFloat(),
       body("elevation")
@@ -1029,8 +1051,8 @@ router.post(
         .exists()
         .withMessage("the height is is missing in your request")
         .bail()
-        .isFloat({ gt: 0, lt: 10 })
-        .withMessage("the height must be a number between 0 and 10")
+        .isFloat({ gt: 0, lt: 100 })
+        .withMessage("the height must be a number between 0 and 100")
         .trim(),
       body("isPrimaryInLocation")
         .exists()
@@ -1107,16 +1129,6 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
-      body("maintenanceType")
-        .exists()
-        .withMessage("the maintenanceType is is missing in your request")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["preventive", "corrective"])
-        .withMessage(
-          "the mountType value is not among the expected ones which include: corrective and preventive"
-        ),
       body("date")
         .exists()
         .withMessage("date is missing")
@@ -1190,7 +1202,14 @@ router.post(
       body("name")
         .exists()
         .withMessage("the name is is missing in your request")
-        .trim(),
+        .bail()
+        .trim()
+        .custom((value) => {
+          return createSiteUtil.validateSiteName(value);
+        })
+        .withMessage(
+          "The name should be greater than 5 and less than 50 in length"
+        ),
     ],
   ]),
   siteController.register
@@ -1200,14 +1219,6 @@ router.post(
   "/sites/metadata",
   oneOf([
     [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
       body("latitude")
         .exists()
         .withMessage("the latitude should be provided")
@@ -1278,6 +1289,208 @@ router.put(
       .bail()
       .trim(),
   ]),
+  oneOf([
+    [
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["active", "decommissioned"])
+        .withMessage(
+          "the status value is not among the expected ones which include: decommissioned, active"
+        ),
+      body("nearest_tahmo_station")
+        .if(body("nearest_tahmo_station").exists())
+        .notEmpty()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .bail()
+        .withMessage("the nearest_tahmo_station should be an object"),
+      body("createdAt")
+        .if(body("createdAt").exists())
+        .notEmpty()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("createdAt date must be a valid datetime."),
+      body("airqloud_id")
+        .if(body("airqloud_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("the airqloud_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("distance_to_nearest_road")
+        .if(body("distance_to_nearest_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_primary_road")
+        .if(body("distance_to_nearest_primary_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_primary_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_secondary_road")
+        .if(body("distance_to_nearest_secondary_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_secondary_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_tertiary_road")
+        .if(body("distance_to_nearest_tertiary_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_tertiary_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_unclassified_road")
+        .if(body("distance_to_nearest_unclassified_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_unclassified_road must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_residential_road")
+        .if(body("distance_to_nearest_residential_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_residential_road must be a number")
+        .bail()
+        .toFloat(),
+      body("bearing_to_kampala_center")
+        .if(body("bearing_to_kampala_center").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("bearing_to_kampala_center must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_kampala_center")
+        .if(body("distance_to_kampala_center").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_kampala_center must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_residential_road")
+        .if(body("distance_to_nearest_residential_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_residential_road must be a number")
+        .bail()
+        .toFloat(),
+      body(" distance_to_nearest_city")
+        .if(body(" distance_to_nearest_city").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage(" distance_to_nearest_city must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_motorway")
+        .if(body("distance_to_nearest_motorway").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_motorway must be a number")
+        .bail()
+        .toFloat(),
+      body("distance_to_nearest_road")
+        .if(body("distance_to_nearest_road").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("distance_to_nearest_road must be a number")
+        .bail()
+        .toFloat(),
+      body("landform_270")
+        .if(body("landform_270").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("landform_270 must be a number")
+        .bail()
+        .toFloat(),
+      body("landform_90")
+        .if(body("landform_90").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("landform_90 must be a number")
+        .bail()
+        .toFloat(),
+      body("greenness")
+        .if(body("greenness").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("greenness must be a number")
+        .bail()
+        .toFloat(),
+      body("altitude")
+        .if(body("altitude").exists())
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("altitude must be a number")
+        .bail()
+        .toFloat(),
+      body("city")
+        .if(body("city").exists())
+        .notEmpty()
+        .trim(),
+      body("street")
+        .if(body("street").exists())
+        .notEmpty()
+        .trim(),
+      body("latitude")
+        .if(body("latitude").exists())
+        .notEmpty()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+      body("longitude")
+        .if(body("longitude").exists())
+        .notEmpty()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+    ],
+  ]),
   siteController.update
 );
 router.put(
@@ -1335,13 +1548,77 @@ router.delete(
     .isIn(["kcca", "airqo"])
     .withMessage("the tenant value is not among the expected ones"),
   oneOf([
-    check("id").exists(),
-    check("lat_long").exists(),
-    check("generated_name").exists(),
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      ),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      ),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      ),
   ]),
   siteController.delete
 );
-router.post("/sites/nearest", siteController.findNearestSite);
+router.get(
+  "/sites/nearest",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("longitude")
+        .exists()
+        .withMessage("the longitude is missing in request")
+        .bail()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      query("radius")
+        .exists()
+        .withMessage("the radius is missing in request")
+        .bail()
+        .trim()
+        .isFloat()
+        .withMessage("the radius must be a number")
+        .bail()
+        .toFloat(),
+      query("latitude")
+        .exists()
+        .withMessage("the latitude is missing in the request")
+        .bail()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+    ],
+  ]),
+  siteController.findNearestSite
+);
 
 /******************* create-component use-case **************************/
 router.get("/list/components/", componentController.listAll);
@@ -1502,6 +1779,15 @@ router.get(
         .toLowerCase()
         .isIn(["yes", "no"])
         .withMessage("valid values include: YES and NO"),
+      query("metadata")
+        .if(query("metadata").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["site", "site_id", "device", "device_id"])
+        .withMessage(
+          "valid values include: site, site_id, device and device_id"
+        ),
       query("test")
         .if(query("test").exists())
         .notEmpty()
@@ -1577,6 +1863,238 @@ router.delete(
       .withMessage("the device names do not have spaces in them"),
   ]),
   eventController.deleteValuesOnPlatform
+);
+
+/************************** airqlouds usecase  *******************/
+router.post(
+  "/airqlouds",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("name")
+        .exists()
+        .withMessage("the name is is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("location")
+        .exists()
+        .withMessage("the location is is missing in your request"),
+      body("location.coordinates")
+        .exists()
+        .withMessage("location.coordinates is is missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .exists()
+        .withMessage("location.type is is missing in your request")
+        .bail()
+        .toLowerCase()
+        .isIn(["polygon", "point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: polygon and point"
+        ),
+      body("airqloud_tags")
+        .if(body("airqloud_tags").exists())
+        .notEmpty()
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  airqloudController.register
+);
+
+router.get(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .if(query("id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  airqloudController.list
+);
+
+router.put(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using name"
+      )
+      .bail()
+      .trim()
+      .custom((value) => {
+        return createSiteUtil.validateSiteName(value);
+      })
+      .withMessage(
+        "The name should be greater than 5 and less than 50 in length"
+      ),
+  ]),
+  oneOf([
+    [
+      body("name")
+        .if(body("name").exists())
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .bail()
+        .customSanitizer((value) => {
+          return createSiteUtil.sanitiseName(value);
+        })
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("location")
+        .if(body("location").exists())
+        .notEmpty()
+        .withMessage("the location should not be empty"),
+      body("location.coordinates")
+        .if(body("location.coordinates").exists())
+        .notEmpty()
+        .withMessage("the location.coordinates should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .if(body("location.type").exists())
+        .notEmpty()
+        .withMessage("the location.type should not be empty")
+        .bail()
+        .toLowerCase()
+        .isIn(["polygon", "point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: polygon and point"
+        ),
+      body("airqloud_tags")
+        .if(body("airqloud_tags").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  airqloudController.update
+);
+
+router.delete(
+  "/airqlouds",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using the name "
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  airqloudController.delete
 );
 
 module.exports = router;

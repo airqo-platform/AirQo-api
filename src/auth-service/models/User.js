@@ -11,6 +11,7 @@ const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
 const { log } = require("debug");
 const saltRounds = constants.SALT_ROUNDS;
+const HTTPStatus = require("http-status");
 
 function oneMonthFromNow() {
   var d = new Date();
@@ -74,6 +75,10 @@ const UserSchema = new Schema({
     type: String,
     required: [true, "the organization is required!"],
   },
+  long_organization: {
+    type: String,
+    required: [true, "the long_organization is required!"],
+  },
   country: { type: String },
   phoneNumber: { type: Number },
   locationCount: { type: Number, default: 5 },
@@ -83,6 +88,7 @@ const UserSchema = new Schema({
     type: String,
   },
   website: { type: String },
+  description: { type: String },
   category: {
     type: String,
   },
@@ -135,20 +141,37 @@ UserSchema.index({ userName: 1 }, { unique: true });
 
 UserSchema.statics = {
   async register(args) {
-    logObject("the args", args);
     try {
+      data = await this.create({
+        ...args,
+      });
+      if (data) {
+        return {
+          success: true,
+          data,
+          message: "user created",
+        };
+      }
       return {
         success: true,
-        data: this.create({
-          ...args,
-        }),
-        message: "user created",
+        data,
+        message: "operation successful but user NOT successfully created",
       };
-    } catch (error) {
+    } catch (err) {
+      let e = jsonify(err);
+      logObject("the error", e);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(e.keyValue).forEach(([key, value]) => {
+        return (response[key] = `the ${key} must be unique`);
+      });
+      logObject("the response", response);
       return {
-        error: error.message,
-        message: "User model server error - register",
+        error: response,
+        message,
         success: false,
+        status,
       };
     }
   },
@@ -261,6 +284,7 @@ UserSchema.methods = {
         _id: this._id,
         locationCount: this.locationCount,
         organization: this.organization,
+        long_organization: this.long_organization,
         firstName: this.firstName,
         lastName: this.lastName,
         userName: this.userName,
@@ -291,6 +315,7 @@ UserSchema.methods = {
       privilege: this.privilege,
       website: this.website,
       organization: this.organization,
+      long_organization: this.long_organization,
       category: this.category,
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,

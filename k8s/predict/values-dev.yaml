@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-dev-prediction-api
   service_name: airqo-dev-prediction-api-svc
   labels: prediction-api
-  secret: dev-prediction-secret
+  secret: env-predict-development
 
 replicaCount: 2
 

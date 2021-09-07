@@ -1,0 +1,32 @@
+###########################################################
+# Start deployment of AirQo batch device measurements streams application - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-batch-measurements-stream
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: airqo-batch-measurements-stream
+  replicas: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: airqo-batch-measurements-stream
+    spec:
+      containers:
+        - name: airqo-batch-measurements-stream
+          image: us.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
+          imagePullPolicy: Always
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: prod-airqo-batch-measurements-stream-config
