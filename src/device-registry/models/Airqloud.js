@@ -30,7 +30,7 @@ const metadataSchema = new Schema(
     county: { type: String },
     subcounty: { type: String },
     parish: { type: String },
-    centroid: { type: "Point" },
+    centroid: { type: Array, coordinates: [0, 0] },
     km2: { type: Number },
     population: { type: Number },
     households: { type: Number },
