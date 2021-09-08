@@ -12,9 +12,10 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY")
     BQ_SCHEME = os.getenv("BQ_SCHEME_PROD")
     RAW_FEEDS_PMS = os.getenv("RAW_FEEDS_PMS_PROD")
-
+    
 class ProductionConfig(Config):
-    pass
+    RAW_FEEDS_PMS_CLUSTERED = os.getenv("RAW_FEEDS_PMS_CLUSTERED_PROD")
+    DATAPREP_TABLE = os.getenv("DATAPREP_TABLE_PROD")
 
 
 class DevelopmentConfig(Config):
