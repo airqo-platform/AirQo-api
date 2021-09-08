@@ -1,0 +1,43 @@
+
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  creationTimestamp: "2020-08-13T11:00:12Z"
+  managedFields:
+    - apiVersion: batch/v1beta1
+      manager: kubectl
+      operation: Update
+      time: "2020-08-13T11:00:12Z"
+  name: prod-update-channel-data-job
+  namespace: production
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    metadata:
+      creationTimestamp: null
+      name: prod-update-channel-data-job
+    spec:
+      template:
+        metadata:
+          creationTimestamp: null
+        spec:
+          containers:
+            - name: prod-update-channel-data-job
+              image: us.gcr.io/airqo-250220/airqo-update-channel-data-job:latest
+              imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: env-update-channel-data-production
+              resources: {}
+              terminationMessagePath: /dev/termination-log
+              terminationMessagePolicy: File
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+  schedule: 0 * * * *
+  successfulJobsHistoryLimit: 3
+  suspend: false
+status: {}
