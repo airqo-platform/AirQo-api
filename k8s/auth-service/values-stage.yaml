@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-stage-auth-api
   service_name: airqo-stage-auth-api-svc
   labels: sta-auth-api
-  secret: stage-auth-secret
+  secret: env-auth-staging
 
 replicaCount: 2
 

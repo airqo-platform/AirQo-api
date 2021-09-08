@@ -41,82 +41,9 @@ spec:
           #   httpGet:
           #     path: /
           #     port: http
-          env:
-            - name: MONGO_GCE_URI
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_GCE_URI
-            - name: MONGO_GCE_USERNAME
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_GCE_USERNAME
-            - name: MONGO_GCE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_GCE_PASSWORD
-            - name: MONGO_GCE_HOST
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_GCE_HOST
-            - name: MONGO_GCE_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_GCE_PORT
-            - name: MONGO_PROD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_PROD
-            - name: MONGO_STAGE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_STAGE
-            - name: SESSION_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: SESSION_SECRET
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: JWT_SECRET
-            - name: DB_NAME_PROD
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: DB_NAME_PROD
-            - name: DB_NAME_STAGE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: DB_NAME_STAGE
-            - name: MONGO_STAGE
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MONGO_STAGE
-            - name: MAIL_PASS
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MAIL_PASS
-            - name: MAIL_USER
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: MAIL_USER
-            - name: INSTANCE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.env.secret }}
-                  key: INSTANCE_ID
+          envFrom:
+            - configMapRef:
+                name: {{ .Values.env.secret }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}
