@@ -6,7 +6,7 @@ from confluent_avro import SchemaRegistry
 from kafka import KafkaProducer
 
 
-class KafkaClient:
+class KafkaBrokerClient:
 
     def __init__(self):
         self.__bootstrap_servers = [os.getenv("BOOTSTRAP_SERVERS")]
