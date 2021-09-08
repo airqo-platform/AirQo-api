@@ -83,9 +83,11 @@ def fetch_and_write_new():
                 
                 file_path = 'gs://airqo-bucket/%s'%file_name
                 insert_data_bqtable(file_path, configuration.BQ_SCHEME, configuration.RAW_FEEDS_PMS)
-                # insert_data_bqtable(file_path,'thingspeak','raw_feeds_pms_clustered')
-                ## insert_data_bqtable(file_path,'thingspeak','new_data_pms')
-                # insert_data_bqtable(file_path,'thingspeak','dataprep_table')
+                
+                if os.getenv("ENV") == "production":
+                    insert_data_bqtable(file_path,configuration.BQ_SCHEME, configuration.RAW_FEEDS_PMS_CLUSTERED)
+                    # insert_data_bqtable(file_path,'thingspeak','new_data_pms')
+                    insert_data_bqtable(file_path,configuration.BQ_SCHEME, configuration.DATAPREP_TABLE)
         return 'Update Complete'
     except Exception as e:
         logging.exception('Could not ....')
