@@ -25,6 +25,8 @@ const OrganizationSchema = new mongoose.Schema(
       },
     },
     status: { type: String, default: "inactive" },
+    isActive: { type: Boolean, default: false },
+    isAlias: { type: Boolean },
     phoneNumber: {
       type: Number,
       unique: true,
@@ -36,7 +38,7 @@ const OrganizationSchema = new mongoose.Schema(
       required: [true, "the website is required"],
     },
     name: { type: String, unique: true, required: [true, "name is required"] },
-    long_name: { type: String, required: [true, "long_name is required"] },
+    tenant: { type: String, required: [true, "tenant is required"] },
     category: {
       type: String,
       required: [true, "category is required"],
@@ -64,9 +66,11 @@ OrganizationSchema.methods = {
       website: this.website,
       category: this.category,
       status: this.status,
+      isAlias: this.isAlias,
+      isActive: this.isActive,
       phoneNumber: this.phoneNumber,
+      tenant: this.tenant,
       name: this.name,
-      long_name: this.long_name,
       createdAt: this.createdAt,
     };
   },
@@ -88,9 +92,9 @@ OrganizationSchema.statics = {
     try {
       logText("the register method in the model........");
       let modifiedArgs = args;
-      let long_name = modifiedArgs.long_name;
-      if (long_name) {
-        modifiedArgs["name"] = sanitizeName(long_name);
+      let name = modifiedArgs.name;
+      if (name) {
+        modifiedArgs["tenant"] = sanitizeName(name);
       }
       let data = await this.create({
         ...modifiedArgs,
@@ -206,8 +210,8 @@ OrganizationSchema.statics = {
       let options = { new: true };
       let modifiedUpdate = update;
       logObject("modifiedUpdate", modifiedUpdate);
-      if (modifiedUpdate.name) {
-        delete modifiedUpdate.name;
+      if (modifiedUpdate.tenant) {
+        delete modifiedUpdate.tenant;
       }
       let udpatedOrganization = await this.findOneAndUpdate(
         filter,
@@ -263,7 +267,15 @@ OrganizationSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 1, email: 1, website: 1, long_name: 1, name: 1 },
+        projection: {
+          _id: 1,
+          email: 1,
+          website: 1,
+          tenant: 1,
+          name: 1,
+          isActive: 1,
+          isAlias: 1,
+        },
       };
       let removedOrganization = await this.findOneAndRemove(
         filter,

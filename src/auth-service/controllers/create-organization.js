@@ -40,7 +40,7 @@ const createOrganization = {
         return res.status(status).json({
           success: true,
           message: responseFromCreateOrganization.message,
-          data: responseFromCreateOrganization.data,
+          created_organization: responseFromCreateOrganization.data,
         });
       }
 

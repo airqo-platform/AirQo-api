@@ -653,6 +653,74 @@ router.put(
         return ObjectId(value);
       }),
   ]),
+  oneOf([
+    [
+      body("email")
+        .if(body("email").exists())
+        .notEmpty()
+        .withMessage("the email should not be empty")
+        .bail()
+        .isEmail()
+        .withMessage("the pollutant value is not a valid email address")
+        .trim(),
+      body("website")
+        .if(body("website").exists())
+        .notEmpty()
+        .withMessage("the website should not be empty")
+        .bail()
+        .isURL()
+        .withMessage("the website is not a valid URL")
+        .trim(),
+      body("isAlias")
+        .if(body("isAlias").exists())
+        .notEmpty()
+        .withMessage("the isAlias should not be empty")
+        .bail()
+        .isBoolean()
+        .withMessage("isAlias must be a Boolean")
+        .trim(),
+      body("isActive")
+        .if(body("isActive").exists())
+        .notEmpty()
+        .withMessage("the isActive should not be empty")
+        .bail()
+        .isBoolean()
+        .withMessage("isActive must be a Boolean")
+        .trim(),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .withMessage("the status should not be empty")
+        .bail()
+        .toLowerCase()
+        .isIn(["active", "inactive", "pending"])
+        .withMessage(
+          "the status value is not among the expected ones which include: active, inactive, pending"
+        )
+        .trim(),
+      body("phoneNumber")
+        .if(body("phoneNumber").exists())
+        .notEmpty()
+        .withMessage("the phoneNumber should not be empty")
+        .bail()
+        .isMobilePhone()
+        .withMessage("the phoneNumber is not a valid one")
+        .bail()
+        .trim(),
+      body("category")
+        .if(body("category").exists())
+        .notEmpty()
+        .withMessage("the category should not be empty")
+        .bail()
+        .trim(),
+      body("name")
+        .if(body("name").exists())
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .bail()
+        .trim(),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   organizationController.update
@@ -694,7 +762,7 @@ router.post(
         .withMessage("the organization's email address is required")
         .bail()
         .isEmail()
-        .withMessage("the pollutant value is not a valid email address")
+        .withMessage("This is not a valid email address")
         .trim(),
       body("website")
         .exists()
@@ -703,15 +771,30 @@ router.post(
         .isURL()
         .withMessage("the website is not a valid URL")
         .trim(),
+      body("isAlias")
+        .exists()
+        .withMessage("isAlias is required")
+        .bail()
+        .isBoolean()
+        .withMessage("isAlias must be a Boolean")
+        .trim(),
+      body("isActive")
+        .if(body("isActive").exists())
+        .notEmpty()
+        .withMessage("the isActive should not be empty")
+        .bail()
+        .isBoolean()
+        .withMessage("isActive must be a Boolean")
+        .trim(),
       body("status")
         .if(body("status").exists())
         .notEmpty()
         .withMessage("the status should not be empty")
         .bail()
         .toLowerCase()
-        .isIn(["active", "inactive"])
+        .isIn(["active", "inactive", "pending"])
         .withMessage(
-          "the status value is not among the expected ones which include: active, inactive"
+          "the status value is not among the expected ones which include: active, inactive, pending"
         )
         .trim(),
       body("phoneNumber")
@@ -724,10 +807,25 @@ router.post(
         .trim(),
       body("category")
         .exists()
-        .withMessage("the organization's category is required"),
-      body("long_name")
+        .withMessage("the organization's category is required")
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "business",
+          "research",
+          "policy",
+          "awareness",
+          "school",
+          "others",
+        ])
+        .withMessage(
+          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+        )
+        .trim(),
+      body("name")
         .exists()
-        .withMessage("the organization's long_name is required"),
+        .withMessage("the organization's name is required")
+        .trim(),
     ],
   ]),
   setJWTAuth,
