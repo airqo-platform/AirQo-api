@@ -48,14 +48,16 @@ def send_alerts(alerts):
         try:
             alert_data = dict(alert)
             topic = alert_data.get("topic")
+            notification = {
+                'title': alert_data.get("message"),
+                'body': alert_data.get("message"),
+            }
+            data = {
+                'message': alert_data.get("message"),
+                'site_id': alert_data.get("site_id"),
+            }
 
-            message = messaging.Message(
-                data={
-                    'message': alert_data.get("message"),
-                    'site_id': alert_data.get("site_id"),
-                },
-                topic=topic,
-            )
+            message = messaging.Message( data=data, topic=topic, notification=notification)
 
             print(message)
             response = messaging.send(message)
