@@ -67,6 +67,26 @@ class DeviceUptime(BaseModel):
         super().__init__(tenant, 'device_uptime')
 
     @cache.memoize()
+    def get_uptime_leaderboard(self, start_date, end_date, is_active):
+        db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
+
+        return list(
+            self.collection.aggregate(
+                [
+                    {"$match": db_filter},
+                    {
+                        "$group": {
+                            "_id": "$device_name",
+                            "device_name": {"$first": "$device_name"},
+                            "downtime": {"$avg": "$downtime"},
+                            "uptime": {"$avg": "$uptime"},
+                        }
+                    },
+                ]
+            )
+        )
+
+    @cache.memoize()
     def get_device_uptime(self, start_date, end_date, device_name):
 
         db_filter = {'created_at': {'$gte': start_date, '$lt': end_date}}
