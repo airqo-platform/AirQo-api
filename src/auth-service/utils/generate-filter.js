@@ -46,6 +46,43 @@ const filter = {
       };
     }
   },
+  organizations: (req) => {
+    try {
+      let { name, id, email, active, category } = req.query;
+      let filter = {};
+      if (email) {
+        filter["email"] = email;
+      }
+      if (category) {
+        filter["category"] = category;
+      }
+      if (id) {
+        filter["_id"] = id;
+      }
+      if (name) {
+        filter["name"] = name;
+      }
+      if (active) {
+        if (active === "yes") {
+          filter["status"] = "active";
+        }
+        if (active === "no") {
+          filter["status"] = "inactive";
+        }
+      }
+      return {
+        success: true,
+        message: "successfully created the filter",
+        data: filter,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        message: "filter util server error",
+        error: err.message,
+      };
+    }
+  },
   candidates: (req) => {
     try {
       let { category, id } = req.query;

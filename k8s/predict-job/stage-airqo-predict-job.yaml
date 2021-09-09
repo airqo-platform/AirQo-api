@@ -28,6 +28,9 @@ spec:
             - image: us.gcr.io/airqo-250220/airqo-stage-predict-job:latest
               imagePullPolicy: Always
               name: airqo-predict-job
+              envFrom:
+                - configMapRef:
+                    name: env-predict-job-staging
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File

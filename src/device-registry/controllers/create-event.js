@@ -41,10 +41,10 @@ const createEvent = {
       const responseFromTransformMeasurements = await transformMeasurements_v2(
         measurements
       );
-      logObject(
-        "responseFromTransformMeasurements",
-        responseFromTransformMeasurements
-      );
+      // logObject(
+      //   "responseFromTransformMeasurements",
+      //   responseFromTransformMeasurements
+      // );
 
       if (!responseFromTransformMeasurements.success) {
         let error = responseFromTransformMeasurements.error
@@ -57,10 +57,10 @@ const createEvent = {
         });
       }
 
-      logObject(
-        "responseFromTransformMeasurements.data",
-        responseFromTransformMeasurements.data
-      );
+      // logObject(
+      //   "responseFromTransformMeasurements.data",
+      //   responseFromTransformMeasurements.data
+      // );
 
       let response = await insertMeasurements(
         tenant,

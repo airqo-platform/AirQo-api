@@ -18,6 +18,8 @@ spec:
     metadata:
       labels:
         app: prod-kcca-measurements-consumer
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       containers:
       - name: prod-kcca-measurements-consumer

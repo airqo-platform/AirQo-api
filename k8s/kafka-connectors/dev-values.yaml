@@ -1,0 +1,54 @@
+connectors:
+  - name: airqo-measurements-connector
+    namespace: dev
+    cluster: dev-measurements-connector-cluster
+    specs:
+      class: airqo.AirqoConnector
+      tasksMax: 2   
+      pause: false
+      config:
+        topic: airqo-streams-raw-device-measurements-topic
+        airqoBaseUrl: https://staging-platform.airqo.net/api/v1/
+        pollInterval: "300000"
+        batchSize: "50"
+        minimumHours: "24"
+        devicesFetchInterval: "7200000"
+        key.converter: org.apache.kafka.connect.json.JsonConverter
+        key.converter.schemas.enable: false
+        value.converter: org.apache.kafka.connect.json.JsonConverter
+        value.converter.schemas.enable: false
+
+        # topic: ${configmaps:dev/airqo-measurements-connector-config:topic}
+        # tenant: ${configmaps:dev/airqo-measurements-connector-config:tenant}
+        # airqoBaseUrl: ${configmaps:dev/airqo-measurements-connector-config:airqoBaseUrl}
+        # pollInterval: ${configmaps:dev/airqo-measurements-connector-config:pollInterval}
+        # batchSize: ${configmaps:dev/airqo-measurements-connector-config:batchSize}
+        # minimumHours: ${configmaps:dev/airqo-measurements-connector-config:minimumHours}
+
+  - name: kcca-raw-measurements-connector
+    namespace: dev
+    cluster: dev-measurements-connector-cluster
+    specs:
+      class: kcca.KccaConnector
+      tasksMax: 2
+      pause: false
+      config:
+        topic: kcca-streams-raw-device-measurements-topic
+        pollInterval: "300000"
+        clarityApiBaseUrl: https://clarity-data-api.clarity.io/v1/
+        average: raw
+        batchSize: "50"
+        clarityApiKey: ${file:/opt/kafka/external-configuration/clarity-connector-config/clarity-credentials.properties:clarity_api_key}
+        key.converter: org.apache.kafka.connect.json.JsonConverter
+        key.converter.schemas.enable: false
+        value.converter: org.apache.kafka.connect.json.JsonConverter
+        value.converter.schemas.enable: false
+    
+        # topic: ${configmaps:dev/kcca-raw-measurements-connector-config:topic}
+        # clarityApiBaseUrl: ${configmaps:dev/kcca-raw-measurements-connector-config:clarityApiBaseUrl}
+        # pollInterval: ${configmaps:dev/kcca-raw-measurements-connector-config:pollInterval}
+        # average: ${configmaps:dev/kcca-raw-measurements-connector-config:average}
+        # batchSize: ${configmaps:dev/kcca-raw-measurements-connector-config:batchSize}
+        # tenant: ${configmaps:dev/kcca-raw-measurements-connector-config:tenant} 
+
+

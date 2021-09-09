@@ -54,7 +54,7 @@ public class DeviceMeasurements {
 
     static void createMeasurementsStream(final StreamsBuilder builder, Properties props) {
 
-        try {
+
             final Map<String, String> serdeConfig = Collections.singletonMap(
                     AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, props.getProperty("schema.registry.url"));
 
@@ -64,13 +64,26 @@ public class DeviceMeasurements {
             final KStream<String, TransformedDeviceMeasurements> source = builder
                     .stream(props.getProperty("input.topic"), Consumed.with(Serdes.String(), measurementsSerde));
 
-            final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                    .map((key, value) -> new KeyValue<>(key, Utils.addHumidityAndTemp(value, props)));
+        KStream<String, TransformedDeviceMeasurements> transformedList = null;
+        try {
+            transformedList = source
+                    .map((key, value) -> {
+                        try {
+                            return new KeyValue<>(key, Utils.addHumidityAndTemp(value, props));
+                        } catch (Exception e) {
+                            e.printStackTrace();
+                        }
+                        return null;
+                    });
 
-            transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        if(transformedList != null){
+            transformedList.to(props.getProperty("output.topic"), Produced.valueSerde(measurementsSerde) );
+        }
+
     }
 
     public static void main(final String[] args) {
