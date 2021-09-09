@@ -122,13 +122,6 @@ const rolesSchema = new mongoose.Schema(
 );
 
 const SettingsSchema = new mongoose.Schema({
-  user_id: {
-    type: ObjectId,
-  },
-  user: {
-    type: ObjectId,
-    required: [true, "user is required"],
-  },
   organisation: {
     type: ObjectId,
     required: [true, "organisation is required"],
@@ -173,20 +166,11 @@ SettingsSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      pollutant: this.pollutant,
-      frequency: this.frequency,
-      user: this.user,
-      user_id: this.user_id,
-      airqloud_id: this.airqloud_id,
-      airqloud: this.airqloud,
-      startDate: this.startDate,
-      endDate: this.endDate,
-      chartType: this.chartType,
-      chartTitle: this.chartTitle,
-      chartSubTitle: this.chartSubTitle,
-      sites: this.sites,
-      period: this.period,
-      site_ids: this.site_ids,
+      organisation: this.organisation,
+      charts: this.charts,
+      activities: this.activities,
+      devices: this.devices,
+      roles: this.roles,
     };
   },
 };
@@ -325,10 +309,11 @@ SettingsSchema.statics = {
       let options = {
         projection: {
           _id: 1,
-          user: 1,
-          user_id: 1,
-          chartTitle: 1,
-          chartSubTitle: 1,
+          organisation: 1,
+          activities: 1,
+          devices: 1,
+          charts: 1,
+          roles: 1,
         },
       };
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
