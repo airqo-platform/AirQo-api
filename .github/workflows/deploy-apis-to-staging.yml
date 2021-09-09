@@ -106,7 +106,7 @@ jobs:
   auth-service:
     name: build-push-deploy-auth
     needs: check
-    if: needs.check.outputs.run_auth == 'true'
+    if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
