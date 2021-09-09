@@ -337,10 +337,9 @@ deviceSchema.statics = {
       };
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {}, opts = {} } = {}) {
     try {
-      logObject("the filter", filter);
-      let options = { new: true };
+      let options = { new: true, ...opts };
       let modifiedUpdate = update;
       delete modifiedUpdate.name;
       delete modifiedUpdate.device_number;
