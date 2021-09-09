@@ -106,7 +106,7 @@ jobs:
   auth-service:
     name: build-push-deploy-auth
     needs: check
-    if: needs.check.outputs.run_auth == 'true'
+    if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -166,7 +166,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/
+          cd k8s/device-registry/
           kubectl apply -f stage-device-registry-api.yaml
           kubectl rollout restart deployment/airqo-stage-device-registry-api -n staging
   
@@ -455,7 +455,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/exceedances/
+          cd k8s/exceedance/
           kubectl apply -f stage-airqo-exceedance-job.yaml
           kubectl apply -f stage-kcca-exceedance-job.yaml
 
