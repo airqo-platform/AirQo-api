@@ -452,7 +452,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/exceedances/
+          cd k8s/exceedance/
           kubectl apply -f prod-exceedance-job.yaml
           kubectl apply -f prod-kcca-exceedance-job.yaml
 
