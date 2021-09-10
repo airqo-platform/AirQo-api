@@ -18,31 +18,22 @@ const CandidateModel = (tenant) => {
 };
 
 const request = {
-  create: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    jobTitle,
-    website,
-    description,
-    category
-  ) => {
+  create: async (request) => {
     try {
-      let requestBody = {
+      let {
         firstName,
         lastName,
         email,
-        organization,
+        long_organization,
         jobTitle,
         website,
         description,
         category,
-      };
+        tenant,
+      } = request;
 
       let responseFromCreateCandidate =
-        CandidateModel(tenant).register(requestBody);
+        CandidateModel(tenant).register(request);
 
       let createdCandidate = await responseFromCreateCandidate.data;
       let jsonifyCreatedCandidate = jsonify(createdCandidate);
@@ -176,17 +167,20 @@ const request = {
     }
   },
 
-  confirm: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    jobTitle,
-    website,
-    category,
-    filter
-  ) => {
+  confirm: async (req) => {
+    let {
+      tenant,
+      firstName,
+      lastName,
+      email,
+      organization,
+      long_organization,
+      jobTitle,
+      website,
+      category,
+      filter,
+      description,
+    } = req;
     try {
       let responseFromListCandidate = await request.list({ tenant, filter });
       logObject(
@@ -195,22 +189,25 @@ const request = {
       );
 
       if (
-        responseFromListCandidate.success == true &&
+        responseFromListCandidate.success === true &&
         !isEmpty(responseFromListCandidate.data)
       ) {
         let responseFromGeneratePassword = generatePassword();
         logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-        if (responseFromGeneratePassword.success == true) {
+        if (responseFromGeneratePassword.success === true) {
           let password = responseFromGeneratePassword.data;
+
           let requestBody = {
             tenant,
             firstName,
             lastName,
             email,
             organization,
+            long_organization,
             jobTitle,
             website,
             password,
+            description,
             category,
             privilege: "user",
             userName: email,
@@ -228,7 +225,7 @@ const request = {
           let jsonifyCreatedUser = jsonify(createdUser);
           logObject("jsonifyCreatedUser", jsonifyCreatedUser);
 
-          if (responseFromCreateUser.success == true) {
+          if (responseFromCreateUser.success === true) {
             let responseFromSendEmail = await mailer.user(
               firstName,
               lastName,
@@ -241,18 +238,18 @@ const request = {
               "responseFromSendEmail during confirmation",
               responseFromSendEmail
             );
-            if (responseFromSendEmail.success == true) {
+            if (responseFromSendEmail.success === true) {
               let responseFromDeleteCandidate = await request.delete(
                 tenant,
                 filter
               );
-              if (responseFromDeleteCandidate.success == true) {
+              if (responseFromDeleteCandidate.success === true) {
                 return {
                   success: true,
                   message: "candidate successfully confirmed",
                   data: jsonifyCreatedUser,
                 };
-              } else if (responseFromDeleteCandidate.success == false) {
+              } else if (responseFromDeleteCandidate.success === false) {
                 if (responseFromDeleteCandidate.error) {
                   return {
                     success: false,
@@ -268,7 +265,7 @@ const request = {
                   };
                 }
               }
-            } else if (responseFromSendEmail.success == false) {
+            } else if (responseFromSendEmail.success === false) {
               if (responseFromSendEmail.error) {
                 return {
                   success: false,
@@ -299,7 +296,7 @@ const request = {
           }
         }
 
-        if (responseFromGeneratePassword == false) {
+        if (responseFromGeneratePassword === false) {
           if (responseFromGeneratePassword.error) {
             return {
               success: false,
@@ -316,7 +313,7 @@ const request = {
       }
 
       if (
-        responseFromListCandidate.success == true &&
+        responseFromListCandidate.success === true &&
         isEmpty(responseFromListCandidate.data)
       ) {
         return {
@@ -325,7 +322,7 @@ const request = {
         };
       }
 
-      if (responseFromListCandidate.success == false) {
+      if (responseFromListCandidate.success === false) {
         if (responseFromListCandidate.error) {
           return {
             success: false,

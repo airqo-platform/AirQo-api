@@ -8,7 +8,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -373,37 +372,6 @@ public class Utils {
                     e.printStackTrace();
                 }
             }
-
-        });
-
-        return transformedMeasurements;
-    }
-
-    public static List<TransformedMeasurement> addAirQoCalibratedValues(List<TransformedMeasurement> measurements) {
-
-        List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
-
-        String propertiesUrlFile = "application.properties";
-        Properties props = Utils.loadEnvProperties(propertiesUrlFile);
-        String urlString = props.getProperty("airqo.base.url", "");
-        String finalUrlString = urlString + "calibrate";
-
-        measurements.forEach(measurement -> {
-
-            TransformedValue pm25 = measurement.getPm2_5();
-
-            try {
-                Double calibratedValue = Calibrate.getCalibratedValue(measurement, finalUrlString);
-                pm25.setCalibratedValue(calibratedValue);
-
-            } catch (IOException e) {
-                logger.error("Calibration Error : {}", e.toString());
-                pm25.setCalibratedValue(null);
-            }
-
-            measurement.setPm2_5(pm25);
-
-            transformedMeasurements.add(measurement);
 
         });
 
