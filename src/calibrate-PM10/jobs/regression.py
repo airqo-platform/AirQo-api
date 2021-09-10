@@ -24,47 +24,47 @@ def get_clean_data():
     ORDER BY 
         TimeStamp
         """
-    combined_dataset_muk = client.query(sql).to_dataframe()
+    dataset = client.query(sql).to_dataframe()
 
     # Remove outliers
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['AQ_G501_PM10'] >= 0)&(combined_dataset_muk['AQ_G501_PM10'] <= 500.4)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['AQ_G501_PM2.5'] >= 0)&(combined_dataset_muk['AQ_G501_PM2.5'] <= 500.4)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['AQ_G501(Sensor I)_PM10'] >= 0)&(combined_dataset_muk['AQ_G501(Sensor I)_PM10'] <= 500.4)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['AQ_G501(Sensor II)_PM10'] >= 0)&(combined_dataset_muk['AQ_G501(Sensor II)_PM10'] <= 500.4)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['AQ_G501(Sensor I)_PM2.5'] >= 0)&(combined_dataset_muk['AQ_G501(Sensor I)_PM2.5'] <= 500.4)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['AQ_G501(Sensor II)_PM2.5'] >= 0)&(combined_dataset_muk['AQ_G501(Sensor II)_PM2.5'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501_PM10'] >= 0)&(dataset['AQ_G501_PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501_PM2.5'] >= 0)&(dataset['AQ_G501_PM2.5'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501(Sensor I)_PM10'] >= 0)&(dataset['AQ_G501(Sensor I)_PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501(Sensor II)_PM10'] >= 0)&(dataset['AQ_G501(Sensor II)_PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501(Sensor I)_PM2.5'] >= 0)&(dataset['AQ_G501(Sensor I)_PM2.5'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501(Sensor II)_PM2.5'] >= 0)&(dataset['AQ_G501(Sensor II)_PM2.5'] <= 500.4)]
 
 
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['MUK BAM(Y24516)_PM10'] >= 0)&(combined_dataset_muk['MUK BAM(Y24516)_PM10'] <= 500.4)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['MUK BAM(Y24516)_AT(C)'] >= 0)&(combined_dataset_muk['MUK BAM(Y24516)_AT(C)'] <=45)]
-    combined_dataset_muk  = combined_dataset_muk[(combined_dataset_muk['MUK BAM(Y24516)_RH(%)'] >= 0)&(combined_dataset_muk['MUK BAM(Y24516)_RH(%)'] <= 99)]
+    dataset  = dataset[(dataset['MUK BAM(Y24516)_PM10'] >= 0)&(dataset['MUK BAM(Y24516)_PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['MUK BAM(Y24516)_AT(C)'] >= 0)&(dataset['MUK BAM(Y24516)_AT(C)'] <=45)]
+    dataset  = dataset[(dataset['MUK BAM(Y24516)_RH(%)'] >= 0)&(dataset['MUK BAM(Y24516)_RH(%)'] <= 99)]
     
     # BAM 1 hr ahead (SET to ENDING)
-    combined_dataset_muk['MUK BAM(Y24516)_PM10']=combined_dataset_muk['MUK BAM(Y24516)_PM10'].shift(-1) 
+    dataset['MUK BAM(Y24516)_PM10']=dataset['MUK BAM(Y24516)_PM10'].shift(-1) 
 
     #fill na values
-    combined_dataset_muk.fillna(method='ffill',inplace = True)
-    combined_dataset_muk.fillna(method='bfill',inplace = True) 
+    dataset.fillna(method='ffill',inplace = True)
+    dataset.fillna(method='bfill',inplace = True) 
 
     #FEATURES
     # extract hour
-    combined_dataset_muk['hour'] =  combined_dataset_muk['TimeStamp'].dt.hour
+    dataset['hour'] =  dataset['TimeStamp'].dt.hour
 
-    # 1)"Average_PM2.5" is the average of the value of pm2_5 from both sensors, the second sensor "Sensor2PM2.5_CF_1_ug/m3" values has some and it was removed and replaced with value of "pm2_5" for same combined_dataset_mukpoints.
+    # 1)"Average_PM2.5" is the average of the value of pm2_5 from both sensors, the second sensor "Sensor2PM2.5_CF_1_ug/m3" values has some and it was removed and replaced with value of "pm2_5" for same datasetpoints.
     # 2)"Average_PM10" is the same as "Average_PM2.5" but for "pm_10"
     # 3)"error_pm2_5" the absolute value of the difference between the two sensor values for pm2_5.
     # 5)"error_pm10","check_symbol_pm10" same as 3 and 4 but for pm10.
     # 6)"pm2.5-pm10" the difference between "Average_PM2.5" and "Average_PM10" columns
     # 7)"pm2 5-pm10_%" ratio of "pm2.5-pm10" relative to "Average_PM10"
 
-    combined_dataset_muk["AQ_G501(Sensor II)_PM2.5"]=np.where(combined_dataset_muk["AQ_G501(Sensor II)_PM2.5"]==0,combined_dataset_muk["AQ_G501(Sensor I)_PM2.5"],combined_dataset_muk["AQ_G501(Sensor II)_PM2.5"])
-    combined_dataset_muk["AQ_G501(Sensor II)_PM10"]=np.where(combined_dataset_muk["AQ_G501(Sensor II)_PM10"]==0,combined_dataset_muk["AQ_G501(Sensor I)_PM10"],combined_dataset_muk["AQ_G501(Sensor II)_PM10"])
-    combined_dataset_muk["error_pm10"]=np.abs(combined_dataset_muk["AQ_G501(Sensor I)_PM10"]-combined_dataset_muk["AQ_G501(Sensor II)_PM10"])
-    combined_dataset_muk["error_pm2_5"]=np.abs(combined_dataset_muk["AQ_G501(Sensor I)_PM2.5"]-combined_dataset_muk["AQ_G501(Sensor II)_PM2.5"])
-    combined_dataset_muk["pm2.5-pm10"]=combined_dataset_muk["AQ_G501_PM2.5"]-combined_dataset_muk["AQ_G501_PM10"]
-    combined_dataset_muk["pm2 5-pm10_%"]=combined_dataset_muk["pm2.5-pm10"]/combined_dataset_muk["AQ_G501_PM10"]
+    dataset["AQ_G501(Sensor II)_PM2.5"]=np.where(dataset["AQ_G501(Sensor II)_PM2.5"]==0,dataset["AQ_G501(Sensor I)_PM2.5"],dataset["AQ_G501(Sensor II)_PM2.5"])
+    dataset["AQ_G501(Sensor II)_PM10"]=np.where(dataset["AQ_G501(Sensor II)_PM10"]==0,dataset["AQ_G501(Sensor I)_PM10"],dataset["AQ_G501(Sensor II)_PM10"])
+    dataset["error_pm10"]=np.abs(dataset["AQ_G501(Sensor I)_PM10"]-dataset["AQ_G501(Sensor II)_PM10"])
+    dataset["error_pm2_5"]=np.abs(dataset["AQ_G501(Sensor I)_PM2.5"]-dataset["AQ_G501(Sensor II)_PM2.5"])
+    dataset["pm2.5-pm10"]=dataset["AQ_G501_PM2.5"]-dataset["AQ_G501_PM10"]
+    dataset["pm2 5-pm10_%"]=dataset["pm2.5-pm10"]/dataset["AQ_G501_PM10"]
 
-    return  combined_dataset_muk
+    return  dataset
 
 # def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
 #     fs = gcsfs.GCSFileSystem(project=project_name)    
@@ -72,12 +72,12 @@ def get_clean_data():
 #         job = joblib.dump(trained_model,handle)
 
 
-def lasso_reg(hourly_combined_dataset):
-    X_muk = combined_dataset_muk[['AQ_G501_PM2.5','AQ_G501_PM10','MUK BAM(Y24516)_AT(C)', 'MUK BAM(Y24516)_RH(%)','hour',  'error_pm10', 'error_pm2_5', 'pm2.5-pm10', 'pm2 5-pm10_%']].values
-    y_muk = combined_dataset_muk['MUK BAM(Y24516)_PM10'].values  
+def lasso_reg(dataset):
+    X = dataset[['AQ_G501_PM2.5','AQ_G501_PM10','MUK BAM(Y24516)_AT(C)', 'MUK BAM(Y24516)_RH(%)','hour',  'error_pm10', 'error_pm2_5', 'pm2.5-pm10', 'pm2 5-pm10_%']].values
+    y = dataset['MUK BAM(Y24516)_PM10'].values  
 
    # Fitting the model 
-    lasso_regressor = LassoCV(cv=10, random_state=0).fit(X_train_muk, y_train_muk)
+    lasso_regressor = LassoCV(cv=10, random_state=0).fit(X, y)
     # save the model to disk
     filename = 'jobs/lasso_model.pkl'
     pickle.dump(lasso_regressor, open(filename, 'wb'))
@@ -91,6 +91,6 @@ def lasso_reg(hourly_combined_dataset):
 if __name__ == "__main__":
 
     lowcost_hourly_mean = get_clean_data()
-    lasso_regressor = lasso_reg(hourly_combined_dataset)
+    lasso_regressor = lasso_reg(dataset)
 
     
