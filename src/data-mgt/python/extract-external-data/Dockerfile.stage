@@ -18,14 +18,11 @@ COPY . /app/
 WORKDIR /app/
 
 RUN pip install -r requirements.txt
-# Set "python" as the entry point
 # Set environment variables
 ENV FLASK_APP=app.py
 ENV FLASK_ENV=staging
 ENV FLASK_RUN_PORT=4001
 
 EXPOSE 4001
-# Run a WSGI server to serve the application. gunicorn must be declared as
-# a dependency in requirements.txt.
-CMD gunicorn -t 280 -b :$PORT app:app
-# CMD ["flask", "run", "--host=0.0.0.0"]
+
+CMD ["flask", "run", "--host=0.0.0.0"]

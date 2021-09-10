@@ -24,7 +24,7 @@ def get_greenness():
         }), 400
 
     model =  ext.Extract()
-    greenness = model.get_greenness(input_data['latitude'],input_data['longitude'],
+    greenness = model.get_greenness(float(input_data['latitude']),float(input_data['longitude']),
      input_data['start_date'], input_data['end_date'])
    
     response = dict(message="greenness value returned successfully", data=greenness)
@@ -328,4 +328,49 @@ def get_landuse():
     result = model.get_landuse(float(input_data['latitude']),float(input_data['longitude']))
    
     response = dict(message="landuse returned successfully", data=result)
+    return jsonify(response), 200
+
+@extract_bp.route(api.TAHMO_WEATHERSTATIONS_ACCOUNT_HAS_ACCESS_TO_URL, methods=['GET'])
+def get_all_weather_station_account_has_access_on():
+    errors = {}  
+    if errors:
+        return jsonify({
+            'message': 'Some errors occurred while processing this request',
+            'errors': errors
+        }), 400
+
+    model =  ext.Extract()
+    result = model.get_all_weather_station_account_has_access_on()
+   
+    response = dict(message="weather stations returned successfully", data=result)
+    return jsonify(response), 200
+
+@extract_bp.route(api.TAHMO_WEATHERSTATION_VARIABLES_URL, methods=['GET'])
+def get_all_available_variables_and_units_tahmo_api():
+    errors = {}  
+    if errors:
+        return jsonify({
+            'message': 'Some errors occurred while processing this request',
+            'errors': errors
+        }), 400
+
+    model =  ext.Extract()
+    result = model.get_all_available_variables_and_units_tahmo_api()
+   
+    response = dict(message="weather stations returned successfully", data=result)
+    return jsonify(response), 200
+
+@extract_bp.route(api.TAHMO_WEATHERSTATION_MEASUREMENTS_URL, methods=['GET'])
+def get_station_measurments():
+    errors = {}  
+    if errors:
+        return jsonify({
+            'message': 'Some errors occurred while processing this request',
+            'errors': errors
+        }), 400
+
+    model =  ext.Extract()
+    result = model.get_station_measurements()
+   
+    response = dict(message="weather stations returned successfully", data=result)
     return jsonify(response), 200

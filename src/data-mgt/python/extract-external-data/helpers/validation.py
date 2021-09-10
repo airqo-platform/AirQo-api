@@ -9,8 +9,8 @@ class SpatialSchema(Schema):
     longitude = fields.Float(required=True,error_messages={"required": "longitude missing."}, validate=validate.Range(min=-180, max=180))
 
 class SpatialTemporalSchema(SpatialSchema):
-    start_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
-    end_datetime = fields.DateTime(required=True, error_messages={"required": "datetime missing."})
+    start_date = fields.Date(required=True, error_messages={"required": "datetime missing."})
+    end_date = fields.Date(required=True, error_messages={"required": "datetime missing."})
 		
 
 def _filter_error_rows(errors: dict,validated_input: t.List[dict]) -> t.List[dict]:

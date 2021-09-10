@@ -8,7 +8,7 @@ from shapely.ops import transform
 import json
 from dotenv import load_dotenv
 from geopy import distance
-#import TAHMO
+from  models import TAHMO
 import pandas as pd
 
 load_dotenv()
@@ -18,12 +18,15 @@ TAHMO_API_CREDENTIALS_PASSWORD = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
 DEVICE_REGISTRY_BASE_URL = os.getenv("DEVICE_REGISTRY_BASE_URL")
 GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 ELEVATION_BASE_URL = os.getenv("ELEVATION_BASE_URL")
-GOOGLE_MAP_API_KEY = os.getenv('GOOGLE_MAP_API_KEY')
-WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD = os.getenv('WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD')
-CENTER_OF_KAMPALA_LATITUDE = os.getenv('CENTER_OF_KAMPALA_LATITUDE')
-CENTER_OF_KAMPALA_LONGITUDE =os.getenv('CENTER_OF_KAMPALA_LONGITUDE')
+GOOGLE_MAP_API_KEY = os.getenv("GOOGLE_MAP_API_KEY")
+WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD = os.getenv("WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD")
+CENTER_OF_KAMPALA_LATITUDE = os.getenv("CENTER_OF_KAMPALA_LATITUDE")
+CENTER_OF_KAMPALA_LONGITUDE =os.getenv("CENTER_OF_KAMPALA_LONGITUDE")
+SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT") 
 
-ee.Initialize()
+credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, "private_key.json") 
+
+ee.Initialize(credentials)
 
 class  Extract():
 
@@ -109,7 +112,6 @@ class  Extract():
         tahmo_api = TAHMO.apiWrapper()
         tahmo_api.setCredentials(TAHMO_API_CREDENTIALS_USERNAME, TAHMO_API_CREDENTIALS_PASSWORD)
         stations = tahmo_api.getStations()
-        print('Account has access to stations: %s' % ', '.join(list(stations)))
         return stations
 
 
@@ -193,15 +195,12 @@ class  Extract():
     def get_bearing_from_kampala(self, lat, lon):
         KAMPALA_LAT = float(CENTER_OF_KAMPALA_LATITUDE)
         KAMPALA_LONG =float(CENTER_OF_KAMPALA_LONGITUDE)
-        print(type(KAMPALA_LAT))
-        print(type(KAMPALA_LONG))
-        print('done')
         bearing = ox.bearing.calculate_bearing(KAMPALA_LAT, KAMPALA_LONG, lat,lon)
         return bearing
 
     def get_distance_from_kampala(self, lat, lon):
-        KAMPALA_LAT = CENTER_OF_KAMPALA_LATITUDE
-        KAMPALA_LONG =CENTER_OF_KAMPALA_LONGITUDE 
+        KAMPALA_LAT = float(CENTER_OF_KAMPALA_LATITUDE)
+        KAMPALA_LONG =float(CENTER_OF_KAMPALA_LONGITUDE)
         kamapla_coordinates = (KAMPALA_LAT, KAMPALA_LONG)        
         distance_from_kla = ox.distance.euclidean_dist_vec(KAMPALA_LONG, KAMPALA_LAT, lon,lat)
         distance_of_specified_coordinates_from_kla = distance.distance(kamapla_coordinates, (lat,lon)).km
