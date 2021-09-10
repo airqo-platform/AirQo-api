@@ -29,18 +29,18 @@ def get_clean_data():
     # Remove outliers
     dataset  = dataset[(dataset['AQ_G501_PM10'] >= 0)&(dataset['AQ_G501_PM10'] <= 500.4)]
     dataset  = dataset[(dataset['AQ_G501_PM2.5'] >= 0)&(dataset['AQ_G501_PM2.5'] <= 500.4)]
-    dataset  = dataset[(dataset['AQ_G501(Sensor I)_PM10'] >= 0)&(dataset['AQ_G501(Sensor I)_PM10'] <= 500.4)]
-    dataset  = dataset[(dataset['AQ_G501(Sensor II)_PM10'] >= 0)&(dataset['AQ_G501(Sensor II)_PM10'] <= 500.4)]
-    dataset  = dataset[(dataset['AQ_G501(Sensor I)_PM2.5'] >= 0)&(dataset['AQ_G501(Sensor I)_PM2.5'] <= 500.4)]
-    dataset  = dataset[(dataset['AQ_G501(Sensor II)_PM2.5'] >= 0)&(dataset['AQ_G501(Sensor II)_PM2.5'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501_Sensor_I__PM10'] >= 0)&(dataset['AQ_G501_Sensor_I__PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501_Sensor_II__PM10'] >= 0)&(dataset['AQ_G501_Sensor_II__PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501_Sensor_I__PM2_5'] >= 0)&(dataset['AQ_G501_Sensor_I__PM2_5'] <= 500.4)]
+    dataset  = dataset[(dataset['AQ_G501_Sensor_II__PM2_5'] >= 0)&(dataset['AQ_G501_Sensor_II__PM2_5'] <= 500.4)]
 
 
-    dataset  = dataset[(dataset['MUK BAM(Y24516)_PM10'] >= 0)&(dataset['MUK BAM(Y24516)_PM10'] <= 500.4)]
-    dataset  = dataset[(dataset['MUK BAM(Y24516)_AT(C)'] >= 0)&(dataset['MUK BAM(Y24516)_AT(C)'] <=45)]
-    dataset  = dataset[(dataset['MUK BAM(Y24516)_RH(%)'] >= 0)&(dataset['MUK BAM(Y24516)_RH(%)'] <= 99)]
+    dataset  = dataset[(dataset['MUK_BAM_Y24516__PM10'] >= 0)&(dataset['MUK_BAM_Y24516__PM10'] <= 500.4)]
+    dataset  = dataset[(dataset['MUK_BAM_Y24516__AT_C'] >= 0)&(dataset['MUK_BAM_Y24516__AT_C'] <=45)]
+    dataset  = dataset[(dataset['MUK_BAM_Y24516__RH'] >= 0)&(dataset['MUK_BAM_Y24516__RH'] <= 99)]
     
     # BAM 1 hr ahead (SET to ENDING)
-    dataset['MUK BAM(Y24516)_PM10']=dataset['MUK BAM(Y24516)_PM10'].shift(-1) 
+    dataset['MUK_BAM_Y24516__PM10']=dataset['MUK_BAM_Y24516__PM10'].shift(-1) 
 
     #fill na values
     dataset.fillna(method='ffill',inplace = True)
@@ -57,10 +57,10 @@ def get_clean_data():
     # 6)"pm2.5-pm10" the difference between "Average_PM2.5" and "Average_PM10" columns
     # 7)"pm2 5-pm10_%" ratio of "pm2.5-pm10" relative to "Average_PM10"
 
-    dataset["AQ_G501(Sensor II)_PM2.5"]=np.where(dataset["AQ_G501(Sensor II)_PM2.5"]==0,dataset["AQ_G501(Sensor I)_PM2.5"],dataset["AQ_G501(Sensor II)_PM2.5"])
-    dataset["AQ_G501(Sensor II)_PM10"]=np.where(dataset["AQ_G501(Sensor II)_PM10"]==0,dataset["AQ_G501(Sensor I)_PM10"],dataset["AQ_G501(Sensor II)_PM10"])
-    dataset["error_pm10"]=np.abs(dataset["AQ_G501(Sensor I)_PM10"]-dataset["AQ_G501(Sensor II)_PM10"])
-    dataset["error_pm2_5"]=np.abs(dataset["AQ_G501(Sensor I)_PM2.5"]-dataset["AQ_G501(Sensor II)_PM2.5"])
+    dataset["AQ_G501_Sensor_II__PM2_5"]=np.where(dataset["AQ_G501_Sensor_II__PM2_5"]==0,dataset["AQ_G501_Sensor_I__PM2_5"],dataset["AQ_G501_Sensor_II__PM2_5"])
+    dataset["AQ_G501_Sensor_II__PM10"]=np.where(dataset["AQ_G501_Sensor_II__PM10"]==0,dataset["AQ_G501_Sensor_I__PM10"],dataset["AQ_G501_Sensor_II__PM10"])
+    dataset["error_pm10"]=np.abs(dataset["AQ_G501_Sensor_I__PM10"]-dataset["AQ_G501_Sensor_II__PM10"])
+    dataset["error_pm2_5"]=np.abs(dataset["AQ_G501_Sensor_I__PM2_5"]-dataset["AQ_G501_Sensor_II__PM2_5"])
     dataset["pm2.5-pm10"]=dataset["AQ_G501_PM2.5"]-dataset["AQ_G501_PM10"]
     dataset["pm2 5-pm10_%"]=dataset["pm2.5-pm10"]/dataset["AQ_G501_PM10"]
 
@@ -73,8 +73,8 @@ def get_clean_data():
 
 
 def lasso_reg(dataset):
-    X = dataset[['AQ_G501_PM2.5','AQ_G501_PM10','MUK BAM(Y24516)_AT(C)', 'MUK BAM(Y24516)_RH(%)','hour',  'error_pm10', 'error_pm2_5', 'pm2.5-pm10', 'pm2 5-pm10_%']].values
-    y = dataset['MUK BAM(Y24516)_PM10'].values  
+    X = dataset[['AQ_G501_PM2.5','AQ_G501_PM10','MUK_BAM_Y24516__AT_C', 'MUK_BAM_Y24516__RH','hour',  'error_pm10', 'error_pm2_5', 'pm2.5-pm10', 'pm2 5-pm10_%']].values
+    y = dataset['MUK_BAM_Y24516__PM10'].values  
 
    # Fitting the model 
     lasso_regressor = LassoCV(cv=10, random_state=0).fit(X, y)
@@ -89,7 +89,6 @@ def lasso_reg(dataset):
     return lasso_regressor
 
 if __name__ == "__main__":
-
     lowcost_hourly_mean = get_clean_data()
     lasso_regressor = lasso_reg(dataset)
 
