@@ -320,6 +320,7 @@ UserSchema.methods = {
       jobTitle: this.jobTitle,
       profilePicture: this.profilePicture,
       phoneNumber: this.phoneNumber,
+      description: this.description,
     };
   },
 };
