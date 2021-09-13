@@ -9,6 +9,14 @@ const {
   missingQueryParams,
   callbackErrors,
 } = require("../utils/errors");
+const getDetail = require("../utils/get-device-details");
+const isEmpty = require("is-empty");
+const {
+  updateThingBodies,
+  getChannelID,
+} = require("../utils/does-device-exist");
+const getLastPath = require("../utils/get-last-path");
+const updateDeviceUtil = require("../utils/update-device");
 
 const processImage = {
   create: async (req, res) => {},
@@ -69,6 +77,10 @@ const processImage = {
             device,
             tenant.toLowerCase()
           );
+          /**
+           * apparently, I am not able to get the device from here
+           */
+          logElement("the channel ID", channelID);
           const deviceFilter = { name: device };
           let photoNameWithoutExtension = [];
           photos.forEach((photo) => {
