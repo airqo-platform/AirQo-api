@@ -453,7 +453,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/exceedance/
-          kubectl apply -f prod-exceedance-job.yaml
+          kubectl apply -f prod-airqo-exceedance-job.yaml
           kubectl apply -f prod-kcca-exceedance-job.yaml
 
           kubectl rollout restart deployment/airqo-exceedance-job -n production

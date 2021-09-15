@@ -179,6 +179,7 @@ const request = {
       website,
       category,
       filter,
+      description,
     } = req;
     try {
       let responseFromListCandidate = await request.list({ tenant, filter });
@@ -206,6 +207,7 @@ const request = {
             jobTitle,
             website,
             password,
+            description,
             category,
             privilege: "user",
             userName: email,
