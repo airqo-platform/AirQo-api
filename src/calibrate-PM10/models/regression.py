@@ -45,9 +45,8 @@ class Regression():
         # # load model from GCP 
         # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
         calibrated_value =  lasso_regressor.predict(input_variables)[0] 
-        
+
         return calibrated_value
-               
     
 if __name__ == "__main__":
     calibrateInstance = Regression()
