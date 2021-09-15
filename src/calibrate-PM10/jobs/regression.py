@@ -63,7 +63,6 @@ def get_clean_data():
     dataset["error_pm2_5"]=np.abs(dataset["AQ_G501_Sensor_I__PM2_5"]-dataset["AQ_G501_Sensor_II__PM2_5"])
     dataset["pm2.5-pm10"]=dataset["AQ_G501_PM2_5"]-dataset["AQ_G501_PM10"]
     dataset["pm2 5-pm10_%"]=dataset["pm2.5-pm10"]/dataset["AQ_G501_PM10"]
-
     return  dataset
 
 # def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
@@ -91,5 +90,7 @@ def lasso_reg(dataset):
 if __name__ == "__main__":
     dataset = get_clean_data()
     lasso_regressor = lasso_reg(dataset)
+
+    print(lasso_regressor)
 
     
