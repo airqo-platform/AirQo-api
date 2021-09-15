@@ -14,7 +14,7 @@ def calibrate():
         raw_values = data.get('raw_values')
         
         if (not datetime or not raw_values):
-            return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400     
+            return jsonify({"message": "Please specify the device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values in the body", "success": False}), 400     
 
         rgModel = rg.Regression()
 
