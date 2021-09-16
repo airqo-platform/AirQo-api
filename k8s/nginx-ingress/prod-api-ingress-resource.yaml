@@ -13,6 +13,9 @@ metadata:
       error_page 403 = @unauthorized;
       error_page 401 = @access_denied;
     nginx.org/server-snippets: |
+
+      add_header Content-Type "application/json" always;
+
       location @page_not_found {
        return 404 '{"error": "Page Not Found"}';
       }
