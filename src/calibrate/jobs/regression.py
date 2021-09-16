@@ -7,8 +7,16 @@ from sklearn.linear_model import Lasso
 import pickle
 import gcsfs
 import joblib
+import os
+from dotenv import load_dotenv
+from pathlib import Path
 
-client = bigquery.Client.from_service_account_json("jobs/airqo-250220-5149c2aac8f2.json")
+BASE_DIR = Path(__file__).resolve().parent
+dotenv_path = os.path.join(BASE_DIR, '.env')
+load_dotenv(dotenv_path)
+
+CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+client = bigquery.Client.from_service_account_json(CREDENTIALS)
 
 def get_lowcost_data():
     sql = """
