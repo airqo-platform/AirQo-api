@@ -9,13 +9,15 @@ const insert = async (tenant, transformedMeasurements) => {
   let eventsRejected = [];
   let errors = [];
 
-  logObject("the transformed measurements received", transformedMeasurements);
+  // logObject("the transformed measurements received", transformedMeasurements);
 
   for (const measurement of transformedMeasurements) {
     try {
-      logObject("the measurement in the insertion process", measurement);
+      // logObject("the measurement in the insertion process", measurement);
       const eventBody = {
         day: measurement.day,
+        site_id: measurement.site_id,
+        device_id: measurement.device_id,
         nValues: { $lt: parseInt(constants.N_VALUES) },
         $or: [
           { "values.time": { $ne: measurement.time } },
@@ -26,12 +28,20 @@ const insert = async (tenant, transformedMeasurements) => {
           { day: { $ne: measurement.day } },
         ],
       };
+      let someDeviceDetails = {};
+      someDeviceDetails["device_id"] = measurement.device_id;
+      someDeviceDetails["site_id"] = measurement.site_id;
+      logObject("someDeviceDetails", someDeviceDetails);
+
+      // logObject("measurement", measurement);
+
       const options = {
         $push: { values: measurement },
         $min: { first: measurement.time },
         $max: { last: measurement.time },
         $inc: { nValues: 1 },
       };
+
       const addedEvents = await getModelByTenant(
         tenant.toLowerCase(),
         "event",
@@ -79,6 +89,7 @@ const insert = async (tenant, transformedMeasurements) => {
         errors.push(errMsg);
       }
     } catch (e) {
+      logObject("the detailed duplicate error", e);
       eventsRejected.push(measurement);
       let errMsg = {
         msg: "duplicate record",

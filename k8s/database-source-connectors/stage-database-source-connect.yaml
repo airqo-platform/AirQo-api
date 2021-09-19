@@ -6,9 +6,8 @@ metadata:
   annotations:
     strimzi.io/use-connector-resources: "true"
 spec:
-  # image: us.gcr.io/airqo-250220/stage-device-measurements-db-source-connect-debezium:latest
   image: us.gcr.io/airqo-250220/stage-device-measurements-db-source-connect-mongo:latest
-  replicas: 1
+  replicas: 2
   minReadySeconds: 10
   strategy:
     type: RollingUpdate
@@ -16,6 +15,13 @@ spec:
       maxSurge: 1
       maxUnavailable: 0
   bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
+  resources:
+    Limits:
+      Cpu:     800m
+      Memory:  500Mi
+    Requests:
+      Cpu:     200m
+      Memory:  500Mi
   externalConfiguration:
     volumes:
       - name: connector-config

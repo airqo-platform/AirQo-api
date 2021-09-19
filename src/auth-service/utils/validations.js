@@ -10,7 +10,9 @@ const validation = {
     data.lastName = !isEmpty(data.lastName) ? data.lastName : "";
     data.email = !isEmpty(data.email) ? data.email : "";
     data.description = !isEmpty(data.description) ? data.description : "";
-    data.organization = !isEmpty(data.organization) ? data.organization : "";
+    data.long_organization = !isEmpty(data.long_organization)
+      ? data.long_organization
+      : "";
     data.jobTitle = !isEmpty(data.jobTitle) ? data.jobTitle : "";
     data.category = !isEmpty(data.category) ? data.category : "";
     data.website = !isEmpty(data.website) ? data.website : "";
@@ -31,8 +33,8 @@ const validation = {
       errors.description = "Description is required";
     }
 
-    if (Validator.isEmpty(data.organization)) {
-      errors.organization = "organization name is required";
+    if (Validator.isEmpty(data.long_organization)) {
+      errors.long_organization = "long_organization name is required";
     }
 
     if (Validator.isEmpty(data.jobTitle)) {
@@ -92,12 +94,15 @@ const validation = {
   register: (data) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions
-    data.userName = !isEmpty(data.userName) ? data.userName : "";
     data.firstName = !isEmpty(data.firstName) ? data.firstName : "";
     data.lastName = !isEmpty(data.lastName) ? data.lastName : "";
     data.email = !isEmpty(data.email) ? data.email : "";
     data.privilege = !isEmpty(data.privilege) ? data.privilege : "";
     data.organization = !isEmpty(data.organization) ? data.organization : "";
+    data.long_organization = !isEmpty(data.long_organization)
+      ? data.long_organization
+      : "";
+
     // Name checks
     if (Validator.isEmpty(data.firstName)) {
       errors.firstName = "firstName field is required";
@@ -117,10 +122,8 @@ const validation = {
       errors.organization = "organization field is required";
     }
 
-    //userName checks
-    if (Validator.isEmpty(data.userName || data.email)) {
-      errors.userName = "userName field is required";
-      errors.email = "userName field is required";
+    if (Validator.isEmpty(data.long_organization)) {
+      errors.long_organization = "long_organization name is required";
     }
 
     // Email checks

@@ -6,27 +6,24 @@ metadata:
 spec:
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1
-  schedule: "@hourly"
+  schedule: "20 * * * *"
   successfulJobsHistoryLimit: 3
   jobTemplate:
     metadata:
       name: airqo-calibrate-job
     spec:
       template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
         spec:
           containers:
             - image: us.gcr.io/airqo-250220/stage-calibrate-job:latest
               imagePullPolicy: Always
               name: airqo-calibrate-job
-              env:
-                - name: BOOTSTRAP_SERVERS
-                  value: stage-kafka-cluster-kafka-bootstrap:9092
-                - name: OUTPUT_TOPIC
-                  value: hourly-measurements-topic
-                - name: SCHEMA_REGISTRY_URL
-                  value: http://stage-schema-registry-svc:8081
-                - name: AIRQO_BASE_URL
-                  value: https://staging-platform.airqo.net/api/v1/
+              envFrom:
+                - configMapRef:
+                    name: stage-calibrate-job-config
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File

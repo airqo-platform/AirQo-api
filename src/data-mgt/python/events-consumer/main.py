@@ -2,6 +2,7 @@ import os
 import threading
 from time import sleep
 
+import urllib3
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
@@ -12,6 +13,7 @@ import pandas as pd
 from deviceRegistry import DeviceRegistry
 
 load_dotenv()
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
 BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS")

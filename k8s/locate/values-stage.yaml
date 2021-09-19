@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-stage-locate-api
   service_name: airqo-stage-locate-api-svc
   labels: sta-locate-api
-  secret: stage-locate-secret
+  secret: env-locate-staging
 
 replicaCount: 2
 
