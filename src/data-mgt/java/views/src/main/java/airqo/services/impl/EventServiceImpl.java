@@ -14,16 +14,16 @@ import java.util.List;
 @Service
 public class EventServiceImpl implements EventService {
 
-    @Autowired
-    EventRepository eventRepository;
+	@Autowired
+	EventRepository eventRepository;
 
-    @Override
-    public Page<Event> getEvents(Pageable pageable, Predicate predicate) {
-        return eventRepository.findAll(predicate, pageable);
-    }
+	@Override
+	public Page<Event> getEvents(Pageable pageable, Predicate predicate) {
+		return eventRepository.findAll(predicate, pageable);
+	}
 
-    @Override
-    public void insertEvents(List<Event> events) {
-        eventRepository.saveAll(events);
-    }
+	@Override
+	public void insertEvents(List<Event> events) {
+		eventRepository.saveAll(events);
+	}
 }

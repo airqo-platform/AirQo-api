@@ -10,8 +10,8 @@ import org.springframework.data.web.config.EnableSpringDataWebSupport;
 @EnableSpringDataWebSupport
 public class ViewsApplication {
 
-    public static void main(String[] args) {
-        SpringApplication.run(ViewsApplication.class, args);
-    }
+	public static void main(String[] args) {
+		SpringApplication.run(ViewsApplication.class, args);
+	}
 
 }

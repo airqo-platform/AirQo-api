@@ -21,16 +21,16 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("events")
 public class EventController {
 
-    @Autowired
-    EventService eventService;
+	@Autowired
+	EventService eventService;
 
-    @GetMapping("")
-    public ResponseEntity<?> getEvents(
-            @QuerydslPredicate(root = Event.class) Predicate predicate,
-            @PageableDefault(sort = "time") Pageable pageable,
-            @RequestParam MultiValueMap<String, String> parameters
-    ) {
-        Page<Event> events = eventService.getEvents(pageable, predicate);
-        return new ResponseEntity<>(events, new HttpHeaders(), HttpStatus.OK);
-    }
+	@GetMapping("")
+	public ResponseEntity<?> getEvents(
+		@QuerydslPredicate(root = Event.class) Predicate predicate,
+		@PageableDefault(sort = "time") Pageable pageable,
+		@RequestParam MultiValueMap<String, String> parameters
+	) {
+		Page<Event> events = eventService.getEvents(pageable, predicate);
+		return new ResponseEntity<>(events, new HttpHeaders(), HttpStatus.OK);
+	}
 }

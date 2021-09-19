@@ -21,25 +21,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureRestDocs(uriHost = "api.airqo.net/v1/views", uriScheme = "https", uriPort = 443)
 public class EventControllerTests {
 
-    @Autowired
-    protected MockMvc mockMvc;
+	@Autowired
+	protected MockMvc mockMvc;
 
-    @Test
-    public void shouldReturnEvents() throws Exception {
-        this.mockMvc.perform(get("/events"))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andDo(document("events"));
-    }
+	@Test
+	public void shouldReturnEvents() throws Exception {
+		this.mockMvc.perform(get("/events"))
+			.andDo(print())
+			.andExpect(status().isOk())
+			.andDo(document("events"));
+	}
 
-    @TestConfiguration
-    static class RestDocsConfiguration {
+	@TestConfiguration
+	static class RestDocsConfiguration {
 
-        @Bean
-        public RestDocsMockMvcConfigurationCustomizer restDocsMockMvcConfigurationCustomizer() {
-            return configurer -> configurer.operationPreprocessors()
-                    .withRequestDefaults(Preprocessors.prettyPrint())
-                    .withResponseDefaults(Preprocessors.prettyPrint());
-        }
-    }
+		@Bean
+		public RestDocsMockMvcConfigurationCustomizer restDocsMockMvcConfigurationCustomizer() {
+			return configurer -> configurer.operationPreprocessors()
+				.withRequestDefaults(Preprocessors.prettyPrint())
+				.withResponseDefaults(Preprocessors.prettyPrint());
+		}
+	}
 }

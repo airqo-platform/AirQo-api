@@ -11,9 +11,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class CustomErrorController implements ErrorController {
 
-    @RequestMapping("/error")
-    public ResponseEntity<GlobalExceptionHandler.ApiCallError> handleError() {
-        return new ResponseEntity<>(new GlobalExceptionHandler.ApiCallError("Not Found", null),
-                new HttpHeaders(), HttpStatus.NOT_FOUND);
-    }
+	@RequestMapping("/error")
+	public ResponseEntity<GlobalExceptionHandler.ApiCallError> handleError() {
+		return new ResponseEntity<>(new GlobalExceptionHandler.ApiCallError("Not Found", null),
+			new HttpHeaders(), HttpStatus.NOT_FOUND);
+	}
 }

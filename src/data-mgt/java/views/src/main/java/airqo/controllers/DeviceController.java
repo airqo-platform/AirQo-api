@@ -2,6 +2,7 @@ package airqo.controllers;
 
 import airqo.models.Device;
 import airqo.services.DeviceService;
+import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,14 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("devices")
 public class DeviceController {
 
-    @Autowired
-    DeviceService deviceService;
+	@Autowired
+	DeviceService deviceService;
 
-    @GetMapping("")
-    public ResponseEntity<?> getDevices(
-            @QuerydslPredicate(root = Device.class)
-                    Pageable pageable) {
-        Page<Device> devices = deviceService.getDevices(pageable);
-        return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);
-    }
+	@GetMapping("")
+	public ResponseEntity<?> getDevices(
+		@QuerydslPredicate(root = Device.class) Predicate predicate,
+		Pageable pageable) {
+		Page<Device> devices = deviceService.getDevices(predicate, pageable);
+		return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);
+	}
 }

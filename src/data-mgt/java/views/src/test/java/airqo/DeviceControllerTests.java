@@ -27,44 +27,44 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureRestDocs(uriHost = "api.airqo.net/v1/api/views", uriScheme = "https", uriPort = 443)
 public class DeviceControllerTests {
 
-    @Autowired
-    protected MockMvc mockMvc;
+	@Autowired
+	protected MockMvc mockMvc;
 
-    @Test
-    public void shouldReturnDevices() throws Exception {
-        this.mockMvc.perform(get("/devices").accept(MediaType.APPLICATION_JSON))
-                .andDo(print())
-                .andExpect(status().isOk())
-                .andDo(document("devices",
-                        responseFields(
-                                fieldWithPath("pageNumber").description("Page number"),
-                                fieldWithPath("pageSize").description("Maximum number of devices per page"),
-                                fieldWithPath("elementsOnPage").description("Number of devices on the content field of the current page"),
-                                fieldWithPath("isFirstPage").description("True if it's the first page else False"),
-                                fieldWithPath("isLastPage").description("True if it's the last page else False"),
-                                fieldWithPath("hasNextPage").description("True if there is a preceding page else False"),
-                                fieldWithPath("hasPreviousPage").description("True if there is a processor page else False"),
-                                fieldWithPath("totalPages").description("total number of pages"),
-                                fieldWithPath("totalElements").description("Total number of devices"),
-                                fieldWithPath("offset").description("Offset value"),
-                                fieldWithPath("content").description("Devices on the current page")),
-                        requestParameters(
-                                parameterWithName("page").description("Page number")
-                                        .attributes(Attributes.key("0").value("")).optional(),
-                                parameterWithName("size").description("Number of elements on each page").optional(),
-                                parameterWithName("sort").description("Field to perform sorting on").optional()
-                        )
-                ));
-    }
+	@Test
+	public void shouldReturnDevices() throws Exception {
+		this.mockMvc.perform(get("/devices").accept(MediaType.APPLICATION_JSON))
+			.andDo(print())
+			.andExpect(status().isOk())
+			.andDo(document("devices",
+				responseFields(
+					fieldWithPath("pageNumber").description("Page number"),
+					fieldWithPath("pageSize").description("Maximum number of devices per page"),
+					fieldWithPath("elementsOnPage").description("Number of devices on the content field of the current page"),
+					fieldWithPath("isFirstPage").description("True if it's the first page else False"),
+					fieldWithPath("isLastPage").description("True if it's the last page else False"),
+					fieldWithPath("hasNextPage").description("True if there is a preceding page else False"),
+					fieldWithPath("hasPreviousPage").description("True if there is a processor page else False"),
+					fieldWithPath("totalPages").description("total number of pages"),
+					fieldWithPath("totalElements").description("Total number of devices"),
+					fieldWithPath("offset").description("Offset value"),
+					fieldWithPath("content").description("Devices on the current page")),
+				requestParameters(
+					parameterWithName("page").description("Page number")
+						.attributes(Attributes.key("0").value("")).optional(),
+					parameterWithName("size").description("Number of elements on each page").optional(),
+					parameterWithName("sort").description("Field to perform sorting on").optional()
+				)
+			));
+	}
 
-    @TestConfiguration
-    static class RestDocsConfiguration {
+	@TestConfiguration
+	static class RestDocsConfiguration {
 
-        @Bean
-        public RestDocsMockMvcConfigurationCustomizer restDocsMockMvcConfigurationCustomizer() {
-            return configurer -> configurer.operationPreprocessors()
-                    .withRequestDefaults(Preprocessors.prettyPrint())
-                    .withResponseDefaults(Preprocessors.prettyPrint());
-        }
-    }
+		@Bean
+		public RestDocsMockMvcConfigurationCustomizer restDocsMockMvcConfigurationCustomizer() {
+			return configurer -> configurer.operationPreprocessors()
+				.withRequestDefaults(Preprocessors.prettyPrint())
+				.withResponseDefaults(Preprocessors.prettyPrint());
+		}
+	}
 }

@@ -7,21 +7,16 @@
 [[Sites]]
 == Get Sites
 
-=== Http
+=== Response Body
+
+include::{snippets}/sites/http-response.adoc[]
+
+=== Examples
 
 .http request
 include::{snippets}/sites/http-request.adoc[]
-
-.http response
-include::{snippets}/sites/http-response.adoc[]
-
-=== Curl
-
 .curl request
 include::{snippets}/sites/curl-request.adoc[]
-
-=== Httpie
-
 .httpie request
 include::{snippets}/sites/httpie-request.adoc[]
 
@@ -42,41 +37,25 @@ include::{snippets}/devices/response-body.adoc[]
 
 === Examples
 
-==== Http
-
 .http request
 include::{snippets}/devices/http-request.adoc[]
-
-==== Curl
-
 .curl request
 include::{snippets}/devices/curl-request.adoc[]
-
-==== Httpie
-
 .httpie request
 include::{snippets}/devices/httpie-request.adoc[]
 
 [[Events]]
 == Get Events
 
-=== Http
+=== Response Body
+
+include::{snippets}/events/response-body.adoc[]
+
+=== Examples
 
 .http request
 include::{snippets}/events/http-request.adoc[]
-
-.http response
-include::{snippets}/events/http-response.adoc[]
-
-.http response
-include::{snippets}/events/response-body.adoc[]
-
-=== Curl
-
 .curl request
 include::{snippets}/events/curl-request.adoc[]
-
-=== Httpie
-
 .httpie request
 include::{snippets}/events/httpie-request.adoc[]

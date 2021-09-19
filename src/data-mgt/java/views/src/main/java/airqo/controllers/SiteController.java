@@ -2,6 +2,7 @@ package airqo.controllers;
 
 import airqo.models.Site;
 import airqo.services.SiteService;
+import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,14 +18,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("sites")
 public class SiteController {
 
-    @Autowired
-    SiteService siteService;
+	@Autowired
+	SiteService siteService;
 
-    @GetMapping("")
-    public ResponseEntity<?> getSites(
-            @QuerydslPredicate(root = Site.class)
-                    Pageable pageable) {
-        Page<Site> sites = siteService.getSites(pageable);
-        return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
-    }
+	@GetMapping("")
+	public ResponseEntity<?> getSites(
+		@QuerydslPredicate(root = Site.class) Predicate predicate,
+		Pageable pageable) {
+		Page<Site> sites = siteService.getSites(predicate, pageable);
+		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
+	}
 }
