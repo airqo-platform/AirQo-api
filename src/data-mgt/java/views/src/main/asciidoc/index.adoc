@@ -1,0 +1,82 @@
+= AirQo View API
+:doctype: book
+:description: Just a simple description
+:toc: left
+:toclevels: 5
+
+[[Sites]]
+== Get Sites
+
+=== Http
+
+.http request
+include::{snippets}/sites/http-request.adoc[]
+
+.http response
+include::{snippets}/sites/http-response.adoc[]
+
+=== Curl
+
+.curl request
+include::{snippets}/sites/curl-request.adoc[]
+
+=== Httpie
+
+.httpie request
+include::{snippets}/sites/httpie-request.adoc[]
+
+[[Devices]]
+== Get Devices
+
+=== Query Parameters
+
+include::{snippets}/devices/request-parameters.adoc[]
+
+=== Response Fields
+
+include::{snippets}/devices/response-fields.adoc[]
+
+=== Response Body
+
+include::{snippets}/devices/response-body.adoc[]
+
+=== Examples
+
+==== Http
+
+.http request
+include::{snippets}/devices/http-request.adoc[]
+
+==== Curl
+
+.curl request
+include::{snippets}/devices/curl-request.adoc[]
+
+==== Httpie
+
+.httpie request
+include::{snippets}/devices/httpie-request.adoc[]
+
+[[Events]]
+== Get Events
+
+=== Http
+
+.http request
+include::{snippets}/events/http-request.adoc[]
+
+.http response
+include::{snippets}/events/http-response.adoc[]
+
+.http response
+include::{snippets}/events/response-body.adoc[]
+
+=== Curl
+
+.curl request
+include::{snippets}/events/curl-request.adoc[]
+
+=== Httpie
+
+.httpie request
+include::{snippets}/events/httpie-request.adoc[]

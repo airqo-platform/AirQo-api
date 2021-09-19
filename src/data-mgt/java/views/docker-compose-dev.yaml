@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  db:
+    container_name: airqo-view-db
+    image: mongo
+    volumes:
+      - ./data/db:/var/lib/mongo/data
+
+  cache:
+    container_name: airqo-view-redis
+    image: redis
+    volumes:
+      - ./data/db:/var/lib/redis/data
+
+  web:
+    container_name: airqo-view-api
+    build:
+      context: .
+    command: ./mvnw spring-boot:run -Dspring-boot.run.profiles=dev -Dspring-boot.run.jvmArguments="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000"
+    volumes:
+      - ./:/app
+    ports:
+      - "8080:8080"
+      - "8000:8000"
+    depends_on:
+      - db
+      - cache

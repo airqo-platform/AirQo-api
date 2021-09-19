@@ -1,0 +1,71 @@
+###########################################################
+# Start deployment of view api - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-view-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: view-api
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: view-api
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: view-api
+          image: us.gcr.io/airqo-250220/stage-view-api:latest
+          imagePullPolicy: Always
+          resources:
+             requests:
+               memory: 256Mi
+               cpu: "200m"
+             limits:
+               memory: 700Mi
+             cpu: "1000m"
+          ports:
+            - containerPort: 8080
+              name: view-api
+          envFrom:
+            - configMapRef:
+                name: stage-view-api-config
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: /actuator/health/readiness
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: /actuator/health/liveness
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sh", "-c", "sleep 10" ]
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: stage-view-api-svc
+  namespace: stage
+spec:
+  selector:
+    app: view-api
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 30808
+  type: NodePort
