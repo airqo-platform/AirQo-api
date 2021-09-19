@@ -108,14 +108,14 @@ class AirQoApi:
         for value in calibrate_body:
             value_dict = dict(value)
             data = {
-                    "device_id": value_dict.get("device"),
-                    "sensor1_pm2.5": value_dict.get("pm2_5.value"),
-                    "sensor2_pm2.5": value_dict.get("s2_pm2_5.value"),
-                    "sensor1_pm10": value_dict.get("pm10.value"),
-                    "sensor2_pm10": value_dict.get("s2_pm10.value"),
-                    "temperature": value_dict.get("externalTemperature.value"),
-                    "humidity": value_dict.get("externalHumidity.value"),
-                }
+                "device_id": value_dict.get("device"),
+                "sensor1_pm2.5": value_dict.get("pm2_5.value"),
+                "sensor2_pm2.5": value_dict.get("s2_pm2_5.value"),
+                "sensor1_pm10": value_dict.get("pm10.value"),
+                "sensor2_pm10": value_dict.get("s2_pm10.value"),
+                "temperature": value_dict.get("externalTemperature.value"),
+                "humidity": value_dict.get("externalHumidity.value"),
+            }
 
             request_body["raw_values"].append(data)
 
