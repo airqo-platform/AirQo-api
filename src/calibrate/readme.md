@@ -49,9 +49,3 @@ Make a "POST" request to http://localhost:4001/api/v1/calibrate with the followi
     ]
 }
 ```
-
-## Kafka
-Building the docker image
-```bash
-docker build --platform=linux/x86-64  -f Kafka.Dockerfile -t calibrate-kafka . 
-```
