@@ -340,28 +340,28 @@ public class Utils {
 
                     if (transformedMeasurement.getPm2_5().getValue() != null) {
                         if (transformedMeasurement.getPm2_5().getValue() < 0.0
-                                || transformedMeasurement.getPm2_5().getValue() > 500.4) {
+                                || transformedMeasurement.getPm2_5().getValue() > 1000) {
                             transformedMeasurement.getPm2_5().setValue(null);
                         }
                     }
 
                     if (transformedMeasurement.getS2_pm2_5().getValue() != null) {
                         if (transformedMeasurement.getS2_pm2_5().getValue() < 0.0
-                                || transformedMeasurement.getS2_pm2_5().getValue() > 500.4) {
+                                || transformedMeasurement.getS2_pm2_5().getValue() > 1000) {
                             transformedMeasurement.getS2_pm2_5().setValue(null);
                         }
                     }
 
                     if (transformedMeasurement.getPm10().getValue() != null) {
                         if (transformedMeasurement.getPm10().getValue() < 0.0
-                                || transformedMeasurement.getPm10().getValue() > 500.4) {
+                                || transformedMeasurement.getPm10().getValue() > 1000) {
                             transformedMeasurement.getPm10().setValue(null);
                         }
                     }
 
                     if (transformedMeasurement.getS2_pm10().getValue() != null) {
                         if (transformedMeasurement.getS2_pm10().getValue() < 0.0
-                                || transformedMeasurement.getS2_pm10().getValue() > 500.4) {
+                                || transformedMeasurement.getS2_pm10().getValue() > 1000) {
                             transformedMeasurement.getS2_pm10().setValue(null);
                         }
                     }
