@@ -20,6 +20,8 @@ const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 const { logElement } = require("../utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
+const { registerDeviceUtil } = require("../utils/create-device");
+const { isEmpty } = require("underscore");
 
 middlewareConfig(router);
 
@@ -1166,8 +1168,548 @@ router.get(
 );
 
 /******************* create-photo use-case ***************/
-/**** delete photos */
-router.delete("/photos", photoController.deletePhotos);
+router.delete(
+  "/photos",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("device_id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("device_name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the unique device_name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  oneOf([
+    [
+      body("photos")
+        .exists()
+        .withMessage("the photos are missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the photos should be an array"),
+    ],
+  ]),
+  photoController.delete
+);
+router.post(
+  "/photos",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("device_number")
+        .exists()
+        .withMessage("the device number is missing in request")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      body("device_id")
+        .exists()
+        .withMessage("the device ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("device_name")
+        .exists()
+        .withMessage("the device name is missing in request")
+        .bail()
+        .trim()
+        .isLowercase()
+        .withMessage("device name should be lower case")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device names do not have spaces in them"),
+      body("photos")
+        .exists()
+        .withMessage("the photos are missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the photos should be an array"),
+    ],
+  ]),
+  photoController.create
+);
+router.put(
+  "/photos",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("device_id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("device_name")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the unique device_name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  oneOf([
+    [
+      query("device_number")
+        .if(body("device_number").exists())
+        .notEmpty()
+        .withMessage("the device number is missing in the request")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      query("device_id")
+        .if(body("device_id").exists())
+        .notEmpty()
+        .withMessage("the device ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("device_name")
+        .if(body("device_name").exists())
+        .notEmpty()
+        .withMessage("the device name is missing in request")
+        .bail()
+        .trim()
+        .isLowercase()
+        .withMessage("device name should be lower case")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device names do not have spaces in them"),
+      body("photos")
+        .if(body("photos").exists())
+        .notEmpty()
+        .withMessage("the photos are missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the photos should be an array"),
+    ],
+  ]),
+  photoController.update
+);
+router.get(
+  "/photos",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      query("device_number")
+        .if(query("device_number").exists())
+        .notEmpty()
+        .withMessage(
+          "the device identifier is missing in request, consider using the device_number"
+        )
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      query("device_name")
+        .if(query("device_name").exists())
+        .notEmpty()
+        .withMessage(
+          "the device identifier is missing in request, consider using the unique device_name"
+        )
+        .bail()
+        .trim()
+        .isLowercase()
+        .withMessage("device name should be lower case")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device names do not have spaces in them"),
+      query("device_id")
+        .if(query("device_id").exists())
+        .notEmpty()
+        .withMessage(
+          "the device identifier is missing in request ya, consider using the device_id"
+        )
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  photoController.list
+);
+/*** platform */
+router.post(
+  "/photos/soft",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("device_number")
+        .if(body("device_number").exists())
+        .notEmpty()
+        .withMessage("the device number cannot be empty")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      body("device_id")
+        .exists()
+        .withMessage("the device ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("device_name")
+        .exists()
+        .withMessage("the device name is missing in request")
+        .bail()
+        .trim()
+        .isLowercase()
+        .withMessage("device name should be lower case")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device names do not have spaces in them"),
+      body("image_url")
+        .exists()
+        .withMessage("the image_url is missing in request")
+        .bail()
+        .trim()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the image_url cannot have spaces in it")
+        .bail()
+        .isURL()
+        .withMessage("the image_url is not a valid URL")
+        .trim(),
+      body("image_code")
+        .exists()
+        .withMessage("the image_code is missing in request")
+        .bail()
+        .notEmpty()
+        .withMessage("the image_code cannot be empty")
+        .bail()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the image_code cannot have spaces in it")
+        .trim(),
+      body("tags")
+        .if(body("tags").exists())
+        .notEmpty()
+        .withMessage("the tags cannot be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+      body("cloudinary")
+        .if(body("cloudinary").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("cloudinary should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("cloudinary cannot be empty if provided")
+        .bail()
+        .custom((value) => {
+          if (!isEmpty(value.url) && !isEmpty(value.public_id)) {
+            return true;
+          }
+        })
+        .withMessage("cloudinary's url and public_id keys must be provided"),
+    ],
+  ]),
+  photoController.createPhotoOnPlatform
+);
+router.put(
+  "/photos/soft",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the photo unique identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    body()
+      .notEmpty()
+      .custom((value) => {
+        return !isEmpty(value);
+      })
+      .withMessage("the request body should not be empty"),
+  ]),
+  oneOf([
+    [
+      body("device_number")
+        .if(body("device_number").exists())
+        .notEmpty()
+        .withMessage("the device number is missing in the request")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      body("device_id")
+        .if(body("device_id").exists())
+        .notEmpty()
+        .withMessage("the device ID is missing in request")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("device_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("device_name")
+        .if(body("device_name").exists())
+        .notEmpty()
+        .withMessage("the device name is missing in request")
+        .bail()
+        .trim()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("device_name should not have spaces in it"),
+      body("image_url")
+        .if(body("image_url").exists())
+        .notEmpty()
+        .withMessage("the image_url cannot be empty")
+        .bail()
+        .isURL()
+        .withMessage("the image_url is not a valid URL"),
+      body("description")
+        .if(body("description").exists())
+        .trim(),
+      body("image_code")
+        .if(body("image_code").exists())
+        .trim(),
+      body("tags")
+        .if(body("tags").exists())
+        .notEmpty()
+        .withMessage("the tags cannot be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  photoController.updatePhotoOnPlatform
+);
+router.delete(
+  "/photos/soft",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("the id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  photoController.deletePhotoOnPlatform
+);
+/*** cloudinary */
+router.post(
+  "/photos/cloud",
+  oneOf([
+    [
+      body("resource_type")
+        .exists()
+        .withMessage("resource_type is missing in request")
+        .trim(),
+      body("public_id")
+        .exists()
+        .withMessage("public_id is missing in the request, this is the path")
+        .trim(),
+      body("chunk_size")
+        .exists()
+        .withMessage("the chunk_size is missing in request")
+        .trim()
+        .isInt()
+        .withMessage("the chunk_size must be a number"),
+      body("eager")
+        .exists()
+        .withMessage("the eager are missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the photos should be an array"),
+      query("eager_async")
+        .exists()
+        .withMessage("the eager_async is missing in request")
+        .bail()
+        .isBoolean()
+        .withMessage("the eager_async must be a Boolean"),
+      body("eager_notification_url")
+        .exists()
+        .withMessage("the eager_notification_url is missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the photos should be an array"),
+    ],
+  ]),
+  photoController.createPhotoOnCloudinary
+);
+router.delete("/photos/cloud", photoController.deletePhotoOnCloudinary);
+router.put("/photos/cloud", photoController.updatePhotoOnCloudinary);
 
 /****************** create activities use-case *************************/
 router.post(
