@@ -6,6 +6,7 @@ import urllib3
 from dotenv import load_dotenv
 
 from airqoApi import AirQoApi
+from utils import to_double
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -54,22 +55,22 @@ class CalibrationJob:
 
         for device in devices_list:
 
-            if 'name' not in device.keys():
-                print(f'name missing in device keys : {device}')
-                continue
+            try:
+                if 'name' not in device.keys():
+                    print(f'name missing in device keys : {device}')
+                    continue
 
-            device_name = device['name']
-            events = self.airqo_api.get_events(tenant='airqo', start_time=start_time,
-                                               end_time=end_time, device=device_name)
+                device_name = device['name']
+                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time,
+                                                   end_time=end_time, device=device_name)
 
-            if not events:
-                print(f"No measurements for {device_name} : startTime {start_time} : endTime : {end_time}")
-                continue
+                if not events:
+                    print(f"No measurements for {device_name} : startTime {start_time} : endTime : {end_time}")
+                    continue
 
-            if len(self.raw_events) >= 24:
-                break
-
-            self.raw_events.extend(events)
+                self.raw_events.extend(events)
+            except:
+                traceback.print_exc()
 
     def average_measurements(self):
         # ####
@@ -111,8 +112,8 @@ class CalibrationJob:
 
                 averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean().round(2))
 
-                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1)
-                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1)
+                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1).round(2)
+                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1).round(2)
 
                 averages["time"] = averages.index
                 averages["time"] = averages["time"].apply(lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%SZ'))
@@ -138,26 +139,31 @@ class CalibrationJob:
         hourly_measurements_groups = hourly_measurements_df.groupby("time")
 
         for _, time_group in hourly_measurements_groups:
-            date_time = time_group.iloc[0]["time"]
-            time_group["pm2_5"] = time_group["pm2_5.value"]
-            time_group["s2_pm2_5"] = time_group["s2_pm2_5.value"]
-            time_group["pm10"] = time_group["pm10.value"]
-            time_group["s2_pm10"] = time_group["s2_pm10.value"]
-            time_group["externalTemperature"] = time_group["externalTemperature.value"]
-            time_group["humidity"] = time_group["externalHumidity.value"]
-
-            calibrate_body = time_group.to_dict(orient="records")
 
             try:
+                date_time = time_group.iloc[0]["time"]
+                time_group["pm2_5"] = time_group["pm2_5.value"]
+                time_group["s2_pm2_5"] = time_group["s2_pm2_5.value"]
+                time_group["pm10"] = time_group["pm10.value"]
+                time_group["s2_pm10"] = time_group["s2_pm10.value"]
+                time_group["temperature"] = time_group["externalTemperature.value"]
+                time_group["humidity"] = time_group["externalHumidity.value"]
+
+                calibrate_body = time_group.to_dict(orient="records")
                 calibrated_values = self.airqo_api.get_calibrated_values(date_time, calibrate_body)
 
                 for value in calibrated_values:
-                    time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
-                        = value["calibrated_PM2.5"]
-                    time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
-                        = value["calibrated_PM10"]
+                    try:
+                        time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
+                            = round(value["calibrated_PM2.5"], 2)
+                        time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
+                            = round(value["calibrated_PM10"], 2)
+                    except:
+                        traceback.print_exc()
+                        pass
 
                 self.hourly_calibrated_measurements.extend(time_group.to_dict(orient='records'))
+
             except:
                 traceback.print_exc()
                 pass
@@ -174,114 +180,122 @@ class CalibrationJob:
         hourly_calibrated_measurements_df = pd.DataFrame(self.hourly_calibrated_measurements)
 
         for _, row in hourly_calibrated_measurements_df.iterrows():
-            columns = hourly_calibrated_measurements_df.columns
+            try:
+                columns = hourly_calibrated_measurements_df.columns
 
-            calibrated_measurement = dict({
-                "tenant": "airqo",
-                "frequency": "hourly",
-                "time": row['time'],
-                "device": row['device'],
-                "device_number": row['device_number'],
-                "device_id": row['device_id'],
-                "site_id": row['site_id'],
-                "location": {
-                    "latitude": {
-                        "value": row['location.latitude.value']
+                calibrated_measurement = dict({
+                    "tenant": "airqo",
+                    "frequency": "hourly",
+                    "time": row['time'],
+                    "device": row['device'],
+                    "device_number": row['device_number'],
+                    "device_id": row['device_id'],
+                    "site_id": row['site_id'],
+                    "location": {
+                        "latitude": {
+                            "value": to_double(row['location.latitude.value'])
+                        },
+                        "longitude": {
+                            "value": to_double(row['location.longitude.value'])
+                        }
                     },
-                    "longitude": {
-                        "value": row['location.longitude.value']
+                    "internalTemperature": {
+                        "value": to_double(row[
+                                               "internalTemperature.value"]) if "internalTemperature.value" in columns else None
+                    },
+                    "internalHumidity": {
+                        "value": to_double(
+                            row["internalHumidity.value"]) if "internalHumidity.value" in columns else None
+                    },
+                    "externalTemperature": {
+                        "value": to_double(row[
+                                               "externalTemperature.value"]) if "externalTemperature.value" in columns else None
+                    },
+                    "externalHumidity": {
+                        "value": to_double(
+                            row["externalHumidity.value"]) if "externalHumidity.value" in columns else None
+                    },
+                    "externalPressure": {
+                        "value": to_double(
+                            row["externalPressure.value"]) if "externalPressure.value" in columns else None
+                    },
+                    "speed": {
+                        "value": to_double(row["speed.value"]) if "speed.value" in columns else None
+                    },
+                    "altitude": {
+                        "value": to_double(row["altitude.value"]) if "altitude.value" in columns else None
+                    },
+                    "battery": {
+                        "value": to_double(row["battery.value"]) if "battery.value" in columns else None
+                    },
+                    "satellites": {
+                        "value": to_double(row["satellites.value"]) if "satellites.value" in columns else None
+                    },
+                    "hdop": {
+                        "value": to_double(row["hdop.value"]) if "hdop.value" in columns else None
+                    },
+                    "pm10": {
+                        "value": to_double(row["pm10.value"]) if "pm10.value" in columns else None,
+                        "uncertaintyValue": to_double(row["pm10.uncertaintyValue"])
+                        if "pm10.uncertaintyValue" in columns else None,
+                        "standardDeviationValue": to_double(row["pm10.standardDeviationValue"])
+                        if "pm10.standardDeviationValue" in columns else None
+                    },
+                    "pm2_5": {
+                        "value": to_double(row["pm2_5.value"]) if "pm2_5.value" in columns else None,
+                        "uncertaintyValue": to_double(row["pm2_5.uncertaintyValue"])
+                        if "pm2_5.uncertaintyValue" in columns else None,
+                        "standardDeviationValue": to_double(row["pm2_5.standardDeviationValue"])
+                        if "pm2_5.standardDeviationValue" in columns else None
+                    },
+                    "no2": {
+                        "value": to_double(row["no2.value"]) if "no2.value" in columns else None,
+                        "calibratedValue": to_double(row[
+                                                         "no2.calibratedValue"]) if "no2.calibratedValue" in columns else None,
+                        "uncertaintyValue": to_double(row[
+                                                          "no2.uncertaintyValue"]) if "no2.uncertaintyValue" in columns else None,
+                        "standardDeviationValue": to_double(row["no2.standardDeviationValue"])
+                        if "no2.standardDeviationValue" in columns else None
+                    },
+                    "pm1": {
+                        "value": to_double(row["pm1.value"]) if "pm1.value" in columns else None,
+                        "calibratedValue": to_double(row[
+                                                         "pm1.calibratedValue"]) if "pm1.calibratedValue" in columns else None,
+                        "uncertaintyValue": to_double(row[
+                                                          "pm1.uncertaintyValue"]) if "pm1.uncertaintyValue" in columns else None,
+                        "standardDeviationValue": to_double(row["pm1.standardDeviationValue"])
+                        if "pm1.standardDeviationValue" in columns else None
+                    },
+                    "s2_pm10": {
+                        "value": to_double(row["s2_pm10.value"]) if "s2_pm10.value" in columns else None,
+                        "uncertaintyValue": to_double(row["s2_pm10.uncertaintyValue"])
+                        if "s2_pm10.uncertaintyValue" in columns else None,
+                        "standardDeviationValue": to_double(row["s2_pm10.standardDeviationValue"])
+                        if "s2_pm10.standardDeviationValue" in columns else None
+                    },
+                    "s2_pm2_5": {
+                        "value": to_double(row["s2_pm2_5.value"]) if "s2_pm2_5.value" in columns else None,
+                        "uncertaintyValue": to_double(row["s2_pm2_5.uncertaintyValue"])
+                        if "s2_pm2_5.uncertaintyValue" in columns else None,
+                        "standardDeviationValue": to_double(row["s2_pm2_5.standardDeviationValue"])
+                        if "s2_pm2_5.standardDeviationValue" in columns else None
+                    },
+                    "average_pm2_5": {
+                        "value": to_double(row["average_pm2_5.value"]) if "average_pm2_5.value" in columns else None,
+                        "calibratedValue": to_double(
+                            row["average_pm2_5.calibratedValue"]) if "average_pm2_5.calibratedValue"
+                                                                     in columns else None,
+                    },
+                    "average_pm10": {
+                        "value": to_double(row["average_pm10.value"]) if "average_pm10.value" in columns else None,
+                        "calibratedValue": to_double(
+                            row["average_pm10.calibratedValue"]) if "average_pm10.calibratedValue"
+                                                                    in columns else None,
                     }
-                },
-                "internalTemperature": {
-                    "value": row[
-                        "internalTemperature.value"] if "internalTemperature.value" in columns else None
-                },
-                "internalHumidity": {
-                    "value": row["internalHumidity.value"] if "internalHumidity.value" in columns else None
-                },
-                "externalTemperature": {
-                    "value": row[
-                        "externalTemperature.value"] if "externalTemperature.value" in columns else None
-                },
-                "externalHumidity": {
-                    "value": row["externalHumidity.value"] if "externalHumidity.value" in columns else None
-                },
-                "externalPressure": {
-                    "value": row["externalPressure.value"] if "externalPressure.value" in columns else None
-                },
-                "speed": {
-                    "value": row["speed.value"] if "speed.value" in columns else None
-                },
-                "altitude": {
-                    "value": row["altitude.value"] if "altitude.value" in columns else None
-                },
-                "battery": {
-                    "value": row["battery.value"] if "battery.value" in columns else None
-                },
-                "satellites": {
-                    "value": row["satellites.value"] if "satellites.value" in columns else None
-                },
-                "hdop": {
-                    "value": row["hdop.value"] if "hdop.value" in columns else None
-                },
-                "pm10": {
-                    "value": row["pm10.value"] if "pm10.value" in columns else None,
-                    "uncertaintyValue": row["pm10.uncertaintyValue"]
-                    if "pm10.uncertaintyValue" in columns else None,
-                    "standardDeviationValue": row["pm10.standardDeviationValue"]
-                    if "pm10.standardDeviationValue" in columns else None
-                },
-                "pm2_5": {
-                    "value": row["pm2_5.value"] if "pm2_5.value" in columns else None,
-                    "uncertaintyValue": row["pm2_5.uncertaintyValue"]
-                    if "pm2_5.uncertaintyValue" in columns else None,
-                    "standardDeviationValue": row["pm2_5.standardDeviationValue"]
-                    if "pm2_5.standardDeviationValue" in columns else None
-                },
-                "no2": {
-                    "value": row["no2.value"] if "no2.value" in columns else None,
-                    "calibratedValue": row[
-                        "no2.calibratedValue"] if "no2.calibratedValue" in columns else None,
-                    "uncertaintyValue": row[
-                        "no2.uncertaintyValue"] if "no2.uncertaintyValue" in columns else None,
-                    "standardDeviationValue": row["no2.standardDeviationValue"]
-                    if "no2.standardDeviationValue" in columns else None
-                },
-                "pm1": {
-                    "value": row["pm1.value"] if "pm1.value" in columns else None,
-                    "calibratedValue": row[
-                        "pm1.calibratedValue"] if "pm1.calibratedValue" in columns else None,
-                    "uncertaintyValue": row[
-                        "pm1.uncertaintyValue"] if "pm1.uncertaintyValue" in columns else None,
-                    "standardDeviationValue": row["pm1.standardDeviationValue"]
-                    if "pm1.standardDeviationValue" in columns else None
-                },
-                "s2_pm10": {
-                    "value": row["s2_pm10.value"] if "s2_pm10.value" in columns else None,
-                    "uncertaintyValue": row["s2_pm10.uncertaintyValue"]
-                    if "s2_pm10.uncertaintyValue" in columns else None,
-                    "standardDeviationValue": row["s2_pm10.standardDeviationValue"]
-                    if "s2_pm10.standardDeviationValue" in columns else None
-                },
-                "s2_pm2_5": {
-                    "value": row["s2_pm2_5.value"] if "s2_pm2_5.value" in columns else None,
-                    "uncertaintyValue": row["s2_pm2_5.uncertaintyValue"]
-                    if "s2_pm2_5.uncertaintyValue" in columns else None,
-                    "standardDeviationValue": row["s2_pm2_5.standardDeviationValue"]
-                    if "s2_pm2_5.standardDeviationValue" in columns else None
-                },
-                "average_pm2_5": {
-                    "value": row["average_pm2_5.value"] if "average_pm2_5.value" in columns else None,
-                    "calibratedValue": row["average_pm2_5.calibratedValue"] if "average_pm2_5.calibratedValue"
-                                                                               in columns else None,
-                },
-                "average_pm10": {
-                    "value": row["average_pm10.value"] if "average_pm10.value" in columns else None,
-                    "calibratedValue": row["average_pm10.calibratedValue"] if "average_pm10.calibratedValue"
-                                                                              in columns else None,
-                }
-            })
-            calibrated_measurements.append(calibrated_measurement)
+                })
+                calibrated_measurements.append(calibrated_measurement)
+            except:
+                traceback.print_exc()
 
         print(calibrated_measurements)
         self.airqo_api.post_events(calibrated_measurements, 'airqo')

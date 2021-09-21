@@ -4,6 +4,7 @@ import traceback
 import requests
 
 from config import configuration
+from utils import to_double
 
 
 class AirQoApi:
@@ -57,7 +58,6 @@ class AirQoApi:
 
                 if response.status_code == 200:
                     print(response.json())
-                    print(json_data)
                 else:
                     print("Device registry failed to insert values. Status Code : " + str(response.status_code))
                     print(response.content)
@@ -106,18 +106,24 @@ class AirQoApi:
         request_body["datetime"] = datetime
         request_body["raw_values"] = []
         for value in calibrate_body:
-            value_dict = dict(value)
-            data = {
-                "device_id": value_dict.get("device"),
-                "sensor1_pm2.5": value_dict.get("pm2_5.value"),
-                "sensor2_pm2.5": value_dict.get("s2_pm2_5.value"),
-                "sensor1_pm10": value_dict.get("pm10.value"),
-                "sensor2_pm10": value_dict.get("s2_pm10.value"),
-                "temperature": value_dict.get("externalTemperature.value"),
-                "humidity": value_dict.get("externalHumidity.value"),
-            }
+            try:
+                value_dict = dict(value)
+                data = {
+                    "device_id": value_dict.get("device"),
+                    "sensor1_pm2.5": float(to_double(value_dict.get("pm2_5"))),
+                    "sensor2_pm2.5": float(to_double(value_dict.get("s2_pm2_5"))),
+                    "sensor1_pm10": float(to_double(value_dict.get("pm10"))),
+                    "sensor2_pm10": float(to_double(value_dict.get("s2_pm10"))),
+                    "temperature": float(to_double(value_dict.get("temperature"))),
+                    "humidity": float(to_double(value_dict.get("humidity"))),
+                }
 
-            request_body["raw_values"].append(data)
+                if data["sensor1_pm2.5"] > 0.0 and data["sensor2_pm2.5"] > 0.0 and data["sensor1_pm10"] > 0.0 and \
+                        data["sensor2_pm10"] > 0.0 and data["temperature"] > 0.0 and data["humidity"] > 0.0:
+                    request_body["raw_values"].append(data)
+
+            except:
+                traceback.print_exc()
 
         try:
             request_body = json.dumps(request_body)
