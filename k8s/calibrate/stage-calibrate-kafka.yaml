@@ -8,7 +8,7 @@ metadata:
   namespace: staging
 spec:
   minReadySeconds: 10
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: stage-calibrate-kafka
@@ -25,9 +25,12 @@ spec:
         sidecar.istio.io/inject: "false"
     spec:
       containers:
-      - name: stage-calibrate-kafka
-        image: us.gcr.io/airqo-250220/airqo-stage-calibrate-kafka:latest
+      - name: calibrate-api
+        image: us.gcr.io/airqo-250220/airqo-stage-calibrate-api:latest
         imagePullPolicy: Always
+        ports:
+          - containerPort: 4001
+            name: calibrate-api
         resources:
           requests:
             memory: 256Mi
@@ -37,4 +40,31 @@ spec:
             cpu: "2000m"
         envFrom:
           - configMapRef:
-              name: stage-calibrate-config
+              name: stage-calibrate-api-config
+      # - name: calibrate-kafka
+      #   image: us.gcr.io/airqo-250220/airqo-stage-calibrate-kafka:latest
+      #   imagePullPolicy: Always
+      #   resources:
+      #     requests:
+      #       memory: 256Mi
+      #       cpu: "500m"
+      #     limits:
+      #       memory: 1Gi
+      #       cpu: "2000m"
+      #   envFrom:
+      #     - configMapRef:
+      #         name: stage-calibrate-kafka-config
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-calibrate-svc
+  namespace: staging
+spec:
+  selector:
+    app: stage-calibrate-kafka
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001

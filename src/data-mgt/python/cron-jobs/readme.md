@@ -1,5 +1,5 @@
 
 ## Calibration
 ```bash
-docker build --platform=linux/x86-64 -t calibrate-kafka . 
+docker build --platform=linux/x86-64 -t airqo-jobs . 
 ```
