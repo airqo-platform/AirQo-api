@@ -1517,24 +1517,24 @@ router.post(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
-      body("cloudinary")
-        .if(body("cloudinary").exists())
+      body("metadata")
+        .if(body("metadata").exists())
         .custom((value) => {
           return typeof value === "object";
         })
-        .withMessage("cloudinary should be an object")
+        .withMessage("metadata should be an object")
         .bail()
         .custom((value) => {
           return !isEmpty(value);
         })
-        .withMessage("cloudinary cannot be empty if provided")
+        .withMessage("metadata cannot be empty if provided")
         .bail()
         .custom((value) => {
           if (!isEmpty(value.url) && !isEmpty(value.public_id)) {
             return true;
           }
         })
-        .withMessage("cloudinary's url and public_id keys must be provided"),
+        .withMessage("metadata's url and public_id keys must be provided"),
     ],
   ]),
   photoController.createPhotoOnPlatform
@@ -1663,7 +1663,7 @@ router.delete(
   ]),
   photoController.deletePhotoOnPlatform
 );
-/*** cloudinary */
+/*** metadata */
 router.post(
   "/photos/cloud",
   oneOf([

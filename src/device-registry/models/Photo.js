@@ -28,10 +28,10 @@ const photoSchema = new Schema(
       type: String,
     },
     tags: [{ type: String }],
-    cloudinary: {
+    metadata: {
       public_id: {
         type: String,
-        required: [true, "the cloudinary public_id is required!"],
+        required: [true, "the metadata public_id is required!"],
       },
       version: { type: Number },
       signature: { type: String },
@@ -44,7 +44,7 @@ const photoSchema = new Schema(
       type: { type: String },
       url: {
         type: String,
-        required: [true, "the cloudinary url is required!"],
+        required: [true, "the metadata url is required!"],
       },
       secure_url: { type: String },
     },
