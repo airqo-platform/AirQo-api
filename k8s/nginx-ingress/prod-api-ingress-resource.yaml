@@ -28,10 +28,11 @@ metadata:
        return 401 '{"error": "Access Denied"}';
       }
 
+      location = / {
+       return 200 '{"messsage": "Welcome to the AirQo API.", "docs": "https://docs.airqo.net/airqo-rest-api-documentation/"}';
+      }
+
       location = /auth {
-        if ($request_uri = "/") {
-            return 200;
-        }
 
         if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
             return 200;
@@ -42,34 +43,6 @@ metadata:
         }
 
         if ($request_uri ~ "(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/incentives)|(/api/v2/incentives)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/predict)|(/api/v2/predict)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/analytics)|(/api/v2/analytics)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/map)|(/api/v2/map)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/data)|(/api/v2/data)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/devices)|(/api/v2/devices)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
             return 200;
         }
         
@@ -86,10 +59,6 @@ spec:
     - host: api.airqo.net
       http:
         paths:
-          - path: /
-            backend:
-              serviceName: airqo-auth-api-svc
-              servicePort: 3000
           - path: /api/v1/users
             backend:
               serviceName: airqo-auth-api-svc
