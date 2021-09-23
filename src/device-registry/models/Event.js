@@ -335,7 +335,7 @@ eventSchema.statics = {
     }
   },
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    const { metadata } = filter;
+    const { metadata, frequency } = filter;
     let search = filter;
     let groupId = "$device";
     let localField = "device";
@@ -344,9 +344,33 @@ eventSchema.statics = {
     let _as = "_deviceDetails";
     let as = "deviceDetails";
     let elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
+    let pm2_5 = "$average_pm2_5";
+    let pm10 = "$average_pm10";
+    let projection = {
+      _id: 0,
+    };
 
     if (!metadata || metadata === "device") {
       delete search["metadata"];
+    }
+
+    if (frequency && frequency === "raw") {
+      pm2_5 = "$pm2_5";
+      pm10 = "$pm10";
+      projection["average_pm10"] = 0;
+      projection["average_pm2_5"] = 0;
+    }
+
+    if (frequency && frequency === "hourly") {
+      projection["average_pm10"] = 0;
+      projection["average_pm2_5"] = 0;
+    }
+
+    if (frequency && frequency === "daily") {
+      pm10 = "$pm2_5";
+      pm2_5 = "$pm2_5";
+      projection["average_pm10"] = 0;
+      projection["average_pm2_5"] = 0;
     }
 
     if (metadata === "site") {
@@ -458,17 +482,42 @@ eventSchema.statics = {
       .allowDiskUse(true);
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    const { metadata } = filter;
+    const { metadata, frequency } = filter;
     let search = filter;
     let groupId = "$device";
     let localField = "device";
     let foreignField = "name";
     let from = "devices";
     let as = "deviceDetails";
+    let pm2_5 = "$average_pm2_5";
+    let pm10 = "$average_pm10";
+    let projection = {
+      _id: 0,
+    };
+
     let elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
 
     if (!metadata || metadata === "device") {
       delete search["metadata"];
+    }
+
+    if (frequency && frequency === "raw") {
+      pm2_5 = "$pm2_5";
+      pm10 = "$pm10";
+      projection["average_pm10"] = 0;
+      projection["average_pm2_5"] = 0;
+    }
+
+    if (frequency && frequency === "hourly") {
+      projection["average_pm10"] = 0;
+      projection["average_pm2_5"] = 0;
+    }
+
+    if (frequency && frequency === "daily") {
+      pm10 = "$pm2_5";
+      pm2_5 = "$pm2_5";
+      projection["average_pm10"] = 0;
+      projection["average_pm2_5"] = 0;
     }
 
     if (metadata === "site") {
