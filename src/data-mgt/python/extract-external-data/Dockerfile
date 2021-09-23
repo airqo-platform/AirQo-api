@@ -1,4 +1,4 @@
-FROM gcr.io/google-appengine/python
+FROM gcr.io/google-appengine/python as builder
 
 RUN apt-get update && apt-get install -y \
   binutils \
@@ -17,12 +17,21 @@ COPY . /app/
 # Change the working directory
 WORKDIR /app/
 
-RUN pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
 # Set environment variables
 ENV FLASK_APP=app.py
-ENV FLASK_ENV=production
 ENV FLASK_RUN_PORT=4001
-
 EXPOSE 4001
 
+FROM builder as development
+ENV FLASK_ENV=development
+CMD ["flask", "run", "--host=0.0.0.0"]
+
+FROM builder as staging
+ENV FLASK_ENV=staging
+CMD ["flask", "run", "--host=0.0.0.0"]
+
+FROM builder as production
+ENV FLASK_ENV=production
 CMD ["flask", "run", "--host=0.0.0.0"]
