@@ -195,8 +195,9 @@ router.post(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -438,8 +439,9 @@ router.put(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()

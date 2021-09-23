@@ -138,8 +138,9 @@ router.put(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -414,8 +415,9 @@ router.post(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -656,6 +658,8 @@ router.put(
       body("nextMaintenance")
         .if(body("nextMaintenance").exists())
         .notEmpty()
+        .withMessage("nextMaintenance date cannot be empty")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
@@ -992,9 +996,11 @@ router.put(
       body("nextMaintenance")
         .if(body("nextMaintenance").exists())
         .notEmpty()
+        .withMessage("nextMaintenance cannot be empty")
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -1183,51 +1189,60 @@ router.delete(
     ],
   ]),
   oneOf([
-    query("device_number")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the device_number"
-      )
-      .bail()
-      .trim()
-      .isInt()
-      .withMessage("the device_number should be an integer value"),
-    query("device_id")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the device_id"
-      )
-      .bail()
-      .trim()
-      .isMongoId()
-      .withMessage("id must be an object ID")
-      .bail()
-      .customSanitizer((value) => {
-        return ObjectId(value);
-      }),
-    query("device_name")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using the unique device_name"
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
+    [
+      query("id")
+        .exists()
+        .withMessage(
+          "the photo unique identifier is missing in request, consider using the id"
+        )
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("device_number")
+        .if(body("device_number").exists())
+        .notEmpty()
+        .withMessage("the device number cannot be empty")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+      body("device_id")
+        .if(body("device_id").exists())
+        .notEmpty()
+        .withMessage("the device ID cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("device_name")
+        .if(body("device_name").exists())
+        .notEmpty()
+        .withMessage("the device name cannot be empty")
+        .bail()
+        .trim()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the device name should not have spaces in it"),
+    ],
   ]),
   oneOf([
     [
-      body("photos")
+      body("image_urls")
         .exists()
-        .withMessage("the photos are missing in your request")
+        .withMessage("the image_urls are missing in your request")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("the photos should be an array"),
+        .withMessage("the image_urls should be an array"),
     ],
   ]),
   photoController.delete
@@ -1340,7 +1355,7 @@ router.put(
   ]),
   oneOf([
     [
-      query("device_number")
+      body("device_number")
         .if(body("device_number").exists())
         .notEmpty()
         .withMessage("the device number is missing in the request")
@@ -1348,7 +1363,7 @@ router.put(
         .trim()
         .isInt()
         .withMessage("the device_number should be an integer value"),
-      query("device_id")
+      body("device_id")
         .if(body("device_id").exists())
         .notEmpty()
         .withMessage("the device ID is missing in request")
@@ -1360,7 +1375,7 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      query("device_name")
+      body("device_name")
         .if(body("device_name").exists())
         .notEmpty()
         .withMessage("the device name is missing in request")
@@ -1403,9 +1418,7 @@ router.get(
       query("device_number")
         .if(query("device_number").exists())
         .notEmpty()
-        .withMessage(
-          "the device identifier is missing in request, consider using the device_number"
-        )
+        .withMessage("this device identifier cannot be empty")
         .bail()
         .trim()
         .isInt()
@@ -1413,9 +1426,7 @@ router.get(
       query("device_name")
         .if(query("device_name").exists())
         .notEmpty()
-        .withMessage(
-          "the device identifier is missing in request, consider using the unique device_name"
-        )
+        .withMessage("this device identifier cannot be empty")
         .bail()
         .trim()
         .isLowercase()
@@ -1426,9 +1437,19 @@ router.get(
       query("device_id")
         .if(query("device_id").exists())
         .notEmpty()
-        .withMessage(
-          "the device identifier is missing in request ya, consider using the device_id"
-        )
+        .withMessage("this device identifier cannot be empty")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("id")
+        .if(query("id").exists())
+        .notEmpty()
+        .withMessage("this device identifier cannot be empty")
         .bail()
         .trim()
         .isMongoId()
@@ -1628,6 +1649,93 @@ router.put(
           return Array.isArray(value);
         })
         .withMessage("the tags should be an array"),
+      body("metadata")
+        .if(body("metadata").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("metadata should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage(
+          "metadata cannot be empty when provided in this operation"
+        ),
+      body("metadata.url")
+        .if(body("metadata.url").exists())
+        .notEmpty()
+        .withMessage("metadata should not be empty")
+        .bail()
+        .isURL()
+        .withMessage("metadata should be a valid URL")
+        .bail()
+        .trim(),
+      body("metadata.public_id")
+        .if(body("metadata.public_id").exists())
+        .notEmpty()
+        .withMessage("public_id should not be empty")
+        .bail()
+        .trim(),
+      body("metadata.version")
+        .if(body("metadata.version").exists())
+        .notEmpty()
+        .withMessage("version should not be empty")
+        .bail()
+        .isFloat()
+        .withMessage("version should be a number")
+        .bail()
+        .trim(),
+      body("metadata.signature")
+        .if(body("metadata.signature").exists())
+        .notEmpty()
+        .withMessage("signature should not be empty")
+        .trim(),
+      body("metadata.width")
+        .if(body("metadata.width").exists())
+        .notEmpty()
+        .withMessage("width should not be empty")
+        .isFloat()
+        .withMessage("the width should be a number")
+        .bail()
+        .trim(),
+      body("metadata.height")
+        .if(body("metadata.height").exists())
+        .notEmpty()
+        .withMessage("height should not be empty")
+        .isFloat()
+        .withMessage("the height should be a number")
+        .bail()
+        .trim(),
+      body("metadata.format")
+        .if(body("metadata.format").exists())
+        .trim(),
+      body("metadata.resource_type")
+        .if(body("metadata.resource_type").exists())
+        .trim(),
+      body("metadata.created_at")
+        .if(body("metadata.created_at").exists())
+        .trim(),
+      body("metadata.bytes")
+        .if(body("metadata.bytes").exists())
+        .notEmpty()
+        .withMessage("bytes should not be empty")
+        .isFloat()
+        .withMessage("the bytes should be a number")
+        .bail()
+        .trim(),
+      body("metadata.type")
+        .if(body("metadata.type").exists())
+        .trim(),
+      body("metadata.secure_url")
+        .if(body("metadata.secure_url").exists())
+        .notEmpty()
+        .withMessage("secure_url should not be empty")
+        .bail()
+        .isURL()
+        .withMessage("secure_url should be a valid URL")
+        .bail()
+        .trim(),
     ],
   ]),
   photoController.updatePhotoOnPlatform
@@ -1672,38 +1780,14 @@ router.post(
         .exists()
         .withMessage("resource_type is missing in request")
         .trim(),
-      body("public_id")
+      body("path")
         .exists()
-        .withMessage("public_id is missing in the request, this is the path")
+        .withMessage("resource_type is missing in request")
         .trim(),
-      body("chunk_size")
+      body("device_name")
         .exists()
-        .withMessage("the chunk_size is missing in request")
-        .trim()
-        .isInt()
-        .withMessage("the chunk_size must be a number"),
-      body("eager")
-        .exists()
-        .withMessage("the eager are missing in your request")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the photos should be an array"),
-      query("eager_async")
-        .exists()
-        .withMessage("the eager_async is missing in request")
-        .bail()
-        .isBoolean()
-        .withMessage("the eager_async must be a Boolean"),
-      body("eager_notification_url")
-        .exists()
-        .withMessage("the eager_notification_url is missing in your request")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the photos should be an array"),
+        .withMessage("device_name is missing in request")
+        .trim(),
     ],
   ]),
   photoController.createPhotoOnCloudinary
@@ -2064,6 +2148,8 @@ router.put(
       body("createdAt")
         .if(body("createdAt").exists())
         .notEmpty()
+        .withMessage("createdAt cannot be empty when provided")
+        .bail()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
