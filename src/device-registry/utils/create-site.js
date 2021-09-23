@@ -182,7 +182,6 @@ const manageSite = {
       }
 
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
-        tenant,
         request
       );
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
@@ -301,7 +300,7 @@ const manageSite = {
     }
   },
 
-  generateMetadata: async (tenant, req) => {
+  generateMetadata: async (req) => {
     try {
       let { latitude, longitude } = req.body;
       let body = req.body;
@@ -459,7 +458,6 @@ const manageSite = {
       }
 
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
-        tenant,
         request
       );
 
@@ -863,6 +861,9 @@ const manageSite = {
 
       if (responseFromListSites.success === true) {
         let sites = responseFromListSites.data;
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
@@ -883,21 +884,27 @@ const manageSite = {
           success: true,
           data: nearest_sites,
           message: "successfully retrieved the nearest sites",
-          status: HTTPStatus.OK,
+          status,
         };
       }
       if (responseFromListSites.success === false) {
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        let errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
         return {
           success: false,
-          error: responseFromListSites.error,
+          errors,
           message: responseFromListSites.message,
-          status: responseFromListSites.status,
+          status,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "internal server error",
+        message: "Internal Server Error",
         error: error.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };

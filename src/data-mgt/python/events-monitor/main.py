@@ -2,7 +2,7 @@ import os
 
 from dotenv import load_dotenv
 
-from EventsCheck import EventsCheck
+from events import EventsCheck
 
 load_dotenv()
 

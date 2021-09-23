@@ -36,9 +36,12 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          env:
-            - name: GET_HOSTS_FROM
-              value: dns
+          # env:
+          #   - name: GET_HOSTS_FROM
+          #     value: dns
+          envFrom:
+            - configMapRef:
+                name: env-predict-production
 
 ---
 kind: Service
