@@ -65,7 +65,17 @@ photoSchema.plugin(uniqueValidator, {
 photoSchema.methods = {
   toJSON() {
     return {
-      img: this.img,
+      image_url: this.image_url,
+      metadata: this.metadata,
+      id: this._id,
+      tags: this.tags,
+      name: this.name,
+      image_url: this.image_url,
+      device_id: this.device_id,
+      device_name: this.device_name,
+      image_code: this.image_code,
+      description: this.description,
+      metadata: this.metadata,
     };
   },
 };
@@ -138,7 +148,11 @@ photoSchema.statics = {
           tags: 1,
           name: 1,
           image_url: 1,
+          device_id: 1,
+          device_name: 1,
+          image_code: 1,
           description: 1,
+          metadata: 1,
           device: { $arrayElemAt: ["$device", 0] },
         })
         .skip(_skip)
@@ -196,12 +210,14 @@ photoSchema.statics = {
       let options = opts;
       let keys = {};
       const setProjection = (object) => {
-        for (let k in object) {
-          keys[k] = 1;
-          return keys;
-        }
+        Object.keys(object).forEach((element) => {
+          keys[element] = 1;
+        });
+        return keys;
       };
-      projection = setProjection(modifiedUpdateBody);
+      logObject("modifiedUpdateBody", modifiedUpdateBody);
+      const projection = setProjection(modifiedUpdateBody);
+      logObject("projection", projection);
       options["projection"] = projection;
       let updatedPhoto = await this.findOneAndUpdate(
         filter,
