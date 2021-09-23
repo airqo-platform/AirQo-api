@@ -140,6 +140,8 @@ const processImage = {
       request["query"] = query;
       const responseFromDeletePhoto = await createPhotoUtil.delete(request);
 
+      logObject("responseFromDeletePhoto", responseFromDeletePhoto);
+
       if (responseFromDeletePhoto.success === true) {
         const status = responseFromDeletePhoto.status
           ? responseFromDeletePhoto.status
@@ -168,7 +170,9 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: {
+          issue: error.message,
+        },
       });
     }
   },
@@ -510,7 +514,10 @@ const processImage = {
       const responseFromCreatePhotoOnCloudinary = await createPhotoUtil.createPhotoOnCloudinary(
         request
       );
-
+      logObject(
+        "responseFromCreatePhotoOnCloudinary",
+        responseFromCreatePhotoOnCloudinary
+      );
       if (responseFromCreatePhotoOnCloudinary.success === true) {
         const status = responseFromCreatePhotoOnCloudinary.status
           ? responseFromCreatePhotoOnCloudinary.status
@@ -535,11 +542,14 @@ const processImage = {
           errors,
         });
       }
-    } catch (errors) {
+    } catch (error) {
+      logObject("error", error);
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: {
+          issue: error.message,
+        },
       });
     }
   },
@@ -593,9 +603,7 @@ const processImage = {
             device,
             tenant.toLowerCase()
           );
-          /**
-           * apparently, I am not able to get the device from here
-           */
+
           logElement("the channel ID", channelID);
           const deviceFilter = { name: device };
           let photoNameWithoutExtension = [];
