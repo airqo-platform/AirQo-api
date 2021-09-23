@@ -65,6 +65,9 @@ class BaseMongoOperations:
 
 
 class ChainableMongoOperations(BaseMongoOperations):
+    ASCENDING = 1
+    DESCENDING = -1
+
     def __init__(self):
         self.stages = []
         self.init_match_expr = "$and"
