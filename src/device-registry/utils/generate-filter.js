@@ -27,7 +27,8 @@ const generateFilter = {
     frequency,
     startTime,
     endTime,
-    metadata
+    metadata,
+    external
   ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
@@ -50,6 +51,13 @@ const generateFilter = {
 
     if (metadata) {
       filter["metadata"] = metadata;
+    }
+
+    if (external) {
+      filter["external"] = external;
+    }
+    if (!external) {
+      filter["external"] = "yes";
     }
 
     if (startTime) {
@@ -197,6 +205,11 @@ const generateFilter = {
      */
     if (frequency) {
       filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    }
+    if (!frequency) {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
     }
 
     return filter;
@@ -213,6 +226,8 @@ const generateFilter = {
         endTime,
         device_id,
         site_id,
+        external,
+        metadata,
       } = request.query;
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);

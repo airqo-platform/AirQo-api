@@ -335,7 +335,7 @@ eventSchema.statics = {
     }
   },
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    const { metadata, frequency } = filter;
+    const { metadata, frequency, external } = filter;
     let search = filter;
     let groupId = "$device";
     let localField = "device";
@@ -350,27 +350,31 @@ eventSchema.statics = {
       _id: 0,
     };
 
+    delete search["external"];
+    delete search["frequency"];
+    delete search["metadata"];
+
     if (!metadata || metadata === "device") {
-      delete search["metadata"];
+    }
+
+    if (!external || external === "yes") {
+      projection["average_pm2_5"] = 0;
+      projection["average_pm10"] = 0;
+      projection["s2_pm10"] = 0;
+      projection["s2_pm2_5"] = 0;
+    }
+
+    if (frequency && frequency === "hourly") {
     }
 
     if (frequency && frequency === "raw") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
-      projection["average_pm10"] = 0;
-      projection["average_pm2_5"] = 0;
-    }
-
-    if (frequency && frequency === "hourly") {
-      projection["average_pm10"] = 0;
-      projection["average_pm2_5"] = 0;
     }
 
     if (frequency && frequency === "daily") {
       pm10 = "$pm2_5";
       pm2_5 = "$pm2_5";
-      projection["average_pm10"] = 0;
-      projection["average_pm2_5"] = 0;
     }
 
     if (metadata === "site") {
@@ -381,7 +385,6 @@ eventSchema.statics = {
       _as = "_siteDetails";
       as = "siteDetails";
       elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
-      delete search["metadata"];
     }
 
     if (metadata === "site_id") {
@@ -392,7 +395,6 @@ eventSchema.statics = {
       _as = "_siteDetails";
       as = "siteDetails";
       elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
-      delete search["metadata"];
     }
 
     if (metadata === "device_id") {
@@ -403,8 +405,8 @@ eventSchema.statics = {
       _as = "_deviceDetails";
       as = "deviceDetails";
       elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
-      delete search["metadata"];
     }
+    logObject("the projection", projection);
     return this.aggregate()
       .unwind("values")
       .match(search)
@@ -474,15 +476,14 @@ eventSchema.statics = {
         no2: "$_no2",
         [as]: "$" + _as,
       })
-      .project({
-        _id: 0,
-      })
+      .project(projection)
       .skip(skipInt)
       .limit(limitInt)
       .allowDiskUse(true);
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    const { metadata, frequency } = filter;
+    logObject("the filter in the model", filter);
+    const { metadata, frequency, external } = filter;
     let search = filter;
     let groupId = "$device";
     let localField = "device";
@@ -497,28 +498,38 @@ eventSchema.statics = {
 
     let elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
 
+    delete search["external"];
+    delete search["frequency"];
+    delete search["metadata"];
+
     if (!metadata || metadata === "device") {
-      delete search["metadata"];
     }
 
-    if (frequency && frequency === "raw") {
-      pm2_5 = "$pm2_5";
-      pm10 = "$pm10";
+    if (external === "no") {
+    }
+
+    if (!external || external === "yes") {
+      projection["s2_pm2_5"] = 0;
+      projection["s2_pm10"] = 0;
       projection["average_pm10"] = 0;
       projection["average_pm2_5"] = 0;
     }
 
     if (frequency && frequency === "hourly") {
-      projection["average_pm10"] = 0;
-      projection["average_pm2_5"] = 0;
+      logText("the frequency is hourly...");
+    }
+
+    if (frequency && frequency === "raw") {
+      pm2_5 = "$pm2_5";
+      pm10 = "$pm10";
     }
 
     if (frequency && frequency === "daily") {
       pm10 = "$pm2_5";
       pm2_5 = "$pm2_5";
-      projection["average_pm10"] = 0;
-      projection["average_pm2_5"] = 0;
     }
+
+    logObject("the projection", projection);
 
     if (metadata === "site") {
       groupId = "$site";
@@ -527,7 +538,6 @@ eventSchema.statics = {
       from = "sites";
       as = "siteDetails";
       elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
-      delete search["metadata"];
     }
 
     if (metadata === "site_id") {
@@ -537,7 +547,6 @@ eventSchema.statics = {
       from = "sites";
       as = "siteDetails";
       elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
-      delete search["metadata"];
     }
 
     if (metadata === "device_id") {
@@ -547,8 +556,9 @@ eventSchema.statics = {
       from = "devices";
       as = "deviceDetails";
       elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
-      delete search["metadata"];
     }
+
+    logObject("the search", search);
 
     return this.aggregate()
       .unwind("values")
@@ -591,9 +601,7 @@ eventSchema.statics = {
         no2: { $first: "$no2" },
         [as]: elementAtIndex0,
       })
-      .project({
-        _id: 0,
-      })
+      .project(projection)
       .skip(skipInt)
       .limit(limitInt)
       .allowDiskUse(true);
