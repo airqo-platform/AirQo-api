@@ -15,6 +15,19 @@ const { request } = require("express");
 const logger = log4js.getLogger("create-airqloud-util");
 
 const createAirqloud = {
+  initialIsCapital: (word) => {
+    return word[0] !== word[0].toLowerCase();
+  },
+  hasNoWhiteSpace: (word) => {
+    try {
+      const hasWhiteSpace = word.indexOf(" ") >= 0;
+      return !hasWhiteSpace;
+    } catch (e) {
+      logger.error(
+        `create AirQloud util server error -- hasNoWhiteSpace -- ${e.message}`
+      );
+    }
+  },
   create: async (request) => {
     try {
       let { body } = request;

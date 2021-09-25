@@ -18,6 +18,7 @@ const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
+const createAirQloudUtil = require("../utils/create-airqloud");
 const { logElement } = require("../utils/log");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 
@@ -2105,6 +2106,16 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the name should not be empty")
+        .bail()
+        .custom((value) => {
+          return createAirQloudUtil.initialIsCapital(value);
+        })
+        .withMessage("the AirQloud name should start with a capital letter")
+        .bail()
+        .custom((value) => {
+          return createAirQloudUtil.hasNoWhiteSpace(value);
+        })
+        .withMessage("the AirQloud name should not have whitespace in it")
         .trim(),
       body("description")
         .if(body("description").exists())
