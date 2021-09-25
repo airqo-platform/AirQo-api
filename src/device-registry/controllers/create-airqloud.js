@@ -4,7 +4,7 @@ const { validationResult } = require("express-validator");
 const { tryCatchErrors, badRequest } = require("../utils/errors");
 const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-util");
+const logger = log4js.getLogger("create-airqloud-controller");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const createAirqloud = {

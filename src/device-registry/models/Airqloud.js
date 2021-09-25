@@ -1,12 +1,11 @@
 const { Schema } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
-const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
-const createSiteUtil = require("../utils/create-site");
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-airqloud-model");
 
 const polygonSchema = new Schema(
   {
@@ -57,6 +56,7 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
       required: [true, "name is required!"],
+      unique: true,
     },
     long_name: {
       type: String,
@@ -121,9 +121,26 @@ airqloudSchema.methods = {
 };
 
 airqloudSchema.statics = {
+  sanitiseName: (name) => {
+    try {
+      let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
+      let shortenedName = nameWithoutWhiteSpaces.substring(0, 15);
+      let trimmedName = shortenedName.trim();
+      return trimmedName.toLowerCase();
+    } catch (error) {
+      logger.error(`sanitiseName -- create airqloud model -- ${error.message}`);
+    }
+  },
   async register(args) {
     try {
       let body = args;
+      body["name"] = this.sanitiseName(args.long_name);
+      if (args.location_id) {
+        body["isCustom"] = false;
+      }
+      if (!args.location_id) {
+        body["isCustom"] = true;
+      }
       let createdAirQloud = await this.create({
         ...body,
       });
@@ -146,7 +163,7 @@ airqloudSchema.statics = {
     } catch (err) {
       let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
+      logObject("the err in the model", err);
       message = "validation errors for some of the provided fields";
       const status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
