@@ -246,6 +246,7 @@ airqloudSchema.statics = {
           success: false,
           message: "airqloud does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: filter,
         };
       }
     } catch (err) {
@@ -290,9 +291,7 @@ airqloudSchema.statics = {
           success: false,
           message: "airqloud does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
-          errors: {
-            message: filter._id,
-          },
+          errors: filter,
         };
       }
     } catch (err) {

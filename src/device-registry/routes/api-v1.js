@@ -20,6 +20,7 @@ const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-airqloud");
 const { logElement } = require("../utils/log");
+const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 
 middlewareConfig(router);
@@ -2110,20 +2111,47 @@ router.post(
         .custom((value) => {
           return createAirQloudUtil.initialIsCapital(value);
         })
-        .withMessage("the AirQloud name should start with a capital letter")
+        .withMessage("the name should start with a capital letter")
         .bail()
         .custom((value) => {
           return createAirQloudUtil.hasNoWhiteSpace(value);
         })
-        .withMessage("the AirQloud name should not have whitespace in it")
+        .withMessage("the name should not have whitespace in it")
         .trim(),
+      body("long_name")
+        .exists()
+        .withMessage("the long_name is is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the long_name should not be empty")
+        .trim(),
+      body("metadata")
+        .if(body("metadata").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the metadata should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the metadata should not be empty if provided"),
       body("description")
         .if(body("description").exists())
         .notEmpty()
         .trim(),
       body("location")
         .exists()
-        .withMessage("the location is is missing in your request"),
+        .withMessage("the location is is missing in your request")
+        .bail()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the location should be an object")
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the location should not be empty when provided"),
       body("location.coordinates")
         .exists()
         .withMessage("location.coordinates is is missing in your request")
@@ -2136,19 +2164,42 @@ router.post(
         .exists()
         .withMessage("location.type is is missing in your request")
         .bail()
-        .toLowerCase()
-        .isIn(["polygon", "point"])
+        .isIn(["Polygon", "Point"])
         .withMessage(
-          "the location.type value is not among the expected ones which include: polygon and point"
+          "the location.type value is not among the expected ones which include: Polygon and Point"
+        ),
+      body("isCustom")
+        .exists()
+        .withMessage("isCustom is is missing in your request")
+        .bail()
+        .isBoolean()
+        .withMessage("isCustom must be a boolean value"),
+      body("admin_level")
+        .exists()
+        .withMessage("admin_level is is missing in your request")
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+        ])
+        .withMessage(
+          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
         ),
       body("airqloud_tags")
         .if(body("airqloud_tags").exists())
-        .notEmpty()
-        .bail()
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("the tags should be an array"),
+        .withMessage("the tags should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the tags should not be empty"),
     ],
   ]),
   airqloudController.register
@@ -2219,19 +2270,6 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using name"
-      )
-      .bail()
-      .trim()
-      .custom((value) => {
-        return createSiteUtil.validateSiteName(value);
-      })
-      .withMessage(
-        "The name should be greater than 5 and less than 50 in length"
-      ),
   ]),
   oneOf([
     [
@@ -2240,18 +2278,71 @@ router.put(
         .notEmpty()
         .withMessage("the name should not be empty")
         .bail()
-        .customSanitizer((value) => {
-          return createSiteUtil.sanitiseName(value);
+        .custom((value) => {
+          return createAirQloudUtil.initialIsCapital(value);
         })
+        .withMessage("the name should start with a capital letter")
+        .bail()
+        .custom((value) => {
+          return createAirQloudUtil.hasNoWhiteSpace(value);
+        })
+        .withMessage("the name should not have whitespace in it")
         .trim(),
+      body("admin_level")
+        .if(body("admin_level").exists())
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+        ])
+        .withMessage(
+          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        ),
       body("description")
         .if(body("description").exists())
+        .trim(),
+      body("metadata")
+        .if(body("metadata").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the metadata should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the metadata should not be empty if provided"),
+      body("long_name")
+        .if(body("long_name").exists())
         .notEmpty()
+        .withMessage("the long_name should not be empty")
+        .trim(),
+      body("isCustom")
+        .if(body("isCustom").exists())
+        .isBoolean()
+        .withMessage("isCustom must be a boolean value")
         .trim(),
       body("location")
         .if(body("location").exists())
-        .notEmpty()
-        .withMessage("the location should not be empty"),
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the location should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the location should not be empty when provided"),
       body("location.coordinates")
         .if(body("location.coordinates").exists())
         .notEmpty()
@@ -2266,10 +2357,9 @@ router.put(
         .notEmpty()
         .withMessage("the location.type should not be empty")
         .bail()
-        .toLowerCase()
-        .isIn(["polygon", "point"])
+        .isIn(["Polygon", "Point"])
         .withMessage(
-          "the location.type value is not among the expected ones which include: polygon and point"
+          "the location.type value is not among the expected ones which include: Polygon and Point"
         ),
       body("airqloud_tags")
         .if(body("airqloud_tags").exists())
@@ -2308,19 +2398,6 @@ router.delete(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-
-    query("name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using the name "
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
   ]),
   airqloudController.delete
 );
