@@ -657,6 +657,17 @@ const generateFilter = {
     return filter;
   },
 
+  locations: (req) => {
+    let { id } = req.query;
+    let filter = {};
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    return filter;
+  },
+
   activities: (req) => {
     let {
       device,
