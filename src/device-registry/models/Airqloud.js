@@ -271,6 +271,7 @@ airqloudSchema.statics = {
           description: 1,
           admin_level: 1,
           isCustom: 1,
+          metadata: 1,
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
@@ -289,6 +290,9 @@ airqloudSchema.statics = {
           success: false,
           message: "airqloud does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: {
+            message: filter._id,
+          },
         };
       }
     } catch (err) {
