@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
+const locationController = require("../controllers/create-location");
 const airqloudController = require("../controllers/create-airqloud");
 const middlewareConfig = require("../config/router.middleware");
 const componentController = require("../controllers/create-component");
@@ -18,7 +19,7 @@ const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
-const createAirQloudUtil = require("../utils/create-airqloud");
+const createAirQloudUtil = require("../utils/create-location");
 const { logElement } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
@@ -1528,12 +1529,12 @@ router.put(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("createdAt date must be a valid datetime."),
-      body("airqloud_id")
-        .if(body("airqloud_id").exists())
+      body("location_id")
+        .if(body("location_id").exists())
         .notEmpty()
         .trim()
         .isMongoId()
-        .withMessage("the airqloud_id must be an object ID")
+        .withMessage("the location_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
@@ -2084,9 +2085,9 @@ router.delete(
   eventController.deleteValuesOnPlatform
 );
 
-/************************** airqlouds usecase  *******************/
+/************************** locations usecase  *******************/
 router.post(
-  "/airqlouds",
+  "/locations",
   oneOf([
     [
       query("tenant")
@@ -2117,13 +2118,6 @@ router.post(
           return createAirQloudUtil.hasNoWhiteSpace(value);
         })
         .withMessage("the name should not have whitespace in it")
-        .trim(),
-      body("long_name")
-        .exists()
-        .withMessage("the long_name is is missing in your request")
-        .bail()
-        .notEmpty()
-        .withMessage("the long_name should not be empty")
         .trim(),
       body("metadata")
         .if(body("metadata").exists())
@@ -2168,15 +2162,323 @@ router.post(
         .withMessage(
           "the location.type value is not among the expected ones which include: Polygon and Point"
         ),
-      body("isCustom")
-        .exists()
-        .withMessage("isCustom is is missing in your request")
-        .bail()
-        .isBoolean()
-        .withMessage("isCustom must be a boolean value"),
       body("admin_level")
         .exists()
         .withMessage("admin_level is is missing in your request")
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+        ])
+        .withMessage(
+          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        ),
+      body("location_tags")
+        .if(body("location_tags").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the tags should not be empty"),
+    ],
+  ]),
+  locationController.register
+);
+
+router.get(
+  "/locations",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      query("id")
+        .if(query("id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      query("site_id")
+        .if(query("site_id").exists())
+        .notEmpty()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+    ],
+  ]),
+  locationController.list
+);
+
+router.put(
+  "/locations",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the location identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      body("name")
+        .if(body("name").exists())
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .bail()
+        .custom((value) => {
+          return createAirQloudUtil.initialIsCapital(value);
+        })
+        .withMessage("the name should start with a capital letter")
+        .bail()
+        .custom((value) => {
+          return createAirQloudUtil.hasNoWhiteSpace(value);
+        })
+        .withMessage("the name should not have whitespace in it")
+        .trim(),
+      body("admin_level")
+        .if(body("admin_level").exists())
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+        ])
+        .withMessage(
+          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        ),
+      body("description")
+        .if(body("description").exists())
+        .trim(),
+      body("metadata")
+        .if(body("metadata").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the metadata should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the metadata should not be empty if provided"),
+      body("long_name")
+        .if(body("long_name").exists())
+        .notEmpty()
+        .withMessage("the long_name should not be empty")
+        .trim(),
+      body("isCustom")
+        .if(body("isCustom").exists())
+        .isBoolean()
+        .withMessage("isCustom must be a boolean value")
+        .trim(),
+      body("location")
+        .if(body("location").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the location should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the location should not be empty when provided"),
+      body("location.coordinates")
+        .if(body("location.coordinates").exists())
+        .notEmpty()
+        .withMessage("the location.coordinates should not be empty")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .if(body("location.type").exists())
+        .notEmpty()
+        .withMessage("the location.type should not be empty")
+        .bail()
+        .isIn(["Polygon", "Point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: Polygon and Point"
+        ),
+      body("location_tags")
+        .if(body("location_tags").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  locationController.update
+);
+
+router.delete(
+  "/locations",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the location identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  locationController.delete
+);
+
+/************************** airqlouds usecase  *******************/
+router.post(
+  "/airqlouds",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body("location_id")
+      .exists()
+      .withMessage(
+        "location details are missing in your request, consider using location_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("location_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    [
+      body("location")
+        .exists()
+        .withMessage(
+          "location details are missing in your request, consider using location"
+        )
+        .bail()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the location should be an object")
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the location should not be empty when provided"),
+      body("location.coordinates")
+        .exists()
+        .withMessage("location.coordinates is missing in your request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the location.coordinates should be an array"),
+      body("location.type")
+        .exists()
+        .withMessage("location.type is is missing in your request")
+        .bail()
+        .isIn(["Polygon", "Point"])
+        .withMessage(
+          "the location.type value is not among the expected ones which include: Polygon and Point"
+        ),
+    ],
+  ]),
+  oneOf([
+    [
+      body("long_name")
+        .exists()
+        .withMessage("the long_name is is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the long_name should not be empty")
+        .trim(),
+      body("metadata")
+        .if(body("metadata").exists())
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .withMessage("the metadata should be an object")
+        .bail()
+        .custom((value) => {
+          return !isEmpty(value);
+        })
+        .withMessage("the metadata should not be empty if provided"),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .trim(),
+      body("admin_level")
+        .exists()
+        .withMessage("admin_level is missing in your request")
         .bail()
         .toLowerCase()
         .isIn([
