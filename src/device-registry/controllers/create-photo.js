@@ -2,7 +2,6 @@ const uploadImages = require("../utils/upload-images");
 const fs = require("fs");
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
-const { deleteFromCloudinary } = require("../utils/delete-cloudinary-image");
 const {
   tryCatchErrors,
   missingQueryParams,
@@ -14,7 +13,6 @@ const {
   updateThingBodies,
   getChannelID,
 } = require("../utils/does-device-exist");
-const getLastPath = require("../utils/get-last-path");
 const updateDeviceUtil = require("../utils/update-device");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-photo-controller");
@@ -26,6 +24,10 @@ const { registerDeviceUtil } = require("../utils/create-device");
 const processImage = {
   create: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "coming soon...",
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -70,12 +72,16 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
   update: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "coming soon...",
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -119,7 +125,7 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errrors: error.message,
+        errrors: { message: error.message },
       });
     }
   },
@@ -171,7 +177,7 @@ const processImage = {
         success: false,
         message: "Internal Server Error",
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       });
     }
@@ -222,7 +228,7 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -277,7 +283,7 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -333,7 +339,7 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -389,7 +395,7 @@ const processImage = {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
@@ -420,7 +426,7 @@ const processImage = {
         res.status(status).json({
           success: true,
           message: responseFromDeletePhotoOnCloudinary.message,
-          created_photo: responseFromDeletePhotoOnCloudinary.data,
+          deletion_details: responseFromDeletePhotoOnCloudinary.data,
         });
       }
 
@@ -437,16 +443,20 @@ const processImage = {
           errors,
         });
       }
-    } catch (errors) {
+    } catch (error) {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
   updatePhotoOnCloudinary: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "coming soon...",
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -488,16 +498,20 @@ const processImage = {
           errors,
         });
       }
-    } catch (errors) {
+    } catch (error) {
       res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
       });
     }
   },
   createPhotoOnCloudinary: async (req, res) => {
     try {
+      return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+        success: false,
+        message: "coming soon...",
+      });
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -548,7 +562,7 @@ const processImage = {
         success: false,
         message: "Internal Server Error",
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       });
     }
@@ -585,71 +599,6 @@ const processImage = {
       }
     } catch (e) {
       tryCatchErrors(e, req, res);
-    }
-  },
-  deletePhotos: async (req, res) => {
-    try {
-      const { device, tenant } = req.query;
-      const { photos } = req.body;
-      if (tenant && device && photos) {
-        const deviceDetails = await getDetail(tenant, device);
-        const doesDeviceExist = !isEmpty(deviceDetails);
-        logElement("isDevicePresent ?", doesDeviceExist);
-        if (doesDeviceExist) {
-          let { tsBody, deviceBody, options } = updateThingBodies(req, res);
-          const channelID = await getChannelID(
-            req,
-            res,
-            device,
-            tenant.toLowerCase()
-          );
-
-          logElement("the channel ID", channelID);
-          const deviceFilter = { name: device };
-          let photoNameWithoutExtension = [];
-          photos.forEach((photo) => {
-            if (photo) {
-              photoNameWithoutExtension.push(getLastPath(photo));
-            }
-          });
-          let deleteFromCloudinaryPromise = deleteFromCloudinary(
-            photoNameWithoutExtension
-          );
-          let updateDevicePromise = updateDeviceUtil(
-            req,
-            res,
-            channelID,
-            device,
-            deviceBody,
-            tsBody,
-            deviceFilter,
-            tenant,
-            options
-          );
-
-          Promise.all([deleteFromCloudinaryPromise, updateDevicePromise]).then(
-            (values) => {
-              logElement("the values", values);
-            }
-          );
-        } else {
-          logText("device does not exist in the network");
-          res.status(HTTPStatus.BAD_REQUEST).json({
-            message: "device does not exist in the network",
-            success: false,
-            device,
-          });
-        }
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      logElement(
-        "unable to carry out the entire deletion of device",
-        e.message
-      );
-      logObject("unable to carry out the entire deletion of device", e.message);
-      tryCatchErrors(res, e);
     }
   },
 };

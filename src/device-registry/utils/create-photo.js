@@ -6,7 +6,6 @@ const axios = require("axios");
 const constants = require("../config/constants");
 const cloudinary = require("../config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
-const getLastPath = require("./get-last-path");
 const generateFilter = require("./generate-filter");
 const jsonify = require("../utils/jsonify");
 const { tryCatchErrors } = require("./errors");
@@ -73,7 +72,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -136,16 +135,76 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
+      };
+    }
+  },
+  extractPhotoDetails: async (request) => {
+    try {
+      let responseFromListPhotos = await createPhoto.list(request);
+      logObject("responseFromListPhotos", responseFromListPhotos);
+      if (responseFromListPhotos.success === true) {
+        const photoDetails = responseFromListPhotos.data[0];
+        if (photoDetails.length > 1) {
+          return {
+            success: false,
+            message: "unable to find photo from the system",
+            error: {
+              message: "realized more than one photo from the system",
+            },
+          };
+        }
+        return {
+          success: true,
+          data: photoDetails,
+          message: "successfully extracted photo details",
+        };
+      }
+      if (responseFromListPhotos.success === false) {
+        return responseFromListPhotos;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
       };
     }
   },
   delete: async (request) => {
     try {
-      logText("deleting photo from the util...");
-      const responseFromDeletePhotoOnCloudinary = await createPhoto.deletePhotoOnCloudinary(
+      const { id } = request.query;
+      let arrayOfOneImage = [];
+      let device_name = "";
+      let responseFromExtractPhotoDetails = await createPhoto.extractPhotoDetails(
         request
+      );
+
+      logObject(
+        "responseFromExtractPhotoDetails",
+        responseFromExtractPhotoDetails
+      );
+
+      if (responseFromExtractPhotoDetails.success === true) {
+        const photoDetails = responseFromExtractPhotoDetails.data;
+        const imageURL = photoDetails.image_url;
+        device_name = photoDetails.device_name;
+        arrayOfOneImage.push(imageURL);
+      }
+
+      if (responseFromExtractPhotoDetails.success === false) {
+        return responseFromExtractPhotoDetails;
+      }
+
+      logText("deleting photo from the util...");
+      let cloudinaryRequest = {};
+      cloudinaryRequest["body"] = {};
+      cloudinaryRequest["query"] = {};
+      cloudinaryRequest["body"]["image_urls"] = arrayOfOneImage;
+      cloudinaryRequest["query"]["device_name"] = device_name;
+      const responseFromDeletePhotoOnCloudinary = await createPhoto.deletePhotoOnCloudinary(
+        cloudinaryRequest
       );
 
       logObject(
@@ -212,7 +271,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: e.message,
+          message: e.message,
         },
       };
     }
@@ -264,7 +323,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -301,7 +360,7 @@ const createPhoto = {
               success: false,
               message: "unable to upload image",
               errors: {
-                issue: error,
+                message: error,
               },
               status: HTTPStatus.BAD_GATEWAY,
             };
@@ -339,7 +398,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -377,7 +436,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -393,76 +452,71 @@ const createPhoto = {
           success: false,
           message: "unable to process the image Ids",
           errors: {
-            issue: "no response from the utility that extracts the image Ids",
+            message: "no response from the utility that extracts the image Ids",
           },
           status: HTTPStatus.INTERNAL_SERVER_ERROR,
         };
       }
 
       if (responseFromExtractImageIds.success === true) {
-        const status = responseFromExtractImageIds.status
-          ? responseFromExtractImageIds.status
-          : HTTPStatus.OK;
         const image_ids = responseFromExtractImageIds.data;
-        logText("...deleting image from cloudinary...");
+        logText("...deleting images from cloudinary...");
         logObject("the image_ids", image_ids);
 
         const responseFromCloudinary = await cloudinary.api.delete_resources(
-          image_ids,
-          (error, result) => {
-            if (result) {
-              logObject("response from cloudinary", result);
-              if (result.partial === false) {
-                return {
-                  success: false,
-                  message: "unable to delete image",
-                  errors: result.deleted,
-                  data: result,
-                  status,
-                };
-              }
-
-              if (result.partial === true) {
-                return {
-                  success: true,
-                  message: "image delete successfully",
-                  data: result.deleted,
-                  status,
-                };
-              }
-            } else if (error) {
-              logObject("unable to delete from cloudinary", error);
-              return {
-                success: false,
-                message: "unable to delete the photo",
-                errors: {
-                  issue: error,
-                },
-                status: HTTPStatus.BAD_GATEWAY,
-              };
-            }
-            return {
-              success: false,
-              message: "unable to delete the photo the photo",
-              status: HTTPStatus.INTERNAL_SERVER_ERROR,
-            };
-          }
+          image_ids
         );
         logObject("responseFromCloudinary", responseFromCloudinary);
-        if (responseFromCloudinary.partial === false) {
+        let successfulDeletions = [];
+        let failedDeletions = [];
+        const deletionStatusFromCloudinaryResponse =
+          responseFromCloudinary.deleted;
+        Object.entries(deletionStatusFromCloudinaryResponse).forEach(
+          ([key, value]) => {
+            if (value === "deleted") {
+              successfulDeletions.push(key);
+            }
+            if (value === "not_found") {
+              failedDeletions.push(key);
+            }
+          }
+        );
+        if (failedDeletions.length === 0 && successfulDeletions.length === 0) {
           return {
             success: false,
-            message: "unable to delete image",
-            errors: responseFromCloudinary.deleted,
+            message:
+              "no successful deletions or failures recorded from cloudinary",
+            status: HTTPStatus.BAD_GATEWAY,
+          };
+        }
+
+        if (failedDeletions.length > 0 && successfulDeletions.length === 0) {
+          return {
+            success: false,
+            message:
+              "unable to delete any of the provided or associated image URLs",
+            errors: deletionStatusFromCloudinaryResponse,
             status: HTTPStatus.NOT_FOUND,
           };
         }
 
-        if (responseFromCloudinary.partial === true) {
+        if (successfulDeletions.length > 0 && failedDeletions.length === 0) {
           return {
             success: true,
-            message: "image delete successfully",
-            data: responseFromCloudinary.deleted,
+            message: "image(s) deleted successfully",
+            data: successfulDeletions,
+            status: HTTPStatus.OK,
+          };
+        }
+
+        if (successfulDeletions.length > 0 && failedDeletions.length > 0) {
+          return {
+            success: true,
+            message: "some of the images deleted successfully from cloudinary",
+            data: {
+              successfulDeletions,
+              failedDeletions,
+            },
             status: HTTPStatus.OK,
           };
         }
@@ -483,12 +537,12 @@ const createPhoto = {
         };
       }
     } catch (error) {
-      logElement("Internal Server Error", error.message);
+      logObject("Internal Server Error", error);
       return {
         success: false,
         message: "Internal Server Error",
         errors: {
-          issue: error.message,
+          message: error.message,
         },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -497,57 +551,47 @@ const createPhoto = {
   extractImageIds: (request) => {
     try {
       const { image_urls } = request.body;
-      logText("...checking if the input is an array...");
-      if (!Array.isArray(image_urls)) {
-        return {
-          success: false,
-          message: "the provided images must be arrays",
-          status: HTTPStatus.BAD_REQUEST,
-        };
-      }
-      let response = {};
+      const { device_name } = request.query;
+      let photoNamesWithoutExtension = [];
       image_urls.forEach((imageURL) => {
         logElement("the imageURL", imageURL);
-        if (isEmpty(imageURL)) {
-          return {
-            success: false,
-            message: "no image provided in the request",
-          };
-        }
         let request = {};
         request["imageURL"] = imageURL;
         const responseFromGetLastPath = createPhoto.getLastPath(request);
         logObject("responseFromGetLastPath", responseFromGetLastPath);
         if (responseFromGetLastPath.success === true) {
-          logText("we are positive this time!");
-          let photoNamesWithoutExtension = [];
-          const data = responseFromGetLastPath.data;
-          photoNamesWithoutExtension.push(data);
-          logObject("photoNamesWithoutExtension", photoNamesWithoutExtension);
-          response = {
-            success: true,
-            data: photoNamesWithoutExtension,
-            message: "successfully extracted the Image Ids",
-            status: HTTPStatus.OK,
-          };
-          logObject("the response", response);
+          const cloudinaryPublicId = responseFromGetLastPath.data;
+          const prependFolderNameToCloudinaryPublicId = `devices/${device_name}/${cloudinaryPublicId}`;
+          photoNamesWithoutExtension.push(
+            prependFolderNameToCloudinaryPublicId
+          );
         }
         if (responseFromGetLastPath.success === false) {
-          response = {
+          logObject(
+            "runtime error -- unable to extract the last path",
+            responseFromGetLastPath
+          );
+          return {
             success: false,
-            errors: responseFromGetLastPath.errors,
             message: responseFromGetLastPath.message,
+            errors: responseFromGetLastPath.errors,
           };
         }
       });
-      return response;
+      logObject("photoNamesWithoutExtension", photoNamesWithoutExtension);
+      return {
+        success: true,
+        data: photoNamesWithoutExtension,
+        message: "successfully extracted the Image Ids",
+        status: HTTPStatus.OK,
+      };
     } catch (error) {
       return {
         success: false,
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -555,12 +599,6 @@ const createPhoto = {
   getLastPath: (request) => {
     try {
       const { imageURL } = request;
-      if (isEmpty(imageURL)) {
-        return {
-          success: false,
-          message: "the imageURL is missing in the request",
-        };
-      }
       const segements = imageURL.split("/").filter((segment) => segment);
       const lastSegment = segements[segements.length - 1];
       const removeFileExtension = lastSegment
@@ -579,7 +617,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -633,7 +671,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -684,7 +722,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
@@ -736,7 +774,7 @@ const createPhoto = {
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: {
-          issue: error.message,
+          message: error.message,
         },
       };
     }
