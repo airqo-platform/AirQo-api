@@ -1233,18 +1233,6 @@ router.delete(
         .withMessage("the device name should not have spaces in it"),
     ],
   ]),
-  oneOf([
-    [
-      body("image_urls")
-        .exists()
-        .withMessage("the image_urls are missing in your request")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the image_urls should be an array"),
-    ],
-  ]),
   photoController.delete
 );
 router.post(
@@ -1792,7 +1780,35 @@ router.post(
   ]),
   photoController.createPhotoOnCloudinary
 );
-router.delete("/photos/cloud", photoController.deletePhotoOnCloudinary);
+router.delete(
+  "/photos/cloud",
+  oneOf([
+    [
+      body("image_urls")
+        .exists()
+        .withMessage("image_urls is missing in the request body")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the image_urls must be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the image_urls cannot be empty")
+        .trim(),
+      body("image_urls.*")
+        .isURL()
+        .withMessage("the provided URL is not a valid one"),
+      query("device_name")
+        .exists()
+        .withMessage(
+          "the device_name query parameter must be provided for this operation"
+        )
+        .trim(),
+    ],
+  ]),
+  photoController.deletePhotoOnCloudinary
+);
 router.put("/photos/cloud", photoController.updatePhotoOnCloudinary);
 
 /****************** create activities use-case *************************/

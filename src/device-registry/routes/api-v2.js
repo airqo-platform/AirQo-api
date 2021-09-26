@@ -950,8 +950,6 @@ router.get(
 );
 
 /******************* create-photo use-case ***************/
-/**** delete photos */
-router.delete("/photos", photoController.deletePhotos);
 
 /****************** create-site use-case *************************/
 router.post(
