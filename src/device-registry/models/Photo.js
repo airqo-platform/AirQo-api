@@ -85,9 +85,7 @@ photoSchema.statics = {
     try {
       logText("registering a new photo....");
       let modifiedArgs = args;
-      let createdPhoto = await this.create({
-        ...modifiedArgs,
-      });
+      let createdPhoto = await this.create({ ...modifiedArgs });
       if (!isEmpty(createdPhoto)) {
         const data = createdPhoto._doc;
         logObject("data", data);
@@ -100,7 +98,7 @@ photoSchema.statics = {
       } else {
         return {
           success: false,
-          message: "photo not create despite successful operation",
+          message: "photo not created despite successful operation",
           status: HTTPStatus.ACCEPTED,
           data,
         };
@@ -134,6 +132,7 @@ photoSchema.statics = {
     filter = {},
   } = {}) {
     try {
+      logObject("the filter in model", filter);
       let response = await this.aggregate()
         .match(filter)
         .lookup({
@@ -163,7 +162,7 @@ photoSchema.statics = {
         let data = jsonify(response);
         return {
           success: true,
-          message: "successfully retrieved the photo details",
+          message: "successfully retrieved the photo(s)",
           data,
           status: HTTPStatus.OK,
         };
