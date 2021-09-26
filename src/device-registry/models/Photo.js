@@ -132,7 +132,6 @@ photoSchema.statics = {
     filter = {},
   } = {}) {
     try {
-      logObject("the filter in model", filter);
       let response = await this.aggregate()
         .match(filter)
         .lookup({
