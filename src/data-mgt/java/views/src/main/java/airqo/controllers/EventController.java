@@ -3,6 +3,8 @@ package airqo.controllers;
 import airqo.models.Event;
 import airqo.services.EventService;
 import com.querydsl.core.types.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,11 +23,24 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("events")
 public class EventController {
 
+	Logger logger = LoggerFactory.getLogger(getClass());
+
 	@Autowired
 	EventService eventService;
 
 	@GetMapping("")
 	public ResponseEntity<?> getEvents(
+		@PageableDefault(sort = "time") Pageable pageable,
+		@RequestParam MultiValueMap<String, String> parameters
+	) {
+		logger.info(String.valueOf(parameters));
+		Page<Event> events = eventService.getEvents(pageable, parameters);
+		return new ResponseEntity<>(events, new HttpHeaders(), HttpStatus.OK);
+	}
+
+
+	@GetMapping("/v2")
+	public ResponseEntity<?> getEventsV2(
 		@QuerydslPredicate(root = Event.class) Predicate predicate,
 		@PageableDefault(sort = "time") Pageable pageable,
 		@RequestParam MultiValueMap<String, String> parameters
@@ -33,4 +48,5 @@ public class EventController {
 		Page<Event> events = eventService.getEvents(pageable, predicate);
 		return new ResponseEntity<>(events, new HttpHeaders(), HttpStatus.OK);
 	}
+
 }

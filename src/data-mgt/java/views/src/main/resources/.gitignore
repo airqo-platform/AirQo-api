@@ -1,3 +1,4 @@
 *prod*
 *stage*
 *test*
+.env

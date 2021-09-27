@@ -1,8 +1,11 @@
 package airqo.serializers;
 
+import airqo.models.Device;
 import airqo.models.Event;
+import airqo.models.Site;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import org.springframework.boot.jackson.JsonComponent;
 
@@ -23,22 +26,33 @@ public class EventSerializer {
 			SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
 			simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
 
+			ObjectMapper mapper = new ObjectMapper();
+			Site.SiteView siteView = mapper
+				.readValue(mapper.writeValueAsString(event.getDevice().getSite()), Site.SiteView.class);
+
+			Device.DeviceView deviceView = mapper
+				.readValue(mapper.writeValueAsString(event.getDevice()), Device.DeviceView.class);
+
 			jGen.writeStartObject();
-			jGen.writeStringField("tenant", event.getTenant());
-			jGen.writeStringField("_id", event.getId());
+			jGen.writeStringField("id", event.getId());
+			jGen.writeStringField("tenant", event.getDevice().getTenant());
+
 			jGen.writeStringField("frequency", event.getFrequency());
-			jGen.writeStringField("device", event.getDevice());
 			jGen.writeStringField("time", simpleDateFormat.format(event.getTime()));
-			jGen.writeNumberField("device_number", event.getDeviceNumber());
-			jGen.writeStringField("device_id", event.getDeviceId());
-			jGen.writeStringField("site_id", event.getSiteId());
 
-			jGen.writeObjectField("average_pm2_5", getAllValues(event.getAveragePm2_5()));
-			jGen.writeObjectField("average_pm10", getAllValues(event.getAveragePm10()));
-
+			jGen.writeObjectField("pm2_5", getAllValues(event.getPm2_5()));
+			jGen.writeObjectField("pm10", getAllValues(event.getPm10()));
+			jGen.writeObjectField("pm1", getAllValues(event.getPm1()));
+			jGen.writeObjectField("no2", getAllValues(event.getNo2()));
 			jGen.writeObjectField("externalTemperature", getValue(event.getExternalTemperature()));
 			jGen.writeObjectField("externalHumidity", getValue(event.getExternalHumidity()));
+			jGen.writeObjectField("externalPressure", getValue(event.getExternalPressure()));
+			jGen.writeObjectField("speed", getValue(event.getPm1()));
+			jGen.writeObjectField("altitude", getValue(event.getNo2()));
 			jGen.writeObjectField("location", event.getLocation());
+
+			jGen.writeObjectField("device", deviceView);
+			jGen.writeObjectField("site", siteView);
 
 			jGen.writeEndObject();
 		}
@@ -56,21 +70,7 @@ public class EventSerializer {
 			return hashMap;
 		}
 
-
-		private Object getLocation(Event.Location location) {
-
-			Map<String, Map<String, Double>> hashMap = new HashMap<>();
-
-			hashMap.put("longitude", new HashMap<>() {{
-				put("value", location.getLongitude());
-			}});
-
-			hashMap.put("latitude", new HashMap<>() {{
-				put("value", location.getLatitude());
-			}});
-
-			return hashMap;
-		}
 	}
 
 }
+

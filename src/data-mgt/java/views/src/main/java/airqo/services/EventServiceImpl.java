@@ -1,15 +1,16 @@
-package airqo.services.impl;
+package airqo.services;
 
 import airqo.models.Event;
 import airqo.repository.EventRepository;
-import airqo.services.EventService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MultiValueMap;
 
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class EventServiceImpl implements EventService {
@@ -18,7 +19,23 @@ public class EventServiceImpl implements EventService {
 	EventRepository eventRepository;
 
 	@Override
+	public Page<Event> getEvents(Pageable pageable, MultiValueMap<String, String> parameters) {
+
+		return eventRepository.findAll(pageable);
+	}
+
+	@Override
+	public Page<Event> getEvents(Pageable pageable, Map<String, String> parameters) {
+		return eventRepository.findAll(pageable);
+	}
+
+	@Override
 	public Page<Event> getEvents(Pageable pageable, Predicate predicate) {
+		return eventRepository.findAll(predicate, pageable);
+	}
+
+	@Override
+	public Page<Event> getEvents(Pageable pageable, Predicate predicate, MultiValueMap<String, String> parameters) {
 		return eventRepository.findAll(predicate, pageable);
 	}
 

@@ -1,13 +1,14 @@
-package airqo.services.impl;
+package airqo.services;
 
 import airqo.models.Device;
+import airqo.models.Tenant;
 import airqo.repository.DeviceRepository;
-import airqo.services.DeviceService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.util.MultiValueMap;
 
 import java.util.List;
 
@@ -23,7 +24,27 @@ public class DeviceServiceImpl implements DeviceService {
 	}
 
 	@Override
-	public void insertDevices(List<Device> events) {
-		deviceRepository.saveAll(events);
+	public Page<Device> getDevices(Predicate predicate, Pageable pageable, MultiValueMap<String, String> parameters) {
+		return null;
+	}
+
+	@Override
+	public void insertDevices(List<Device> devices, Tenant tenant) {
+		for (Device device : devices) {
+
+			try {
+				if (tenant != null) {
+					device.setTenant(tenant.toString());
+				}
+				insertDevice(device);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void insertDevice(Device device) {
+		deviceRepository.save(device);
 	}
 }

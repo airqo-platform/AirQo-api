@@ -1,4 +1,4 @@
-FROM openjdk:11 as base
+FROM openjdk:16 as base
 
 WORKDIR /app
 

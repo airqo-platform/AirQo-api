@@ -1,8 +1,8 @@
-package airqo.services.impl;
+package airqo.services;
 
 import airqo.models.Site;
+import airqo.models.Tenant;
 import airqo.repository.SiteRepository;
-import airqo.services.SiteService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -23,7 +23,21 @@ public class SiteServiceImpl implements SiteService {
 	}
 
 	@Override
-	public void insertSites(List<Site> sites) {
-		siteRepository.saveAll(sites);
+	public void insertSites(List<Site> sites, Tenant tenant) {
+		for (Site site : sites) {
+			try {
+				if (tenant != null) {
+					site.setTenant(tenant.toString());
+				}
+				insertSite(site);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public void insertSite(Site site) {
+		siteRepository.save(site);
 	}
 }
