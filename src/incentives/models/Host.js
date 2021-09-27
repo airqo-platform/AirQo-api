@@ -1,55 +1,46 @@
 const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
-const validator = require("validator");
-const bcrypt = require("bcrypt");
-const jwt = require("jsonwebtoken");
-const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const jsonify = require("../utils/jsonify");
-const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
-const { log } = require("debug");
-const saltRounds = constants.SALT_ROUNDS;
-
-function oneMonthFromNow() {
-  var d = new Date();
-  var targetMonth = d.getMonth() + 1;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0); // last day of previous month
-  }
-  return d;
-}
+const { getModelByTenant } = require("../utils/multitenancy");
 
 const HostSchema = new Schema({
   first_name: {
     type: String,
-    required: [true, "FirstName is required!"],
+    required: [true, "first_name is required!"],
     trim: true,
   },
   last_name: {
     type: String,
-    required: [true, "LastName is required"],
+    required: [true, "last_name is required"],
     trim: true,
   },
   phone_number: {
     type: Number,
+    required: [true, "phone_number is required"],
+    trim: true,
   },
   email: {
     type: String,
+    required: [true, "email is required"],
+    trim: true,
   },
   site_id: {
     type: ObjectId,
+    required: [true, "site_id is required"],
+    trim: true,
   },
   device_id: {
     type: ObjectId,
+    required: [true, "device_id is required"],
+    trim: true,
   },
 });
 
 HostSchema.pre("save", function (next) {
   if (this.isModified("password")) {
-    // this.password = bcrypt.hashSync(this.password, saltRounds);
   }
   return next();
 });
@@ -74,13 +65,8 @@ HostSchema.pre("findOneAndUpdate", function () {
 });
 
 HostSchema.pre("update", function (next) {
-  if (this.isModified("password")) {
-    // this.password = bcrypt.hashSync(this.password, saltRounds);
-  }
   return next();
 });
-
-HostSchema.index({ email: 1 }, { unique: true });
 
 HostSchema.statics = {
   async register(args) {
@@ -91,49 +77,49 @@ HostSchema.statics = {
         data: this.create({
           ...args,
         }),
-        message: "user created",
+        message: "host created",
       };
     } catch (error) {
       return {
-        error: error.message,
-        message: "User model server error - register",
+        error: { message: error.message },
+        message: "Host model server error - register",
         success: false,
       };
     }
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
-      let users = await this.find(filter)
+      let hosts = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(users);
+      let data = jsonify(hosts);
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
-          message: "successfully listed the users",
+          message: "successfully listed the hosts",
         };
       }
 
       if (isEmpty(data)) {
         return {
           success: true,
-          message: "no users exist",
+          message: "no hosts exist",
           data,
         };
       }
       return {
         success: false,
-        message: "unable to retrieve users",
+        message: "unable to retrieve hosts",
         data,
       };
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - list",
-        error: error.message,
+        message: "Host model server error - list",
+        error: { message: error.message },
       };
     }
   },
@@ -145,29 +131,29 @@ HostSchema.statics = {
       if (update.password) {
         // modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      let updatedHost = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
+      let data = jsonify(updatedHost);
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully modified the user",
+          message: "successfully modified the host",
           data,
         };
       } else {
         return {
           success: false,
-          message: "user does not exist, please crosscheck",
+          message: "host does not exist, please crosscheck",
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - modify",
-        error: error.message,
+        message: "Host model server error - modify",
+        error: { message: error.message },
       };
     }
   },
@@ -176,25 +162,25 @@ HostSchema.statics = {
       let options = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
-      let removedUser = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedUser);
+      let removedHost = await this.findOneAndRemove(filter, options).exec();
+      let data = jsonify(removedHost);
       if (!isEmpty(data)) {
         return {
           success: true,
-          message: "successfully removed the user",
+          message: "successfully removed the host",
           data,
         };
       } else {
         return {
           success: false,
-          message: "user does not exist, please crosscheck",
+          message: "host does not exist, please crosscheck",
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - remove",
-        error: error.message,
+        message: "Host model server error - remove",
+        error: { message: error.message },
       };
     }
   },
@@ -204,12 +190,17 @@ HostSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      firstName: this.firstName,
-      lastName: this.lastName,
+      first_name: this.first_name,
+      last_name: this.last_name,
       site_id: this.site_id,
       device_id: this.device_id,
+      phone_number: this.phone_number,
     };
   },
 };
 
-module.exports = HostSchema;
+const HostModel = (tenant) => {
+  return getModelByTenant(tenant, "host", HostSchema);
+};
+
+module.exports = HostModel;
