@@ -186,8 +186,8 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
         
     result = []
     for i in range(pred_set.shape[0]):
-        result.append({'latitude':locations_flat[i][1],
-                      'longitude':locations_flat[i][0],
+        result.append({'latitude':new_array[i][1],
+                      'longitude':new_array[i][0],
                       'predicted_value': means[i],
                       'variance':variances[i],
                       'interval':interval[i],
