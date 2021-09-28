@@ -7,8 +7,6 @@ protobuf==3.15.8
 pyarrow==3.0.0
 pymongo==3.11.3
 scikit_learn==0.24.1
-confluent-avro==1.8.0
-kafka-python==2.0.2
 python-dotenv==0.18.0
 gcsfs == 2021.8.1
 google-api-core==1.31.0

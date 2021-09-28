@@ -6,8 +6,8 @@ metadata:
 spec:
   concurrencyPolicy: Allow
   failedJobsHistoryLimit: 1
-  schedule: "20 * * * *"
-  successfulJobsHistoryLimit: 3
+  schedule: "10 * * * *"
+  successfulJobsHistoryLimit: 2
   jobTemplate:
     metadata:
       name: airqo-calibrate-job
@@ -18,15 +18,19 @@ spec:
             sidecar.istio.io/inject: "false"
         spec:
           containers:
-            - name: airqo-calibrate-job
-              image: us.gcr.io/airqo-250220/prod-calibrate-job:latest
-              imagePullPolicy: Always
-              envFrom:
-                - configMapRef:
-                    name: prod-calibrate-job-config
-              resources: {}
-              terminationMessagePath: /dev/termination-log
-              terminationMessagePolicy: File
+              - name: calibrate-job
+                image: us.gcr.io/airqo-250220/airqo-prod-jobs:latest
+                imagePullPolicy: Always
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: "500m"
+                  limits:
+                    memory: 1Gi
+                    cpu: "2000m"
+                envFrom:
+                  - configMapRef:
+                      name: prod-calibrate-job-config
           dnsPolicy: ClusterFirst
           restartPolicy: OnFailure
           schedulerName: default-scheduler
