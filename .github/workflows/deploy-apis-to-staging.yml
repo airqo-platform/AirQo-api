@@ -26,7 +26,6 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-
       - name: generate build ID
         id: prep
         run: |
@@ -170,7 +169,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} -f Dockerfile --target=staging .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} .
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ steps.prep.outputs.BUILD_ID }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
