@@ -5,7 +5,7 @@ const { tryCatchErrors, badRequest } = require("../utils/errors");
 const createHostUtil = require("../utils/create-host");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-host-util");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const transformDataUtil = require("../utils/transform-data");
 
 const createHost = {
   register: async (req, res) => {
@@ -20,7 +20,7 @@ const createHost = {
         return badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -36,7 +36,7 @@ const createHost = {
         return res.status(status).json({
           success: true,
           message: responseFromCreateHost.message,
-          host: responseFromCreateHost.data,
+          created_host: responseFromCreateHost.data,
         });
       }
 
@@ -76,7 +76,7 @@ const createHost = {
         return badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -126,7 +126,7 @@ const createHost = {
         return badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["body"] = body;
@@ -179,7 +179,7 @@ const createHost = {
         return badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -233,7 +233,7 @@ const createHost = {
         return badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;

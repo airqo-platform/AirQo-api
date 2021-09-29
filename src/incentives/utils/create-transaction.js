@@ -2,7 +2,6 @@ const TransactionModel = require("../models/Transaction");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const HTTPStatus = require("http-status");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
@@ -58,6 +57,7 @@ const createTransaction = {
         success: false,
         message: "unable to create transaction",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
       };
     }
   },
@@ -110,7 +110,7 @@ const createTransaction = {
       return {
         success: false,
         message: "unable to update transaction",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -159,7 +159,7 @@ const createTransaction = {
       return {
         success: false,
         message: "unable to delete transaction",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -213,7 +213,7 @@ const createTransaction = {
       return {
         success: false,
         message: "unable to list transaction",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

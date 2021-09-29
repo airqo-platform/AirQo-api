@@ -2,9 +2,10 @@ const mongoose = require("mongoose").set("debug", true);
 const Schema = mongoose.Schema;
 const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const { getModelByTenant } = require("../utils/multitenancy");
+const constants = require("../config/constants");
+const HTTPStatus = require("http-status");
 
 const HostSchema = new Schema({
   first_name: {
@@ -38,6 +39,18 @@ const HostSchema = new Schema({
     trim: true,
   },
 });
+
+HostSchema.index(
+  {
+    email: 1,
+    phone_number: 1,
+    site_id: 1,
+    device_id: 1,
+  },
+  {
+    unique: true,
+  }
+);
 
 HostSchema.pre("save", function (next) {
   if (this.isModified("password")) {
@@ -74,16 +87,32 @@ HostSchema.statics = {
     try {
       return {
         success: true,
-        data: this.create({
+        data: await this.create({
           ...args,
         }),
         message: "host created",
       };
-    } catch (error) {
+    } catch (err) {
+      let response = {};
+      logObject("the err", err);
+      message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      if (err.code === 11000) {
+        Object.entries(err.keyPattern).forEach(([key, value]) => {
+          return (response[key] = "duplicate value");
+        });
+      }
+      if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[value.path] = value.message);
+        });
+      }
+
       return {
-        error: { message: error.message },
-        message: "Host model server error - register",
+        errors: response,
+        message,
         success: false,
+        status,
       };
     }
   },
@@ -94,7 +123,7 @@ HostSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(hosts);
+      let data = hosts;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -127,17 +156,13 @@ HostSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-      logObject("modifiedUpdate", modifiedUpdate);
-      if (update.password) {
-        // modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
-      }
       let updatedHost = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(updatedHost);
-      if (!isEmpty(data)) {
+      let data = updatedHost;
+      if (!isEmpty(updatedHost)) {
         return {
           success: true,
           message: "successfully modified the host",
@@ -163,8 +188,8 @@ HostSchema.statics = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
       let removedHost = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedHost);
-      if (!isEmpty(data)) {
+      let data = removedHost;
+      if (!isEmpty(removedHost)) {
         return {
           success: true,
           message: "successfully removed the host",

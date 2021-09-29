@@ -2,7 +2,6 @@ const HostModel = require("../models/Host");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const HTTPStatus = require("http-status");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
@@ -53,6 +52,7 @@ const createHost = {
         success: false,
         message: "unable to create host",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
       };
     }
   },
@@ -103,7 +103,7 @@ const createHost = {
       return {
         success: false,
         message: "unable to update host",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -150,7 +150,7 @@ const createHost = {
       return {
         success: false,
         message: "unable to delete host",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -204,7 +204,7 @@ const createHost = {
       return {
         success: false,
         message: "unable to list host",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
