@@ -82,6 +82,8 @@ const createHost = {
       request["query"] = query;
       let responseFromRemoveHost = await createHostUtil.delete(request);
 
+      logObject("responseFromRemoveHost", responseFromRemoveHost);
+
       if (responseFromRemoveHost.success === true) {
         let status = responseFromRemoveHost.status
           ? responseFromRemoveHost.status
@@ -89,7 +91,7 @@ const createHost = {
         return res.status(status).json({
           success: true,
           message: responseFromRemoveHost.message,
-          host: responseFromRemoveHost.data,
+          removed_host: responseFromRemoveHost.data,
         });
       }
 
@@ -140,7 +142,7 @@ const createHost = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateHost.message,
-          host: responseFromUpdateHost.data,
+          updated_host: responseFromUpdateHost.data,
         });
       }
 
@@ -247,7 +249,7 @@ const createHost = {
         return res.status(status).json({
           success: true,
           message: responseFromRemoveHost.message,
-          host: responseFromRemoveHost.data,
+          deleted_host: responseFromRemoveHost.data,
         });
       }
 

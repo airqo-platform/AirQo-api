@@ -129,83 +129,101 @@ HostSchema.statics = {
           success: true,
           data,
           message: "successfully listed the hosts",
+          status: HTTPStatus.OK,
         };
       }
 
       if (isEmpty(data)) {
         return {
           success: true,
-          message: "no hosts exist",
+          message: "no hosts exist for this search",
           data,
+          status: HTTPStatus.OK,
         };
       }
       return {
         success: false,
         message: "unable to retrieve hosts",
         data,
+        errors: { message: "host does not exist" },
+        status: HTTPStatus.NOT_FOUND,
       };
     } catch (error) {
       return {
         success: false,
-        message: "Host model server error - list",
-        error: { message: error.message },
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
       let modifiedUpdate = update;
+      let projection = {};
+      Object.keys(modifiedUpdate).forEach((key) => {
+        projection[key] = 1;
+      });
+      let options = { new: true, projection };
       let updatedHost = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
-      ).exec();
+      );
       let data = updatedHost;
       if (!isEmpty(updatedHost)) {
         return {
           success: true,
           message: "successfully modified the host",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "host does not exist, please crosscheck",
+          errors: { message: "host does not exist" },
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Host model server error - modify",
-        error: { message: error.message },
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
-        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
-      };
-      let removedHost = await this.findOneAndRemove(filter, options).exec();
-      let data = removedHost;
+      let projection = { _id: 0, email: 1, firstName: 1, lastName: 1 };
+      let options = { projection };
+      let removedHost = await this.findOneAndRemove(filter, options);
+
+      logObject("data removed", removedHost);
       if (!isEmpty(removedHost)) {
+        let data = removedHost._doc;
         return {
           success: true,
           message: "successfully removed the host",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "host does not exist, please crosscheck",
+          errors: { message: "host does not exist" },
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Host model server error - remove",
-        error: { message: error.message },
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

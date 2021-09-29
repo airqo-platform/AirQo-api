@@ -149,26 +149,13 @@ router.put(
         "the airqloud identifier is missing in request, consider using id"
       )
       .bail()
-      .trim()
       .isMongoId()
       .withMessage("id must be an object ID")
       .bail()
       .customSanitizer((value) => {
         return ObjectId(value);
-      }),
-    query("name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using name"
-      )
-      .bail()
-      .trim()
-      .custom((value) => {
-        return createSiteUtil.validateSiteName(value);
       })
-      .withMessage(
-        "The name should be greater than 5 and less than 50 in length"
-      ),
+      .trim(),
   ]),
   oneOf([
     [
@@ -242,19 +229,6 @@ router.delete(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-
-    query("name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using the name "
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
   ]),
   createHostController.delete
 );
