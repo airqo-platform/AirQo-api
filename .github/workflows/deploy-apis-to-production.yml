@@ -32,7 +32,7 @@ jobs:
             sha=${GITHUB_SHA::8}
             timestamp=$(date +%s)
             datetime=$(date)
-            echo "::set-output name=BUILD_ID::staging-${sha}-${timestamp}"
+            echo "::set-output name=BUILD_ID::production-${sha}-${timestamp}"
             echo "::set-output name=DATETIME::${datetime}"
 
       - name: checkout code
