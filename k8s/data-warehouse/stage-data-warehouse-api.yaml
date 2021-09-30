@@ -1,0 +1,57 @@
+###########################################################
+# Start deployment of data-warehouse microservice - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-data-warehouse-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-data-warehouse
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: sta-data-warehouse
+    spec:
+      containers:
+        - name: data-warehouse
+          image: us.gcr.io/airqo-250220/airqo-stage-data-warehouse-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4001
+              name: data-warehouse
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 4001
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          envFrom:
+            - configMapRef:
+                name: stage-data-warehouse-config
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-data-warehouse-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-data-warehouse
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001
+      nodePort: 31111
+  type: NodePort
