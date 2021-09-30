@@ -16,6 +16,7 @@ jobs:
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
+      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
       run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
       run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
       run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
