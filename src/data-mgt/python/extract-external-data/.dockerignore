@@ -1,6 +1,5 @@
 __pycache__/
 env/
 venv/
-*.pkl
 venv
 env
