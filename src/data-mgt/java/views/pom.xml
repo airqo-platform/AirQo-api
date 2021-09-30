@@ -92,6 +92,13 @@
           <scope>test</scope>
         </dependency>
 
+      <!--Config maps -->
+      <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-kubernetes-config</artifactId>
+        <version>0.3.0.RELEASE</version>
+      </dependency>
+
         <!--Apache -->
       <dependency>
         <groupId>org.apache.commons</groupId>

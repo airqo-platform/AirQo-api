@@ -29,15 +29,20 @@ spec:
           image: us.gcr.io/airqo-250220/stage-view-api:latest
           imagePullPolicy: Always
           resources:
-             requests:
-               memory: 256Mi
-               cpu: "200m"
-             limits:
-               memory: 700Mi
-             cpu: "1000m"
+            requests:
+              memory: 256Mi
+              cpu: "200m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
           ports:
             - containerPort: 8080
               name: view-api
+          env:
+            - name: JAVA_APP_DIR
+              value: /deployments
+            - name: JAVA_OPTIONS
+              value: -Dspring.profiles.active=staging
           envFrom:
             - configMapRef:
                 name: stage-view-api-config
@@ -67,5 +72,5 @@ spec:
     - protocol: TCP
       port: 8080
       targetPort: 8080
-      nodePort: 30808
+      nodePort: 30188
   type: NodePort

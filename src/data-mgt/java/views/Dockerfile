@@ -1,4 +1,6 @@
-FROM openjdk:16 as base
+# syntax=docker/dockerfile:1
+
+FROM openjdk:16-alpine3.13 as base
 
 WORKDIR /app
 
