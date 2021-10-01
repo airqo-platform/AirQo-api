@@ -12,6 +12,8 @@ import java.util.List;
 public interface DeviceService {
 	Page<Device> getDevices(Predicate predicate, Pageable pageable);
 
+	List<Device> getDevicesList(Predicate predicate);
+
 	Page<Device> getDevices(Predicate predicate, Pageable pageable, MultiValueMap<String, String> parameters);
 
 	void insertDevices(List<Device> devices, Tenant tenant);

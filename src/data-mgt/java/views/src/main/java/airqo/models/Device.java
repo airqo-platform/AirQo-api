@@ -7,6 +7,7 @@ import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
@@ -17,7 +18,7 @@ import java.util.List;
 @ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "devices")
-public class Device {
+public class Device implements Serializable {
 
 	@Field("_id")
 	@Id
@@ -75,7 +76,7 @@ public class Device {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class DeviceList {
+	public static class DeviceList implements Serializable {
 		private List<Device> devices;
 	}
 
@@ -85,7 +86,7 @@ public class Device {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class DeviceView {
+	public static class DeviceView implements Serializable {
 		private Double latitude;
 		private Double longitude;
 		private String name;

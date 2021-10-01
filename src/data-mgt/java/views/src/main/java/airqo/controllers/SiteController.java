@@ -2,8 +2,13 @@ package airqo.controllers;
 
 import airqo.models.Site;
 import airqo.services.SiteService;
+import airqo.tasks.EventScheduledTasks;
 import com.querydsl.core.types.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
@@ -14,18 +19,36 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("sites")
 public class SiteController {
 
+	private static final Logger logger = LoggerFactory.getLogger(SiteController.class);
+
 	@Autowired
 	SiteService siteService;
 
+	@Autowired
+	Environment env;
+
 	@GetMapping("")
+	public ResponseEntity<?> getSitesList(
+		@QuerydslPredicate(root = Site.class) Predicate predicate) {
+
+		List<Site> sites = siteService.getSitesList(predicate);
+		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
+	}
+
+	@GetMapping("/cache")
 	public ResponseEntity<?> getSites(
 		@QuerydslPredicate(root = Site.class) Predicate predicate,
 		Pageable pageable) {
+//		logger.info(env.toString());
 		Page<Site> sites = siteService.getSites(predicate, pageable);
 		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
 	}
+
+
 }

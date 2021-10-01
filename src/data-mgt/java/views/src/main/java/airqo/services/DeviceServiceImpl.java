@@ -5,6 +5,7 @@ import airqo.models.Tenant;
 import airqo.repository.DeviceRepository;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -21,6 +22,12 @@ public class DeviceServiceImpl implements DeviceService {
 	@Override
 	public Page<Device> getDevices(Predicate predicate, Pageable pageable) {
 		return deviceRepository.findAll(predicate, pageable);
+	}
+
+	@Cacheable(value = "devicesCache")
+	@Override
+	public List<Device> getDevicesList(Predicate predicate) {
+		return (List<Device>) deviceRepository.findAll(predicate);
 	}
 
 	@Override

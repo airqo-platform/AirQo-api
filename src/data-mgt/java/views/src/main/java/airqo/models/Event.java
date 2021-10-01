@@ -7,11 +7,13 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
+import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 import org.springframework.format.annotation.DateTimeFormat;
 
+import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
@@ -26,7 +28,7 @@ import java.util.List;
 //@CompoundIndexes({
 //	@CompoundIndex(name = "PM 2.5", def = "{'time' : 1, 'device_id': 1, 'pm2_5.value': 1}", unique = true)
 //})
-public class Event {
+public class Event implements Serializable {
 
 
 	@Transient
@@ -63,6 +65,13 @@ public class Event {
 	private MeasurementValue pm10;
 	private MeasurementValue pm2_5;
 	private MeasurementValue no2;
+	private GeoJsonPoint geoJsonPoint;
+
+	public GeoJsonPoint getGeoJsonPoint() {
+		double latitude = this.getLocation().latitude;
+		double longitude = this.getLocation().longitude;
+		return new GeoJsonPoint(latitude, longitude);
+	}
 
 	public void setFrequency(String frequency) {
 		this.frequency = Frequency.valueOf(frequency).toString();
@@ -74,7 +83,7 @@ public class Event {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class MeasurementValue {
+	public static class MeasurementValue implements Serializable {
 		Double value, calibratedValue, uncertaintyValue, standardDeviationValue;
 	}
 
@@ -84,7 +93,7 @@ public class Event {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class Location {
+	public static class Location implements Serializable {
 		Double latitude, longitude;
 	}
 
@@ -94,7 +103,7 @@ public class Event {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class EventList {
+	public static class EventList implements Serializable {
 		private List<Event> events;
 	}
 

@@ -2,6 +2,7 @@ package airqo.models;
 
 import airqo.serializers.LocationSerializer;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.*;
@@ -12,6 +13,7 @@ import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
@@ -24,16 +26,15 @@ import java.util.List;
 @AllArgsConstructor
 @ToString
 @Document(collection = "sites")
-public class Site {
+@JsonIgnoreProperties(ignoreUnknown = true)
+public class Site implements Serializable {
 
 	@Field("_id")
 	@Id
 	@JsonAlias("_id")
 	public String id;
-	@GeoSpatialIndexed(name = "location")
-	Double[] location;
-	@JsonDeserialize(using = LocationSerializer.GeoPointDeserializer.class)
-	GeoJsonPoint geoJsonPoint;
+	@JsonIgnore
+	GeoJsonPoint location;
 	@JsonAlias("lat_long")
 	private String latLong;
 	@JsonAlias("formatted_name")
@@ -86,13 +87,25 @@ public class Site {
 	@JsonAlias({"geometry"})
 	private Geometry geometry;
 
+	public GeoJsonPoint getLocation() {
+		try {
+			double latitude = this.getLatitude();
+			double longitude = this.getLongitude();
+
+			return new GeoJsonPoint(latitude, longitude);
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+
 	@Getter
 	@Setter
 	@AllArgsConstructor
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class Geometry {
+	public static class Geometry implements Serializable {
 		Location location;
 
 		@JsonAlias("location_type")
@@ -108,7 +121,7 @@ public class Site {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class Viewport {
+	public static class Viewport implements Serializable {
 		@JsonAlias({"northeast"})
 		Location northEast;
 
@@ -122,7 +135,7 @@ public class Site {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class Location {
+	public static class Location implements Serializable {
 		@JsonAlias({"lat", "latitude"})
 		Double latitude;
 
@@ -137,7 +150,7 @@ public class Site {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class SiteList {
+	public static class SiteList implements Serializable {
 		private List<Site> sites;
 	}
 
@@ -147,7 +160,7 @@ public class Site {
 	@NoArgsConstructor
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class SiteView {
+	public static class SiteView implements Serializable {
 
 		@JsonAlias("_id")
 		public String id;

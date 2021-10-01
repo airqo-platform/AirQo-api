@@ -11,6 +11,8 @@ import java.util.List;
 public interface SiteService {
 	Page<Site> getSites(Predicate predicate, Pageable pageable);
 
+	List<Site> getSitesList(Predicate predicate);
+
 	void insertSites(List<Site> sites, Tenant tenant);
 
 	void insertSite(Site sites);

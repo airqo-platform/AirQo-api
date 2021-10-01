@@ -50,6 +50,7 @@ public class EventSerializer {
 			jGen.writeObjectField("speed", getValue(event.getPm1()));
 			jGen.writeObjectField("altitude", getValue(event.getNo2()));
 			jGen.writeObjectField("location", event.getLocation());
+//			jGen.writeObjectField("geoLocation", event.getGeoJsonPoint());
 
 			jGen.writeObjectField("device", deviceView);
 			jGen.writeObjectField("site", siteView);
