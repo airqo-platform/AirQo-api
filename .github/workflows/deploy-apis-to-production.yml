@@ -26,6 +26,15 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
+      - name: generate build ID
+        id: prep
+        run: |
+            sha=${GITHUB_SHA::8}
+            timestamp=$(date +%s)
+            datetime=$(date)
+            echo "::set-output name=BUILD_ID::production-${sha}-${timestamp}"
+            echo "::set-output name=DATETIME::${datetime}"
+
       - name: checkout code
         uses: actions/checkout@v2
         with:
@@ -162,14 +171,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest .
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-registry/
-          kubectl apply -f prod-device-registry-api.yaml
-          kubectl rollout restart deployment/airqo-device-registry-api -n production
-  
+          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} -n production
+          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} on ${{ steps.prep.outputs.DATETIME }}" -n production
+
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
