@@ -7,6 +7,22 @@ on:
     types:
       - closed
 jobs:
+  image-tag:
+    name: create image tag
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.prep.outputs.build_id }} # build id
+      datetime: ${{ steps.prep.outputs.datetime }} # build date
+    steps:
+      - name: generate build ID
+        id: prep
+        run: |
+            sha=${GITHUB_SHA::8}
+            timestamp=$(date +%s)
+            datetime=$(date)
+            echo "::set-output name=build_id::staging-${sha}-${timestamp}"
+            echo "::set-output name=datetime::${datetime}"
+
   check:
     if: github.event.pull_request.merged == true
     #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
@@ -145,7 +161,7 @@ jobs:
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -168,14 +184,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-registry/
-          kubectl apply -f stage-device-registry-api.yaml
-          kubectl rollout restart deployment/airqo-stage-device-registry-api -n staging
-  
+          kubectl set image deployment/airqo-stage-device-registry-api sta-dev-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
@@ -428,7 +445,7 @@ jobs:
 
     ### exceedances ###
   
-  ### exceedances ###
+  ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
     needs: check
