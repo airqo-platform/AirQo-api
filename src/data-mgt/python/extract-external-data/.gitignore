@@ -7,3 +7,4 @@ __init__test.py
 .DS_Store
 venv/
 private_key.json
+*.json
