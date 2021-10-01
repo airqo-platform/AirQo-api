@@ -68,3 +68,47 @@ spec:
       targetPort: 4001
       nodePort: 31111
   type: NodePort
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-datawarehouse-msg-broker
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-datawarehouse-msg-broker
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: sta-datawarehouse-msg-broker
+    spec:
+      containers:
+        - name: msg-broker
+          image: us.gcr.io/airqo-250220/airqo-stage-datawarehouse-msg-broker:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "500m"
+            limits:
+              memory: 1Gi
+              cpu: "2000m"
+          envFrom:
+            - configMapRef:
+                name: stage-datawarehouse-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: stage-datawarehouse-api-config-files
