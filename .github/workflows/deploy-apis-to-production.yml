@@ -7,6 +7,23 @@ on:
     types:
       - closed
 jobs:
+
+  image-tag:
+    name: create image tag
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.prep.outputs.build_id }} # build id
+      datetime: ${{ steps.prep.outputs.datetime }} # build date
+    steps:
+      - name: generate build ID
+        id: prep
+        run: |
+            sha=${GITHUB_SHA::8}
+            timestamp=$(date +%s)
+            datetime=$(date)
+            echo "::set-output name=build_id::staging-${sha}-${timestamp}"
+            echo "::set-output name=datetime::${datetime}"
+
   check:
     if: github.event.pull_request.merged == true
     #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
@@ -26,15 +43,6 @@ jobs:
 
     runs-on: ubuntu-latest
     steps:
-      - name: generate build ID
-        id: prep
-        run: |
-            sha=${GITHUB_SHA::8}
-            timestamp=$(date +%s)
-            datetime=$(date)
-            echo "::set-output name=BUILD_ID::production-${sha}-${timestamp}"
-            echo "::set-output name=DATETIME::${datetime}"
-
       - name: checkout code
         uses: actions/checkout@v2
         with:
@@ -110,7 +118,6 @@ jobs:
             fi
           done < files.txt
 
-
   ### auth service ###
   auth-service:
     name: build-push-deploy-auth
@@ -148,7 +155,7 @@ jobs:
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -171,14 +178,14 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }}
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
       - name: Deploy to K8S
         run: |
-          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} -n production
-          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ steps.prep.outputs.BUILD_ID }} on ${{ steps.prep.outputs.DATETIME }}" -n production
+          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### device monitoring ###
   device-monitoring:
@@ -429,6 +436,8 @@ jobs:
           kubectl rollout restart deployment/airqo-gp-model-job -n production
 
     ### exceedances ###
+  
+  ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
     needs: check
