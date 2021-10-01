@@ -1,17 +1,16 @@
-import os
-
 import urllib3
 from dotenv import load_dotenv
 
-from measurements import average_measurements_by_hour
+import calibrate
+from config import configuration, JobType
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 
 
 def main():
-    hours = int(os.getenv("HOURS", 1))
-    average_measurements_by_hour(hours=hours)
+    if configuration.JOB_TYPE == JobType.CALIBRATE:
+        calibrate.main()
 
 
 if __name__ == '__main__':

@@ -38,6 +38,14 @@ const airqloudSchema = new Schema(
       type: String,
       trim: true,
     },
+    admin_level: {
+      type: String,
+      required: [true, "admin_level is required!"],
+    },
+    isCustom: {
+      type: Boolean,
+      required: [true, "isCustom is required!"],
+    },
     airqloud_tags: {
       type: Array,
       default: [],
@@ -62,8 +70,6 @@ airqloudSchema.pre("update", function(next) {
   return next();
 });
 
-airqloudSchema.index({ name: 1 }, { unique: true });
-
 airqloudSchema.plugin(uniqueValidator, {
   message: `{VALUE} is a duplicate value!`,
 });
@@ -76,6 +82,8 @@ airqloudSchema.methods = {
       long_name: this.long_name,
       description: this.description,
       airqloud_tags: this.airqloud_tags,
+      admin_level: this.admin_level,
+      isCustom: this.isCustom,
       location: this.location,
     };
   },
@@ -144,6 +152,8 @@ airqloudSchema.statics = {
           description: 1,
           airqloud_tags: 1,
           location: 1,
+          admin_level: 1,
+          isCustom: 1,
           sites: "$sites",
         })
         .skip(_skip)
@@ -227,9 +237,11 @@ airqloudSchema.statics = {
         projection: {
           _id: 1,
           name: 1,
-          generated_name: 1,
+          long_name: 1,
           airqloud_tags: 1,
           description: 1,
+          admin_level: 1,
+          isCustom: 1,
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
