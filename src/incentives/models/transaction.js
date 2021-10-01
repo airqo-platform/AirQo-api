@@ -2,6 +2,9 @@ const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { getModelByTenant } = require("../utils/multitenancy");
+const { logObject, logElement, logText } = require("../utils/log");
+const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 
 const TransactionSchema = new Schema({
   amount: { type: Number },
@@ -44,18 +47,35 @@ TransactionSchema.statics = {
   async register(args) {
     logObject("the args", args);
     try {
+      const data = await this.create({
+        ...args,
+      });
       return {
         success: true,
-        data: this.create({
-          ...args,
-        }),
+        data,
         message: "transaction created",
+        status: httpStatus.OK,
       };
     } catch (error) {
+      let response = {};
+      message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      if (err.code === 11000) {
+        Object.entries(err.keyPattern).forEach(([key, value]) => {
+          return (response[key] = "duplicate value");
+        });
+      }
+      if (err.errors) {
+        Object.entries(err.errors).forEach(([key, value]) => {
+          return (response[value.path] = value.message);
+        });
+      }
+
       return {
-        error: { message: error.message },
-        message: "Transaction model server error - register",
+        errors: response,
+        message,
         success: false,
+        status,
       };
     }
   },
@@ -64,94 +84,122 @@ TransactionSchema.statics = {
       let transactions = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
-        .limit(limit)
-        .exec();
-      let data = jsonify(transactions);
+        .limit(limit);
+      let data = transactions;
       if (!isEmpty(data)) {
         return {
           success: true,
           data,
           message: "successfully listed the transactions",
+          status: httpStatus.OK,
         };
       }
 
       if (isEmpty(data)) {
         return {
           success: true,
-          message: "no transactions exist",
+          message: "no transactions exist for this search",
           data,
+          status: httpStatus.NOT_FOUND,
         };
       }
       return {
         success: false,
         message: "unable to retrieve transactions",
         data,
+        errors: { message: "unable to retrieve transactions" },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     } catch (error) {
       return {
         success: false,
         message: "Transaction model server error - list",
-        error: { message: error.message },
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
       let modifiedUpdate = update;
+      let projection = {};
+      Object.keys(modifiedUpdate).forEach((key) => {
+        projection[key] = 1;
+      });
+      let options = { new: true, projection };
       let updatedTransaction = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
-      ).exec();
-      let data = jsonify(updatedTransaction);
-      if (!isEmpty(data)) {
+      );
+      const data = updatedTransaction;
+      if (!isEmpty(updatedTransaction)) {
         return {
           success: true,
           message: "successfully modified the transaction",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "transaction does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: {
+            message: "transaction does not exist",
+          },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "Transaction model server error - modify",
-        error: { message: error.message },
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async remove({ filter = {} } = {}) {
     try {
-      let options = {
-        projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
+      let projection = {
+        _id: 1,
+        amount: 1,
+        host_id: 1,
+        description: 1,
+        transaction_id: 1,
+        status: 1,
       };
-      let removedTransaction = await this.findOneAndRemove(
-        filter,
-        options
-      ).exec();
-      let data = jsonify(removedTransaction);
-      if (!isEmpty(data)) {
+      let options = {
+        projection,
+      };
+
+      let removedTransaction = await this.findOneAndRemove(filter, options);
+
+      logObject("removedTransaction", removedTransaction);
+
+      if (!isEmpty(removedTransaction)) {
+        const data = removedTransaction._doc;
         return {
           success: true,
           message: "successfully removed the transaction",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "transaction does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "transaction does not exist" },
         };
       }
     } catch (error) {
+      logObject("the error in transaction model", error);
       return {
         success: false,
-        message: "Transaction model server error - remove",
-        error: { message: error.message },
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

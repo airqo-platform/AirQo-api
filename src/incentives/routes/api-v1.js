@@ -235,6 +235,60 @@ router.delete(
 
 /*************** create-transaction usecase *****************/
 router.post(
+  "/transactions/soft",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    [
+      body("amount")
+        .exists()
+        .withMessage("the amount is missing in your request")
+        .bail()
+        .notEmpty()
+        .withMessage("the amount should not be empty")
+        .isInt()
+        .withMessage("the amount should be a number")
+        .trim(),
+      body("description")
+        .if(body("description").exists())
+        .notEmpty()
+        .withMessage("the description should not be empty if provided")
+        .trim(),
+      body("host_id")
+        .exists()
+        .withMessage("the host_id is missing in your request")
+        .isMongoId()
+        .withMessage("the host_id should be an object ID")
+        .trim(),
+      body("transaction_id")
+        .exists()
+        .withMessage("the transaction_id is missing in your request")
+        .trim(),
+      body("status")
+        .exists()
+        .withMessage("the status is missing in your request")
+        .bail()
+        .isIn(["pending", "started", "finished"])
+        .withMessage(
+          "the status value is not among the expected ones which include: pending, started and finished"
+        )
+        .trim(),
+    ],
+  ]),
+  createTransactionController.softRegister
+);
+
+router.post(
   "/transactions",
   oneOf([
     [
@@ -250,42 +304,39 @@ router.post(
   ]),
   oneOf([
     [
-      body("name")
+      body("amount")
         .exists()
-        .withMessage("the name is missing in your request")
+        .withMessage("the amount is missing in your request")
         .bail()
         .notEmpty()
-        .withMessage("the name should not be empty")
+        .withMessage("the amount should not be empty")
+        .isInt()
+        .withMessage("the amount should be a number")
         .trim(),
-      body("description").if(body("description").exists()).notEmpty().trim(),
-      body("location")
-        .exists()
-        .withMessage("the location is missing in your request"),
-      body("location.coordinates")
-        .exists()
-        .withMessage("location.coordinates is missing in your request")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the location.coordinates should be an array"),
-      body("location.type")
-        .exists()
-        .withMessage("location.type is missing in your request")
-        .bail()
-        .toLowerCase()
-        .isIn(["polygon", "point"])
-        .withMessage(
-          "the location.type value is not among the expected ones which include: polygon and point"
-        ),
-      body("airqloud_tags")
-        .if(body("airqloud_tags").exists())
+      body("description")
+        .if(body("description").exists())
         .notEmpty()
+        .withMessage("the description should not be empty if provided")
+        .trim(),
+      body("host_id")
+        .exists()
+        .withMessage("the host_id is missing in your request")
+        .isMongoId()
+        .withMessage("the host_id should be an object ID")
+        .trim(),
+      body("transaction_id")
+        .exists()
+        .withMessage("the transaction_id is missing in your request")
+        .trim(),
+      body("status")
+        .exists()
+        .withMessage("the status is missing in your request")
         .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the tags should be an array"),
+        .isIn(["pending", "started", "finished"])
+        .withMessage(
+          "the status value is not among the expected ones which include: pending, started and finished"
+        )
+        .trim(),
     ],
   ]),
   createTransactionController.register
@@ -315,16 +366,27 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      query("site_id")
+      query("host_id")
         .if(query("site_id").exists())
         .notEmpty()
         .trim()
         .isMongoId()
-        .withMessage("site_id must be an object ID")
+        .withMessage("host_id must be an object ID")
         .bail()
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("transaction_id")
+        .if(query("transaction_id").exists())
+        .notEmpty()
+        .withMessage("the transaction_id is empty")
+        .trim(),
+      query("status")
+        .if(query("status").exists())
+        .notEmpty()
+        .withMessage("the provided status must not be empty")
+        .bail()
+        .trim(),
     ],
   ]),
   createTransactionController.list
@@ -346,7 +408,7 @@ router.put(
     query("id")
       .exists()
       .withMessage(
-        "the airqloud identifier is missing in request, consider using id"
+        "the transaction identifier is missing in the request, consider using id"
       )
       .bail()
       .trim()
@@ -356,61 +418,42 @@ router.put(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-    query("name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using name"
-      )
-      .bail()
-      .trim()
-      .custom((value) => {
-        return createSiteUtil.validateSiteName(value);
-      })
-      .withMessage(
-        "The name should be greater than 5 and less than 50 in length"
-      ),
   ]),
   oneOf([
     [
-      body("name")
-        .if(body("name").exists())
+      body("amount")
+        .if(body("amount").exists())
         .notEmpty()
-        .withMessage("the name should not be empty")
+        .withMessage("the amount should not be empty")
         .bail()
-        .customSanitizer((value) => {
-          return createSiteUtil.sanitiseName(value);
-        })
+        .isInt()
+        .withMessage("the amount is not a number")
         .trim(),
-      body("description").if(body("description").exists()).notEmpty().trim(),
-      body("location")
-        .if(body("location").exists())
+      body("description")
+        .if(body("description").exists())
         .notEmpty()
-        .withMessage("the location should not be empty"),
-      body("location.coordinates")
-        .if(body("location.coordinates").exists())
+        .withMessage("the description should not be empty when provided")
+        .trim(),
+      body("host_id")
+        .if(body("host_id").exists())
         .notEmpty()
-        .withMessage("the location.coordinates should not be empty")
-        .bail()
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the location.coordinates should be an array"),
-      body("location.type")
-        .if(body("location.type").exists())
+        .withMessage("the host_id should not be empty")
+        .isMongoId()
+        .withMessage("should be a valid object ID"),
+      body("transaction_id")
+        .if(body("transaction_id").exists())
         .notEmpty()
-        .withMessage("the location.type should not be empty")
+        .withMessage("the transaction_id should not be empty"),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .withMessage("the status should not be empty")
         .bail()
         .toLowerCase()
-        .isIn(["polygon", "point"])
+        .isIn(["pending", "started", "finished"])
         .withMessage(
-          "the location.type value is not among the expected ones which include: polygon and point"
+          "the status value is not among the expected ones which include: pending, started and finished"
         ),
-      body("airqloud_tags")
-        .if(body("airqloud_tags").exists())
-        .custom((value) => {
-          return Array.isArray(value);
-        })
-        .withMessage("the tags should be an array"),
     ],
   ]),
   createTransactionController.update
@@ -442,19 +485,6 @@ router.delete(
       .customSanitizer((value) => {
         return ObjectId(value);
       }),
-
-    query("name")
-      .exists()
-      .withMessage(
-        "the airqloud identifier is missing in request, consider using the name "
-      )
-      .bail()
-      .trim()
-      .isLowercase()
-      .withMessage("device name should be lower case")
-      .bail()
-      .matches(constants.WHITE_SPACES_REGEX, "i")
-      .withMessage("the device names do not have spaces in them"),
   ]),
   createTransactionController.delete
 );

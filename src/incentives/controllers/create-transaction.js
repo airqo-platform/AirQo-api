@@ -8,7 +8,68 @@ const logger = log4js.getLogger("create-transaction-util");
 const transformDataUtil = require("../utils/transform-data");
 
 const createTransaction = {
+  softRegister: async (req, res) => {
+    let request = {};
+    let { body } = req;
+    let { query } = req;
+    logText("registering transaction.............");
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { tenant } = req.query;
+      request["body"] = body;
+      request["query"] = query;
+
+      let responseFromCreateTransaction =
+        await createTransactionUtil.softCreate(request);
+      logObject(
+        "responseFromCreateTransaction in controller",
+        responseFromCreateTransaction
+      );
+      if (responseFromCreateTransaction.success === true) {
+        let status = responseFromCreateTransaction.status
+          ? responseFromCreateTransaction.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateTransaction.message,
+          transaction: responseFromCreateTransaction.data,
+        });
+      }
+
+      if (responseFromCreateTransaction.success === false) {
+        let status = responseFromCreateTransaction.status
+          ? responseFromCreateTransaction.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromCreateTransaction.errors
+          ? responseFromCreateTransaction.errors
+          : "";
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateTransaction.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   register: async (req, res) => {
+    return res.status(HTTPStatus.NOT_IMPLEMENTED).json({
+      message: "coming soon",
+      success: false,
+    });
     let request = {};
     let { body } = req;
     let { query } = req;

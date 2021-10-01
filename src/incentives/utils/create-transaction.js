@@ -5,10 +5,11 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
+const httpStatus = require("http-status");
 const logger = log4js.getLogger("create-transaction-util");
 
 const createTransaction = {
-  create: async (request) => {
+  softCreate: async (request) => {
     try {
       let { body } = request;
       let { tenant } = request.query;
@@ -47,6 +48,77 @@ const createTransaction = {
         return {
           success: false,
           message: responseFromRegisterTransaction.message,
+          errors,
+          status,
+        };
+      }
+    } catch (err) {
+      logElement(" the util server error,", err.message);
+      return {
+        success: false,
+        message: "unable to create transaction",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
+      };
+    }
+  },
+
+  create: async (request) => {
+    try {
+      let { body } = request;
+      logObject("body", body);
+
+      let responseFromCreateMOMOTransaction = {};
+
+      logObject(
+        "responseFromCreateMOMOTransaction",
+        responseFromCreateMOMOTransaction
+      );
+
+      if (responseFromCreateMOMOTransaction.success === true) {
+        const responseFromCreateTransaction =
+          await createTransaction.softCreate(request);
+
+        if (responseFromCreateTransaction.success === true) {
+          const status = responseFromCreateTransaction.status
+            ? responseFromCreateTransaction.status
+            : "";
+          const data = responseFromCreateTransaction.data;
+          return {
+            success: true,
+            status,
+            data,
+            message: "successfully created the transaction",
+          };
+        }
+
+        if (responseFromCreateTransaction.success === false) {
+          const status = responseFromCreateTransaction.status
+            ? responseFromCreateTransaction.status
+            : "";
+          const errors = responseFromCreateTransaction.errors
+            ? responseFromCreateTransaction.errors
+            : "";
+          return {
+            success: false,
+            status,
+            errors,
+          };
+        }
+      }
+
+      if (responseFromCreateMOMOTransaction.success === false) {
+        const errors = responseFromCreateMOMOTransaction.errors
+          ? responseFromCreateMOMOTransaction.errors
+          : "";
+
+        const status = responseFromCreateMOMOTransaction.status
+          ? responseFromCreateMOMOTransaction.status
+          : "";
+
+        return {
+          success: false,
+          message: responseFromCreateMOMOTransaction.message,
           errors,
           status,
         };

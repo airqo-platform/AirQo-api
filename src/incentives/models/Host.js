@@ -83,7 +83,6 @@ HostSchema.pre("update", function (next) {
 
 HostSchema.statics = {
   async register(args) {
-    logObject("the args", args);
     try {
       return {
         success: true,
@@ -94,7 +93,6 @@ HostSchema.statics = {
       };
     } catch (err) {
       let response = {};
-      logObject("the err", err);
       message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
       if (err.code === 11000) {
@@ -145,7 +143,7 @@ HostSchema.statics = {
         success: false,
         message: "unable to retrieve hosts",
         data,
-        errors: { message: "host does not exist" },
+        errors: { message: "unable to retrieve hosts" },
         status: HTTPStatus.NOT_FOUND,
       };
     } catch (error) {
