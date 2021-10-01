@@ -14,6 +14,7 @@
     <properties>
         <java.version>11</java.version>
         <spring-boot.build-image.imageName>localhost:5000/airqo/view-api</spring-boot.build-image.imageName>
+      <spring-cloud.version>2020.0.4</spring-cloud.version>
     </properties>
 
   <repositories>
@@ -103,6 +104,18 @@
       <dependency>
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
+        <version>3.12.0</version>
+      </dependency>
+
+      <!-- caching -->
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-cache</artifactId>
+      </dependency>
+
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-data-redis</artifactId>
       </dependency>
 
         <!-- Databases - Uses Mongo by default -->
@@ -151,6 +164,18 @@
             <artifactId>querydsl-apt</artifactId>
         </dependency>
     </dependencies>
+
+    <dependencyManagement>
+      <dependencies>
+        <dependency>
+          <groupId>org.springframework.cloud</groupId>
+          <artifactId>spring-cloud-dependencies</artifactId>
+          <version>${spring-cloud.version}</version>
+          <type>pom</type>
+          <scope>import</scope>
+        </dependency>
+      </dependencies>
+    </dependencyManagement>
 
     <build>
         <plugins>
