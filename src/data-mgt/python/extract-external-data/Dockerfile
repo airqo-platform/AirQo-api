@@ -17,7 +17,8 @@ COPY . /app/
 # Change the working directory
 WORKDIR /app/
 
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+# RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Set environment variables
 ENV FLASK_APP=app.py
