@@ -39,6 +39,7 @@ jobs:
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
+      run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
 
     runs-on: ubuntu-latest
     steps:
@@ -68,6 +69,7 @@ jobs:
           echo "::set-output name=run_predict::false"
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
+          echo "::set-output name=run_datawarehouse::false"
 
           while IFS= read -r file
           do
@@ -114,6 +116,10 @@ jobs:
 
             if [[ $file == src/exceedances/* ]]; then
               echo "::set-output name=run_exceedances::true"
+            fi
+
+            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
+              echo "::set-output name=run_datawarehouse::true"
             fi
           done < files.txt
 
@@ -480,3 +486,41 @@ jobs:
 
           kubectl rollout restart deployment/stage-airqo-exceedance-job -n staging
           kubectl rollout restart deployment/stage-kcca-exceedance-job -n staging
+
+  ### datawarehouse ###
+  datawarehouse:
+    name: build-push-deploy-datawarehouse
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_datawarehouse == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/data-mgt/python/extract-external-data/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
+      - name: Deploy to K8S
+        run: |
+          kubectl set image deployment/airqo-stage-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
