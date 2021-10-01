@@ -3,7 +3,6 @@ const uniqueValidator = require("mongoose-unique-validator");
 const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
@@ -104,13 +103,12 @@ photoSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (e.code === 11000) {
-        Object.entries(e.keyPattern).forEach(([key, value]) => {
+      if (err.code === 11000) {
+        Object.entries(err.keyPattern).forEach(([key, value]) => {
           return (response[key] = "duplicate value");
         });
       } else {
@@ -158,7 +156,8 @@ photoSchema.statics = {
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
-        let data = jsonify(response);
+        logObject("response", response);
+        let data = response;
         return {
           success: true,
           message: "successfully retrieved the photo(s)",
@@ -174,13 +173,12 @@ photoSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (e.code === 11000) {
-        Object.entries(e.keyPattern).forEach(([key, value]) => {
+      if (err.code === 11000) {
+        Object.entries(err.keyPattern).forEach(([key, value]) => {
           return (response[key] = "duplicate value");
         });
       } else {
@@ -241,13 +239,12 @@ photoSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (e.code === 11000) {
-        Object.entries(e.keyPattern).forEach(([key, value]) => {
+      if (err.code === 11000) {
+        Object.entries(err.keyPattern).forEach(([key, value]) => {
           return (response[key] = "duplicate value");
         });
       } else {
@@ -277,7 +274,7 @@ photoSchema.statics = {
       };
       let removedPhoto = await this.findOneAndRemove(filter, options).exec();
       if (!isEmpty(removedPhoto)) {
-        let data = jsonify(removedPhoto._doc);
+        let data = removedPhoto._doc;
         logObject("the removed photo data", data);
         return {
           success: true,
@@ -294,13 +291,12 @@ photoSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      if (e.code === 11000) {
-        Object.entries(e.keyPattern).forEach(([key, value]) => {
+      if (err.code === 11000) {
+        Object.entries(err.keyPattern).forEach(([key, value]) => {
           return (response[key] = "duplicate value");
         });
       } else {
