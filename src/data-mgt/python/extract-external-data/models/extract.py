@@ -23,8 +23,9 @@ WEATHER_STATION_AIRQUALITY_SITE_DISTANCE_THRESHOLD = os.getenv("WEATHER_STATION_
 CENTER_OF_KAMPALA_LATITUDE = os.getenv("CENTER_OF_KAMPALA_LATITUDE")
 CENTER_OF_KAMPALA_LONGITUDE =os.getenv("CENTER_OF_KAMPALA_LONGITUDE")
 SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT") 
+PRIVATE_KEY = os.getenv("PRIVATE_KEY") 
 
-credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, "private_key.json") 
+credentials = ee.ServiceAccountCredentials(SERVICE_ACCOUNT, PRIVATE_KEY) 
 
 ee.Initialize(credentials)
 

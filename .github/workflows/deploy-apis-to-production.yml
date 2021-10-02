@@ -7,6 +7,23 @@ on:
     types:
       - closed
 jobs:
+
+  image-tag:
+    name: create image tag
+    runs-on: ubuntu-latest
+    outputs:
+      build_id: ${{ steps.prep.outputs.build_id }} # build id
+      datetime: ${{ steps.prep.outputs.datetime }} # build date
+    steps:
+      - name: generate build ID
+        id: prep
+        run: |
+            sha=${GITHUB_SHA::8}
+            timestamp=$(date +%s)
+            datetime=$(date)
+            echo "::set-output name=build_id::staging-${sha}-${timestamp}"
+            echo "::set-output name=datetime::${datetime}"
+
   check:
     if: github.event.pull_request.merged == true
     #if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true
@@ -16,13 +33,14 @@ jobs:
       run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
       run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
       run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
+      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
       run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
       run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
       run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
       run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
-      run_views: ${{ steps.check_files.outputs.run_views }} # views
+      run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
 
     runs-on: ubuntu-latest
     steps:
@@ -52,7 +70,7 @@ jobs:
           echo "::set-output name=run_predict::false"
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
-          echo "::set-output name=run_views::false"
+          echo "::set-output name=run_datawarehouse::false"
 
           while IFS= read -r file
           do
@@ -101,11 +119,10 @@ jobs:
               echo "::set-output name=run_exceedances::true"
             fi
 
-            if [[ $file == src/data-mgt/java/views/* ]]; then
-              echo "::set-output name=run_views::true"
+            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
+              echo "::set-output name=run_datawarehouse::true"
             fi
           done < files.txt
-
 
   ### auth service ###
   auth-service:
@@ -144,7 +161,7 @@ jobs:
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -167,14 +184,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-registry/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest .
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-registry/
-          kubectl apply -f prod-device-registry-api.yaml
-          kubectl rollout restart deployment/airqo-device-registry-api -n production
-  
+          kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
@@ -424,6 +442,8 @@ jobs:
           kubectl rollout restart deployment/airqo-gp-model-job -n production
 
     ### exceedances ###
+  
+  ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
     needs: check
@@ -465,11 +485,11 @@ jobs:
           kubectl rollout restart deployment/airqo-exceedance-job -n production
           kubectl rollout restart deployment/kcca-exceedance-job -n production
 
-  ### views ###
-  views:
-    name: build-push-deploy-views
-    needs: check
-    if: needs.check.outputs.run_views == 'true'
+  ### datawarehouse ###
+  datawarehouse:
+    name: build-push-deploy-datawarehouse
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_datawarehouse == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -488,18 +508,16 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
       - name: Build and Push Docker Image
         run: |
-          cd src/data-mgt/java/views
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-view-api:${{ steps.prep.outputs.BUILD_ID }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-view-api:${{ steps.prep.outputs.BUILD_ID }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-view-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-view-api:${{ steps.prep.outputs.BUILD_ID }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-view-api:latest
-          
+          cd src/data-mgt/python/extract-external-data/
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/view-api/
-          kubectl apply -f prod-view-api.yaml
-          kubectl rollout restart deployment/prod-view-api -n production
+          kubectl set image deployment/airqo-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
