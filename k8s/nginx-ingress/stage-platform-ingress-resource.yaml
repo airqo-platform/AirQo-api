@@ -96,3 +96,11 @@ spec:
             backend:
               serviceName: airqo-stage-datawarehouse-api-svc
               servicePort: 4001
+          - path: /api/v1/views
+            backend:
+              serviceName: airqo-stage-views-api-svc
+              servicePort: 8080
+          - path: /api/v2/views
+            backend:
+              serviceName: airqo-stage-views-api-svc
+              servicePort: 8080
