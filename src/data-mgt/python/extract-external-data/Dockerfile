@@ -36,3 +36,15 @@ CMD ["flask", "run", "--host=0.0.0.0"]
 FROM builder as production
 ENV FLASK_ENV=production
 CMD ["flask", "run", "--host=0.0.0.0"]
+
+FROM builder as dev-message-broker
+ENV FLASK_ENV=development
+CMD ["python", "message_broker.py"]
+
+FROM builder as staging-message-broker
+ENV FLASK_ENV=staging
+CMD ["python", "message_broker.py"]
+
+FROM builder as production-message-broker
+ENV FLASK_ENV=production
+CMD ["python", "message_broker.py"]
