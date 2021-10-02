@@ -4,12 +4,12 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: prod-view-api
+  name: airqo-views-api
   namespace: production
 spec:
   selector:
     matchLabels:
-      app: view-api
+      app: views-api
   replicas: 2
   minReadySeconds: 10
   strategy:
@@ -20,13 +20,13 @@ spec:
   template:
     metadata:
       labels:
-        app: view-api
+        app: views-api
       annotations:
         sidecar.istio.io/inject: "false"
     spec:
       containers:
-        - name: view-api
-          image: us.gcr.io/airqo-250220/prod-view-api:latest
+        - name: views-api
+          image: us.gcr.io/airqo-250220/airqo-views-api:latest
           imagePullPolicy: Always
           resources:
             requests:
@@ -37,7 +37,7 @@ spec:
               cpu: "1000m"
           ports:
             - containerPort: 8080
-              name: view-api
+              name: views-api
           env:
             - name: JAVA_APP_DIR
               value: /deployments
@@ -63,11 +63,11 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: prod-view-api-svc
+  name: airqo-views-api-svc
   namespace: prod
 spec:
   selector:
-    app: view-api
+    app: views-api
   ports:
     - protocol: TCP
       port: 8080
