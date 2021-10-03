@@ -16,6 +16,12 @@ ENV FLASK_APP=manage.py
 # Expose the application's port, default is 5000 for python flask
 EXPOSE 5000
 
+FROM base as dev
+ENV FLASK_ENV=development
+
+# Run the application
+CMD ["flask", "run", "--host=0.0.0.0"]
+
 FROM base as staging
 ENV FLASK_ENV=staging
 
