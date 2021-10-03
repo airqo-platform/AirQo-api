@@ -21,7 +21,7 @@ jobs:
             sha=${GITHUB_SHA::8}
             timestamp=$(date +%s)
             datetime=$(date)
-            echo "::set-output name=build_id::staging-${sha}-${timestamp}"
+            echo "::set-output name=build_id::prod-${sha}-${timestamp}"
             echo "::set-output name=datetime::${datetime}"
 
   check:
@@ -264,7 +264,7 @@ jobs:
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -289,14 +289,16 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/analytics/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest -f Dockerfile .
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:latest
+
       - name: Deploy to K8S
         run: |
-          cd k8s/analytics/
-          kubectl apply -f prod-analytics-api.yaml
-          kubectl rollout restart deployment/airqo-analytics-api -n production
-  
+          kubectl set image deployment/airqo-analytics-api analytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+ 
   ### device uptime ###
   device-uptime:
     name: build-push-deploy-device-uptime

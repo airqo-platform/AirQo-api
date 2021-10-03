@@ -20,7 +20,7 @@ jobs:
             sha=${GITHUB_SHA::8}
             timestamp=$(date +%s)
             datetime=$(date)
-            echo "::set-output name=build_id::staging-${sha}-${timestamp}"
+            echo "::set-output name=build_id::stage-${sha}-${timestamp}"
             echo "::set-output name=datetime::${datetime}"
 
   check:
@@ -266,7 +266,7 @@ jobs:
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -291,13 +291,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/analytics/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
+
       - name: Deploy to K8S
         run: |
-          cd k8s/analytics/
-          kubectl apply -f stage-analytics-api.yaml
-          kubectl rollout restart deployment/airqo-stage-analytics-api -n staging
+          kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
   ### device uptime ###
   device-uptime:
