@@ -196,7 +196,7 @@ jobs:
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -219,13 +219,14 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-monitoring/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:latest .
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-monitor/
-          kubectl apply -f prod-device-monitor-api.yaml
-          kubectl rollout restart deployment/airqo-device-monitor-api -n production
+          kubectl set image deployment/airqo-device-monitor-api dev-monitor-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
   
   ### data-mgt ###
   data-mgt:

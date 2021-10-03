@@ -196,7 +196,7 @@ jobs:
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -221,13 +221,14 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-monitoring/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-monitor/
-          kubectl apply -f stage-device-monitor-api.yaml
-          kubectl rollout restart deployment/airqo-stage-device-monitor-api -n staging
+          kubectl set image deployment/airqo-stage-device-monitor-api sta-dev-monitor=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
   ### data-mgt ###
   data-mgt:
