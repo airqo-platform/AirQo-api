@@ -2,12 +2,10 @@ package airqo.controllers;
 
 import airqo.models.Site;
 import airqo.services.SiteService;
-import airqo.tasks.EventScheduledTasks;
 import com.querydsl.core.types.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -41,11 +39,10 @@ public class SiteController {
 		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
 	}
 
-	@GetMapping("/cache")
+	@GetMapping("/paged")
 	public ResponseEntity<?> getSites(
 		@QuerydslPredicate(root = Site.class) Predicate predicate,
 		Pageable pageable) {
-//		logger.info(env.toString());
 		Page<Site> sites = siteService.getSites(predicate, pageable);
 		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
 	}

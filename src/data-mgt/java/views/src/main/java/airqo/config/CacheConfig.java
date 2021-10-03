@@ -13,7 +13,7 @@ import java.time.Duration;
 public class CacheConfig {
 
 	@Bean
-	public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer(){
+	public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
 		return (builder) -> builder
 			.withCacheConfiguration("sitesCache",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofHours(1)))

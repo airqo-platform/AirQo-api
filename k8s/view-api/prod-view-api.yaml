@@ -39,18 +39,18 @@ spec:
             - containerPort: 8080
               name: views-api
           env:
-            - name: JAVA_APP_DIR
-              value: /deployments
             - name: JAVA_OPTIONS
               value: -Dspring.profiles.active=production
           envFrom:
             - configMapRef:
                 name: prod-view-api-config
           readinessProbe:
+            initialDelaySeconds: 60
             httpGet:
               port: 8080
               path: /actuator/health/readiness
           livenessProbe:
+            initialDelaySeconds: 60
             httpGet:
               port: 8080
               path: /actuator/health/liveness
@@ -64,7 +64,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: airqo-views-api-svc
-  namespace: prod
+  namespace: production
 spec:
   selector:
     app: views-api

@@ -6,7 +6,6 @@ import com.querydsl.core.types.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
@@ -38,7 +37,7 @@ public class DeviceController {
 		return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);
 	}
 
-	@GetMapping("/cache")
+	@GetMapping("/paged")
 	public ResponseEntity<?> getDevices(
 		@QuerydslPredicate(root = Device.class) Predicate predicate,
 		Pageable pageable) {
@@ -56,9 +55,5 @@ public class DeviceController {
 
 		Page<Device> devices = deviceService.getDevices(predicate, pageable, parameters);
 		return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);
-	}
-
-	public static class DeviceQuery {
-		String tenant;
 	}
 }

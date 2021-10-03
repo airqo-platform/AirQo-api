@@ -1,14 +1,11 @@
 package airqo.models;
 
-import airqo.serializers.LocationSerializer;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
-import org.springframework.data.mongodb.core.index.GeoSpatialIndexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -86,18 +83,6 @@ public class Site implements Serializable {
 	private Double greenness;
 	@JsonAlias({"geometry"})
 	private Geometry geometry;
-
-	public GeoJsonPoint getLocation() {
-		try {
-			double latitude = this.getLatitude();
-			double longitude = this.getLongitude();
-
-			return new GeoJsonPoint(latitude, longitude);
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		return null;
-	}
 
 	@Getter
 	@Setter

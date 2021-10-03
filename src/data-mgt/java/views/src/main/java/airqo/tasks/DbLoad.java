@@ -17,6 +17,7 @@ import org.springframework.web.client.RestTemplate;
 import javax.annotation.PostConstruct;
 
 
+@Profile("dev")
 @Component
 public class DbLoad {
 
@@ -45,7 +46,7 @@ public class DbLoad {
 			Site.SiteList airqoSites = restTemplate.getForObject(
 				String.format("%s/devices/sites?tenant=airqo", airqoBaseUrl), Site.SiteList.class);
 
-			if(airqoSites != null){
+			if (airqoSites != null) {
 				logger.info(airqoSites.toString());
 				siteService.insertSites(airqoSites.getSites(), Tenant.AIRQO);
 			}
@@ -53,7 +54,7 @@ public class DbLoad {
 			Site.SiteList kccaSites = restTemplate.getForObject(
 				String.format("%s/devices/sites?tenant=kcca", airqoBaseUrl), Site.SiteList.class);
 
-			if(kccaSites != null){
+			if (kccaSites != null) {
 				logger.info(kccaSites.toString());
 				siteService.insertSites(kccaSites.getSites(), Tenant.KCCA);
 			}
@@ -72,17 +73,16 @@ public class DbLoad {
 			// AirQo
 			Device.DeviceList airqoDevices = restTemplate.getForObject(
 				String.format("%s/devices?tenant=airqo", airqoBaseUrl), Device.DeviceList.class);
-			if(airqoDevices != null){
+			if (airqoDevices != null) {
 				logger.info(airqoDevices.toString());
 				deviceService.insertDevices(airqoDevices.getDevices(), Tenant.AIRQO);
 			}
-
 
 			// Kcca
 			Device.DeviceList kccaDevices = restTemplate.getForObject(
 				String.format("%s/devices?tenant=kcca", airqoBaseUrl), Device.DeviceList.class);
 
-			if(kccaDevices != null){
+			if (kccaDevices != null) {
 				logger.info(kccaDevices.toString());
 				deviceService.insertDevices(kccaDevices.getDevices(), Tenant.KCCA);
 			}

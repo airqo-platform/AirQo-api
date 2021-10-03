@@ -18,14 +18,14 @@ public class SiteServiceImpl implements SiteService {
 	@Autowired
 	SiteRepository siteRepository;
 
-	@Cacheable(value = "sitesCache")
+
 	@Override
 	public Page<Site> getSites(Predicate predicate, Pageable pageable) {
 		return siteRepository.findAll(predicate, pageable);
 	}
 
-	@Cacheable(value = "sitesCache")
 	@Override
+	@Cacheable(value = "sites")
 	public List<Site> getSitesList(Predicate predicate) {
 		return (List<Site>) siteRepository.findAll(predicate);
 	}
