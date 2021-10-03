@@ -377,7 +377,7 @@ jobs:
   ### locate ###
   locate:
     name: build-push-deploy-locate
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -402,14 +402,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/locate/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/locate/
-          kubectl apply -f stage-locate-api.yaml
-          kubectl rollout restart deployment/airqo-stage-locate-api -n staging
-
+          kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
   ### gp model ###
   gp-model:
     name: build-push-deploy-gp-model
