@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1beta1
 kind: Ingress
 metadata:
-  name: ingress-platform-resource
+  name: api-ingress-resource
   namespace: production
   annotations:
     kubernetes.io/ingress.class: "nginx" 
@@ -27,11 +27,12 @@ metadata:
       location @access_denied {
        return 401 '{"error": "Access Denied"}';
       }
-      
+
+      location = / {
+       return 200 '{"messsage": "Welcome to the AirQo API.", "docs": "https://docs.airqo.net/airqo-rest-api-documentation/"}';
+      }
+
       location = /auth {
-        if ($$request_uri = "/") {
-            return 200;
-        }
 
         if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
             return 200;
@@ -44,43 +45,7 @@ metadata:
         if ($request_uri ~ "(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)") {
             return 200;
         }
-
-        if ($request_uri ~ "(/api/v1/incentives)|(/api/v2/incentives)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/predict)|(/api/v2/predict)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/analytics)|(/api/v2/analytics)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/map)|(/api/v2/map)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/data)|(/api/v2/data)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/devices)|(/api/v2/devices)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/datawarehouse)|(/api/v2/datawarehouse)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/monitor)|(/api/v2/monitor)") {
-            return 200;
-        }
-
+        
         internal;
         proxy_method            POST;
         proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
@@ -91,13 +56,9 @@ metadata:
 
 spec:
   rules:
-    - host: platform.airqo.net
+    - host: api.airqo.net
       http:
         paths:
-          - path: /
-            backend:
-              serviceName: airqo-platform-svc
-              servicePort: 80
           - path: /api/v1/users
             backend:
               serviceName: airqo-auth-api-svc

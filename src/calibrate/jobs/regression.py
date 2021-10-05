@@ -209,5 +209,3 @@ if __name__ == "__main__":
     rf_regressor = random_forest(hourly_combined_dataset)
     dataset = get_clean_data_PM10()
     lasso_regressor = lasso_reg(dataset)
-
-    
