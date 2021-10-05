@@ -84,6 +84,7 @@ class EventsModel(BasePyMongoModel):
                 .project(site_id={"$toObjectId": "$site_id"}, time=1, pm2_5=1, pm10=1, no2=1)
                 .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
                 .unwind('site')
+                .sort(time=self.ASCENDING)
                 .project(
                     _id=0,
                     time=1,

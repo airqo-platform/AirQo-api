@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-dev-device-monitor-api
   service_name: airqo-dev-device-registry-api-svc
   labels: sta-dev-monitor
-  secret: stage-device-monitor-secret
+  secret: env-device-monitoring-development
 replicaCount: 2
 
 image:

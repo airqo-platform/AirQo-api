@@ -801,11 +801,16 @@ const registerDeviceUtil = {
           errors,
         };
       }
+      let opts = {};
+      update["$addToSet"] = {};
+      update["$addToSet"]["pictures"] = update.pictures;
+      delete update.pictures;
+
       let responseFromModifyDevice = await getModelByTenant(
         tenant,
         "device",
         DeviceSchema
-      ).modify({ filter, update });
+      ).modify({ filter, update, opts });
 
       logObject("responseFromModifyDevice ", responseFromModifyDevice);
 

@@ -1,0 +1,44 @@
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaUser
+metadata:
+  name: {{ .Values.topics.transformedMeasurements.producer.username }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    strimzi.io/cluster: {{ .Values.cluster }}
+spec:
+  authentication:
+    type: {{ .Values.topics.transformedMeasurements.producer.authentication.type }}
+  authorization:
+    type: {{ .Values.topics.transformedMeasurements.producer.authorization.type }}
+    acls:
+      {{- range $acl := .Values.topics.transformedMeasurements.producer.authorization.acls }}
+      - resource:
+          type: topic
+          name: {{ $acl.name }}
+          patternType: literal
+        operation: {{ $acl.operation }}
+        host: "*"
+      {{- end}}
+
+---
+apiVersion: kafka.strimzi.io/v1beta1
+kind: KafkaUser
+metadata:
+  name: {{ .Values.topics.transformedMeasurements.consumer.username }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    strimzi.io/cluster: {{ .Values.cluster }}
+spec:
+  authentication:
+    type: {{ .Values.topics.transformedMeasurements.consumer.authentication.type }}
+  authorization:
+    type: {{ .Values.topics.transformedMeasurements.consumer.authorization.type }}
+    acls:
+      {{- range $acl := .Values.topics.transformedMeasurements.consumer.authorization.acls }}
+      - resource:
+          type: topic
+          name: {{ $acl.name }}
+          patternType: literal
+        operation: {{ $acl.operation }}
+        host: "*"
+      {{- end}}

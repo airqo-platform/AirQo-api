@@ -57,12 +57,6 @@ class AirQoApi:
 
     def __request(self, endpoint, params, body=None, method=None):
 
-        # [PUT]
-        # https: // platform.airqo.net / api / v1 / devices?tenant = airqo & name = aq_04
-        # {
-        #     "isPrimaryInLocation": "true"
-        # }
-
         headers = {'Authorization': self.AIRQO_API_KEY}
         if method is None:
             api_request = requests.get(
