@@ -489,4 +489,51 @@ router.delete(
   createTransactionController.delete
 );
 
+router.post(
+  "/transactions/momo",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("hosts")
+        .exists()
+        .withMessage("the hosts are missing in request")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the hosts must be an array")
+        .isMongoId()
+        .withMessage("id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("hosts.*")
+        .isMongoId()
+        .withMessage("the provided host is not an object ID"),
+      body("amount")
+        .exists()
+        .withMessage("the amount is missing in request")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("amount must be a number"),
+      body("description")
+        .exists()
+        .withMessage("the description is missing in request")
+        .trim(),
+    ],
+  ]),
+  createTransactionController.registerMomoMTN
+);
+
 module.exports = router;

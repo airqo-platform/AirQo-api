@@ -7,6 +7,7 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger("create-transaction-util");
+const mtnMomoDisbursements = require("../config/momo-disbursement");
 
 const createTransaction = {
   softCreate: async (request) => {
@@ -130,6 +131,60 @@ const createTransaction = {
         message: "unable to create transaction",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
         errors: { message: err.message },
+      };
+    }
+  },
+  createMomoMTN: async (request) => {
+    try {
+      const { amount, currency, phoneNumber } = request;
+      let response = {};
+      mtnMomoDisbursements
+        .transfer({
+          amount,
+          currency,
+          externalId: "947354",
+          payee: {
+            partyIdType: "MSISDN",
+            partyId: phoneNumber,
+          },
+          payerMessage: "testing",
+          payeeNote: "hello",
+          callbackUrl: "https://75f59b50.ngrok.io",
+        })
+        .then((transactionId) => {
+          console.log({ transactionId });
+          // Get transaction status
+          response["transaction_id"] = transactionId;
+          const status = mtnMomoDisbursements.getTransaction(transactionId);
+          logObject("status", status);
+          response["status"] = status;
+          return status;
+        })
+        .then((transaction) => {
+          console.log({ transaction });
+          const balance = mtnMomoDisbursements.getBalance();
+          response["balance"] = balance;
+          return balance;
+        })
+        .then((accountBalance) => {
+          console.log({ accountBalance });
+          response["success"] = true;
+        })
+        .catch((error) => {
+          response["success"] = false;
+          response["errors"] = {
+            message: error,
+          };
+          console.log(error);
+        });
+
+      return response;
+    } catch (error) {
+      return {
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        success: false,
       };
     }
   },
