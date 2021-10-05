@@ -14,6 +14,8 @@ load_dotenv(dotenv_path)
 class Config:
     TENANT = os.getenv("TENANT")
     HOURS = os.getenv("HOURS")
+    SERVICE_ACCOUNT = os.getenv("SERVICE_ACCOUNT")
+    EVENTS_ALERTS_COLLECTION = os.getenv("EVENTS_ALERTS_COLLECTION")
 
 
 class ProductionConfig(Config):

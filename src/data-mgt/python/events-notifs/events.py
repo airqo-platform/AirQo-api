@@ -1,19 +1,86 @@
 import traceback
 from datetime import datetime, timedelta
 
+import firebase_admin
 import pandas as pd
+from firebase_admin import credentials, messaging
+from firebase_admin import firestore
 
 from config import configuration
-from utils import AirQoApi, send_alerts, get_topic, compose_notification_message
+from utils import AirQoApi, compose_notification_message, pm_to_string
 
 
-class EventsJob:
+class EventsNotifications:
 
     def __init__(self):
         self.airqo_api = AirQoApi()
         self.hours = int(configuration.HOURS)
+        self.subscribers = []
+        self.alerts = []
+        self.events = []
+        cred = credentials.Certificate(configuration.SERVICE_ACCOUNT)
+        firebase_admin.initialize_app(cred)
 
-    def average_and_send_alerts(self):
+        self.db = firestore.client()
+
+    def send_alerts(self):
+
+        for alert in self.alerts:
+            registration_token = alert['receiver']
+            message = messaging.Message(
+                data={
+                    'title': 'AirQo',
+                    'body': alert['message'],
+                },
+                token=registration_token,
+            )
+            response = messaging.send(message)
+            print('Successfully sent message:', response)
+
+    def send_notifications(self):
+
+        self.get_subscribers()
+        if self.subscribers:
+
+            self.get_measurements()
+            if self.events:
+
+                events_df = pd.DataFrame(self.events)
+                now_hours = datetime.utcnow().hour
+                for subscriber in self.subscribers:
+
+                    event = events_df.loc[events_df['siteId'] == subscriber["siteId"]]
+
+                    if not event.empty:
+
+                        pm2_5 = float(event.iloc[0]['pm2_5'])
+                        site_name = event.iloc[0]['siteName']
+
+                        if subscriber["type"] == "custom" and pm_to_string(pm2_5) == subscriber["airQuality"]:
+                            self.alerts.append({
+                                "receiver": subscriber["receiver"],
+                                "message": compose_notification_message(pm2_5, site_name)
+                            })
+
+                        elif subscriber["type"] == "fixeddaily" and now_hours == int(subscriber["hour"]):
+                            self.alerts.append({
+                                "receiver": subscriber["receiver"],
+                                "message": compose_notification_message(pm2_5, site_name)
+                            })
+
+                        else:
+                            continue
+
+        self.send_alerts()
+
+    def get_subscribers(self):
+        subscribers_ref = self.db.collection(configuration.EVENTS_ALERTS_COLLECTION)
+        docs = subscribers_ref.stream()
+
+        for doc in docs:
+            self.subscribers.append(doc.to_dict())
+
+    def get_measurements(self):
         time = datetime.utcnow()
         start_time = (time - timedelta(hours=self.hours)).strftime('%Y-%m-%dT%H:00:00Z')
         end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=self.hours)) \
@@ -22,68 +89,34 @@ class EventsJob:
         print(f'UTC start time : {start_time}')
         print(f'UTC end time : {end_time}')
 
-        devices = self.airqo_api.get_sites(tenant='airqo')
-        sites_df = pd.DataFrame(devices)
+        events = self.airqo_api.get_events(tenant=configuration.TENANT, start_time=start_time,
+                                           end_time=end_time, frequency="hourly", metadata="site_id")
 
-        if sites_df.count == 0:
-            print("sites empty")
-            return
+        events_df = pd.DataFrame(events)
 
-        alerts = []
-        raw_measurements = []
+        if events_df.empty:
+            print("data frame is empty")
+            return []
 
-        for _, site in sites_df.iterrows():
-
-            if '_id' not in site.keys():
-                print(f'site_id missing in site keys : {site.keys()}')
-                continue
-
-            site_id = site['_id']
-            device_measurements = self.airqo_api.get_events(tenant=configuration.TENANT, start_time=start_time,
-                                                            end_time=end_time, site_id=site_id)
-
-            if not device_measurements:
-                print(f"No measurements for site {site_id} : startTime {start_time} : endTime : {end_time}")
-                continue
-
-            raw_measurements.extend(device_measurements)
-
-        raw_measurements_df = pd.DataFrame(raw_measurements)
-
-        sites_events_groups = raw_measurements_df.groupby('site_id')
-        for _, site_events in sites_events_groups:
-            alert = dict()
-
+        for _, event in events_df.iterrows():
             try:
 
-                measurements = pd.json_normalize(site_events.to_dict(orient='records'))
-                measurements['time'] = pd.to_datetime(measurements['time'])
-                measurements.set_index('time')
+                readings = event.to_dict()
+                time = readings['time']
+                site_id = readings['site_id']
+                pm2_5 = readings['average_pm2_5']['calibratedValue']
 
-                site_id = measurements.iloc[0]['site_id']
-                if measurements.iloc[0]['siteDetails.description'] != '':
-                    site_name = f"{measurements.iloc[0]['siteDetails.description']}"
+                if readings['siteDetails']['description'] != '':
+                    site_name = f"{readings['siteDetails']['description']}"
                 else:
-                    site_name = f"{measurements.iloc[0]['siteDetails.name']}"
+                    site_name = f"{readings['siteDetails']['name']}"
 
-                averages = measurements.resample('1H', on='time').mean().round(2)
-
-                averages = averages[averages['pm2_5.value'].notna()]
-                averages = averages[averages['s2_pm2_5.value'].notna()]
-
-                averages["average_pm2_5.value"] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1).round(2)
-
-                pm2_5 = averages.iloc[0]['average_pm2_5.value']
-
-                alert['topic'] = get_topic(site_id=site_id, pm2_5=pm2_5)
-                alert['site_id'] = site_id
-                alert['message'] = compose_notification_message(pm2_5=pm2_5, site_name=site_name)
-
-                if alert['topic'] is not None and alert['message'] is not None and alert['site_id'] is not None:
-                    alerts.append(alert)
+                self.events.append({
+                    "siteName": site_name,
+                    "siteId": site_id,
+                    "pm2_5": pm2_5,
+                    "time": time
+                })
 
             except:
                 traceback.print_exc()
-
-        if alerts:
-            send_alerts(alerts=alerts)

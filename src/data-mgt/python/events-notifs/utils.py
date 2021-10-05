@@ -26,6 +26,23 @@ def compose_notification_message(pm2_5, site_name):
         return None
 
 
+def pm_to_string(pm2_5):
+    if 0.00 <= pm2_5 <= 12.09:
+        return 'good'
+    elif 12.10 <= pm2_5 <= 35.49:
+        return 'moderate'
+    if 35.50 <= pm2_5 <= 55.49:
+        return 'ufsg'
+    elif 55.50 <= pm2_5 <= 150.49:
+        return 'unhealthy'
+    elif 150.50 <= pm2_5 <= 250.49:
+        return 'veryunhealthy'
+    elif 250.50 <= pm2_5 <= 500.40:
+        return 'hazardous'
+    else:
+        return None
+
+
 def get_topic(pm2_5, site_id):
     if 0.00 <= pm2_5 <= 12.09:
         return f'{site_id}-good'.strip().lower()
@@ -57,9 +74,8 @@ def send_alerts(alerts):
                 'site_id': alert_data.get("site_id"),
             }
 
-            message = messaging.Message( data=data, topic=topic, notification=notification)
+            message = messaging.Message(data=data, topic=topic)
 
-            print(message)
             response = messaging.send(message)
             print('Successfully sent message:', response)
 
@@ -72,18 +88,27 @@ class AirQoApi:
         self.airqo_base_url = configuration.AIRQO_BASE_URL
         self.airqo_api_key = f"JWT {configuration.AIRQO_API_KEY}"
 
-    def get_events(self, tenant, start_time, end_time, site_id):
+    def get_events(self, tenant, start_time=None, end_time=None, metadata=None, site_id=None, frequency=None):
         headers = {'Authorization': f'JWT {self.airqo_api_key}'}
 
         params = {
             "tenant": tenant,
-            "frequency": 'raw',
-            "site_id": site_id,
-            "metadata": "site_id",
-            "startTime": start_time,
-            "endTime": end_time
         }
 
+        if frequency is not None:
+            params['frequency'] = frequency
+
+        if site_id is not None:
+            params['site_id'] = site_id
+
+        if metadata is not None:
+            params['metadata'] = metadata
+
+        if start_time is not None:
+            params['start_time'] = start_time
+
+        if end_time is not None:
+            params['end_time'] = end_time
         try:
             api_request = requests.get(
                 '%s%s' % (self.airqo_base_url, 'devices/events'),
