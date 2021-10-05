@@ -7,19 +7,7 @@ COPY . /app/
 WORKDIR /app/
 
 # Install and cache requirements for faster builds
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
-
-
-# Development
-FROM base as development
-ENV ENV=development
-CMD ["python", "main.py"]
-
-# Staging
-FROM base as staging
-ENV ENV=staging
-CMD ["python", "main.py"]
-
+RUN pip install -r requirements.txt
 
 # Production
 FROM base as production
