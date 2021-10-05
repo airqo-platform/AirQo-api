@@ -261,6 +261,20 @@ public class Utils {
         String urlString = properties.getProperty("airqo.base.url", "");
         List<Device> devices = getDevices(urlString, "airqo");
 
+        double pm2_5MaxValue;
+        double pm10MaxValue;
+
+        try {
+            pm2_5MaxValue = Double.parseDouble(properties.getProperty("pm2_5.value.max", "1000"));
+            pm10MaxValue = Double.parseDouble(properties.getProperty("pm10.value.max", "1000"));
+        } catch (NumberFormatException e) {
+            e.printStackTrace();
+            pm2_5MaxValue = 1000;
+            pm10MaxValue = 1000;
+        }
+
+        double finalPm2_5MaxValue = pm2_5MaxValue;
+        double finalPm10MaxValue = pm10MaxValue;
         deviceMeasurements.forEach(rawMeasurement -> {
 
             Device device = getDeviceByName(devices, rawMeasurement.getDevice());
@@ -340,28 +354,28 @@ public class Utils {
 
                     if (transformedMeasurement.getPm2_5().getValue() != null) {
                         if (transformedMeasurement.getPm2_5().getValue() < 0.0
-                                || transformedMeasurement.getPm2_5().getValue() > 1000) {
+                                || transformedMeasurement.getPm2_5().getValue() > finalPm2_5MaxValue) {
                             transformedMeasurement.getPm2_5().setValue(null);
                         }
                     }
 
                     if (transformedMeasurement.getS2_pm2_5().getValue() != null) {
                         if (transformedMeasurement.getS2_pm2_5().getValue() < 0.0
-                                || transformedMeasurement.getS2_pm2_5().getValue() > 1000) {
+                                || transformedMeasurement.getS2_pm2_5().getValue() > finalPm2_5MaxValue) {
                             transformedMeasurement.getS2_pm2_5().setValue(null);
                         }
                     }
 
                     if (transformedMeasurement.getPm10().getValue() != null) {
                         if (transformedMeasurement.getPm10().getValue() < 0.0
-                                || transformedMeasurement.getPm10().getValue() > 1000) {
+                                || transformedMeasurement.getPm10().getValue() > finalPm10MaxValue) {
                             transformedMeasurement.getPm10().setValue(null);
                         }
                     }
 
                     if (transformedMeasurement.getS2_pm10().getValue() != null) {
                         if (transformedMeasurement.getS2_pm10().getValue() < 0.0
-                                || transformedMeasurement.getS2_pm10().getValue() > 1000) {
+                                || transformedMeasurement.getS2_pm10().getValue() > finalPm10MaxValue) {
                             transformedMeasurement.getS2_pm10().setValue(null);
                         }
                     }
