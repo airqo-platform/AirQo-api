@@ -23,20 +23,22 @@ TransactionSchema.pre("save", function (next) {
 TransactionSchema.pre("findOneAndUpdate", function () {
   let that = this;
   const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
+  if (update) {
+    if (update.__v != null) {
+      delete update.__v;
+    }
+    const keys = ["$set", "$setOnInsert"];
+    for (const key of keys) {
+      if (update[key] != null && update[key].__v != null) {
+        delete update[key].__v;
+        if (Object.keys(update[key]).length === 0) {
+          delete update[key];
+        }
       }
     }
+    update.$inc = update.$inc || {};
+    update.$inc.__v = 1;
   }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
 });
 
 TransactionSchema.pre("update", function (next) {
@@ -122,7 +124,7 @@ TransactionSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let modifiedUpdate = update;
-      let projection = {};
+      let projection = { _id: 1 };
       Object.keys(modifiedUpdate).forEach((key) => {
         projection[key] = 1;
       });

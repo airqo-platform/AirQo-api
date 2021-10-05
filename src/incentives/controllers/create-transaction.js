@@ -40,7 +40,7 @@ const createTransaction = {
         return res.status(status).json({
           success: true,
           message: responseFromCreateTransaction.message,
-          transaction: responseFromCreateTransaction.data,
+          created_transaction: responseFromCreateTransaction.data,
         });
       }
 
@@ -128,56 +128,45 @@ const createTransaction = {
     }
   },
 
-  delete: async (req, res) => {
+  registerMomoMTN: async (req, res) => {
     try {
-      const { query } = req;
       let request = {};
-
-      logText(".................................................");
-      logText("inside delete transaction............");
-      const { tenant } = req.query;
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          transformDataUtil.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      request["query"] = query;
-      let responseFromRemoveTransaction = await createTransactionUtil.delete(
+      const responseFromCreateMomo = await createTransactionUtil.createMomoMTN(
         request
       );
-
-      if (responseFromRemoveTransaction.success === true) {
-        let status = responseFromRemoveTransaction.status
-          ? responseFromRemoveTransaction.status
+      logObject("responseFromCreateMomo", responseFromCreateMomo);
+      if (responseFromCreateMomo.success === true) {
+        const status = responseFromCreateMomo.status
+          ? responseFromCreateMomo.status
           : HTTPStatus.OK;
+        const data = responseFromCreateMomo.data
+          ? responseFromCreateMomo.data
+          : "";
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveTransaction.message,
-          transaction: responseFromRemoveTransaction.data,
+          message: responseFromCreateMomo.message,
+          data,
         });
       }
 
-      if (responseFromRemoveTransaction.success === false) {
-        let errors = responseFromRemoveTransaction.errors
-          ? responseFromRemoveTransaction.errors
-          : "";
-        let status = responseFromRemoveTransaction.status
-          ? responseFromRemoveTransaction.status
+      if (responseFromCreateMomo.success === false) {
+        const status = responseFromCreateMomo.status
+          ? responseFromCreateMomo.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromCreateMomo.errors
+          ? responseFromCreateMomo.errors
+          : "";
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveTransaction.message,
+          message: "Internal Server Error",
           errors,
         });
       }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
         errors: { message: error.message },
+        message: "Internal Server Error",
+        success: false,
       });
     }
   },
@@ -210,7 +199,7 @@ const createTransaction = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateTransaction.message,
-          transaction: responseFromUpdateTransaction.data,
+          updated_transaction: responseFromUpdateTransaction.data,
         });
       }
 
@@ -321,7 +310,7 @@ const createTransaction = {
         return res.status(status).json({
           success: true,
           message: responseFromRemoveTransaction.message,
-          transaction: responseFromRemoveTransaction.data,
+          deleted_transaction: responseFromRemoveTransaction.data,
         });
       }
 

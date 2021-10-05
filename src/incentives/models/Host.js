@@ -61,20 +61,22 @@ HostSchema.pre("save", function (next) {
 HostSchema.pre("findOneAndUpdate", function () {
   let that = this;
   const update = that.getUpdate();
-  if (update.__v != null) {
-    delete update.__v;
-  }
-  const keys = ["$set", "$setOnInsert"];
-  for (const key of keys) {
-    if (update[key] != null && update[key].__v != null) {
-      delete update[key].__v;
-      if (Object.keys(update[key]).length === 0) {
-        delete update[key];
+  if (update) {
+    if (update.__v != null) {
+      delete update.__v;
+    }
+    const keys = ["$set", "$setOnInsert"];
+    for (const key of keys) {
+      if (update[key] != null && update[key].__v != null) {
+        delete update[key].__v;
+        if (Object.keys(update[key]).length === 0) {
+          delete update[key];
+        }
       }
     }
+    update.$inc = update.$inc || {};
+    update.$inc.__v = 1;
   }
-  update.$inc = update.$inc || {};
-  update.$inc.__v = 1;
 });
 
 HostSchema.pre("update", function (next) {
@@ -158,7 +160,7 @@ HostSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let modifiedUpdate = update;
-      let projection = {};
+      let projection = { _id: 1 };
       Object.keys(modifiedUpdate).forEach((key) => {
         projection[key] = 1;
       });
@@ -195,7 +197,7 @@ HostSchema.statics = {
   },
   async remove({ filter = {} } = {}) {
     try {
-      let projection = { _id: 0, email: 1, firstName: 1, lastName: 1 };
+      let projection = { _id: 1, email: 1, first_name: 1, last_name: 1 };
       let options = { projection };
       let removedHost = await this.findOneAndRemove(filter, options);
 
