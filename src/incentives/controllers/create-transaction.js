@@ -1,6 +1,6 @@
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
-const { validationResult } = require("express-validator");
+const { validationResult, body } = require("express-validator");
 const { tryCatchErrors, badRequest } = require("../utils/errors");
 const createTransactionUtil = require("../utils/create-transaction");
 const log4js = require("log4js");
@@ -130,7 +130,19 @@ const createTransaction = {
 
   registerMomoMTN: async (req, res) => {
     try {
+      const { body, query } = req;
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          transformDataUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       let request = {};
+      request["body"] = body;
+      request["query"] = query;
       const responseFromCreateMomo = await createTransactionUtil.createMomoMTN(
         request
       );

@@ -8,6 +8,7 @@ const log4js = require("log4js");
 const httpStatus = require("http-status");
 const logger = log4js.getLogger("create-transaction-util");
 const mtnMomoDisbursements = require("../config/momo-disbursement");
+const createHostUtil = require("./create-host");
 
 const createTransaction = {
   softCreate: async (request) => {
@@ -134,50 +135,121 @@ const createTransaction = {
       };
     }
   },
+  retrievePhoneNumbers: async (request) => {
+    const { body, query } = request;
+    const { hosts } = body;
+    let phoneNumbers = [];
+    let failedHosts = [];
+    let success = "";
+    let message = "";
+    let errors = {};
+    let status = "";
+
+    hosts.forEach(async (host_id) => {
+      let modifiedRequest = request;
+      modifiedRequest["query"]["id"] = host_id;
+      let responseFromListHost = await createHostUtil.list(modifiedRequest);
+
+      logObject("responseFromListHost", responseFromListHost);
+
+      if (responseFromListHost.success === true) {
+        let data = responseFromListHost.data;
+        if (data.length > 1) {
+          failedHosts.push(host_id);
+          logElement(
+            "received more than one document for this host search",
+            host_id
+          );
+        }
+        let phoneNumber = data[0].phone_number;
+        logElement("the phone number", phoneNumber);
+        phoneNumbers.push(phoneNumber);
+        success = true;
+        message = "successfully retrieved some phone numbers";
+        (status = httpStatus.OK), logObject("phoneNumbers", phoneNumbers);
+      }
+
+      if (responseFromListHost.success === false) {
+        logObject("unable to retrieve host details", responseFromListHost);
+        failedHosts.push(host_id);
+        success = false;
+        message = "unable to retrieve host details";
+        errors = responseFromListHost.errors;
+        status = httpStatus.INTERNAL_SERVER_ERROR;
+      }
+    });
+    let response = {
+      success,
+      message,
+      data: phoneNumbers,
+      status,
+      errors,
+    };
+    return response;
+  },
   createMomoMTN: async (request) => {
     try {
-      const { amount, currency, phoneNumber } = request;
+      const { body } = request;
+      const { amount, currency, phoneNumber, hosts, description } = body;
       let response = {};
-      mtnMomoDisbursements
-        .transfer({
-          amount,
-          currency,
-          externalId: "947354",
-          payee: {
-            partyIdType: "MSISDN",
-            partyId: phoneNumber,
-          },
-          payerMessage: "testing",
-          payeeNote: "hello",
-          callbackUrl: "https://75f59b50.ngrok.io",
-        })
-        .then((transactionId) => {
-          console.log({ transactionId });
-          // Get transaction status
-          response["transaction_id"] = transactionId;
-          const status = mtnMomoDisbursements.getTransaction(transactionId);
-          logObject("status", status);
-          response["status"] = status;
-          return status;
-        })
-        .then((transaction) => {
-          console.log({ transaction });
-          const balance = mtnMomoDisbursements.getBalance();
-          response["balance"] = balance;
-          return balance;
-        })
-        .then((accountBalance) => {
-          console.log({ accountBalance });
-          response["success"] = true;
-        })
-        .catch((error) => {
-          response["success"] = false;
-          response["errors"] = {
-            message: error,
-          };
-          console.log(error);
-        });
 
+      const responseFromRetrievePhoneNumbers =
+        await createTransaction.retrievePhoneNumbers(request);
+
+      logObject(
+        "responseFromRetrievePhoneNumbers",
+        responseFromRetrievePhoneNumbers
+      );
+
+      if (responseFromRetrievePhoneNumbers.success === true) {
+        const phoneNumbers = responseFromRetrievePhoneNumbers.data;
+        phoneNumbers.forEach((value) => {
+          mtnMomoDisbursements
+            .transfer({
+              amount,
+              currency,
+              externalId: "947354",
+              payee: {
+                partyIdType: "MSISDN",
+                partyId: value,
+              },
+              payerMessage: "testing",
+              payeeNote: "hello",
+              callbackUrl: "https://75f59b50.ngrok.io",
+            })
+            .then((transactionId) => {
+              console.log({ transactionId });
+              // Get transaction status
+              response["transaction_id"] = transactionId;
+              const status = mtnMomoDisbursements.getTransaction(transactionId);
+              logObject("status", status);
+              response["status"] = status;
+              return status;
+            })
+            .then((transaction) => {
+              console.log({ transaction });
+              const balance = mtnMomoDisbursements.getBalance();
+              response["balance"] = balance;
+              return balance;
+            })
+            .then((accountBalance) => {
+              console.log({ accountBalance });
+              response["success"] = true;
+            })
+            .catch((error) => {
+              response["success"] = false;
+              response["errors"] = {
+                message: error,
+              };
+              console.log(error);
+            });
+        });
+      }
+
+      if (responseFromRetrievePhoneNumbers.success === false) {
+        return responseFromRetrievePhoneNumbers;
+      }
+      logObject("Creating MOMO MTN response", response);
       return response;
     } catch (error) {
       return {

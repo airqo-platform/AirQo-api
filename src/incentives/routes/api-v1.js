@@ -510,13 +510,7 @@ router.post(
         .custom((value) => {
           return Array.isArray(value);
         })
-        .withMessage("the hosts must be an array")
-        .isMongoId()
-        .withMessage("id must be an object ID")
-        .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .withMessage("the hosts must be an array"),
       body("hosts.*")
         .isMongoId()
         .withMessage("the provided host is not an object ID"),
