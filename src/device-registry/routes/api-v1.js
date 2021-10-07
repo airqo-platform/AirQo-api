@@ -1969,6 +1969,15 @@ router.get(
         .withMessage(
           "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
         ),
+      query("external")
+        .if(query("external").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage(
+          "the external value is not among the expected ones which include: no and yes"
+        ),
       query("device")
         .if(query("device").exists())
         .notEmpty()
