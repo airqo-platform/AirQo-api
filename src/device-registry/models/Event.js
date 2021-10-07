@@ -354,27 +354,17 @@ eventSchema.statics = {
     delete search["frequency"];
     delete search["metadata"];
 
-    if (!metadata || metadata === "device") {
-    }
-
-    if (!external || external === "yes") {
-      projection["average_pm2_5"] = 0;
-      projection["average_pm10"] = 0;
+    if (external === "yes") {
       projection["s2_pm10"] = 0;
       projection["s2_pm2_5"] = 0;
+      projection[as] = 0;
     }
 
-    if (frequency && frequency === "hourly") {
-    }
+    logElement("the frequency", frequency);
 
-    if (frequency && frequency === "raw") {
+    if (frequency === "raw" || frequency === "daily") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
-    }
-
-    if (frequency && frequency === "daily") {
-      pm10 = "$pm2_5";
-      pm2_5 = "$pm2_5";
     }
 
     if (metadata === "site") {
@@ -422,10 +412,10 @@ eventSchema.statics = {
         _device: "$device",
         _time: "$time",
         _average_pm2_5: "$average_pm2_5",
-        _pm2_5: "$pm2_5",
+        _pm2_5: pm2_5,
         _s2_pm2_5: "$s2_pm2_5",
         _average_pm10: "$average_pm10",
-        _pm10: "$pm10",
+        _pm10: pm10,
         _s2_pm10: "$s2_pm10",
         _frequency: "$frequency",
         _battery: "$battery",
@@ -505,28 +495,15 @@ eventSchema.statics = {
     if (!metadata || metadata === "device") {
     }
 
-    if (external === "no") {
-    }
-
-    if (!external || external === "yes") {
+    if (external === "yes") {
       projection["s2_pm2_5"] = 0;
       projection["s2_pm10"] = 0;
-      projection["average_pm10"] = 0;
-      projection["average_pm2_5"] = 0;
+      projection[as] = 0;
     }
 
-    if (frequency && frequency === "hourly") {
-      logText("the frequency is hourly...");
-    }
-
-    if (frequency && frequency === "raw") {
+    if (frequency === "raw" || frequency === "daily") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
-    }
-
-    if (frequency && frequency === "daily") {
-      pm10 = "$pm2_5";
-      pm2_5 = "$pm2_5";
     }
 
     logObject("the projection", projection);
@@ -559,6 +536,7 @@ eventSchema.statics = {
     }
 
     logObject("the search", search);
+    logObject("the projection in", projection);
 
     return this.aggregate()
       .unwind("values")
@@ -580,10 +558,10 @@ eventSchema.statics = {
         site_id: { $first: "$site_id" },
         time: { $first: "$time" },
         average_pm2_5: { $first: "$average_pm2_5" },
-        pm2_5: { $first: "$pm2_5" },
+        pm2_5: { $first: pm2_5 },
         s2_pm2_5: { $first: "$s2_pm2_5" },
         average_pm10: { $first: "$average_pm10" },
-        pm10: { $first: "$pm10" },
+        pm10: { $first: pm10 },
         s2_pm10: { $first: "$s2_pm10" },
         frequency: { $first: "$frequency" },
         battery: { $first: "$battery" },
