@@ -1,4 +1,4 @@
-namespace: staging
+namespace: production
 failedJobsHistoryLimit: 1
 successfulJobsHistoryLimit: 3
 

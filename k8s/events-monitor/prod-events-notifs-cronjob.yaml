@@ -2,7 +2,7 @@ apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
   name: prod-events-notifs-job
-  namespace: staging
+  namespace: production
 spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
