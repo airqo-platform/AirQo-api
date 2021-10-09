@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 
@@ -62,9 +61,9 @@ uniqueIdentifierCounterSchema.statics = {
       logObject("the update", update);
       let options = { writeConcern: "majority" };
       let updatedSite = await this.findOneAndUpdate(filter, update, options);
-      let data = updatedSite._doc;
       logObject("the data", updatedSite);
-      if (!isEmpty(data)) {
+      if (!isEmpty(updatedSite)) {
+        const data = updatedSite._doc;
         return {
           success: true,
           message: "successfully modified the counter document",
