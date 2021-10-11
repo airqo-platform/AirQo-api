@@ -67,7 +67,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "unable to generate the QR code --server side error",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -85,18 +85,14 @@ const registerDeviceUtil = {
       );
 
       logger.info(
-        `responseFromCreateOnThingspeak -- ${jsonify(
-          responseFromCreateOnThingspeak
-        )}`
+        `responseFromCreateOnThingspeak -- ${responseFromCreateOnThingspeak}`
       );
 
       let enrichmentDataForDeviceCreation = responseFromCreateOnThingspeak.data
         ? responseFromCreateOnThingspeak.data
         : {};
       logger.info(
-        `enrichmentDataForDeviceCreation -- ${jsonify(
-          enrichmentDataForDeviceCreation
-        )}`
+        `enrichmentDataForDeviceCreation -- ${enrichmentDataForDeviceCreation}`
       );
 
       if (!isEmpty(enrichmentDataForDeviceCreation)) {
@@ -112,9 +108,7 @@ const registerDeviceUtil = {
 
         if (responseFromCreateDeviceOnPlatform.success === true) {
           logger.info(
-            `successfully create the device --  ${jsonify(
-              responseFromCreateDeviceOnPlatform.data
-            )}`
+            `successfully create the device --  ${responseFromCreateDeviceOnPlatform.data}`
           );
           let status = responseFromCreateDeviceOnPlatform.status
             ? responseFromCreateDeviceOnPlatform.status
@@ -132,15 +126,13 @@ const registerDeviceUtil = {
           deleteRequest["query"] = {};
           deleteRequest["query"]["device_number"] =
             enrichmentDataForDeviceCreation.device_number;
-          logger.info(`deleteRequest -- ${jsonify(deleteRequest)}`);
+          logger.info(`deleteRequest -- ${deleteRequest}`);
           let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
             deleteRequest
           );
 
           logger.info(
-            ` responseFromDeleteDeviceFromThingspeak -- ${jsonify(
-              responseFromDeleteDeviceFromThingspeak
-            )}`
+            ` responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
           );
 
           if (responseFromDeleteDeviceFromThingspeak.success === true) {
@@ -206,7 +198,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "server error",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -219,9 +211,7 @@ const registerDeviceUtil = {
       if (isEmpty(device_number)) {
         logger.info(`the device_number is not present`);
         let responseFromListDevice = await registerDeviceUtil.list(request);
-        logger.info(
-          `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
-        );
+        logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
           let errors = responseFromListDevice.errors
             ? responseFromListDevice.errors
@@ -237,23 +227,19 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UnmodifiedRequest ", jsonify(request));
+      logObject("the UnmodifiedRequest ", request);
       let responseFromUpdateDeviceOnThingspeak = await registerDeviceUtil.updateOnThingspeak(
         modifiedRequest
       );
       logger.info(
-        `responseFromUpdateDeviceOnThingspeak -- ${jsonify(
-          responseFromUpdateDeviceOnThingspeak
-        )}`
+        `responseFromUpdateDeviceOnThingspeak -- ${responseFromUpdateDeviceOnThingspeak}`
       );
       if (responseFromUpdateDeviceOnThingspeak.success === true) {
         let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
           request
         );
         logger.info(
-          `responseFromUpdateDeviceOnPlatform -- ${jsonify(
-            responseFromUpdateDeviceOnPlatform
-          )}`
+          `responseFromUpdateDeviceOnPlatform -- ${responseFromUpdateDeviceOnPlatform}`
         );
         if (responseFromUpdateDeviceOnPlatform.success === true) {
           let status = responseFromUpdateDeviceOnPlatform.status
@@ -318,7 +304,7 @@ const registerDeviceUtil = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
+      logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
@@ -375,7 +361,7 @@ const registerDeviceUtil = {
         success: false,
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -391,9 +377,7 @@ const registerDeviceUtil = {
       if (isEmpty(device_number)) {
         logger.info(`the device_number is not present`);
         let responseFromListDevice = await registerDeviceUtil.list(request);
-        logger.info(
-          `responseFromListDevice -- ${jsonify(responseFromListDevice)}`
-        );
+        logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
           let errors = responseFromListDevice.errors
             ? responseFromListDevice.errors
@@ -413,16 +397,14 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UnModifiedRequest ", jsonify(request));
+      logObject("the UnModifiedRequest ", request);
 
       let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
         modifiedRequest
       );
 
       logger.info(
-        `responseFromDeleteDeviceFromThingspeak -- ${jsonify(
-          responseFromDeleteDeviceFromThingspeak
-        )}`
+        `responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
       );
       if (responseFromDeleteDeviceFromThingspeak.success === true) {
         let responseFromDeleteDeviceOnPlatform = await registerDeviceUtil.deleteOnPlatform(
@@ -430,9 +412,7 @@ const registerDeviceUtil = {
         );
 
         logger.info(
-          `responseFromDeleteDeviceOnPlatform -- ${jsonify(
-            responseFromDeleteDeviceOnPlatform
-          )}`
+          `responseFromDeleteDeviceOnPlatform -- ${responseFromDeleteDeviceOnPlatform}`
         );
 
         if (responseFromDeleteDeviceOnPlatform.success === true) {
@@ -498,12 +478,12 @@ const registerDeviceUtil = {
       const skip = parseInt(request.query.skip, 0);
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
-      logger.info(`responseFromFilter -- ${jsonify(responseFromFilter)}`);
+      logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
       if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
-        logger.info(`the filter in list -- ${jsonify(filter)}`);
+        logger.info(`the filter in list -- ${filter}`);
       }
 
       if (responseFromFilter.success === false) {
@@ -529,9 +509,7 @@ const registerDeviceUtil = {
       });
 
       logger.info(
-        `the responseFromListDevice in list -- ${jsonify(
-          responseFromListDevice
-        )} `
+        `the responseFromListDevice in list -- ${responseFromListDevice} `
       );
 
       if (responseFromListDevice.success === false) {
@@ -603,9 +581,7 @@ const registerDeviceUtil = {
 
       logObject("responseFromRegisterDevice", responseFromRegisterDevice);
       logger.info(
-        `the responseFromRegisterDevice --${jsonify(
-          responseFromRegisterDevice
-        )} `
+        `the responseFromRegisterDevice --${responseFromRegisterDevice} `
       );
 
       if (responseFromRegisterDevice.success === true) {
@@ -633,7 +609,7 @@ const registerDeviceUtil = {
       logger.error("server error - createOnPlatform util");
       return {
         success: false,
-        errors: error.message,
+        errors: { message: error.message },
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -647,7 +623,7 @@ const registerDeviceUtil = {
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
-      logger.info(`the context -- ${jsonify(context)}`);
+      logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await registerDeviceUtil.transform(
         {
           data,
@@ -656,9 +632,7 @@ const registerDeviceUtil = {
         }
       );
       logger.info(
-        `responseFromTransformRequestBody -- ${jsonify(
-          responseFromTransformRequestBody
-        )}`
+        `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
       );
       let transformedBody = responseFromTransformRequestBody.success
         ? responseFromTransformRequestBody.data
@@ -703,14 +677,14 @@ const registerDeviceUtil = {
         success: false,
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
 
   updateOnThingspeak: async (request) => {
     try {
-      logger.info(`  updateOnThingspeak's request -- ${jsonify(request)}`);
+      logger.info(`  updateOnThingspeak's request -- ${request}`);
       const { device_number } = request.query;
       logElement("device_number", device_number);
       const { body } = request;
@@ -722,7 +696,7 @@ const registerDeviceUtil = {
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
-      logger.info(`the context -- ${jsonify(context)}`);
+      logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await registerDeviceUtil.transform(
         {
           data,
@@ -730,15 +704,13 @@ const registerDeviceUtil = {
         }
       );
       logger.info(
-        `responseFromTransformRequestBody -- ${jsonify(
-          responseFromTransformRequestBody
-        )}`
+        `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
       );
       let transformedBody = responseFromTransformRequestBody.success
         ? responseFromTransformRequestBody.data
         : {};
 
-      logger.info(`transformedBody -- ${jsonify(transformedBody)}`);
+      logger.info(`transformedBody -- ${transformedBody}`);
 
       const response = await axios.put(
         constants.UPDATE_THING(device_number),
@@ -755,13 +727,12 @@ const registerDeviceUtil = {
       };
     } catch (error) {
       logger.error(`updateOnThingspeak util -- ${error.message}`);
-      let e = jsonify(error);
       return {
         success: false,
         message:
           "corresponding device_number does not exist on external system, consider SOFT update",
         status: HTTPStatus.NOT_FOUND,
-        errors: e.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -784,7 +755,7 @@ const registerDeviceUtil = {
         "is responseFromFilter in util a success?",
         responseFromFilter.success
       );
-      logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
+      logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
         logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
@@ -846,7 +817,7 @@ const registerDeviceUtil = {
         success: false,
         message: "Internal Server Error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -874,7 +845,7 @@ const registerDeviceUtil = {
         });
 
       if (!isEmpty(response.success) && !response.success) {
-        logger.info(`the response from thingspeak -- ${jsonify(response)}`);
+        logger.info(`the response from thingspeak -- ${response}`);
         return {
           success: false,
           message: `${response.message}`,
@@ -884,9 +855,7 @@ const registerDeviceUtil = {
       }
       if (!isEmpty(response.data)) {
         logger.info(
-          `successfully deleted the device on thingspeak -- ${jsonify(
-            response.data
-          )}`
+          `successfully deleted the device on thingspeak -- ${response.data}`
         );
         return {
           success: true,
@@ -908,7 +877,7 @@ const registerDeviceUtil = {
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
       if (responseFromFilter.success === true) {
-        logger.info(`the filter ${jsonify(responseFromFilter.data)}`);
+        logger.info(`the filter ${responseFromFilter.data}`);
         filter = responseFromFilter.data;
       }
 
@@ -931,9 +900,7 @@ const registerDeviceUtil = {
         DeviceSchema
       ).remove({ filter });
 
-      logger.info(
-        `responseFromRemoveDevice --- ${jsonify(responseFromRemoveDevice)}`
-      );
+      logger.info(`responseFromRemoveDevice --- ${responseFromRemoveDevice}`);
       if (responseFromRemoveDevice.success === true) {
         let status = responseFromRemoveDevice.status
           ? responseFromRemoveDevice.status
@@ -965,7 +932,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -1005,7 +972,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "unable to decrypt the key",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -1035,7 +1002,7 @@ const registerDeviceUtil = {
       return {
         success: false,
         message: "server error - trasform util",
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
