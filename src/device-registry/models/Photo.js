@@ -132,12 +132,6 @@ photoSchema.statics = {
     try {
       let response = await this.aggregate()
         .match(filter)
-        .lookup({
-          from: "devices",
-          localField: "device_id",
-          foreignField: "_id",
-          as: "device",
-        })
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
@@ -149,7 +143,6 @@ photoSchema.statics = {
           image_code: 1,
           description: 1,
           metadata: 1,
-          device: { $arrayElemAt: ["$device", 0] },
         })
         .skip(_skip)
         .limit(_limit)
