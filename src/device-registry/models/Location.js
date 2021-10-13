@@ -123,7 +123,9 @@ locationSchema.statics = {
   async register(args) {
     try {
       let body = args;
-      body["isCustom"] = false;
+      if (!args.isCustom) {
+        body["isCustom"] = false;
+      }
       let createdAirQloud = await this.create({
         ...body,
       });

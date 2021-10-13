@@ -135,10 +135,10 @@ airqloudSchema.statics = {
     try {
       let body = args;
       body["name"] = this.sanitiseName(args.long_name);
-      if (args.location_id) {
+      if (args.location_id && !args.isCustom) {
         body["isCustom"] = false;
       }
-      if (!args.location_id) {
+      if (!args.location_id && !args.isCustom) {
         body["isCustom"] = true;
       }
       let createdAirQloud = await this.create({

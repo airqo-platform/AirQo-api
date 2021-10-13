@@ -2188,6 +2188,13 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the tags should not be empty"),
+      body("isCustom")
+        .if(body("isCustom").exists())
+        .notEmpty()
+        .withMessage("isCustom cannot be empty")
+        .isBoolean()
+        .withMessage("isCustom must be Boolean")
+        .trim(),
     ],
   ]),
   locationController.register
@@ -2472,6 +2479,13 @@ router.post(
           return !isEmpty(value);
         })
         .withMessage("the metadata should not be empty if provided"),
+      body("isCustom")
+        .if(body("isCustom").exists())
+        .notEmpty()
+        .withMessage("isCustom cannot be empty")
+        .isBoolean()
+        .withMessage("isCustom must be Boolean")
+        .trim(),
       body("description")
         .if(body("description").exists())
         .notEmpty()
