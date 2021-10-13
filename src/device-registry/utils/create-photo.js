@@ -732,12 +732,42 @@ const createPhoto = {
     try {
       let { body, query } = request;
       let { tenant } = query;
+      let { image_url, device_name } = body;
+      let requestForImageIdExtraction = {};
+      requestForImageIdExtraction["body"] = {};
+      requestForImageIdExtraction["query"] = {};
+      requestForImageIdExtraction["query"]["device_name"] = device_name;
+      requestForImageIdExtraction["body"]["image_urls"] = [];
+      requestForImageIdExtraction["body"]["image_urls"].push(image_url);
+      const responseFromExtractImage = await createPhoto.extractImageIds(
+        requestForImageIdExtraction
+      );
+      let photoId = [];
+      let modifiedRequestBody = body;
+      if (responseFromExtractImage.success === true) {
+        photoId = responseFromExtractImage.data;
+        logObject("photoId", photoId);
+        modifiedRequestBody["image_code"] = photoId[0];
+        modifiedRequestBody["metadata"] = {};
+        modifiedRequestBody["metadata"]["public_id"] = photoId[0];
+        modifiedRequestBody["metadata"]["url"] = image_url;
+      }
+
+      if (responseFromExtractImage.success === false) {
+        logObject("responseFromExtractImage", responseFromExtractImage);
+        return {
+          success: false,
+          message: responseFromExtractImage.message,
+          errors: responseFromExtractImage.errors,
+          status: responseFromExtractImage.status,
+        };
+      }
 
       const responseFromRegisterPhoto = await getModelByTenant(
         tenant,
         "photo",
         PhotoSchema
-      ).register(body);
+      ).register(modifiedRequestBody);
 
       logObject("responseFromRegisterPhoto", responseFromRegisterPhoto);
 

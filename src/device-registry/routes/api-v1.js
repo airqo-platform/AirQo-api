@@ -1507,16 +1507,6 @@ router.post(
         .isURL()
         .withMessage("the image_url is not a valid URL")
         .trim(),
-      body("image_code")
-        .exists()
-        .withMessage("the image_code is missing in request")
-        .bail()
-        .notEmpty()
-        .withMessage("the image_code cannot be empty")
-        .bail()
-        .matches(constants.WHITE_SPACES_REGEX, "i")
-        .withMessage("the image_code cannot have spaces in it")
-        .trim(),
       body("tags")
         .if(body("tags").exists())
         .notEmpty()
@@ -1536,14 +1526,30 @@ router.post(
         .custom((value) => {
           return !isEmpty(value);
         })
-        .withMessage("metadata cannot be empty if provided")
+        .withMessage("metadata cannot be empty if provided"),
+      body("metadata.url")
+        .if(body("metadata.url").exists())
+        .notEmpty()
+        .withMessage("the metadata.url cannot be empty when provided")
         .bail()
-        .custom((value) => {
-          if (!isEmpty(value.url) && !isEmpty(value.public_id)) {
-            return true;
-          }
-        })
-        .withMessage("metadata's url and public_id keys must be provided"),
+        .trim()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the metadata.url cannot be empty when provided")
+        .withMessage("the cannot have spaces in it")
+        .bail()
+        .isURL()
+        .withMessage("the metadata.url cannot be empty when provided")
+        .withMessage("the metadata.url is not a valid URL")
+        .trim(),
+      body("metadata.public_id")
+        .if(body("metadata.public_id").exists())
+        .notEmpty()
+        .withMessage("the metadata.public_id cannot be empty when provided")
+        .bail()
+        .trim()
+        .matches(constants.WHITE_SPACES_REGEX, "i")
+        .withMessage("the metadata.public_id cannot have spaces in it")
+        .trim(),
     ],
   ]),
   photoController.createPhotoOnPlatform
