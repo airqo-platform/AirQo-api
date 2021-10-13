@@ -50,7 +50,7 @@ module.exports = {
       `Your temporary password is: ${password}\n` +
       `You can always change your password in your account settings after login\n\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n\n` +
-      `You can also use your credentials to access the required authentication token for the AirQo API\n` +
+      `You can also use your platform credentials to access the AirQo API\n` +
       `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
       `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
