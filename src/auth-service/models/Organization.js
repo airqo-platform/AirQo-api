@@ -152,8 +152,8 @@ OrganizationSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(organizations);
-      if (!isEmpty(data)) {
+      if (!isEmpty(organizations)) {
+        let data = organizations;
         return {
           success: true,
           data,
@@ -161,11 +161,11 @@ OrganizationSchema.statics = {
           status: HTTPStatus.OK,
         };
       }
-      if (isEmpty(data)) {
+      if (isEmpty(organizations)) {
         return {
           success: false,
-          message: "no organizations exist",
-          data,
+          message: "no organizations exist for this search",
+          data: [],
           status: HTTPStatus.NOT_FOUND,
         };
       }
@@ -176,9 +176,8 @@ OrganizationSchema.statics = {
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
+      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -213,13 +212,14 @@ OrganizationSchema.statics = {
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
-      let udpatedOrganization = await this.findOneAndUpdate(
+      let updatedOrganization = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(udpatedOrganization);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedOrganization)) {
+        let data = updatedOrganization._doc;
         return {
           success: true,
           message: "successfully modified the organization",
@@ -235,9 +235,8 @@ OrganizationSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
+      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -281,8 +280,9 @@ OrganizationSchema.statics = {
         filter,
         options
       ).exec();
-      let data = jsonify(removedOrganization);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedOrganization)) {
+        let data = removedOrganization._doc;
         return {
           success: true,
           message: "successfully removed the organization",
