@@ -20,7 +20,7 @@ module.exports = {
       "Your request to join the AirQo platform has been received.\n" +
       "We shall get back to you as soon as possible. \n\n" +
       "Before utilising airqo data, your application record has to undergo \n" +
-      "the process of approval by platform administration. Once your \n" +
+      "the process of approval by the AirQo platform administration. Once your \n" +
       "application is reviewed, you will receive an email on the mailbox \n\n" +
       "Please visit our website to learn more about us. \n" +
       `https://airqo.net/`
@@ -47,10 +47,11 @@ module.exports = {
       `Dear ${firstName + " " + lastName} \n\n` +
       "Welcome to the AirQo air quality monitoring platform. \n\n" +
       `Your username is: ${username}\n` +
-      `Your temporary password is: ${password}\n\n` +
-      `You can always change your password in your account settings after login\n` +
-      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      "A guide to using the platform will be found under the Documentation section of the platform\n" +
+      `Your temporary password is: ${password}\n` +
+      `You can always change your password in your account settings after login\n\n` +
+      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n\n` +
+      `You can also use your credentials to access the required authentication token for the AirQo API\n` +
+      `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
       `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
