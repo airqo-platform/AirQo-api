@@ -167,10 +167,14 @@ const manageSite = {
         let errors = responseFromGenerateName.errors
           ? responseFromGenerateName.errors
           : "";
+        let status = responseFromGenerateName.status
+          ? responseFromGenerateName.status
+          : "";
         return {
           success: false,
           message: responseFromGenerateName.message,
           errors,
+          status,
         };
       }
 
