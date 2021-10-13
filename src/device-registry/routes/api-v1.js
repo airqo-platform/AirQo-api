@@ -2224,16 +2224,31 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      query("site_id")
-        .if(query("site_id").exists())
+      query("name")
+        .if(query("name").exists())
         .notEmpty()
-        .trim()
-        .isMongoId()
-        .withMessage("site_id must be an object ID")
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .if(query("admin_level").exists())
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+        ])
+        .withMessage(
+          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        ),
     ],
   ]),
   locationController.list
@@ -2545,16 +2560,31 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      query("site_id")
-        .if(query("site_id").exists())
+      query("name")
+        .if(query("name").exists())
         .notEmpty()
-        .trim()
-        .isMongoId()
-        .withMessage("site_id must be an object ID")
+        .withMessage("name cannot be empty")
+        .trim(),
+      query("admin_level")
+        .if(query("admin_level").exists())
+        .notEmpty()
+        .withMessage(
+          "admin_level is empty, should not be if provided in request"
+        )
         .bail()
-        .customSanitizer((value) => {
-          return ObjectId(value);
-        }),
+        .toLowerCase()
+        .isIn([
+          "village",
+          "district",
+          "parish",
+          "division",
+          "county",
+          "subcounty",
+          "country",
+        ])
+        .withMessage(
+          "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+        ),
     ],
   ]),
   airqloudController.list

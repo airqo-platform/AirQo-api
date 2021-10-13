@@ -643,7 +643,7 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name } = req.query;
+    let { id, name, admin_level } = req.query;
     let filter = {};
 
     if (name) {
@@ -654,17 +654,28 @@ const generateFilter = {
       filter["_id"] = ObjectId(id);
     }
 
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
+
     return filter;
   },
 
   locations: (req) => {
-    let { id } = req.query;
+    let { id, name, admin_level } = req.query;
     let filter = {};
 
     if (id) {
       filter["_id"] = ObjectId(id);
     }
 
+    if (name) {
+      filter["name"] = name;
+    }
+
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
     return filter;
   },
 
