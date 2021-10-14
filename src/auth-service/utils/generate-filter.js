@@ -48,13 +48,44 @@ const filter = {
   },
   organizations: (req) => {
     try {
-      let { name, id, email, active, category } = req.query;
+      let {
+        name,
+        id,
+        email,
+        active,
+        category,
+        tenant,
+        status,
+        phoneNumber,
+        website,
+        isActive,
+        isAlias,
+      } = req.query;
+
       let filter = {};
       if (email) {
         filter["email"] = email;
       }
       if (category) {
         filter["category"] = category;
+      }
+      if (tenant) {
+        filter["tenant"] = tenant;
+      }
+      if (isActive) {
+        filter["isActive"] = isActive;
+      }
+      if (isAlias) {
+        filter["isAlias"] = isAlias;
+      }
+      if (phoneNumber) {
+        filter["phoneNumber"] = phoneNumber;
+      }
+      if (website) {
+        filter["website"] = website;
+      }
+      if (status) {
+        filter["status"] = status;
       }
       if (id) {
         filter["_id"] = id;
@@ -64,10 +95,10 @@ const filter = {
       }
       if (active) {
         if (active === "yes") {
-          filter["status"] = "active";
+          filter["isActive"] = true;
         }
         if (active === "no") {
-          filter["status"] = "inactive";
+          filter["isActive"] = false;
         }
       }
       return {
@@ -79,7 +110,7 @@ const filter = {
       return {
         success: false,
         message: "filter util server error",
-        error: err.message,
+        errors: { message: err.message },
       };
     }
   },

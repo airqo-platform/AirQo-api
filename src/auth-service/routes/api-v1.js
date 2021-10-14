@@ -597,16 +597,6 @@ router.put(
 router.delete(
   "/organizations",
   oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
     query("id")
       .exists()
       .withMessage(
@@ -628,16 +618,6 @@ router.delete(
 
 router.put(
   "/organizations",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
   oneOf([
     query("id")
       .exists()
@@ -726,35 +706,10 @@ router.put(
   organizationController.update
 );
 
-router.get(
-  "/organizations",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  setJWTAuth,
-  authJWT,
-  organizationController.list
-);
+router.get("/organizations", setJWTAuth, authJWT, organizationController.list);
 
 router.post(
   "/organizations",
-  oneOf([
-    query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
   oneOf([
     [
       body("email")
@@ -832,4 +787,23 @@ router.post(
   authJWT,
   organizationController.create
 );
+
+router.post(
+  "/organizations/tenant",
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the organization's email address is required")
+        .bail()
+        .isEmail()
+        .withMessage("This is not a valid email address")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.getTenantFromEmail
+);
+
 module.exports = router;

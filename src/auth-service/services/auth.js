@@ -204,6 +204,7 @@ const setJWTStrategy = (tenant, req, res, next) => {
 function setLocalAuth(req, res, next) {
   try {
     const hasErrors = !validationResult(req).isEmpty();
+    let tenant = "airqo";
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
       return badRequest(
@@ -212,7 +213,10 @@ function setLocalAuth(req, res, next) {
         manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
       );
     }
-    setLocalStrategy(req.query.tenant, req, res, next);
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);
@@ -223,6 +227,7 @@ function setLocalAuth(req, res, next) {
 function setJWTAuth(req, res, next) {
   try {
     const hasErrors = !validationResult(req).isEmpty();
+    let tenant = "airqo";
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
       return badRequest(
@@ -231,7 +236,10 @@ function setJWTAuth(req, res, next) {
         manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
       );
     }
-    setJWTStrategy(req.query.tenant, req, res, next);
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setJWTStrategy(tenant, req, res, next);
     next();
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);

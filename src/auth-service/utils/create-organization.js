@@ -3,8 +3,93 @@ const { getModelByTenant } = require("./multitenancy");
 const { logElement, logText, logObject } = require("./log");
 const generateFilter = require("./generate-filter");
 const HTTPStatus = require("http-status");
+const companyEmailValidator = require("company-email-validator");
 
 const createOrganization = {
+  getTenantFromEmail: async (request) => {
+    try {
+      let responseFromExtractOneTenant =
+        createOrganization.extractOneTenant(request);
+
+      if (responseFromExtractOneTenant.success === true) {
+        let tenant = responseFromExtractOneTenant.data;
+        let modifiedRequest = request;
+        modifiedRequest["query"] = {};
+        modifiedRequest["query"]["tenant"] = tenant;
+        let responseFromListOrganizations = await createOrganization.list(
+          modifiedRequest
+        );
+        if (responseFromListOrganizations.success === true) {
+          let data = responseFromListOrganizations.data;
+          let storedTenant = data[0].tenant;
+          if (storedTenant === tenant) {
+            return {
+              success: true,
+              data: storedTenant,
+              message: "successfully retrieved the tenant",
+              status: HTTPStatus.OK,
+            };
+          }
+          return {
+            success: false,
+            message: "unable to retrieve the tenant",
+            status: HTTPStatus.NOT_FOUND,
+            errors: { message: "unable to retrieve the tenant" },
+          };
+        }
+        if (responseFromListOrganizations.success === false) {
+          return responseFromListOrganizations;
+        }
+      }
+
+      if (responseFromExtractOneTenant.success === false) {
+        return responseFromExtractOneTenant;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  extractOneTenant: (request) => {
+    try {
+      const { email } = request.body;
+      let segments = [];
+      let tenant = "";
+
+      if (email) {
+        let isCompanyEmail = companyEmailValidator.isCompanyEmail(email);
+
+        if (isCompanyEmail) {
+          segments = email.split("@").filter((segment) => segment);
+          tenant = segments[1].split(".")[0];
+        }
+
+        if (!isCompanyEmail) {
+          tenant = "airqo";
+        }
+      }
+
+      return {
+        success: true,
+        data: tenant,
+        status: HTTPStatus.OK,
+        message: "successfully removed the file extension",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
   sanitizeName: (name) => {
     try {
       let nameWithoutWhiteSpaces = name.replace(/\s/g, "");
@@ -18,12 +103,25 @@ const createOrganization = {
   create: async (request) => {
     try {
       let { body, query } = request;
-      let { tenant } = query;
+      let tenant = "airqo";
+      let modifiedBody = body;
+
+      let responseFromExtractTenant =
+        createOrganization.extractOneTenant(request);
+
+      if (responseFromExtractTenant.success === true) {
+        modifiedBody["tenant"] = responseFromExtractTenant.data;
+      }
+
+      if (responseFromExtractTenant.success === false) {
+        return responseFromExtractTenant;
+      }
+
       let responseFromRegisterOrganization = await getModelByTenant(
-        tenant.toLowerCase(),
+        tenant,
         "organization",
         OrganizationSchema
-      ).register(body);
+      ).register(modifiedBody);
 
       logObject(
         "responseFromRegisterOrganization",
@@ -70,7 +168,7 @@ const createOrganization = {
   update: async (request) => {
     try {
       let { body, query } = request;
-      let { tenant } = query;
+      let tenant = "airqo";
       let update = body;
       let filter = {};
       let responseFromGeneratefilter = generateFilter.organizations(request);
@@ -95,7 +193,7 @@ const createOrganization = {
       }
 
       let responseFromModifyOrganization = await getModelByTenant(
-        tenant.toLowerCase(),
+        tenant,
         "organization",
         OrganizationSchema
       ).modify({ update, filter });
@@ -138,7 +236,7 @@ const createOrganization = {
     try {
       logText("the delete operation.....");
       let { query, body } = request;
-      let { tenant } = query;
+      let tenant = "airqo";
       let filter = {};
 
       let responseFromGenerateFilter = generateFilter.organizations(request);
@@ -166,7 +264,7 @@ const createOrganization = {
       logObject("the filter", filter);
 
       let responseFromRemoveOrganization = await getModelByTenant(
-        tenant.toLowerCase(),
+        tenant,
         "organization",
         OrganizationSchema
       ).remove({ filter });
@@ -215,18 +313,17 @@ const createOrganization = {
   },
   list: async (request) => {
     try {
-      let { skip, limit, tenant } = request.query;
+      let { skip, limit } = request.query;
+      let tenant = "airqo";
       let filter = {};
 
       let responseFromGenerateFilter = generateFilter.organizations(request);
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
+        logObject("filter", filter);
       }
 
       if (responseFromGenerateFilter.success === false) {
-        let status = responseFromGenerateFilter.status
-          ? responseFromGenerateFilter.status
-          : "";
         let errors = responseFromGenerateFilter.errors
           ? responseFromGenerateFilter.errors
           : "";
@@ -234,15 +331,16 @@ const createOrganization = {
           success: false,
           message: responseFromGenerateFilter.message,
           errors,
-          status,
         };
       }
 
       let responseFromListOrganizations = await getModelByTenant(
-        tenant.toLowerCase(),
+        tenant,
         "organization",
         OrganizationSchema
       ).list({ filter, limit, skip });
+
+      logObject("responseFromListOrganizations", responseFromListOrganizations);
 
       if (responseFromListOrganizations.success === true) {
         let status = responseFromListOrganizations.status
@@ -266,6 +364,7 @@ const createOrganization = {
           : "";
 
         return {
+          success: false,
           status,
           errors,
           message: responseFromListOrganizations.message,
