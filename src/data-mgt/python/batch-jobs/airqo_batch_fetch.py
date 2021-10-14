@@ -62,7 +62,7 @@ class AirQoBatchFetch:
                     "latitude": f'{device_row["latitude"]}',
                     "longitude": f'{device_row["longitude"]}',
                     "frequency": "raw",
-                    "created_at": pd.Timestamp(device_row["created_at"]).isoformat(),
+                    "created_at": f'{pd.Timestamp(device_row["created_at"]).isoformat()}Z',
                     "pm2_5": f'{device_row["pm2_5"]}',
                     "pm10": f'{device_row["pm10"]}',
                     "s2_pm2_5": f'{device_row["s2_pm2_5"]}',

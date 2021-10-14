@@ -18,10 +18,12 @@ class BrokerConnector:
 
     def produce(self, data):
         try:
-            topic_data = json.dumps(data)
-            print(topic_data)
-            producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers)
-            producer.send(self.__output_topic, topic_data)
+            # topic_data = json.dumps(data)
+            # print(topic_data)
+            producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers, value_serializer=lambda v: json.dumps(v).encode('utf-8'))
+            # print(self.__bootstrap_servers)
+            # print(self.__output_topic)
+            producer.send(self.__output_topic, data)
         except:
             traceback.print_exc()
 
