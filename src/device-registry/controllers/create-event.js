@@ -105,6 +105,7 @@ const createEvent = {
         site_id,
         device_number,
         metadata,
+        external,
       } = req.query;
 
       const hasErrors = !validationResult(req).isEmpty();
@@ -134,7 +135,8 @@ const createEvent = {
           tenant,
           startTime,
           endTime,
-          metadata
+          metadata,
+          external
         );
       } else {
         missingQueryParams(req, res);

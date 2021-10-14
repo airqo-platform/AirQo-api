@@ -41,6 +41,12 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      body("userName").exists().withMessage("the userName must be provided"),
+      body("password").exists().withMessage("the password must be provided"),
+    ],
+  ]),
   setLocalAuth,
   authLocal,
   joinController.login

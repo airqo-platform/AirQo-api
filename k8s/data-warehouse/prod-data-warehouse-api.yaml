@@ -62,3 +62,41 @@ spec:
       targetPort: 4001
       nodePort: 30111
   type: NodePort
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-datawarehouse-msg-broker
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: datawarehouse-msg-broker
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: datawarehouse-msg-broker
+    spec:
+      containers:
+        - name: msg-broker
+          image: us.gcr.io/airqo-250220/airqo-datawarehouse-msg-broker:latest
+          imagePullPolicy: Always
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: prod-datawarehouse-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prod-datawarehouse-api-config-files
