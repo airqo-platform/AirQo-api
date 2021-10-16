@@ -3,7 +3,6 @@ const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logText, logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const jsonify = require("../utils/jsonify");
 const HTTPStatus = require("http-status");
 
 const DefaultsSchema = new mongoose.Schema(
@@ -106,9 +105,7 @@ DefaultsSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -137,15 +134,14 @@ DefaultsSchema.statics = {
   },
   async list({ skip = 0, limit = 20, filter = {} } = {}) {
     try {
-      logObject("the filter in the defaults", filter);
       let defaults = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(defaults);
-      logObject("the data for defaults", data);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(defaults)) {
+        let data = defaults;
         return {
           success: true,
           data,
@@ -182,16 +178,14 @@ DefaultsSchema.statics = {
       if (update._id) {
         delete update._id;
       }
-      let udpatedDefault = await this.findOneAndUpdate(
+      let updatedDefault = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
-      let data = jsonify(udpatedDefault);
-      logObject("updatedDefault", data);
-
-      if (!isEmpty(data)) {
+      if (!isEmpty(updatedDefault)) {
+        let data = updatedDefault._doc;
         return {
           success: true,
           message: "successfully modified the default",
@@ -206,7 +200,6 @@ DefaultsSchema.statics = {
         };
       }
     } catch (err) {
-      logObject("the error", err);
       let errors = {};
       let message = "";
       let status = "";
@@ -235,9 +228,9 @@ DefaultsSchema.statics = {
         },
       };
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
-      logElement("removedDefault", removedDefault);
-      let data = jsonify(removedDefault);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedDefault)) {
+        let data = removedDefault._doc;
         return {
           success: true,
           message: "successfully removed the default",

@@ -94,7 +94,6 @@ const sanitizeName = (name) => {
 OrganizationSchema.statics = {
   async register(args) {
     try {
-      logText("the register method in the model........");
       let modifiedArgs = args;
       // let name = modifiedArgs.name;
       // if (name) {
@@ -121,7 +120,6 @@ OrganizationSchema.statics = {
       }
     } catch (err) {
       let response = {};
-      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -181,7 +179,6 @@ OrganizationSchema.statics = {
       };
     } catch (err) {
       let response = {};
-      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -212,7 +209,6 @@ OrganizationSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-      logObject("modifiedUpdate", modifiedUpdate);
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
@@ -240,7 +236,6 @@ OrganizationSchema.statics = {
       }
     } catch (err) {
       let response = {};
-      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -303,7 +298,6 @@ OrganizationSchema.statics = {
       }
     } catch (err) {
       let response = {};
-      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
