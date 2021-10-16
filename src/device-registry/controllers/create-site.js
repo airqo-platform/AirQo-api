@@ -67,7 +67,7 @@ const manageSite = {
           : "";
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
-          : HTTPStatus.CONFLICT;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromCreateSite.message,

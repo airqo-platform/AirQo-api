@@ -190,10 +190,14 @@ const manageSite = {
         let errors = responseFromGenerateMetadata.errors
           ? responseFromGenerateMetadata.errors
           : "";
+        let status = responseFromGenerateMetadata.status
+          ? responseFromGenerateMetadata.status
+          : "";
         return {
           success: false,
           message: responseFromGenerateMetadata.message,
           errors,
+          status,
         };
       }
 
@@ -251,10 +255,14 @@ const manageSite = {
         update,
       });
       if (responseFromModifySite.success === true) {
+        let status = responseFromModifySite.status
+          ? responseFromModifySite.status
+          : "";
         return {
           success: true,
           message: responseFromModifySite.message,
           data: responseFromModifySite.data,
+          status,
         };
       }
 
@@ -337,10 +345,14 @@ const manageSite = {
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
         let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+        let status = responseFromReverseGeoCode.status
+          ? responseFromReverseGeoCode.status
+          : "";
         return {
           success: true,
           message: "successfully generated the metadata",
           data: requestBody,
+          status,
         };
       }
 
@@ -348,10 +360,14 @@ const manageSite = {
         let errors = responseFromReverseGeoCode.errors
           ? responseFromReverseGeoCode.errors
           : "";
+        let status = responseFromReverseGeoCode.status
+          ? responseFromReverseGeoCode.status
+          : "";
         return {
           success: false,
           message: responseFromReverseGeoCode.message,
           errors,
+          status,
         };
       }
     } catch (e) {
@@ -417,11 +433,6 @@ const manageSite = {
         longitude,
       } = request.body;
 
-      /**
-       * we could move all these name vaslidations and
-       * sanitisations to the api route level before
-       * coming to to the utils
-       */
       if (!name) {
         let siteNames = { name, parish, county, district };
         let availableName = manageSite.pickAvailableValue(siteNames);
@@ -642,6 +653,7 @@ const manageSite = {
       let google_place_id = results.place_id;
       let types = results.types;
       let retrievedAddress = {};
+      logObject("address_components ", address_components);
       address_components.forEach((object) => {
         if (object.types.includes("locality", "administrative_area_level_3")) {
           retrievedAddress.town = object.long_name;
@@ -693,7 +705,8 @@ const manageSite = {
         .get(url)
         .then(async (response) => {
           let responseJSON = response.data;
-          if (responseJSON) {
+          logObject("responseJSON", responseJSON);
+          if (!isEmpty(responseJSON.results)) {
             let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
               responseJSON
             );
@@ -721,6 +734,11 @@ const manageSite = {
             return {
               success: false,
               message: "unable to get the site address details",
+              status: HTTPStatus.NOT_FOUND,
+              errors: {
+                message:
+                  "review the GPS coordinates provided, we cannot get corresponding metada",
+              },
             };
           }
         })
@@ -773,6 +791,7 @@ const manageSite = {
             success: true,
             message: "successfully retrieved the altitude details",
             data: r.data.results[0].elevation,
+            status: HTTPStatus.OK,
           };
         })
         .catch((e) => {
@@ -781,6 +800,7 @@ const manageSite = {
             success: false,
             message: "get altitude server error",
             errors: { message: e },
+            status: HTTPStatus.BAD_GATEWAY,
           };
         });
     } catch (e) {
@@ -789,6 +809,7 @@ const manageSite = {
         success: false,
         message: "get altitude server error",
         errors: { message: e.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
