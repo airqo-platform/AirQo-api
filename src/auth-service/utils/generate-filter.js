@@ -49,7 +49,6 @@ const filter = {
   organizations: (req) => {
     try {
       let {
-        name,
         id,
         email,
         active,
@@ -58,6 +57,7 @@ const filter = {
         status,
         phoneNumber,
         website,
+        acronym,
         isActive,
         isAlias,
       } = req.query;
@@ -71,6 +71,9 @@ const filter = {
       }
       if (tenant) {
         filter["tenant"] = tenant;
+      }
+      if (acronym) {
+        filter["acronym"] = acronym;
       }
       if (isActive) {
         filter["isActive"] = isActive;
@@ -89,9 +92,6 @@ const filter = {
       }
       if (id) {
         filter["_id"] = id;
-      }
-      if (name) {
-        filter["name"] = name;
       }
       if (active) {
         if (active === "yes") {

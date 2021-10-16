@@ -9,32 +9,24 @@ const createOrganization = {
   getTenantFromEmail: async (request) => {
     try {
       let responseFromExtractOneTenant =
-        createOrganization.extractOneTenant(request);
+        createOrganization.extractOneAcronym(request);
 
       if (responseFromExtractOneTenant.success === true) {
-        let tenant = responseFromExtractOneTenant.data;
+        let acronym = responseFromExtractOneTenant.data;
         let modifiedRequest = request;
         modifiedRequest["query"] = {};
-        modifiedRequest["query"]["tenant"] = tenant;
+        modifiedRequest["query"]["acronym"] = acronym;
         let responseFromListOrganizations = await createOrganization.list(
           modifiedRequest
         );
         if (responseFromListOrganizations.success === true) {
           let data = responseFromListOrganizations.data;
           let storedTenant = data[0].tenant;
-          if (storedTenant === tenant) {
-            return {
-              success: true,
-              data: storedTenant,
-              message: "successfully retrieved the tenant",
-              status: HTTPStatus.OK,
-            };
-          }
           return {
-            success: false,
-            message: "unable to retrieve the tenant",
-            status: HTTPStatus.NOT_FOUND,
-            errors: { message: "unable to retrieve the tenant" },
+            success: true,
+            data: storedTenant,
+            message: "successfully retrieved the tenant",
+            status: HTTPStatus.OK,
           };
         }
         if (responseFromListOrganizations.success === false) {
@@ -53,7 +45,7 @@ const createOrganization = {
       };
     }
   },
-  extractOneTenant: (request) => {
+  extractOneAcronym: (request) => {
     try {
       const { email } = request.body;
       let segments = [];
@@ -102,23 +94,26 @@ const createOrganization = {
   },
   create: async (request) => {
     try {
-      let { body, query } = request;
-      let tenant = "airqo";
+      let { body } = request;
+      let { tenant } = body;
       let modifiedBody = body;
 
       let responseFromExtractTenant =
-        createOrganization.extractOneTenant(request);
+        createOrganization.extractOneAcronym(request);
 
       if (responseFromExtractTenant.success === true) {
-        modifiedBody["tenant"] = responseFromExtractTenant.data;
+        if (!tenant) {
+          modifiedBody["tenant"] = responseFromExtractTenant.data;
+          modifiedBody["acronym"] = responseFromExtractTenant.data;
+        }
+        modifiedBody["acronym"] = responseFromExtractTenant.data;
       }
-
       if (responseFromExtractTenant.success === false) {
         return responseFromExtractTenant;
       }
 
       let responseFromRegisterOrganization = await getModelByTenant(
-        tenant,
+        "airqo",
         "organization",
         OrganizationSchema
       ).register(modifiedBody);
@@ -193,7 +188,7 @@ const createOrganization = {
       }
 
       let responseFromModifyOrganization = await getModelByTenant(
-        tenant,
+        "airqo",
         "organization",
         OrganizationSchema
       ).modify({ update, filter });
@@ -264,7 +259,7 @@ const createOrganization = {
       logObject("the filter", filter);
 
       let responseFromRemoveOrganization = await getModelByTenant(
-        tenant,
+        "airqo",
         "organization",
         OrganizationSchema
       ).remove({ filter });
@@ -335,7 +330,7 @@ const createOrganization = {
       }
 
       let responseFromListOrganizations = await getModelByTenant(
-        tenant,
+        "airqo",
         "organization",
         OrganizationSchema
       ).list({ filter, limit, skip });

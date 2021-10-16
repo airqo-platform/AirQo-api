@@ -697,8 +697,13 @@ router.put(
         .if(body("name").exists())
         .notEmpty()
         .withMessage("the name should not be empty")
-        .bail()
         .trim(),
+      body("tenant")
+        .if(body("tenant").exists())
+        .notEmpty()
+        .withMessage("the tenant cannot be empty if provided")
+        .trim()
+        .toLowerCase(),
     ],
   ]),
   setJWTAuth,
@@ -781,6 +786,12 @@ router.post(
         .exists()
         .withMessage("the organization's name is required")
         .trim(),
+      body("tenant")
+        .if(body("tenant").exists())
+        .notEmpty()
+        .withMessage("the tenant cannot be empty if provided")
+        .trim()
+        .toLowerCase(),
     ],
   ]),
   setJWTAuth,

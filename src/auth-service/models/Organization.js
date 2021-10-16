@@ -36,10 +36,14 @@ const OrganizationSchema = new Schema(
       unique: true,
       required: [true, "the website is required"],
     },
-    name: { type: String, unique: true, required: [true, "name is required"] },
+    name: { type: String, required: [true, "name is required"] },
     tenant: {
       type: String,
       required: [true, "tenant is required"],
+    },
+    acronym: {
+      type: String,
+      required: [true, "acronym is required"],
       unique: true,
     },
     category: {
@@ -58,9 +62,8 @@ OrganizationSchema.plugin(uniqueValidator, {
 
 OrganizationSchema.index({ website: 1 }, { unique: true });
 OrganizationSchema.index({ email: 1 }, { unique: true });
-OrganizationSchema.index({ name: 1 }, { unique: true });
 OrganizationSchema.index({ phoneNumber: 1 }, { unique: true });
-OrganizationSchema.index({ tenant: 1 }, { unique: true });
+OrganizationSchema.index({ acronym: 1 }, { unique: true });
 
 OrganizationSchema.methods = {
   toJSON() {
@@ -75,6 +78,7 @@ OrganizationSchema.methods = {
       phoneNumber: this.phoneNumber,
       tenant: this.tenant,
       name: this.name,
+      acronym: this.acronym,
       createdAt: this.createdAt,
     };
   },
@@ -95,10 +99,10 @@ OrganizationSchema.statics = {
   async register(args) {
     try {
       let modifiedArgs = args;
-      // let name = modifiedArgs.name;
-      // if (name) {
-      //   modifiedArgs["tenant"] = sanitizeName(name);
-      // }
+      let tenant = modifiedArgs.tenant;
+      if (tenant) {
+        modifiedArgs["tenant"] = sanitizeName(tenant);
+      }
       let data = await this.create({
         ...modifiedArgs,
       });
