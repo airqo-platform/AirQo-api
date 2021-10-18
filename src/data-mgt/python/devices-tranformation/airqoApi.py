@@ -25,7 +25,24 @@ class AirQoApi:
 
         return []
 
-    def get_airqo_device_current_measurements(self, device_number ):
+    def get_forecast(self, tenant, longitude, latitude, selected_datetime):
+        params = {
+            "tenant": tenant,
+        }
+        body = {
+            "longitude": longitude,
+            "latitude": latitude,
+            "selected_datetime": selected_datetime,
+        }
+        response = self.__request(endpoint="predict", params=params, body=body, method="post")
+
+        if response is not None and "formatted_results" in response:
+            formatted_results = response["formatted_results"]
+            return formatted_results["predictions"]
+
+        return []
+
+    def get_airqo_device_current_measurements(self, device_number):
         response = self.__request("data/feeds/transform/recent", {"channel": device_number})
         return response
 
@@ -74,12 +91,21 @@ class AirQoApi:
                 data=json.dumps(body),
                 verify=False,
             )
+        elif method == "post":
+            headers['Content-Type'] = 'application/json'
+            api_request = requests.post(
+                '%s%s/' % (self.AIRQO_BASE_URL, endpoint),
+                params=params,
+                headers=headers,
+                data=json.dumps(body),
+                verify=False,
+            )
         else:
-            return handle_api_error("Invalid")
+            handle_api_error("Invalid")
+            return None
 
         if api_request.status_code == 200:
-            print(api_request.request.url)
             return api_request.json()
         else:
-            return handle_api_error(api_request)
-
+            handle_api_error(api_request)
+            return None

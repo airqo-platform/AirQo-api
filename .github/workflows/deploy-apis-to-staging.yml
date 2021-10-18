@@ -20,7 +20,7 @@ jobs:
             sha=${GITHUB_SHA::8}
             timestamp=$(date +%s)
             datetime=$(date)
-            echo "::set-output name=build_id::staging-${sha}-${timestamp}"
+            echo "::set-output name=build_id::stage-${sha}-${timestamp}"
             echo "::set-output name=datetime::${datetime}"
 
   check:
@@ -202,7 +202,7 @@ jobs:
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -227,13 +227,14 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/device-monitoring/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-monitor/
-          kubectl apply -f stage-device-monitor-api.yaml
-          kubectl rollout restart deployment/airqo-stage-device-monitor-api -n staging
+          kubectl set image deployment/airqo-stage-device-monitor-api sta-dev-monitor=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
   ### data-mgt ###
   data-mgt:
@@ -272,7 +273,7 @@ jobs:
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -297,13 +298,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/analytics/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:latest
+
       - name: Deploy to K8S
         run: |
-          cd k8s/analytics/
-          kubectl apply -f stage-analytics-api.yaml
-          kubectl rollout restart deployment/airqo-stage-analytics-api -n staging
+          kubectl set image deployment/airqo-stage-analytics-api sta-alytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
   ### device uptime ###
   device-uptime:
@@ -380,7 +383,7 @@ jobs:
   ### locate ###
   locate:
     name: build-push-deploy-locate
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -405,14 +408,15 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/locate/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/locate/
-          kubectl apply -f stage-locate-api.yaml
-          kubectl rollout restart deployment/airqo-stage-locate-api -n staging
-
+          kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
   ### gp model ###
   gp-model:
     name: build-push-deploy-gp-model
@@ -525,10 +529,19 @@ jobs:
           docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:latest
+
+          docker build --target=staging-message-broker --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:latest
+
       - name: Deploy to K8S
         run: |
           kubectl set image deployment/airqo-stage-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl set image deployment/airqo-stage-datawarehouse-msg-broker msg-broker=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} -n staging
+          
           kubectl annotate deployment/airqo-stage-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+          kubectl annotate deployment/airqo-stage-datawarehouse-msg-broker kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
 
   ### views  ###
