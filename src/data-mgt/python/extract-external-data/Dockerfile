@@ -17,7 +17,8 @@ COPY . /app/
 # Change the working directory
 WORKDIR /app/
 
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+# RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Set environment variables
 ENV FLASK_APP=app.py
@@ -35,3 +36,15 @@ CMD ["flask", "run", "--host=0.0.0.0"]
 FROM builder as production
 ENV FLASK_ENV=production
 CMD ["flask", "run", "--host=0.0.0.0"]
+
+FROM builder as dev-message-broker
+ENV FLASK_ENV=development
+CMD ["python", "message_broker.py"]
+
+FROM builder as staging-message-broker
+ENV FLASK_ENV=staging
+CMD ["python", "message_broker.py"]
+
+FROM builder as production-message-broker
+ENV FLASK_ENV=production
+CMD ["python", "message_broker.py"]

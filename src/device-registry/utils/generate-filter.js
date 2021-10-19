@@ -27,7 +27,8 @@ const generateFilter = {
     frequency,
     startTime,
     endTime,
-    metadata
+    metadata,
+    external
   ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
@@ -50,6 +51,13 @@ const generateFilter = {
 
     if (metadata) {
       filter["metadata"] = metadata;
+    }
+
+    if (external) {
+      filter["external"] = external;
+    }
+    if (!external) {
+      filter["external"] = "yes";
     }
 
     if (startTime) {
@@ -197,6 +205,11 @@ const generateFilter = {
      */
     if (frequency) {
       filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    }
+    if (!frequency) {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
     }
 
     return filter;
@@ -213,6 +226,8 @@ const generateFilter = {
         endTime,
         device_id,
         site_id,
+        external,
+        metadata,
       } = request.query;
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);
@@ -385,10 +400,7 @@ const generateFilter = {
     let filter = {};
 
     if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
+      filter["name"] = name;
     }
 
     if (channel) {
@@ -400,17 +412,11 @@ const generateFilter = {
     }
 
     if (siteName) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        siteName
-      );
-      filter["siteName"] = { $regex: regexExpression, $options: "i" };
+      filter["siteName"] = siteName;
     }
 
     if (mapAddress) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        mapAddress
-      );
-      filter["locationName"] = { $regex: regexExpression, $options: "i" };
+      filter["locationName"] = mapAddress;
     }
 
     if (primary) {
@@ -452,6 +458,7 @@ const generateFilter = {
         site,
         site_id,
         id,
+        device_name,
         device_id,
         device_number,
       } = req.query;
@@ -461,6 +468,13 @@ const generateFilter = {
         //   name
         // );
         filter["name"] = name;
+      }
+
+      if (device_name) {
+        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        //   name
+        // );
+        filter["name"] = device_name;
       }
 
       if (channel) {
@@ -498,24 +512,15 @@ const generateFilter = {
       }
 
       if (siteName) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          siteName
-        );
-        filter["siteName"] = { $regex: regexExpression, $options: "i" };
+        filter["siteName"] = siteName;
       }
 
       if (mapAddress) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          mapAddress
-        );
-        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+        filter["locationName"] = mapAddress;
       }
 
       if (map) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          map
-        );
-        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+        filter["locationName"] = map;
       }
 
       if (primary) {
@@ -570,17 +575,11 @@ const generateFilter = {
     let filter = {};
 
     if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
+      filter["name"] = name;
     }
 
     if (county) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        county
-      );
-      filter["county"] = { $regex: regexExpression, $options: "i" };
+      filter["county"] = county;
     }
 
     if (lat_long) {
@@ -592,52 +591,31 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        generated_name
-      );
-      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+      filter["generated_name"] = generated_name;
     }
 
     if (district) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        district
-      );
-      filter["district"] = { $regex: regexExpression, $options: "i" };
+      filter["district"] = district;
     }
 
     if (region) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        region
-      );
-      filter["region"] = { $regex: regexExpression, $options: "i" };
+      filter["region"] = region;
     }
 
     if (city) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        city
-      );
-      filter["city"] = { $regex: regexExpression, $options: "i" };
+      filter["city"] = city;
     }
 
     if (street) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        street
-      );
-      filter["street"] = { $regex: regexExpression, $options: "i" };
+      filter["street"] = street;
     }
 
     if (country) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        country
-      );
-      filter["country"] = { $regex: regexExpression, $options: "i" };
+      filter["country"] = country;
     }
 
     if (parish) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        parish
-      );
-      filter["parish"] = { $regex: regexExpression, $options: "i" };
+      filter["parish"] = parish;
     }
 
     return filter;
@@ -710,23 +688,14 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        generated_name
-      );
-      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+      filter["generated_name"] = generated_name;
     }
 
     if (maintenance_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        maintenance_type
-      );
-      filter["maintenance_type"] = { $regex: regexExpression, $options: "i" };
+      filter["maintenance_type"] = maintenance_type;
     }
     if (activity_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        activity_type
-      );
-      filter["activity_type"] = { $regex: regexExpression, $options: "i" };
+      filter["activity_type"] = activity_type;
     }
     if (activity_tags) {
     }
@@ -814,16 +783,10 @@ const generateFilter = {
     };
 
     if (maintenance_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        maintenance_type
-      );
-      filter["maintenanceType"] = { $regex: regexExpression, $options: "i" };
+      filter["maintenanceType"] = maintenance_type;
     }
     if (activity_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        activity_type
-      );
-      filter["activityType"] = { $regex: regexExpression, $options: "i" };
+      filter["activityType"] = activity_type;
     }
     if (site_id) {
       filter["site_id"] = ObjectId(site_id);
@@ -841,6 +804,28 @@ const generateFilter = {
 
     if (device) {
       filter["device"] = device;
+    }
+
+    return filter;
+  },
+
+  photos: (request) => {
+    let { id, device_id, device_number, device_name } = request.query;
+    let filter = {};
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (device_id) {
+      filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (device_number) {
+      filter["device_number"] = device_number;
+    }
+
+    if (device_name) {
+      filter["device_name"] = device_name;
     }
 
     return filter;

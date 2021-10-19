@@ -72,7 +72,15 @@ metadata:
         if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
             return 200;
         }
-        
+
+        if ($request_uri ~ "(/api/v1/datawarehouse)|(/api/v2/datawarehouse)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/monitor)|(/api/v2/monitor)") {
+            return 200;
+        }
+
         internal;
         proxy_method            POST;
         proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
@@ -162,3 +170,11 @@ spec:
             backend:
               serviceName: airqo-incentives-api-svc
               servicePort: 3000
+          - path: /api/v1/datawarehouse
+            backend:
+              serviceName: airqo-datawarehouse-api-svc
+              servicePort: 4001
+          - path: /api/v2/datawarehouse
+            backend:
+              serviceName: airqo-datawarehouse-api-svc
+              servicePort: 4001

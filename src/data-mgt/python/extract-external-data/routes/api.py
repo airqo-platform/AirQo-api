@@ -1,4 +1,4 @@
-BASE_URL = '/api/v1/'
+BASE_URL = '/api/v1/datawarehouse'
 ALTITUDE_URL = f'{BASE_URL}/altitude'
 GREENNESS_URL = f'{BASE_URL}/greenness'
 ASPECT_URL = f'{BASE_URL}/aspect'
