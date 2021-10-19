@@ -24,7 +24,6 @@ const { logElement } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const { registerDeviceUtil } = require("../utils/create-device");
-const { isEmpty } = require("underscore");
 
 middlewareConfig(router);
 
