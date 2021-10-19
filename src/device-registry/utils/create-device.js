@@ -20,6 +20,15 @@ const QRCode = require("qrcode");
 const cleanDeep = require("clean-deep");
 
 const registerDeviceUtil = {
+  doesDeviceExist: async (request) => {
+    logText("checking device existence...");
+    const responseFromList = await registerDeviceUtil.list(request);
+    logObject("responseFromList", responseFromList);
+    if (responseFromList.success === true && responseFromList.data) {
+      return true;
+    }
+    return false;
+  },
   generateQR: async (request) => {
     try {
       let { include_site } = request.query;
