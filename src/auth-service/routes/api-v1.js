@@ -33,8 +33,9 @@ router.post(
   "/loginUser",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
