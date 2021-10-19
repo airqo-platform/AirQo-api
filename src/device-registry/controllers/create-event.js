@@ -23,6 +23,32 @@ const createEventUtil = require("../utils/create-event");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const createEvent = {
+  update: async (req, res) => {
+    try {
+      let request = {};
+      let responseFromUpdateEvents = await createEventUtil.update(request);
+      if (responseFromUpdateEvents.success === true) {
+        const status = responseFromUpdateEvents.status
+          ? responseFromUpdateEvents.status
+          : "";
+        res.status(status).json({
+          success: true,
+          message: responseFromUpdateEvents.message,
+          updated_event: responseFromUpdateEvents.data,
+        });
+      }
+      if (responseFromUpdateEvents.success === false) {
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
