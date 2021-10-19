@@ -458,6 +458,7 @@ const generateFilter = {
         site,
         site_id,
         id,
+        device_name,
         device_id,
         device_number,
       } = req.query;
@@ -467,6 +468,13 @@ const generateFilter = {
         //   name
         // );
         filter["name"] = name;
+      }
+
+      if (device_name) {
+        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        //   name
+        // );
+        filter["name"] = device_name;
       }
 
       if (channel) {
@@ -613,7 +621,7 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name } = req.query;
+    let { id, name, admin_level } = req.query;
     let filter = {};
 
     if (name) {
@@ -624,6 +632,28 @@ const generateFilter = {
       filter["_id"] = ObjectId(id);
     }
 
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
+
+    return filter;
+  },
+
+  locations: (req) => {
+    let { id, name, admin_level } = req.query;
+    let filter = {};
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (name) {
+      filter["name"] = name;
+    }
+
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
     return filter;
   },
 
@@ -774,6 +804,28 @@ const generateFilter = {
 
     if (device) {
       filter["device"] = device;
+    }
+
+    return filter;
+  },
+
+  photos: (request) => {
+    let { id, device_id, device_number, device_name } = request.query;
+    let filter = {};
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (device_id) {
+      filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (device_number) {
+      filter["device_number"] = device_number;
+    }
+
+    if (device_name) {
+      filter["device_name"] = device_name;
     }
 
     return filter;

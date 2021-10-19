@@ -2,17 +2,17 @@ const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 const { tryCatchErrors, badRequest } = require("../utils/errors");
-const createAirQloudUtil = require("../utils/create-airqloud");
+const createLocationUtil = require("../utils/create-location");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-controller");
+const logger = log4js.getLogger("create-location-controller");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
-const createAirqloud = {
+const createLocation = {
   register: async (req, res) => {
     let request = {};
     let { body } = req;
     let { query } = req;
-    logText("registering airqloud.............");
+    logText("registering location.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -27,38 +27,38 @@ const createAirqloud = {
       request["body"] = body;
       request["query"] = query;
 
-      let responseFromCreateAirQloud = await createAirQloudUtil.create(request);
+      let responseFromCreateLocation = await createLocationUtil.create(request);
       logObject(
-        "responseFromCreateAirQloud in controller",
-        responseFromCreateAirQloud
+        "responseFromCreateLocation in controller",
+        responseFromCreateLocation
       );
-      if (responseFromCreateAirQloud.success === true) {
-        let status = responseFromCreateAirQloud.status
-          ? responseFromCreateAirQloud.status
+      if (responseFromCreateLocation.success === true) {
+        let status = responseFromCreateLocation.status
+          ? responseFromCreateLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromCreateAirQloud.message,
-          airqloud: responseFromCreateAirQloud.data,
+          message: responseFromCreateLocation.message,
+          location: responseFromCreateLocation.data,
         });
       }
 
-      if (responseFromCreateAirQloud.success === false) {
-        let status = responseFromCreateAirQloud.status
-          ? responseFromCreateAirQloud.status
+      if (responseFromCreateLocation.success === false) {
+        let status = responseFromCreateLocation.status
+          ? responseFromCreateLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        let errors = responseFromCreateAirQloud.errors
-          ? responseFromCreateAirQloud.errors
+        let errors = responseFromCreateLocation.errors
+          ? responseFromCreateLocation.errors
           : "";
 
         return res.status(status).json({
           success: false,
-          message: responseFromCreateAirQloud.message,
+          message: responseFromCreateLocation.message,
           errors,
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      tryCatchErrors(res, errors, "createLocation controller");
     }
   },
 
@@ -68,7 +68,7 @@ const createAirqloud = {
       let request = {};
 
       logText(".................................................");
-      logText("inside delete airqloud............");
+      logText("inside delete location............");
       const { tenant } = req.query;
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -80,34 +80,34 @@ const createAirqloud = {
         );
       }
       request["query"] = query;
-      let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
+      let responseFromRemoveLocation = await createLocationUtil.delete(request);
 
-      if (responseFromRemoveAirQloud.success === true) {
-        let status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
+      if (responseFromRemoveLocation.success === true) {
+        let status = responseFromRemoveLocation.status
+          ? responseFromRemoveLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveAirQloud.message,
-          airqloud: responseFromRemoveAirQloud.data,
+          message: responseFromRemoveLocation.message,
+          location: responseFromRemoveLocation.data,
         });
       }
 
-      if (responseFromRemoveAirQloud.success === false) {
-        let errors = responseFromRemoveAirQloud.errors
-          ? responseFromRemoveAirQloud.errors
+      if (responseFromRemoveLocation.success === false) {
+        let errors = responseFromRemoveLocation.errors
+          ? responseFromRemoveLocation.errors
           : "";
-        let status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
+        let status = responseFromRemoveLocation.status
+          ? responseFromRemoveLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveAirQloud.message,
+          message: responseFromRemoveLocation.message,
           errors,
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      tryCatchErrors(res, errors, "createLocation controller");
     }
   },
 
@@ -116,7 +116,7 @@ const createAirqloud = {
       let request = {};
       let { body } = req;
       let { query } = req;
-      logText("updating airqloud................");
+      logText("updating location................");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -128,36 +128,36 @@ const createAirqloud = {
       }
       request["body"] = body;
       request["query"] = query;
-      let responseFromUpdateAirQloud = await createAirQloudUtil.update(request);
-      logObject("responseFromUpdateAirQloud", responseFromUpdateAirQloud);
-      if (responseFromUpdateAirQloud.success === true) {
-        let status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
+      let responseFromUpdateLocation = await createLocationUtil.update(request);
+      logObject("responseFromUpdateLocation", responseFromUpdateLocation);
+      if (responseFromUpdateLocation.success === true) {
+        let status = responseFromUpdateLocation.status
+          ? responseFromUpdateLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromUpdateAirQloud.message,
-          airqloud: responseFromUpdateAirQloud.data,
+          message: responseFromUpdateLocation.message,
+          location: responseFromUpdateLocation.data,
         });
       }
 
-      if (responseFromUpdateAirQloud.success === false) {
-        let errors = responseFromUpdateAirQloud.errors
-          ? responseFromUpdateAirQloud.errors
+      if (responseFromUpdateLocation.success === false) {
+        let errors = responseFromUpdateLocation.errors
+          ? responseFromUpdateLocation.errors
           : "";
 
-        let status = responseFromUpdateAirQloud.status
-          ? responseFromUpdateAirQloud.status
+        let status = responseFromUpdateLocation.status
+          ? responseFromUpdateLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         return res.status(status).json({
           success: false,
-          message: responseFromUpdateAirQloud.message,
+          message: responseFromUpdateLocation.message,
           errors,
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      tryCatchErrors(res, errors, "createLocation controller");
     }
   },
 
@@ -166,7 +166,7 @@ const createAirqloud = {
       const { query } = req;
       let request = {};
       logText(".....................................");
-      logText("list all airqlouds by query params provided");
+      logText("list all locations by query params provided");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -177,37 +177,37 @@ const createAirqloud = {
         );
       }
       request["query"] = query;
-      let responseFromListAirQlouds = await createAirQloudUtil.list(request);
+      let responseFromListLocations = await createLocationUtil.list(request);
       logElement(
-        "has the response for listing airqlouds been successful?",
-        responseFromListAirQlouds.success
+        "has the response for listing locations been successful?",
+        responseFromListLocations.success
       );
-      if (responseFromListAirQlouds.success === true) {
-        let status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+      if (responseFromListLocations.success === true) {
+        let status = responseFromListLocations.status
+          ? responseFromListLocations.status
           : HTTPStatus.OK;
         res.status(status).json({
           success: true,
-          message: responseFromListAirQlouds.message,
-          airqlouds: responseFromListAirQlouds.data,
+          message: responseFromListLocations.message,
+          locations: responseFromListLocations.data,
         });
       }
 
-      if (responseFromListAirQlouds.success === false) {
-        let errors = responseFromListAirQlouds.errors
-          ? responseFromListAirQlouds.errors
+      if (responseFromListLocations.success === false) {
+        let errors = responseFromListLocations.errors
+          ? responseFromListLocations.errors
           : "";
-        let status = responseFromListAirQlouds.status
-          ? responseFromListAirQlouds.status
+        let status = responseFromListLocations.status
+          ? responseFromListLocations.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         res.status(status).json({
           success: false,
-          message: responseFromListAirQlouds.message,
+          message: responseFromListLocations.message,
           errors,
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "create airqloud controller");
+      tryCatchErrors(res, errors, "create location controller");
     }
   },
 
@@ -217,7 +217,7 @@ const createAirqloud = {
       const { body } = req;
       let request = {};
       logText(".................................................");
-      logText("inside delete airqloud............");
+      logText("inside delete location............");
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
@@ -229,36 +229,36 @@ const createAirqloud = {
       }
       request["query"] = query;
       request["body"] = body;
-      let responseFromRemoveAirQloud = await createAirQloudUtil.delete(request);
+      let responseFromRemoveLocation = await createLocationUtil.delete(request);
 
-      if (responseFromRemoveAirQloud.success === true) {
-        let status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
+      if (responseFromRemoveLocation.success === true) {
+        let status = responseFromRemoveLocation.status
+          ? responseFromRemoveLocation.status
           : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
-          message: responseFromRemoveAirQloud.message,
-          airqloud: responseFromRemoveAirQloud.data,
+          message: responseFromRemoveLocation.message,
+          location: responseFromRemoveLocation.data,
         });
       }
 
-      if (responseFromRemoveAirQloud.success === false) {
-        let errors = responseFromRemoveAirQloud.errors
-          ? responseFromRemoveAirQloud.errors
+      if (responseFromRemoveLocation.success === false) {
+        let errors = responseFromRemoveLocation.errors
+          ? responseFromRemoveLocation.errors
           : "";
-        let status = responseFromRemoveAirQloud.status
-          ? responseFromRemoveAirQloud.status
+        let status = responseFromRemoveLocation.status
+          ? responseFromRemoveLocation.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
-          message: responseFromRemoveAirQloud.message,
+          message: responseFromRemoveLocation.message,
           errors,
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "manageAirQloud controller");
+      tryCatchErrors(res, errors, "manageLocation controller");
     }
   },
 };
 
-module.exports = createAirqloud;
+module.exports = createLocation;
