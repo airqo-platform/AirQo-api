@@ -598,6 +598,17 @@ router.put(
 router.delete(
   "/organizations",
   oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
     query("id")
       .exists()
       .withMessage(
@@ -619,6 +630,17 @@ router.delete(
 
 router.put(
   "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
   oneOf([
     query("id")
       .exists()
@@ -712,10 +734,37 @@ router.put(
   organizationController.update
 );
 
-router.get("/organizations", setJWTAuth, authJWT, organizationController.list);
+router.get(
+  "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.list
+);
 
 router.post(
   "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
   oneOf([
     [
       body("email")
@@ -802,6 +851,17 @@ router.post(
 
 router.post(
   "/organizations/tenant",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
   oneOf([
     [
       body("email")
