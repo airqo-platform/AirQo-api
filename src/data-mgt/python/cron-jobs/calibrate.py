@@ -91,17 +91,13 @@ class CalibrationJob:
                 del device_group['deviceDetails']
                 device_measurements = pd.json_normalize(device_group.to_dict(orient='records'))
 
-                measurement_metadata = device_measurements[['site_id', 'device_id',
-                                                            'location.latitude.value', 'location.longitude.value',
-                                                            'device', 'device_number']].copy()
+                measurement_metadata = device_measurements[['site_id', 'device_id', 'device', 'device_number']].copy()
 
                 measurement_readings = device_measurements
 
                 del measurement_readings['site_id']
                 del measurement_readings['device_id']
                 del measurement_readings['frequency']
-                del measurement_readings['location.latitude.value']
-                del measurement_readings['location.longitude.value']
                 del measurement_readings['device']
                 del measurement_readings['device_number']
 
@@ -191,14 +187,6 @@ class CalibrationJob:
                     "device_number": row['device_number'],
                     "device_id": row['device_id'],
                     "site_id": row['site_id'],
-                    "location": {
-                        "latitude": {
-                            "value": to_double(row['location.latitude.value'])
-                        },
-                        "longitude": {
-                            "value": to_double(row['location.longitude.value'])
-                        }
-                    },
                     "internalTemperature": {
                         "value": to_double(row[
                                                "internalTemperature.value"]) if "internalTemperature.value" in columns else None
