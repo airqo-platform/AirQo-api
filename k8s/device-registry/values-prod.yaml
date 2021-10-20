@@ -1,0 +1,35 @@
+# values for airqo-device-registry-api.
+env:
+  deployment_name: airqo-device-registry-api
+  service_name: airqo-device-registry-api-svc
+  labels: device-reg-api
+  secret: env-device-registry-production
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-device-registry-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 30002
+  targetPort: 3000
+  port: 3000
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: production

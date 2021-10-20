@@ -1,0 +1,8 @@
+FROM quay.io/strimzi/kafka:0.22.1-kafka-2.7.0
+USER root:root
+RUN mkdir -p /opt/kafka/plugins/debezium
+COPY ./debezium-connector-mongodb/ /opt/kafka/plugins/debezium/
+USER 1001
+
+# Ref https://oss.sonatype.org/service/local/artifact/maven/redirect?r=snapshots&g=io.debezium&a=debezium-connector-mongodb&v=LATEST&c=plugin&e=tar.gz
+# RUN cd /tar/ && tar -xzf test_app.tar.gz && rm test_app.tar.gz

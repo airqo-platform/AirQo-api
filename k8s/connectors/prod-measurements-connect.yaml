@@ -1,0 +1,58 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: prod-measurements-connector-cluster
+  namespace: production
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  image: us.gcr.io/airqo-250220/prod-measurements-connect:latest
+  replicas: 2
+  bootstrapServers: prod-kafka-cluster-kafka-bootstrap:9092
+  resources: {}
+    # requests:
+    #   cpu: "250m"
+    #   memory: 1Gi
+    # limits:
+    #   cpu: "700m"
+    #   memory: 2Gi
+  readinessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
+  livenessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
+  externalConfiguration:
+    volumes:
+      - name: clarity-connector-config
+        secret:
+          secretName: clarity-credentials
+  config:
+    group.id: prod-measurements-connector-cluster
+    offset.storage.topic: prod-measurements-connector-cluster-offsets
+    config.storage.topic: prod-measurements-connector-cluster-configs
+    status.storage.topic: prod-measurements-connector-cluster-status
+    cleanup.policy: compact
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
+    config.storage.replication.factor: 3
+    offset.storage.replication.factor: 3
+    status.storage.replication.factor: 3
+    # config.providers: file,secrets,configmaps
+    # config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
+    # config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+  template:
+    connectContainer:
+      env:
+        - name: STRIMZI_IMAGE_PULL_POLICY
+          value: Always
+  # metricsConfig:
+  #   type: jmxPrometheusExporter
+  #   valueFrom:
+  #     configMapKeyRef:
+  #       name: prod-measurements-connector-cluster-metrics
+  #       key: prod-measurements-connector-cluster-metrics-config.yml

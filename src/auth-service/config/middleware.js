@@ -40,5 +40,6 @@ module.exports = (app) => {
 
   if (isDev) {
     app.use(morgan("dev"));
+    // console.log = function () {};
   }
 };

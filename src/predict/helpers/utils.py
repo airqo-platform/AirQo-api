@@ -9,17 +9,20 @@ import os
 from os import makedirs
 from os.path import join, isdir, isfile, basename
 import numpy as np
-import tensorflow as tf
 import requests
 import pymongo
 from pymongo import MongoClient
+from config import constants
 from dotenv import load_dotenv
 load_dotenv()
 
-MET_API_URL= os.getenv("MET_API_UR")
-MET_API_CLIENT_ID= os.getenv("MET_API_CLIENT_ID")
-MET_API_CLIENT_SECRET =os.getenv("MET_API_CLIENT_SECRET")
-MONGO_URI = os.getenv("MONGO_URI")
+MET_API_URL= os.getenv('MET_API_URL')
+MET_API_CLIENT_ID= os.getenv('MET_API_CLIENT_ID')
+MET_API_CLIENT_SECRET =os.getenv('MET_API_CLIENT_SECRET')
+
+app_configuration = constants.app_config.get(os.getenv('FLASK_ENV'))
+MONGO_URI = app_configuration.MONGO_URI
+DB_NAME = app_configuration.DB_NAME
 
 def get_hourly_met_forecasts():
     """
@@ -180,18 +183,18 @@ def string_to_hourly_datetime(my_list):
     return my_list
 
 
-def get_gp_predictions():
+def get_gp_predictions(airqloud):
     '''
-    returns pm 2.5 predictions given an array of space and time inputs
+    returns pm 2.5 predictions for a particular airqloud
     '''
     try:
         client = MongoClient(MONGO_URI)
     except pymongo.errors.ConnectionFailure as e:
         return {'message':'unable to connect to database', 'success':False}, 400
 
-    db = client['airqo_netmanager_airqo']
-    query = {}
-    projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1}
+    db = client[DB_NAME]
+    query = {'airqloud':airqloud}
+    projection = {'_id': 0, 'latitude': 1, 'longitude': 1, 'predicted_value': 1, 'variance': 1, 'interval': 1, 'airqloud':1, 'created_at':1}
     records = list(db.gp_predictions.find(query, projection))
     return records
 

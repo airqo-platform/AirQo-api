@@ -1,0 +1,57 @@
+###########################################################
+# Start deployment of analytics api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-analytics-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-alytics-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: sta-alytics-api
+    spec:
+      containers:
+        - name: sta-alytics-api
+          image: us.gcr.io/airqo-250220/airqo-stage-analytics-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+              name: sta-alytics-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 5000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          envFrom:
+            - configMapRef:
+                name: env-analytics-staging
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-analytics-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-alytics-api
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      nodePort: 31003
+  type: NodePort

@@ -1,0 +1,24 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: airqo-batch-measurements-job
+  namespace: production
+spec:
+  failedJobsHistoryLimit: 1
+  successfulJobsHistoryLimit: 1
+  schedule: 0 0 * * *
+  jobTemplate:
+    metadata:
+      name: airqo-batch-measurements-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          containers:
+          - name: airqo-batch-measurements-job
+            image: us.gcr.io/airqo-250220/prod-batch-measurements-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: airqo-batch-measurements-cronjob-config

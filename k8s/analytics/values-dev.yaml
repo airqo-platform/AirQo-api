@@ -1,0 +1,35 @@
+# values for airqo-analytics-api.
+env:
+  deployment_name: airqo-dev-analytics-api
+  service_name: airqo-dev-analytics-api-svc
+  labels: dev-analytics-api
+  secret: env-analytics-development
+
+replicaCount: 2
+
+image:
+  repository: airqo-dev-analytics-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 32003
+  targetPort: 5000
+  port: 5000
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: development

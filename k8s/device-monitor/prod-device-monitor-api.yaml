@@ -1,0 +1,57 @@
+###########################################################
+# Start deployment of device-monitoring microservice
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-device-monitor-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: device-monitor-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: device-monitor-api
+    spec:
+      containers:
+        - name: dev-monitor-api
+          image: us.gcr.io/airqo-250220/airqo-device-monitor-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4001
+              name: dev-monitor-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 4001
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          envFrom:
+            - configMapRef:
+                name: env-device-monitoring-production
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-device-monitor-api-svc
+  namespace: production
+spec:
+  selector:
+    app: device-monitor-api
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001
+      nodePort: 30006
+  type: NodePort
