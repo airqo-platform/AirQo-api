@@ -10,6 +10,9 @@ const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("../config/constants");
 const { isElement, isEmpty } = require("underscore");
+const HTTPStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-event-model");
 
 const valueSchema = new Schema({
   time: {
@@ -312,8 +315,8 @@ eventSchema.statics = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
       let removedEvents = await this.deleteMany(filter, options).exec();
-      let data = jsonify(removedEvents);
-      if (!isEmpty(data)) {
+      if (!isEmpty(removedEvents)) {
+        let data = removedEvents;
         return {
           success: true,
           message:
@@ -772,6 +775,50 @@ eventSchema.statics = {
         success: false,
         message: "model server error",
         error: error.message,
+      };
+    }
+  },
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      let options = { new: true };
+      let modifiedUpdateBody = update;
+      if (modifiedUpdateBody._id) {
+        delete modifiedUpdateBody._id;
+      }
+      if (modifiedUpdateBody.name) {
+        delete modifiedUpdateBody.name;
+      }
+      let updatedEvent = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdateBody,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedEvent)) {
+        let data = updatedEvent._doc;
+        return {
+          success: true,
+          message: "successfully modified the event",
+          data,
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "event does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+          errors: filter,
+        };
+      }
+    } catch (err) {
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      return {
+        errors,
+        message,
+        success: false,
+        status,
       };
     }
   },

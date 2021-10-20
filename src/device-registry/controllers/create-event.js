@@ -25,7 +25,18 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const createEvent = {
   update: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       let request = {};
+      logText("the updating game.....");
+      request["query"] = req.query;
       let responseFromUpdateEvents = await createEventUtil.update(request);
       if (responseFromUpdateEvents.success === true) {
         const status = responseFromUpdateEvents.status
@@ -38,6 +49,17 @@ const createEvent = {
         });
       }
       if (responseFromUpdateEvents.success === false) {
+        const status = responseFromUpdateEvents.status
+          ? responseFromUpdateEvents.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromUpdateEvents.errors
+          ? responseFromUpdateEvents.errors
+          : {};
+        res.status(status).json({
+          success: false,
+          message: responseFromUpdateEvents.message,
+          errors,
+        });
       }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({

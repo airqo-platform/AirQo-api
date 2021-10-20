@@ -2677,7 +2677,20 @@ router.get(
   ]),
   eventController.getValues
 );
-router.post("/events/transmit", eventController.transmitValues);
+router.post(
+  "/events/transmit",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  eventController.transmitValues
+);
 /*clear events*/
 router.delete(
   "/events",
@@ -2741,6 +2754,151 @@ router.delete(
       .withMessage("the device names do not have spaces in them"),
   ]),
   eventController.deleteValuesOnPlatform
+);
+router.put(
+  "/events",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("device_number")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the device_number"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the device_number should be an integer value"),
+    query("device_id")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("site_id")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the device_id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("site_id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("device")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the device name"
+      )
+      .bail()
+      .trim()
+      .isLowercase()
+      .withMessage("device name should be lower case")
+      .bail()
+      .matches(constants.WHITE_SPACES_REGEX, "i")
+      .withMessage("the device names do not have spaces in them"),
+  ]),
+  oneOf([
+    [
+      body("device_id")
+        .if(body("device_id").exists())
+        .notEmpty()
+        .withMessage("the device_id cannot be empty when provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("device_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("is_device_primary")
+        .if(body("is_device_primary").exists())
+        .notEmpty()
+        .withMessage("is_device_primary cannot be empty if provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("is_device_primary should be Boolean"),
+      body("site_id")
+        .if(body("site_id").exists())
+        .notEmpty()
+        .withMessage("the site_id cannot be empty when provided")
+        .bail()
+        .trim()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("time")
+        .if(body("time").exists())
+        .notEmpty()
+        .withMessage("the time cannot be empty when provided")
+        .bail()
+        .trim()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("time must be a valid datetime."),
+      body("frequency")
+        .if(body("frequency").exists())
+        .notEmpty()
+        .withMessage("the frequency cannot be empty when provided")
+        .bail()
+        .toLowerCase()
+        .trim()
+        .isIn(["raw", "hourly", "daily"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: raw, hourly and daily"
+        ),
+      body("is_test_data")
+        .if(body("is_test_data").exists())
+        .notEmpty()
+        .withMessage("is_test_data cannot be empty if provided")
+        .bail()
+        .trim()
+        .isBoolean()
+        .withMessage("is_test_data should be boolean"),
+      body("device")
+        .if(body("device").exists())
+        .notEmpty()
+        .withMessage("the device cannot be empty if provided")
+        .trim(),
+      body("site")
+        .if(body("site").exists())
+        .notEmpty()
+        .withMessage("the site cannot be empty if provided")
+        .trim(),
+      body("device_number")
+        .if(body("device_number").exists())
+        .notEmpty()
+        .withMessage("the device_number cannot be empty if provided")
+        .bail()
+        .trim()
+        .isInt()
+        .withMessage("the device_number should be an integer value"),
+    ],
+  ]),
+  eventController.update
 );
 
 /************************** locations usecase  *******************/

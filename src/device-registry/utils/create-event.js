@@ -15,6 +15,53 @@ const { registerDeviceUtil } = require("./create-device");
 const HTTPStatus = require("http-status");
 
 const createEvent = {
+  update: async (request) => {
+    try {
+      const filter = generateFilter.events_v2(request);
+      const update = request.body;
+      const { tenant } = request.query;
+      const resposeFromUpdateEvent = await getModelByTenant(
+        tenant.toLowerCase(),
+        "event",
+        eventSchema
+      ).modify({
+        filter,
+        update,
+      });
+
+      if (resposeFromUpdateEvent.success === true) {
+        const status = resposeFromUpdateEvent.status
+          ? resposeFromUpdateEvent.status
+          : "";
+        return {
+          success: true,
+          message: resposeFromUpdateEvent.message,
+          status,
+        };
+      }
+
+      if (resposeFromUpdateEvent.success === false) {
+        const status = resposeFromUpdateEvent.status
+          ? resposeFromUpdateEvent.status
+          : "";
+        const errors = resposeFromUpdateEvent.errors
+          ? resposeFromUpdateEvent.errors
+          : "";
+        return {
+          success: false,
+          message: resposeFromUpdateEvent.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {
       let dot = new Dot(".");
