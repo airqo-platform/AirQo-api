@@ -126,7 +126,6 @@ Use the images in deployment files for Kubernetes accordingly
 | `device`      | `string` | **Optional**. the unique name of the device |
 | `frequency`      | `string` | **Optional**. the frequency of the events. Includes: hourly, daily and raw |
 
-
 #### Get all Site activities
 
 ```http
