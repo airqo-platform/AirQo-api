@@ -6,7 +6,7 @@ metadata:
 spec:
   failedJobsHistoryLimit: 1
   successfulJobsHistoryLimit: 1
-  schedule: 0 4 * * *
+  schedule: 0 2 * * *
   jobTemplate:
     metadata:
       name: kcca-batch-measurements-job
@@ -16,9 +16,25 @@ spec:
           restartPolicy: OnFailure
           schedulerName: default-scheduler
           containers:
-          - name: kcca-batch-measurements-job
+
+          - name: kcca-raw-measurements-batch-job
             image: us.gcr.io/airqo-250220/stage-batch-measurements-job:latest
             imagePullPolicy: Always
             envFrom:
               - configMapRef:
-                  name: kcca-batch-measurements-cronjob-config
+                  name: kcca-raw-measurements-batch-cronjob-config
+
+          - name: kcca-hourly-measurements-batch-job
+            image: us.gcr.io/airqo-250220/stage-batch-measurements-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: kcca-hourly-measurements-batch-cronjob-config
+                  
+          - name: kcca-daily-measurements-batch-job
+            image: us.gcr.io/airqo-250220/stage-batch-measurements-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: kcca-daily-measurements-batch-cronjob-config
+      

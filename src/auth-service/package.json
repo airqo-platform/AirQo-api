@@ -20,6 +20,7 @@
         "app-module-path": "^2.2.0",
         "bcrypt": "^5.0.0",
         "body-parser": "~1.18.2",
+        "company-email-validator": "^1.0.6",
         "compression": "^1.7.4",
         "connect-mongo": "^3.2.0",
         "continuation-local-storage": "^3.2.1",

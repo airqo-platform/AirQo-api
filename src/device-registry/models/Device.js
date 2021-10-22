@@ -99,7 +99,7 @@ const deviceSchema = new mongoose.Schema(
       type: String,
     },
     phoneNumber: {
-      type: Number,
+      type: String,
     },
     powerType: {
       type: String,
@@ -245,8 +245,7 @@ deviceSchema.statics = {
         status: HTTPStatus.OK,
       };
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -312,9 +311,9 @@ deviceSchema.statics = {
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = jsonify(response);
-      logger.info(`the data produced in the model -- ${JSON.stringify(data)}`);
-      if (!isEmpty(data)) {
+      logger.info(`the data produced in the model -- ${response}`);
+      if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
           message: "successfully retrieved the device details",
@@ -332,7 +331,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "unable to retrieve devices",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -352,8 +351,9 @@ deviceSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(updatedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedDevice)) {
+        let data = updatedDevice._doc;
         return {
           success: true,
           message: "successfully modified the device",
@@ -372,7 +372,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "Device model server error - modify",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -413,8 +413,9 @@ deviceSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(updatedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedDevice)) {
+        let data = updatedDevice._doc;
         return {
           success: true,
           message: "successfully modified the device",
@@ -433,7 +434,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -444,8 +445,9 @@ deviceSchema.statics = {
         projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedDevice)) {
+        let data = removedDevice._doc;
         return {
           success: true,
           message: "successfully deleted device from the platform",
@@ -457,13 +459,14 @@ deviceSchema.statics = {
           success: false,
           message: "device does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: { message: "device does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "Device model server error - remove",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

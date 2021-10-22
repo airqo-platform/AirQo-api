@@ -1,0 +1,31 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: prod-events-notifs-job
+  namespace: production
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "@hourly"
+  jobTemplate:
+    metadata:
+      name: prod-events-notifs-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          containers:
+          - name: prod-events-notifs-job
+            image: us.gcr.io/airqo-250220/events-notifs-job:latest
+            imagePullPolicy: Always
+            resources:
+              requests:
+                memory: 256Mi
+                cpu: 200m
+              limits:
+                memory: 512Mi
+                cpu: "1"
+            envFrom:
+              - configMapRef:
+                  name: prod-events-notifs-cronjob-config

@@ -1,16 +1,15 @@
-const mongoose = require("mongoose").set("debug", true);
+const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { Schema } = mongoose;
 const validator = require("validator");
 var uniqueValidator = require("mongoose-unique-validator");
 const { logObject, logElement, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const createOrganizationUtil = require("../utils/create-organization");
 const { getModelByTenant } = require("../utils/multitenancy");
 const HTTPStatus = require("http-status");
 
-const OrganizationSchema = new mongoose.Schema(
+const OrganizationSchema = new Schema(
   {
     email: {
       type: String,
@@ -37,8 +36,16 @@ const OrganizationSchema = new mongoose.Schema(
       unique: true,
       required: [true, "the website is required"],
     },
-    name: { type: String, unique: true, required: [true, "name is required"] },
-    tenant: { type: String, required: [true, "tenant is required"] },
+    name: { type: String, required: [true, "name is required"] },
+    tenant: {
+      type: String,
+      required: [true, "tenant is required"],
+    },
+    acronym: {
+      type: String,
+      required: [true, "acronym is required"],
+      unique: true,
+    },
     category: {
       type: String,
       required: [true, "category is required"],
@@ -55,8 +62,8 @@ OrganizationSchema.plugin(uniqueValidator, {
 
 OrganizationSchema.index({ website: 1 }, { unique: true });
 OrganizationSchema.index({ email: 1 }, { unique: true });
-OrganizationSchema.index({ name: 1 }, { unique: true });
 OrganizationSchema.index({ phoneNumber: 1 }, { unique: true });
+OrganizationSchema.index({ acronym: 1 }, { unique: true });
 
 OrganizationSchema.methods = {
   toJSON() {
@@ -71,6 +78,7 @@ OrganizationSchema.methods = {
       phoneNumber: this.phoneNumber,
       tenant: this.tenant,
       name: this.name,
+      acronym: this.acronym,
       createdAt: this.createdAt,
     };
   },
@@ -90,11 +98,10 @@ const sanitizeName = (name) => {
 OrganizationSchema.statics = {
   async register(args) {
     try {
-      logText("the register method in the model........");
       let modifiedArgs = args;
-      let name = modifiedArgs.name;
-      if (name) {
-        modifiedArgs["tenant"] = sanitizeName(name);
+      let tenant = modifiedArgs.tenant;
+      if (tenant) {
+        modifiedArgs["tenant"] = sanitizeName(tenant);
       }
       let data = await this.create({
         ...modifiedArgs,
@@ -116,9 +123,7 @@ OrganizationSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", err);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -152,8 +157,8 @@ OrganizationSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(organizations);
-      if (!isEmpty(data)) {
+      if (!isEmpty(organizations)) {
+        let data = organizations;
         return {
           success: true,
           data,
@@ -161,24 +166,23 @@ OrganizationSchema.statics = {
           status: HTTPStatus.OK,
         };
       }
-      if (isEmpty(data)) {
+      if (isEmpty(organizations)) {
         return {
           success: false,
-          message: "no organizations exist",
-          data,
+          message: "no organizations exist for this search",
+          data: [],
           status: HTTPStatus.NOT_FOUND,
+          errors: { message: "no organizations exist for this search" },
         };
       }
       return {
         success: false,
         message: "unable to retrieve organizations",
-        data,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: "unable to retrieve organizations" },
       };
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -209,17 +213,17 @@ OrganizationSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-      logObject("modifiedUpdate", modifiedUpdate);
       if (modifiedUpdate.tenant) {
         delete modifiedUpdate.tenant;
       }
-      let udpatedOrganization = await this.findOneAndUpdate(
+      let updatedOrganization = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(udpatedOrganization);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedOrganization)) {
+        let data = updatedOrganization._doc;
         return {
           success: true,
           message: "successfully modified the organization",
@@ -235,9 +239,7 @@ OrganizationSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -281,8 +283,9 @@ OrganizationSchema.statics = {
         filter,
         options
       ).exec();
-      let data = jsonify(removedOrganization);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedOrganization)) {
+        let data = removedOrganization._doc;
         return {
           success: true,
           message: "successfully removed the organization",
@@ -298,9 +301,7 @@ OrganizationSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;

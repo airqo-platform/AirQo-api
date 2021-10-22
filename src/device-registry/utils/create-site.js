@@ -1,9 +1,11 @@
+const { Schema } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 const SiteSchema = require("../models/Site");
+const UniqueIdentifierCounterSchema = require("../models/UniqueIdentifierCounter");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
 const client = new Client({});
@@ -27,7 +29,9 @@ const manageSite = {
       return name.indexOf(" ") >= 0;
     } catch (e) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${e.message}`
+        `create site util server error -- hasWhiteSpace -- ${{
+          message: e.message,
+        }}`
       );
     }
   },
@@ -41,7 +45,9 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- check string length -- ${e.message}`
+        `create site util server error -- check string length -- ${{
+          message: e.message,
+        }}`
       );
     }
   },
@@ -56,7 +62,9 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- validate site name -- ${e.message}`
+        `create site util server error -- validate site name -- ${{
+          message: e.message,
+        }}`
       );
     }
   },
@@ -64,79 +72,64 @@ const manageSite = {
   generateName: async (tenant) => {
     try {
       let filter = {
-        lat_long: "4_4",
+        NAME: "site_0",
       };
-      let responseFromListSite = await getModelByTenant(
+
+      let update = {
+        $inc: { COUNT: 1 },
+      };
+
+      let responseFromModifyUniqueIdentifierCounter = await getModelByTenant(
         tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).list({
-        tenant,
+        "uniqueIdentifierCounter",
+        UniqueIdentifierCounterSchema
+      ).modify({
         filter,
+        update,
       });
 
-      if (responseFromListSite.success === false) {
+      if (responseFromModifyUniqueIdentifierCounter.success === false) {
         logger.error(
           `unable to find the counter document, please first create it`
         );
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
-          : "";
+        let errors = responseFromModifyUniqueIdentifierCounter.errors
+          ? responseFromModifyUniqueIdentifierCounter.errors
+          : {};
+        logObject("error", errors);
 
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
+        let status = responseFromModifyUniqueIdentifierCounter.status
+          ? responseFromModifyUniqueIdentifierCounter.status
           : "";
 
         return {
           success: false,
           message:
             "unable to generate unique name for this site, contact support",
-          error,
+          errors,
           status,
         };
       }
-      let update = {
-        $inc: { count: 1 },
-      };
-      let responseFromUpdateSite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).modify({
-        filter,
-        update,
-      });
-      if (responseFromUpdateSite.success === true) {
-        let count = responseFromUpdateSite.data.count;
-        let siteName = `site_${count}`;
+
+      if (responseFromModifyUniqueIdentifierCounter.success === true) {
+        const status = responseFromModifyUniqueIdentifierCounter.status
+          ? responseFromModifyUniqueIdentifierCounter.status
+          : "";
+        const count = responseFromModifyUniqueIdentifierCounter.data.COUNT;
+        const siteName = `site_${count}`;
         return {
           success: true,
-          message: "successfully generated the unique site name",
+          message: "unique name generated for this site",
           data: siteName,
-        };
-      }
-
-      if (responseFromUpdateSite.success === false) {
-        let error = responseFromUpdateSite.error
-          ? responseFromUpdateSite.error
-          : "";
-
-        let status = responseFromUpdateSite.status
-          ? responseFromUpdateSite.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromUpdateSite.message,
-          error,
           status,
         };
       }
     } catch (e) {
-      logger.error(`generateName util server error -- ${e.message}`);
+      logger.error(
+        `generateName util server error -- ${{ message: e.message }}`
+      );
       return {
         success: false,
-        error: e.message,
+        errors: { message: { message: e.message } },
         message: "generateName -- createSite util server error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -171,13 +164,17 @@ const manageSite = {
       }
 
       if (responseFromGenerateName.success === false) {
-        let error = responseFromGenerateName.error
-          ? responseFromGenerateName.error
+        let errors = responseFromGenerateName.errors
+          ? responseFromGenerateName.errors
+          : "";
+        let status = responseFromGenerateName.status
+          ? responseFromGenerateName.status
           : "";
         return {
           success: false,
           message: responseFromGenerateName.message,
-          error,
+          errors,
+          status,
         };
       }
 
@@ -190,13 +187,17 @@ const manageSite = {
       }
 
       if (responseFromGenerateMetadata.success === false) {
-        let error = responseFromGenerateMetadata.error
-          ? responseFromGenerateMetadata.error
+        let errors = responseFromGenerateMetadata.errors
+          ? responseFromGenerateMetadata.errors
+          : "";
+        let status = responseFromGenerateMetadata.status
+          ? responseFromGenerateMetadata.status
           : "";
         return {
           success: false,
           message: responseFromGenerateMetadata.message,
-          error,
+          errors,
+          status,
         };
       }
 
@@ -208,21 +209,20 @@ const manageSite = {
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
-        let jsonifyCreatedSite = jsonify(createdSite);
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : "";
         return {
           success: true,
           message: "Site successfully created",
-          data: jsonifyCreatedSite,
+          data: createdSite,
           status,
         };
       }
 
       if (responseFromCreateSite.success === false) {
-        let error = responseFromCreateSite.error
-          ? responseFromCreateSite.error
+        let errors = responseFromCreateSite.errors
+          ? responseFromCreateSite.errors
           : "";
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
@@ -230,15 +230,15 @@ const manageSite = {
         return {
           success: false,
           message: responseFromCreateSite.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
       return {
         success: false,
-        message: "create site util server error -- create",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: { message: e.message } },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -255,16 +255,20 @@ const manageSite = {
         update,
       });
       if (responseFromModifySite.success === true) {
+        let status = responseFromModifySite.status
+          ? responseFromModifySite.status
+          : "";
         return {
           success: true,
           message: responseFromModifySite.message,
           data: responseFromModifySite.data,
+          status,
         };
       }
 
       if (responseFromModifySite.success === false) {
-        let error = responseFromModifySite.error
-          ? responseFromModifySite.error
+        let errors = responseFromModifySite.errors
+          ? responseFromModifySite.errors
           : "";
 
         let status = responseFromModifySite.status
@@ -274,16 +278,16 @@ const manageSite = {
         return {
           success: false,
           message: responseFromModifySite.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
-      logElement("update Sites util", e.message);
+      logElement("update Sites util", { message: e.message });
       return {
         success: false,
         message: "create site util server error -- update",
-        error: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -296,7 +300,9 @@ const manageSite = {
       let trimmedName = shortenedName.trim();
       return trimmedName.toLowerCase();
     } catch (error) {
-      logger.error(`sanitiseName -- create site util -- ${error.message}`);
+      logger.error(
+        `sanitiseName -- create site util -- ${{ message: error.message }}`
+      );
     }
   },
 
@@ -318,11 +324,11 @@ const manageSite = {
       }
 
       if (responseFromGetAltitude.success === false) {
-        let error = responseFromGetAltitude.error
-          ? responseFromGetAltitude.error
+        let errors = responseFromGetAltitude.errors
+          ? responseFromGetAltitude.errors
           : "";
         logger.error(
-          `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${error}`
+          `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${errors}`
         );
       }
 
@@ -339,28 +345,36 @@ const manageSite = {
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
         let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+        let status = responseFromReverseGeoCode.status
+          ? responseFromReverseGeoCode.status
+          : "";
         return {
           success: true,
           message: "successfully generated the metadata",
           data: requestBody,
+          status,
         };
       }
 
       if (responseFromReverseGeoCode.success === false) {
-        let error = responseFromReverseGeoCode.error
-          ? responseFromReverseGeoCode.error
+        let errors = responseFromReverseGeoCode.errors
+          ? responseFromReverseGeoCode.errors
+          : "";
+        let status = responseFromReverseGeoCode.status
+          ? responseFromReverseGeoCode.status
           : "";
         return {
           success: false,
           message: responseFromReverseGeoCode.message,
-          error,
+          errors,
+          status,
         };
       }
     } catch (e) {
       return {
         success: false,
         message: "create site util server error -- generate metadata",
-        error: e.message,
+        errors: { message: { message: e.message } },
       };
     }
   },
@@ -395,8 +409,8 @@ const manageSite = {
       }
 
       if (responseFromListSite.success === false) {
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
+        let errors = responseFromListSite.errors
+          ? responseFromListSite.errors
           : "";
         let status = responseFromListSite.status
           ? responseFromListSite.status
@@ -404,7 +418,7 @@ const manageSite = {
         return {
           message: responseFromListSite.message,
           status,
-          error,
+          errors,
         };
       }
 
@@ -419,11 +433,6 @@ const manageSite = {
         longitude,
       } = request.body;
 
-      /**
-       * we could move all these name vaslidations and
-       * sanitisations to the api route level before
-       * coming to to the utils
-       */
       if (!name) {
         let siteNames = { name, parish, county, district };
         let availableName = manageSite.pickAvailableValue(siteNames);
@@ -446,13 +455,13 @@ const manageSite = {
           request["body"]["generated_name"] = generated_name;
         }
         if (responseFromGenerateName.success === false) {
-          let error = responseFromGenerateName.error
-            ? responseFromGenerateName.error
+          let errors = responseFromGenerateName.errors
+            ? responseFromGenerateName.errors
             : "";
           return {
             success: false,
             message: responseFromGenerateName.message,
-            error,
+            errors,
           };
         }
       }
@@ -492,40 +501,40 @@ const manageSite = {
       }
 
       if (responseFromModifySite.success === false) {
-        let error = responseFromModifySite.error
-          ? responseFromModifySite.error
+        let errors = responseFromModifySite.errors
+          ? responseFromModifySite.errors
           : "";
         return {
           success: false,
           message: responseFromModifySite.message,
-          error,
+          errors,
         };
       }
 
       if (responseFromGenerateMetadata.success === false) {
-        let error = responseFromGenerateMetadata.error
-          ? responseFromGenerateMetadata.error
+        let errors = responseFromGenerateMetadata.errors
+          ? responseFromGenerateMetadata.errors
           : "";
         return {
           success: false,
           message: responseFromGenerateMetadata.message,
-          error,
+          errors,
         };
       }
 
       if (responseFromListSite.success === false) {
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
+        let errors = responseFromListSite.errors
+          ? responseFromListSite.errors
           : "";
         return {
           success: false,
           message: responseFromListSite.message,
-          error,
+          errors,
         };
       }
     } catch (error) {
       return {
-        error: error.message,
+        errors: { message: error.message },
         message: "create site util -- server error -- refresh site data",
         success: false,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -551,8 +560,8 @@ const manageSite = {
       }
 
       if (responseFromRemoveSite.success === false) {
-        let error = responseFromRemoveSite.error
-          ? responseFromRemoveSite.error
+        let errors = responseFromRemoveSite.errors
+          ? responseFromRemoveSite.errors
           : "";
 
         let status = responseFromRemoveSite.status
@@ -562,16 +571,16 @@ const manageSite = {
         return {
           success: false,
           message: responseFromRemoveSite.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
-      logElement("delete Site util", e.message);
+      logElement("delete Site util", { message: e.message });
       return {
         success: false,
         message: "delete Site util server error",
-        error: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -588,8 +597,8 @@ const manageSite = {
         _skip,
       });
       if (responseFromListSite.success === false) {
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
+        let errors = responseFromListSite.errors
+          ? responseFromListSite.errors
           : "";
 
         let status = responseFromListSite.status
@@ -598,7 +607,7 @@ const manageSite = {
         return {
           success: false,
           message: responseFromListSite.message,
-          error,
+          errors,
           status,
         };
       }
@@ -618,11 +627,11 @@ const manageSite = {
         };
       }
     } catch (e) {
-      logElement("list Sites util", e.message);
+      logElement("list Sites util", { message: e.message });
       return {
         success: false,
         message: "list Sites util server error",
-        error: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -631,7 +640,7 @@ const manageSite = {
   formatSiteName: (name) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -644,6 +653,7 @@ const manageSite = {
       let google_place_id = results.place_id;
       let types = results.types;
       let retrievedAddress = {};
+      logObject("address_components ", address_components);
       address_components.forEach((object) => {
         if (object.types.includes("locality", "administrative_area_level_3")) {
           retrievedAddress.town = object.long_name;
@@ -682,7 +692,7 @@ const manageSite = {
       return {
         success: false,
         message: "unable to transform the address",
-        error: e.message,
+        errors: { message: { message: e.message } },
       };
     }
   },
@@ -695,21 +705,22 @@ const manageSite = {
         .get(url)
         .then(async (response) => {
           let responseJSON = response.data;
-          if (responseJSON) {
+          logObject("responseJSON", responseJSON);
+          if (!isEmpty(responseJSON.results)) {
             let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
               responseJSON
             );
-            if (responseFromTransformAddress.success == true) {
+            if (responseFromTransformAddress.success === true) {
               return {
                 success: true,
                 data: responseFromTransformAddress.data,
                 message: responseFromTransformAddress.message,
               };
-            } else if (responseFromTransformAddress.success == false) {
-              if (responseFromTransformAddress.error) {
+            } else if (responseFromTransformAddress.success === false) {
+              if (responseFromTransformAddress.errors) {
                 return {
                   success: false,
-                  error: responseFromTransformAddress.error,
+                  errors: responseFromTransformAddress.errors,
                   message: responseFromTransformAddress.message,
                 };
               } else {
@@ -723,13 +734,18 @@ const manageSite = {
             return {
               success: false,
               message: "unable to get the site address details",
+              status: HTTPStatus.NOT_FOUND,
+              errors: {
+                message:
+                  "review the GPS coordinates provided, we cannot get corresponding metada",
+              },
             };
           }
         })
         .catch((error) => {
           return {
             success: false,
-            error: error.message,
+            errors: { message: error },
             message: "constants server side error",
           };
         });
@@ -737,7 +753,7 @@ const manageSite = {
       return {
         success: false,
         message: "unable to get the address values",
-        error: e.message,
+        errors: { message: { message: e.message } },
       };
     }
   },
@@ -745,14 +761,14 @@ const manageSite = {
   getDistance: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getLandform: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -775,22 +791,25 @@ const manageSite = {
             success: true,
             message: "successfully retrieved the altitude details",
             data: r.data.results[0].elevation,
+            status: HTTPStatus.OK,
           };
         })
         .catch((e) => {
-          logElement("get altitude server error", e.message);
+          logElement("get altitude server error", { message: e.message });
           return {
             success: false,
             message: "get altitude server error",
-            error: e,
+            errors: { message: e },
+            status: HTTPStatus.BAD_GATEWAY,
           };
         });
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
       return {
         success: false,
         message: "get altitude server error",
-        error: e.message,
+        errors: { message: e.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -798,49 +817,49 @@ const manageSite = {
   getTrafficFactor: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getGreenness: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getTerrain: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getAspect: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getRoadIntesity: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getRoadStatus: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getLandUse: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -848,7 +867,7 @@ const manageSite = {
     try {
       return `${lat}_${long}`;
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -905,7 +924,7 @@ const manageSite = {
       return {
         success: false,
         message: "Internal Server Error",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

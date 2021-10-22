@@ -5,6 +5,46 @@ const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const createOrganization = {
+  getTenantFromEmail: async (req, res) => {
+    try {
+      let { body, query } = req;
+      let request = {};
+      request["body"] = body;
+      let responseFromGetTenantFromEmail =
+        await createOrganizationUtil.getTenantFromEmail(request);
+
+      if (responseFromGetTenantFromEmail.success === true) {
+        let status = responseFromGetTenantFromEmail.status
+          ? responseFromGetTenantFromEmail.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromGetTenantFromEmail.message,
+          tenant: responseFromGetTenantFromEmail.data,
+        });
+      }
+
+      if (responseFromGetTenantFromEmail.success === false) {
+        let status = responseFromGetTenantFromEmail.status
+          ? responseFromGetTenantFromEmail.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        let errors = responseFromGetTenantFromEmail.errors
+          ? responseFromGetTenantFromEmail.errors
+          : "";
+        return res.status(status).json({
+          success: false,
+          message: responseFromGetTenantFromEmail.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   create: async (req, res) => {
     try {
       logText("we are creating the organization....");
@@ -201,6 +241,11 @@ const createOrganization = {
         request
       );
 
+      logObject(
+        "responseFromListOrganizations in controller",
+        responseFromListOrganizations
+      );
+
       if (responseFromListOrganizations.success === true) {
         let status = responseFromListOrganizations.status
           ? responseFromListOrganizations.status
@@ -222,8 +267,8 @@ const createOrganization = {
           : "";
 
         return res.status(status).json({
-          errors,
           message: responseFromListOrganizations.message,
+          errors,
         });
       }
     } catch (error) {

@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const jsonify = require("../utils/jsonify");
 const { logObject, logElement } = require("../utils/log");
 const isEmpty = require("is-empty");
 
@@ -69,8 +68,9 @@ CandidateSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(candidates);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(candidates)) {
+        let data = candidates;
         return {
           success: true,
           data,
@@ -94,16 +94,14 @@ CandidateSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      let udpatedCandidate = await this.findOneAndUpdate(
+      let updatedCandidate = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
-      let data = jsonify(udpatedCandidate);
-      logObject("updatedCandidate", data);
-
-      if (!isEmpty(data)) {
+      if (!isEmpty(updatedCandidate)) {
+        let data = updatedCandidate._doc;
         return {
           success: true,
           message: "successfully modified the candidate",
@@ -132,9 +130,8 @@ CandidateSchema.statics = {
         filter,
         options
       ).exec();
-      logElement("removedCandidate", removedCandidate);
-      let data = jsonify(removedCandidate);
-      if (!isEmpty(data)) {
+      if (!isEmpty(removedCandidate)) {
+        let data = removedCandidate._doc;
         return {
           success: true,
           message: "successfully removed the candidate",

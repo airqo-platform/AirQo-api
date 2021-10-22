@@ -195,8 +195,9 @@ router.post(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -239,8 +240,7 @@ router.post(
           return isValid;
         })
         .withMessage("phoneNumber must be a valid one")
-        .bail()
-        .toInt(),
+        .bail(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
@@ -438,8 +438,9 @@ router.put(
         .if(body("nextMaintenance").exists())
         .notEmpty()
         .trim()
-        .isDate()
-        .withMessage("nextMaintenance must be a Date"),
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
         .if(body("isPrimaryInLocation").exists())
         .notEmpty()
@@ -482,8 +483,7 @@ router.put(
           return isValid;
         })
         .withMessage("phoneNumber must be a valid one")
-        .bail()
-        .toInt(),
+        .bail(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
@@ -818,8 +818,7 @@ router.put(
           return isValid;
         })
         .withMessage("phoneNumber must be a valid one")
-        .bail()
-        .toInt(),
+        .bail(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
@@ -948,8 +947,6 @@ router.get(
 );
 
 /******************* create-photo use-case ***************/
-/**** delete photos */
-router.delete("/photos", photoController.deletePhotos);
 
 /****************** create-site use-case *************************/
 router.post(
