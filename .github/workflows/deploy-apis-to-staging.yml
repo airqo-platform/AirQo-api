@@ -335,8 +335,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-uptime/
-          kubectl apply -f stage-device-uptime-job.yaml
-          kubectl rollout restart deployment/airqo-stage-device-uptime-job -n staging
+          kubectl apply -f stage-airqo-device-uptime-job.yaml
   
   ### device status ###
   device-status:
