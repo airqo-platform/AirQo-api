@@ -28,7 +28,8 @@ const generateFilter = {
     startTime,
     endTime,
     metadata,
-    external
+    external,
+    tenant
   ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
@@ -58,6 +59,10 @@ const generateFilter = {
     }
     if (!external) {
       filter["external"] = "yes";
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
     }
 
     if (startTime) {
