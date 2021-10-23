@@ -49,9 +49,3 @@ Make a "POST" request to http://localhost:4001/api/v1/calibrate with the followi
     ]
 }
 ```
-
-## Kafka
-Building the docker image
-```commandline
-DOCKER_BUILDKIT=1 docker build --build-arg BOOTSTRAP_SERVERS=127.0.0.1:9092 --build-arg SCHEMA_REGISTRY=http://127.0.0.1:8081 -f Kafka.Stage.Dockerfile -t calibrate-kafka . 
-```

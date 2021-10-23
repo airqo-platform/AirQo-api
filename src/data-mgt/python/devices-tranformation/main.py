@@ -41,6 +41,9 @@ if __name__ == '__main__':
     elif action.lower().strip() == "update_primary_devices":
         transformation.update_primary_devices()
 
+    elif action.lower().strip() == "devices_without_forecast":
+        transformation.get_devices_without_forecast()
+
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")
         exit()

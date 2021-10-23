@@ -41,10 +41,10 @@ const createEvent = {
       const responseFromTransformMeasurements = await transformMeasurements_v2(
         measurements
       );
-      logObject(
-        "responseFromTransformMeasurements",
-        responseFromTransformMeasurements
-      );
+      // logObject(
+      //   "responseFromTransformMeasurements",
+      //   responseFromTransformMeasurements
+      // );
 
       if (!responseFromTransformMeasurements.success) {
         let error = responseFromTransformMeasurements.error
@@ -57,10 +57,10 @@ const createEvent = {
         });
       }
 
-      logObject(
-        "responseFromTransformMeasurements.data",
-        responseFromTransformMeasurements.data
-      );
+      // logObject(
+      //   "responseFromTransformMeasurements.data",
+      //   responseFromTransformMeasurements.data
+      // );
 
       let response = await insertMeasurements(
         tenant,
@@ -105,6 +105,7 @@ const createEvent = {
         site_id,
         device_number,
         metadata,
+        external,
       } = req.query;
 
       const hasErrors = !validationResult(req).isEmpty();
@@ -134,7 +135,8 @@ const createEvent = {
           tenant,
           startTime,
           endTime,
-          metadata
+          metadata,
+          external
         );
       } else {
         missingQueryParams(req, res);

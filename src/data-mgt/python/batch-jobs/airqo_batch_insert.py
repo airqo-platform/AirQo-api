@@ -6,8 +6,7 @@ from google.cloud import bigquery
 
 from config import configuration as config
 from date import str_to_date, date_to_str
-from event import DeviceRegistry
-from utils import build_channel_id_filter, to_float
+from utils import build_channel_id_filter, to_float, DeviceRegistry
 
 os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 

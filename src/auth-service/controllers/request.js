@@ -34,7 +34,7 @@ const candidate = {
         firstName,
         lastName,
         email,
-        organization,
+        long_organization,
         jobTitle,
         website,
         description,
@@ -53,18 +53,18 @@ const candidate = {
         text: msgs.joinRequest,
       };
 
-      let responseFromUserCreation = await requestUtil.create(
-        tenant.toLowerCase(),
-        firstName,
-        lastName,
-        email,
-        organization,
-        jobTitle,
-        website,
-        description,
-        category,
-        mailOptions
-      );
+      let request = {};
+      request["tenant"] = tenant.toLowerCase();
+      request["firstName"] = firstName;
+      request["lastName"] = lastName;
+      request["email"] = email;
+      request["long_organization"] = long_organization;
+      request["jobTitle"] = jobTitle;
+      request["website"] = website;
+      request["description"] = description;
+      request["category"] = category;
+
+      let responseFromUserCreation = await requestUtil.create(request);
 
       if (responseFromUserCreation.success == true) {
         return res.status(HTTPStatus.OK).json({
@@ -183,11 +183,13 @@ const candidate = {
         firstName,
         lastName,
         email,
-        organization,
+        long_organization,
         jobTitle,
         website,
         category,
+        description,
       } = req.body;
+
       const { errors, isValid } = validations.candidate(req.body);
       if (!isValid) {
         return res
@@ -202,23 +204,26 @@ const candidate = {
       let responseFromFilter = generateFilter.candidates(req);
       logObject("responseFromFilter", responseFromFilter);
 
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         logObject("the filter in controller", filter);
-        let responseFromConfirmCandidate = await requestUtil.confirm(
-          tenant,
-          firstName,
-          lastName,
-          email,
-          organization,
-          jobTitle,
-          website,
-          category,
-          filter
-        );
+        let request = {};
+        request["tenant"] = tenant.toLowerCase();
+        request["firstName"] = firstName;
+        request["lastName"] = lastName;
+        request["email"] = email;
+        request["organization"] = tenant;
+        request["long_organization"] = long_organization;
+        request["jobTitle"] = jobTitle;
+        request["website"] = website;
+        request["description"] = description;
+        request["category"] = category;
+        request["filter"] = filter;
+
+        let responseFromConfirmCandidate = await requestUtil.confirm(request);
 
         logObject("responseFromConfirmCandidate", responseFromConfirmCandidate);
-        if (responseFromConfirmCandidate.success == true) {
+        if (responseFromConfirmCandidate.success === true) {
           let status = responseFromConfirmCandidate.status
             ? responseFromConfirmCandidate.status
             : HTTPStatus.OK;
@@ -227,7 +232,7 @@ const candidate = {
             message: responseFromConfirmCandidate.message,
             user: responseFromConfirmCandidate.data,
           });
-        } else if (responseFromConfirmCandidate.success == false) {
+        } else if (responseFromConfirmCandidate.success === false) {
           let status = responseFromConfirmCandidate.status
             ? responseFromConfirmCandidate.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -243,7 +248,7 @@ const candidate = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({

@@ -10,6 +10,7 @@ const isEmpty = require("is-empty");
 const jsonify = require("../utils/jsonify");
 const log4js = require("log4js");
 const logger = log4js.getLogger("device-model");
+const HTTPStatus = require("http-status");
 const maxLength = [
   15,
   "The value of path `{PATH}` (`{VALUE}`) exceeds the maximum allowed length ({MAXLENGTH}).",
@@ -29,9 +30,6 @@ const deviceSchema = new mongoose.Schema(
     },
     longitude: {
       type: Number,
-    },
-    license: {
-      type: String,
     },
     writeKey: {
       type: String,
@@ -73,14 +71,8 @@ const deviceSchema = new mongoose.Schema(
         "the number of the device in the provided generation is required",
       ],
     },
-    elevation: {
-      type: Number,
-    },
     tags: {
       type: Array,
-    },
-    owner: {
-      type: ObjectId,
     },
     description: {
       type: String,
@@ -106,31 +98,13 @@ const deviceSchema = new mongoose.Schema(
     ISP: {
       type: String,
     },
-    siteName: {
-      type: String,
-    },
-    locationName: {
-      type: String,
-    },
     phoneNumber: {
-      type: Number,
-    },
-    device_manufacturer: {
       type: String,
-      default: null,
-    },
-    product_name: {
-      type: String,
-      default: null,
     },
     powerType: {
       type: String,
       trim: true,
       lowercase: true,
-    },
-    isRetired: {
-      type: Boolean,
-      default: false,
     },
     host_id: {
       type: ObjectId,
@@ -139,10 +113,6 @@ const deviceSchema = new mongoose.Schema(
       type: ObjectId,
     },
     isPrimaryInLocation: {
-      type: Boolean,
-      default: false,
-    },
-    isUsedForCollocation: {
       type: Boolean,
       default: false,
     },
@@ -225,15 +195,11 @@ deviceSchema.methods = {
       latitude: this.latitude,
       longitude: this.longitude,
       createdAt: this.createdAt,
-      owner: this.owner,
-      device_manufacturer: this.device_manufacturer,
-      product_name: this.product_name,
       ISP: this.ISP,
       phoneNumber: this.phoneNumber,
       visibility: this.visibility,
       description: this.description,
       isPrimaryInLocation: this.isPrimaryInLocation,
-      isUsedForCollocation: this.isUsedForCollocation,
       nextMaintenance: this.nextMaintenance,
       deployment_date: this.deployment_date,
       maintenance_date: this.maintenance_date,
@@ -248,8 +214,6 @@ deviceSchema.methods = {
       readKey: this.readKey,
       pictures: this.pictures,
       site_id: this.site_id,
-      siteName: this.siteName,
-      locationName: this.locationName,
       height: this.height,
     };
   },
@@ -270,6 +234,7 @@ deviceSchema.statics = {
           success: true,
           message: "successfully created the device",
           data: createdDevice,
+          status: HTTPStatus.CREATED,
         };
       }
       logger.warn("operation successful but device is not created");
@@ -277,13 +242,22 @@ deviceSchema.statics = {
         success: true,
         message: "operation successful but device not created",
         data: createdDevice,
+        status: HTTPStatus.OK,
       };
-    } catch (error) {
-      logger.error(`Device model server error -- ${error.message}`);
+    } catch (err) {
+      logObject("the error", err);
+      let response = {};
+      let message = "validation errors for some of the provided fields";
+      let status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[key] = value.message);
+      });
+
       return {
+        errors: response,
+        message,
         success: false,
-        message: "model server error",
-        error: error.message,
+        status,
       };
     }
   },
@@ -312,15 +286,11 @@ deviceSchema.statics = {
           latitude: 1,
           longitude: 1,
           createdAt: 1,
-          owner: 1,
-          device_manufacturer: 1,
-          product_name: 1,
           ISP: 1,
           phoneNumber: 1,
           visibility: 1,
           description: 1,
           isPrimaryInLocation: 1,
-          isUsedForCollocation: 1,
           nextMaintenance: 1,
           deployment_date: 1,
           recall_date: 1,
@@ -328,45 +298,86 @@ deviceSchema.statics = {
           device_number: 1,
           powerType: 1,
           mountType: 1,
-          locationID: 1,
           isActive: 1,
-          isRetired: 1,
           writeKey: 1,
           readKey: 1,
           pictures: 1,
-          siteName: 1,
-          locationName: 1,
           height: 1,
           status: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
+
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = jsonify(response);
-      logger.info(`the data produced in the model -- ${JSON.stringify(data)}`);
-      if (!isEmpty(data)) {
+      logger.info(`the data produced in the model -- ${response}`);
+      if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
           message: "successfully retrieved the device details",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "unable to retrieve devices",
-        error: error.message,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
-  async modify({ filter = {}, update = {} } = {}) {
+  async modify({ filter = {}, update = {}, opts = {} } = {}) {
+    try {
+      let options = { new: true, ...opts };
+      let modifiedUpdate = update;
+      delete modifiedUpdate.name;
+      delete modifiedUpdate.device_number;
+      delete modifiedUpdate._id;
+      delete modifiedUpdate.generation_count;
+      delete modifiedUpdate.generation_version;
+      logObject("modifiedUpdate", modifiedUpdate);
+      let updatedDevice = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdate,
+        options
+      ).exec();
+
+      if (!isEmpty(updatedDevice)) {
+        let data = updatedDevice._doc;
+        return {
+          success: true,
+          message: "successfully modified the device",
+          data,
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      logObject("the error", error);
+      return {
+        success: false,
+        message: "Device model server error - modify",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  async encryptKeys({ filter = {}, update = {} } = {}) {
     try {
       logObject("the filter", filter);
       let options = { new: true };
@@ -376,6 +387,12 @@ deviceSchema.statics = {
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
+
+      validKeys = ["writeKey", "readKey"];
+      Object.keys(modifiedUpdate).forEach(
+        (key) => validKeys.includes(key) || delete modifiedUpdate[key]
+      );
+
       logObject("modifiedUpdate", modifiedUpdate);
       if (update.writeKey) {
         let key = update.writeKey;
@@ -396,25 +413,29 @@ deviceSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(updatedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedDevice)) {
+        let data = updatedDevice._doc;
         return {
           success: true,
           message: "successfully modified the device",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       logObject("the error", error);
       return {
         success: false,
-        message: "Device model server error - modify",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -424,24 +445,29 @@ deviceSchema.statics = {
         projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedDevice)) {
+        let data = removedDevice._doc;
         return {
           success: true,
           message: "successfully deleted device from the platform",
           data,
+          status: HTTPStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "device does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+          errors: { message: "device does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "Device model server error - remove",
-        error: error.message,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

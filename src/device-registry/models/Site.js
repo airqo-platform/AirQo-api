@@ -66,10 +66,6 @@ const siteSchema = new Schema(
       type: Number,
       trim: true,
     },
-    distance_to_nearest_residential_area: {
-      type: Number,
-      trim: true,
-    },
     distance_to_nearest_residential_road: {
       type: Number,
       trim: true,
@@ -113,6 +109,9 @@ const siteSchema = new Schema(
       type: String,
     },
     aspect: {
+      type: String,
+    },
+    status: {
       type: String,
     },
     landform_90: {
@@ -215,6 +214,9 @@ siteSchema.pre("save", function(next) {
   if (this.isModified("_id")) {
     delete this._id;
   }
+  if (this.isModified("generated_name")) {
+    delete this.generated_name;
+  }
   return next();
 });
 
@@ -227,6 +229,9 @@ siteSchema.pre("update", function(next) {
   }
   if (this.isModified("_id")) {
     delete this._id;
+  }
+  if (this.isModified("generated_name")) {
+    delete this.generated_name;
   }
   return next();
 });
@@ -267,6 +272,7 @@ siteSchema.methods = {
       landform_270: this.landform_270,
       landform_90: this.landform_90,
       aspect: this.aspect,
+      status: this.status,
       distance_to_nearest_road: this.distance_to_nearest_road,
       distance_to_nearest_primary_road: this.distance_to_nearest_primary_road,
       distance_to_nearest_secondary_road: this
@@ -274,8 +280,6 @@ siteSchema.methods = {
       distance_to_nearest_tertiary_road: this.distance_to_nearest_tertiary_road,
       distance_to_nearest_unclassified_road: this
         .distance_to_nearest_unclassified_road,
-      distance_to_nearest_residential_area: this
-        .distance_to_nearest_residential_area,
       bearing_to_kampala_center: this.bearing_to_kampala_center,
       distance_to_kampala_center: this.distance_to_kampala_center,
       distance_to_nearest_residential_road: this
@@ -313,8 +317,7 @@ siteSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -323,7 +326,7 @@ siteSchema.statics = {
       });
 
       return {
-        error: response,
+        errors: response,
         message,
         success: false,
         status,
@@ -370,12 +373,12 @@ siteSchema.statics = {
           landform_270: 1,
           landform_90: 1,
           aspect: 1,
+          status: 1,
           distance_to_nearest_road: 1,
           distance_to_nearest_primary_road: 1,
           distance_to_nearest_secondary_road: 1,
           distance_to_nearest_tertiary_road: 1,
           distance_to_nearest_unclassified_road: 1,
-          distance_to_nearest_residential_area: 1,
           distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
@@ -386,9 +389,9 @@ siteSchema.statics = {
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = jsonify(response);
+      let data = response;
 
-      if (!isEmpty(data)) {
+      if (!isEmpty(response)) {
         return {
           success: true,
           message: "successfully retrieved the site details",
@@ -424,13 +427,20 @@ siteSchema.statics = {
       if (modifiedUpdateBody.longitude) {
         delete modifiedUpdateBody.longitude;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      if (modifiedUpdateBody.generated_name) {
+        delete modifiedUpdateBody.generated_name;
+      }
+      if (modifiedUpdateBody.lat_long) {
+        delete modifiedUpdateBody.lat_long;
+      }
+      let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedSite)) {
+        let data = updatedSite._doc;
         return {
           success: true,
           message: "successfully modified the site",
@@ -442,6 +452,7 @@ siteSchema.statics = {
           success: false,
           message: "site does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: { message: "site does not exist" },
         };
       }
     } catch (error) {

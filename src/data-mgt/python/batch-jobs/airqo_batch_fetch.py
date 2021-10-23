@@ -1,4 +1,3 @@
-import os
 from datetime import timedelta
 
 import pandas as pd
@@ -6,16 +5,14 @@ from google.cloud import bigquery
 
 from config import configuration
 from date import str_to_date, date_to_str
-from kafka_client import KafkaWithoutRegistry
+from message_broker import BrokerConnector
 from utils import build_channel_id_filter, get_valid_devices
-
-os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bigquery.json"
 
 
 class AirQoBatchFetch:
     def __init__(self):
-        self.kafka_client = KafkaWithoutRegistry(boot_strap_servers=configuration.BOOT_STRAP_SERVERS,
-                                                 topic=configuration.OUTPUT_TOPIC)
+        self.kafka_client = BrokerConnector(bootstrap_servers=configuration.BOOTSTRAP_SERVERS,
+                                            output_topic=configuration.OUTPUT_TOPIC)
         self.devices = get_valid_devices(configuration.AIRQO_BASE_URL, "airqo")
         super().__init__()
         
@@ -65,7 +62,7 @@ class AirQoBatchFetch:
                     "latitude": f'{device_row["latitude"]}',
                     "longitude": f'{device_row["longitude"]}',
                     "frequency": "raw",
-                    "created_at": pd.Timestamp(device_row["created_at"]).isoformat(),
+                    "created_at": f'{pd.Timestamp(device_row["created_at"]).isoformat()}Z',
                     "pm2_5": f'{device_row["pm2_5"]}',
                     "pm10": f'{device_row["pm10"]}',
                     "s2_pm2_5": f'{device_row["s2_pm2_5"]}',

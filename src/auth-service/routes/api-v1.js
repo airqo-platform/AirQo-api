@@ -3,6 +3,7 @@ const router = express.Router();
 const joinController = require("../controllers/join");
 const requestController = require("../controllers/request");
 const defaultsController = require("../controllers/defaults");
+const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
 
 const {
@@ -32,13 +33,20 @@ router.post(
   "/loginUser",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("userName").exists().withMessage("the userName must be provided"),
+      body("password").exists().withMessage("the password must be provided"),
+    ],
   ]),
   setLocalAuth,
   authLocal,
@@ -584,6 +592,290 @@ router.put(
   setJWTAuth,
   authJWT,
   requestController.update
+);
+
+/**************** create organization use case ***********************/
+router.delete(
+  "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.delete
+);
+
+router.put(
+  "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the record's identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .if(body("email").exists())
+        .notEmpty()
+        .withMessage("the email should not be empty")
+        .bail()
+        .isEmail()
+        .withMessage("the pollutant value is not a valid email address")
+        .trim(),
+      body("website")
+        .if(body("website").exists())
+        .notEmpty()
+        .withMessage("the website should not be empty")
+        .bail()
+        .isURL()
+        .withMessage("the website is not a valid URL")
+        .trim(),
+      body("isAlias")
+        .if(body("isAlias").exists())
+        .notEmpty()
+        .withMessage("the isAlias should not be empty")
+        .bail()
+        .isBoolean()
+        .withMessage("isAlias must be a Boolean")
+        .trim(),
+      body("isActive")
+        .if(body("isActive").exists())
+        .notEmpty()
+        .withMessage("the isActive should not be empty")
+        .bail()
+        .isBoolean()
+        .withMessage("isActive must be a Boolean")
+        .trim(),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .withMessage("the status should not be empty")
+        .bail()
+        .toLowerCase()
+        .isIn(["active", "inactive", "pending"])
+        .withMessage(
+          "the status value is not among the expected ones which include: active, inactive, pending"
+        )
+        .trim(),
+      body("phoneNumber")
+        .if(body("phoneNumber").exists())
+        .notEmpty()
+        .withMessage("the phoneNumber should not be empty")
+        .bail()
+        .isMobilePhone()
+        .withMessage("the phoneNumber is not a valid one")
+        .bail()
+        .trim(),
+      body("category")
+        .if(body("category").exists())
+        .notEmpty()
+        .withMessage("the category should not be empty")
+        .bail()
+        .trim(),
+      body("name")
+        .if(body("name").exists())
+        .notEmpty()
+        .withMessage("the name should not be empty")
+        .trim(),
+      body("tenant")
+        .if(body("tenant").exists())
+        .notEmpty()
+        .withMessage("the tenant cannot be empty if provided")
+        .trim()
+        .toLowerCase(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.update
+);
+
+router.get(
+  "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.list
+);
+
+router.post(
+  "/organizations",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the organization's email address is required")
+        .bail()
+        .isEmail()
+        .withMessage("This is not a valid email address")
+        .trim(),
+      body("website")
+        .exists()
+        .withMessage("the organization's website is required")
+        .bail()
+        .isURL()
+        .withMessage("the website is not a valid URL")
+        .trim(),
+      body("isAlias")
+        .exists()
+        .withMessage("isAlias is required")
+        .bail()
+        .isBoolean()
+        .withMessage("isAlias must be a Boolean")
+        .trim(),
+      body("isActive")
+        .if(body("isActive").exists())
+        .notEmpty()
+        .withMessage("the isActive should not be empty")
+        .bail()
+        .isBoolean()
+        .withMessage("isActive must be a Boolean")
+        .trim(),
+      body("status")
+        .if(body("status").exists())
+        .notEmpty()
+        .withMessage("the status should not be empty")
+        .bail()
+        .toLowerCase()
+        .isIn(["active", "inactive", "pending"])
+        .withMessage(
+          "the status value is not among the expected ones which include: active, inactive, pending"
+        )
+        .trim(),
+      body("phoneNumber")
+        .exists()
+        .withMessage("the organization's phoneNumber is required")
+        .bail()
+        .isMobilePhone()
+        .withMessage("the phoneNumber is not a valid one")
+        .bail()
+        .trim(),
+      body("category")
+        .exists()
+        .withMessage("the organization's category is required")
+        .bail()
+        .toLowerCase()
+        .isIn([
+          "business",
+          "research",
+          "policy",
+          "awareness",
+          "school",
+          "others",
+        ])
+        .withMessage(
+          "the status value is not among the expected ones which include: business, research, policy, awareness, school, others"
+        )
+        .trim(),
+      body("name")
+        .exists()
+        .withMessage("the organization's name is required")
+        .trim(),
+      body("tenant")
+        .if(body("tenant").exists())
+        .notEmpty()
+        .withMessage("the tenant cannot be empty if provided")
+        .trim()
+        .toLowerCase(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.create
+);
+
+router.post(
+  "/organizations/tenant",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the organization's email address is required")
+        .bail()
+        .isEmail()
+        .withMessage("This is not a valid email address")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.getTenantFromEmail
 );
 
 module.exports = router;

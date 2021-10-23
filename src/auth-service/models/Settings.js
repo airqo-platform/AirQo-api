@@ -3,7 +3,6 @@ const ObjectId = mongoose.Types.ObjectId;
 var uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logText, logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const jsonify = require("../utils/jsonify");
 const HTTPStatus = require("http-status");
 
 const minValue = 0;
@@ -122,13 +121,6 @@ const rolesSchema = new mongoose.Schema(
 );
 
 const SettingsSchema = new mongoose.Schema({
-  user_id: {
-    type: ObjectId,
-  },
-  user: {
-    type: ObjectId,
-    required: [true, "user is required"],
-  },
   organisation: {
     type: ObjectId,
     required: [true, "organisation is required"],
@@ -173,20 +165,11 @@ SettingsSchema.methods = {
   toJSON() {
     return {
       _id: this._id,
-      pollutant: this.pollutant,
-      frequency: this.frequency,
-      user: this.user,
-      user_id: this.user_id,
-      airqloud_id: this.airqloud_id,
-      airqloud: this.airqloud,
-      startDate: this.startDate,
-      endDate: this.endDate,
-      chartType: this.chartType,
-      chartTitle: this.chartTitle,
-      chartSubTitle: this.chartSubTitle,
-      sites: this.sites,
-      period: this.period,
-      site_ids: this.site_ids,
+      organisation: this.organisation,
+      charts: this.charts,
+      activities: this.activities,
+      devices: this.devices,
+      roles: this.roles,
     };
   },
 };
@@ -214,9 +197,7 @@ SettingsSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
       let response = {};
-      logObject("the err", e);
       let errors = {};
       let message = "Internal Server Error";
       let status = HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -242,15 +223,14 @@ SettingsSchema.statics = {
   },
   async list({ skip = 0, limit = 20, filter = {} } = {}) {
     try {
-      logObject("the filter in the defaults", filter);
       let defaults = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(defaults);
-      logObject("the data for defaults", data);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(defaults)) {
+        let data = defaults;
         return {
           success: true,
           data,
@@ -286,10 +266,8 @@ SettingsSchema.statics = {
         options
       ).exec();
 
-      let data = jsonify(udpatedDefault);
-      logObject("updatedDefault", data);
-
-      if (!isEmpty(data)) {
+      if (!isEmpty(udpatedDefault)) {
+        let data = udpatedDefault._doc;
         return {
           success: true,
           message: "successfully modified or created the default",
@@ -325,16 +303,17 @@ SettingsSchema.statics = {
       let options = {
         projection: {
           _id: 1,
-          user: 1,
-          user_id: 1,
-          chartTitle: 1,
-          chartSubTitle: 1,
+          organisation: 1,
+          activities: 1,
+          devices: 1,
+          charts: 1,
+          roles: 1,
         },
       };
       let removedDefault = await this.findOneAndRemove(filter, options).exec();
-      logElement("removedDefault", removedDefault);
-      let data = jsonify(removedDefault);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedDefault)) {
+        let data = removedDefault._doc;
         return {
           success: true,
           message: "successfully removed the default",

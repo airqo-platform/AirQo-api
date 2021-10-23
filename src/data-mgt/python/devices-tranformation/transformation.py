@@ -1,4 +1,5 @@
 import os
+import traceback
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -6,7 +7,7 @@ from google.cloud import bigquery
 
 from airqoApi import AirQoApi
 from tahmo import TahmoApi
-from utils import array_to_csv, array_to_json, is_valid_double, str_to_date
+from utils import array_to_csv, array_to_json, is_valid_double, str_to_date, date_to_str_v2
 
 
 class Transformation:
@@ -65,7 +66,7 @@ class Transformation:
                 summarized_updated_devices.append(
                     dict({
                         "_id": device_dict.get("_id"),
-                        "device_number":  device_dict.get("device_number"),
+                        "device_number": device_dict.get("device_number"),
                         "name": device_dict.get("name"),
                         "latitude": device_dict.get("latitude"),
                         "longitude": device_dict.get("longitude"),
@@ -88,7 +89,6 @@ class Transformation:
         sites = self.airqo_api.get_sites(self.tenant)
 
         updated_sites = []
-        summarized_updated_sites = []
 
         for site in sites:
             site_dict = dict(site)
@@ -97,33 +97,29 @@ class Transformation:
                 longitude = site_dict.get("longitude")
                 latitude = site_dict.get("latitude")
 
-                nearest_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
+                try:
+                    nearest_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
 
-                station_data = dict({
-                    "id": nearest_station.get("id"),
-                    "code": nearest_station.get("code"),
-                    "latitude": dict(nearest_station.get("location")).get("latitude"),
-                    "longitude": dict(nearest_station.get("location")).get("longitude"),
-                    "timezone": dict(nearest_station.get("location")).get("timezone")
-                })
-
-                update = dict({
-                    "nearest_tahmo_station": station_data,
-                    "_id": site_dict.get("_id"),
-                    "tenant": self.tenant
-                })
-
-                updated_sites.append(update)
-                summarized_updated_sites.append(
-                    dict({
-                        "_id": site_dict.get("_id"),
-                        "name":  site_dict.get("name"),
-                        "description": site_dict.get("name"),
-                        "latitude": site_dict.get("latitude"),
-                        "longitude": site_dict.get("longitude"),
-                        "closest_tahmo_station": station_data
+                    station_data = dict({
+                        "id": nearest_station.get("id"),
+                        "code": nearest_station.get("code"),
+                        "latitude": dict(nearest_station.get("location")).get("latitude"),
+                        "longitude": dict(nearest_station.get("location")).get("longitude"),
+                        "timezone": dict(nearest_station.get("location")).get("timezone")
                     })
-                )
+
+                    update = dict({
+                        "nearest_tahmo_station": station_data,
+                        "_id": site_dict.get("_id"),
+                        "name": site_dict.get("name"),
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    })
+
+                    updated_sites.append(update)
+                except:
+                    traceback.print_exc()
+                    pass
 
         self.__print(data=updated_sites)
 
@@ -158,6 +154,30 @@ class Transformation:
                 sites_without_primary_devices.append(site_dict)
 
         self.__print(data=sites_without_primary_devices)
+
+    def get_devices_without_forecast(self):
+
+        devices = self.airqo_api.get_devices(tenant=self.tenant, active=True)
+        devices_without_forecast = []
+        date_time = date_to_str_v2(datetime.utcnow())
+
+        for device in devices:
+            device_dict = dict(device)
+            latitude = device_dict.get("latitude", None)
+            longitude = device_dict.get("longitude", None)
+
+            if longitude and latitude:
+                forecast = self.airqo_api.get_forecast(tenant=self.tenant, latitude=latitude,
+                                                       longitude=longitude, selected_datetime=date_time)
+                if not forecast:
+                    device_details = {
+                        "device_number": device_dict.get("device_number", None),
+                        "name": device_dict.get("name", None)
+                    }
+                    print(device_details)
+                    devices_without_forecast.append(device_details)
+
+        self.__print(data=devices_without_forecast)
 
     def get_devices_invalid_measurement_values(self):
         devices = self.airqo_api.get_devices(tenant='airqo', active=True)
@@ -224,7 +244,8 @@ class Transformation:
                         error[key] = value
 
             if len(error.keys()) > 5:
-                error["self_link"] = f"{os.getenv('AIRQO_BASE_URL')}data/feeds/transform/recent?channel={device_data['device_number']}"
+                error[
+                    "self_link"] = f"{os.getenv('AIRQO_BASE_URL')}data/feeds/transform/recent?channel={device_data['device_number']}"
                 errors.append(error)
 
         self.__print(data=errors)
@@ -257,4 +278,3 @@ class Transformation:
             self.airqo_api.update_sites(updated_sites=data)
         else:
             array_to_json(data=data)
-

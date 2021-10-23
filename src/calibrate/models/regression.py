@@ -42,11 +42,13 @@ class Regression():
 
         #load model from disk
         rf_regressor = pickle.load(open('jobs/rf_reg_model.pkl', 'rb'))
+        lasso_regressor = pickle.load(open('jobs/lasso_model.pkl', 'rb'))
         # # load model from GCP 
         # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
-        calibrated_value_rf =  rf_regressor.predict(input_variables)[0] 
+        calibrated_pm2_5 =  rf_regressor.predict(input_variables)[0]
+        calibrated_pm10 =  lasso_regressor.predict(input_variables)[0]  
         
-        return calibrated_value_rf
+        return calibrated_pm2_5, calibrated_pm10
                
     
 if __name__ == "__main__":

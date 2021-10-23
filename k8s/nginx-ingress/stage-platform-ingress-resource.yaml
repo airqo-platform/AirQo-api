@@ -144,3 +144,11 @@ spec:
             backend:
               serviceName: airqo-stage-incentives-api-svc
               servicePort: 3000
+          - path: /api/v1/datawarehouse
+            backend:
+              serviceName: airqo-stage-datawarehouse-api-svc
+              servicePort: 4001
+          - path: /api/v2/datawarehouse
+            backend:
+              serviceName: airqo-stage-datawarehouse-api-svc
+              servicePort: 4001

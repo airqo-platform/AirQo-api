@@ -62,12 +62,12 @@ const manageSite = {
       }
 
       if (responseFromCreateSite.success === false) {
-        let errors = responseFromCreateSite.error
-          ? responseFromCreateSite.error
+        let errors = responseFromCreateSite.errors
+          ? responseFromCreateSite.errors
           : "";
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
-          : HTTPStatus.CONFLICT;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
         return res.status(status).json({
           success: false,
           message: responseFromCreateSite.message,
@@ -75,7 +75,12 @@ const manageSite = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "manageSite controller");
+      return {
+        success: false,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        message: "Internal Server Error",
+      };
     }
   },
 
@@ -91,9 +96,7 @@ const manageSite = {
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { tenant } = req.query;
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
-        tenant,
         req
       );
       logObject(
@@ -110,8 +113,8 @@ const manageSite = {
       }
 
       if (responseFromGenerateMetadata.success === false) {
-        let error = responseFromGenerateMetadata.error
-          ? responseFromGenerateMetadata.error
+        let error = responseFromGenerateMetadata.errors
+          ? responseFromGenerateMetadata.errors
           : "";
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
@@ -121,7 +124,11 @@ const manageSite = {
       }
     } catch (error) {
       logger.error(`server side error -- ${error.message}`);
-      tryCatchErrors(res, error, "manageSite controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -149,11 +156,11 @@ const manageSite = {
           site: responseFromRemoveSite.data,
         });
       } else if (responseFromRemoveSite.success == false) {
-        if (responseFromRemoveSite.error) {
+        if (responseFromRemoveSite.errors) {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
             success: false,
             message: responseFromRemoveSite.message,
-            error: responseFromRemoveSite.error,
+            errors: responseFromRemoveSite.errors,
           });
         } else {
           return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -163,7 +170,11 @@ const manageSite = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "manageSite controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -189,28 +200,35 @@ const manageSite = {
         update
       );
       logObject("responseFromUpdateSite", responseFromUpdateSite);
-      if (responseFromUpdateSite.success == true) {
+
+      if (responseFromUpdateSite.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: responseFromUpdateSite.message,
           site: responseFromUpdateSite.data,
         });
-      } else if (responseFromUpdateSite.success == false) {
-        if (responseFromUpdateSite.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateSite.message,
-            error: responseFromUpdateSite.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUpdateSite.message,
-          });
-        }
+      }
+
+      if (responseFromUpdateSite.success === false) {
+        const errors = responseFromUpdateSite.errors
+          ? responseFromUpdateSite.errors
+          : "";
+        const status = responseFromUpdateSite.status
+          ? responseFromUpdateSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromUpdateSite.message,
+          errors,
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "manageSite controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -244,8 +262,8 @@ const manageSite = {
       }
 
       if (responseFromRefreshSite.success === false) {
-        let error = responseFromRefreshSite.error
-          ? responseFromRefreshSite.error
+        let error = responseFromRefreshSite.errors
+          ? responseFromRefreshSite.errors
           : "";
         let status = responseFromRefreshSite.status
           ? responseFromRefreshSite.status
@@ -258,14 +276,74 @@ const manageSite = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "manageSite controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
   findNearestSite: async (req, res) => {
     try {
+      logText("list all sites by coordinates...");
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { tenant, latitude, longitude, radius } = req.query;
+
+      logElement("latitude ", latitude);
+      logElement("longitude ", longitude);
+
+      let request = {};
+      request["radius"] = radius;
+      request["latitude"] = latitude;
+      request["longitude"] = longitude;
+      request["tenant"] = tenant;
+      const responseFromFindNearestSite = await createSiteUtil.findNearestSitesByCoordinates(
+        request
+      );
+
+      logObject("responseFromFindNearestSite", responseFromFindNearestSite);
+      if (responseFromFindNearestSite.success === true) {
+        let nearestSites = responseFromFindNearestSite.data;
+        let status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : HTTPStatus.OK;
+
+        return res.status(status).json({
+          success: true,
+          message: responseFromFindNearestSite.message,
+          sites: nearestSites,
+        });
+      }
+
+      if (responseFromFindNearestSite.success === false) {
+        let errors = responseFromFindNearestSite.errors
+          ? responseFromFindNearestSite.errors
+          : "";
+        let status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFindNearestSite.message,
+          errors,
+        });
+      }
     } catch (e) {
       logElement("server error", e.message);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
@@ -309,8 +387,8 @@ const manageSite = {
       }
 
       if (responseFromListSites.success === false) {
-        let error = responseFromListSites.error
-          ? responseFromListSites.error
+        let error = responseFromListSites.errors
+          ? responseFromListSites.errors
           : "";
 
         let status = responseFromListSites.status
@@ -324,7 +402,11 @@ const manageSite = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "create site controller");
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 
@@ -471,13 +553,21 @@ const manageSite = {
             }
           })
           .catch((error) => {
-            callbackErrors(error, req, res);
+            return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+              success: false,
+              message: "Internal Server Error",
+              errors: { message: error },
+            });
           });
       } else {
         missingQueryParams(res);
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
@@ -516,7 +606,11 @@ const manageSite = {
         missingQueryParams(res);
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 
@@ -554,7 +648,11 @@ const manageSite = {
         });
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      });
     }
   },
 };

@@ -195,37 +195,6 @@ public class UtilsTest {
     }
 
     @Test
-    public void testAddAirQoCalibratedValues(){
-
-        TransformedMeasurement transformedMeasurement = new TransformedMeasurement(){{
-            setDevice("aq_01");
-            setTime("2021-01-01T00:00:00Z");
-            setPm2_5(new TransformedValue(){{
-                setValue(34.7);
-            }});
-            setPm10(new TransformedValue(){{
-                setValue(34.5);
-            }});
-            setInternalTemperature(new TransformedValue(){{
-                setValue(365.44);
-            }});
-            setInternalHumidity(new TransformedValue(){{
-                setValue(334.3);
-            }});
-        }};
-
-        List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
-
-        transformedMeasurements.add(transformedMeasurement);
-
-        transformedMeasurements = Utils.addAirQoCalibratedValues(transformedMeasurements);
-
-        transformedMeasurements.forEach(measurement -> {
-            assertNotNull(measurement.getPm2_5().getCalibratedValue());
-        });
-    }
-
-    @Test
     public void testTransformKccaMeasurements(){
 
         Assertions.assertTrue(Utils.transformKccaMeasurements("hello world", properties).isEmpty());
