@@ -486,9 +486,6 @@ jobs:
           kubectl apply -f prod-airqo-exceedance-job.yaml
           kubectl apply -f prod-kcca-exceedance-job.yaml
 
-          kubectl rollout restart deployment/airqo-exceedance-job -n production
-          kubectl rollout restart deployment/kcca-exceedance-job -n production
-
   ### datawarehouse ###
   datawarehouse:
     name: build-push-deploy-datawarehouse

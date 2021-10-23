@@ -487,9 +487,6 @@ jobs:
           kubectl apply -f stage-airqo-exceedance-job.yaml
           kubectl apply -f stage-kcca-exceedance-job.yaml
 
-          kubectl rollout restart deployment/stage-airqo-exceedance-job -n staging
-          kubectl rollout restart deployment/stage-kcca-exceedance-job -n staging
-
   ### datawarehouse ###
   datawarehouse:
     name: build-push-deploy-datawarehouse
