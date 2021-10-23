@@ -317,8 +317,7 @@ siteSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -327,7 +326,7 @@ siteSchema.statics = {
       });
 
       return {
-        error: response,
+        errors: response,
         message,
         success: false,
         status,
@@ -390,9 +389,9 @@ siteSchema.statics = {
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = jsonify(response);
+      let data = response;
 
-      if (!isEmpty(data)) {
+      if (!isEmpty(response)) {
         return {
           success: true,
           message: "successfully retrieved the site details",
@@ -439,8 +438,9 @@ siteSchema.statics = {
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(updatedSite);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedSite)) {
+        let data = updatedSite._doc;
         return {
           success: true,
           message: "successfully modified the site",
@@ -452,6 +452,7 @@ siteSchema.statics = {
           success: false,
           message: "site does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: { message: "site does not exist" },
         };
       }
     } catch (error) {

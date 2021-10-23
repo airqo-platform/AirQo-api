@@ -1,4 +1,5 @@
 import os
+import traceback
 from datetime import datetime, timedelta
 
 import pandas as pd
@@ -88,7 +89,6 @@ class Transformation:
         sites = self.airqo_api.get_sites(self.tenant)
 
         updated_sites = []
-        summarized_updated_sites = []
 
         for site in sites:
             site_dict = dict(site)
@@ -97,33 +97,29 @@ class Transformation:
                 longitude = site_dict.get("longitude")
                 latitude = site_dict.get("latitude")
 
-                nearest_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
+                try:
+                    nearest_station = dict(self.tahmo_api.get_closest_station(latitude=latitude, longitude=longitude))
 
-                station_data = dict({
-                    "id": nearest_station.get("id"),
-                    "code": nearest_station.get("code"),
-                    "latitude": dict(nearest_station.get("location")).get("latitude"),
-                    "longitude": dict(nearest_station.get("location")).get("longitude"),
-                    "timezone": dict(nearest_station.get("location")).get("timezone")
-                })
+                    station_data = dict({
+                        "id": nearest_station.get("id"),
+                        "code": nearest_station.get("code"),
+                        "latitude": dict(nearest_station.get("location")).get("latitude"),
+                        "longitude": dict(nearest_station.get("location")).get("longitude"),
+                        "timezone": dict(nearest_station.get("location")).get("timezone")
+                    })
 
-                update = dict({
-                    "nearest_tahmo_station": station_data,
-                    "_id": site_dict.get("_id"),
-                    "tenant": self.tenant
-                })
-
-                updated_sites.append(update)
-                summarized_updated_sites.append(
-                    dict({
+                    update = dict({
+                        "nearest_tahmo_station": station_data,
                         "_id": site_dict.get("_id"),
                         "name": site_dict.get("name"),
-                        "description": site_dict.get("name"),
-                        "latitude": site_dict.get("latitude"),
-                        "longitude": site_dict.get("longitude"),
-                        "closest_tahmo_station": station_data
+                        "latitude": latitude,
+                        "longitude": longitude,
                     })
-                )
+
+                    updated_sites.append(update)
+                except:
+                    traceback.print_exc()
+                    pass
 
         self.__print(data=updated_sites)
 

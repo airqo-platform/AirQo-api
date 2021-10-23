@@ -8,18 +8,18 @@ const devConfig = {
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
-  // PWD_RESET: "http://34.78.78.202:30101",
-  PWD_RESET: "http://platform.airqo.net/reset",
-  LOGIN_PAGE: "http://platform.airqo.net/login",
-  FORGOT_PAGE: "http://platform.airqo.net/forgot",
+  // PWD_RESET: "https://34.78.78.202:30101",
+  PWD_RESET: "https://platform.airqo.net/reset",
+  LOGIN_PAGE: "https://platform.airqo.net/login",
+  FORGOT_PAGE: "https://platform.airqo.net/forgot",
 };
 
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_STAGE,
-  PWD_RESET: "http://staging-platform.airqo.net/reset",
-  LOGIN_PAGE: "http://staging-platform.airqo.net/login",
-  FORGOT_PAGE: "http://staging-platform.airqo.net/forgot",
+  PWD_RESET: "https://staging-platform.airqo.net/reset",
+  LOGIN_PAGE: "https://staging-platform.airqo.net/login",
+  FORGOT_PAGE: "https://staging-platform.airqo.net/forgot",
 };
 
 const defaultConfig = {

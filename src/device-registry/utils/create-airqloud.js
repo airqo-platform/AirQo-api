@@ -11,21 +11,114 @@ const axiosInstance = () => {
 };
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const { request } = require("express");
 const logger = log4js.getLogger("create-airqloud-util");
+const createLocationUtil = require("./create-location");
 
 const createAirqloud = {
+  initialIsCapital: (word) => {
+    return word[0] !== word[0].toLowerCase();
+  },
+  hasNoWhiteSpace: (word) => {
+    try {
+      const hasWhiteSpace = word.indexOf(" ") >= 0;
+      return !hasWhiteSpace;
+    } catch (e) {
+      logger.error(
+        `create AirQloud util server error -- hasNoWhiteSpace -- ${e.message}`
+      );
+    }
+  },
+  retrieveLocationCoordinates: async (request) => {
+    try {
+      const responseFromListLocation = await createLocationUtil.list(request);
+      logObject(
+        "responseFromListLocation in AirQloud util",
+        responseFromListLocation
+      );
+
+      if (responseFromListLocation.success === true) {
+        if (isEmpty(responseFromListLocation.data)) {
+          return {
+            success: false,
+            message: "unable to retrieve location details",
+            status: HTTPStatus.NOT_FOUND,
+            errors: {
+              message: "no record exists for this location_id",
+            },
+          };
+        }
+        if (responseFromListLocation.data.length === 1) {
+          const data = responseFromListLocation.data[0];
+          return {
+            data: data.location,
+            success: true,
+            message: "retrieved the location",
+            status: HTTPStatus.OK,
+          };
+        }
+        if (responseFromListLocation.data.length > 1) {
+          return {
+            success: false,
+            message: "unable to retrieve location details",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            errors: {
+              message: "requested for one record but received many",
+            },
+          };
+        }
+      }
+
+      if (responseFromListLocation.success === false) {
+        return {
+          success: false,
+          message: "unable to retrieve details from the provided location_id",
+          errors: responseFromListLocation.errors,
+          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
   create: async (request) => {
     try {
-      let { body } = request;
-      let { tenant } = request.query;
+      const { body } = request;
+      const { tenant } = request.query;
+      const { location_id } = request.body;
       logObject("body", body);
+      let modifiedBody = body;
+      if (!isEmpty(location_id)) {
+        let locationRequest = {};
+        locationRequest["query"] = {};
+        locationRequest["query"]["id"] = body.location_id;
+        locationRequest["query"]["tenant"] = tenant;
+        logObject("locationRequest", locationRequest);
+        let responseFromRetrieveLocationCoordinates = await createAirqloud.retrieveLocationCoordinates(
+          locationRequest
+        );
+        logObject(
+          "responseFromRetrieveLocationCoordinates",
+          responseFromRetrieveLocationCoordinates
+        );
+        if (responseFromRetrieveLocationCoordinates.success === true) {
+          modifiedBody["location"] =
+            responseFromRetrieveLocationCoordinates.data;
+        }
+        if (responseFromRetrieveLocationCoordinates.success === false) {
+          return responseFromRetrieveLocationCoordinates;
+        }
+      }
 
-      let responseFromRegisterAirQloud = await getModelByTenant(
+      const responseFromRegisterAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
         "airqloud",
         AirQloudSchema
-      ).register(body);
+      ).register(modifiedBody);
 
       logObject("responseFromRegisterAirQloud", responseFromRegisterAirQloud);
 
@@ -63,6 +156,7 @@ const createAirqloud = {
         success: false,
         message: "unable to create airqloud",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: err.message },
       };
     }
   },

@@ -1,0 +1,34 @@
+namespace: staging
+failedJobsHistoryLimit: 1
+successfulJobsHistoryLimit: 3
+
+jobs:
+  - name: stage-events-monitor-job
+    schedule: "@hourly"
+    image:
+      repository: us.gcr.io/airqo-250220/stage-events-monitor-job
+      pullPolicy: Always
+      tag: "latest"
+
+    configMap: stage-events-monitor-cronjob-config
+
+    resouces:
+      memoryRequests: 256Mi
+      memoryLimits: 512Mi
+      cpuRequests: "0.2"
+      cpuLimits: "0.8"
+
+  - name: stage-events-notifs-job
+    schedule: "@hourly"
+    image:
+      repository: us.gcr.io/airqo-250220/stage-events-notifs-job
+      pullPolicy: Always
+      tag: "latest"
+
+    configMap: stage-events-notifs-cronjob-config
+
+    resouces:
+      memoryRequests: 256Mi
+      memoryLimits: 512Mi
+      cpuRequests: "0.2"
+      cpuLimits: "1"

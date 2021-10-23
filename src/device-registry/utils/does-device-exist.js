@@ -30,6 +30,7 @@ const getChannelID = async (req, res, deviceName, tenant) => {
   try {
     logText("...................................");
     logText("getting channel ID...");
+
     const deviceDetails = await getModelByTenant(
       tenant.toLowerCase(),
       "device",
@@ -38,9 +39,9 @@ const getChannelID = async (req, res, deviceName, tenant) => {
       .find({ name: deviceName })
       .exec();
     // logObject("the device details", deviceDetails);
-    // logElement("the channel ID", deviceDetails[0]._doc.channelID);
-    let channeID = deviceDetails[0]._doc.channelID;
-    return channeID;
+    // logElement("the channel ID", deviceDetails[0]._doc.device_number);
+    let device_number = deviceDetails[0]._doc.device_number;
+    return device_number;
   } catch (e) {
     deleteDevice(tenant, res, deviceName);
   }

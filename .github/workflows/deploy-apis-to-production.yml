@@ -192,7 +192,7 @@ jobs:
         run: |
           cd src/device-registry/
           docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
       - name: Deploy to K8S
@@ -340,8 +340,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-uptime/
-          kubectl apply -f prod-device-uptime-job.yaml
-          kubectl rollout restart deployment/airqo-device-uptime-job -n production
+          kubectl apply -f prod-airqo-device-uptime-job.yaml
   
   ### device status ###
   device-status:
@@ -493,9 +492,6 @@ jobs:
           cd k8s/exceedance/
           kubectl apply -f prod-airqo-exceedance-job.yaml
           kubectl apply -f prod-kcca-exceedance-job.yaml
-
-          kubectl rollout restart deployment/airqo-exceedance-job -n production
-          kubectl rollout restart deployment/kcca-exceedance-job -n production
 
   ### datawarehouse ###
   datawarehouse:

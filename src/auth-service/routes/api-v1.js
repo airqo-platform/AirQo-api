@@ -33,8 +33,9 @@ router.post(
   "/loginUser",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -598,8 +599,9 @@ router.delete(
   "/organizations",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -630,8 +632,9 @@ router.put(
   "/organizations",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -717,8 +720,13 @@ router.put(
         .if(body("name").exists())
         .notEmpty()
         .withMessage("the name should not be empty")
-        .bail()
         .trim(),
+      body("tenant")
+        .if(body("tenant").exists())
+        .notEmpty()
+        .withMessage("the tenant cannot be empty if provided")
+        .trim()
+        .toLowerCase(),
     ],
   ]),
   setJWTAuth,
@@ -730,8 +738,9 @@ router.get(
   "/organizations",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -747,8 +756,9 @@ router.post(
   "/organizations",
   oneOf([
     query("tenant")
-      .exists()
-      .withMessage("tenant should be provided")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -826,10 +836,46 @@ router.post(
         .exists()
         .withMessage("the organization's name is required")
         .trim(),
+      body("tenant")
+        .if(body("tenant").exists())
+        .notEmpty()
+        .withMessage("the tenant cannot be empty if provided")
+        .trim()
+        .toLowerCase(),
     ],
   ]),
   setJWTAuth,
   authJWT,
   organizationController.create
 );
+
+router.post(
+  "/organizations/tenant",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the organization's email address is required")
+        .bail()
+        .isEmail()
+        .withMessage("This is not a valid email address")
+        .trim(),
+    ],
+  ]),
+  setJWTAuth,
+  authJWT,
+  organizationController.getTenantFromEmail
+);
+
 module.exports = router;

@@ -148,7 +148,8 @@ const getMeasurements = async (
             startTime,
             endTime,
             metadata,
-            external
+            external,
+            tenant
           );
 
           let devicesCount = await getDevicesCount(tenant);

@@ -341,8 +341,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-uptime/
-          kubectl apply -f stage-device-uptime-job.yaml
-          kubectl rollout restart deployment/airqo-stage-device-uptime-job -n staging
+          kubectl apply -f stage-airqo-device-uptime-job.yaml
   
   ### device status ###
   device-status:
@@ -493,9 +492,6 @@ jobs:
           cd k8s/exceedance/
           kubectl apply -f stage-airqo-exceedance-job.yaml
           kubectl apply -f stage-kcca-exceedance-job.yaml
-
-          kubectl rollout restart deployment/stage-airqo-exceedance-job -n staging
-          kubectl rollout restart deployment/stage-kcca-exceedance-job -n staging
 
   ### datawarehouse ###
   datawarehouse:
