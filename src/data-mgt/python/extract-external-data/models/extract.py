@@ -79,6 +79,23 @@ class  Extract():
         else: 
             return False
 
+    def get_closest_station(self, latitude, longitude):
+
+        weather_stations_with_distances_from_specified_coordinates = {}
+        all_stations = self.get_all_weather_station_account_has_access_on()
+        specified_coordinates = (latitude, longitude)
+
+        for key, station in all_stations.items():
+            weather_station_coordinates = (station['location']['latitude'], station['location']['longitude'])
+            distance_between_coordinates = distance.distance(specified_coordinates, weather_station_coordinates).km
+            weather_stations_with_distances_from_specified_coordinates[station["code"]] = distance_between_coordinates
+
+        weather_stations_with_min_distance = min(weather_stations_with_distances_from_specified_coordinates.keys(), key=(
+            lambda k: weather_stations_with_distances_from_specified_coordinates[k]))
+        selected_station = all_stations.get(weather_stations_with_min_distance)
+
+        return selected_station
+
     def get_closest_weather_station(self, name, latitude,longitude):
         specified_coordinates = (latitude, longitude)
         weather_stations_with_distances_from_specified_coordinates = {}

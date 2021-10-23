@@ -37,6 +37,7 @@ class BrokerConnector:
 
                 latitude = float(values.get("latitude", None))
                 longitude = float(values.get("longitude", None))
+                metadata = values.get("metadata", None)
 
                 if not latitude or not longitude:
                     print("latitude or longitude is None")
@@ -61,8 +62,10 @@ class BrokerConnector:
                 distance_to_closest_unclassified_road = self.__model.get_distance_to_closest_unclassified_road(
                     latitude, longitude)
                 distance_to_closest_motorway = self.__model.get_distance_to_closest_motorway(latitude, longitude)
+                closest_weather_station = self.__model.get_closest_station(latitude, longitude)
 
                 data = {
+                    "metadata": metadata,
                     "latitude": latitude,
                     "longitude": longitude,
                     "altitude": altitude,
@@ -71,7 +74,7 @@ class BrokerConnector:
                     "landform270": landform270,
                     "bearing_from_kampala": bearing_from_kampala,
                     "distance_from_kampala": distance_from_kampala,
-                    "distance_to_closest_road":distance_to_closest_road,
+                    "distance_to_closest_road": distance_to_closest_road,
                     "distance_to_closest_primary_road": distance_to_closest_primary_road,
                     "distance_to_closest_secondary_road": distance_to_closest_secondary_road,
                     "distance_to_closest_residential_road" : distance_to_closest_residential_road,
@@ -79,6 +82,13 @@ class BrokerConnector:
                     "distance_to_closest_trunk": distance_to_closest_trunk,
                     "distance_to_closest_unclassified_road": distance_to_closest_unclassified_road,
                     "distance_to_closest_motorway": distance_to_closest_motorway,
+                    "nearest_tahmo_station": {
+                        "id": closest_weather_station.get("id"),
+                        "code": closest_weather_station.get("code"),
+                        "latitude": dict(closest_weather_station.get("location")).get("latitude"),
+                        "longitude": dict(closest_weather_station.get("location")).get("longitude"),
+                        "timezone": dict(closest_weather_station.get("location")).get("timezone")
+                    }
                 }
 
                 self.__produce(data=data)
