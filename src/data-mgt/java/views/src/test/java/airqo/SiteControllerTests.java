@@ -24,7 +24,6 @@ public class SiteControllerTests {
 	@Autowired
 	protected MockMvc mockMvc;
 
-	@Test
 	public void shouldReturnSites() throws Exception {
 		this.mockMvc.perform(get("/sites"))
 			.andDo(print())

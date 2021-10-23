@@ -1,17 +1,29 @@
 package airqo.repository;
 
 import airqo.models.Event;
+import airqo.models.QDevice;
+import airqo.models.QEvent;
+import com.querydsl.core.types.dsl.StringPath;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.querydsl.QuerydslPredicateExecutor;
+import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
+import org.springframework.data.querydsl.binding.QuerydslBindings;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
 
 @Repository
-public interface EventRepository extends MongoRepository<Event, String>, QuerydslPredicateExecutor<Event> {
+public interface EventRepository extends MongoRepository<Event, String>, QuerydslPredicateExecutor<Event>, QuerydslBinderCustomizer<QEvent> {
+
+	@Override
+	default void customize(QuerydslBindings bindings, QEvent root) {
+		bindings.bind(String.class).first(
+			(StringPath path, String value) -> path.containsIgnoreCase(value));
+		bindings.excluding(root.time);
+	}
 
 	//	Queries recent events
 	Page<Event> getTopByTimeAndDevice_Id(Date time, String deviceId, Pageable pageable);

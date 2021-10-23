@@ -41,13 +41,41 @@ public class GlobalExceptionHandler {
 			.body(new ApiCallError("Not Found", null));
 	}
 
-	@ExceptionHandler({ConversionFailedException.class, IllegalArgumentException.class, ParseException.class})
+
+	@ExceptionHandler(NumberFormatException.class)
+	public ResponseEntity<ApiCallError> handleNumberFormatException(HttpServletRequest request, Exception exception) {
+		logger.error("{}", request.getRequestURI(), exception);
+		logger.error("{}", List.of(exception.getMessage()));
+		return ResponseEntity
+			.status(HttpStatus.BAD_REQUEST)
+			.body(new ApiCallError("Invalid number format", exception.getMessage()));
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<ApiCallError> handleIllegalArgumentException(HttpServletRequest request, Exception exception) {
+		logger.error("{}", request.getRequestURI(), exception);
+		logger.error("{}", List.of(exception.getMessage()));
+		return ResponseEntity
+			.status(HttpStatus.BAD_REQUEST)
+			.body(new ApiCallError("Invalid Argument", exception.getLocalizedMessage()));
+	}
+
+	@ExceptionHandler(ConversionFailedException.class)
 	public ResponseEntity<ApiCallError> handleConversionFailedException(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
-			.body(new ApiCallError("Bad request", exception.getLocalizedMessage()));
+			.body(new ApiCallError("Conversion error", exception.toString()));
+	}
+
+	@ExceptionHandler(ParseException.class)
+	public ResponseEntity<ApiCallError> handleParseException(HttpServletRequest request, Exception exception) {
+		logger.error("{}", request.getRequestURI(), exception);
+		logger.error("{}", List.of(exception.getMessage()));
+		return ResponseEntity
+			.status(HttpStatus.BAD_REQUEST)
+			.body(new ApiCallError("Parsing error", exception.getLocalizedMessage()));
 	}
 
 	@ExceptionHandler(NoHandlerFoundException.class)

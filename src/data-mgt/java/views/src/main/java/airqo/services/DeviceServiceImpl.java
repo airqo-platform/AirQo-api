@@ -20,12 +20,12 @@ public class DeviceServiceImpl implements DeviceService {
 	DeviceRepository deviceRepository;
 
 	@Override
-	@Cacheable(value = "devices")
 	public Page<Device> getDevices(Predicate predicate, Pageable pageable) {
 		return deviceRepository.findAll(predicate, pageable);
 	}
 
 	@Override
+	@Cacheable(value = "devices")
 	public List<Device> getDevicesList(Predicate predicate) {
 		return (List<Device>) deviceRepository.findAll(predicate);
 	}

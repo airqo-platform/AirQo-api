@@ -17,7 +17,6 @@ import org.springframework.web.client.RestTemplate;
 import javax.annotation.PostConstruct;
 
 
-@Profile("dev")
 @Component
 public class DbLoad {
 

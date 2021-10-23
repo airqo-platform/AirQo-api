@@ -24,7 +24,6 @@ public class EventControllerTests {
 	@Autowired
 	protected MockMvc mockMvc;
 
-	@Test
 	public void shouldReturnEvents() throws Exception {
 		this.mockMvc.perform(get("/events"))
 			.andDo(print())

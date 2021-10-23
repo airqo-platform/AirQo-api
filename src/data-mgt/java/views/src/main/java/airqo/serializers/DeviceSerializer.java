@@ -33,6 +33,7 @@ public class DeviceSerializer {
 			jGen.writeBooleanField("primaryInLocation", device.isPrimaryInLocation());
 			jGen.writeBooleanField("isActive", device.isActive());
 			jGen.writeObjectField("site", siteView);
+			jGen.writeObjectField("recallDate", device.getRecallDate());
 			jGen.writeEndObject();
 		}
 	}

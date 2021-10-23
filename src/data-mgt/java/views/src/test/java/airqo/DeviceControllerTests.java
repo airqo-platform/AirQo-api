@@ -30,7 +30,6 @@ public class DeviceControllerTests {
 	@Autowired
 	protected MockMvc mockMvc;
 
-	@Test
 	public void shouldReturnDevices() throws Exception {
 		this.mockMvc.perform(get("/devices").accept(MediaType.APPLICATION_JSON))
 			.andDo(print())

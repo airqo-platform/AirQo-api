@@ -29,16 +29,12 @@ public class Device implements Serializable {
 	private String longName = "";
 
 	@JsonAlias("deployment_date")
-	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	private Date deploymentDate = new Date();
 
 	@JsonAlias("maintenance_date")
-//	@DateTimeFormat(pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
-//	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	private Date maintenanceDate = new Date();
 
 	@JsonAlias("recall_date")
-	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	private Date recallDate = new Date();
 
 	@DBRef
@@ -51,9 +47,8 @@ public class Device implements Serializable {
 	private Double height;
 	private boolean primaryInLocation = false;
 
-	//	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
-//	@DateTimeFormat(pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	@JsonIgnore
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	private Date nextMaintenance = new Date();
 	private boolean isActive = false;
 
@@ -61,7 +56,6 @@ public class Device implements Serializable {
 	private Integer deviceNumber = 0;
 	private String description = "";
 
-	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	private Date createdAt = new Date();
 	private boolean visibility = false;
 	private String writeKey = "";
