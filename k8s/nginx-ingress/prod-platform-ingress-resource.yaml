@@ -33,7 +33,7 @@ metadata:
       }
       
       location = /auth {
-        if ($$request_uri = "/") {
+        if ($request_uri = "/") {
             return 200;
         }
 

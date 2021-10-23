@@ -12,7 +12,7 @@ metadata:
       auth_request /auth;
     nginx.org/server-snippets: |
       location = /auth {
-        if ($$request_uri = "/") {
+        if ($request_uri = "/") {
             return 200;
         }
 
