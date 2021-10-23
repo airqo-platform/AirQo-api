@@ -2,18 +2,27 @@ import os
 
 from dotenv import load_dotenv
 
-from events import EventsCheck
+from events import Events
 
 load_dotenv()
 
 if __name__ == '__main__':
 
-    AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
+    BASE_URL = os.getenv("AIRQO_BASE_URL")
     SLACK_WEBHOOK = os.getenv("SLACK_WEBHOOK")
-    AIRQO_HOURS = os.getenv("AIRQO_HOURS")
-    KCCA_HOURS = os.getenv("KCCA_HOURS")
-    MINUTES = os.getenv("MINUTES")
 
-    events_check = EventsCheck(AIRQO_BASE_URL, SLACK_WEBHOOK)
-    events_check.run_check(tenant="airqo", hours=AIRQO_HOURS, minutes=MINUTES)
-    events_check.run_check(tenant="kcca", hours=KCCA_HOURS, minutes=MINUTES)
+    if BASE_URL is None or SLACK_WEBHOOK is None:
+        raise Exception('missing configurations')
+
+    airqo = Events(BASE_URL, SLACK_WEBHOOK, 'airqo')
+
+    if airqo.check_api():
+        airqo.check_measurements(hours=1, frequency='raw')
+        airqo.check_measurements(hours=3, frequency='hourly')
+
+    kcca = Events(BASE_URL, SLACK_WEBHOOK, 'kcca')
+
+    if kcca.check_api():
+        kcca.check_measurements(hours=1, frequency='raw')
+        kcca.check_measurements(hours=3, frequency='hourly')
+
