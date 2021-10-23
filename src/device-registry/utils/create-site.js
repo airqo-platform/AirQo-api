@@ -306,6 +306,72 @@ const manageSite = {
     }
   },
 
+  getRoadMetadata: async (request) => {
+    try {
+      const { latitude, longitude } = request.query;
+      let response = {};
+
+      let roadOptions = [
+        "altitude",
+        "greenness",
+        "aspect",
+        "landform270",
+        "landform90",
+        "bearing",
+        "distance/kampala",
+        "distance/road",
+        "distance/residential/road",
+        "distance/tertiary/road",
+        "distance/primary/road",
+        "distance/secondary/road",
+        "distance/unclassified/road",
+      ];
+
+      roadOptions.forEach(async (item) => {
+        const url = constants.GET_ROAD_METADATA(item, latitude, longitude);
+        await axios
+          .get(url)
+          .then(async (res) => {
+            let responseJSON = res.data;
+            logObject("responseJSON", responseJSON);
+            if (!isEmpty(responseJSON.results)) {
+              let data = responseJSON.results[0];
+              response[item] = data;
+            } else {
+              logElement("unable to get the information for", item);
+            }
+          })
+          .catch((error) => {
+            return {
+              success: false,
+              errors: { message: error },
+              message: "Server Side Error",
+            };
+          });
+      });
+
+      if (!isEmpty(response)) {
+        return {
+          success: true,
+          message: "",
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "",
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
   generateMetadata: async (req) => {
     try {
       let { latitude, longitude } = req.body;

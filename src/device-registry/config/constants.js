@@ -46,6 +46,9 @@ const stageConfig = {
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
+  GET_ROAD_METADATA: (item, lat, long) => {
+    return `https://platform.airqo.net/api/v1/datawarehouse/${item}?lat=${lat}&long=${long}`;
+  },
   GET_ADDRESS_URL: (lat, long) => {
     return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
