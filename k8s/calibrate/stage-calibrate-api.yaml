@@ -36,9 +36,26 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "500m"
+            limits:
+              memory: 1Gi
+              cpu: "2000m"
           env:
             - name: GET_HOSTS_FROM
               value: dns
+          envFrom:
+            - configMapRef:
+                name: stage-calibrate-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: stage-calibrate-api-config-files
 
 ---
 kind: Service
