@@ -7,6 +7,7 @@ COPY . /app/
 WORKDIR /app/
 
 # Install the Flask package via pip
+# RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 RUN pip install -r requirements.txt
 # Set "python" as the entry point
 # Set environment variables
@@ -30,3 +31,6 @@ FROM builder as dev
 ENV FLASK_ENV=development
 # Run the application
 CMD ["flask", "run", "--host=0.0.0.0"]
+
+FROM builder as pickle-file
+CMD ["python", "jobs/regression.py"]

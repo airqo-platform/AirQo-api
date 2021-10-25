@@ -19,6 +19,9 @@ load_dotenv(dotenv_path)
 CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 client = bigquery.Client.from_service_account_json(CREDENTIALS)
 
+RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
+LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
+
 def get_lowcost_data():
     sql = """
     SELECT 
@@ -123,7 +126,7 @@ def random_forest(hourly_combined_dataset):
     # Fitting the model 
     rf_regressor = rf_regressor.fit(X, y) 
     # save the model to disk
-    filename = 'jobs/rf_reg_model.pkl'
+    filename = RF_REG_MODEL
     pickle.dump(rf_regressor, open(filename, 'wb'))
 
     ##dump the model to google cloud storage.
@@ -195,7 +198,7 @@ def lasso_reg(dataset):
    # Fitting the model 
     lasso_regressor = Lasso(random_state=0).fit(X, y)
     # save the model to disk
-    filename = 'jobs/lasso_model.pkl'
+    filename = LASSO_MODEL
     pickle.dump(lasso_regressor, open(filename, 'wb'))
 
     ##dump the model to google cloud storage.
