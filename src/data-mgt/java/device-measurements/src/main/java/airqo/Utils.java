@@ -261,20 +261,6 @@ public class Utils {
         String urlString = properties.getProperty("airqo.base.url", "");
         List<Device> devices = getDevices(urlString, "airqo");
 
-        double pm2_5MaxValue;
-        double pm10MaxValue;
-
-        try {
-            pm2_5MaxValue = Double.parseDouble(properties.getProperty("pm2_5.value.max", "1000"));
-            pm10MaxValue = Double.parseDouble(properties.getProperty("pm10.value.max", "1000"));
-        } catch (NumberFormatException e) {
-            e.printStackTrace();
-            pm2_5MaxValue = 1000;
-            pm10MaxValue = 1000;
-        }
-
-        double finalPm2_5MaxValue = pm2_5MaxValue;
-        double finalPm10MaxValue = pm10MaxValue;
         deviceMeasurements.forEach(rawMeasurement -> {
 
             Device device = getDeviceByName(devices, rawMeasurement.getDevice());
@@ -292,93 +278,65 @@ public class Utils {
                     transformedMeasurement.setTime(rawMeasurement.getTime());
 
                     transformedMeasurement.setLocation(new TransformedLocation() {{
-                        setLatitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLatitude(), false)));
-                        setLongitude(new LocationValue(Utils.stringToDouble(rawMeasurement.getLongitude(), false)));
+                        setLatitude(new LocationValue(Utils.measurementStringToDouble(rawMeasurement.getLatitude(), "latitude")));
+                        setLongitude(new LocationValue(Utils.measurementStringToDouble(rawMeasurement.getLongitude(), "longitude")));
                     }});
 
                     transformedMeasurement.setPm2_5(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getPm25(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getPm25(), "pm2.5"));
                     }});
 
                     transformedMeasurement.setPm10(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getPm10(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getPm10(), "pm10"));
                     }});
 
                     transformedMeasurement.setS2_pm2_5(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm25(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getS2Pm25(), "pm2.5"));
                     }});
 
                     transformedMeasurement.setS2_pm10(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getS2Pm10(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getS2Pm10(), "pm10"));
                     }});
 
                     transformedMeasurement.setAltitude(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getAltitude(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getAltitude(), "altitude"));
                     }});
 
                     transformedMeasurement.setSpeed(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getSpeed(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getSpeed(), "speed"));
                     }});
 
                     transformedMeasurement.setBattery(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getBattery(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getBattery(), "battery"));
                     }});
 
                     transformedMeasurement.setSatellites(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getSatellites(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getSatellites(), "satellites"));
                     }});
 
                     transformedMeasurement.setHdop(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getHdop(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getHdop(), "hdop"));
                     }});
 
                     transformedMeasurement.setExternalHumidity(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getExternalHumidity(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getExternalHumidity(), "humidity"));
                     }});
 
                     transformedMeasurement.setExternalPressure(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getExternalPressure(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getExternalPressure(), "pressure"));
                     }});
 
                     transformedMeasurement.setExternalTemperature(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getExternalTemperature(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getExternalTemperature(), "temperature"));
                     }});
 
                     transformedMeasurement.setInternalTemperature(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getInternalTemperature(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getInternalTemperature(), "temperature"));
                     }});
 
                     transformedMeasurement.setInternalHumidity(new TransformedValue() {{
-                        setValue(Utils.stringToDouble(rawMeasurement.getInternalHumidity(), false));
+                        setValue(Utils.measurementStringToDouble(rawMeasurement.getInternalHumidity(), "humidity"));
                     }});
-
-                    if (transformedMeasurement.getPm2_5().getValue() != null) {
-                        if (transformedMeasurement.getPm2_5().getValue() < 0.0
-                                || transformedMeasurement.getPm2_5().getValue() > finalPm2_5MaxValue) {
-                            transformedMeasurement.getPm2_5().setValue(null);
-                        }
-                    }
-
-                    if (transformedMeasurement.getS2_pm2_5().getValue() != null) {
-                        if (transformedMeasurement.getS2_pm2_5().getValue() < 0.0
-                                || transformedMeasurement.getS2_pm2_5().getValue() > finalPm2_5MaxValue) {
-                            transformedMeasurement.getS2_pm2_5().setValue(null);
-                        }
-                    }
-
-                    if (transformedMeasurement.getPm10().getValue() != null) {
-                        if (transformedMeasurement.getPm10().getValue() < 0.0
-                                || transformedMeasurement.getPm10().getValue() > finalPm10MaxValue) {
-                            transformedMeasurement.getPm10().setValue(null);
-                        }
-                    }
-
-                    if (transformedMeasurement.getS2_pm10().getValue() != null) {
-                        if (transformedMeasurement.getS2_pm10().getValue() < 0.0
-                                || transformedMeasurement.getS2_pm10().getValue() > finalPm10MaxValue) {
-                            transformedMeasurement.getS2_pm10().setValue(null);
-                        }
-                    }
 
                     transformedMeasurements.add(transformedMeasurement);
 
@@ -451,6 +409,7 @@ public class Utils {
         }
     }
 
+    @Deprecated
     public static Double stringToDouble(String s, boolean trim) {
 
         double aDouble;
@@ -459,6 +418,69 @@ public class Utils {
             aDouble = Double.parseDouble(s);
             if (trim)
                 return Double.parseDouble(decimalFormat.format(aDouble));
+            return aDouble;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    public static Double measurementStringToDouble(String s, String type) {
+
+        double aDouble;
+
+        try {
+            aDouble = Double.parseDouble(s);
+            if (type.equalsIgnoreCase("pm2.5") || type.equalsIgnoreCase("pm10")){
+                if(aDouble < 1 || aDouble > 1000)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("latitude")){
+                if(aDouble < -90 || aDouble > 90)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("longitude")){
+                if(aDouble < -180 || aDouble > 180)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("battery")){
+                if(aDouble < 2.7 || aDouble > 5)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("altitude")){
+                if(aDouble < 0)
+                    return null;
+            }
+
+
+            if (type.equalsIgnoreCase("hdop")){
+                if(aDouble < 0)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("satellites")){
+                if(aDouble < 0 || aDouble > 50)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("temperature")){
+                if(aDouble < 0 || aDouble > 45)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("humidity")){
+                if(aDouble < 0 || aDouble > 99)
+                    return null;
+            }
+
+            if (type.equalsIgnoreCase("pressure")){
+                if(aDouble < 30 || aDouble > 110)
+                    return null;
+            }
+
             return aDouble;
         } catch (NumberFormatException ignored) {
             return null;
