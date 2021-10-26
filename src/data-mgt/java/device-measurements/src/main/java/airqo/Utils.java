@@ -204,14 +204,12 @@ public class Utils {
                         setCalibratedValue(rawMeasurement.getCharacteristics().getPm10ConcMass().getCalibratedValue());
                     }});
 
-                    transformedMeasurement.setInternalHumidity(new TransformedValue() {{
+                    transformedMeasurement.setExternalHumidity(new TransformedValue() {{
                         setValue(rawMeasurement.getCharacteristics().getRelHumid().getRaw());
-                        setCalibratedValue(rawMeasurement.getCharacteristics().getRelHumid().getCalibratedValue());
                     }});
 
-                    transformedMeasurement.setInternalTemperature(new TransformedValue() {{
+                    transformedMeasurement.setExternalTemperature(new TransformedValue() {{
                         setValue(rawMeasurement.getCharacteristics().getTemperature().getRaw());
-                        setCalibratedValue(rawMeasurement.getCharacteristics().getTemperature().getCalibratedValue());
                     }});
 
                     transformedMeasurement.setPm2_5(new TransformedValue() {{
