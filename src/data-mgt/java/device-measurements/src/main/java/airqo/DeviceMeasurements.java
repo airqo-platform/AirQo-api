@@ -68,7 +68,7 @@ public class DeviceMeasurements {
                     .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
 
             final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                    .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
+                    .map((key, value) -> new KeyValue<>(null, Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
 
             transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde));
         } catch (Exception e) {

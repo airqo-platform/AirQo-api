@@ -29,7 +29,11 @@ metadata:
       }
       
       location = /auth {
-        if ($$request_uri = "/") {
+        if ($request_uri = "/") {
+            return 200;
+        }
+
+        if ($request_uri = "/login") {
             return 200;
         }
 
@@ -70,10 +74,6 @@ metadata:
         }
 
         if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/datawarehouse)|(/api/v2/datawarehouse)") {
             return 200;
         }
 
