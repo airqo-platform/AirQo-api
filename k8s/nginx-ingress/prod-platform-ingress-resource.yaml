@@ -37,6 +37,10 @@ metadata:
             return 200;
         }
 
+        if ($request_uri = "/login") {
+            return 200;
+        }
+
         if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
             return 200;
         }
