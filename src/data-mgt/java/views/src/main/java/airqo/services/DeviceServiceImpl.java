@@ -25,7 +25,7 @@ public class DeviceServiceImpl implements DeviceService {
 	}
 
 	@Override
-	@Cacheable(value = "devices")
+	@Cacheable(value = "viewDevicesCache")
 	public List<Device> getDevicesList(Predicate predicate) {
 		return (List<Device>) deviceRepository.findAll(predicate);
 	}

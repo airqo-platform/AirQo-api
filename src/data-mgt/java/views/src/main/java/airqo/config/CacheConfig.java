@@ -15,10 +15,10 @@ public class CacheConfig {
 	@Bean
 	public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
 		return (builder) -> builder
-			.withCacheConfiguration("sitesCache",
-				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofHours(1)))
-			.withCacheConfiguration("devicesCache",
-				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofHours(5)));
+			.withCacheConfiguration("viewSitesCache",
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
+			.withCacheConfiguration("viewDevicesCache",
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)));
 	}
 
 	@Bean

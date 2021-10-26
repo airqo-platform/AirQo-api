@@ -1,4 +1,6 @@
-FROM openjdk:11 as base
+# syntax=docker/dockerfile:1
+
+FROM openjdk:16-alpine3.13 as base
 
 WORKDIR /app
 
@@ -11,7 +13,7 @@ FROM base as test
 RUN ["./mvnw", "test"]
 
 FROM base as dev
-CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.profiles=dev", "-Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000'"]
+CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.profiles=development", "-Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000'"]
 
 FROM base as build
 RUN ./mvnw package -Dmaven.test.skip=true
@@ -35,4 +37,4 @@ COPY target/views-0.0.1-SNAPSHOT.jar /airqo-views.jar
 
 EXPOSE 8080
 
-CMD ["java", "-Dspring.profiles.active=dev", "-jar", "/airqo-views.jar"]
+CMD ["java", "-Dspring.profiles.active=development", "-jar", "/airqo-views.jar"]

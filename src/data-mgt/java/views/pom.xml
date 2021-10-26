@@ -33,7 +33,7 @@
 
     <profiles>
         <profile>
-            <id>dev</id>
+            <id>development</id>
             <properties>
                 <defaultProperties>dev</defaultProperties>
             </properties>
@@ -42,19 +42,19 @@
             </activation>
         </profile>
         <profile>
-            <id>test</id>
+            <id>testing</id>
             <properties>
                 <defaultProperties>test</defaultProperties>
             </properties>
         </profile>
         <profile>
-            <id>stage</id>
+            <id>staging</id>
             <properties>
                 <defaultProperties>stage</defaultProperties>
             </properties>
         </profile>
         <profile>
-            <id>prod</id>
+            <id>production</id>
             <properties>
                 <defaultProperties>prod</defaultProperties>
             </properties>
@@ -79,10 +79,6 @@
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-hateoas</artifactId>
-        </dependency>
 
         <!--Scheduling -->
         <dependency>
@@ -104,12 +100,6 @@
         <groupId>org.apache.commons</groupId>
         <artifactId>commons-lang3</artifactId>
         <version>3.12.0</version>
-      </dependency>
-
-      <!-- caching -->
-      <dependency>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-starter-cache</artifactId>
       </dependency>
 
       <dependency>
@@ -271,21 +261,6 @@
                     </execution>
                 </executions>
             </plugin>
-<!--          <plugin>-->
-<!--            <groupId>io.fabric8</groupId>-->
-<!--            <artifactId>fabric8-maven-plugin</artifactId>-->
-<!--            <version>3.1.32</version>-->
-<!--            <executions>-->
-<!--              <execution>-->
-<!--                <id>fmp</id>-->
-<!--                <goals>-->
-<!--                  <goal>resource</goal>-->
-<!--                  <goal>helm</goal>-->
-<!--                  <goal>build</goal>-->
-<!--                </goals>-->
-<!--              </execution>-->
-<!--            </executions>-->
-<!--          </plugin>-->
         </plugins>
     </build>
 

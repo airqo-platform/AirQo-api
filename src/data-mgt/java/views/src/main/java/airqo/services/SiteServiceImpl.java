@@ -25,7 +25,7 @@ public class SiteServiceImpl implements SiteService {
 	}
 
 	@Override
-	@Cacheable(value = "sites")
+	@Cacheable(value = "viewSitesCache")
 	public List<Site> getSitesList(Predicate predicate) {
 		return (List<Site>) siteRepository.findAll(predicate);
 	}
