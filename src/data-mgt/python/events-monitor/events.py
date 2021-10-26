@@ -6,21 +6,37 @@ import requests
 from utils import build_slack_message
 
 
-class EventsCheck:
-    def __init__(self, airqo_base_url, webhook) -> None:
+class Events:
+    def __init__(self, airqo_base_url, webhook, tenant) -> None:
         self.airqo_base_url = airqo_base_url
         self.webhook = webhook
+        self.tenant = tenant
         super().__init__()
 
-    def run_check(self, tenant, hours, minutes):
+    def check_api(self):
 
-        api_url = f"{self.airqo_base_url}devices/events?tenant={tenant}&recent=yes"
+        api_url = f"{self.airqo_base_url}devices?tenant={self.tenant}"
 
         results = requests.get(api_url)
 
         if results.status_code != 200:
             msg = build_slack_message(api_url, results.status_code, results.request.method, str(results.content),
-                                      f"Get events endpoint for {tenant.capitalize()} "
+                                      f"Get devices endpoint for {self.tenant.capitalize()} "
+                                      f"returns a none 200 status code. Find details below")
+            self.notify_slack(msg)
+            return False
+
+        return True
+
+    def check_measurements(self, hours, frequency):
+
+        api_url = f"{self.airqo_base_url}devices/events?tenant={self.tenant}&recent=yes&frequency={frequency}"
+
+        results = requests.get(api_url)
+
+        if results.status_code != 200:
+            msg = build_slack_message(api_url, results.status_code, results.request.method, str(results.content),
+                                      f"{str(frequency).title()} events endpoint for {self.tenant.capitalize()} "
                                       f"returns a none 200 status code. Find details below")
             self.notify_slack(msg)
             return
@@ -30,13 +46,13 @@ class EventsCheck:
 
         if len(measurements) == 0:
             msg = build_slack_message(api_url, results.status_code, results.request.method, response_data,
-                                      f"Get events endpoint for {tenant.capitalize()} "
+                                      f"{str(frequency).title()} events endpoint for {self.tenant.capitalize()} "
                                       f"returns an empty array of measurements. 🤔 🤔")
             self.notify_slack(msg)
             return
 
         has_latest = False
-        check_date = datetime.utcnow() - timedelta(hours=int(hours), minutes=int(minutes))
+        check_date = datetime.utcnow() - timedelta(hours=int(hours))
 
         for measurement in measurements:
             measurement_values = dict(measurement)
@@ -49,12 +65,13 @@ class EventsCheck:
             msg = build_slack_message(api_url, results.status_code, results.request.method,
                                       "'The response body is too large, its better you make the query using a browser "
                                       "or postman and review the *time* field'",
-                                      f"{tenant.capitalize()} measurements that were recorded {hours} hour(s), "
-                                      f"{minutes} minute(s) ago are missing. :man-shrugging:")
+                                      f"{self.tenant.capitalize()} {frequency} measurements "
+                                      f"recorded {hours} hour(s) "
+                                      f"ago are missing. :man-shrugging:")
             self.notify_slack(msg)
             return
 
-        print(f"Check complete. All looks fine for {tenant}")
+        print(f"Check complete. All looks fine for {self.tenant} {frequency} events")
 
     def notify_slack(self, data):
         data = json.dumps(data)

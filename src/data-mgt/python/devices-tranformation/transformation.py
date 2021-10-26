@@ -159,16 +159,15 @@ class Transformation:
 
         devices = self.airqo_api.get_devices(tenant=self.tenant, active=True)
         devices_without_forecast = []
-        date_time = date_to_str_v2(datetime.utcnow())
 
         for device in devices:
             device_dict = dict(device)
-            latitude = device_dict.get("latitude", None)
-            longitude = device_dict.get("longitude", None)
+            device_number = device_dict.get("device_number", None)
 
-            if longitude and latitude:
-                forecast = self.airqo_api.get_forecast(tenant=self.tenant, latitude=latitude,
-                                                       longitude=longitude, selected_datetime=date_time)
+            if device_number:
+                time = int(datetime.utcnow().timestamp())
+
+                forecast = self.airqo_api.get_forecast_v2(channel_id=device_number, timestamp=time)
                 if not forecast:
                     device_details = {
                         "device_number": device_dict.get("device_number", None),

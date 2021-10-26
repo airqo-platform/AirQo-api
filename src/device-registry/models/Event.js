@@ -335,7 +335,7 @@ eventSchema.statics = {
     }
   },
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    const { metadata, frequency, external } = filter;
+    const { metadata, frequency, external, tenant } = filter;
     let search = filter;
     let groupId = "$device";
     let localField = "device";
@@ -353,6 +353,7 @@ eventSchema.statics = {
     delete search["external"];
     delete search["frequency"];
     delete search["metadata"];
+    delete search["tenant"];
 
     if (external === "yes") {
       projection["s2_pm10"] = 0;
@@ -360,9 +361,7 @@ eventSchema.statics = {
       projection[as] = 0;
     }
 
-    logElement("the frequency", frequency);
-
-    if (frequency === "raw" || frequency === "daily") {
+    if (tenant !== "airqo" || frequency === "raw" || frequency === "daily") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
     }
@@ -396,7 +395,7 @@ eventSchema.statics = {
       as = "deviceDetails";
       elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
     }
-    logObject("the projection", projection);
+
     return this.aggregate()
       .unwind("values")
       .match(search)
@@ -473,7 +472,7 @@ eventSchema.statics = {
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     logObject("the filter in the model", filter);
-    const { metadata, frequency, external } = filter;
+    const { metadata, frequency, external, tenant } = filter;
     let search = filter;
     let groupId = "$device";
     let localField = "device";
@@ -491,6 +490,7 @@ eventSchema.statics = {
     delete search["external"];
     delete search["frequency"];
     delete search["metadata"];
+    delete search["tenant"];
 
     if (!metadata || metadata === "device") {
     }
@@ -501,12 +501,10 @@ eventSchema.statics = {
       projection[as] = 0;
     }
 
-    if (frequency === "raw" || frequency === "daily") {
+    if (tenant !== "airqo" || frequency === "raw" || frequency === "daily") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
     }
-
-    logObject("the projection", projection);
 
     if (metadata === "site") {
       groupId = "$site";
@@ -534,9 +532,6 @@ eventSchema.statics = {
       as = "deviceDetails";
       elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
     }
-
-    logObject("the search", search);
-    logObject("the projection in", projection);
 
     return this.aggregate()
       .unwind("values")

@@ -17,7 +17,7 @@ spec:
           schedulerName: default-scheduler
           containers:
           - name: prod-events-notifs-job
-            image: us.gcr.io/airqo-250220/events-notifs-job:latest
+            image: us.gcr.io/airqo-250220/airqo-events-notifs-job:latest
             imagePullPolicy: Always
             resources:
               requests:
