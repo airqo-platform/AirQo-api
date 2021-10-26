@@ -573,4 +573,4 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/events-monitor/
-          kubectl apply -f stage-events-notifs-cronjob.yaml
+          kubectl apply -f stage-events-notifs-cronjob.yaml -n staging
