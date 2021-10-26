@@ -578,6 +578,8 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-views-api:latest
       - name: Deploy to K8S
         run: |
+          cd k8s/view-api/
+          kubectl apply -f prod-view-api.yaml
           kubectl set image deployment/airqo-views-api views-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-views-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-views-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-views-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
           
