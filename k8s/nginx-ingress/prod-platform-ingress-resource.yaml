@@ -27,10 +27,6 @@ metadata:
       location @access_denied {
        return 401 '{"error": "Access Denied"}';
       }
-
-      location = / {
-       return 200 '{"messsage": "Welcome to the AirQo API.", "docs": "https://docs.airqo.net/airqo-rest-api-documentation/"}';
-      }
       
       location = /auth {
         if ($request_uri = "/") {
@@ -78,10 +74,6 @@ metadata:
         }
 
         if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
-            return 200;
-        }
-
-        if ($request_uri ~ "(/api/v1/datawarehouse)|(/api/v2/datawarehouse)") {
             return 200;
         }
 
