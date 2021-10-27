@@ -572,4 +572,4 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/events-monitor/
-          kubectl apply -f prod-events-notifs-cronjob.yaml
+          kubectl apply -f prod-events-notifs-cronjob.yaml -n production
