@@ -9,7 +9,10 @@ from flask import request
 from main import rest_api
 
 # models
-from api.models import ReportTemplateModel
+from api.models import ReportModel
+
+#schema
+from api.views.schemas import ReportSchema
 
 # Utils
 from api.utils.request_validators import validate_request_params, validate_request_json
@@ -17,35 +20,20 @@ from api.utils.http import create_response, Status
 from api.utils.case_converters import camel_to_snake
 
 
-@rest_api.route('/report/default_template')
-class DefaultReportTemplateResource(Resource):
+@rest_api.route('/report')
+class ReportResource(Resource):
 
-    @swag_from('/api/docs/report/default_report_template_post.yml')
-    @validate_request_json('userId|required:str', 'reportName|required:str', 'reportBody|required:dict')
     def post(self):
         tenant = request.args.get("tenant")
 
-        data = request.get_json()
-        user_id = data['userId']
-        report_name = data['reportName']
-        report_body = data['reportBody']
+        report_schema = ReportSchema()
+        data = report_schema.load(request.get_json())
 
-        report_model = ReportTemplateModel(tenant)
+        report_model = ReportModel(tenant)
 
-        count = report_model.find({"report_type": "default"}).count()
+        report_model.save(data)
 
-        if count > 0:
-            return create_response("A default template already exist", success=False), Status.HTTP_400_BAD_REQUEST
-
-        report_model.insert({
-            "user_id": user_id,
-            "report_date": datetime.now(),
-            "report_type": "default",
-            "report_name": report_name,
-            "report_body": report_body
-        })
-
-        return create_response("Default Report Template Saved Successfully"), Status.HTTP_201_CREATED
+        return create_response("Report successfully created"), Status.HTTP_201_CREATED
 
     @swag_from('/api/docs/report/default_report_template_get.yml')
     def get(self):
