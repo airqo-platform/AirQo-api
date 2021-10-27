@@ -15,3 +15,6 @@ class ReportModel(BasePyMongoModel):
                 .project(_id="$toString", name=1, user_id=1, body=1)
                 .exec()
         )
+
+    def delete_report(self, report_id):
+        return self.delete_one({"_id": self.to_object_id(report_id)})

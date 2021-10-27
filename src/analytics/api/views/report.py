@@ -87,6 +87,21 @@ class SingleReportResource(Resource):
 
         return create_response("Report(s) successfully fetched", data=data), Status.HTTP_200_OK
 
+    def delete(self, report_id):
+        tenant = request.args.get("tenant")
+
+        report_model = ReportModel(tenant)
+
+        delete_result = report_model.delete_report(report_id)
+
+        if delete_result.deleted_count > 0:
+            return create_response(
+                f"monthly report {report_id} deleted successfully",
+                hide_data=True
+            ), Status.HTTP_200_OK
+
+        return create_response("report not found", success=False, hide_data=True), Status.HTTP_404_NOT_FOUND
+
 
 @rest_api.route('/report/monthly')
 class MonthlyReportResource(Resource):
