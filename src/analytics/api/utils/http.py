@@ -84,4 +84,7 @@ def create_response(message, data=None, success=True):
         "data": data
     }
 
+    if not data:
+        del response["data"]
+
     return response
