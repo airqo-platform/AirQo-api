@@ -75,7 +75,7 @@ class Status:
         return 500 <= status_code < 600
 
 
-def create_response(message, data=None, success=True):
+def create_response(message, data=None, success=True, hide_data=False):
     """Function to create an http response"""
 
     response = {
@@ -84,7 +84,7 @@ def create_response(message, data=None, success=True):
         "data": data
     }
 
-    if not data:
+    if hide_data:
         del response["data"]
 
     return response
