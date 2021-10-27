@@ -306,37 +306,30 @@ const manageSite = {
     }
   },
 
-  getRoadMetadata: async (request) => {
+  getRoadMetadata: async (latitude, longitude) => {
     try {
-      const { latitude, longitude } = request.query;
       let response = {};
+      let tests = [];
+      const paths = constants.GET_ROAD_METADATA_PATHS;
 
-      let roadOptions = [
-        "altitude",
-        "greenness",
-        "aspect",
-        "landform270",
-        "landform90",
-        "bearing",
-        "distance/kampala",
-        "distance/road",
-        "distance/residential/road",
-        "distance/tertiary/road",
-        "distance/primary/road",
-        "distance/secondary/road",
-        "distance/unclassified/road",
-      ];
-
-      roadOptions.forEach(async (item) => {
-        const url = constants.GET_ROAD_METADATA(item, latitude, longitude);
-        await axios
+      Object.entries(paths).forEach(async ([key, path]) => {
+        const url = constants.GET_ROAD_METADATA({
+          path,
+          latitude,
+          longitude,
+        });
+        logObject("the url", url);
+        logElement("the key", key);
+        logElement("the path", path);
+        return await axios
           .get(url)
           .then(async (res) => {
+            logObject("the res", res);
             let responseJSON = res.data;
-            logObject("responseJSON", responseJSON);
+            logObject("responseJSON for get road metadata", responseJSON);
             if (!isEmpty(responseJSON.results)) {
-              let data = responseJSON.results[0];
-              response[item] = data;
+              let data = responseJSON.results[0].data;
+              return (response[key] = data);
             } else {
               logElement("unable to get the information for", item);
             }
@@ -345,7 +338,7 @@ const manageSite = {
             return {
               success: false,
               errors: { message: error },
-              message: "Server Side Error",
+              message: "constants server side error",
             };
           });
       });
@@ -353,13 +346,14 @@ const manageSite = {
       if (!isEmpty(response)) {
         return {
           success: true,
-          message: "",
+          message: "successfully retrieved the road metadata",
           status: HTTPStatus.OK,
+          data: response,
         };
       } else {
         return {
           success: false,
-          message: "",
+          message: "unable to retrieve any road metadata",
           status: HTTPStatus.NOT_FOUND,
         };
       }
@@ -395,6 +389,31 @@ const manageSite = {
           : "";
         logger.error(
           `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${errors}`
+        );
+      }
+
+      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
+        latitude,
+        longitude
+      );
+
+      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
+
+      if (responseFromGetRoadMetadata.success === true) {
+        const data = responseFromGetRoadMetadata.data;
+        Object.entries(data).forEach((key, item) => {
+          body[key] = item;
+        });
+      }
+
+      logObject("the body test", body);
+
+      if (responseFromGetRoadMetadata.success === false) {
+        let errors = responseFromGetRoadMetadata.errors
+          ? responseFromGetRoadMetadata.errors
+          : "";
+        logger.error(
+          `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
         );
       }
 
