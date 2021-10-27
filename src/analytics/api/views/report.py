@@ -33,36 +33,16 @@ class ReportResource(Resource):
 
         report_model.save(data)
 
-        return create_response("Report successfully created"), Status.HTTP_201_CREATED
+        data["_id"] = str(data["_id"])
 
-    @swag_from('/api/docs/report/default_report_template_get.yml')
+        return create_response("Report successfully created", data=data), Status.HTTP_201_CREATED
+
     def get(self):
         tenant = request.args.get("tenant")
-        report_model = ReportTemplateModel(tenant)
+        report_model = ReportModel(tenant)
+        data = report_model.get_all_reports()
 
-        default_template = list(report_model.filter_by(report_type="default").exec(
-            {
-                "_id": 1,
-                "user_id": 1,
-                "report_date": {
-                    '$dateToString': {
-                        'format': '%Y-%m-%dT%H:%M:%S%z',
-                        'date': '$time',
-                        'timezone': 'Africa/Kampala'
-                    },
-                },
-                "report_type": 1,
-                "report_name": 1,
-                "report_body": 1
-            }
-        ))
-
-        report = default_template[0] if default_template else {}
-
-        return create_response(
-            "default report successfully fetched",
-            data={'report': report}
-        ), Status.HTTP_200_OK
+        return create_response("Report(s) successfully fetched", data=data), Status.HTTP_200_OK
 
     @swag_from('/api/docs/report/default_report_template_patch.yml')
     @validate_request_json('userId|str', 'reportName|str', 'reportBody|dict')
