@@ -51,20 +51,17 @@ def create_app(rest_api, config=config[config_name]):
     return app
 
 
-@rest_api.errorhandler(MarshmallowValidationError)
 @middleware_blueprint.app_errorhandler(MarshmallowValidationError)
 def handle_marshmallow_exception(error):
     """Error handler called when a marshmallow ValidationError is raised"""
-
     error_message = {
-        'message': 'An error occurred',
+        'message': 'An error occurred while processing this request',
         'status': 'error',
         'errors': error.messages
     }
     return jsonify(error_message), 400
 
 
-@rest_api.errorhandler(ValidationError)
 @middleware_blueprint.app_errorhandler(ValidationError)
 def handle_exception(error):
     """Error handler called when a ValidationError is raised"""
