@@ -67,7 +67,7 @@ class BaseMongoOperations:
         """Saves a document to a collection
 
         Args:
-            item(dict): document to be inserted into a collcetion to select the docs to be updated
+            item(dict): document to be inserted into a collection
         """
         return self.collection.save(item)
 
