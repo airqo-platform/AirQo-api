@@ -77,6 +77,17 @@ class ReportResource(Resource):
         ), Status.HTTP_404_NOT_FOUND
 
 
+@rest_api.route('/report/<report_id>')
+class SingleReportResource(Resource):
+
+    def get(self, report_id):
+        tenant = request.args.get("tenant")
+        report_model = ReportModel(tenant)
+        data = report_model.get_report(report_id)
+
+        return create_response("Report(s) successfully fetched", data=data), Status.HTTP_200_OK
+
+
 @rest_api.route('/report/monthly')
 class MonthlyReportResource(Resource):
 

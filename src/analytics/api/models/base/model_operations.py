@@ -82,6 +82,10 @@ class ChainableMongoOperations(BaseMongoOperations):
         self.match_stage = {"$and": []}
 
     @staticmethod
+    def to_object_id(id):
+        return ObjectId(id)
+
+    @staticmethod
     def to_object_ids(ids):
         return [ObjectId(ID) for ID in ids]
 
