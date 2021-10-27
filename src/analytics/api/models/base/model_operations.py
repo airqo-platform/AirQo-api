@@ -63,6 +63,14 @@ class BaseMongoOperations:
         """
         return self.collection.delete_one(filter_cond)
 
+    def save(self, item):
+        """Saves a document to a collection
+
+        Args:
+            item(dict): document to be inserted into a collcetion to select the docs to be updated
+        """
+        return self.collection.save(item)
+
 
 class ChainableMongoOperations(BaseMongoOperations):
     ASCENDING = 1
