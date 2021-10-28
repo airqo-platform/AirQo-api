@@ -18,3 +18,6 @@ class ReportModel(BasePyMongoModel):
 
     def delete_report(self, report_id):
         return self.delete_one({"_id": self.to_object_id(report_id)})
+
+    def update_report(self, report_id, data):
+        return self.update_one({"_id": self.to_object_id(report_id)}, data)

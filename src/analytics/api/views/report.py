@@ -52,6 +52,26 @@ class SingleReportResource(Resource):
 
         return create_response("Report(s) successfully fetched", data=data), Status.HTTP_200_OK
 
+    def patch(self, report_id):
+        tenant = request.args.get("tenant")
+
+        report_schema = ReportSchema()
+        data = report_schema.load(request.get_json(), partial=True)
+
+        report_model = ReportModel(tenant)
+
+        update_result = report_model.update_report(report_id, data)
+
+        print(dir(update_result))
+
+        if update_result.modified_count > 0:
+            return create_response(
+                "report successfully updated",
+                hide_data=True
+            ), Status.HTTP_200_OK
+
+        return create_response("report not modified", success=False, hide_data=True), Status.HTTP_202_ACCEPTED
+
     def delete(self, report_id):
         tenant = request.args.get("tenant")
 
