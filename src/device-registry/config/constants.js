@@ -69,9 +69,9 @@ const defaultConfig = {
     let endDate = generateDateFormatWithoutHrs(today);
     let startDate = generateDateFormatWithoutHrs(today);
     if (path === "greenness") {
-      return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&long=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+      return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
-    return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&long=${longitude}`;
+    return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
   },
   GET_ADDRESS_URL: (lat, long) => {
     return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;

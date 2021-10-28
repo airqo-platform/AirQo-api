@@ -49,7 +49,6 @@ const manageSite = {
       }
       const { tenant } = req.query;
       let responseFromCreateSite = await createSiteUtil.create(tenant, req);
-      logObject("responseFromCreateSite in controller", responseFromCreateSite);
       if (responseFromCreateSite.success === true) {
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
