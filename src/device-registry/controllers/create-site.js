@@ -84,7 +84,7 @@ const manageSite = {
   },
 
   generateMetadata: async (req, res) => {
-    logText("registering site.............");
+    logText("generating site metadata.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
