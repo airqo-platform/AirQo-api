@@ -8,13 +8,14 @@ from flask import request
 from main import rest_api
 
 # models
-from api.models import ReportModel
+from api.models import ReportModel, ReportAssetModel
 
 # schema
-from api.views.schemas import ReportSchema
+from api.views.schemas import ReportSchema, ReportAttributeSchema
 
 # Utils
 from api.utils.http import create_response, Status
+from api.utils.request_validators import validate_request_params
 
 
 @rest_api.route('/report')
@@ -62,8 +63,6 @@ class SingleReportResource(Resource):
 
         update_result = report_model.update_report(report_id, data)
 
-        print(dir(update_result))
-
         if update_result.modified_count > 0:
             return create_response(
                 "report successfully updated",
@@ -86,3 +85,21 @@ class SingleReportResource(Resource):
             ), Status.HTTP_200_OK
 
         return create_response("report not found", success=False, hide_data=True), Status.HTTP_404_NOT_FOUND
+
+
+@rest_api.route('/report/attribute/data')
+class ReportAttributeDataResource(Resource):
+
+    @validate_request_params('startDate|required:datetime', 'endDate|required:datetime')
+    def get(self):
+        tenant = request.args.get("tenant")
+        start_date = request.args.get("startDate")
+        end_date = request.args.get("endDate")
+        attribute_schema = ReportAttributeSchema()
+        data = attribute_schema.load(request.get_json())
+
+        asset_model = ReportAssetModel(tenant, data['asset'], 'main')
+
+        table_data = asset_model.get_data(start_date=start_date, end_date=end_date, data=data, date_key='createdAt')
+
+        return create_response("Report(s) successfully fetched", data=table_data), Status.HTTP_200_OK

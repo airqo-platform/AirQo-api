@@ -6,4 +6,4 @@ from .dashboard import (
     MonitoringSiteResource,
 )
 
-from .report import ReportResource, SingleReportResource
+from .report import ReportResource, SingleReportResource, ReportAttributeDataResource
