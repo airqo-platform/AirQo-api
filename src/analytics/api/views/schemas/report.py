@@ -6,7 +6,7 @@ class ReportAttributeSchema(Schema):
     type = fields.String(required=True)
     asset = fields.String(required=True)
     filters = fields.Dict(keys=fields.String())
-    fields = fields.List(fields.String(), required=True)
+    fields = fields.Dict(keys=fields.String(), required=True)
 
 
 class ReportSchema(Schema):
