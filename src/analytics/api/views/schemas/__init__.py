@@ -1,1 +1,1 @@
-from .report import ReportSchema
+from .report import ReportSchema, ReportAttributeSchema
