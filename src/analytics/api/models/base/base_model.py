@@ -6,25 +6,27 @@ from .model_operations import ModelOperations
 
 APP_CONFIG = config.get(env_var("FLASK_ENV"))
 
+DB_MAPPER = {
+    "main": APP_CONFIG.MONGO_URI,
+}
+
 
 class BasePyMongoModel(ModelOperations):
     """base model for all database models"""
 
     __abstract__ = True
 
-    def __init__(self, tenant, collection_name):
+    def __init__(self, tenant, collection_name, client_db='main'):
         super().__init__()
         self.tenant = tenant.lower()
         self.collection_name = collection_name
-        self.db = self._connect()
+        self.db = self._connect(client_db=client_db)
         self.collection = self.db[collection_name]
 
-    def _connect(self):
-        client = MongoClient(APP_CONFIG.MONGO_URI)
+    def _connect(self, client_db='main'):
+        client = MongoClient(DB_MAPPER.get(client_db, APP_CONFIG.MONGO_URI))
         db = client[f'{APP_CONFIG.DB_NAME}_{self.tenant}']
 
-        # lets hard code the db here for dev purposes
-        # db = client['airqo_analytics']
         return db
 
     def __repr__(self):
