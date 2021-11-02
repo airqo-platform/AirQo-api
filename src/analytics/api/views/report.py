@@ -18,7 +18,7 @@ from api.utils.http import create_response, Status
 from api.utils.request_validators import validate_request_params
 
 
-@rest_api.route('/report')
+@rest_api.route('/reports')
 class ReportResource(Resource):
 
     def post(self):
@@ -43,7 +43,7 @@ class ReportResource(Resource):
         return create_response("Report(s) successfully fetched", data=data), Status.HTTP_200_OK
 
 
-@rest_api.route('/report/<report_id>')
+@rest_api.route('/reports/<report_id>')
 class SingleReportResource(Resource):
 
     def get(self, report_id):
@@ -87,7 +87,7 @@ class SingleReportResource(Resource):
         return create_response("report not found", success=False, hide_data=True), Status.HTTP_404_NOT_FOUND
 
 
-@rest_api.route('/report/attribute/data')
+@rest_api.route('/reports/attribute/data')
 class ReportAttributeDataResource(Resource):
 
     @validate_request_params('startDate|required:datetime', 'endDate|required:datetime')
