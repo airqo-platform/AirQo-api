@@ -1,0 +1,49 @@
+{
+    "namespace": "airqo.models",
+    "type": "record",
+    "name": "SiteDistance",
+    "aliases": ["SiteDistance"],
+    "fields": [
+        {
+            "name": "latitude", "type": "double"
+        },
+        {
+            "name": "longitude", "type": "double"
+        },
+        {
+            "name": "distance_to_nearest_road", "type": "double"
+        },
+        {
+            "name": "distance_to_nearest_primary_road", "type": "double"
+        },
+        {
+            "name": "distance_to_nearest_tertiary_road", "type": "double"
+        },
+        {
+            "name": "distance_to_nearest_unclassified_road", "type": "double"
+        },
+        {
+            "name": "distance_to_nearest_residential_road", "type": "double"
+        },
+        {
+            "name": "bearing_to_kampala_center", "type": "double"
+        },
+        {
+            "name": "distance_to_kampala_center", "type": "double"
+        },
+        {
+            "name": "nearest_tahmo_station",
+            "type": {
+                "type": "record",
+                "name": "nearest_tahmo_station",
+                "fields": [
+                    {"name": "id", "type": "int" },
+                    {"name": "code", "type": "string" },
+                    {"name": "latitude", "type": "double" },
+                    {"name": "longitude", "type": "double" },
+                    {"name": "timezone", "type": "string" }
+                ]
+            }
+        }
+    ]
+}

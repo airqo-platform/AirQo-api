@@ -1,0 +1,59 @@
+###########################################################
+# Start deployment of schema registry - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: stage-schema-registry
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: schema-registry
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: schema-registry
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: schema-registry
+          image: us.gcr.io/airqo-250220/stage-schema-registry:latest
+          imagePullPolicy: Always
+          resources: {}
+            # requests:
+            #   memory: 256Mi
+            #   cpu: "200m"
+            # limits:
+            #   memory: 700Mi
+            #   cpu: "1000m"
+          ports:
+            - containerPort: 8081
+              name: schema-registry
+          envFrom:
+            - configMapRef:
+                name: stage-schema-registry-config
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: stage-schema-registry-svc
+  namespace: staging
+spec:
+  selector:
+    app: schema-registry
+  ports:
+    - protocol: TCP
+      port: 8081
+      targetPort: 8081
+      nodePort: 30281
+  type: NodePort

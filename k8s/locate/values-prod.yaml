@@ -1,0 +1,35 @@
+# values for airqo-locate-api.
+env:
+  deployment_name: airqo-locate-api
+  service_name: airqo-locate-api-svc
+  labels: locate-api
+  secret: env-locate-production
+
+replicaCount: 2
+
+image:
+  repository: us.gcr.io/airqo-250220/airqo-locate-api
+  tag: latest
+  pullPolicy: Always
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: NodePort
+  nodePort: 30004
+  targetPort: 4001
+  port: 4001
+
+ingress:
+  enabled: false
+
+nodeSelector: {}
+resources: {}
+affinity: {}
+torelations: {}
+
+
+## Application level settings  
+appMode: production

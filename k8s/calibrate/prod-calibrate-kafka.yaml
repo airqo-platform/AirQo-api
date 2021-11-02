@@ -1,0 +1,70 @@
+###########################################################
+# Start deployment of calibrate kafka connection - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-calibrate-kafka
+  namespace: production
+spec:
+  minReadySeconds: 10
+  replicas: 2
+  selector:
+    matchLabels:
+      app: prod-calibrate-kafka
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: prod-calibrate-kafka
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+      - name: calibrate-api
+        image: us.gcr.io/airqo-250220/airqo-prod-calibrate-api:latest
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 4001
+            name: calibrate-api
+        resources:
+          requests:
+            memory: 256Mi
+            cpu: "500m"
+          limits:
+            memory: 1Gi
+            cpu: "2000m"
+        envFrom:
+          - configMapRef:
+              name: prod-calibrate-api-config
+      # - name: prod-calibrate-kafka
+      #   image: us.gcr.io/airqo-250220/airqo-prod-calibrate-kafka:latest
+      #   imagePullPolicy: Always
+      #   resources:
+      #     requests:
+      #       memory: 256Mi
+      #       cpu: "500m"
+      #     limits:
+      #       memory: 1Gi
+      #       cpu: "2000m"
+      #   envFrom:
+      #     - configMapRef:
+      #         name: prod-calibrate-kafka-config
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-prod-calibrate-svc
+  namespace: production
+spec:
+  selector:
+    app: prod-calibrate-kafka
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001

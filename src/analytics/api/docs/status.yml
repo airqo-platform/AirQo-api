@@ -1,0 +1,18 @@
+Example endpoint for server status
+---
+tags: [Status]
+definitions:
+  StatusResponse:
+    type: object
+    properties:
+      status:
+        type: string
+        example: success
+      message:
+        type: string
+        example: App status - OK.
+responses:
+  200:
+    description: A successful retrieval of server status
+    schema:
+      $ref: '#/definitions/StatusResponse'

@@ -1,0 +1,36 @@
+namespace: production
+failedJobsHistoryLimit: 1
+successfulJobsHistoryLimit: 3
+
+jobs:
+  - name: prod-events-monitor-job
+    schedule: "@hourly"
+
+    image:
+      repository: us.gcr.io/airqo-250220/prod-events-monitor-job
+      pullPolicy: Always
+      tag: "latest"
+
+    configMap: prod-events-monitor-cronjob-config
+
+    resouces:
+      memoryRequests: 256Mi
+      memoryLimits: 512Mi
+      cpuRequests: "0.2"
+      cpuLimits: "1"
+
+  - name: prod-events-notifs-job
+    schedule: "@hourly"
+
+    image:
+      repository: us.gcr.io/airqo-250220/prod-events-notifs-job
+      pullPolicy: Always
+      tag: "latest"
+
+    configMap: prod-events-notifs-cronjob-config
+
+    resouces:
+      memoryRequests: 256Mi
+      memoryLimits: 512Mi
+      cpuRequests: "0.2"
+      cpuLimits: "1"

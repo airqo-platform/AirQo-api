@@ -44,7 +44,7 @@ const updateDevice = async (
           .exec();
         if (updatedDevice) {
           return res.status(HTTPStatus.OK).json({
-            message: "successfully updated the device settings in DB",
+            message: "successfully updated the device settings in the platform",
             updatedDevice,
             success: true,
           });

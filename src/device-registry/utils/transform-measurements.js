@@ -1,5 +1,5 @@
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
-const { logElement, logObject } = require("./log");
+const { logElement, logObject, logText } = require("./log");
 
 const transformMeasurements = (device, measurements) => {
   let promises = measurements.map(async (measurement) => {
@@ -28,6 +28,49 @@ const transformMeasurements = (device, measurements) => {
       console.log("the results for no success", results);
     }
   });
+};
+
+const transformMeasurements_v2 = async (measurements) => {
+  try {
+    logText("we are transforming version 2....");
+    let promises = measurements.map(async (measurement) => {
+      try {
+        let time = measurement.time;
+        const day = generateDateFormatWithoutHrs(time);
+        let data = {
+          day: day,
+          ...measurement,
+        };
+        return data;
+      } catch (e) {
+        console.log("the error: ", e.message);
+        return {
+          success: false,
+          message: "server side error",
+          error: e.message,
+        };
+      }
+    });
+    return Promise.all(promises).then((results) => {
+      if (results.every((res) => res.success)) {
+        return {
+          success: true,
+          data: results,
+        };
+      } else {
+        return {
+          success: true,
+          data: results,
+        };
+      }
+    });
+  } catch (error) {
+    return {
+      success: false,
+      message: "unable to transform measurement",
+      error: error.message,
+    };
+  }
 };
 
 const createString = () => {};
@@ -78,4 +121,8 @@ const transformMeasurementFields = async (measurements) => {
   }
 };
 
-module.exports = { transformMeasurements, transformMeasurementFields };
+module.exports = {
+  transformMeasurements,
+  transformMeasurementFields,
+  transformMeasurements_v2,
+};

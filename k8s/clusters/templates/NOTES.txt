@@ -1,0 +1,6 @@
+1. Get the application cluster Bootstrap servers by running these commands:
+export EXTERNAL_BOOTSTRAP_SVC = {{ .Values.name }}-kafka-external-bootstrap
+
+kubectl get nodes --output=jsonpath='{range .items[*]}{.status.addresses[?(@.type=="InternalIP")].address}{"\n"}{end}'
+kubectl get service $EXTERNAL_BOOTSTRAP_SVC -o=jsonpath='{.spec.ports[0].nodePort}{"\n"}'
+

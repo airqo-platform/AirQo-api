@@ -1,6 +1,8 @@
 FROM python:3.8-slim-buster
-MAINTAINER Airqo "airqo"
 
-RUN pip install luigi
+COPY / /
+WORKDIR /
 
-CMD /bin/bash -c "luigid --background --port 8082"
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
+CMD [ "python", "main.py" ]

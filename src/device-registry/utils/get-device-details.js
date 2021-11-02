@@ -6,10 +6,7 @@ const { getModelByTenant } = require("./multitenancy");
 
 const jsonify = require("./jsonify");
 
-const {
-  generateEventsFilter,
-  generateDeviceFilter,
-} = require("./generate-filter");
+const generateFilter = require("./generate-filter");
 
 const getDetail = async (
   tenant,
@@ -26,7 +23,7 @@ const getDetail = async (
   try {
     const limit = parseInt(limitValue, 0);
     const skip = parseInt(skipValue, 0);
-    const filter = generateDeviceFilter(
+    const filter = generateFilter.devices_v0(
       name,
       chid,
       loc,
@@ -41,7 +38,7 @@ const getDetail = async (
       "device",
       DeviceSchema
     ).list({ skip, limit, filter });
-    let parsedDevices = jsonify(devices);
+    let parsedDevices = jsonify(devices.data);
     return parsedDevices;
   } catch (error) {
     logElement("error", error);

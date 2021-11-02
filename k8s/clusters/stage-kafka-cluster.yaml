@@ -1,0 +1,92 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: Kafka
+metadata:
+  name: stage-kafka-cluster
+  namespace: staging
+spec:
+  kafka:
+    version: 2.8.0
+    replicas: 3
+    resources:
+      limits:
+          cpu: "1"
+          memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    listeners:
+      - name: plain
+        port: 9092
+        type: internal
+        tls: false
+      - name: tls
+        port: 9093
+        type: internal
+        tls: true
+      - name: external
+        port: 9094
+        type: nodeport
+        tls: false
+        configuration:
+          bootstrap:
+            nodePort: 30200
+          brokers:
+            - broker: 0
+              nodePort: 30201
+              advertisedHost: XX.XX.XX.XX
+            - broker: 1
+              nodePort: 30202
+              advertisedHost: XX.XX.XX.XX
+            - broker: 2
+              nodePort: 30203
+              advertisedHost: XX.XX.XX.XX
+    readinessProbe:
+      initialDelaySeconds: 15
+      timeoutSeconds: 5
+    livenessProbe:
+      initialDelaySeconds: 15
+      timeoutSeconds: 5
+    config:
+      auto.create.topics.enable: "false"
+      offsets.topic.replication.factor: 3
+      transaction.state.log.replication.factor: 3
+      transaction.state.log.min.isr: 2
+      log.message.format.version: "2.8"
+      inter.broker.protocol.version: "2.8"
+    storage:
+      type: ephemeral
+    # metricsConfig:
+    #   type: jmxPrometheusExporter
+    #   valueFrom:
+    #     configMapKeyRef:
+    #       name: stage-kafka-cluster-metrics
+    #       key: stage-kafka-cluster-metrics-config.yml
+  zookeeper:
+    replicas: 3
+    resources:
+      limits:
+          cpu: "1"
+          memory: 500Mi
+      requests:
+        cpu: 200m
+        memory: 500Mi
+    storage:
+      type: ephemeral
+    readinessProbe:
+      initialDelaySeconds: 15
+      timeoutSeconds: 5
+    livenessProbe:
+      initialDelaySeconds: 15
+      timeoutSeconds: 5
+    # metricsConfig:
+    #   type: jmxPrometheusExporter
+    #   valueFrom:
+    #     configMapKeyRef:
+    #       name: stage-kafka-cluster-metrics
+    #       key: stage-kafka-cluster-zookeeper-metrics-config.yml
+  entityOperator:
+    topicOperator: {}
+    userOperator: {}
+  # kafkaExporter:
+  #   topicRegex: ".*"
+  #   groupRegex: ".*"

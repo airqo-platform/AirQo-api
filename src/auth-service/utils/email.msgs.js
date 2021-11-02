@@ -14,17 +14,25 @@ module.exports = {
       "If you did not request this, please ignore this email and your password will remain unchanged.\n"
     );
   },
-  joinRequest:
-    "Your request to join the AirQo platform has been received. We shall get back to you as soon as possible. \n\n" +
-    "Please click the following link to learn more about AirQo. \n" +
-    `https://airqo.net/`,
+  joinRequest: (firstName, lastName) => {
+    return (
+      `Dear ${firstName + " " + lastName}, \n\n` +
+      "Your request to join the AirQo platform has been received.\n" +
+      "We shall get back to you as soon as possible. \n\n" +
+      "Before utilising airqo data, your application record has to undergo \n" +
+      "the process of approval by the AirQo platform administration. Once your \n" +
+      "application is reviewed, you will receive an email on the mailbox \n\n" +
+      "Please visit our website to learn more about us. \n" +
+      `https://airqo.net/`
+    );
+  },
   welcome_kcca: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
       "Welcome to the KCCA AirQo air quality monitoring platform. \n\n" +
       `Your username is: ${username}\n` +
       `Your temporary password is: ${password}\n\n` +
-      `Please remember to reset your password by visting: ${constants.FORGOT_PAGE}\n` +
+      `You can always change your password in your account settings after login\n` +
       `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
       "A guide to using the platform will be found under the Documentation section of the platform\n" +
       `Demos for using our main features can be found on our Youtube channel here: ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
@@ -39,10 +47,11 @@ module.exports = {
       `Dear ${firstName + " " + lastName} \n\n` +
       "Welcome to the AirQo air quality monitoring platform. \n\n" +
       `Your username is: ${username}\n` +
-      `Your temporary password is: ${password}\n\n` +
-      `Please remember to reset your password by visting: ${constants.FORGOT_PAGE}\n` +
-      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      "A guide to using the platform will be found under the Documentation section of the platform\n" +
+      `Your temporary password is: ${password}\n` +
+      `You can always change your password in your account settings after login\n\n` +
+      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n\n` +
+      `You can also use your platform credentials to access the AirQo API\n` +
+      `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
       `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"

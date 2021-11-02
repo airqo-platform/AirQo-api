@@ -1,6 +1,6 @@
 runtime: python
 env: flex
-entrypoint: gunicorn -t 280 -b :$PORT app:application
+entrypoint: gunicorn -t 280 -b :$PORT manage:app
 service: analytcs-bknd-service
 runtime_config:
   python_version: 3.7

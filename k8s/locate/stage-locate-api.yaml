@@ -1,0 +1,56 @@
+###########################################################
+# Start deployment of locate api - staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-locate-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-locate-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: sta-locate-api
+    spec:
+      containers:
+        - name: sta-locate-api
+          image: us.gcr.io/airqo-250220/airqo-stage-locate-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4001
+              name: sta-locate-api
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 4001
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+          envFrom:
+            - configMapRef:
+                name: env-locate-staging
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-locate-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-locate-api
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001
+      nodePort: 31004
+  type: NodePort

@@ -7,6 +7,8 @@ const HTTPStatus = require("http-status");
 const axios = require("axios");
 const SiteActivitySchema = require("../models/SiteActivity");
 const constants = require("../config/constants");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 const {
   clearEventsBody,
   doesDeviceExist,
@@ -54,52 +56,58 @@ const getGpsCoordinates = async (locationName, tenant) => {
   }
 };
 
-
-const carryOutActivity = async (res, tenant, deviceName, deviceBody, activityBody, options) => {
+const carryOutActivity = async (
+  res,
+  tenant,
+  deviceName,
+  deviceBody,
+  activityBody,
+  options
+) => {
   const deviceFilter = { name: deviceName };
   return getModelByTenant(
-      tenant.toLowerCase(),
-      "device",
-      DeviceSchema
+    tenant.toLowerCase(),
+    "device",
+    DeviceSchema
   ).findOneAndUpdate(
-      deviceFilter,
-      deviceBody,
-      {new: true},
-       async (error, updatedDevice) => {
-          if (error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: (options && options.errorMsg) || "Operation failed",
-              error,
-              success: false,
-            });
-          }
+    deviceFilter,
+    deviceBody,
+    { new: true },
+    async (error, updatedDevice) => {
+      if (error) {
+        return res.status(HTTPStatus.BAD_GATEWAY).json({
+          message: (options && options.errorMsg) || "Operation failed",
+          error,
+          success: false,
+        });
+      }
+      if (updatedDevice) {
+        //then log the operation
+        let createdActivity = {};
+        await getModelByTenant(
+          tenant.toLowerCase(),
+          "activity",
+          SiteActivitySchema
+        )
+          .createLocationActivity(activityBody)
+          .then((log) => (createdActivity = log));
 
-          if (updatedDevice) {
-            //then log the operation
-            let createdActivity = {}
-            await getModelByTenant(
-              tenant.toLowerCase(),
-              "activity",
-              SiteActivitySchema
-            ).createLocationActivity(activityBody)
-            .then(log => createdActivity = log);
-
-            return res.status(HTTPStatus.OK).json({
-                message: (options && options.successMsg) || "Operation successfully carried out",
-                createdActivity,
-                updatedDevice,
-                success: true,
-              });
-          }
-          return res.status(HTTPStatus.NOT_FOUND).json({
-            message: `device does not exist, please first create the device`,
-            success: false,
-          });
-
-        }
+        return res.status(HTTPStatus.OK).json({
+          message:
+            (options && options.successMsg) ||
+            "Operation successfully carried out",
+          createdActivity,
+          updatedDevice,
+          success: true,
+        });
+      }
+      return res.status(HTTPStatus.NOT_FOUND).json({
+        message: `device does not exist, please first create the device`,
+        success: false,
+      });
+    }
   );
-
-}
+};
 
 const doesLocationExist = async (locationName, tenant) => {
   let location = await getModelByTenant(
@@ -136,17 +144,19 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       date,
       tags,
       isPrimaryInLocation,
-      isUsedForCollocation,
       maintenanceType,
+      site_id,
     } = req.body;
 
     if (type === "deploy") {
       /****** deploy bodies ******/
+      let deployment_date = new Date(date);
       siteActivityBody = {
         device: deviceName || req.query.deviceName,
-        date: date && new Date(date) || new Date(),
+        date: (date && new Date(date)) || new Date(),
         description: "device deployed",
         activityType: "deployment",
+        site_id: site_id,
       };
 
       deviceBody = {
@@ -154,44 +164,53 @@ const siteActivityRequestBodies = (req, res, type = null) => {
         mountType: mountType,
         powerType: powerType,
         isPrimaryInLocation: isPrimaryInLocation,
-        isUsedForCollocation: isUsedForCollocation,
         nextMaintenance: threeMonthsFromNow(date),
         isActive: true,
         latitude: latitude,
         longitude: longitude,
+        site_id: site_id,
+        deployment_date,
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
     } else if (type === "recall") {
       /****** recalling bodies ******/
+      let recall_date = new Date();
       siteActivityBody = {
         device: deviceName || req.query.deviceName,
         date: new Date(),
         description: "device recalled",
         activityType: "recallment",
+        site_id: site_id,
       };
       deviceBody = {
         height: 0,
         mountType: "",
         powerType: "",
         isPrimaryInLocation: false,
-        isUsedForCollocation: false,
         nextMaintenance: "",
         longitude: "",
         latitude: "",
         isActive: false,
+        site_id: null,
+        description: "",
+        siteName: "",
+        locationName: "",
+        recall_date,
       };
       logObject("siteActivityBody", siteActivityBody);
       logObject("deviceBody", deviceBody);
       return { siteActivityBody, deviceBody };
     } else if (type === "maintain") {
       /******** maintaining bodies *************/
+      let maintenance_date = date && new Date(date);
       logObject("the tags", tags);
       siteActivityBody = {
         site: siteName,
+        site_id: site_id,
         device: deviceName || req.query.deviceName,
-        date: date && new Date(date) || new Date(),
+        date: (date && new Date(date)) || new Date(),
         description: description,
         activityType: "maintenance",
         nextMaintenance: threeMonthsFromNow(date),
@@ -200,6 +219,7 @@ const siteActivityRequestBodies = (req, res, type = null) => {
       };
       deviceBody = {
         nextMaintenance: threeMonthsFromNow(date),
+        maintenance_date,
       };
 
       logObject("siteActivityBody", siteActivityBody);
@@ -286,7 +306,7 @@ const bodyFilterOptions = async (req, res) => {
       ...(!isEmpty(activityType) && { activityType }),
       ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
       ...(!isEmpty(maintenanceType) && { maintenanceType }),
-      ...(!isEmpty(tags) && { tags: tags }),
+      ...(!isEmpty(tags) && { tags }),
     };
     return { activityBody };
   } catch (e) {
