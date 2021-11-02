@@ -7,6 +7,7 @@ class ReportAttributeSchema(Schema):
     asset = fields.String(required=True)
     filters = fields.Dict(keys=fields.String())
     fields = fields.Dict(keys=fields.String(), required=True)
+    group_by = fields.String()
 
 
 class ReportSchema(Schema):
