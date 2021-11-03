@@ -33,6 +33,8 @@
         "express-session": "^1.17.0",
         "express-validation": "^1.0.3",
         "express-validator": "^6.12.1",
+        "firebase": "^9.2.0",
+        "firebase-admin": "^10.0.0",
         "generate-password": "^1.5.1",
         "gstore-node": "^7.2.4",
         "helmet": "^3.21.1",
