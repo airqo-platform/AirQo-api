@@ -267,6 +267,20 @@ const createAirqloud = {
       };
     }
   },
+  findSites: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
   list: async (request) => {
     try {
       let { query } = request;

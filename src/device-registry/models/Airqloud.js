@@ -58,6 +58,12 @@ const airqloudSchema = new Schema(
       required: [true, "name is required!"],
       unique: true,
     },
+    sites: [
+      {
+        type: ObjectId,
+        ref: "site",
+      },
+    ],
     long_name: {
       type: String,
       trim: true,

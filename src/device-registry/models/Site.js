@@ -25,6 +25,12 @@ const siteSchema = new Schema(
       type: ObjectId,
       trim: true,
     },
+    airqlouds: [
+      {
+        type: ObjectId,
+        ref: "airqloud",
+      },
+    ],
     formatted_name: {
       type: String,
       trim: true,

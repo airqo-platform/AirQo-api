@@ -111,6 +111,17 @@ const createAirqloud = {
     }
   },
 
+  findSites: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { id } = query;
+
+      /**
+       * use the given airqloud_id to get the corresponding AirQlouds
+       */
+    } catch (error) {}
+  },
+
   update: async (req, res) => {
     try {
       let request = {};
