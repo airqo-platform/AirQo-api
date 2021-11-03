@@ -454,6 +454,50 @@ const join = {
     }
   },
 
+  loginInViaEmail: async (req, res) => {
+    try {
+      const { body, query } = req;
+      let request = {};
+      request["body"] = body;
+      request["query"] = query;
+      const responseFromGenerateEmailForSignIn =
+        await joinUtil.generateSignInWithEmailLink(request);
+
+      if (responseFromGenerateEmailForSignIn.success === true) {
+        const status = responseFromGenerateEmailForSignIn.status
+          ? responseFromGenerateEmailForSignIn.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromGenerateEmailForSignIn.message,
+          login_link: responseFromGenerateEmailForSignIn.data,
+        });
+      }
+
+      if (responseFromGenerateEmailForSignIn.success === false) {
+        const status = responseFromGenerateEmailForSignIn.status
+          ? responseFromGenerateEmailForSignIn.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromGenerateEmailForSignIn.errors
+          ? responseFromGenerateEmailForSignIn.errors
+          : "";
+        return res.status(status).json({
+          success: false,
+          message: responseFromGenerateEmailForSignIn.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+
   updateForgottenPassword: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
