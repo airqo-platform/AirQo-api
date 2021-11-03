@@ -9,6 +9,7 @@ const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const { getAuth } = require("firebase/auth");
 
 const UserModel = (tenant) => {
   try {
@@ -117,6 +118,55 @@ const join = {
         success: false,
         message: "util server error",
         error: e.message,
+      };
+    }
+  },
+  generateSignInWithEmailLink: async (request) => {
+    try {
+      const { body, query } = request;
+      const { email } = body;
+      getAuth()
+        .generateSignInWithEmailLink(email, actionCodeSettings)
+        .then(async (link) => {
+          const token = "random";
+          const responseFromSendEmail = await mailer.signInWithEmailLink(
+            email,
+            link,
+            token
+          );
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: "process successful, check your email for token",
+              data: link,
+            };
+          }
+
+          if (responseFromSendEmail.success === false) {
+            return {
+              success: false,
+              message: "process unsuccessful",
+              errors: responseFromSendEmail.errors,
+            };
+          }
+        })
+        .catch((error) => {
+          return {
+            success: false,
+            message: "unable to sign in using email link",
+            errors: {
+              message: error,
+            },
+          };
+        });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
       };
     }
   },
