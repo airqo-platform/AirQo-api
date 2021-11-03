@@ -41,6 +41,7 @@ jobs:
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
       run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
 
     runs-on: ubuntu-latest
     steps:
@@ -71,6 +72,7 @@ jobs:
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
           echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_events_check::false"
 
           while IFS= read -r file
           do
@@ -122,6 +124,11 @@ jobs:
             if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
               echo "::set-output name=run_datawarehouse::true"
             fi
+
+            if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
+              echo "::set-output name=run_events_check::true"
+            fi
+
           done < files.txt
 
   ### auth service ###
@@ -185,7 +192,7 @@ jobs:
         run: |
           cd src/device-registry/
           docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:latest
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
       - name: Deploy to K8S
@@ -333,8 +340,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-uptime/
-          kubectl apply -f prod-device-uptime-job.yaml
-          kubectl rollout restart deployment/airqo-device-uptime-job -n production
+          kubectl apply -f prod-airqo-device-uptime-job.yaml
   
   ### device status ###
   device-status:
@@ -487,9 +493,6 @@ jobs:
           kubectl apply -f prod-airqo-exceedance-job.yaml
           kubectl apply -f prod-kcca-exceedance-job.yaml
 
-          kubectl rollout restart deployment/airqo-exceedance-job -n production
-          kubectl rollout restart deployment/kcca-exceedance-job -n production
-
   ### datawarehouse ###
   datawarehouse:
     name: build-push-deploy-datawarehouse
@@ -535,3 +538,38 @@ jobs:
           
           kubectl annotate deployment/airqo-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
           kubectl annotate deployment/airqo-datawarehouse-msg-broker kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+
+  ### events check ###
+  events-check:
+    name: build-push-events-check
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_events_check == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/data-mgt/python/events-monitor/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/events-monitor/
+          kubectl apply -f prod-events-notifs-cronjob.yaml -n production

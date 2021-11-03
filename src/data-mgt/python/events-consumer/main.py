@@ -1,14 +1,12 @@
 import os
-import threading
-from time import sleep
 
+import pandas as pd
 import urllib3
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
 from confluent_kafka.schema_registry.avro import AvroDeserializer
 from confluent_kafka.serialization import StringDeserializer
 from dotenv import load_dotenv
-import pandas as pd
 
 from deviceRegistry import DeviceRegistry
 
@@ -22,6 +20,7 @@ TOPIC = os.getenv("TOPIC")
 CONSUMER_GROUP = os.getenv("CONSUMER_GROUP")
 REQUEST_BODY_SIZE = os.getenv("REQUEST_BODY_SIZE")
 SLEEP = os.getenv("SLEEP", 0)
+MAX_POLL_INTERVAL_MS = os.getenv("max.poll.interval.ms", 600000)
 
 
 def main():
@@ -32,9 +31,9 @@ def main():
 
     consumer_conf = {'bootstrap.servers': BOOTSTRAP_SERVERS,
                      'key.deserializer': string_deserializer,
+                     'max.poll.interval.ms': MAX_POLL_INTERVAL_MS,
                      'value.deserializer': avro_deserializer,
-                     'group.id': CONSUMER_GROUP,
-                     'auto.offset.reset': "earliest"}
+                     'group.id': CONSUMER_GROUP}
 
     consumer = DeserializingConsumer(consumer_conf)
     consumer.subscribe([TOPIC])
@@ -61,11 +60,7 @@ def main():
                         for i in range(0, len(group_measurements), int(REQUEST_BODY_SIZE)):
                             measurements_list = group_measurements[i:i + int(REQUEST_BODY_SIZE)]
 
-                            insertion_thread = threading.Thread(
-                                target=device_registry.insert_events, args=(measurements_list,))
-                            insertion_thread.start()
-
-                        sleep(int(SLEEP))
+                            device_registry.insert_events(measurements_list)
 
                 except Exception as ex:
                     print(ex)

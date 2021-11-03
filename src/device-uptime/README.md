@@ -15,7 +15,6 @@
 	* linux/mac
 	  `source env/bin/activate`
 
-
 * Install required packages
      * `pip install -r requirements.txt`
 
