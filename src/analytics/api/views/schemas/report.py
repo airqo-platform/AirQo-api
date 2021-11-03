@@ -20,7 +20,8 @@ class ReportPeriodSchema(Schema):
 
 
 class ReportSchema(Schema):
-    name = marshmallow_fields.String(required=True)
+    _id = marshmallow_fields.String()
+    title = marshmallow_fields.String(required=True)
     user_id = marshmallow_fields.String(required=True)
     period = marshmallow_fields.Nested(ReportPeriodSchema, required=True)
     attributes = marshmallow_fields.List(marshmallow_fields.Nested(ReportAttributeSchema), required=True)

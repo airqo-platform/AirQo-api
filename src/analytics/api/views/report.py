@@ -31,9 +31,7 @@ class ReportResource(Resource):
 
         report_model.save(data)
 
-        data["_id"] = str(data["_id"])
-
-        return create_response("Report successfully created", data=data), Status.HTTP_201_CREATED
+        return create_response("Report successfully created", data=report_schema.dump(data)), Status.HTTP_201_CREATED
 
     def get(self):
         tenant = request.args.get("tenant")
