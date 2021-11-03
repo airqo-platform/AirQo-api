@@ -306,10 +306,75 @@ const manageSite = {
     }
   },
 
+  getRoadMetadata: async (latitude, longitude) => {
+    try {
+      let response = {};
+      let promises = [];
+      const paths = constants.GET_ROAD_METADATA_PATHS;
+      const arrayOfPaths = Object.entries(paths);
+      for (const [key, path] of arrayOfPaths) {
+        const url = constants.GET_ROAD_METADATA({
+          path,
+          latitude,
+          longitude,
+        });
+        promises.push(
+          axios
+            .get(url)
+            .then((res) => {
+              let responseJSON = res.data;
+              if (!isEmpty(responseJSON.data)) {
+                let data = responseJSON.data;
+                response[key] = data;
+              }
+              if (isEmpty(responseJSON.data)) {
+                logElement("unable to get the information for", key);
+              }
+            })
+            .catch((error) => {
+              return {
+                success: false,
+                errors: { message: error },
+                message: "constants server side error",
+              };
+            })
+        );
+      }
+
+      return await Promise.all(promises).then(() => {
+        if (!isEmpty(response)) {
+          return {
+            success: true,
+            message: "successfully retrieved the road metadata",
+            status: HTTPStatus.OK,
+            data: response,
+          };
+        }
+
+        if (isEmpty(response)) {
+          return {
+            success: false,
+            message: "unable to retrieve any road metadata",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
   generateMetadata: async (req) => {
     try {
       let { latitude, longitude } = req.body;
       let body = req.body;
+      let roadResponseData = {};
+      let altitudeResponseData = {};
+      let reverseGeoCodeResponseData = {};
 
       logger.info(`the body sent to generate metadata -- ${body}`);
 
@@ -320,7 +385,7 @@ const manageSite = {
 
       logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
-        body.altitude = responseFromGetAltitude.data;
+        altitudeResponseData["altitude"] = responseFromGetAltitude.data;
       }
 
       if (responseFromGetAltitude.success === false) {
@@ -332,6 +397,26 @@ const manageSite = {
         );
       }
 
+      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
+        latitude,
+        longitude
+      );
+
+      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
+
+      if (responseFromGetRoadMetadata.success === true) {
+        roadResponseData = responseFromGetRoadMetadata.data;
+      }
+
+      if (responseFromGetRoadMetadata.success === false) {
+        let errors = responseFromGetRoadMetadata.errors
+          ? responseFromGetRoadMetadata.errors
+          : "";
+        logger.error(
+          `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
+        );
+      }
+
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
         latitude,
         longitude
@@ -340,18 +425,24 @@ const manageSite = {
         `responseFromReverseGeoCode -- ${responseFromReverseGeoCode}`
       );
       if (responseFromReverseGeoCode.success === true) {
+        reverseGeoCodeResponseData = responseFromReverseGeoCode.data;
         let google_site_tags = responseFromReverseGeoCode.data.site_tags;
         let existing_site_tags = body.site_tags ? body.site_tags : [];
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
-        let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+        let finalResponseBody = {
+          ...reverseGeoCodeResponseData,
+          ...body,
+          ...roadResponseData,
+          ...altitudeResponseData,
+        };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
           : "";
         return {
           success: true,
           message: "successfully generated the metadata",
-          data: requestBody,
+          data: finalResponseBody,
           status,
         };
       }
@@ -653,7 +744,6 @@ const manageSite = {
       let google_place_id = results.place_id;
       let types = results.types;
       let retrievedAddress = {};
-      logObject("address_components ", address_components);
       address_components.forEach((object) => {
         if (object.types.includes("locality", "administrative_area_level_3")) {
           retrievedAddress.town = object.long_name;
@@ -705,7 +795,6 @@ const manageSite = {
         .get(url)
         .then(async (response) => {
           let responseJSON = response.data;
-          logObject("responseJSON", responseJSON);
           if (!isEmpty(responseJSON.results)) {
             let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
               responseJSON
@@ -737,7 +826,7 @@ const manageSite = {
               status: HTTPStatus.NOT_FOUND,
               errors: {
                 message:
-                  "review the GPS coordinates provided, we cannot get corresponding metada",
+                  "review the GPS coordinates provided, we cannot get corresponding metadata",
               },
             };
           }
@@ -786,7 +875,6 @@ const manageSite = {
           axiosInstance()
         )
         .then((r) => {
-          console.log(r.data.results[0].elevation);
           return {
             success: true,
             message: "successfully retrieved the altitude details",

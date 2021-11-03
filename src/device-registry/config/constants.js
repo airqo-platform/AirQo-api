@@ -1,8 +1,11 @@
 const { logElement } = require("../utils/log");
-const { generateDateFormatWithoutHrs } = require("../utils/date");
 const isEmpty = require("is-empty");
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
+const {
+  generateDateFormatWithoutHrs,
+  monthsInfront,
+} = require("../utils/date");
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -45,7 +48,31 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  GET_ROAD_METADATA_PATHS: {
+    altitude: "altitude",
+    greenness: "greenness",
+    aspect: "aspect",
+    landform_270: "landform270",
+    landform_90: "landform90",
+    bearing_to_kampala_center: "bearing",
+    distance_to_kampala_center: "distance/kampala",
+    distance_to_nearest_road: "distance/road",
+    distance_to_nearest_residential_road: "distance/residential/road",
+    distance_to_nearest_tertiary_road: "distance/tertiary/road",
+    distance_to_nearest_primary_road: "distance/primary/road",
+    distance_to_nearest_secondary_road: "distance/secondary/road",
+    distance_to_nearest_unclassified_road: "distance/unclassified/road",
+  },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
+  GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
+    let today = monthsInfront(0);
+    let endDate = generateDateFormatWithoutHrs(today);
+    let startDate = generateDateFormatWithoutHrs(today);
+    if (path === "greenness") {
+      return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+    }
+    return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
+  },
   GET_ADDRESS_URL: (lat, long) => {
     return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
