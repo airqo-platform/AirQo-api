@@ -28,6 +28,7 @@
         "crypto": "^1.0.1",
         "debug": "~2.6.9",
         "dotenv": "^8.2.0",
+        "email-existence": "^0.1.6",
         "express": "^4.17.1",
         "express-jwt": "^5.3.1",
         "express-session": "^1.17.0",

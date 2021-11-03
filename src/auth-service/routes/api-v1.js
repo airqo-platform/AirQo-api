@@ -5,6 +5,7 @@ const requestController = require("../controllers/request");
 const defaultsController = require("../controllers/defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
+const joinUtil = require("../utils/join");
 
 const {
   setJWTAuth,
@@ -504,7 +505,9 @@ router.post(
       .exists()
       .withMessage("the email should be provided")
       .bail()
-      .isEmail()
+      .custom((value) => {
+        return joinUtil.doesEmailExist(value).success === true;
+      })
       .withMessage("this is not a valid email address")
       .trim(),
   ]),
