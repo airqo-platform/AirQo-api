@@ -210,6 +210,34 @@ airqloudSchema.statics = {
           metadata: 1,
           sites: "$sites",
         })
+        .project({
+          "sites.altitude": 0,
+          "sites.greenness": 0,
+          "sites.landform_90": 0,
+          "sites.landform_270": 0,
+          "sites.aspect": 0,
+          "sites.distance_to_nearest_road": 0,
+          "sites.distance_to_nearest_primary_road": 0,
+          "sites.distance_to_nearest_secondary_road": 0,
+          "sites.distance_to_nearest_tertiary_road": 0,
+          "sites.distance_to_nearest_unclassified_road": 0,
+          "sites.distance_to_nearest_residential_road": 0,
+          "sites.bearing_to_kampala_center": 0,
+          "sites.distance_to_kampala_center": 0,
+          "sites.generated_name": 0,
+          "sites.updatedAt": 0,
+          "sites.nearest_tahmo_station": 0,
+          "sites.formatted_name": 0,
+          "sites.geometry": 0,
+          "sites.google_place_id": 0,
+          "sites.site_tags": 0,
+          "sites.street": 0,
+          "sites.town": 0,
+          "sites.village": 0,
+          "sites.airqlouds": 0,
+          "sites.description": 0,
+          "sites.__v": 0,
+        })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);

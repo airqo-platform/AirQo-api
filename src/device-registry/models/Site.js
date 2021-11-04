@@ -400,6 +400,15 @@ siteSchema.statics = {
           devices: "$devices",
           airqlouds: "$airqlouds",
         })
+        .project({
+          "airqlouds.location": 0,
+          "airqlouds.airqloud_tags": 0,
+          "airqlouds.long_name": 0,
+          "airqlouds.createdAt": 0,
+          "airqlouds.updatedAt": 0,
+          "airqlouds.sites": 0,
+          "airqlouds.__v": 0,
+        })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
