@@ -84,7 +84,7 @@ const manageSite = {
   },
 
   generateMetadata: async (req, res) => {
-    logText("registering site.............");
+    logText("generating site metadata.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -129,6 +129,57 @@ const manageSite = {
         errors: { message: error.message },
       });
     }
+  },
+
+  findAirQlouds: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { id } = query;
+
+      /**
+       * use the given site_id to get the lat and long
+       * And then proceed to get the specific AirQloud
+       */
+
+      let findAirQloudRequest = {};
+      findAirQloudRequest["query"] = {};
+      findAirQloudRequest["body"] = {};
+      findAirQloudRequest["body"]["latitude"] = latitude;
+      findAirQloudRequest["body"]["longitude"] = longitude;
+      findAirQloudRequest["query"]["tenant"] = tenant ? tenant : "airqo";
+      logObject("findAirQloudRequest", findAirQloudRequest);
+      let responseFromFindAirQloud = await createSiteUtil.findAirQloud(
+        findAirQloudRequest
+      );
+      logObject("responseFromFindAirQloud util", responseFromFindAirQloud);
+      if (responseFromFindAirQloud.success === true) {
+        if ((responseFromFindAirQloud.data.matches.length = 1)) {
+          airqloudResponseData["airqloud_id"] =
+            responseFromFindAirQloud.data.matches[0];
+        }
+        if (responseFromFindAirQloud.data.matches.length > 1) {
+          logger.info(
+            `the site belongs to more than one AirQloud -- ${responseFromFindAirQloud.data.matches}`
+          );
+          logText("the site belongs to more than AirQloud");
+        }
+        if (responseFromFindAirQloud.data.matches.length === 0) {
+          logger.info(
+            `the site belongs to no AirQloud -- ${responseFromFindAirQloud.data.matches}`
+          );
+          logText("the site belongs to no AirQloud");
+        }
+      }
+      if (responseFromFindAirQloud.success === false) {
+        let errors = responseFromFindAirQloud.errors
+          ? responseFromFindAirQloud.errors
+          : "";
+        logger.error(
+          `unable to retrieve the Site's AirQloud, ${responseFromFindAirQloud.message} and ${errors} `
+        );
+        logObject("unable to retrieve the Site's AirQloud", errors);
+      }
+    } catch (error) {}
   },
 
   delete: async (req, res) => {

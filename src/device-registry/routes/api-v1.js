@@ -2067,6 +2067,19 @@ router.post(
         .withMessage(
           "The name should be greater than 5 and less than 50 in length"
         ),
+      body("airqlouds")
+        .if(body("airqlouds").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the airqlouds should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the airqlouds should not be empty"),
+      body("airqlouds.*")
+        .if(body("airqlouds.*").exists())
+        .isMongoId()
+        .withMessage("each airqloud should be a mongo ID"),
     ],
   ]),
   siteController.register
@@ -2348,6 +2361,19 @@ router.put(
         .if(body("description").exists())
         .notEmpty()
         .trim(),
+      body("airqlouds")
+        .if(body("airqlouds").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the airqlouds should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the airqlouds should not be empty"),
+      body("airqlouds.*")
+        .if(body("airqlouds.*").exists())
+        .isMongoId()
+        .withMessage("each airqloud should be a mongo ID"),
     ],
   ]),
   siteController.update
@@ -3185,6 +3211,19 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the tags should not be empty"),
+      body("sites")
+        .if(body("sites").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the sites should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the sites should not be empty"),
+      body("sites.*")
+        .if(body("sites.*").exists())
+        .isMongoId()
+        .withMessage("each site should be a mongo ID"),
     ],
   ]),
   airqloudController.register
@@ -3311,6 +3350,19 @@ router.put(
       body("description")
         .if(body("description").exists())
         .trim(),
+      body("sites")
+        .if(body("sites").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the sites should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the sites should not be empty"),
+      body("sites.*")
+        .if(body("sites.*").exists())
+        .isMongoId()
+        .withMessage("each site should be a mongo ID"),
       body("metadata")
         .if(body("metadata").exists())
         .custom((value) => {
