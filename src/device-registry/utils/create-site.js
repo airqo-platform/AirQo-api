@@ -23,6 +23,10 @@ const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
 
+const createAirqloudUtil = require("./create-airqloud");
+const pointInPolygon = require("point-in-polygon");
+const httpStatus = require("http-status");
+
 const manageSite = {
   hasWhiteSpace: (name) => {
     try {
@@ -49,6 +53,169 @@ const manageSite = {
           message: e.message,
         }}`
       );
+    }
+  },
+  findAirQlouds: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      let latitude = 0;
+      let longitude = 0;
+      /**
+       * We will need to pick this lat and long from the site ID...
+       */
+      let matches = [];
+      let mismatches = [];
+      logObject("the request inside findAirQloud", request);
+
+      const filter = await generateFilter.sites(request);
+
+      const responseFromListSites = await manageSite.list({
+        tenant,
+        filter,
+      });
+
+      if (responseFromListSites.success === true) {
+        let sites = responseFromListSites.data;
+        const numberOfSites = sites.length;
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        if (numberOfSites > 1) {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "more than site matches this search",
+          };
+        }
+
+        if (numberOfSites === 0) {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "not found the site",
+          };
+        }
+
+        if (numberOfSites === 1) {
+        }
+      }
+      if (responseFromListSites.success === false) {
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        let errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
+        return {
+          success: false,
+          errors,
+          message: responseFromListSites.message,
+          status,
+        };
+      }
+
+      /*************************** */
+      const requestBodyForAirQlouds = {};
+      const responseFromListAirQlouds = await createAirqloudUtil.list(
+        requestBodyForAirQlouds
+      );
+      if (responseFromListAirQlouds.success === true) {
+        const airqlouds = responseFromListAirQlouds.data;
+        const lat_long = manageSite.generateLatLong(latitude, longitude);
+        let filter = {};
+        filter["lat_long"] = lat_long;
+        logObject("filter for Sites", filter);
+        const responseFromListSiteDetails = await manageSite.list({
+          tenant,
+          filter,
+        });
+
+        logObject("responseFromListSiteDetails", responseFromListSiteDetails);
+        if (responseFromListSiteDetails.success === true) {
+          let siteCoordinatesInArray = [];
+          if (responseFromListSiteDetails.data.length > 1) {
+            return {
+              success: false,
+              message: "unable to retrieve site",
+              errors: {
+                message: "we got more than one Site in our search result",
+              },
+            };
+          }
+          const siteDetails = responseFromListSiteDetails.data[0];
+          if (siteDetails) {
+            let location = {};
+            location["latitude"] = siteDetails.latitude;
+            location["longitude"] = siteDetails.longitude;
+            siteCoordinatesInArray = Object.values(location).reverse();
+            logObject(" siteCoordinatesInArray", siteCoordinatesInArray);
+          }
+
+          for (const airqloud of airqlouds) {
+            const polygon = airqloud.location.coordinates[0];
+
+            const isSiteInAirQloud = pointInPolygon(
+              siteCoordinatesInArray,
+              polygon
+            );
+
+            logElement("isSiteInAirQloud", isSiteInAirQloud);
+
+            if (isSiteInAirQloud === true) {
+              logObject("airqloud._id", airqloud._id);
+              matches.push(airqloud._id);
+            }
+
+            if (isSiteInAirQloud === false) {
+              mismatches.push(airqloud._id);
+            }
+          }
+          if (!isEmpty(matches)) {
+            return {
+              success: true,
+              message: "retrieved the airqloud",
+              data: { matches, mismatches },
+            };
+          }
+
+          if (isEmpty(matches)) {
+            return {
+              success: false,
+              message: "no AirQloud match found",
+              data: { mismatches },
+            };
+          }
+        }
+        if (responseFromListSiteDetails.success === false) {
+          return responseFromListSiteDetails;
+        }
+      }
+
+      if (responseFromListAirQlouds.success === false) {
+        return responseFromListAirQlouds;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  /**
+   * Get the site ID from here
+   * then compare the Site cordinates with those of Tahmo
+   * If a closest match is found, then update the Site details accordingly
+   */
+  findNearestWeatherStation: (request) => {
+    try {
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
     }
   },
 
@@ -138,10 +305,18 @@ const manageSite = {
 
   create: async (tenant, req) => {
     try {
-      let { body } = req;
+      const { body, query } = req;
+      const { tenant } = query;
+      const { name, latitude, longitude, airqlouds } = body;
       let request = {};
-      request["body"] = body;
-      let { name, latitude, longitude } = body;
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["latitude"] = latitude;
+      request["body"]["longitude"] = longitude;
+      request["body"]["airqlouds"] = airqlouds;
+      request["body"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
@@ -336,6 +511,7 @@ const manageSite = {
                 success: false,
                 errors: { message: error },
                 message: "constants server side error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
               };
             })
         );
@@ -364,17 +540,22 @@ const manageSite = {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
   generateMetadata: async (req) => {
     try {
-      let { latitude, longitude } = req.body;
-      let body = req.body;
+      let { query, body } = req;
+      let { latitude, longitude } = body;
+      let { tenant, id } = query;
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
+      let airqloudResponseData = {};
+
+      logElement("the tenant in metadata", tenant);
 
       logger.info(`the body sent to generate metadata -- ${body}`);
 
@@ -416,6 +597,44 @@ const manageSite = {
           `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
         );
       }
+      // let findAirQloudRequest = {};
+      // findAirQloudRequest["query"] = {};
+      // findAirQloudRequest["body"] = {};
+      // findAirQloudRequest["body"]["latitude"] = latitude;
+      // findAirQloudRequest["body"]["longitude"] = longitude;
+      // findAirQloudRequest["query"]["tenant"] = tenant ? tenant : "airqo";
+      // logObject("findAirQloudRequest", findAirQloudRequest);
+      // let responseFromFindAirQloud = await manageSite.findAirQloud(
+      //   findAirQloudRequest
+      // );
+      // logObject("responseFromFindAirQloud util", responseFromFindAirQloud);
+      // if (responseFromFindAirQloud.success === true) {
+      //   if ((responseFromFindAirQloud.data.matches.length = 1)) {
+      //     airqloudResponseData["airqloud_id"] =
+      //       responseFromFindAirQloud.data.matches[0];
+      //   }
+      //   if (responseFromFindAirQloud.data.matches.length > 1) {
+      //     logger.info(
+      //       `the site belongs to more than one AirQloud -- ${responseFromFindAirQloud.data.matches}`
+      //     );
+      //     logText("the site belongs to more than AirQloud");
+      //   }
+      //   if (responseFromFindAirQloud.data.matches.length === 0) {
+      //     logger.info(
+      //       `the site belongs to no AirQloud -- ${responseFromFindAirQloud.data.matches}`
+      //     );
+      //     logText("the site belongs to no AirQloud");
+      //   }
+      // }
+      // if (responseFromFindAirQloud.success === false) {
+      //   let errors = responseFromFindAirQloud.errors
+      //     ? responseFromFindAirQloud.errors
+      //     : "";
+      //   logger.error(
+      //     `unable to retrieve the Site's AirQloud, ${responseFromFindAirQloud.message} and ${errors} `
+      //   );
+      //   logObject("unable to retrieve the Site's AirQloud", errors);
+      // }
 
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
         latitude,
@@ -435,6 +654,7 @@ const manageSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
+          ...airqloudResponseData,
         };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status

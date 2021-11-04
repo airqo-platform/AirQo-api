@@ -267,6 +267,20 @@ const createAirqloud = {
       };
     }
   },
+  findSites: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
   list: async (request) => {
     try {
       let { query } = request;
@@ -274,7 +288,7 @@ const createAirqloud = {
       const limit = 1000;
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.airqlouds(request);
-      logObject("filter", filter);
+      logObject("AirQloud filter", filter);
 
       let responseFromListAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
@@ -286,7 +300,6 @@ const createAirqloud = {
         skip,
       });
 
-      logObject("responseFromListAirQloud", responseFromListAirQloud);
       if (responseFromListAirQloud.success === false) {
         let errors = responseFromListAirQloud.errors
           ? responseFromListAirQloud.errors
