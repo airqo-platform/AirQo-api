@@ -148,25 +148,29 @@ const manageSite = {
       let filter = generateFilter.sites(req);
       logObject("filter", filter);
       let responseFromRemoveSite = await createSiteUtil.delete(tenant, filter);
-      if (responseFromRemoveSite.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromRemoveSite.success === true) {
+        const status = responseFromRemoveSite.status
+          ? responseFromRemoveSite.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveSite.message,
           site: responseFromRemoveSite.data,
         });
-      } else if (responseFromRemoveSite.success == false) {
-        if (responseFromRemoveSite.errors) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRemoveSite.message,
-            errors: responseFromRemoveSite.errors,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRemoveSite.message,
-          });
-        }
+      }
+
+      if (responseFromRemoveSite.success === false) {
+        const status = responseFromRemoveSite.status
+          ? responseFromRemoveSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromRemoveSite.errors
+          ? responseFromRemoveSite.errors
+          : "";
+        return res.status(status).json({
+          success: false,
+          message: responseFromRemoveSite.message,
+          errors,
+        });
       }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
