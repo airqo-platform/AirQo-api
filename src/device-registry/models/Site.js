@@ -1,5 +1,4 @@
 const { Schema } = require("mongoose");
-const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
@@ -259,7 +258,7 @@ siteSchema.methods = {
       lat_long: this.lat_long,
       latitude: this.latitude,
       longitude: this.longitude,
-      airqloud_id: this.airqloud_id,
+      airqlouds: this.airqlouds,
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
@@ -305,6 +304,9 @@ siteSchema.statics = {
     try {
       let modifiedArgs = args;
       modifiedArgs.description = modifiedArgs.name;
+
+      logObject("modifiedArgs", modifiedArgs);
+
       let data = await this.create({
         ...modifiedArgs,
       });
@@ -353,6 +355,12 @@ siteSchema.statics = {
           foreignField: "site_id",
           as: "devices",
         })
+        .lookup({
+          from: "airqlouds",
+          localField: "airqlouds",
+          foreignField: "_id",
+          as: "airqlouds",
+        })
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
@@ -390,6 +398,7 @@ siteSchema.statics = {
           distance_to_kampala_center: 1,
           nearest_tahmo_station: 1,
           devices: "$devices",
+          airqlouds: "$airqlouds",
         })
         .skip(_skip)
         .limit(_limit)
@@ -422,23 +431,32 @@ siteSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
+      let options = { new: true, useFindAndModify: false, upsert: true };
       let modifiedUpdateBody = update;
-      if (modifiedUpdateBody._id) {
+      if (update._id) {
         delete modifiedUpdateBody._id;
       }
-      if (modifiedUpdateBody.latitude) {
+      if (update.latitude) {
         delete modifiedUpdateBody.latitude;
       }
-      if (modifiedUpdateBody.longitude) {
+      if (update.longitude) {
         delete modifiedUpdateBody.longitude;
       }
-      if (modifiedUpdateBody.generated_name) {
+      if (update.generated_name) {
         delete modifiedUpdateBody.generated_name;
       }
-      if (modifiedUpdateBody.lat_long) {
+      if (update.lat_long) {
         delete modifiedUpdateBody.lat_long;
       }
+
+      if (update.airqlouds) {
+        modifiedUpdateBody["$addToSet"] = {};
+        modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
+        modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
+          update.airqlouds;
+        delete modifiedUpdateBody["airqlouds"];
+      }
+
       let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
@@ -465,7 +483,7 @@ siteSchema.statics = {
       return {
         success: false,
         message: "Site model server error - modify",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

@@ -307,12 +307,13 @@ const manageSite = {
     try {
       const { body, query } = req;
       const { tenant } = query;
-      const { name, latitude, longitude } = body;
+      const { name, latitude, longitude, airqlouds } = body;
       let request = {};
       request["body"] = {};
       request["query"] = {};
       request["body"]["latitude"] = latitude;
       request["body"]["longitude"] = longitude;
+      request["body"]["airqlouds"] = airqlouds;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
 

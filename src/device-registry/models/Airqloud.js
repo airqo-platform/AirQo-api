@@ -1,4 +1,5 @@
 const { Schema } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
@@ -122,6 +123,7 @@ airqloudSchema.methods = {
       isCustom: this.isCustom,
       location: this.location,
       metadata: this.metadata,
+      sites: this.sites,
     };
   },
 };
@@ -191,8 +193,8 @@ airqloudSchema.statics = {
         .match(filter)
         .lookup({
           from: "sites",
-          localField: "_id",
-          foreignField: "airqloud_id",
+          localField: "sites",
+          foreignField: "_id",
           as: "sites",
         })
         .sort({ createdAt: -1 })
@@ -243,20 +245,27 @@ airqloudSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
+      let options = { new: true, useFindAndModify: false };
       let modifiedUpdateBody = update;
-      if (modifiedUpdateBody._id) {
+      if (update._id) {
         delete modifiedUpdateBody._id;
       }
-      if (modifiedUpdateBody.name) {
+      if (update.name) {
         delete modifiedUpdateBody.name;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      if (update.sites) {
+        modifiedUpdateBody["$addToSet"] = {};
+        modifiedUpdateBody["$addToSet"]["sites"] = {};
+        modifiedUpdateBody["$addToSet"]["sites"]["$each"] = update.sites;
+
+        delete modifiedUpdateBody["sites"];
+      }
+      let updatedAirQloud = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
+      let data = jsonify(updatedAirQloud);
       if (!isEmpty(data)) {
         return {
           success: true,
