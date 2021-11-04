@@ -218,7 +218,8 @@ class ExceedancesResource(Resource):
     @swag_from('/api/docs/dashboard/exceedances_post.yml')
     @validate_request_json(
         'pollutant|required:str', 'standard|required:str',
-        'startDate|required:datetime', 'endDate|required:datetime'
+        'startDate|required:datetime', 'endDate|required:datetime',
+        'sites|optional:list'
     )
     def post(self):
         tenant = request.args.get('tenant')
@@ -228,8 +229,11 @@ class ExceedancesResource(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
+        sites = json_data.get("sites", None)
 
         exc_model = ExceedanceModel(tenant)
+        print("raw sites", sites)
+        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard, sites=sites)
 
         print('data', data)
 
