@@ -39,6 +39,7 @@ const defaultConfig = {
     strict: true,
   },
   SALT_ROUNDS: 10,
+  GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
 };
 
 function envConfig(env) {

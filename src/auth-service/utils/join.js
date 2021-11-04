@@ -9,7 +9,7 @@ const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const { getAuth } = require("firebase/auth");
+const { getAuth } = require("firebase/app");
 
 const UserModel = (tenant) => {
   try {

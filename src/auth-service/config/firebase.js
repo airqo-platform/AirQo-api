@@ -1,11 +1,11 @@
-const { initializeApp } = require("firebase/app");
+const constants = require("./constants");
+const admin = require("firebase-admin/app");
+var serviceAccount = require(`${constants.GOOGLE_APPLICATION_CREDENTIALS}`);
 
 const firebaseConfig = {
-  apiKey: "",
-  authDomain: "",
-  messagingSenderId: "",
-  appId: "",
+  credential: admin.credential.cert(serviceAccount),
 };
 
-const app = initializeApp(firebaseConfig);
-module.exports = app;
+admin.initializeApp(firebaseConfig);
+
+module.exports = admin;
