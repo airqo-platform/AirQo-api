@@ -407,6 +407,25 @@ siteSchema.statics = {
           "airqlouds.sites": 0,
           "airqlouds.__v": 0,
         })
+        .project({
+          "devices.height": 0,
+          "devices.description": 0,
+          "devices.isUsedForCollocation": 0,
+          "devices.isPrimaryInLocation": 0,
+          "devices.createdAt": 0,
+          "devices.updatedAt": 0,
+          "devices.locationName": 0,
+          "devices.siteName": 0,
+          "devices.site_id": 0,
+          "devices.isRetired": 0,
+          "devices.long_name": 0,
+          "devices.nextMaintenance": 0,
+          "devices.readKey": 0,
+          "devices.writeKey": 0,
+          "devices.deployment_date": 0,
+          "devices.recall_date": 0,
+          "devices.maintenance_date": 0,
+        })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
