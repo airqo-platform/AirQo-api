@@ -855,6 +855,12 @@ const manageSite = {
 
   delete: async (tenant, filter) => {
     try {
+      return {
+        success: false,
+        message: "feature temporarity disabled --coming soon",
+        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       let responseFromRemoveSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",

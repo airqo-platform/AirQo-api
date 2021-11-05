@@ -224,7 +224,6 @@ airqloudSchema.statics = {
           "sites.distance_to_nearest_residential_road": 0,
           "sites.bearing_to_kampala_center": 0,
           "sites.distance_to_kampala_center": 0,
-          "sites.generated_name": 0,
           "sites.updatedAt": 0,
           "sites.nearest_tahmo_station": 0,
           "sites.formatted_name": 0,
