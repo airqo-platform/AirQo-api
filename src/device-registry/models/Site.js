@@ -425,6 +425,11 @@ siteSchema.statics = {
           "devices.deployment_date": 0,
           "devices.recall_date": 0,
           "devices.maintenance_date": 0,
+          "devices.isActive": 0,
+          "devices.product_name": 0,
+          "devices.owner": 0,
+          "devices.device_manufacturer": 0,
+          "devices.channelID": 0,
         })
         .skip(_skip)
         .limit(_limit)

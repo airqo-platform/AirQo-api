@@ -236,6 +236,9 @@ airqloudSchema.statics = {
           "sites.airqlouds": 0,
           "sites.description": 0,
           "sites.__v": 0,
+          "sites.airqloud_id": 0,
+          "sites.createdAt": 0,
+          "sites.lat_long": 0,
         })
         .skip(_skip)
         .limit(_limit)
