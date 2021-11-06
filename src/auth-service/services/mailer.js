@@ -3,6 +3,7 @@ const { logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const msgs = require("../utils/email.msgs");
+const httpStatus = require("http-status");
 
 const mailer = {
   candidate: async (firstName, lastName, email, tenant) => {
@@ -28,11 +29,13 @@ const mailer = {
           success: true,
           message: "email successfully sent",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "email not sent",
+          status: httpStatus.BAD_GATEWAY,
         };
       }
     } catch (error) {
@@ -40,6 +43,7 @@ const mailer = {
         success: false,
         message: "mailer server error",
         error: error.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

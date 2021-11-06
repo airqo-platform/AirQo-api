@@ -504,10 +504,7 @@ router.post(
     body("email")
       .exists()
       .withMessage("the email should be provided")
-      .bail()
-      .custom((value) => {
-        return joinUtil.doesEmailExist(value).success === true;
-      })
+      .isEmail()
       .withMessage("this is not a valid email address")
       .trim(),
   ]),
