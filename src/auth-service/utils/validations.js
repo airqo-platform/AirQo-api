@@ -1,6 +1,12 @@
 const Validator = require("validator");
 const isEmpty = require("is-empty");
 const joi = require("joi");
+const httpStatus = require("http-status");
+const { logObject } = require("./log");
+constants = require("../config/constants");
+const kickbox = require("kickbox")
+  .client(`${constants.KICKBOX_API_KEY}`)
+  .kickbox();
 
 const validation = {
   candidate: (data) => {
@@ -157,6 +163,75 @@ const validation = {
       errors,
       isValid: isEmpty(errors),
     };
+  },
+
+  doesEmailExist: async (value, callback) => {
+    try {
+      await kickbox.verify(value, async (err, response) => {
+        console.log(response.body);
+        if (response.body.result === "undeliverable") {
+          callback({
+            success: false,
+            message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
+            errors: { message: response.body.reason },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+
+        if (err) {
+          callback({
+            success: false,
+            message: "email verification error",
+            errors: { message: err },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+
+        if (response.body.result === "deliverable") {
+          callback({
+            success: true,
+            message: "deliverable",
+            status: httpStatus.OK,
+          });
+        }
+
+        if (response.body.result === "risky") {
+          callback({
+            success: false,
+            message: "risky email",
+            errors: { message: response.body.reason },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+
+        if (response.body.result === "unknown") {
+          callback({
+            success: false,
+            message: "unknown email",
+            errors: { message: response.body.reason },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+
+        if (response.body.role === true) {
+          callback({
+            success: false,
+            message: "role email addresses are not accepted",
+            errors: { message: "role email addresses are not accepted" },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
   },
 };
 
