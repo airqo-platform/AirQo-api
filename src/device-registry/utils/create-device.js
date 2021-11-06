@@ -380,6 +380,7 @@ const registerDeviceUtil = {
         success: false,
         message: "feature temporarity disabled --coming soon",
         status: HTTPStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
       };
       const { device_number } = request.query;
       let modifiedRequest = request;

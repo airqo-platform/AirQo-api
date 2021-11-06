@@ -163,17 +163,20 @@ class MonitoringSiteResource(Resource):
 class DailyAveragesResource(Resource):
 
     @swag_from('/api/docs/dashboard/device_daily_measurements_get.yml')
-    @validate_request_json('pollutant|required:str', 'startDate|required:datetime', 'endDate|required:datetime')
+    @validate_request_json(
+        'pollutant|required:str', 'startDate|required:datetime',
+        'endDate|required:datetime', 'sites|optional:list')
     def post(self):
         tenant = request.args.get('tenant')
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
+        sites = json_data.get("sites", None)
 
         events_model = EventsModel(tenant)
         site_model = SiteModel(tenant)
-        sites = site_model.get_sites()
+        sites = site_model.get_sites(sites)
         data = events_model.get_averages_by_pollutant(start_date, end_date, pollutant)
 
         values = []
@@ -215,7 +218,8 @@ class ExceedancesResource(Resource):
     @swag_from('/api/docs/dashboard/exceedances_post.yml')
     @validate_request_json(
         'pollutant|required:str', 'standard|required:str',
-        'startDate|required:datetime', 'endDate|required:datetime'
+        'startDate|required:datetime', 'endDate|required:datetime',
+        'sites|optional:list'
     )
     def post(self):
         tenant = request.args.get('tenant')
@@ -225,10 +229,13 @@ class ExceedancesResource(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
+        sites = json_data.get("sites", None)
 
         exc_model = ExceedanceModel(tenant)
+        print("raw sites", sites)
+        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard, sites=sites)
 
-        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard)
+        print('data', data)
 
         return create_response(
             "exceedance data successfully fetched",
