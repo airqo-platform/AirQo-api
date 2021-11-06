@@ -9,7 +9,6 @@ const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const emailExistence = require("email-existence");
 
 const UserModel = (tenant) => {
   try {
@@ -56,39 +55,6 @@ const join = {
         success: false,
         message: "list users util server error",
         error: e.message,
-      };
-    }
-  },
-  doesEmailExist: (value) => {
-    try {
-      emailExistence.check(value, (error, response) => {
-        if (response) {
-          logText("the email does exist");
-          return {
-            success: true,
-            message: "",
-            data: response,
-          };
-        }
-        if (error) {
-          logText("the email does NOT exist");
-          return {
-            success: false,
-            message: "",
-            errors: {
-              message: error.message,
-            },
-          };
-        }
-      });
-    } catch (error) {
-      logText("the email does NOT exist");
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
       };
     }
   },

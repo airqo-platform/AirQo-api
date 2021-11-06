@@ -39,6 +39,7 @@ const defaultConfig = {
     strict: true,
   },
   SALT_ROUNDS: 10,
+  KICKBOX_API_KEY: process.env.KICKBOX_API_KEY,
 };
 
 function envConfig(env) {
