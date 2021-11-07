@@ -7,6 +7,7 @@ constants = require("../config/constants");
 const kickbox = require("kickbox")
   .client(`${constants.KICKBOX_API_KEY}`)
   .kickbox();
+const emailExistence = require("email-existence");
 
 const validation = {
   candidate: (data) => {
@@ -164,11 +165,55 @@ const validation = {
       isValid: isEmpty(errors),
     };
   },
-
-  doesEmailExist: async (value, callback) => {
+  /**
+   *
+   * @param {string} email
+   * @param {function} callback
+   */
+  checkEmailExistance: async (email, callback) => {
     try {
-      await kickbox.verify(value, async (err, response) => {
-        console.log(response.body);
+      await emailExistence.check(email, (response, error) => {
+        if (response === true) {
+          callback({
+            success: true,
+            message: "email exists",
+            status: httpStatus.OK,
+          });
+        }
+        if (response !== true) {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: response.code },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+        if (error) {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: error },
+            status: httpStatus.BAD_GATEWAY,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  /**
+   *
+   * @param {string} email
+   * @param {function} callback
+   */
+  checkEmailExistenceUsingKickbox: async (email, callback) => {
+    try {
+      await kickbox.verify(email, async (err, response) => {
         if (response.body.result === "undeliverable") {
           callback({
             success: false,

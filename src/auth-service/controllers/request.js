@@ -12,8 +12,7 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
 
 const { tryCatchErrors, missingQueryParams } = require("utils/errors");
-const { logObject } = require("utils/log");
-const { logText, logElement } = require("../utils/log");
+const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
 const { request } = require("../app");
 
@@ -59,24 +58,26 @@ const candidate = {
       request["description"] = description;
       request["category"] = category;
 
-      await requestUtil.create(request, (value) => {
-        if (value.success === true) {
-          return res.status(value.status).json({
-            success: true,
-            message: value.message,
-            candidate: value.data,
-          });
-        }
+      await requestUtil
+        .create(request, (value) => {
+          if (value.success === true) {
+            return res.status(value.status).json({
+              success: true,
+              message: value.message,
+              candidate: value.data,
+            });
+          }
 
-        if (value.success === false) {
-          const errors = value.errors ? value.errors : "";
-          return res.status(value.status).json({
-            success: false,
-            message: value.message,
-            errors,
-          });
-        }
-      });
+          if (value.success === false) {
+            const errors = value.errors ? value.errors : "";
+            return res.status(value.status).json({
+              success: false,
+              message: value.message,
+              errors,
+            });
+          }
+        })
+        .catch((error) => {});
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
