@@ -17,9 +17,9 @@ module.exports = {
   joinRequest: (firstName, lastName) => {
     return (
       `Dear ${firstName + " " + lastName}, \n\n` +
-      "Your request to join the AirQo platform has been received." +
-      "We shall get back to you as soon as possible. \n\n" +
-      "Before utilising the AirQo data, your application record has to undergo" +
+      "Your request to join the AirQo platform has been received, " +
+      "we shall get back to you as soon as possible. \n\n" +
+      "Before utilising the AirQo data, your application record has to undergo " +
       "the process of approval by the AirQo platform administration.\n" +
       "Once your application is reviewed, you will receive an email on the mailbox \n\n" +
       "Please visit our website to learn more about us. \n" +
