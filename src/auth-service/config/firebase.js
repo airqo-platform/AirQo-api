@@ -3,9 +3,9 @@ const admin = require("firebase-admin/app");
 var serviceAccount = require(`${constants.GOOGLE_APPLICATION_CREDENTIALS}`);
 
 const firebaseConfig = {
-  credential: admin.credential.cert(serviceAccount),
+  credential: "",
 };
 
-admin.initializeApp(firebaseConfig);
+admin.initializeApp();
 
 module.exports = admin;

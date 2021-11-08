@@ -9,7 +9,7 @@ const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const { getAuth } = require("firebase/app");
+const firebaseAdmin = require("../config/firebase");
 
 const UserModel = (tenant) => {
   try {
@@ -125,7 +125,7 @@ const join = {
     try {
       const { body, query } = request;
       const { email } = body;
-      getAuth()
+      firebaseAdmin
         .generateSignInWithEmailLink(email, actionCodeSettings)
         .then(async (link) => {
           const token = "random";
