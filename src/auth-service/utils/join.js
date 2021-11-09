@@ -125,10 +125,13 @@ const join = {
       return getAuth()
         .generateSignInWithEmailLink(email, actionCodeSettings)
         .then(async (link) => {
-          const token = "randomToken";
+          let linkSegments = link.split("%").filter((segment) => segment);
+          const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
+          const indexOfCode = indexBeforeCode + 1;
+          const token = linkSegments[indexOfCode].substring(2);
+          logElement("the token", token);
           const responseFromSendEmail = await mailer.signInWithEmailLink(
             email,
-            link,
             token
           );
 
@@ -151,6 +154,7 @@ const join = {
           }
         })
         .catch((error) => {
+          logObject("the error", error);
           return {
             success: false,
             message: "unable to sign in using email link",

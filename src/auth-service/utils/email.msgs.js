@@ -65,12 +65,12 @@ module.exports = {
       `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
     );
   },
-  join_by_email: (link, token) => {
+  join_by_email: (token) => {
     return (
-      `Dear AirQo platform user \n\n` +
-      "Please click on the following email to sign in. \n\n" +
-      `The sign in link: ${link} \n` +
-      `The token: ${token}`
+      `Begin your journey to Knowing Your Air and Breathe Clean. \n\n` +
+      `First, we need to know that your email address is real.\n\n` +
+      `Enter the code below in the app to verify your email. \n\n` +
+      `The code: ${token}`
     );
   },
 };

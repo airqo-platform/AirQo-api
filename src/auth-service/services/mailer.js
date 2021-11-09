@@ -123,13 +123,13 @@ const mailer = {
       };
     }
   },
-  signInWithEmailLink: async (email, link, token) => {
+  signInWithEmailLink: async (email, token) => {
     try {
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
-        subject: "AirQo Platform JOIN by email request",
-        text: `${msgs.join_by_email(link, token)}`,
+        subject: "Welcome to AirQo!",
+        text: `${msgs.join_by_email(token)}`,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
