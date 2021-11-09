@@ -80,7 +80,7 @@ def str_to_date(st):
 
 
 def date_to_str(mydate):
-    """Converts date string to datetime
+    """Converts datetime to date string
 
     Parameters
     ----------
