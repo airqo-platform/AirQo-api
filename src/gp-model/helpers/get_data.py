@@ -177,5 +177,5 @@ def get_pm_data(name,
 if __name__=='__main__':
     #example: getting data for one device
     test_array = get_pm_data('aq_29', 0.3075, 32.6206, 'airqo')
-    print(test_array)
+    print(test_array.head())
         
