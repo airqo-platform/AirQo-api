@@ -31,12 +31,14 @@ const defaultConfig = {
   REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
   YOUTUBE_CHANNEL: "https://www.youtube.com/channel/UCx7YtV55TcqKGeKsDdT5_XQ",
   ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
-  RANDOM_PASSWORD_CONFIGURATION: {
-    length: 10,
-    numbers: true,
-    uppercase: true,
-    lowercase: true,
-    strict: true,
+  RANDOM_PASSWORD_CONFIGURATION: (length) => {
+    return {
+      length: length,
+      numbers: true,
+      uppercase: true,
+      lowercase: true,
+      strict: true,
+    };
   },
   SALT_ROUNDS: 10,
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,

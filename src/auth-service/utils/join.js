@@ -122,14 +122,35 @@ const join = {
     try {
       const { body, query } = request;
       const { email } = body;
+      let token = "TOKEN";
       return getAuth()
         .generateSignInWithEmailLink(email, actionCodeSettings)
         .then(async (link) => {
           let linkSegments = link.split("%").filter((segment) => segment);
           const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
           const indexOfCode = indexBeforeCode + 1;
-          const token = linkSegments[indexOfCode].substring(2);
-          logElement("the token", token);
+          let emailLinkCode = linkSegments[indexOfCode].substring(2);
+          let responseFromGeneratePassword = generatePassword(6);
+          if (responseFromGeneratePassword.success === true) {
+            token = responseFromGeneratePassword.data;
+          }
+
+          if (responseFromGeneratePassword.success === false) {
+            let errors = responseFromGeneratePassword.error
+              ? responseFromGeneratePassword.error
+              : "";
+            let status = responseFromGeneratePassword.status
+              ? responseFromGeneratePassword.status
+              : "";
+            logElement("error when password generation fails", errors);
+            return {
+              success: false,
+              message: responseFromGeneratePassword.message,
+              errors,
+              status,
+            };
+          }
+
           const responseFromSendEmail = await mailer.signInWithEmailLink(
             email,
             token
@@ -141,7 +162,11 @@ const join = {
             return {
               success: true,
               message: "process successful, check your email for token",
-              data: link,
+              data: {
+                link,
+                token,
+                email,
+              },
             };
           }
 
@@ -223,7 +248,7 @@ const join = {
       } = request;
       let response = {};
       logText("...........create user util...................");
-      let responseFromGeneratePassword = generatePassword();
+      let responseFromGeneratePassword = generatePassword(10);
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
       if (responseFromGeneratePassword.success === true) {
         let password = responseFromGeneratePassword.data;

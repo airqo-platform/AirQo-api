@@ -470,7 +470,9 @@ const join = {
         return res.status(status).json({
           success: true,
           message: responseFromGenerateEmailForSignIn.message,
-          login_link: responseFromGenerateEmailForSignIn.data,
+          login_link: responseFromGenerateEmailForSignIn.data.link,
+          token: responseFromGenerateEmailForSignIn.data.token,
+          email: responseFromGenerateEmailForSignIn.data.email,
         });
       }
 
