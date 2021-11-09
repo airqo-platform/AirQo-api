@@ -167,8 +167,8 @@ def get_pm_data(name,
     modified_result = [{'time': x['time'],
                      'latitude': lat,
                      'longitude': lon,
-                     'pm2_5': x['pm2_5']['value'],
-                     #'calibrated_pm2_5': x['pm2_5']['calibratedValue'],
+                     #'pm2_5': x['pm2_5']['value'],
+                     'calibrated_pm2_5': x['average_pm2_5']['calibratedValue'],
                      #'pm10': x['pm10']['value'],
                     } for x in result]
     return pd.DataFrame(modified_result)
