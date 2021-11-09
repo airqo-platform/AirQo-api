@@ -36,7 +36,7 @@ const join = {
           limit,
           skip
         );
-        logObject("responseFromListUsers", responseFromListUsers);
+
         if (responseFromListUsers.success === true) {
           res.status(HTTPStatus.OK).json({
             success: true,

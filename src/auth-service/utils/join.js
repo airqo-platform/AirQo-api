@@ -9,15 +9,15 @@ const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
-const firebaseAdmin = require("../config/firebase");
+const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
+const actionCodeSettings = require("../config/firebase-settings");
 
 const UserModel = (tenant) => {
   try {
-    let users;
-    users = mongoose.model("users");
+    let users = mongoose.model("users");
     return users;
   } catch (error) {
-    users = getModelByTenant(tenant, "user", UserSchema);
+    let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
   }
 };
@@ -61,15 +61,12 @@ const join = {
   },
   update: async (tenant, filter, update) => {
     try {
-      // logObject("the filter sent to DB", filter);
-      // logObject("the update sent to DB", update);
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
           filter,
           update,
         }
       );
-      // logObject("responseFromModifyUser", responseFromModifyUser);
       if (responseFromModifyUser.success == true) {
         let user = responseFromModifyUser.data;
         let responseFromSendEmail = await mailer.update(
@@ -77,7 +74,7 @@ const join = {
           user.firstName,
           user.lastName
         );
-        // logObject("responseFromSendEmail", responseFromSendEmail);
+
         if (responseFromSendEmail.success == true) {
           return {
             success: true,
@@ -125,15 +122,17 @@ const join = {
     try {
       const { body, query } = request;
       const { email } = body;
-      firebaseAdmin
+      return getAuth()
         .generateSignInWithEmailLink(email, actionCodeSettings)
         .then(async (link) => {
-          const token = "random";
+          const token = "randomToken";
           const responseFromSendEmail = await mailer.signInWithEmailLink(
             email,
             link,
             token
           );
+
+          logObject("responseFromSendEmail", responseFromSendEmail);
 
           if (responseFromSendEmail.success === true) {
             return {
