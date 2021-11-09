@@ -1,4 +1,3 @@
-const firebase = require("./firebase");
 const devConfig = {
   MONGO_URI: "mongodb://localhost",
   DB_NAME: process.env.MONGO_DEV,
@@ -41,19 +40,6 @@ const defaultConfig = {
   },
   SALT_ROUNDS: 10,
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
-  FIREBASE_ACTION_CODE_SETTINGS: {
-    url: "https://www.example.com/?email=" + firebase.auth().currentUser.email,
-    iOS: {
-      bundleId: "com.example.ios",
-    },
-    android: {
-      packageName: "com.example.android",
-      installApp: true,
-      minimumVersion: "12",
-    },
-    handleCodeInApp: true,
-    dynamicLinkDomain: "example.page.link",
-  },
 };
 
 function envConfig(env) {
