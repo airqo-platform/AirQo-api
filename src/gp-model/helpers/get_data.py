@@ -100,7 +100,7 @@ def get_pm_data(name,
                 lat,
                 lon,
                 tenant, 
-                frequency='raw', 
+                frequency='hourly', 
                 verbose=True, 
                 start_time=(datetime.utcnow()-timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 end_time=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')):
