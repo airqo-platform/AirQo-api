@@ -38,7 +38,15 @@ spec:
           #   successThreshold: 1
           envFrom:
             - configMapRef:
-                name: env-auth-production
+                name: prod-auth-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          resources: {}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prod-auth-api-config-files
 
 ---
 kind: Service
