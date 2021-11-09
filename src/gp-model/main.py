@@ -89,13 +89,10 @@ def preprocessing(df):
     df = df.drop_duplicates()
     df['time'] = pd.to_datetime(df['time'])
     df = df.sort_values(by='time',ascending=False)
-    df = df.set_index('time')
-    hourly_df = df.resample('H').mean()
-    hourly_df.dropna(inplace=True)
-    hourly_df= hourly_df.reset_index()
-    hourly_df['time'] = [time.timestamp()/3600 for time in hourly_df['time']]
-    hourly_df = hourly_df[['longitude', 'latitude', 'time', 'pm2_5']]
-    return hourly_df
+    df.dropna(inplace=True)
+    df['time'] = [time.timestamp()/3600 for time in df['time']]
+    df = df[['longitude', 'latitude', 'time', 'pm2_5']]
+    return df
 
 def train_model(X, Y, airqloud):
     '''
