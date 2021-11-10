@@ -42,6 +42,7 @@ const defaultConfig = {
   },
   SALT_ROUNDS: 10,
   GOOGLE_APPLICATION_CREDENTIALS: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+  FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL,
 };
 
 function envConfig(env) {

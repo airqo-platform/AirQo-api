@@ -5,5 +5,5 @@ const serviceAccount = require(`${constants.GOOGLE_APPLICATION_CREDENTIALS}`);
 
 initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://airqo-250220.firebaseio.com",
+  databaseURL: constants.FIREBASE_DATABASE_URL,
 });
