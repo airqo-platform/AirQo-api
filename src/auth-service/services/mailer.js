@@ -123,6 +123,40 @@ const mailer = {
       };
     }
   },
+  signInWithEmailLink: async (email, token) => {
+    try {
+      const mailOptions = {
+        from: constants.EMAIL,
+        to: `${email}`,
+        subject: "Welcome to AirQo!",
+        text: `${msgs.join_by_email(token)}`,
+      };
+      let response = transporter.sendMail(mailOptions);
+      let data = await response;
+
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          errors: {
+            message: "email not sent",
+          },
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   update: async (email, firstName, lastName) => {
     try {
       const mailOptions = {
