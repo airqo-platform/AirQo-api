@@ -11,6 +11,7 @@ const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
 const actionCodeSettings = require("../config/firebase-settings");
+const httpStatus = require("http-status");
 
 const UserModel = (tenant) => {
   try {
@@ -162,6 +163,7 @@ const join = {
             return {
               success: true,
               message: "process successful, check your email for token",
+              status: httpStatus.OK,
               data: {
                 link,
                 token,
@@ -175,14 +177,22 @@ const join = {
               success: false,
               message: "process unsuccessful",
               errors: responseFromSendEmail.errors,
+              status: httpStatus.BAD_GATEWAY,
             };
           }
         })
         .catch((error) => {
           logObject("the error", error);
+          let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+          if (error.code === "auth/invalid-email") {
+            status = httpStatus.BAD_REQUEST;
+          }
+
           return {
             success: false,
             message: "unable to sign in using email link",
+            status,
             errors: {
               message: error,
             },
@@ -192,6 +202,7 @@ const join = {
       return {
         success: false,
         message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
