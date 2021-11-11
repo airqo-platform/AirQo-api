@@ -6,6 +6,7 @@ const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-controller");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const httpStatus = require("http-status");
 
 const createAirqloud = {
   register: async (req, res) => {
@@ -218,7 +219,11 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "create airqloud controller");
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 

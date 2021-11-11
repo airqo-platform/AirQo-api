@@ -2020,6 +2020,95 @@ router.get(
   ]),
   siteController.list
 );
+
+router.get("/sites/weather", siteController.listWeatherStations);
+router.get(
+  "/sites/nearest/weather/",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  siteController.listNearestWeatherStation
+);
+
+router.get(
+  "/sites/airqlouds/",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  siteController.findAirQlouds
+);
 router.post(
   "/sites",
   oneOf([

@@ -14,7 +14,6 @@ const axiosInstance = () => {
 };
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const { request } = require("express");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
 const { distanceBtnTwoPoints } = require("./distance");
@@ -26,6 +25,7 @@ const SiteModel = (tenant) => {
 const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
+const geolib = require("geolib");
 
 const manageSite = {
   hasWhiteSpace: (name) => {
@@ -58,142 +58,89 @@ const manageSite = {
   findAirQlouds: async (request) => {
     try {
       const { query, body } = request;
-      const { tenant } = query;
-      let latitude = 0;
-      let longitude = 0;
-      /**
-       * We will need to pick this lat and long from the site ID...
-       */
-      let matches = [];
-      let mismatches = [];
-      logObject("the request inside findAirQloud", request);
-
-      const filter = await generateFilter.sites(request);
-
-      const responseFromListSites = await manageSite.list({
-        tenant,
-        filter,
-      });
-
+      const { id, tenant } = query;
+      let filter = {};
+      filter["_id"] = id;
+      const responseFromListSites = await manageSite.list({ tenant, filter });
       if (responseFromListSites.success === true) {
-        let sites = responseFromListSites.data;
-        const numberOfSites = sites.length;
-        let status = responseFromListSites.status
-          ? responseFromListSites.status
-          : "";
-        if (numberOfSites > 1) {
+        let data = responseFromListSites.data;
+        if (data.length > 1 || data.length === 0) {
           return {
             success: false,
-            status: httpStatus.NOT_FOUND,
-            message: "more than site matches this search",
+            message: "unable to find one match for this site",
+            status: HTTPStatus.NOT_FOUND,
           };
         }
+        const { latitude, longitude } = data[0];
+        let requestForAirQlouds = {};
+        requestForAirQlouds["query"] = {};
+        requestForAirQlouds["query"]["tenant"] = tenant;
+        const responseFromListAirQlouds = await createAirqloudUtil.list(
+          requestForAirQlouds
+        );
+        logObject("responseFromListAirQlouds", responseFromListAirQlouds);
+        if (responseFromListAirQlouds.success === true) {
+          const airqlouds = responseFromListAirQlouds.data;
+          logObject("airqlouds", airqlouds);
+          let airqloud_ids = [];
+          for (const airqloud of airqlouds) {
+            logObject("airqloud", airqloud);
+            let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
+            let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
+              return {
+                longitude: x[0],
+                latitude: x[1],
+              };
+            });
+            logObject("airqloudPolygon", airqloudPolygon);
+            const isSiteInAirQloud = geolib.isPointInPolygon(
+              { latitude, longitude },
+              airqloudPolygon
+            );
 
-        if (numberOfSites === 0) {
+            if (isSiteInAirQloud === true) {
+              airqloud_ids.push(airqloud._id);
+            }
+          }
+          if (!isEmpty(airqloud_ids)) {
+            return {
+              success: true,
+              message: "successfully searched for the associated AirQlouds",
+              data: airqloud_ids,
+              status: HTTPStatus.OK,
+            };
+          }
+          if (isEmpty(airqloud_ids)) {
+            return {
+              success: true,
+              message: "no associated AirQlouds found",
+              data: airqloud_ids,
+              status: HTTPStatus.OK,
+            };
+          }
+        }
+
+        if (responseFromListAirQlouds.success === false) {
           return {
             success: false,
-            status: httpStatus.NOT_FOUND,
-            message: "not found the site",
+            message: responseFromListAirQlouds.message,
+            status: responseFromListAirQlouds.status,
           };
-        }
-
-        if (numberOfSites === 1) {
         }
       }
       if (responseFromListSites.success === false) {
-        let status = responseFromListSites.status
+        const status = responseFromListSites.status
           ? responseFromListSites.status
           : "";
-        let errors = responseFromListSites.errors
+        const errors = responseFromListSites.errors
           ? responseFromListSites.errors
           : "";
         return {
           success: false,
-          errors,
           message: responseFromListSites.message,
+          errors,
           status,
         };
-      }
-
-      /*************************** */
-      const requestBodyForAirQlouds = {};
-      const responseFromListAirQlouds = await createAirqloudUtil.list(
-        requestBodyForAirQlouds
-      );
-      if (responseFromListAirQlouds.success === true) {
-        const airqlouds = responseFromListAirQlouds.data;
-        const lat_long = manageSite.generateLatLong(latitude, longitude);
-        let filter = {};
-        filter["lat_long"] = lat_long;
-        logObject("filter for Sites", filter);
-        const responseFromListSiteDetails = await manageSite.list({
-          tenant,
-          filter,
-        });
-
-        logObject("responseFromListSiteDetails", responseFromListSiteDetails);
-        if (responseFromListSiteDetails.success === true) {
-          let siteCoordinatesInArray = [];
-          if (responseFromListSiteDetails.data.length > 1) {
-            return {
-              success: false,
-              message: "unable to retrieve site",
-              errors: {
-                message: "we got more than one Site in our search result",
-              },
-            };
-          }
-          const siteDetails = responseFromListSiteDetails.data[0];
-          if (siteDetails) {
-            let location = {};
-            location["latitude"] = siteDetails.latitude;
-            location["longitude"] = siteDetails.longitude;
-            siteCoordinatesInArray = Object.values(location).reverse();
-            logObject(" siteCoordinatesInArray", siteCoordinatesInArray);
-          }
-
-          for (const airqloud of airqlouds) {
-            const polygon = airqloud.location.coordinates[0];
-
-            const isSiteInAirQloud = pointInPolygon(
-              siteCoordinatesInArray,
-              polygon
-            );
-
-            logElement("isSiteInAirQloud", isSiteInAirQloud);
-
-            if (isSiteInAirQloud === true) {
-              logObject("airqloud._id", airqloud._id);
-              matches.push(airqloud._id);
-            }
-
-            if (isSiteInAirQloud === false) {
-              mismatches.push(airqloud._id);
-            }
-          }
-          if (!isEmpty(matches)) {
-            return {
-              success: true,
-              message: "retrieved the airqloud",
-              data: { matches, mismatches },
-            };
-          }
-
-          if (isEmpty(matches)) {
-            return {
-              success: false,
-              message: "no AirQloud match found",
-              data: { mismatches },
-            };
-          }
-        }
-        if (responseFromListSiteDetails.success === false) {
-          return responseFromListSiteDetails;
-        }
-      }
-
-      if (responseFromListAirQlouds.success === false) {
-        return responseFromListAirQlouds;
       }
     } catch (error) {
       return {
@@ -203,18 +150,128 @@ const manageSite = {
       };
     }
   },
-  /**
-   * Get the site ID from here
-   * then compare the Site cordinates with those of Tahmo
-   * If a closest match is found, then update the Site details accordingly
-   */
-  findNearestWeatherStation: (request) => {
+  findNearestWeatherStation: async (request) => {
     try {
+      const { query, body } = request;
+      const { id, tenant } = query;
+      let filter = {};
+      filter["_id"] = id;
+      const responseFromListSites = await manageSite.list({ tenant, filter });
+      logObject("responseFromListSites", responseFromListSites);
+      if (responseFromListSites.success === true) {
+        let data = responseFromListSites.data;
+        if (data.length > 1 || data.length === 0) {
+          return {
+            success: false,
+            message: "unable to find one match for this site",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
+        const { latitude, longitude } = data[0];
+        const responseFromListWeatherStations = await manageSite.listWeatherStations();
+        if (responseFromListWeatherStations.success === true) {
+          const nearestWeatherStation = geolib.findNearest(
+            { latitude, longitude },
+            responseFromListWeatherStations.data
+          );
+          logObject("nearestWeatherStation", nearestWeatherStation);
+          return {
+            success: true,
+            message: "successfully returned the nearest weather station",
+            data: nearestWeatherStation,
+            status: HTTPStatus.OK,
+          };
+        }
+        if (responseFromListWeatherStations.success === false) {
+          return {
+            success: false,
+            message: responseFromListWeatherStations.message,
+            status: responseFromListWeatherStations.status,
+          };
+        }
+      }
+      if (responseFromListSites.success === false) {
+        const status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        const errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromListSites.message,
+          errors,
+          status,
+        };
+      }
     } catch (error) {
       return {
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  listWeatherStations: async () => {
+    try {
+      const url = constants.TAHMO_API_GET_STATIONS_URL;
+      return await axios
+        .get(url, {
+          auth: {
+            username: constants.TAHMO_API_CREDENTIALS_USERNAME,
+            password: constants.TAHMO_API_CREDENTIALS_PASSWORD,
+          },
+        })
+        .then((res) => {
+          let responseJSON = res.data;
+          if (!isEmpty(responseJSON)) {
+            logObject("responseJSON", responseJSON);
+            data = responseJSON.data;
+            let outputs = [];
+            data.forEach((element) => {
+              let output = {};
+              output["id"] = element.id;
+              output["code"] = element.code;
+              output["latitude"] = element.location.latitude;
+              output["longitude"] = element.location.longitude;
+              output["elevation"] = element.location.elevationmsl;
+              output["countrycode"] = element.location.countrycode;
+              output["timezone"] = element.location.timezone;
+              output["timezoneoffset"] = element.location.timezoneoffset;
+              output["name"] = element.location.name;
+              output["type"] = element.location.type;
+              outputs.push(output);
+            });
+
+            return {
+              success: true,
+              message: "successfully retrieved all the stations",
+              status: HTTPStatus.OK,
+              data: outputs,
+            };
+          }
+          if (isEmpty(responseJSON.data)) {
+            logElement("unable to list stations");
+          }
+        })
+        .catch((error) => {
+          return {
+            success: false,
+            errors: { message: error },
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -904,6 +961,8 @@ const manageSite = {
   },
   list: async ({ tenant, filter, _skip, _limit }) => {
     try {
+      logObject("the filter", filter);
+      logElement("the tenant", tenant);
       let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -913,6 +972,7 @@ const manageSite = {
         _limit,
         _skip,
       });
+      logObject("responseFromListSite babe", responseFromListSite);
       if (responseFromListSite.success === false) {
         let errors = responseFromListSite.errors
           ? responseFromListSite.errors
@@ -947,7 +1007,7 @@ const manageSite = {
       logElement("list Sites util", { message: e.message });
       return {
         success: false,
-        message: "list Sites util server error",
+        message: "Internal Server Error",
         errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
