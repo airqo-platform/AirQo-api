@@ -2023,7 +2023,7 @@ router.get(
 
 router.get("/sites/weather", siteController.listWeatherStations);
 router.get(
-  "/sites/nearest/weather/",
+  "/sites/weather/nearest",
   oneOf([
     query("tenant")
       .exists()
