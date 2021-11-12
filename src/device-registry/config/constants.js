@@ -65,9 +65,10 @@ const defaultConfig = {
   },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
   GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
-    let today = monthsInfront(0);
-    let endDate = generateDateFormatWithoutHrs(today);
-    let startDate = generateDateFormatWithoutHrs(today);
+    const today = monthsInfront(0);
+    const oneMonthAgo = monthsInfront(-1);
+    const endDate = generateDateFormatWithoutHrs(today);
+    const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
     if (path === "greenness") {
       return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
