@@ -469,35 +469,31 @@ const join = {
       let request = {};
       request["body"] = body;
       request["query"] = query;
-      const responseFromGenerateEmailForSignIn =
-        await joinUtil.generateSignInWithEmailLink(request);
+      await joinUtil.generateSignInWithEmailLink(request, (value) => {
+        if (value.success === true) {
+          const status = value.status ? value.status : HTTPStatus.OK;
+          return res.status(status).json({
+            success: true,
+            message: value.message,
+            login_link: value.data.link,
+            token: value.data.token,
+            email: value.data.email,
+            emailLinkCode: value.data.emailLinkCode,
+          });
+        }
 
-      if (responseFromGenerateEmailForSignIn.success === true) {
-        const status = responseFromGenerateEmailForSignIn.status
-          ? responseFromGenerateEmailForSignIn.status
-          : HTTPStatus.OK;
-        return res.status(status).json({
-          success: true,
-          message: responseFromGenerateEmailForSignIn.message,
-          login_link: responseFromGenerateEmailForSignIn.data.link,
-          token: responseFromGenerateEmailForSignIn.data.token,
-          email: responseFromGenerateEmailForSignIn.data.email,
-        });
-      }
-
-      if (responseFromGenerateEmailForSignIn.success === false) {
-        const status = responseFromGenerateEmailForSignIn.status
-          ? responseFromGenerateEmailForSignIn.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromGenerateEmailForSignIn.errors
-          ? responseFromGenerateEmailForSignIn.errors
-          : "";
-        return res.status(status).json({
-          success: false,
-          message: responseFromGenerateEmailForSignIn.message,
-          errors,
-        });
-      }
+        if (value.success === false) {
+          const status = value.status
+            ? value.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          const errors = value.errors ? value.errors : "";
+          return res.status(status).json({
+            success: false,
+            message: value.message,
+            errors,
+          });
+        }
+      });
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
