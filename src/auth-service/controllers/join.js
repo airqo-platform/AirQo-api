@@ -36,7 +36,7 @@ const join = {
           limit,
           skip
         );
-        logObject("responseFromListUsers", responseFromListUsers);
+
         if (responseFromListUsers.success === true) {
           res.status(HTTPStatus.OK).json({
             success: true,
@@ -451,6 +451,61 @@ const join = {
       }
     } catch (error) {
       tryCatchErrors(res, error, "join controller");
+    }
+  },
+
+  loginInViaEmail: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { body, query } = req;
+      let request = {};
+      request["body"] = body;
+      request["query"] = query;
+      const responseFromGenerateEmailForSignIn =
+        await joinUtil.generateSignInWithEmailLink(request);
+
+      if (responseFromGenerateEmailForSignIn.success === true) {
+        const status = responseFromGenerateEmailForSignIn.status
+          ? responseFromGenerateEmailForSignIn.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromGenerateEmailForSignIn.message,
+          login_link: responseFromGenerateEmailForSignIn.data.link,
+          token: responseFromGenerateEmailForSignIn.data.token,
+          email: responseFromGenerateEmailForSignIn.data.email,
+        });
+      }
+
+      if (responseFromGenerateEmailForSignIn.success === false) {
+        const status = responseFromGenerateEmailForSignIn.status
+          ? responseFromGenerateEmailForSignIn.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromGenerateEmailForSignIn.errors
+          ? responseFromGenerateEmailForSignIn.errors
+          : "";
+        return res.status(status).json({
+          success: false,
+          message: responseFromGenerateEmailForSignIn.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
     }
   },
 

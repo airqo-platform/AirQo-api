@@ -9,14 +9,16 @@ const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
+const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
+const actionCodeSettings = require("../config/firebase-settings");
+const httpStatus = require("http-status");
 
 const UserModel = (tenant) => {
   try {
-    let users;
-    users = mongoose.model("users");
+    let users = mongoose.model("users");
     return users;
   } catch (error) {
-    users = getModelByTenant(tenant, "user", UserSchema);
+    let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
   }
 };
@@ -60,15 +62,12 @@ const join = {
   },
   update: async (tenant, filter, update) => {
     try {
-      // logObject("the filter sent to DB", filter);
-      // logObject("the update sent to DB", update);
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
           filter,
           update,
         }
       );
-      // logObject("responseFromModifyUser", responseFromModifyUser);
       if (responseFromModifyUser.success == true) {
         let user = responseFromModifyUser.data;
         let responseFromSendEmail = await mailer.update(
@@ -76,7 +75,7 @@ const join = {
           user.firstName,
           user.lastName
         );
-        // logObject("responseFromSendEmail", responseFromSendEmail);
+
         if (responseFromSendEmail.success == true) {
           return {
             success: true,
@@ -117,6 +116,96 @@ const join = {
         success: false,
         message: "util server error",
         error: e.message,
+      };
+    }
+  },
+  generateSignInWithEmailLink: async (request) => {
+    try {
+      const { body, query } = request;
+      const { email } = body;
+      let token = "TOKEN";
+      return getAuth()
+        .generateSignInWithEmailLink(email, actionCodeSettings)
+        .then(async (link) => {
+          let linkSegments = link.split("%").filter((segment) => segment);
+          const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
+          const indexOfCode = indexBeforeCode + 1;
+          let emailLinkCode = linkSegments[indexOfCode].substring(2);
+          let responseFromGeneratePassword = generatePassword(6);
+          if (responseFromGeneratePassword.success === true) {
+            token = responseFromGeneratePassword.data;
+          }
+
+          if (responseFromGeneratePassword.success === false) {
+            let errors = responseFromGeneratePassword.error
+              ? responseFromGeneratePassword.error
+              : "";
+            let status = responseFromGeneratePassword.status
+              ? responseFromGeneratePassword.status
+              : "";
+            logElement("error when password generation fails", errors);
+            return {
+              success: false,
+              message: responseFromGeneratePassword.message,
+              errors,
+              status,
+            };
+          }
+
+          const responseFromSendEmail = await mailer.signInWithEmailLink(
+            email,
+            token
+          );
+
+          logObject("responseFromSendEmail", responseFromSendEmail);
+
+          if (responseFromSendEmail.success === true) {
+            return {
+              success: true,
+              message: "process successful, check your email for token",
+              status: httpStatus.OK,
+              data: {
+                link,
+                token,
+                email,
+              },
+            };
+          }
+
+          if (responseFromSendEmail.success === false) {
+            return {
+              success: false,
+              message: "process unsuccessful",
+              errors: responseFromSendEmail.errors,
+              status: httpStatus.BAD_GATEWAY,
+            };
+          }
+        })
+        .catch((error) => {
+          logObject("the error", error);
+          let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+          if (error.code === "auth/invalid-email") {
+            status = httpStatus.BAD_REQUEST;
+          }
+
+          return {
+            success: false,
+            message: "unable to sign in using email link",
+            status,
+            errors: {
+              message: error,
+            },
+          };
+        });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
       };
     }
   },
@@ -170,7 +259,7 @@ const join = {
       } = request;
       let response = {};
       logText("...........create user util...................");
-      let responseFromGeneratePassword = generatePassword();
+      let responseFromGeneratePassword = generatePassword(10);
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
       if (responseFromGeneratePassword.success === true) {
         let password = responseFromGeneratePassword.data;
