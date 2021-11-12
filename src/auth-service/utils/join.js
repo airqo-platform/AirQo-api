@@ -132,9 +132,7 @@ const join = {
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          const token = Math.floor(
-            Math.random() * (9000000 - 0000000) + 0000000
-          );
+          const token = Math.floor(Math.random() * (999999 - 100000) + 100000);
 
           const responseFromSendEmail = await mailer.signInWithEmailLink(
             email,
