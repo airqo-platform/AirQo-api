@@ -132,7 +132,7 @@ const join = {
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          const token = Math.floor(Math.random() * (900000 - 000000) + 000000);
+          const token = Math.floor(Math.random() * (999999 - 100000) + 100000);
 
           const responseFromSendEmail = await mailer.signInWithEmailLink(
             email,
@@ -156,7 +156,7 @@ const join = {
           if (responseFromSendEmail.success === false) {
             callback({
               success: false,
-              message: "process unsuccessful",
+              message: "email sending process unsuccessful",
               errors: responseFromSendEmail.errors,
               status: httpStatus.BAD_GATEWAY,
             });
