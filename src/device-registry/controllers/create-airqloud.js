@@ -114,13 +114,58 @@ const createAirqloud = {
 
   findSites: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { query, body } = req;
-      const { id } = query;
-
-      /**
-       * use the given airqloud_id to get the corresponding AirQlouds
-       */
-    } catch (error) {}
+      const { id, name, admin_level, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["name"] = name;
+      request["query"]["admin_level"] = admin_level;
+      request["query"]["tenant"] = tenant;
+      logObject("request", request);
+      let responseFromFindSites = await createAirQloudUtil.findSites(request);
+      logObject("responseFromFindSites", responseFromFindSites);
+      if (responseFromFindSites.success === true) {
+        let status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          sites: responseFromFindSites.data,
+          message: responseFromFindSites.message,
+        });
+      }
+      if (responseFromFindSites.success === false) {
+        let errors = responseFromFindSites.errors
+          ? responseFromFindSites.errors
+          : "";
+        let status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromFindSites.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
   },
 
   update: async (req, res) => {

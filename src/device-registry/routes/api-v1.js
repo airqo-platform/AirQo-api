@@ -3372,6 +3372,68 @@ router.get(
   airqloudController.list
 );
 
+router.get(
+  "/airqlouds/sites",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using name"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("name cannot be empty")
+      .trim(),
+    query("admin_level")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using admin_level"
+      )
+      .trim()
+      .bail()
+      .notEmpty()
+      .withMessage("admin_level is empty, should not be if provided in request")
+      .bail()
+      .toLowerCase()
+      .isIn([
+        "village",
+        "district",
+        "parish",
+        "division",
+        "county",
+        "subcounty",
+        "country",
+      ])
+      .withMessage(
+        "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+      ),
+  ]),
+  airqloudController.findSites
+);
+
 router.put(
   "/airqlouds",
   oneOf([
