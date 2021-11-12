@@ -119,7 +119,7 @@ const join = {
       };
     }
   },
-  generateSignInWithEmailLink: async (request) => {
+  generateSignInWithEmailLink: async (request, callback) => {
     try {
       const { body, query } = request;
       const { email } = body;
@@ -131,36 +131,16 @@ const join = {
           const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
-          let responseFromGeneratePassword = generatePassword(6);
-          if (responseFromGeneratePassword.success === true) {
-            token = responseFromGeneratePassword.data;
-          }
 
-          if (responseFromGeneratePassword.success === false) {
-            let errors = responseFromGeneratePassword.error
-              ? responseFromGeneratePassword.error
-              : "";
-            let status = responseFromGeneratePassword.status
-              ? responseFromGeneratePassword.status
-              : "";
-            logElement("error when password generation fails", errors);
-            return {
-              success: false,
-              message: responseFromGeneratePassword.message,
-              errors,
-              status,
-            };
-          }
+          const token = Math.floor(Math.random() * (900000 - 000000) + 000000);
 
           const responseFromSendEmail = await mailer.signInWithEmailLink(
             email,
             token
           );
 
-          logObject("responseFromSendEmail", responseFromSendEmail);
-
           if (responseFromSendEmail.success === true) {
-            return {
+            callback({
               success: true,
               message: "process successful, check your email for token",
               status: httpStatus.OK,
@@ -168,17 +148,18 @@ const join = {
                 link,
                 token,
                 email,
+                emailLinkCode,
               },
-            };
+            });
           }
 
           if (responseFromSendEmail.success === false) {
-            return {
+            callback({
               success: false,
               message: "process unsuccessful",
               errors: responseFromSendEmail.errors,
               status: httpStatus.BAD_GATEWAY,
-            };
+            });
           }
         })
         .catch((error) => {
@@ -188,25 +169,24 @@ const join = {
           if (error.code === "auth/invalid-email") {
             status = httpStatus.BAD_REQUEST;
           }
-
-          return {
+          callback({
             success: false,
             message: "unable to sign in using email link",
             status,
             errors: {
               message: error,
             },
-          };
+          });
         });
     } catch (error) {
-      return {
+      callback({
         success: false,
         message: "Internal Server Error",
         status: httpStatus.INTERNAL_SERVER_ERROR,
         errors: {
           message: error.message,
         },
-      };
+      });
     }
   },
   delete: async (tenant, filter) => {
