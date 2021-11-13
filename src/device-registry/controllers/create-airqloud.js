@@ -111,6 +111,50 @@ const createAirqloud = {
       tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
+  refresh: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { id, admin_level, name, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["admin_level"] = admin_level;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      const responseFromRefreshAirQloud = await createAirQloudUtil.refresh(
+        request
+      );
+      if (responseFromRefreshAirQloud.success === true) {
+        const status = responseFromRefreshAirQloud.status
+          ? responseFromRefreshAirQloud.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromRefreshAirQloud.message,
+          refreshe_airqloud: responseFromRefreshAirQloud.data,
+        });
+      }
+      if (responseFromRefreshAirQloud.success === false) {
+        const status = responseFromRefreshAirQloud.status
+          ? responseFromRefreshAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromRefreshAirQloud.errors
+          ? responseFromRefreshAirQloud.errors
+          : "";
+        res.status(status).json({
+          message: responseFromRefreshAirQloud.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logObject("refresh controller", error);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
 
   findSites: async (req, res) => {
     try {

@@ -78,12 +78,11 @@ const manageSite = {
         const responseFromListAirQlouds = await createAirqloudUtil.list(
           requestForAirQlouds
         );
-        logObject("responseFromListAirQlouds", responseFromListAirQlouds);
         if (responseFromListAirQlouds.success === true) {
           const airqlouds = responseFromListAirQlouds.data;
-          logObject("airqlouds", airqlouds);
           let airqloud_ids = [];
           for (const airqloud of airqlouds) {
+            delete airqlouds.sites;
             logObject("airqloud", airqloud);
             let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
             let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
@@ -157,7 +156,6 @@ const manageSite = {
       let filter = {};
       filter["_id"] = id;
       const responseFromListSites = await manageSite.list({ tenant, filter });
-      logObject("responseFromListSites", responseFromListSites);
       if (responseFromListSites.success === true) {
         let data = responseFromListSites.data;
         if (data.length > 1 || data.length === 0) {
@@ -227,7 +225,6 @@ const manageSite = {
         .then((res) => {
           let responseJSON = res.data;
           if (!isEmpty(responseJSON)) {
-            logObject("responseJSON", responseJSON);
             data = responseJSON.data;
             let outputs = [];
             data.forEach((element) => {
@@ -610,7 +607,6 @@ const manageSite = {
       let roadResponseData = {};
       let altitudeResponseData = {};
       let reverseGeoCodeResponseData = {};
-      let airqloudResponseData = {};
 
       logElement("the tenant in metadata", tenant);
 
@@ -654,44 +650,6 @@ const manageSite = {
           `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
         );
       }
-      // let findAirQloudRequest = {};
-      // findAirQloudRequest["query"] = {};
-      // findAirQloudRequest["body"] = {};
-      // findAirQloudRequest["body"]["latitude"] = latitude;
-      // findAirQloudRequest["body"]["longitude"] = longitude;
-      // findAirQloudRequest["query"]["tenant"] = tenant ? tenant : "airqo";
-      // logObject("findAirQloudRequest", findAirQloudRequest);
-      // let responseFromFindAirQloud = await manageSite.findAirQloud(
-      //   findAirQloudRequest
-      // );
-      // logObject("responseFromFindAirQloud util", responseFromFindAirQloud);
-      // if (responseFromFindAirQloud.success === true) {
-      //   if ((responseFromFindAirQloud.data.matches.length = 1)) {
-      //     airqloudResponseData["airqloud_id"] =
-      //       responseFromFindAirQloud.data.matches[0];
-      //   }
-      //   if (responseFromFindAirQloud.data.matches.length > 1) {
-      //     logger.info(
-      //       `the site belongs to more than one AirQloud -- ${responseFromFindAirQloud.data.matches}`
-      //     );
-      //     logText("the site belongs to more than AirQloud");
-      //   }
-      //   if (responseFromFindAirQloud.data.matches.length === 0) {
-      //     logger.info(
-      //       `the site belongs to no AirQloud -- ${responseFromFindAirQloud.data.matches}`
-      //     );
-      //     logText("the site belongs to no AirQloud");
-      //   }
-      // }
-      // if (responseFromFindAirQloud.success === false) {
-      //   let errors = responseFromFindAirQloud.errors
-      //     ? responseFromFindAirQloud.errors
-      //     : "";
-      //   logger.error(
-      //     `unable to retrieve the Site's AirQloud, ${responseFromFindAirQloud.message} and ${errors} `
-      //   );
-      //   logObject("unable to retrieve the Site's AirQloud", errors);
-      // }
 
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
         latitude,
@@ -711,7 +669,6 @@ const manageSite = {
           ...body,
           ...roadResponseData,
           ...altitudeResponseData,
-          ...airqloudResponseData,
         };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
@@ -741,7 +698,7 @@ const manageSite = {
     } catch (e) {
       return {
         success: false,
-        message: "create site util server error -- generate metadata",
+        message: "Internal Server Error",
         errors: { message: { message: e.message } },
       };
     }
@@ -755,9 +712,11 @@ const manageSite = {
 
   refresh: async (tenant, req) => {
     try {
+      const { id } = req.query;
       let filter = generateFilter.sites(req);
       let update = {};
       let request = {};
+      request["query"] = {};
       let generated_name = null;
       logObject("the filter being used to filter", filter);
 
@@ -834,9 +793,57 @@ const manageSite = {
         }
       }
 
+      let requestForAirQloudsAndWeatherStations = {};
+      requestForAirQloudsAndWeatherStations["query"] = {};
+      requestForAirQloudsAndWeatherStations["query"]["tenant"] = tenant;
+      requestForAirQloudsAndWeatherStations["query"]["id"] = id;
+      let responseFromFindAirQlouds = await manageSite.findAirQlouds(
+        requestForAirQloudsAndWeatherStations
+      );
+
+      if (responseFromFindAirQlouds.success === true) {
+        request["body"]["airqlouds"] = responseFromFindAirQlouds.data;
+      }
+
+      if (responseFromFindAirQlouds.success === false) {
+        logObject(
+          "responseFromFindAirQlouds was unsuccessful",
+          responseFromFindAirQlouds
+        );
+      }
+
+      const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
+        requestForAirQloudsAndWeatherStations
+      );
+
+      logObject(
+        "responseFromNearestWeatherStation",
+        responseFromNearestWeatherStation
+      );
+
+      if (responseFromNearestWeatherStation.success === true) {
+        let nearest_tahmo_station = responseFromNearestWeatherStation.data;
+        delete nearest_tahmo_station.elevation;
+        delete nearest_tahmo_station.countrycode;
+        delete nearest_tahmo_station.timezoneoffset;
+        delete nearest_tahmo_station.name;
+        delete nearest_tahmo_station.type;
+        request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
+      }
+
+      if (responseFromNearestWeatherStation.success === false) {
+        logObject(
+          "unable to find the nearest weather station",
+          responseFromNearestWeatherStation
+        );
+      }
+
+      request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
         request
       );
+
+      logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
 
       logger.info(
         `refresh -- responseFromGenerateMetadata-- ${responseFromGenerateMetadata}`
@@ -844,6 +851,17 @@ const manageSite = {
 
       if (responseFromGenerateMetadata.success === true) {
         update = responseFromGenerateMetadata.data;
+      }
+
+      if (responseFromGenerateMetadata.success === false) {
+        let errors = responseFromGenerateMetadata.errors
+          ? responseFromGenerateMetadata.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromGenerateMetadata.message,
+          errors,
+        };
       }
 
       logObject("the update", update);
@@ -875,28 +893,6 @@ const manageSite = {
         return {
           success: false,
           message: responseFromModifySite.message,
-          errors,
-        };
-      }
-
-      if (responseFromGenerateMetadata.success === false) {
-        let errors = responseFromGenerateMetadata.errors
-          ? responseFromGenerateMetadata.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateMetadata.message,
-          errors,
-        };
-      }
-
-      if (responseFromListSite.success === false) {
-        let errors = responseFromListSite.errors
-          ? responseFromListSite.errors
-          : "";
-        return {
-          success: false,
-          message: responseFromListSite.message,
           errors,
         };
       }
@@ -972,7 +968,7 @@ const manageSite = {
         _limit,
         _skip,
       });
-      logObject("responseFromListSite babe", responseFromListSite);
+
       if (responseFromListSite.success === false) {
         let errors = responseFromListSite.errors
           ? responseFromListSite.errors

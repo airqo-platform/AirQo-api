@@ -1,4 +1,5 @@
 const AirQloudSchema = require("../models/Airqloud");
+const SiteSchema = require("../models/Site");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
@@ -14,6 +15,8 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-util");
 const createLocationUtil = require("./create-location");
 const createSiteUtil = require("./create-site");
+const geolib = require("geolib");
+const httpStatus = require("http-status");
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -163,8 +166,7 @@ const createAirqloud = {
   },
   update: async (request) => {
     try {
-      let { query } = request;
-      let { body } = request;
+      let { query, body } = request;
       let { tenant } = query;
 
       let update = body;
@@ -268,6 +270,65 @@ const createAirqloud = {
       };
     }
   },
+  refresh: async (request) => {
+    try {
+      const { query } = request;
+      const { tenant, id, name, admin_level } = query;
+      const responseFromFindSites = await createAirqloud.findSites(request);
+      if (responseFromFindSites.success === true) {
+        const sites = responseFromFindSites.data;
+        let requestForUpdateAirQloud = request;
+        requestForUpdateAirQloud["body"] = {};
+        requestForUpdateAirQloud["body"]["sites"] = sites;
+
+        const responseFromUpdateAirQloud = await createAirqloud.update(request);
+        if (responseFromUpdateAirQloud.success === true) {
+          return {
+            success: true,
+            message: responseFromUpdateAirQloud.message,
+            status: httpStatus.OK,
+            data: responseFromUpdateAirQloud.data,
+          };
+        }
+        if (responseFromUpdateAirQloud.success === false) {
+          const status = responseFromUpdateAirQloud.status
+            ? responseFromUpdateAirQloud.status
+            : "";
+          const errors = responseFromUpdateAirQloud.errors
+            ? responseFromUpdateAirQloud.errors
+            : "";
+          return {
+            success: false,
+            message: responseFromUpdateAirQloud.message,
+            status,
+            errors,
+          };
+        }
+      }
+      if (responseFromFindSites.success === false) {
+        const status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : "";
+        const errors = responseFromFindSites.errors
+          ? responseFromFindSites.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromFindSites.message,
+          status,
+          errors,
+        };
+      }
+    } catch (error) {
+      logObject("refresh util", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: { message: error.message },
+      };
+    }
+  },
   findSites: async (request) => {
     try {
       const { query, body } = request;
@@ -283,7 +344,9 @@ const createAirqloud = {
       const responseFromListAirQlouds = await createAirqloud.list(
         requestForAirQlouds
       );
+
       if (responseFromListAirQlouds.success === true) {
+        let airqloud = {};
         let data = responseFromListAirQlouds.data;
         if (data.length > 1 || data.length === 0) {
           return {
@@ -292,9 +355,12 @@ const createAirqloud = {
             status: HTTPStatus.NOT_FOUND,
           };
         }
-        logObject("responseFromListAirQlouds", responseFromListAirQlouds);
 
-        const airqloud = responseFromListAirQlouds.data[0];
+        if (data.length === 1) {
+          airqloud = responseFromListAirQlouds.data[0];
+          delete airqloud.sites;
+        }
+
         let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
         let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
           return {
@@ -302,18 +368,19 @@ const createAirqloud = {
             latitude: x[1],
           };
         });
-        // logObject("airqloudPolygon", airqloudPolygon);
         const filter = {};
-        const responseFromListSites = await createSiteUtil.list({
-          tenant,
+        let responseFromListSites = await getModelByTenant(
+          tenant.toLowerCase(),
+          "site",
+          SiteSchema
+        ).list({
           filter,
         });
-        logObject("responseFromListSites", responseFromListSites);
+
         if (responseFromListSites.success === true) {
           let site_ids = [];
           const sites = responseFromListSites.data;
           for (const site of sites) {
-            logObject("site", site);
             const { latitude, longitude } = site;
             const isSiteInAirQloud = geolib.isPointInPolygon(
               { latitude, longitude },
@@ -327,7 +394,7 @@ const createAirqloud = {
           if (!isEmpty(site_ids)) {
             return {
               success: true,
-              message: "successfully searched for the associated AirQlouds",
+              message: "successfully searched for the associated Sites",
               data: site_ids,
               status: HTTPStatus.OK,
             };
@@ -335,7 +402,7 @@ const createAirqloud = {
           if (isEmpty(site_ids)) {
             return {
               success: true,
-              message: "no associated AirQlouds found",
+              message: "no associated Sites found",
               data: site_ids,
               status: HTTPStatus.OK,
             };
@@ -365,6 +432,7 @@ const createAirqloud = {
         };
       }
     } catch (error) {
+      logObject("findSites util", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -372,6 +440,7 @@ const createAirqloud = {
       };
     }
   },
+
   list: async (request) => {
     try {
       let { query } = request;
