@@ -131,7 +131,7 @@ const createAirqloud = {
         res.status(status).json({
           success: true,
           message: responseFromRefreshAirQloud.message,
-          refreshe_airqloud: responseFromRefreshAirQloud.data,
+          refreshed_airqloud: responseFromRefreshAirQloud.data,
         });
       }
       if (responseFromRefreshAirQloud.success === false) {
