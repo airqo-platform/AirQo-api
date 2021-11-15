@@ -48,6 +48,9 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
+  TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,
+  TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
