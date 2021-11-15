@@ -1,4 +1,5 @@
 const { Schema } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
 const jsonify = require("../utils/jsonify");
@@ -58,6 +59,12 @@ const airqloudSchema = new Schema(
       required: [true, "name is required!"],
       unique: true,
     },
+    sites: [
+      {
+        type: ObjectId,
+        ref: "site",
+      },
+    ],
     long_name: {
       type: String,
       trim: true,
@@ -116,6 +123,7 @@ airqloudSchema.methods = {
       isCustom: this.isCustom,
       location: this.location,
       metadata: this.metadata,
+      sites: this.sites,
     };
   },
 };
@@ -185,8 +193,8 @@ airqloudSchema.statics = {
         .match(filter)
         .lookup({
           from: "sites",
-          localField: "_id",
-          foreignField: "airqloud_id",
+          localField: "sites",
+          foreignField: "_id",
           as: "sites",
         })
         .sort({ createdAt: -1 })
@@ -201,6 +209,33 @@ airqloudSchema.statics = {
           isCustom: 1,
           metadata: 1,
           sites: "$sites",
+        })
+        .project({
+          "sites.altitude": 0,
+          "sites.greenness": 0,
+          "sites.landform_90": 0,
+          "sites.landform_270": 0,
+          "sites.aspect": 0,
+          "sites.distance_to_nearest_road": 0,
+          "sites.distance_to_nearest_primary_road": 0,
+          "sites.distance_to_nearest_secondary_road": 0,
+          "sites.distance_to_nearest_tertiary_road": 0,
+          "sites.distance_to_nearest_unclassified_road": 0,
+          "sites.distance_to_nearest_residential_road": 0,
+          "sites.bearing_to_kampala_center": 0,
+          "sites.distance_to_kampala_center": 0,
+          "sites.updatedAt": 0,
+          "sites.nearest_tahmo_station": 0,
+          "sites.formatted_name": 0,
+          "sites.geometry": 0,
+          "sites.google_place_id": 0,
+          "sites.site_tags": 0,
+          "sites.street": 0,
+          "sites.town": 0,
+          "sites.village": 0,
+          "sites.airqlouds": 0,
+          "sites.description": 0,
+          "sites.__v": 0,
         })
         .skip(_skip)
         .limit(_limit)
@@ -237,20 +272,27 @@ airqloudSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
+      let options = { new: true, useFindAndModify: false };
       let modifiedUpdateBody = update;
-      if (modifiedUpdateBody._id) {
+      if (update._id) {
         delete modifiedUpdateBody._id;
       }
-      if (modifiedUpdateBody.name) {
+      if (update.name) {
         delete modifiedUpdateBody.name;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      if (update.sites) {
+        modifiedUpdateBody["$addToSet"] = {};
+        modifiedUpdateBody["$addToSet"]["sites"] = {};
+        modifiedUpdateBody["$addToSet"]["sites"]["$each"] = update.sites;
+
+        delete modifiedUpdateBody["sites"];
+      }
+      let updatedAirQloud = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
+      let data = jsonify(updatedAirQloud);
       if (!isEmpty(data)) {
         return {
           success: true,

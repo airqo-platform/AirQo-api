@@ -225,7 +225,7 @@ const request = {
         responseFromListCandidate.success === true &&
         !isEmpty(responseFromListCandidate.data)
       ) {
-        let responseFromGeneratePassword = generatePassword();
+        let responseFromGeneratePassword = generatePassword(10);
         logObject("responseFromGeneratePassword", responseFromGeneratePassword);
         if (responseFromGeneratePassword.success === true) {
           let password = responseFromGeneratePassword.data;
@@ -329,7 +329,7 @@ const request = {
           }
         }
 
-        if (responseFromGeneratePassword === false) {
+        if (responseFromGeneratePassword.success === false) {
           if (responseFromGeneratePassword.error) {
             return {
               success: false,

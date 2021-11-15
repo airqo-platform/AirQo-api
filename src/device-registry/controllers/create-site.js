@@ -49,7 +49,6 @@ const manageSite = {
       }
       const { tenant } = req.query;
       let responseFromCreateSite = await createSiteUtil.create(tenant, req);
-      logObject("responseFromCreateSite in controller", responseFromCreateSite);
       if (responseFromCreateSite.success === true) {
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
@@ -85,7 +84,7 @@ const manageSite = {
   },
 
   generateMetadata: async (req, res) => {
-    logText("registering site.............");
+    logText("generating site metadata.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -132,6 +131,57 @@ const manageSite = {
     }
   },
 
+  findAirQlouds: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { id } = query;
+
+      /**
+       * use the given site_id to get the lat and long
+       * And then proceed to get the specific AirQloud
+       */
+
+      let findAirQloudRequest = {};
+      findAirQloudRequest["query"] = {};
+      findAirQloudRequest["body"] = {};
+      findAirQloudRequest["body"]["latitude"] = latitude;
+      findAirQloudRequest["body"]["longitude"] = longitude;
+      findAirQloudRequest["query"]["tenant"] = tenant ? tenant : "airqo";
+      logObject("findAirQloudRequest", findAirQloudRequest);
+      let responseFromFindAirQloud = await createSiteUtil.findAirQloud(
+        findAirQloudRequest
+      );
+      logObject("responseFromFindAirQloud util", responseFromFindAirQloud);
+      if (responseFromFindAirQloud.success === true) {
+        if ((responseFromFindAirQloud.data.matches.length = 1)) {
+          airqloudResponseData["airqloud_id"] =
+            responseFromFindAirQloud.data.matches[0];
+        }
+        if (responseFromFindAirQloud.data.matches.length > 1) {
+          logger.info(
+            `the site belongs to more than one AirQloud -- ${responseFromFindAirQloud.data.matches}`
+          );
+          logText("the site belongs to more than AirQloud");
+        }
+        if (responseFromFindAirQloud.data.matches.length === 0) {
+          logger.info(
+            `the site belongs to no AirQloud -- ${responseFromFindAirQloud.data.matches}`
+          );
+          logText("the site belongs to no AirQloud");
+        }
+      }
+      if (responseFromFindAirQloud.success === false) {
+        let errors = responseFromFindAirQloud.errors
+          ? responseFromFindAirQloud.errors
+          : "";
+        logger.error(
+          `unable to retrieve the Site's AirQloud, ${responseFromFindAirQloud.message} and ${errors} `
+        );
+        logObject("unable to retrieve the Site's AirQloud", errors);
+      }
+    } catch (error) {}
+  },
+
   delete: async (req, res) => {
     try {
       logText(".................................................");
@@ -149,25 +199,29 @@ const manageSite = {
       let filter = generateFilter.sites(req);
       logObject("filter", filter);
       let responseFromRemoveSite = await createSiteUtil.delete(tenant, filter);
-      if (responseFromRemoveSite.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromRemoveSite.success === true) {
+        const status = responseFromRemoveSite.status
+          ? responseFromRemoveSite.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveSite.message,
           site: responseFromRemoveSite.data,
         });
-      } else if (responseFromRemoveSite.success == false) {
-        if (responseFromRemoveSite.errors) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRemoveSite.message,
-            errors: responseFromRemoveSite.errors,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRemoveSite.message,
-          });
-        }
+      }
+
+      if (responseFromRemoveSite.success === false) {
+        const status = responseFromRemoveSite.status
+          ? responseFromRemoveSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromRemoveSite.errors
+          ? responseFromRemoveSite.errors
+          : "";
+        return res.status(status).json({
+          success: false,
+          message: responseFromRemoveSite.message,
+          errors,
+        });
       }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({

@@ -93,6 +93,8 @@ class EventsModel(BasePyMongoModel):
                     site_id={"$toString": "$site_id"},
                     site_name="$site.name",
                     site_description="$site.description",
+                    latitude="$site.latitude",
+                    longitude="$site.longitude",
                 )
 
                 .exec()

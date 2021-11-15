@@ -42,6 +42,7 @@ class Validator(OrderedDict):
         super().__init__()
         self.validation_type = validation_type
         self['required'] = self.type_validator(self.none_checker, "is required")
+        self['optional'] = self.type_validator(self.optional_checker, "is optional")
         self['int'] = self.type_validator(int, "{} is not a valid integer")
         self['float'] = self.type_validator(float, "{} is not a valid float")
         self['list'] = self.type_validator(self.list_checker, "{} is not a valid list/array")
@@ -109,6 +110,10 @@ class Validator(OrderedDict):
     def none_checker(value):
         if not value:
             raise TypeError("value can not be none/falsy")
+
+    @staticmethod
+    def optional_checker(value):
+        pass
 
     @classmethod
     def email_checker(cls, value):

@@ -23,6 +23,10 @@ const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
 
+const createAirqloudUtil = require("./create-airqloud");
+const pointInPolygon = require("point-in-polygon");
+const httpStatus = require("http-status");
+
 const manageSite = {
   hasWhiteSpace: (name) => {
     try {
@@ -49,6 +53,169 @@ const manageSite = {
           message: e.message,
         }}`
       );
+    }
+  },
+  findAirQlouds: async (request) => {
+    try {
+      const { query, body } = request;
+      const { tenant } = query;
+      let latitude = 0;
+      let longitude = 0;
+      /**
+       * We will need to pick this lat and long from the site ID...
+       */
+      let matches = [];
+      let mismatches = [];
+      logObject("the request inside findAirQloud", request);
+
+      const filter = await generateFilter.sites(request);
+
+      const responseFromListSites = await manageSite.list({
+        tenant,
+        filter,
+      });
+
+      if (responseFromListSites.success === true) {
+        let sites = responseFromListSites.data;
+        const numberOfSites = sites.length;
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        if (numberOfSites > 1) {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "more than site matches this search",
+          };
+        }
+
+        if (numberOfSites === 0) {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "not found the site",
+          };
+        }
+
+        if (numberOfSites === 1) {
+        }
+      }
+      if (responseFromListSites.success === false) {
+        let status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        let errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
+        return {
+          success: false,
+          errors,
+          message: responseFromListSites.message,
+          status,
+        };
+      }
+
+      /*************************** */
+      const requestBodyForAirQlouds = {};
+      const responseFromListAirQlouds = await createAirqloudUtil.list(
+        requestBodyForAirQlouds
+      );
+      if (responseFromListAirQlouds.success === true) {
+        const airqlouds = responseFromListAirQlouds.data;
+        const lat_long = manageSite.generateLatLong(latitude, longitude);
+        let filter = {};
+        filter["lat_long"] = lat_long;
+        logObject("filter for Sites", filter);
+        const responseFromListSiteDetails = await manageSite.list({
+          tenant,
+          filter,
+        });
+
+        logObject("responseFromListSiteDetails", responseFromListSiteDetails);
+        if (responseFromListSiteDetails.success === true) {
+          let siteCoordinatesInArray = [];
+          if (responseFromListSiteDetails.data.length > 1) {
+            return {
+              success: false,
+              message: "unable to retrieve site",
+              errors: {
+                message: "we got more than one Site in our search result",
+              },
+            };
+          }
+          const siteDetails = responseFromListSiteDetails.data[0];
+          if (siteDetails) {
+            let location = {};
+            location["latitude"] = siteDetails.latitude;
+            location["longitude"] = siteDetails.longitude;
+            siteCoordinatesInArray = Object.values(location).reverse();
+            logObject(" siteCoordinatesInArray", siteCoordinatesInArray);
+          }
+
+          for (const airqloud of airqlouds) {
+            const polygon = airqloud.location.coordinates[0];
+
+            const isSiteInAirQloud = pointInPolygon(
+              siteCoordinatesInArray,
+              polygon
+            );
+
+            logElement("isSiteInAirQloud", isSiteInAirQloud);
+
+            if (isSiteInAirQloud === true) {
+              logObject("airqloud._id", airqloud._id);
+              matches.push(airqloud._id);
+            }
+
+            if (isSiteInAirQloud === false) {
+              mismatches.push(airqloud._id);
+            }
+          }
+          if (!isEmpty(matches)) {
+            return {
+              success: true,
+              message: "retrieved the airqloud",
+              data: { matches, mismatches },
+            };
+          }
+
+          if (isEmpty(matches)) {
+            return {
+              success: false,
+              message: "no AirQloud match found",
+              data: { mismatches },
+            };
+          }
+        }
+        if (responseFromListSiteDetails.success === false) {
+          return responseFromListSiteDetails;
+        }
+      }
+
+      if (responseFromListAirQlouds.success === false) {
+        return responseFromListAirQlouds;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  /**
+   * Get the site ID from here
+   * then compare the Site cordinates with those of Tahmo
+   * If a closest match is found, then update the Site details accordingly
+   */
+  findNearestWeatherStation: (request) => {
+    try {
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
     }
   },
 
@@ -138,10 +305,18 @@ const manageSite = {
 
   create: async (tenant, req) => {
     try {
-      let { body } = req;
+      const { body, query } = req;
+      const { tenant } = query;
+      const { name, latitude, longitude, airqlouds } = body;
       let request = {};
-      request["body"] = body;
-      let { name, latitude, longitude } = body;
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["latitude"] = latitude;
+      request["body"]["longitude"] = longitude;
+      request["body"]["airqlouds"] = airqlouds;
+      request["body"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
@@ -306,10 +481,81 @@ const manageSite = {
     }
   },
 
+  getRoadMetadata: async (latitude, longitude) => {
+    try {
+      let response = {};
+      let promises = [];
+      const paths = constants.GET_ROAD_METADATA_PATHS;
+      const arrayOfPaths = Object.entries(paths);
+      for (const [key, path] of arrayOfPaths) {
+        const url = constants.GET_ROAD_METADATA({
+          path,
+          latitude,
+          longitude,
+        });
+        promises.push(
+          axios
+            .get(url)
+            .then((res) => {
+              let responseJSON = res.data;
+              if (!isEmpty(responseJSON.data)) {
+                let data = responseJSON.data;
+                response[key] = data;
+              }
+              if (isEmpty(responseJSON.data)) {
+                logElement("unable to get the information for", key);
+              }
+            })
+            .catch((error) => {
+              return {
+                success: false,
+                errors: { message: error },
+                message: "constants server side error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            })
+        );
+      }
+
+      return await Promise.all(promises).then(() => {
+        if (!isEmpty(response)) {
+          return {
+            success: true,
+            message: "successfully retrieved the road metadata",
+            status: HTTPStatus.OK,
+            data: response,
+          };
+        }
+
+        if (isEmpty(response)) {
+          return {
+            success: false,
+            message: "unable to retrieve any road metadata",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   generateMetadata: async (req) => {
     try {
-      let { latitude, longitude } = req.body;
-      let body = req.body;
+      let { query, body } = req;
+      let { latitude, longitude } = body;
+      let { tenant, id } = query;
+      let roadResponseData = {};
+      let altitudeResponseData = {};
+      let reverseGeoCodeResponseData = {};
+      let airqloudResponseData = {};
+
+      logElement("the tenant in metadata", tenant);
 
       logger.info(`the body sent to generate metadata -- ${body}`);
 
@@ -320,7 +566,7 @@ const manageSite = {
 
       logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
-        body.altitude = responseFromGetAltitude.data;
+        altitudeResponseData["altitude"] = responseFromGetAltitude.data;
       }
 
       if (responseFromGetAltitude.success === false) {
@@ -332,6 +578,64 @@ const manageSite = {
         );
       }
 
+      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
+        latitude,
+        longitude
+      );
+
+      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
+
+      if (responseFromGetRoadMetadata.success === true) {
+        roadResponseData = responseFromGetRoadMetadata.data;
+      }
+
+      if (responseFromGetRoadMetadata.success === false) {
+        let errors = responseFromGetRoadMetadata.errors
+          ? responseFromGetRoadMetadata.errors
+          : "";
+        logger.error(
+          `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
+        );
+      }
+      // let findAirQloudRequest = {};
+      // findAirQloudRequest["query"] = {};
+      // findAirQloudRequest["body"] = {};
+      // findAirQloudRequest["body"]["latitude"] = latitude;
+      // findAirQloudRequest["body"]["longitude"] = longitude;
+      // findAirQloudRequest["query"]["tenant"] = tenant ? tenant : "airqo";
+      // logObject("findAirQloudRequest", findAirQloudRequest);
+      // let responseFromFindAirQloud = await manageSite.findAirQloud(
+      //   findAirQloudRequest
+      // );
+      // logObject("responseFromFindAirQloud util", responseFromFindAirQloud);
+      // if (responseFromFindAirQloud.success === true) {
+      //   if ((responseFromFindAirQloud.data.matches.length = 1)) {
+      //     airqloudResponseData["airqloud_id"] =
+      //       responseFromFindAirQloud.data.matches[0];
+      //   }
+      //   if (responseFromFindAirQloud.data.matches.length > 1) {
+      //     logger.info(
+      //       `the site belongs to more than one AirQloud -- ${responseFromFindAirQloud.data.matches}`
+      //     );
+      //     logText("the site belongs to more than AirQloud");
+      //   }
+      //   if (responseFromFindAirQloud.data.matches.length === 0) {
+      //     logger.info(
+      //       `the site belongs to no AirQloud -- ${responseFromFindAirQloud.data.matches}`
+      //     );
+      //     logText("the site belongs to no AirQloud");
+      //   }
+      // }
+      // if (responseFromFindAirQloud.success === false) {
+      //   let errors = responseFromFindAirQloud.errors
+      //     ? responseFromFindAirQloud.errors
+      //     : "";
+      //   logger.error(
+      //     `unable to retrieve the Site's AirQloud, ${responseFromFindAirQloud.message} and ${errors} `
+      //   );
+      //   logObject("unable to retrieve the Site's AirQloud", errors);
+      // }
+
       let responseFromReverseGeoCode = await manageSite.reverseGeoCode(
         latitude,
         longitude
@@ -340,18 +644,25 @@ const manageSite = {
         `responseFromReverseGeoCode -- ${responseFromReverseGeoCode}`
       );
       if (responseFromReverseGeoCode.success === true) {
+        reverseGeoCodeResponseData = responseFromReverseGeoCode.data;
         let google_site_tags = responseFromReverseGeoCode.data.site_tags;
         let existing_site_tags = body.site_tags ? body.site_tags : [];
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
-        let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+        let finalResponseBody = {
+          ...reverseGeoCodeResponseData,
+          ...body,
+          ...roadResponseData,
+          ...altitudeResponseData,
+          ...airqloudResponseData,
+        };
         let status = responseFromReverseGeoCode.status
           ? responseFromReverseGeoCode.status
           : "";
         return {
           success: true,
           message: "successfully generated the metadata",
-          data: requestBody,
+          data: finalResponseBody,
           status,
         };
       }
@@ -544,6 +855,12 @@ const manageSite = {
 
   delete: async (tenant, filter) => {
     try {
+      return {
+        success: false,
+        message: "feature temporarity disabled --coming soon",
+        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       let responseFromRemoveSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -653,7 +970,6 @@ const manageSite = {
       let google_place_id = results.place_id;
       let types = results.types;
       let retrievedAddress = {};
-      logObject("address_components ", address_components);
       address_components.forEach((object) => {
         if (object.types.includes("locality", "administrative_area_level_3")) {
           retrievedAddress.town = object.long_name;
@@ -705,7 +1021,6 @@ const manageSite = {
         .get(url)
         .then(async (response) => {
           let responseJSON = response.data;
-          logObject("responseJSON", responseJSON);
           if (!isEmpty(responseJSON.results)) {
             let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
               responseJSON
@@ -737,7 +1052,7 @@ const manageSite = {
               status: HTTPStatus.NOT_FOUND,
               errors: {
                 message:
-                  "review the GPS coordinates provided, we cannot get corresponding metada",
+                  "review the GPS coordinates provided, we cannot get corresponding metadata",
               },
             };
           }
@@ -786,7 +1101,6 @@ const manageSite = {
           axiosInstance()
         )
         .then((r) => {
-          console.log(r.data.results[0].elevation);
           return {
             success: true,
             message: "successfully retrieved the altitude details",
