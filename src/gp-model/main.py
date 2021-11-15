@@ -239,10 +239,14 @@ def get_all_airqlouds(tenant):
     airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
+    #Esxcluding Uganda and Kampala
+    del names[-2:]
+    del aq_ids[-2:]
     return names, aq_ids
 
 if __name__=='__main__':
     airqloud_names, aq_ids = get_all_airqlouds('airqo')
+    print(airqloud_names)
     parser = argparse.ArgumentParser(description='save gpmodel prediction.')
     parser.add_argument('--tenant',
                         default="airqo",
