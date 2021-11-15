@@ -1,6 +1,13 @@
 const Validator = require("validator");
 const isEmpty = require("is-empty");
 const joi = require("joi");
+const httpStatus = require("http-status");
+const { logObject } = require("./log");
+constants = require("../config/constants");
+const kickbox = require("kickbox")
+  .client(`${constants.KICKBOX_API_KEY}`)
+  .kickbox();
+const emailExistence = require("email-existence");
 
 const validation = {
   candidate: (data) => {
@@ -157,6 +164,119 @@ const validation = {
       errors,
       isValid: isEmpty(errors),
     };
+  },
+  /**
+   *
+   * @param {string} email
+   * @param {function} callback
+   */
+  checkEmailExistance: async (email, callback) => {
+    try {
+      await emailExistence.check(email, (response, error) => {
+        if (response === true) {
+          callback({
+            success: true,
+            message: "email exists",
+            status: httpStatus.OK,
+          });
+        }
+        if (response !== true) {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: response.code },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+        if (error) {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: error },
+            status: httpStatus.BAD_GATEWAY,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  /**
+   *
+   * @param {string} email
+   * @param {function} callback
+   */
+  checkEmailExistenceUsingKickbox: async (email, callback) => {
+    try {
+      await kickbox.verify(email, async (err, response) => {
+        if (response.body.result === "undeliverable") {
+          callback({
+            success: false,
+            message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
+            errors: { message: response.body.reason },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+
+        if (err) {
+          callback({
+            success: false,
+            message: "email verification error",
+            errors: { message: err },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+
+        if (response.body.result === "deliverable") {
+          callback({
+            success: true,
+            message: "deliverable",
+            status: httpStatus.OK,
+          });
+        }
+
+        if (response.body.result === "risky") {
+          callback({
+            success: false,
+            message: "risky email",
+            errors: { message: response.body.reason },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+
+        if (response.body.result === "unknown") {
+          callback({
+            success: false,
+            message: "unknown email",
+            errors: { message: response.body.reason },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+
+        if (response.body.role === true) {
+          callback({
+            success: false,
+            message: "role email addresses are not accepted",
+            errors: { message: "role email addresses are not accepted" },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
   },
 };
 
