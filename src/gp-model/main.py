@@ -122,22 +122,26 @@ def train_model(X, Y, airqloud):
     elif airqloud == 'kawempe':
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        m.likelihood.variance.assign(400)
+        #m.likelihood.variance.assign(400)
         set_trainable(m.kernel.kernels[0].variance, False)
-        set_trainable(m.likelihood.variance, False)
+        #set_trainable(m.likelihood.variance, False)
     elif airqloud == 'kira':
         k = gpflow.kernels.RBF() + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        m.likelihood.variance.assign(400)
-        set_trainable(m.likelihood.variance, False)
+       # m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
     elif airqloud == 'jinja':
         k = gpflow.kernels.RBF(lengthscales = [0.008, 0.008, 2]) + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        m.likelihood.variance.assign(400)
-        set_trainable(m.likelihood.variance, False)
+        #m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
     else:
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+        #m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
+        
+    if airqloud!= 'kampala':
         m.likelihood.variance.assign(400)
         set_trainable(m.likelihood.variance, False)
     
@@ -243,9 +247,9 @@ def get_all_airqlouds(tenant):
     airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
-    #Esxcluding Uganda and Kampala
-    del names[-2:]
-    del aq_ids[-2:]
+    #Esxcluding Uganda
+    del names[-1:]
+    del aq_ids[-1:]
     return names, aq_ids
 
 if __name__=='__main__':
