@@ -140,8 +140,8 @@ def train_model(X, Y, airqloud):
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
         #m.likelihood.variance.assign(400)
         #set_trainable(m.likelihood.variance, False)
-        
-    if airqloud!= 'kampala':
+
+    if airqloud != 'kampala':
         m.likelihood.variance.assign(400)
         set_trainable(m.likelihood.variance, False)
     
