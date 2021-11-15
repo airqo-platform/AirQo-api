@@ -219,6 +219,7 @@ def periodic_function(tenant, airqloud, aq_id):
     devices = get_devices_in_airqloud(poly, tenant)
     if len(devices)>0:
         for device in devices:
+            df = pd.DataFrame()
             try:
                 df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
             except:
