@@ -219,7 +219,10 @@ def periodic_function(tenant, airqloud, aq_id):
     devices = get_devices_in_airqloud(poly, tenant)
     if len(devices)>0:
         for device in devices:
-            df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+            try:
+                df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+            except:
+                pass
             if df.shape[0]!=0:
                 prep_df = preprocessing(df)
                 Xchan = np.asarray(prep_df.iloc[:, :3])
