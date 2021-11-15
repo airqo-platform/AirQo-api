@@ -3,7 +3,6 @@ const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../services/mailer");
 const generatePassword = require("./generate-password");
-const jsonify = require("./jsonify");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const constants = require("../config/constants");
@@ -257,12 +256,10 @@ const join = {
         let responseFromCreateUser = await UserModel(tenant).register(
           requestBody
         );
-        logObject("responseFromCreateUser", responseFromCreateUser);
 
         if (responseFromCreateUser.success === true) {
           let createdUser = await responseFromCreateUser.data;
-          let jsonifyCreatedUser = jsonify(createdUser);
-          logObject("created user in util", jsonifyCreatedUser);
+          logObject("created user in util", createdUser._doc);
           let responseFromSendEmail = await mailer.user(
             firstName,
             lastName,
@@ -276,7 +273,7 @@ const join = {
             return {
               success: true,
               message: "user successfully created",
-              data: jsonifyCreatedUser,
+              data: createdUser._doc,
             };
           }
 
@@ -303,7 +300,7 @@ const join = {
           let status = responseFromCreateUser.status
             ? responseFromCreateUser.status
             : "";
-          logElement("the error from the model", error);
+          logObject("the error from the model", error);
           return {
             success: false,
             message: responseFromCreateUser.message,
