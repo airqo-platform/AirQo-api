@@ -157,12 +157,16 @@ UserSchema.statics = {
         message: "operation successful but user NOT successfully created",
       };
     } catch (err) {
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      Object.entries(err.keyValue).forEach(([key, value]) => {
-        return (response[key] = `the ${key} must be unique`);
-      });
+      if (err.keyValue) {
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          return (response[key] = `the ${key} must be unique`);
+        });
+      }
+
       return {
         error: response,
         message,
