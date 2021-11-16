@@ -14,6 +14,10 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "name is required!"],
     },
+    search_name: {
+      type: String,
+      trim: true,
+    },
     generated_name: {
       type: String,
       trim: true,
@@ -254,6 +258,7 @@ siteSchema.methods = {
       _id: this._id,
       name: this.name,
       generated_name: this.generated_name,
+      search_name: this.search_name,
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
       latitude: this.latitude,
@@ -369,6 +374,7 @@ siteSchema.statics = {
           longitude: 1,
           description: 1,
           site_tags: 1,
+          search_name: 1,
           lat_long: 1,
           country: 1,
           district: 1,
@@ -464,6 +470,7 @@ siteSchema.statics = {
     try {
       let options = { new: true, useFindAndModify: false, upsert: true };
       let modifiedUpdateBody = update;
+      modifiedUpdateBody["$addToSet"] = {};
       if (update._id) {
         delete modifiedUpdateBody._id;
       }
@@ -480,8 +487,14 @@ siteSchema.statics = {
         delete modifiedUpdateBody.lat_long;
       }
 
+      if (update.site_tags) {
+        modifiedUpdateBody["$addToSet"]["site_tags"] = {};
+        modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
+          update.site_tags;
+        delete modifiedUpdateBody["site_tags"];
+      }
+
       if (update.airqlouds) {
-        modifiedUpdateBody["$addToSet"] = {};
         modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
         modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
           update.airqlouds;
@@ -494,8 +507,10 @@ siteSchema.statics = {
         options
       ).exec();
 
+      logObject("updatedSite", updatedSite._doc);
       if (!isEmpty(updatedSite)) {
         let data = updatedSite._doc;
+
         return {
           success: true,
           message: "successfully modified the site",

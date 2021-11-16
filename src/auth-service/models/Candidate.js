@@ -3,6 +3,7 @@ const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const { logObject, logElement } = require("../utils/log");
 const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 
 const CandidateSchema = new mongoose.Schema({
   email: {
@@ -52,12 +53,14 @@ CandidateSchema.statics = {
           ...args,
         }),
         message: "candidate created",
+        status: httpStatus.OK,
       };
     } catch (error) {
       return {
-        error: error.message,
+        errors: { message: error.message },
         message: "unable to create candidate",
         success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
