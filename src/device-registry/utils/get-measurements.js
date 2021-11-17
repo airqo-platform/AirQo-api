@@ -4,6 +4,7 @@ const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("./multitenancy");
 const redis = require("../config/redis");
 const constants = require("../config/constants");
+const cleanDeep = require("clean-deep");
 const {
   axiosError,
   tryCatchErrors,
@@ -20,12 +21,12 @@ const getDetail = require("../utils/get-device-details");
 
 const isRecentTrue = (recent) => {
   let isRecentEmpty = isEmpty(recent);
-  if (isRecentEmpty == true) {
-    return true;
+  if (isRecentEmpty === true) {
+    return false;
   }
-  if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
+  if (recent.toLowerCase() === "yes" && isRecentEmpty === false) {
     return true;
-  } else if (recent.toLowerCase() == "no" && isRecentEmpty == false) {
+  } else if (recent.toLowerCase() === "no" && isRecentEmpty === false) {
     return false;
   }
 };
@@ -50,7 +51,8 @@ const generateCacheID = (
   recent,
   startTime,
   endTime,
-  metadata
+  metadata,
+  external
 ) => {
   return `get_events_device_${device ? device : "noDevice"}_${tenant}_${
     skip ? skip : 0
@@ -62,7 +64,9 @@ const generateCacheID = (
     site_id ? site_id : "noSiteId"
   }_${day ? day : "noDay"}_${
     device_number ? device_number : "noDeviceNumber"
-  }_${metadata ? metadata : "noMetadata"}`;
+  }_${metadata ? metadata : "noMetadata"}_${
+    external ? external : "noExternal"
+  }`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
@@ -75,8 +79,7 @@ const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
       "event",
       EventSchema
     ).listRecent({ skipInt, limitInt, filter });
-
-    return recentEvents;
+    return cleanDeep(recentEvents);
   }
 
   if (recentFlag === false) {
@@ -85,12 +88,8 @@ const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
       limitInt,
       filter,
     });
-    return allEvents;
+    return cleanDeep(allEvents);
   }
-
-  // let events = recentFlag ? recentEvents : allEvents;
-
-  // return events;
 };
 
 const getMeasurements = async (
@@ -107,7 +106,8 @@ const getMeasurements = async (
   tenant,
   startTime,
   endTime,
-  metadata
+  metadata,
+  external
 ) => {
   try {
     const currentTime = new Date().toISOString();
@@ -126,7 +126,8 @@ const getMeasurements = async (
       recent,
       startTime,
       endTime,
-      metadata
+      metadata,
+      external
     );
 
     redis.get(cacheID, async (err, result) => {
@@ -146,7 +147,9 @@ const getMeasurements = async (
             frequency,
             startTime,
             endTime,
-            metadata
+            metadata,
+            external,
+            tenant
           );
 
           let devicesCount = await getDevicesCount(tenant);

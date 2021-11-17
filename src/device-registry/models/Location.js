@@ -1,29 +1,83 @@
-const mongoose = require("mongoose");
-const ObjectId = mongoose.Schema.Types.ObjectId;
+const { Schema } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
+const { logElement, logObject, logText } = require("../utils/log");
+const jsonify = require("../utils/jsonify");
+const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
 
-const locationSchema = new mongoose.Schema(
+const polygonSchema = new Schema(
   {
-    parish: {
+    type: {
       type: String,
+      enum: ["Polygon", "Point"],
+      required: true,
     },
-    district: {
-      type: String,
+    coordinates: {
+      type: [[[Number]]],
+      required: true,
     },
-    region: {
+  },
+  { _id: false }
+);
+
+const metadataSchema = new Schema(
+  {
+    country: { type: String },
+    region: { type: String },
+    county: { type: String },
+    village: { type: String },
+    district: { type: String },
+    parish: { type: String },
+    subcounty: { type: String },
+    centroid: { type: Array, coordinates: [0, 0] },
+    km2: { type: Number },
+    population: { type: Number },
+    households: { type: Number },
+    population_density: { type: Number },
+    household_density: { type: Number },
+    charcoal_per_km2: { type: Number },
+    firewood_per_km2: { type: Number },
+    cowdung_per_km2: { type: Number },
+    grass_per_km2: { type: Number },
+    wasteburning_per_km2: { type: Number },
+    kitch_outsidebuilt_per_km2: { type: Number },
+    kitch_makeshift_per_km2: { type: Number },
+    kitch_openspace_per_km2: { type: Number },
+  },
+  { _id: false }
+);
+
+const locationSchema = new Schema(
+  {
+    location: { type: polygonSchema },
+    name: {
       type: String,
+      trim: true,
+      required: [true, "name is required!"],
     },
-    country: {
+    long_name: {
       type: String,
+      trim: true,
+      default: null,
     },
-    village: {
+    description: {
       type: String,
+      trim: true,
     },
-    subCounty: {
+    admin_level: {
       type: String,
+      required: [true, "admin_level is required!"],
     },
-    county: {
-      type: String,
+    isCustom: {
+      type: Boolean,
+      required: [true, "isCustom is required!"],
+      default: false,
+    },
+    metadata: { type: metadataSchema },
+    location_tags: {
+      type: Array,
+      default: [],
     },
   },
   {
@@ -31,50 +85,229 @@ const locationSchema = new mongoose.Schema(
   }
 );
 
-locationSchema.plugin(uniqueValidator, {
-  message: `{VALUE} already taken!`,
-});
-
 locationSchema.pre("save", function(next) {
+  if (this.isModified("_id")) {
+    delete this._id;
+  }
   return next();
 });
 
 locationSchema.pre("update", function(next) {
+  if (this.isModified("_id")) {
+    delete this._id;
+  }
   return next();
 });
 
-locationSchema.pre("findByIdAndUpdate", function(next) {
-  return next();
+locationSchema.plugin(uniqueValidator, {
+  message: `{VALUE} is a duplicate value!`,
 });
 
 locationSchema.methods = {
   toJSON() {
     return {
-      id: this._id,
-      parish: this.parish,
-      region: this.region,
-      county: this.county,
-      village: this.village,
-      subCounty: this.subCounty,
-      country: this.country,
-      district: this.district,
+      _id: this._id,
+      name: this.name,
+      long_name: this.long_name,
+      description: this.description,
+      location_tags: this.location_tags,
+      admin_level: this.admin_level,
+      isCustom: this.isCustom,
+      location: this.location,
+      metadata: this.metadata,
     };
   },
 };
 
-// I will add the check for the user after setting up the communications between services
 locationSchema.statics = {
-  createDevice(args) {
-    return this.create({
-      ...args,
-    });
-  },
+  async register(args) {
+    try {
+      let body = args;
+      if (!args.isCustom) {
+        body["isCustom"] = false;
+      }
+      let createdAirQloud = await this.create({
+        ...body,
+      });
+      let data = jsonify(createdAirQloud);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          data,
+          message: "location created",
+          status: HTTPStatus.OK,
+        };
+      }
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "location not created despite successful operation",
+          status: HTTPStatus.NO_CONTENT,
+        };
+      }
+    } catch (err) {
+      let e = jsonify(err);
+      let response = {};
+      logObject("the err", e);
+      message = "validation errors for some of the provided fields";
+      const status = HTTPStatus.CONFLICT;
+      Object.entries(err.errors).forEach(([key, value]) => {
+        return (response[value.path] = value.message);
+      });
 
-  list({ skip = 0, limit = 5, filter = {} } = {}) {
-    return this.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit);
+      return {
+        errors: response,
+        message,
+        success: false,
+        status,
+      };
+    }
+  },
+  async list({ filter = {}, _limit = 1000, _skip = 0 } = {}) {
+    try {
+      logElement("the limit in the model", _limit);
+      let data = await this.aggregate()
+        .match(filter)
+        .lookup({
+          from: "sites",
+          localField: "_id",
+          foreignField: "location_id",
+          as: "sites",
+        })
+        .sort({ createdAt: -1 })
+        .project({
+          _id: 1,
+          name: 1,
+          long_name: 1,
+          description: 1,
+          location_tags: 1,
+          location: 1,
+          admin_level: 1,
+          isCustom: 1,
+          metadata: 1,
+          sites: "$sites",
+        })
+        .skip(_skip)
+        .limit(_limit)
+        .allowDiskUse(true);
+
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully fetched the Location(s)",
+          data,
+          status: HTTPStatus.OK,
+        };
+      }
+
+      if (isEmpty(data)) {
+        return {
+          success: true,
+          message: "there are no records for this search",
+          data,
+          status: HTTPStatus.NOT_FOUND,
+        };
+      }
+    } catch (err) {
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      return {
+        errors,
+        message,
+        success: false,
+        status,
+      };
+    }
+  },
+  async modify({ filter = {}, update = {} } = {}) {
+    try {
+      let options = { new: true };
+      let modifiedUpdateBody = update;
+      if (modifiedUpdateBody._id) {
+        delete modifiedUpdateBody._id;
+      }
+      if (modifiedUpdateBody.isCustom) {
+        modifiedUpdateBody.isCustom = false;
+      }
+      let udpatedUser = await this.findOneAndUpdate(
+        filter,
+        modifiedUpdateBody,
+        options
+      ).exec();
+      let data = jsonify(udpatedUser);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully modified the location",
+          data,
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "location does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+          errors: filter,
+        };
+      }
+    } catch (err) {
+      let errors = { message: err.message };
+      let message = "Internal Server Error";
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+      return {
+        errors,
+        message,
+        success: false,
+        status,
+      };
+    }
+  },
+  async remove({ filter = {} } = {}) {
+    try {
+      let options = {
+        projection: {
+          _id: 1,
+          name: 1,
+          long_name: 1,
+          location_tags: 1,
+          description: 1,
+          admin_level: 1,
+          isCustom: 1,
+          metadata: 1,
+        },
+      };
+      let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
+      let data = jsonify(removedAirqloud);
+      if (!isEmpty(data)) {
+        return {
+          success: true,
+          message: "successfully removed the location",
+          data,
+          status: HTTPStatus.OK,
+        };
+      }
+
+      if (isEmpty(data)) {
+        return {
+          success: false,
+          message: "location does not exist, please crosscheck",
+          status: HTTPStatus.NOT_FOUND,
+          errors: filter,
+        };
+      }
+    } catch (err) {
+      let errors = { message: err.message };
+      let message = err.message;
+      let status = HTTPStatus.INTERNAL_SERVER_ERROR;
+
+      return {
+        success: false,
+        message,
+        errors,
+        status,
+      };
+    }
   },
 };
 

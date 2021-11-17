@@ -19,7 +19,7 @@ public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
 
-    public static String buildQueryParameters(String average){
+    public static String buildKccaQueryParameters(String average){
 
         average = average.toLowerCase().trim();
 

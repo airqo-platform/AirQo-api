@@ -99,7 +99,7 @@ const deviceSchema = new mongoose.Schema(
       type: String,
     },
     phoneNumber: {
-      type: Number,
+      type: String,
     },
     powerType: {
       type: String,
@@ -191,6 +191,7 @@ deviceSchema.methods = {
     return {
       id: this._id,
       name: this.name,
+      mobility: this.mobility,
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
@@ -245,8 +246,7 @@ deviceSchema.statics = {
         status: HTTPStatus.OK,
       };
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -304,17 +304,51 @@ deviceSchema.statics = {
           readKey: 1,
           pictures: 1,
           height: 1,
+          mobility: 1,
           status: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
-
+        .project({
+          "site.lat_long": 0,
+          "site.country": 0,
+          "site.district": 0,
+          "site.sub_county": 0,
+          "site.parish": 0,
+          "site.county": 0,
+          "site.altitude": 0,
+          "site.altitude": 0,
+          "site.greenness": 0,
+          "site.landform_90": 0,
+          "site.landform_270": 0,
+          "site.aspect": 0,
+          "site.distance_to_nearest_road": 0,
+          "site.distance_to_nearest_primary_road": 0,
+          "site.distance_to_nearest_secondary_road": 0,
+          "site.distance_to_nearest_tertiary_road": 0,
+          "site.distance_to_nearest_unclassified_road": 0,
+          "site.distance_to_nearest_residential_road": 0,
+          "site.bearing_to_kampala_center": 0,
+          "site.distance_to_kampala_center": 0,
+          "site.generated_name": 0,
+          "site.updatedAt": 0,
+          "site.updatedAt": 0,
+          "site.city": 0,
+          "site.formatted_name": 0,
+          "site.geometry": 0,
+          "site.google_place_id": 0,
+          "site.region": 0,
+          "site.site_tags": 0,
+          "site.street": 0,
+          "site.town": 0,
+          "site.nearest_tahmo_station": 0,
+        })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = jsonify(response);
-      logger.info(`the data produced in the model -- ${JSON.stringify(data)}`);
-      if (!isEmpty(data)) {
+      logger.info(`the data produced in the model -- ${response}`);
+      if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
           message: "successfully retrieved the device details",
@@ -332,7 +366,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "unable to retrieve devices",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -352,8 +386,9 @@ deviceSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(updatedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedDevice)) {
+        let data = updatedDevice._doc;
         return {
           success: true,
           message: "successfully modified the device",
@@ -372,7 +407,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "Device model server error - modify",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -413,8 +448,9 @@ deviceSchema.statics = {
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(updatedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedDevice)) {
+        let data = updatedDevice._doc;
         return {
           success: true,
           message: "successfully modified the device",
@@ -433,7 +469,7 @@ deviceSchema.statics = {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -444,8 +480,9 @@ deviceSchema.statics = {
         projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedDevice);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedDevice)) {
+        let data = removedDevice._doc;
         return {
           success: true,
           message: "successfully deleted device from the platform",
@@ -457,13 +494,14 @@ deviceSchema.statics = {
           success: false,
           message: "device does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: { message: "device does not exist, please crosscheck" },
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "Device model server error - remove",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

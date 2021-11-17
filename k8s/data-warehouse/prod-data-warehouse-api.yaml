@@ -4,31 +4,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: airqo-prod-data-warehouse-api
+  name: airqo-datawarehouse-api
   namespace: production
 spec:
   selector:
     matchLabels:
-      app: data-warehouse
+      app: datawarehouse-api
   replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
-      maxUnavailable: 1
+      maxUnavailable: 0
   minReadySeconds: 5
   template:
     metadata:
       labels:
-        app: data-warehouse
+        app: datawarehouse-api
     spec:
       containers:
-        - name: data-warehouse
-          image: us.gcr.io/airqo-250220/airqo-data-warehouse-api:latest
+        - name: datawarehouse
+          image: us.gcr.io/airqo-250220/airqo-datawarehouse-api:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 4001
-              name: data-warehouse
           # readinessProbe:
           #   httpGet:
           #     path: /health
@@ -36,22 +35,68 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
+          resources: {}
           envFrom:
             - configMapRef:
-                name: prod-data-warehouse-config
+                name: prod-datawarehouse-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prod-datawarehouse-api-config-files
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-data-warehouse-svc
+  name: airqo-datawarehouse-api-svc
   namespace: production
 spec:
   selector:
-    app: data-warehouse
+    app: datawarehouse-api
   ports:
     - protocol: TCP
       port: 4001
       targetPort: 4001
       nodePort: 30111
   type: NodePort
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-datawarehouse-msg-broker
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: datawarehouse-msg-broker
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: datawarehouse-msg-broker
+    spec:
+      containers:
+        - name: msg-broker
+          image: us.gcr.io/airqo-250220/airqo-datawarehouse-msg-broker:latest
+          imagePullPolicy: Always
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: prod-datawarehouse-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prod-datawarehouse-api-config-files

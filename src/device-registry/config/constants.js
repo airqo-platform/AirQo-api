@@ -1,8 +1,11 @@
 const { logElement } = require("../utils/log");
-const { generateDateFormatWithoutHrs } = require("../utils/date");
 const isEmpty = require("is-empty");
 const { Schema, model } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
+const {
+  generateDateFormatWithoutHrs,
+  monthsInfront,
+} = require("../utils/date");
 
 const devConfig = {
   MONGO_URI: `mongodb://localhost/`,
@@ -45,7 +48,35 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
+  TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,
+  TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
+  GET_ROAD_METADATA_PATHS: {
+    altitude: "altitude",
+    greenness: "greenness",
+    aspect: "aspect",
+    landform_270: "landform270",
+    landform_90: "landform90",
+    bearing_to_kampala_center: "bearing",
+    distance_to_kampala_center: "distance/kampala",
+    distance_to_nearest_road: "distance/road",
+    distance_to_nearest_residential_road: "distance/residential/road",
+    distance_to_nearest_tertiary_road: "distance/tertiary/road",
+    distance_to_nearest_primary_road: "distance/primary/road",
+    distance_to_nearest_secondary_road: "distance/secondary/road",
+    distance_to_nearest_unclassified_road: "distance/unclassified/road",
+  },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
+  GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
+    const today = monthsInfront(0);
+    const oneMonthAgo = monthsInfront(-1);
+    const endDate = generateDateFormatWithoutHrs(today);
+    const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
+    if (path === "greenness") {
+      return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+    }
+    return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
+  },
   GET_ADDRESS_URL: (lat, long) => {
     return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
@@ -98,6 +129,8 @@ const defaultConfig = {
   LONGITUDE_REGEX: /^(-?(?:1[0-7]|[1-9])?\d(?:\.\d{1,18})?|180(?:\.0{1,18})?)$/,
   DEFAULT_LIMIT_FOR_QUERYING_SITES:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_SITES,
+  DEFAULT_LIMIT_FOR_QUERYING_PHOTOS:
+    process.env.DEFAULT_LIMIT_FOR_QUERYING_PHOTOS,
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,

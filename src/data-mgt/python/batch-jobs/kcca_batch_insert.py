@@ -4,7 +4,7 @@ import pandas as pd
 import requests
 
 from config import configuration as config
-from event import DeviceRegistry
+from utils import DeviceRegistry
 
 """
 :Api Documentation: https://api-guide.clarity.io/

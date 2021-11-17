@@ -4,7 +4,7 @@ metadata:
   name: stage-ingress-platform-resource
   namespace: staging
   annotations:
-    kubernetes.io/ingress.class: nginx 
+    kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
 spec:
@@ -88,3 +88,11 @@ spec:
             backend:
               serviceName: airqo-stage-incentives-api-svc
               servicePort: 3000
+          - path: /api/v1/datawarehouse
+            backend:
+              serviceName: airqo-stage-datawarehouse-api-svc
+              servicePort: 4001
+          - path: /api/v2/datawarehouse
+            backend:
+              serviceName: airqo-stage-datawarehouse-api-svc
+              servicePort: 4001
