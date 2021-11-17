@@ -1,19 +1,17 @@
-FROM golang:1.14.2
+# syntax=docker/dockerfile:1
 
-RUN go get -u github.com/gin-gonic/gin
+FROM golang:1.16-alpine
 
-ENV GO111MODULE=on
-ENV GOFLAGS=-mod=vendor
-ENV APP_USER app
-ENV APP_HOME /go/src/notifications
+WORKDIR /app
 
-ARG GROUP_ID
-ARG USER_ID
+COPY go.mod ./
+COPY go.sum ./
+RUN go mod download
 
-RUN groupadd --gid $GROUP_ID app && useradd -m -l --uid $USER_ID --gid $GROUP_ID $APP_USER
-RUN mkdir -p $APP_HOME && chown -R $APP_USER:$APP_USER $APP_HOME
+COPY . ./
 
-USER $APP_USER
-WORKDIR $APP_HOME
-EXPOSE 8010
-CMD ["bee", "run"]
+RUN go build -o /notifications-api
+
+EXPOSE 8080
+
+CMD [ "/notifications-api" ]
