@@ -1,0 +1,38 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: airqo-daily-average-job
+  namespace: staging
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 1
+  schedule: "0 1 * * *"
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    metadata:
+      name: airqo-daily-average-job
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers: 
+              - name: daily-ave-job
+                image: us.gcr.io/airqo-250220/airqo-stage-jobs:latest
+                imagePullPolicy: Always
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: "500m"
+                  limits:
+                    memory: 1Gi
+                    cpu: "2000m"
+                envFrom:
+                  - configMapRef:
+                      name: stage-airqo-daily-average-job-config
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30

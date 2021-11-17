@@ -308,7 +308,40 @@ deviceSchema.statics = {
           status: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
-
+        .project({
+          "site.lat_long": 0,
+          "site.country": 0,
+          "site.district": 0,
+          "site.sub_county": 0,
+          "site.parish": 0,
+          "site.county": 0,
+          "site.altitude": 0,
+          "site.altitude": 0,
+          "site.greenness": 0,
+          "site.landform_90": 0,
+          "site.landform_270": 0,
+          "site.aspect": 0,
+          "site.distance_to_nearest_road": 0,
+          "site.distance_to_nearest_primary_road": 0,
+          "site.distance_to_nearest_secondary_road": 0,
+          "site.distance_to_nearest_tertiary_road": 0,
+          "site.distance_to_nearest_unclassified_road": 0,
+          "site.distance_to_nearest_residential_road": 0,
+          "site.bearing_to_kampala_center": 0,
+          "site.distance_to_kampala_center": 0,
+          "site.generated_name": 0,
+          "site.updatedAt": 0,
+          "site.updatedAt": 0,
+          "site.city": 0,
+          "site.formatted_name": 0,
+          "site.geometry": 0,
+          "site.google_place_id": 0,
+          "site.region": 0,
+          "site.site_tags": 0,
+          "site.street": 0,
+          "site.town": 0,
+          "site.nearest_tahmo_station": 0,
+        })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);

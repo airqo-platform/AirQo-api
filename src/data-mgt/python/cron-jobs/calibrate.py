@@ -61,7 +61,7 @@ class CalibrationJob:
                     continue
 
                 device_name = device['name']
-                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time,
+                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time, frequency="raw",
                                                    end_time=end_time, device=device_name)
 
                 if not events:
