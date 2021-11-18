@@ -27,7 +27,7 @@ func SendMail(recipient string, body bytes.Buffer) (bool, string) {
 	if err != nil {
 		err.Error()
 		fmt.Println(err)
-		return false, err.Error()
+		return false, "Cannot process your request, please try again later"
 	}
 
 	return true, "Message sent"
