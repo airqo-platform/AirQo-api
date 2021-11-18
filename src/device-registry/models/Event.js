@@ -10,6 +10,8 @@ const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("../config/constants");
 const { isElement, isEmpty } = require("underscore");
+const aggregatePaginate = require("mongoose-aggregate-paginate-v2");
+const mongooseAggregatePaginate = require("mongoose-aggregate-paginate");
 
 const valueSchema = new Schema({
   time: {
@@ -290,6 +292,9 @@ eventSchema.pre("save", function() {
 eventSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
+
+eventSchema.plugin(aggregatePaginate);
+eventSchema.plugin(mongooseAggregatePaginate);
 
 eventSchema.methods = {
   toJSON() {
