@@ -41,6 +41,7 @@ class Config:
 
     # Calibration
     CALIBRATE_BASE_URL = os.getenv("CALIBRATE_BASE_URL")
+    CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 10)
 
     def __init__(self):
 
