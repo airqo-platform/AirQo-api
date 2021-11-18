@@ -91,7 +91,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-stage-calibrate-svc
+  name: airqo-stage-calibrate-api-svc
   namespace: staging
 spec:
   selector:
