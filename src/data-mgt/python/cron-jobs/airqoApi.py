@@ -135,7 +135,8 @@ class AirQoApi:
                 '%s' % self.calibrate_url,
                 data=request_body,
                 headers=headers,
-                verify=False
+                verify=False,
+                timeout=180
             )
 
             if api_request.status_code == 200:

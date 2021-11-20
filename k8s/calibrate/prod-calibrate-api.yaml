@@ -91,7 +91,7 @@ spec:
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-calibrate-svc
+  name: airqo-calibrate-api-svc
   namespace: production
 spec:
   selector:
