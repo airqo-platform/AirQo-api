@@ -612,6 +612,8 @@ jobs:
         run: |
           cd k8s/calibrate/
           kubectl apply -f prod-calibrate-api.yaml
+          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### events check ###
@@ -685,5 +687,6 @@ jobs:
         run: |
           cd k8s/notification-service/
           kubectl apply -f prod-notification-api.yaml
+          kubectl set image deployment/airqo-notification-api notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
