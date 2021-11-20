@@ -178,3 +178,7 @@ spec:
             backend:
               serviceName: airqo-datawarehouse-api-svc
               servicePort: 4001
+          - path: /api/v1/notifications
+            backend:
+              serviceName: airqo-notification-api-svc
+              servicePort: 8080

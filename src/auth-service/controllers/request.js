@@ -12,8 +12,7 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
 
 const { tryCatchErrors, missingQueryParams } = require("utils/errors");
-const { logObject } = require("utils/log");
-const { logText, logElement } = require("../utils/log");
+const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
 const { request } = require("../app");
 
@@ -40,18 +39,13 @@ const candidate = {
         description,
         category,
       } = req.body;
+
       const { errors, isValid } = validations.candidate(req.body);
       if (!isValid) {
         return res
           .status(HTTPStatus.BAD_REQUEST)
           .json({ success: false, errors, message: "validation error" });
       }
-      const mailOptions = {
-        from: constants.EMAIL,
-        to: `${req.body.email}`,
-        subject: "AirQo Platform JOIN request",
-        text: msgs.joinRequest,
-      };
 
       let request = {};
       request["tenant"] = tenant.toLowerCase();
@@ -64,33 +58,31 @@ const candidate = {
       request["description"] = description;
       request["category"] = category;
 
-      let responseFromUserCreation = await requestUtil.create(request);
+      await requestUtil
+        .create(request, (value) => {
+          if (value.success === true) {
+            return res.status(value.status).json({
+              success: true,
+              message: value.message,
+              candidate: value.data,
+            });
+          }
 
-      if (responseFromUserCreation.success == true) {
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: responseFromUserCreation.message,
-          candidate: responseFromUserCreation.data,
-        });
-      } else if (responseFromUserCreation.success == false) {
-        if (responseFromUserCreation.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUserCreation.message,
-            error: responseFromUserCreation.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: responseFromUserCreation.message,
-          });
-        }
-      }
+          if (value.success === false) {
+            const errors = value.errors ? value.errors : "";
+            return res.status(value.status).json({
+              success: false,
+              message: value.message,
+              errors,
+            });
+          }
+        })
+        .catch((error) => {});
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "controller server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       });
     }
   },

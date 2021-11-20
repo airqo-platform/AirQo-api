@@ -5,6 +5,7 @@ import pandas as pd
 import urllib3
 from dotenv import load_dotenv
 
+from config import configuration
 from airqoApi import AirQoApi
 from utils import to_double
 
@@ -61,7 +62,7 @@ class CalibrationJob:
                     continue
 
                 device_name = device['name']
-                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time,
+                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time, frequency="raw",
                                                    end_time=end_time, device=device_name)
 
                 if not events:
@@ -106,10 +107,10 @@ class CalibrationJob:
                 measurement_readings.sort_index(axis=0)
                 measurement_readings = measurement_readings.ffill().bfill()
 
-                averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean().round(2))
+                averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean())
 
-                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1).round(2)
-                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1).round(2)
+                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1)
+                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1)
 
                 averages["time"] = averages.index
                 averages["time"] = averages["time"].apply(lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%SZ'))
@@ -146,19 +147,23 @@ class CalibrationJob:
                 time_group["humidity"] = time_group["externalHumidity.value"]
 
                 calibrate_body = time_group.to_dict(orient="records")
-                calibrated_values = self.airqo_api.get_calibrated_values(date_time, calibrate_body)
 
-                for value in calibrated_values:
-                    try:
-                        time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
-                            = round(value["calibrated_PM2.5"], 2)
-                        time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
-                            = round(value["calibrated_PM10"], 2)
-                    except:
-                        traceback.print_exc()
-                        pass
+                for i in range(0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)):
+                    values = calibrate_body[i:i + int(configuration.CALIBRATE_REQUEST_BODY_SIZE)]
 
-                self.hourly_calibrated_measurements.extend(time_group.to_dict(orient='records'))
+                    calibrated_values = self.airqo_api.get_calibrated_values(date_time, values)
+
+                    for value in calibrated_values:
+                        try:
+                            time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
+                                = round(value["calibrated_PM2.5"], 2)
+                            time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
+                                = round(value["calibrated_PM10"], 2)
+                        except:
+                            traceback.print_exc()
+                            pass
+
+                    self.hourly_calibrated_measurements.extend(time_group.to_dict(orient='records'))
 
             except:
                 traceback.print_exc()

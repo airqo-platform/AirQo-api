@@ -2020,6 +2020,95 @@ router.get(
   ]),
   siteController.list
 );
+
+router.get("/sites/weather", siteController.listWeatherStations);
+router.get(
+  "/sites/weather/nearest",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  siteController.listNearestWeatherStation
+);
+
+router.get(
+  "/sites/airqlouds/",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("lat_long")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using lat_long"
+      )
+      .bail()
+      .trim(),
+    query("generated_name")
+      .exists()
+      .withMessage(
+        "the site identifier is missing in request, consider using generated_name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  siteController.findAirQlouds
+);
 router.post(
   "/sites",
   oneOf([
@@ -2067,6 +2156,19 @@ router.post(
         .withMessage(
           "The name should be greater than 5 and less than 50 in length"
         ),
+      body("airqlouds")
+        .if(body("airqlouds").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the airqlouds should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the airqlouds should not be empty"),
+      body("airqlouds.*")
+        .if(body("airqlouds.*").exists())
+        .isMongoId()
+        .withMessage("each airqloud should be a mongo ID"),
     ],
   ]),
   siteController.register
@@ -2348,6 +2450,19 @@ router.put(
         .if(body("description").exists())
         .notEmpty()
         .trim(),
+      body("airqlouds")
+        .if(body("airqlouds").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the airqlouds should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the airqlouds should not be empty"),
+      body("airqlouds.*")
+        .if(body("airqlouds.*").exists())
+        .isMongoId()
+        .withMessage("each airqloud should be a mongo ID"),
     ],
   ]),
   siteController.update
@@ -3185,9 +3300,59 @@ router.post(
         .bail()
         .notEmpty()
         .withMessage("the tags should not be empty"),
+      body("sites")
+        .if(body("sites").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the sites should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the sites should not be empty"),
+      body("sites.*")
+        .if(body("sites.*").exists())
+        .isMongoId()
+        .withMessage("each site should be a mongo ID"),
     ],
   ]),
   airqloudController.register
+);
+
+router.put(
+  "/airqlouds/refresh",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using name"
+      )
+      .bail()
+      .trim(),
+  ]),
+  airqloudController.refresh
 );
 
 router.get(
@@ -3242,6 +3407,68 @@ router.get(
     ],
   ]),
   airqloudController.list
+);
+
+router.get(
+  "/airqlouds/sites",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
+    query("name")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using name"
+      )
+      .bail()
+      .notEmpty()
+      .withMessage("name cannot be empty")
+      .trim(),
+    query("admin_level")
+      .exists()
+      .withMessage(
+        "the airqloud identifier is missing in request, consider using admin_level"
+      )
+      .trim()
+      .bail()
+      .notEmpty()
+      .withMessage("admin_level is empty, should not be if provided in request")
+      .bail()
+      .toLowerCase()
+      .isIn([
+        "village",
+        "district",
+        "parish",
+        "division",
+        "county",
+        "subcounty",
+        "country",
+      ])
+      .withMessage(
+        "admin_level values include: village, county, subcounty, village, parish, country, division and district"
+      ),
+  ]),
+  airqloudController.findSites
 );
 
 router.put(
@@ -3311,6 +3538,19 @@ router.put(
       body("description")
         .if(body("description").exists())
         .trim(),
+      body("sites")
+        .if(body("sites").exists())
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the sites should be an array")
+        .bail()
+        .notEmpty()
+        .withMessage("the sites should not be empty"),
+      body("sites.*")
+        .if(body("sites.*").exists())
+        .isMongoId()
+        .withMessage("each site should be a mongo ID"),
       body("metadata")
         .if(body("metadata").exists())
         .custom((value) => {

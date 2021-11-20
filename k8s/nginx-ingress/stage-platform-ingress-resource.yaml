@@ -96,3 +96,7 @@ spec:
             backend:
               serviceName: airqo-stage-datawarehouse-api-svc
               servicePort: 4001
+          - path: /api/v1/notifications
+            backend:
+              serviceName: airqo-stage-notification-api-svc
+              servicePort: 8080

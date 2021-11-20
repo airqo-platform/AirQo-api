@@ -5,6 +5,7 @@ const requestController = require("../controllers/request");
 const defaultsController = require("../controllers/defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
+const joinUtil = require("../utils/join");
 
 const {
   setJWTAuth,
@@ -51,6 +52,32 @@ router.post(
   setLocalAuth,
   authLocal,
   joinController.login
+);
+
+router.post(
+  "/emailLogin",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+    ],
+  ]),
+  joinController.loginInViaEmail
 );
 
 router.post("/verify", setJWTAuth, authJWT, joinController.verify);
@@ -499,6 +526,14 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage("the email should be provided")
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+  ]),
   requestController.create
 );
 router.get(
@@ -544,6 +579,21 @@ router.delete(
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the candidate identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ]),
   setJWTAuth,
   authJWT,
@@ -664,7 +714,7 @@ router.put(
         .withMessage("the email should not be empty")
         .bail()
         .isEmail()
-        .withMessage("the pollutant value is not a valid email address")
+        .withMessage("this is not a valid email address")
         .trim(),
       body("website")
         .if(body("website").exists())
