@@ -131,7 +131,8 @@ jobs:
 
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
-              
+            fi
+            
             if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
               echo "::set-output name=run_events_check::true"
             fi
