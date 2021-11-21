@@ -346,6 +346,8 @@ eventSchema.statics = {
     let elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
     let pm2_5 = "$average_pm2_5";
     let pm10 = "$average_pm10";
+    let s1_pm2_5 = "$pm2_5";
+    let s1_pm10 = "$pm10";
     let projection = {
       _id: 0,
     };
@@ -357,11 +359,13 @@ eventSchema.statics = {
 
     if (external === "yes") {
       projection["s2_pm10"] = 0;
+      projection["s1_pm10"] = 0;
       projection["s2_pm2_5"] = 0;
+      projection["s1_pm2_5"] = 0;
       projection[as] = 0;
     }
 
-    if (tenant !== "airqo" || frequency === "raw") {
+    if (tenant !== "airqo") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
     }
@@ -412,9 +416,11 @@ eventSchema.statics = {
         _time: "$time",
         _average_pm2_5: "$average_pm2_5",
         _pm2_5: pm2_5,
+        _s1_pm2_5: s1_pm2_5,
         _s2_pm2_5: "$s2_pm2_5",
         _average_pm10: "$average_pm10",
         _pm10: pm10,
+        _s1_pm10: s1_pm10,
         _s2_pm10: "$s2_pm10",
         _frequency: "$frequency",
         _battery: "$battery",
@@ -445,9 +451,11 @@ eventSchema.statics = {
         time: "$_time",
         average_pm2_5: "$_average_pm2_5",
         pm2_5: "$_pm2_5",
+        s1_pm2_5: "$_s1_pm2_5",
         s2_pm2_5: "$_s2_pm2_5",
         average_pm10: "$_average_pm10",
         pm10: "$_pm10",
+        s1_pm10: "$_s1_pm10",
         s2_pm10: "$_s2_pm10",
         frequency: "$_frequency",
         battery: "$_battery",
@@ -479,8 +487,11 @@ eventSchema.statics = {
     let foreignField = "name";
     let from = "devices";
     let as = "deviceDetails";
+    let s1_pm2_5 = "$pm2_5";
     let pm2_5 = "$average_pm2_5";
+    let s1_pm10 = "$pm10";
     let pm10 = "$average_pm10";
+
     let projection = {
       _id: 0,
     };
@@ -497,11 +508,13 @@ eventSchema.statics = {
 
     if (external === "yes") {
       projection["s2_pm2_5"] = 0;
+      projection["s1_pm2_5"] = 0;
       projection["s2_pm10"] = 0;
+      projection["s1_pm10"] = 0;
       projection[as] = 0;
     }
 
-    if (tenant !== "airqo" || frequency === "raw") {
+    if (tenant !== "airqo") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
     }
@@ -554,9 +567,11 @@ eventSchema.statics = {
         time: { $first: "$time" },
         average_pm2_5: { $first: "$average_pm2_5" },
         pm2_5: { $first: pm2_5 },
+        s1_pm2_5: { $first: s1_pm2_5 },
         s2_pm2_5: { $first: "$s2_pm2_5" },
         average_pm10: { $first: "$average_pm10" },
         pm10: { $first: pm10 },
+        s1_pm10: { $first: s1_pm10 },
         s2_pm10: { $first: "$s2_pm10" },
         frequency: { $first: "$frequency" },
         battery: { $first: "$battery" },
