@@ -15,6 +15,36 @@ const { registerDeviceUtil } = require("./create-device");
 const HTTPStatus = require("http-status");
 
 const createEvent = {
+  list: async (request) => {
+    const eventModel = await getModelByTenant(
+      tenant.toLowerCase(),
+      "event",
+      eventSchema
+    );
+    const options = {
+      page: 1,
+      limit: 10,
+    };
+    const myAggregate = eventModel.aggregate();
+    eventModel
+      .aggregatePaginate(myAggregate, options)
+      .then(function(results) {
+        return {
+          success: true,
+          data: results,
+          status: HTTPStatus.OK,
+        };
+      })
+      .catch((error) => {
+        return {
+          success: false,
+          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          errors: {
+            message: error,
+          },
+        };
+      });
+  },
   transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {
       let dot = new Dot(".");
