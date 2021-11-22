@@ -1,9 +1,11 @@
+const { Schema } = require("mongoose");
+const ObjectId = Schema.Types.ObjectId;
 const SiteSchema = require("../models/Site");
+const UniqueIdentifierCounterSchema = require("../models/UniqueIdentifierCounter");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const axios = require("axios");
 const { Client } = require("@googlemaps/google-maps-services-js");
 const client = new Client({});
@@ -12,7 +14,6 @@ const axiosInstance = () => {
 };
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const { request } = require("express");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
 const { distanceBtnTwoPoints } = require("./distance");
@@ -21,13 +22,20 @@ const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
 };
 
+const createAirqloudUtil = require("./create-airqloud");
+const pointInPolygon = require("point-in-polygon");
+const httpStatus = require("http-status");
+const geolib = require("geolib");
+
 const manageSite = {
   hasWhiteSpace: (name) => {
     try {
       return name.indexOf(" ") >= 0;
     } catch (e) {
       logger.error(
-        `create site util server error -- hasWhiteSpace -- ${e.message}`
+        `create site util server error -- hasWhiteSpace -- ${{
+          message: e.message,
+        }}`
       );
     }
   },
@@ -41,8 +49,227 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- check string length -- ${e.message}`
+        `create site util server error -- check string length -- ${{
+          message: e.message,
+        }}`
       );
+    }
+  },
+  findAirQlouds: async (request) => {
+    try {
+      const { query, body } = request;
+      const { id, tenant } = query;
+      let filter = {};
+      filter["_id"] = id;
+      const responseFromListSites = await manageSite.list({ tenant, filter });
+      if (responseFromListSites.success === true) {
+        let data = responseFromListSites.data;
+        if (data.length > 1 || data.length === 0) {
+          return {
+            success: false,
+            message: "unable to find one match for this site",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
+        const { latitude, longitude } = data[0];
+        let requestForAirQlouds = {};
+        requestForAirQlouds["query"] = {};
+        requestForAirQlouds["query"]["tenant"] = tenant;
+        const responseFromListAirQlouds = await createAirqloudUtil.list(
+          requestForAirQlouds
+        );
+        if (responseFromListAirQlouds.success === true) {
+          const airqlouds = responseFromListAirQlouds.data;
+          let airqloud_ids = [];
+          for (const airqloud of airqlouds) {
+            delete airqlouds.sites;
+            logObject("airqloud", airqloud);
+            let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
+            let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
+              return {
+                longitude: x[0],
+                latitude: x[1],
+              };
+            });
+            logObject("airqloudPolygon", airqloudPolygon);
+            const isSiteInAirQloud = geolib.isPointInPolygon(
+              { latitude, longitude },
+              airqloudPolygon
+            );
+
+            if (isSiteInAirQloud === true) {
+              airqloud_ids.push(airqloud._id);
+            }
+          }
+          if (!isEmpty(airqloud_ids)) {
+            return {
+              success: true,
+              message: "successfully searched for the associated AirQlouds",
+              data: airqloud_ids,
+              status: HTTPStatus.OK,
+            };
+          }
+          if (isEmpty(airqloud_ids)) {
+            return {
+              success: true,
+              message: "no associated AirQlouds found",
+              data: airqloud_ids,
+              status: HTTPStatus.OK,
+            };
+          }
+        }
+
+        if (responseFromListAirQlouds.success === false) {
+          return {
+            success: false,
+            message: responseFromListAirQlouds.message,
+            status: responseFromListAirQlouds.status,
+          };
+        }
+      }
+      if (responseFromListSites.success === false) {
+        const status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        const errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromListSites.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  findNearestWeatherStation: async (request) => {
+    try {
+      const { query, body } = request;
+      const { id, tenant } = query;
+      let filter = {};
+      filter["_id"] = id;
+      const responseFromListSites = await manageSite.list({ tenant, filter });
+      if (responseFromListSites.success === true) {
+        let data = responseFromListSites.data;
+        if (data.length > 1 || data.length === 0) {
+          return {
+            success: false,
+            message: "unable to find one match for this site",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
+        const { latitude, longitude } = data[0];
+        const responseFromListWeatherStations = await manageSite.listWeatherStations();
+        if (responseFromListWeatherStations.success === true) {
+          const nearestWeatherStation = geolib.findNearest(
+            { latitude, longitude },
+            responseFromListWeatherStations.data
+          );
+          logObject("nearestWeatherStation", nearestWeatherStation);
+          return {
+            success: true,
+            message: "successfully returned the nearest weather station",
+            data: nearestWeatherStation,
+            status: HTTPStatus.OK,
+          };
+        }
+        if (responseFromListWeatherStations.success === false) {
+          return {
+            success: false,
+            message: responseFromListWeatherStations.message,
+            status: responseFromListWeatherStations.status,
+          };
+        }
+      }
+      if (responseFromListSites.success === false) {
+        const status = responseFromListSites.status
+          ? responseFromListSites.status
+          : "";
+        const errors = responseFromListSites.errors
+          ? responseFromListSites.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromListSites.message,
+          errors,
+          status,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
+  listWeatherStations: async () => {
+    try {
+      const url = constants.TAHMO_API_GET_STATIONS_URL;
+      return await axios
+        .get(url, {
+          auth: {
+            username: constants.TAHMO_API_CREDENTIALS_USERNAME,
+            password: constants.TAHMO_API_CREDENTIALS_PASSWORD,
+          },
+        })
+        .then((res) => {
+          let responseJSON = res.data;
+          if (!isEmpty(responseJSON)) {
+            data = responseJSON.data;
+            let outputs = [];
+            data.forEach((element) => {
+              let output = {};
+              output["id"] = element.id;
+              output["code"] = element.code;
+              output["latitude"] = element.location.latitude;
+              output["longitude"] = element.location.longitude;
+              output["elevation"] = element.location.elevationmsl;
+              output["countrycode"] = element.location.countrycode;
+              output["timezone"] = element.location.timezone;
+              output["timezoneoffset"] = element.location.timezoneoffset;
+              output["name"] = element.location.name;
+              output["type"] = element.location.type;
+              outputs.push(output);
+            });
+
+            return {
+              success: true,
+              message: "successfully retrieved all the stations",
+              status: HTTPStatus.OK,
+              data: outputs,
+            };
+          }
+          if (isEmpty(responseJSON.data)) {
+            logElement("unable to list stations");
+          }
+        })
+        .catch((error) => {
+          return {
+            success: false,
+            errors: { message: error },
+            message: "Internal Server Error",
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
@@ -56,7 +283,9 @@ const manageSite = {
       return false;
     } catch (e) {
       logger.error(
-        `create site util server error -- validate site name -- ${e.message}`
+        `create site util server error -- validate site name -- ${{
+          message: e.message,
+        }}`
       );
     }
   },
@@ -64,79 +293,64 @@ const manageSite = {
   generateName: async (tenant) => {
     try {
       let filter = {
-        lat_long: "4_4",
+        NAME: "site_0",
       };
-      let responseFromListSite = await getModelByTenant(
+
+      let update = {
+        $inc: { COUNT: 1 },
+      };
+
+      let responseFromModifyUniqueIdentifierCounter = await getModelByTenant(
         tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).list({
-        tenant,
+        "uniqueIdentifierCounter",
+        UniqueIdentifierCounterSchema
+      ).modify({
         filter,
+        update,
       });
 
-      if (responseFromListSite.success === false) {
+      if (responseFromModifyUniqueIdentifierCounter.success === false) {
         logger.error(
           `unable to find the counter document, please first create it`
         );
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
-          : "";
+        let errors = responseFromModifyUniqueIdentifierCounter.errors
+          ? responseFromModifyUniqueIdentifierCounter.errors
+          : {};
+        logObject("error", errors);
 
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
+        let status = responseFromModifyUniqueIdentifierCounter.status
+          ? responseFromModifyUniqueIdentifierCounter.status
           : "";
 
         return {
           success: false,
           message:
             "unable to generate unique name for this site, contact support",
-          error,
+          errors,
           status,
         };
       }
-      let update = {
-        $inc: { count: 1 },
-      };
-      let responseFromUpdateSite = await getModelByTenant(
-        tenant.toLowerCase(),
-        "site",
-        SiteSchema
-      ).modify({
-        filter,
-        update,
-      });
-      if (responseFromUpdateSite.success === true) {
-        let count = responseFromUpdateSite.data.count;
-        let siteName = `site_${count}`;
+
+      if (responseFromModifyUniqueIdentifierCounter.success === true) {
+        const status = responseFromModifyUniqueIdentifierCounter.status
+          ? responseFromModifyUniqueIdentifierCounter.status
+          : "";
+        const count = responseFromModifyUniqueIdentifierCounter.data.COUNT;
+        const siteName = `site_${count}`;
         return {
           success: true,
-          message: "successfully generated the unique site name",
+          message: "unique name generated for this site",
           data: siteName,
-        };
-      }
-
-      if (responseFromUpdateSite.success === false) {
-        let error = responseFromUpdateSite.error
-          ? responseFromUpdateSite.error
-          : "";
-
-        let status = responseFromUpdateSite.status
-          ? responseFromUpdateSite.status
-          : "";
-
-        return {
-          success: false,
-          message: responseFromUpdateSite.message,
-          error,
           status,
         };
       }
     } catch (e) {
-      logger.error(`generateName util server error -- ${e.message}`);
+      logger.error(
+        `generateName util server error -- ${{ message: e.message }}`
+      );
       return {
         success: false,
-        error: e.message,
+        errors: { message: { message: e.message } },
         message: "generateName -- createSite util server error",
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -145,10 +359,18 @@ const manageSite = {
 
   create: async (tenant, req) => {
     try {
-      let { body } = req;
+      const { body, query } = req;
+      const { tenant } = query;
+      const { name, latitude, longitude, airqlouds } = body;
       let request = {};
-      request["body"] = body;
-      let { name, latitude, longitude } = body;
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["latitude"] = latitude;
+      request["body"]["longitude"] = longitude;
+      request["body"]["airqlouds"] = airqlouds;
+      request["body"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+
       let generated_name = null;
       let requestBodyForCreatingSite = {};
 
@@ -171,13 +393,17 @@ const manageSite = {
       }
 
       if (responseFromGenerateName.success === false) {
-        let error = responseFromGenerateName.error
-          ? responseFromGenerateName.error
+        let errors = responseFromGenerateName.errors
+          ? responseFromGenerateName.errors
+          : "";
+        let status = responseFromGenerateName.status
+          ? responseFromGenerateName.status
           : "";
         return {
           success: false,
           message: responseFromGenerateName.message,
-          error,
+          errors,
+          status,
         };
       }
 
@@ -190,13 +416,17 @@ const manageSite = {
       }
 
       if (responseFromGenerateMetadata.success === false) {
-        let error = responseFromGenerateMetadata.error
-          ? responseFromGenerateMetadata.error
+        let errors = responseFromGenerateMetadata.errors
+          ? responseFromGenerateMetadata.errors
+          : "";
+        let status = responseFromGenerateMetadata.status
+          ? responseFromGenerateMetadata.status
           : "";
         return {
           success: false,
           message: responseFromGenerateMetadata.message,
-          error,
+          errors,
+          status,
         };
       }
 
@@ -208,21 +438,20 @@ const manageSite = {
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
-        let jsonifyCreatedSite = jsonify(createdSite);
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : "";
         return {
           success: true,
           message: "Site successfully created",
-          data: jsonifyCreatedSite,
+          data: createdSite,
           status,
         };
       }
 
       if (responseFromCreateSite.success === false) {
-        let error = responseFromCreateSite.error
-          ? responseFromCreateSite.error
+        let errors = responseFromCreateSite.errors
+          ? responseFromCreateSite.errors
           : "";
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
@@ -230,15 +459,15 @@ const manageSite = {
         return {
           success: false,
           message: responseFromCreateSite.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
       return {
         success: false,
-        message: "create site util server error -- create",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: { message: e.message } },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -255,16 +484,20 @@ const manageSite = {
         update,
       });
       if (responseFromModifySite.success === true) {
+        let status = responseFromModifySite.status
+          ? responseFromModifySite.status
+          : "";
         return {
           success: true,
           message: responseFromModifySite.message,
           data: responseFromModifySite.data,
+          status,
         };
       }
 
       if (responseFromModifySite.success === false) {
-        let error = responseFromModifySite.error
-          ? responseFromModifySite.error
+        let errors = responseFromModifySite.errors
+          ? responseFromModifySite.errors
           : "";
 
         let status = responseFromModifySite.status
@@ -274,16 +507,16 @@ const manageSite = {
         return {
           success: false,
           message: responseFromModifySite.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
-      logElement("update Sites util", e.message);
+      logElement("update Sites util", { message: e.message });
       return {
         success: false,
         message: "create site util server error -- update",
-        error: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -296,14 +529,86 @@ const manageSite = {
       let trimmedName = shortenedName.trim();
       return trimmedName.toLowerCase();
     } catch (error) {
-      logger.error(`sanitiseName -- create site util -- ${error.message}`);
+      logger.error(
+        `sanitiseName -- create site util -- ${{ message: error.message }}`
+      );
+    }
+  },
+
+  getRoadMetadata: async (latitude, longitude) => {
+    try {
+      let response = {};
+      let promises = [];
+      const paths = constants.GET_ROAD_METADATA_PATHS;
+      const arrayOfPaths = Object.entries(paths);
+      for (const [key, path] of arrayOfPaths) {
+        const url = constants.GET_ROAD_METADATA({
+          path,
+          latitude,
+          longitude,
+        });
+        promises.push(
+          axios
+            .get(url)
+            .then((res) => {
+              let responseJSON = res.data;
+              if (!isEmpty(responseJSON.data)) {
+                let data = responseJSON.data;
+                response[key] = data;
+              }
+              if (isEmpty(responseJSON.data)) {
+                logElement("unable to get the information for", key);
+              }
+            })
+            .catch((error) => {
+              return {
+                success: false,
+                errors: { message: error },
+                message: "constants server side error",
+                status: httpStatus.INTERNAL_SERVER_ERROR,
+              };
+            })
+        );
+      }
+
+      return await Promise.all(promises).then(() => {
+        if (!isEmpty(response)) {
+          return {
+            success: true,
+            message: "successfully retrieved the road metadata",
+            status: HTTPStatus.OK,
+            data: response,
+          };
+        }
+
+        if (isEmpty(response)) {
+          return {
+            success: false,
+            message: "unable to retrieve any road metadata",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
   generateMetadata: async (req) => {
     try {
-      let { latitude, longitude } = req.body;
-      let body = req.body;
+      let { query, body } = req;
+      let { latitude, longitude } = body;
+      let { tenant, id } = query;
+      let roadResponseData = {};
+      let altitudeResponseData = {};
+      let reverseGeoCodeResponseData = {};
+
+      logElement("the tenant in metadata", tenant);
 
       logger.info(`the body sent to generate metadata -- ${body}`);
 
@@ -314,15 +619,35 @@ const manageSite = {
 
       logger.info(`responseFromGetAltitude -- ${responseFromGetAltitude}`);
       if (responseFromGetAltitude.success === true) {
-        body.altitude = responseFromGetAltitude.data;
+        altitudeResponseData["altitude"] = responseFromGetAltitude.data;
       }
 
       if (responseFromGetAltitude.success === false) {
-        let error = responseFromGetAltitude.error
-          ? responseFromGetAltitude.error
+        let errors = responseFromGetAltitude.errors
+          ? responseFromGetAltitude.errors
           : "";
         logger.error(
-          `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${error}`
+          `unable to retrieve the altitude for this site, ${responseFromGetAltitude.message} and ${errors}`
+        );
+      }
+
+      let responseFromGetRoadMetadata = await manageSite.getRoadMetadata(
+        latitude,
+        longitude
+      );
+
+      logObject("responseFromGetRoadMetadata", responseFromGetRoadMetadata);
+
+      if (responseFromGetRoadMetadata.success === true) {
+        roadResponseData = responseFromGetRoadMetadata.data;
+      }
+
+      if (responseFromGetRoadMetadata.success === false) {
+        let errors = responseFromGetRoadMetadata.errors
+          ? responseFromGetRoadMetadata.errors
+          : "";
+        logger.error(
+          `unable to retrieve the road metadata, ${responseFromGetRoadMetadata.message} and ${errors} `
         );
       }
 
@@ -334,33 +659,47 @@ const manageSite = {
         `responseFromReverseGeoCode -- ${responseFromReverseGeoCode}`
       );
       if (responseFromReverseGeoCode.success === true) {
+        reverseGeoCodeResponseData = responseFromReverseGeoCode.data;
         let google_site_tags = responseFromReverseGeoCode.data.site_tags;
         let existing_site_tags = body.site_tags ? body.site_tags : [];
         let merged_site_tags = [...google_site_tags, ...existing_site_tags];
         body["site_tags"] = merged_site_tags;
-        let requestBody = { ...responseFromReverseGeoCode.data, ...body };
+        let finalResponseBody = {
+          ...reverseGeoCodeResponseData,
+          ...body,
+          ...roadResponseData,
+          ...altitudeResponseData,
+        };
+        let status = responseFromReverseGeoCode.status
+          ? responseFromReverseGeoCode.status
+          : "";
         return {
           success: true,
           message: "successfully generated the metadata",
-          data: requestBody,
+          data: finalResponseBody,
+          status,
         };
       }
 
       if (responseFromReverseGeoCode.success === false) {
-        let error = responseFromReverseGeoCode.error
-          ? responseFromReverseGeoCode.error
+        let errors = responseFromReverseGeoCode.errors
+          ? responseFromReverseGeoCode.errors
+          : "";
+        let status = responseFromReverseGeoCode.status
+          ? responseFromReverseGeoCode.status
           : "";
         return {
           success: false,
           message: responseFromReverseGeoCode.message,
-          error,
+          errors,
+          status,
         };
       }
     } catch (e) {
       return {
         success: false,
-        message: "create site util server error -- generate metadata",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: { message: e.message } },
       };
     }
   },
@@ -373,9 +712,11 @@ const manageSite = {
 
   refresh: async (tenant, req) => {
     try {
+      const { id } = req.query;
       let filter = generateFilter.sites(req);
       let update = {};
       let request = {};
+      request["query"] = {};
       let generated_name = null;
       logObject("the filter being used to filter", filter);
 
@@ -395,8 +736,8 @@ const manageSite = {
       }
 
       if (responseFromListSite.success === false) {
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
+        let errors = responseFromListSite.errors
+          ? responseFromListSite.errors
           : "";
         let status = responseFromListSite.status
           ? responseFromListSite.status
@@ -404,7 +745,7 @@ const manageSite = {
         return {
           message: responseFromListSite.message,
           status,
-          error,
+          errors,
         };
       }
 
@@ -419,11 +760,6 @@ const manageSite = {
         longitude,
       } = request.body;
 
-      /**
-       * we could move all these name vaslidations and
-       * sanitisations to the api route level before
-       * coming to to the utils
-       */
       if (!name) {
         let siteNames = { name, parish, county, district };
         let availableName = manageSite.pickAvailableValue(siteNames);
@@ -446,20 +782,68 @@ const manageSite = {
           request["body"]["generated_name"] = generated_name;
         }
         if (responseFromGenerateName.success === false) {
-          let error = responseFromGenerateName.error
-            ? responseFromGenerateName.error
+          let errors = responseFromGenerateName.errors
+            ? responseFromGenerateName.errors
             : "";
           return {
             success: false,
             message: responseFromGenerateName.message,
-            error,
+            errors,
           };
         }
       }
 
+      let requestForAirQloudsAndWeatherStations = {};
+      requestForAirQloudsAndWeatherStations["query"] = {};
+      requestForAirQloudsAndWeatherStations["query"]["tenant"] = tenant;
+      requestForAirQloudsAndWeatherStations["query"]["id"] = id;
+      let responseFromFindAirQlouds = await manageSite.findAirQlouds(
+        requestForAirQloudsAndWeatherStations
+      );
+
+      if (responseFromFindAirQlouds.success === true) {
+        request["body"]["airqlouds"] = responseFromFindAirQlouds.data;
+      }
+
+      if (responseFromFindAirQlouds.success === false) {
+        logObject(
+          "responseFromFindAirQlouds was unsuccessful",
+          responseFromFindAirQlouds
+        );
+      }
+
+      const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
+        requestForAirQloudsAndWeatherStations
+      );
+
+      logObject(
+        "responseFromNearestWeatherStation",
+        responseFromNearestWeatherStation
+      );
+
+      if (responseFromNearestWeatherStation.success === true) {
+        let nearest_tahmo_station = responseFromNearestWeatherStation.data;
+        delete nearest_tahmo_station.elevation;
+        delete nearest_tahmo_station.countrycode;
+        delete nearest_tahmo_station.timezoneoffset;
+        delete nearest_tahmo_station.name;
+        delete nearest_tahmo_station.type;
+        request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
+      }
+
+      if (responseFromNearestWeatherStation.success === false) {
+        logObject(
+          "unable to find the nearest weather station",
+          responseFromNearestWeatherStation
+        );
+      }
+
+      request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
         request
       );
+
+      logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
 
       logger.info(
         `refresh -- responseFromGenerateMetadata-- ${responseFromGenerateMetadata}`
@@ -467,6 +851,17 @@ const manageSite = {
 
       if (responseFromGenerateMetadata.success === true) {
         update = responseFromGenerateMetadata.data;
+      }
+
+      if (responseFromGenerateMetadata.success === false) {
+        let errors = responseFromGenerateMetadata.errors
+          ? responseFromGenerateMetadata.errors
+          : "";
+        return {
+          success: false,
+          message: responseFromGenerateMetadata.message,
+          errors,
+        };
       }
 
       logObject("the update", update);
@@ -492,40 +887,18 @@ const manageSite = {
       }
 
       if (responseFromModifySite.success === false) {
-        let error = responseFromModifySite.error
-          ? responseFromModifySite.error
+        let errors = responseFromModifySite.errors
+          ? responseFromModifySite.errors
           : "";
         return {
           success: false,
           message: responseFromModifySite.message,
-          error,
-        };
-      }
-
-      if (responseFromGenerateMetadata.success === false) {
-        let error = responseFromGenerateMetadata.error
-          ? responseFromGenerateMetadata.error
-          : "";
-        return {
-          success: false,
-          message: responseFromGenerateMetadata.message,
-          error,
-        };
-      }
-
-      if (responseFromListSite.success === false) {
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
-          : "";
-        return {
-          success: false,
-          message: responseFromListSite.message,
-          error,
+          errors,
         };
       }
     } catch (error) {
       return {
-        error: error.message,
+        errors: { message: error.message },
         message: "create site util -- server error -- refresh site data",
         success: false,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
@@ -535,6 +908,12 @@ const manageSite = {
 
   delete: async (tenant, filter) => {
     try {
+      return {
+        success: false,
+        message: "feature temporarity disabled --coming soon",
+        status: HTTPStatus.SERVICE_UNAVAILABLE,
+        errors: { message: "Service Unavailable" },
+      };
       let responseFromRemoveSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -551,8 +930,8 @@ const manageSite = {
       }
 
       if (responseFromRemoveSite.success === false) {
-        let error = responseFromRemoveSite.error
-          ? responseFromRemoveSite.error
+        let errors = responseFromRemoveSite.errors
+          ? responseFromRemoveSite.errors
           : "";
 
         let status = responseFromRemoveSite.status
@@ -562,22 +941,24 @@ const manageSite = {
         return {
           success: false,
           message: responseFromRemoveSite.message,
-          error,
+          errors,
           status,
         };
       }
     } catch (e) {
-      logElement("delete Site util", e.message);
+      logElement("delete Site util", { message: e.message });
       return {
         success: false,
         message: "delete Site util server error",
-        error: e.message,
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   list: async ({ tenant, filter, _skip, _limit }) => {
     try {
+      logObject("the filter", filter);
+      logElement("the tenant", tenant);
       let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
@@ -587,9 +968,10 @@ const manageSite = {
         _limit,
         _skip,
       });
+
       if (responseFromListSite.success === false) {
-        let error = responseFromListSite.error
-          ? responseFromListSite.error
+        let errors = responseFromListSite.errors
+          ? responseFromListSite.errors
           : "";
 
         let status = responseFromListSite.status
@@ -598,7 +980,7 @@ const manageSite = {
         return {
           success: false,
           message: responseFromListSite.message,
-          error,
+          errors,
           status,
         };
       }
@@ -618,11 +1000,11 @@ const manageSite = {
         };
       }
     } catch (e) {
-      logElement("list Sites util", e.message);
+      logElement("list Sites util", { message: e.message });
       return {
         success: false,
-        message: "list Sites util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -631,7 +1013,7 @@ const manageSite = {
   formatSiteName: (name) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -682,7 +1064,7 @@ const manageSite = {
       return {
         success: false,
         message: "unable to transform the address",
-        error: e.message,
+        errors: { message: { message: e.message } },
       };
     }
   },
@@ -695,21 +1077,21 @@ const manageSite = {
         .get(url)
         .then(async (response) => {
           let responseJSON = response.data;
-          if (responseJSON) {
+          if (!isEmpty(responseJSON.results)) {
             let responseFromTransformAddress = manageSite.retrieveInformationFromAddress(
               responseJSON
             );
-            if (responseFromTransformAddress.success == true) {
+            if (responseFromTransformAddress.success === true) {
               return {
                 success: true,
                 data: responseFromTransformAddress.data,
                 message: responseFromTransformAddress.message,
               };
-            } else if (responseFromTransformAddress.success == false) {
-              if (responseFromTransformAddress.error) {
+            } else if (responseFromTransformAddress.success === false) {
+              if (responseFromTransformAddress.errors) {
                 return {
                   success: false,
-                  error: responseFromTransformAddress.error,
+                  errors: responseFromTransformAddress.errors,
                   message: responseFromTransformAddress.message,
                 };
               } else {
@@ -723,13 +1105,18 @@ const manageSite = {
             return {
               success: false,
               message: "unable to get the site address details",
+              status: HTTPStatus.NOT_FOUND,
+              errors: {
+                message:
+                  "review the GPS coordinates provided, we cannot get corresponding metadata",
+              },
             };
           }
         })
         .catch((error) => {
           return {
             success: false,
-            error: error.message,
+            errors: { message: error },
             message: "constants server side error",
           };
         });
@@ -737,7 +1124,7 @@ const manageSite = {
       return {
         success: false,
         message: "unable to get the address values",
-        error: e.message,
+        errors: { message: { message: e.message } },
       };
     }
   },
@@ -745,14 +1132,14 @@ const manageSite = {
   getDistance: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getLandform: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -770,27 +1157,29 @@ const manageSite = {
           axiosInstance()
         )
         .then((r) => {
-          console.log(r.data.results[0].elevation);
           return {
             success: true,
             message: "successfully retrieved the altitude details",
             data: r.data.results[0].elevation,
+            status: HTTPStatus.OK,
           };
         })
         .catch((e) => {
-          logElement("get altitude server error", e.message);
+          logElement("get altitude server error", { message: e.message });
           return {
             success: false,
             message: "get altitude server error",
-            error: e,
+            errors: { message: e },
+            status: HTTPStatus.BAD_GATEWAY,
           };
         });
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
       return {
         success: false,
         message: "get altitude server error",
-        error: e.message,
+        errors: { message: e.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -798,49 +1187,49 @@ const manageSite = {
   getTrafficFactor: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getGreenness: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getTerrain: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getAspect: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getRoadIntesity: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getRoadStatus: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
   getLandUse: (lat, long) => {
     try {
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -848,7 +1237,7 @@ const manageSite = {
     try {
       return `${lat}_${long}`;
     } catch (e) {
-      logElement("server error", e.message);
+      logElement("server error", { message: e.message });
     }
   },
 
@@ -905,7 +1294,7 @@ const manageSite = {
       return {
         success: false,
         message: "Internal Server Error",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

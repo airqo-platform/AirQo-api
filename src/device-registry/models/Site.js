@@ -1,5 +1,4 @@
 const { Schema } = require("mongoose");
-const mongoose = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
@@ -15,6 +14,10 @@ const siteSchema = new Schema(
       trim: true,
       required: [true, "name is required!"],
     },
+    search_name: {
+      type: String,
+      trim: true,
+    },
     generated_name: {
       type: String,
       trim: true,
@@ -25,6 +28,12 @@ const siteSchema = new Schema(
       type: ObjectId,
       trim: true,
     },
+    airqlouds: [
+      {
+        type: ObjectId,
+        ref: "airqloud",
+      },
+    ],
     formatted_name: {
       type: String,
       trim: true,
@@ -249,11 +258,12 @@ siteSchema.methods = {
       _id: this._id,
       name: this.name,
       generated_name: this.generated_name,
+      search_name: this.search_name,
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
       latitude: this.latitude,
       longitude: this.longitude,
-      airqloud_id: this.airqloud_id,
+      airqlouds: this.airqlouds,
       createdAt: this.createdAt,
       description: this.description,
       site_tags: this.site_tags,
@@ -299,6 +309,9 @@ siteSchema.statics = {
     try {
       let modifiedArgs = args;
       modifiedArgs.description = modifiedArgs.name;
+
+      logObject("modifiedArgs", modifiedArgs);
+
       let data = await this.create({
         ...modifiedArgs,
       });
@@ -317,8 +330,7 @@ siteSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
-      logObject("the error", e);
+      logObject("the error", err);
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
@@ -327,7 +339,7 @@ siteSchema.statics = {
       });
 
       return {
-        error: response,
+        errors: response,
         message,
         success: false,
         status,
@@ -348,6 +360,12 @@ siteSchema.statics = {
           foreignField: "site_id",
           as: "devices",
         })
+        .lookup({
+          from: "airqlouds",
+          localField: "airqlouds",
+          foreignField: "_id",
+          as: "airqlouds",
+        })
         .sort({ createdAt: -1 })
         .project({
           _id: 1,
@@ -356,18 +374,17 @@ siteSchema.statics = {
           longitude: 1,
           description: 1,
           site_tags: 1,
+          search_name: 1,
           lat_long: 1,
           country: 1,
           district: 1,
           sub_county: 1,
           parish: 1,
           region: 1,
-          geometry: 1,
           village: 1,
           city: 1,
           street: 1,
           generated_name: 1,
-          formatted_name: 1,
           county: 1,
           altitude: 1,
           greenness: 1,
@@ -385,14 +402,48 @@ siteSchema.statics = {
           distance_to_kampala_center: 1,
           nearest_tahmo_station: 1,
           devices: "$devices",
+          airqlouds: "$airqlouds",
+        })
+        .project({
+          "airqlouds.location": 0,
+          "airqlouds.airqloud_tags": 0,
+          "airqlouds.long_name": 0,
+          "airqlouds.createdAt": 0,
+          "airqlouds.updatedAt": 0,
+          "airqlouds.sites": 0,
+          "airqlouds.__v": 0,
+        })
+        .project({
+          "devices.height": 0,
+          "devices.description": 0,
+          "devices.isUsedForCollocation": 0,
+          "devices.isPrimaryInLocation": 0,
+          "devices.createdAt": 0,
+          "devices.updatedAt": 0,
+          "devices.locationName": 0,
+          "devices.siteName": 0,
+          "devices.site_id": 0,
+          "devices.isRetired": 0,
+          "devices.long_name": 0,
+          "devices.nextMaintenance": 0,
+          "devices.readKey": 0,
+          "devices.writeKey": 0,
+          "devices.deployment_date": 0,
+          "devices.recall_date": 0,
+          "devices.maintenance_date": 0,
+          "devices.isActive": 0,
+          "devices.product_name": 0,
+          "devices.owner": 0,
+          "devices.device_manufacturer": 0,
+          "devices.channelID": 0,
         })
         .skip(_skip)
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = jsonify(response);
+      let data = response;
 
-      if (!isEmpty(data)) {
+      if (!isEmpty(response)) {
         return {
           success: true,
           message: "successfully retrieved the site details",
@@ -417,30 +468,49 @@ siteSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true };
+      let options = { new: true, useFindAndModify: false, upsert: true };
       let modifiedUpdateBody = update;
-      if (modifiedUpdateBody._id) {
+      modifiedUpdateBody["$addToSet"] = {};
+      if (update._id) {
         delete modifiedUpdateBody._id;
       }
-      if (modifiedUpdateBody.latitude) {
+      if (update.latitude) {
         delete modifiedUpdateBody.latitude;
       }
-      if (modifiedUpdateBody.longitude) {
+      if (update.longitude) {
         delete modifiedUpdateBody.longitude;
       }
-      if (modifiedUpdateBody.generated_name) {
+      if (update.generated_name) {
         delete modifiedUpdateBody.generated_name;
       }
-      if (modifiedUpdateBody.lat_long) {
+      if (update.lat_long) {
         delete modifiedUpdateBody.lat_long;
       }
+
+      if (update.site_tags) {
+        modifiedUpdateBody["$addToSet"]["site_tags"] = {};
+        modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
+          update.site_tags;
+        delete modifiedUpdateBody["site_tags"];
+      }
+
+      if (update.airqlouds) {
+        modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
+        modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
+          update.airqlouds;
+        delete modifiedUpdateBody["airqlouds"];
+      }
+
       let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(updatedSite);
-      if (!isEmpty(data)) {
+
+      logObject("updatedSite", updatedSite._doc);
+      if (!isEmpty(updatedSite)) {
+        let data = updatedSite._doc;
+
         return {
           success: true,
           message: "successfully modified the site",
@@ -452,13 +522,14 @@ siteSchema.statics = {
           success: false,
           message: "site does not exist, please crosscheck",
           status: HTTPStatus.NOT_FOUND,
+          errors: { message: "site does not exist" },
         };
       }
     } catch (error) {
       return {
         success: false,
         message: "Site model server error - modify",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

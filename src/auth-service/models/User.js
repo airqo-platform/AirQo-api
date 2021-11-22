@@ -6,7 +6,6 @@ const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const jsonify = require("../utils/jsonify");
 const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
 const { log } = require("debug");
@@ -162,10 +161,12 @@ UserSchema.statics = {
       let response = {};
       let message = "validation errors for some of the provided fields";
       let status = HTTPStatus.CONFLICT;
-      Object.entries(err.keyValue).forEach(([key, value]) => {
-        return (response[key] = `the ${key} must be unique`);
-      });
-      logObject("the response", response);
+      if (err.keyValue) {
+        Object.entries(err.keyValue).forEach(([key, value]) => {
+          return (response[key] = `the ${key} must be unique`);
+        });
+      }
+
       return {
         error: response,
         message,
@@ -181,8 +182,8 @@ UserSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(users);
-      if (!isEmpty(data)) {
+      if (!isEmpty(users)) {
+        let data = users;
         return {
           success: true,
           data,
@@ -214,17 +215,16 @@ UserSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdate = update;
-      logObject("modifiedUpdate", modifiedUpdate);
       if (update.password) {
         modifiedUpdate.password = bcrypt.hashSync(update.password, saltRounds);
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      let updatedUser = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
-      if (!isEmpty(data)) {
+      if (!isEmpty(updatedUser)) {
+        let data = updatedUser._doc;
         return {
           success: true,
           message: "successfully modified the user",
@@ -250,8 +250,9 @@ UserSchema.statics = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
       let removedUser = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedUser);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedUser)) {
+        let data = removedUser._doc;
         return {
           success: true,
           message: "successfully removed the user",

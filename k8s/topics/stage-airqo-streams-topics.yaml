@@ -56,3 +56,33 @@ spec:
   replicas: 1
   config:
     retention.ms: 3600000 # 1 hour
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: datawarehouse-input-topic 
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  topicName: datawarehouse-input-topic 
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 3600000 # 1 hour
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: datawarehouse-output-topic 
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  topicName: datawarehouse-output-topic 
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 3600000 # 1 hour
