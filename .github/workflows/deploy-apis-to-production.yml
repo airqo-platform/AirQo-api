@@ -674,7 +674,7 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
       
       - name: Build and Push Docker Image
         run: |
