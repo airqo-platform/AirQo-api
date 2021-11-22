@@ -80,7 +80,7 @@ def str_to_date(st):
 
 
 def date_to_str(mydate):
-    """Converts date string to datetime
+    """Converts datetime to date string
 
     Parameters
     ----------
@@ -100,7 +100,7 @@ def get_pm_data(name,
                 lat,
                 lon,
                 tenant, 
-                frequency='raw', 
+                frequency='hourly', 
                 verbose=True, 
                 start_time=(datetime.utcnow()-timedelta(days=7)).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 end_time=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')):
@@ -167,8 +167,8 @@ def get_pm_data(name,
     modified_result = [{'time': x['time'],
                      'latitude': lat,
                      'longitude': lon,
-                     'pm2_5': x['pm2_5']['value'],
-                     #'calibrated_pm2_5': x['pm2_5']['calibratedValue'],
+                     #'pm2_5': x['pm2_5']['value'],
+                     'pm2_5': x['average_pm2_5']['calibratedValue'],
                      #'pm10': x['pm10']['value'],
                     } for x in result]
     return pd.DataFrame(modified_result)
@@ -177,5 +177,5 @@ def get_pm_data(name,
 if __name__=='__main__':
     #example: getting data for one device
     test_array = get_pm_data('aq_29', 0.3075, 32.6206, 'airqo')
-    print(test_array)
+    print(test_array.head())
         

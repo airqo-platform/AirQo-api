@@ -89,13 +89,10 @@ def preprocessing(df):
     df = df.drop_duplicates()
     df['time'] = pd.to_datetime(df['time'])
     df = df.sort_values(by='time',ascending=False)
-    df = df.set_index('time')
-    hourly_df = df.resample('H').mean()
-    hourly_df.dropna(inplace=True)
-    hourly_df= hourly_df.reset_index()
-    hourly_df['time'] = [time.timestamp()/3600 for time in hourly_df['time']]
-    hourly_df = hourly_df[['longitude', 'latitude', 'time', 'pm2_5']]
-    return hourly_df
+    df.dropna(inplace=True)
+    df['time'] = [time.timestamp()/3600 for time in df['time']]
+    df = df[['longitude', 'latitude', 'time', 'pm2_5']]
+    return df
 
 def train_model(X, Y, airqloud):
     '''
@@ -125,17 +122,26 @@ def train_model(X, Y, airqloud):
     elif airqloud == 'kawempe':
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        m.likelihood.variance.assign(400)
+        #m.likelihood.variance.assign(400)
         set_trainable(m.kernel.kernels[0].variance, False)
-        set_trainable(m.likelihood.variance, False)
+        #set_trainable(m.likelihood.variance, False)
     elif airqloud == 'kira':
         k = gpflow.kernels.RBF() + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        m.likelihood.variance.assign(400)
-        set_trainable(m.likelihood.variance, False)
+       # m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
+    elif airqloud == 'jinja':
+        k = gpflow.kernels.RBF(lengthscales = [0.008, 0.008, 2]) + gpflow.kernels.Bias()
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+        #m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
     else:
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
         m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+        #m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
+
+    if airqloud != 'kampala':
         m.likelihood.variance.assign(400)
         set_trainable(m.likelihood.variance, False)
     
@@ -186,8 +192,8 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
         
     result = []
     for i in range(pred_set.shape[0]):
-        result.append({'latitude':locations_flat[i][1],
-                      'longitude':locations_flat[i][0],
+        result.append({'latitude':new_array[i][1],
+                      'longitude':new_array[i][0],
                       'predicted_value': means[i],
                       'variance':variances[i],
                       'interval':interval[i],
@@ -217,7 +223,11 @@ def periodic_function(tenant, airqloud, aq_id):
     devices = get_devices_in_airqloud(poly, tenant)
     if len(devices)>0:
         for device in devices:
-            df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+            df = pd.DataFrame()
+            try:
+                df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+            except:
+                pass
             if df.shape[0]!=0:
                 prep_df = preprocessing(df)
                 Xchan = np.asarray(prep_df.iloc[:, :3])
@@ -237,10 +247,14 @@ def get_all_airqlouds(tenant):
     airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
+    #Esxcluding Uganda
+    del names[-1:]
+    del aq_ids[-1:]
     return names, aq_ids
 
 if __name__=='__main__':
     airqloud_names, aq_ids = get_all_airqlouds('airqo')
+    print(airqloud_names)
     parser = argparse.ArgumentParser(description='save gpmodel prediction.')
     parser.add_argument('--tenant',
                         default="airqo",
