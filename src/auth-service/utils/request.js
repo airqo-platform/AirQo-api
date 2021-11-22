@@ -8,6 +8,11 @@ var jsonify = require("./jsonify");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const validationsUtil = require("./validations");
+constants = require("../config/constants");
+const kickbox = require("kickbox")
+  .client(`${constants.KICKBOX_API_KEY}`)
+  .kickbox();
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -18,7 +23,7 @@ const CandidateModel = (tenant) => {
 };
 
 const request = {
-  create: async (request) => {
+  create: async (request, callback) => {
     try {
       let {
         firstName,
@@ -32,52 +37,80 @@ const request = {
         tenant,
       } = request;
 
-      let responseFromCreateCandidate =
-        CandidateModel(tenant).register(request);
+      await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
+        if (value.success == false) {
+          const errors = value.errors ? value.errors : "";
+          callback({
+            success: false,
+            message: value.message,
+            errors,
+            status: value.status,
+          });
+        }
+      });
 
-      let createdCandidate = await responseFromCreateCandidate.data;
-      let jsonifyCreatedCandidate = jsonify(createdCandidate);
+      const responseFromCreateCandidate = await CandidateModel(tenant).register(
+        request
+      );
 
-      if (responseFromCreateCandidate.success == true) {
+      if (responseFromCreateCandidate.success === true) {
+        let createdCandidate = await responseFromCreateCandidate.data;
         let responseFromSendEmail = await mailer.candidate(
           firstName,
           lastName,
           email,
           tenant
         );
-        if (responseFromSendEmail.success == true) {
-          return {
+        if (responseFromSendEmail.success === true) {
+          const status = responseFromSendEmail.status
+            ? responseFromSendEmail.status
+            : "";
+          callback({
             success: true,
             message: "candidate successfully created",
-            data: jsonifyCreatedCandidate,
-          };
-        } else if (responseFromSendEmail.success == false) {
-          if (responseFromSendEmail.error) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error: responseFromSendEmail.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-            };
-          }
+            data: createdCandidate,
+            status,
+          });
         }
-      } else {
-        return {
+
+        if (responseFromSendEmail.success === false) {
+          const errors = responseFromSendEmail.error
+            ? responseFromSendEmail.error
+            : "";
+          const status = responseFromSendEmail.status
+            ? responseFromSendEmail.status
+            : "";
+
+          callback({
+            success: false,
+            message: responseFromSendEmail.message,
+            errors,
+            status,
+          });
+        }
+      }
+
+      if (responseFromCreateCandidate.success === false) {
+        const errors = responseFromCreateCandidate.errors
+          ? responseFromCreateCandidate.errors
+          : "";
+        const status = responseFromCreateCandidate.status
+          ? responseFromCreateCandidate.status
+          : "";
+        callback({
           success: false,
           message: responseFromCreateCandidate.message,
-        };
+          errors,
+          status,
+        });
       }
     } catch (e) {
-      logElement("server error in util", e.message);
-      return {
+      callback({
         success: false,
-        message: "util server error",
-        error: e.message,
-      };
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
     }
   },
 

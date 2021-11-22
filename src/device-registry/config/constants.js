@@ -48,6 +48,9 @@ const stageConfig = {
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
+  TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,
+  TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
@@ -65,9 +68,10 @@ const defaultConfig = {
   },
   KEY_ENCRYPTION_KEY: process.env.KEY_ENCRYPTION_KEY,
   GET_ROAD_METADATA: ({ path, latitude, longitude } = {}) => {
-    let today = monthsInfront(0);
-    let endDate = generateDateFormatWithoutHrs(today);
-    let startDate = generateDateFormatWithoutHrs(today);
+    const today = monthsInfront(0);
+    const oneMonthAgo = monthsInfront(-1);
+    const endDate = generateDateFormatWithoutHrs(today);
+    const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
     if (path === "greenness") {
       return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }

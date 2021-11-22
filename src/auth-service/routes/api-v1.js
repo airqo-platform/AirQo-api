@@ -5,6 +5,7 @@ const requestController = require("../controllers/request");
 const defaultsController = require("../controllers/defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
+const joinUtil = require("../utils/join");
 
 const {
   setJWTAuth,
@@ -525,6 +526,14 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    body("email")
+      .exists()
+      .withMessage("the email should be provided")
+      .isEmail()
+      .withMessage("this is not a valid email address")
+      .trim(),
+  ]),
   requestController.create
 );
 router.get(
@@ -570,6 +579,21 @@ router.delete(
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("id")
+      .exists()
+      .withMessage(
+        "the candidate identifier is missing in request, consider using the id"
+      )
+      .bail()
+      .trim()
+      .isMongoId()
+      .withMessage("id must be an object ID")
+      .bail()
+      .customSanitizer((value) => {
+        return ObjectId(value);
+      }),
   ]),
   setJWTAuth,
   authJWT,
