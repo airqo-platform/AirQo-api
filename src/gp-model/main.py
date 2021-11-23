@@ -1,24 +1,15 @@
-import json
 import requests
-from google.cloud import storage
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 import numpy as np
-import os
 import gpflow
 from gpflow import set_trainable
-import geopandas
 from config import connect_mongo
 from config import configuration
 import argparse
-from pathlib import Path
-from shapely.geometry import Point, Polygon, shape
-from helpers.get_data import get_pm_data
 from threading import Thread
-
-BASE_DIR = Path(__file__).resolve().parent
-LIST_DEVICES_URI=os.getenv('LIST_DEVICES_URI')
-VIEW_AIRQLOUD_URI=os.getenv('VIEW_AIRQLOUD_URI')
+from shapely.geometry import Point, Polygon
+from helpers.get_data import get_pm_data
 
 def get_all_devices(tenant):
     '''
@@ -34,7 +25,7 @@ def get_all_devices(tenant):
                   'active': 'yes',
                  }
         
-    response = requests.get(LIST_DEVICES_URI, params=params)
+    response = requests.get(configuration.LIST_DEVICES_URI, params=params)
     try:
         devices = response.json()['devices']
         if tenant == 'airqo':
@@ -59,7 +50,7 @@ def get_airqloud_polygon(tenant, airqloud):
     params = {'tenant':tenant,
               'name': airqloud
              }
-    coords = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds'][0]['location']['coordinates']
+    coords = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params).json()['airqlouds'][0]['location']['coordinates']
     geo = {'type': 'Polygon', 'coordinates': coords}
     polygon = Polygon([tuple(l) for l in geo['coordinates'][0]])
     min_long, min_lat, max_long, max_lat= polygon.bounds
@@ -244,7 +235,7 @@ def get_all_airqlouds(tenant):
     Returns a list of all the airqlouds for a particuar tenant
     '''
     params = {'tenant':tenant}
-    airqlouds = requests.get(VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
+    airqlouds = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
     #Esxcluding Uganda
