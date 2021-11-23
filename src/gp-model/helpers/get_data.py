@@ -1,34 +1,10 @@
 #importing packages
-from pymongo import MongoClient
 from datetime import datetime, timedelta
 import requests
-import os
-from dotenv import load_dotenv
+from config import configuration, connect_mongo
 import pandas as pd
-load_dotenv()
 
-EVENTS_URI = os.getenv('EVENTS_URI')
-MONGO_URI = os.getenv('MONGO_GCE_URI')
-client = MongoClient(MONGO_URI)
-
-def connect_db(owner):
-    """Connects to database
-
-    Parameters
-    ----------
-    owner : str
-        The database owner
-
-    Returns
-    -------
-    db : Database
-        a MongoDB connection
-    """
-    db_name = f'airqo_netmanager_{owner}'
-    db = client[db_name]
-    return db
-
-def get_device_details(device_id, owner):
+def get_device_details(device_id, tenant):
     """Returns a device's details given the ID
 
     Parameters
@@ -47,7 +23,7 @@ def get_device_details(device_id, owner):
     name: str
         Name of the device
     """
-    db= connect_db(owner)    
+    db= connect_mongo(tenant)    
     query = {
         'channelID': device_id
     }
@@ -132,7 +108,7 @@ def get_pm_data(name,
     
     """
 
-    url = EVENTS_URI
+    url = configuration.EVENTS_URI
     result = []
     measurements_length= 1000
     count = 0
