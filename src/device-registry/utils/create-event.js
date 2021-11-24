@@ -13,37 +13,224 @@ const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
 const { registerDeviceUtil } = require("./create-device");
 const HTTPStatus = require("http-status");
+const redis = require("../config/redis");
+const { findLastIndex } = require("underscore");
 
 const createEvent = {
-  list: async (request) => {
-    const eventModel = await getModelByTenant(
-      tenant.toLowerCase(),
-      "event",
-      eventSchema
-    );
-    const options = {
-      page: 1,
-      limit: 10,
-    };
-    const myAggregate = eventModel.aggregate();
-    eventModel
-      .aggregatePaginate(myAggregate, options)
-      .then(function(results) {
-        return {
+  generateCacheID: (request) => {
+    const {
+      device,
+      device_number,
+      device_id,
+      site,
+      site_id,
+      tenant,
+      skip,
+      limit,
+      frequency,
+      startTime,
+      endTime,
+      metadata,
+      external,
+      recent,
+    } = request.query;
+    const currentTime = new Date().toISOString();
+    const day = generateDateFormatWithoutHrs(currentTime);
+    return `list_events_${device ? device : "noDevice"}_${tenant}_${
+      skip ? skip : 0
+    }_${limit ? limit : 0}_${recent ? recent : "noRecent"}_${
+      frequency ? frequency : "noFrequency"
+    }_${endTime ? endTime : "noEndTime"}_${
+      startTime ? startTime : "noStartTime"
+    }_${device_id ? device_id : "noDeviceId"}_${site ? site : "noSite"}_${
+      site_id ? site_id : "noSiteId"
+    }_${day ? day : "noDay"}_${
+      device_number ? device_number : "noDeviceNumber"
+    }_${metadata ? metadata : "noMetadata"}_${
+      external ? external : "noExternal"
+    }`;
+  },
+  getDevicesCount: async (tenant) => {
+    return 120;
+  },
+  setCache: (data, request) => {
+    try {
+      const cacheID = createEvent.generateCacheID(request);
+      redis.set(
+        cacheID,
+        JSON.stringify({
+          isCache: true,
           success: true,
-          data: results,
-          status: HTTPStatus.OK,
-        };
-      })
-      .catch((error) => {
-        return {
+          message: `successfully retrieved the measurements`,
+          data,
+        })
+      );
+      redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
+      return {
+        success: true,
+        message: "cache is set",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+  getCache: (request, callback) => {
+    try {
+      const cacheID = createEvent.generateCacheID(request);
+      return redis.get(cacheID, async (err, result) => {
+        logObject("the result in the getCache function", result);
+        const resultJSON = JSON.parse(result);
+        if (result) {
+          callback({
+            success: true,
+            message: "cache present",
+            data: resultJSON,
+          });
+        }
+
+        if (err) {
+          callback({
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: err.message },
+          });
+        }
+
+        callback({
           success: false,
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          errors: {
-            message: error,
-          },
-        };
+          message: "no cache present",
+          data: resultJSON,
+          errors: err,
+        });
       });
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        message: "Internal Server Error",
+      };
+    }
+  },
+  list: async (request, callback) => {
+    try {
+      const { query } = request;
+      const {
+        recent,
+        metadata,
+        external,
+        frequency,
+        tenant,
+        endTime,
+        startTime,
+        device,
+        limit,
+        skip,
+      } = query;
+      let filter = {};
+      const responseFromFilter = generateFilter.events_v2(request);
+      logObject("responseFromFilter", responseFromFilter);
+      if (responseFromFilter.success === true) {
+        filter = responseFromFilter.data;
+      }
+      if (responseFromFilter.success === false) {
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : "";
+        logObject("responseFromFilter", errors);
+      }
+      const cacheID = createEvent.generateCacheID(request);
+      logObject("cacheID", cacheID);
+      createEvent.getCache(request, async (result) => {
+        logObject("result from getCache", result);
+        if (result.success === true) {
+          logObject("the result", result);
+          return cleanDeep(result);
+        }
+        if (result.success === false) {
+          logElement("the skippy", skip);
+          logElement("the limity", limit);
+          const responseFromListEvents = await getModelByTenant(
+            tenant.toLowerCase(),
+            "event",
+            eventSchema
+          ).list({ skip, limit, filter });
+
+          logObject("responseFromListEvents", responseFromListEvents);
+
+          if (responseFromListEvents.success === true) {
+            const data = cleanDeep(responseFromListEvents.data);
+            const responseFromSetCache = createEvent.setCache(data, request);
+            logObject("responseFromSetCache", responseFromSetCache);
+            if (responseFromSetCache.success === true) {
+              logText(responseFromSetCache.message);
+            }
+            if (responseFromSetCache.success === false) {
+              logText(responseFromSetCache.message);
+            }
+            const status = responseFromListEvents.status
+              ? responseFromListEvents.status
+              : "";
+            callback({
+              success: true,
+              message: responseFromListEvents.message,
+              data,
+              status,
+              isCache: false,
+            });
+          }
+
+          if (responseFromListEvents.success === false) {
+            const status = responseFromListEvents.status
+              ? responseFromListEvents.status
+              : "";
+            const errors = responseFromListEvents.errors
+              ? responseFromListEvents.errors
+              : "";
+            callback({
+              success: false,
+              message: responseFromListEvents.message,
+              errors,
+              status,
+              isCache: false,
+            });
+          }
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  create: async (request) => {
+    try {
+      const { query, body } = request;
+      /**
+       * need to transform the event from here
+       * before sending it for insertion
+       */
+      const responseFromRegisterEvent = await getModelByTenant(
+        tenant.toLowerCase(),
+        "event",
+        eventSchema
+      ).createEvent(body);
+      if (responseFromRegisterEvent.success === true) {
+      }
+      if (responseFromRegisterEvent.success === false) {
+      }
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {

@@ -2786,7 +2786,7 @@ router.get(
         .withMessage("valid values include: YES and NO"),
     ],
   ]),
-  eventController.getValues
+  eventController.list
 );
 router.post("/events/transmit", eventController.transmitValues);
 /*clear events*/
