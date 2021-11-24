@@ -141,6 +141,24 @@ jobs:
               echo "::set-output name=run_notifications::true"
             fi
 
+            if [[ $file == workflow-versions ]]; then
+              echo "::set-output name=run_notifications::true"
+              echo "::set-output name=run_events_check::true"
+              echo "::set-output name=run_calibrate::true"
+              echo "::set-output name=run_datawarehouse::true"
+              echo "::set-output name=run_exceedances::true"
+              echo "::set-output name=run_gp_model::true"
+              echo "::set-output name=run_predict::true"
+              echo "::set-output name=run_locate::true"
+              echo "::set-output name=run_device_status::true"
+              echo "::set-output name=run_device_uptime::true"
+              echo "::set-output name=run_analytics::true"
+              echo "::set-output name=run_data_mgt::true"
+              echo "::set-output name=run_device_monitoring::true"
+              echo "::set-output name=run_device_registry::true"
+              echo "::set-output name=run_auth_service::true"
+            fi
+
           done < files.txt
 
   ### auth service ###
@@ -594,6 +612,8 @@ jobs:
         run: |
           cd k8s/calibrate/
           kubectl apply -f prod-calibrate-api.yaml
+          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### events check ###
@@ -654,7 +674,7 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
       
       - name: Build and Push Docker Image
         run: |
@@ -666,6 +686,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/notification-service/
-          kubectl apply -f notification-api.yaml
+          kubectl apply -f prod-notification-api.yaml
+          kubectl set image deployment/airqo-notification-api notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
