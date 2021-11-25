@@ -346,6 +346,8 @@ eventSchema.statics = {
     let elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
     let pm2_5 = "$average_pm2_5";
     let pm10 = "$average_pm10";
+    let s1_pm2_5 = "$pm2_5";
+    let s1_pm10 = "$pm10";
     let projection = {
       _id: 0,
     };
@@ -355,45 +357,105 @@ eventSchema.statics = {
     delete search["metadata"];
     delete search["tenant"];
 
-    if (external === "yes") {
-      projection["s2_pm10"] = 0;
-      projection["s2_pm2_5"] = 0;
-      projection[as] = 0;
-    }
+    if (!metadata || metadata === "device" || metadata === "device_id") {
+      groupId = "$" + metadata ? metadata : groupId;
+      localField = metadata ? metadata : localField;
+      if (metadata === "device_id") {
+        foreignField = "_id";
+      }
+      if (metadata === "device" || !metadata) {
+        foreignField = "name";
+      }
 
-    if (tenant !== "airqo" || frequency === "raw") {
-      pm2_5 = "$pm2_5";
-      pm10 = "$pm10";
-    }
-
-    if (metadata === "site") {
-      groupId = "$site";
-      localField = "site";
-      foreignField = "generated_name";
-      from = "sites";
-      _as = "_siteDetails";
-      as = "siteDetails";
-      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
-    }
-
-    if (metadata === "site_id") {
-      groupId = "$site_id";
-      localField = "site_id";
-      foreignField = "_id";
-      from = "sites";
-      _as = "_siteDetails";
-      as = "siteDetails";
-      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
-    }
-
-    if (metadata === "device_id") {
-      groupId = "$device_id";
-      localField = "device_id";
-      foreignField = "_id";
       from = "devices";
       _as = "_deviceDetails";
       as = "deviceDetails";
       elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
+
+      projection[as] = {};
+      projection[as]["ISP"] = 0;
+      projection[as]["height"] = 0;
+      projection[as]["device_number"] = 0;
+      projection[as]["description"] = 0;
+      projection[as]["isUsedForCollocation"] = 0;
+      projection[as]["powerType"] = 0;
+      projection[as]["mountType"] = 0;
+      projection[as]["createdAt"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["isActive"] = 0;
+      projection[as]["site_id"] = 0;
+      projection[as]["long_name"] = 0;
+      projection[as]["readKey"] = 0;
+      projection[as]["writeKey"] = 0;
+      projection[as]["phoneNumber"] = 0;
+      projection[as]["deployment_date"] = 0;
+      projection[as]["nextMaintenance"] = 0;
+      projection[as]["recall_date"] = 0;
+      projection[as]["maintenance_date"] = 0;
+      projection[as]["siteName"] = 0;
+      projection[as]["locationName"] = 0;
+      projection[as]["device_manufacturer"] = 0;
+      projection[as]["product_name"] = 0;
+      projection[as]["visibility"] = 0;
+      projection[as]["owner"] = 0;
+    }
+
+    if (external === "yes") {
+      projection["s2_pm10"] = 0;
+      projection["s1_pm10"] = 0;
+      projection["s2_pm2_5"] = 0;
+      projection["s1_pm2_5"] = 0;
+      projection[as] = 0;
+    }
+
+    if (tenant !== "airqo") {
+      pm2_5 = "$pm2_5";
+      pm10 = "$pm10";
+    }
+
+    if (metadata === "site_id" || metadata === "site") {
+      groupId = "$" + metadata;
+      localField = metadata;
+      if (metadata === "site") {
+        foreignField = "generated_name";
+      }
+      if (metadata === "site_id") {
+        foreignField = "_id";
+      }
+      from = "sites";
+      _as = "_siteDetails";
+      as = "siteDetails";
+      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
+      projection[as] = {};
+      projection[as]["nearest_tahmo_station"] = 0;
+      projection[as]["site_tags"] = 0;
+      projection[as]["formatted_name"] = 0;
+      projection[as]["geometry"] = 0;
+      projection[as]["google_place_id"] = 0;
+      projection[as]["town"] = 0;
+      projection[as]["city"] = 0;
+      projection[as]["county"] = 0;
+      projection[as]["lat_long"] = 0;
+      projection[as]["altitude"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["airqloud_id"] = 0;
+      projection[as]["airqlouds"] = 0;
+      projection[as]["sub_county"] = 0;
+      projection[as]["parish"] = 0;
+      projection[as]["greenness"] = 0;
+      projection[as]["landform_90"] = 0;
+      projection[as]["landform_270"] = 0;
+      projection[as]["aspect"] = 0;
+      projection[as]["distance_to_nearest_road"] = 0;
+      projection[as]["distance_to_nearest_primary_road"] = 0;
+      projection[as]["distance_to_nearest_tertiary_road"] = 0;
+      projection[as]["distance_to_nearest_unclassified_road"] = 0;
+      projection[as]["distance_to_nearest_residential_road"] = 0;
+      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["street"] = 0;
+      projection[as]["village"] = 0;
+      projection[as]["distance_to_nearest_secondary_road"] = 0;
+      projection[as]["distance_to_kampala_center"] = 0;
     }
 
     return this.aggregate()
@@ -412,9 +474,11 @@ eventSchema.statics = {
         _time: "$time",
         _average_pm2_5: "$average_pm2_5",
         _pm2_5: pm2_5,
+        _s1_pm2_5: s1_pm2_5,
         _s2_pm2_5: "$s2_pm2_5",
         _average_pm10: "$average_pm10",
         _pm10: pm10,
+        _s1_pm10: s1_pm10,
         _s2_pm10: "$s2_pm10",
         _frequency: "$frequency",
         _battery: "$battery",
@@ -445,9 +509,11 @@ eventSchema.statics = {
         time: "$_time",
         average_pm2_5: "$_average_pm2_5",
         pm2_5: "$_pm2_5",
+        s1_pm2_5: "$_s1_pm2_5",
         s2_pm2_5: "$_s2_pm2_5",
         average_pm10: "$_average_pm10",
         pm10: "$_pm10",
+        s1_pm10: "$_s1_pm10",
         s2_pm10: "$_s2_pm10",
         frequency: "$_frequency",
         battery: "$_battery",
@@ -479,8 +545,11 @@ eventSchema.statics = {
     let foreignField = "name";
     let from = "devices";
     let as = "deviceDetails";
+    let s1_pm2_5 = "$pm2_5";
     let pm2_5 = "$average_pm2_5";
+    let s1_pm10 = "$pm10";
     let pm10 = "$average_pm10";
+
     let projection = {
       _id: 0,
     };
@@ -492,45 +561,103 @@ eventSchema.statics = {
     delete search["metadata"];
     delete search["tenant"];
 
-    if (!metadata || metadata === "device") {
+    if (!metadata || metadata === "device" || metadata === "device_id") {
+      if (metadata) {
+        groupId = "$" + metadata ? metadata : groupId;
+        localField = metadata ? metadata : localField;
+        if (metadata === "device_id") {
+          foreignField = "_id";
+        }
+        if (metadata === "device") {
+          foreignField = "name";
+        }
+      }
+      from = "devices";
+      _as = "_deviceDetails";
+      as = "deviceDetails";
+      elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+      projection[as] = {};
+      projection[as]["ISP"] = 0;
+      projection[as]["height"] = 0;
+      projection[as]["device_number"] = 0;
+      projection[as]["description"] = 0;
+      projection[as]["isUsedForCollocation"] = 0;
+      projection[as]["powerType"] = 0;
+      projection[as]["mountType"] = 0;
+      projection[as]["createdAt"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["isActive"] = 0;
+      projection[as]["site_id"] = 0;
+      projection[as]["long_name"] = 0;
+      projection[as]["readKey"] = 0;
+      projection[as]["writeKey"] = 0;
+      projection[as]["deployment_date"] = 0;
+      projection[as]["nextMaintenance"] = 0;
+      projection[as]["recall_date"] = 0;
+      projection[as]["maintenance_date"] = 0;
+      projection[as]["siteName"] = 0;
+      projection[as]["locationName"] = 0;
+      projection[as]["device_manufacturer"] = 0;
+      projection[as]["product_name"] = 0;
+      projection[as]["visibility"] = 0;
+      projection[as]["owner"] = 0;
     }
 
     if (external === "yes") {
       projection["s2_pm2_5"] = 0;
+      projection["s1_pm2_5"] = 0;
       projection["s2_pm10"] = 0;
+      projection["s1_pm10"] = 0;
       projection[as] = 0;
     }
 
-    if (tenant !== "airqo" || frequency === "raw") {
+    if (tenant !== "airqo") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
     }
 
-    if (metadata === "site") {
-      groupId = "$site";
-      localField = "site";
-      foreignField = "generated_name";
+    if (metadata === "site_id" || metadata === "site") {
+      groupId = "$" + metadata;
+      localField = metadata;
+      if (metadata === "site") {
+        foreignField = "generated_name";
+      }
+      if (metadata === "site_id") {
+        foreignField = "_id";
+      }
       from = "sites";
       as = "siteDetails";
       elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
-    }
-
-    if (metadata === "site_id") {
-      groupId = "$site_id";
-      localField = "site_id";
-      foreignField = "_id";
-      from = "sites";
-      as = "siteDetails";
-      elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
-    }
-
-    if (metadata === "device_id") {
-      groupId = "$device_id";
-      localField = "device_id";
-      foreignField = "_id";
-      from = "devices";
-      as = "deviceDetails";
-      elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+      projection[as] = {};
+      projection[as]["nearest_tahmo_station"] = 0;
+      projection[as]["site_tags"] = 0;
+      projection[as]["formatted_name"] = 0;
+      projection[as]["geometry"] = 0;
+      projection[as]["google_place_id"] = 0;
+      projection[as]["town"] = 0;
+      projection[as]["city"] = 0;
+      projection[as]["county"] = 0;
+      projection[as]["lat_long"] = 0;
+      projection[as]["altitude"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["airqloud_id"] = 0;
+      projection[as]["airqlouds"] = 0;
+      projection[as]["sub_county"] = 0;
+      projection[as]["parish"] = 0;
+      projection[as]["greenness"] = 0;
+      projection[as]["landform_90"] = 0;
+      projection[as]["landform_270"] = 0;
+      projection[as]["aspect"] = 0;
+      projection[as]["distance_to_nearest_road"] = 0;
+      projection[as]["distance_to_nearest_primary_road"] = 0;
+      projection[as]["distance_to_nearest_tertiary_road"] = 0;
+      projection[as]["distance_to_nearest_unclassified_road"] = 0;
+      projection[as]["distance_to_nearest_residential_road"] = 0;
+      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["street"] = 0;
+      projection[as]["village"] = 0;
+      projection[as]["distance_to_nearest_secondary_road"] = 0;
+      projection[as]["distance_to_kampala_center"] = 0;
     }
 
     return this.aggregate()
@@ -554,9 +681,11 @@ eventSchema.statics = {
         time: { $first: "$time" },
         average_pm2_5: { $first: "$average_pm2_5" },
         pm2_5: { $first: pm2_5 },
+        s1_pm2_5: { $first: s1_pm2_5 },
         s2_pm2_5: { $first: "$s2_pm2_5" },
         average_pm10: { $first: "$average_pm10" },
         pm10: { $first: pm10 },
+        s1_pm10: { $first: s1_pm10 },
         s2_pm10: { $first: "$s2_pm10" },
         frequency: { $first: "$frequency" },
         battery: { $first: "$battery" },
