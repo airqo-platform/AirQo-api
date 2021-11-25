@@ -25,7 +25,9 @@ class DeviceStatus:
 def get_all_devices(tenant):
     model = Device(tenant)
     results = model.get_devices()
-    return [device for device in results if device.get("isActive")]
+    return [
+        device for device in results if device.get("isActive") or (device.get("mobility") and device.get("powerType"))
+    ]
 
 
 def get_device_status(device):
