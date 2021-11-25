@@ -44,6 +44,9 @@ def get_device_status(device):
 
     result = device_status.json()
 
+    device['latitude'] = device.get('latitude') or float(result.get('latitude'))
+    device['longitude'] = device.get('longitude') or float(result.get('longitude'))
+
     current_datetime = datetime.utcnow()
 
     date_time_difference = current_datetime - datetime.strptime(result['created_at'], '%Y-%m-%dT%H:%M:%SZ')
