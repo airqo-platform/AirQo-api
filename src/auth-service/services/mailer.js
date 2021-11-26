@@ -167,7 +167,7 @@ const mailer = {
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
-        subject: "Welcome to AirQo!",
+        subject: "Changes to your AirQo email",
         text: `${msgs.authenticate_email(token)}`,
       };
       let response = transporter.sendMail(mailOptions);
