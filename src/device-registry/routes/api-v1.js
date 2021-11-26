@@ -252,6 +252,23 @@ router.put(
   ]),
   deviceController.encryptKeys
 );
+/** get number of devices */
+router.get(
+  "/count",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  deviceController.getDevicesCount
+);
 /***list devices */
 router.get(
   "/",

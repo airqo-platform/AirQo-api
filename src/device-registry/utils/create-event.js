@@ -53,7 +53,7 @@ const createEvent = {
   getDevicesCount: async (tenant) => {
     return 120;
   },
-  setCache: (data, request) => {
+  setCache: (data, request, callback) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
       redis.set(
@@ -66,22 +66,22 @@ const createEvent = {
         })
       );
       redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
-      return {
+      callback({
         success: true,
         message: "cache is set",
-      };
+      });
     } catch (error) {
-      return {
+      callback({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      };
+      });
     }
   },
   getCache: (request, callback) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
-      return redis.get(cacheID, async (err, result) => {
+      redis.get(cacheID, async (err, result) => {
         logObject("the result in the getCache function", result);
         const resultJSON = JSON.parse(result);
         if (result) {
@@ -90,22 +90,20 @@ const createEvent = {
             message: "cache present",
             data: resultJSON,
           });
-        }
-
-        if (err) {
+        } else if (err) {
           callback({
             success: false,
             message: "Internal Server Error",
             errors: { message: err.message },
           });
+        } else {
+          callback({
+            success: false,
+            message: "no cache present",
+            data: resultJSON,
+            errors: err,
+          });
         }
-
-        callback({
-          success: false,
-          message: "no cache present",
-          data: resultJSON,
-          errors: err,
-        });
       });
     } catch (error) {
       return {
@@ -132,7 +130,6 @@ const createEvent = {
       } = query;
       let filter = {};
       const responseFromFilter = generateFilter.events_v2(request);
-      logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
       }
@@ -143,34 +140,28 @@ const createEvent = {
         logObject("responseFromFilter", errors);
       }
       const cacheID = createEvent.generateCacheID(request);
-      logObject("cacheID", cacheID);
       createEvent.getCache(request, async (result) => {
-        logObject("result from getCache", result);
         if (result.success === true) {
-          logObject("the result", result);
-          return cleanDeep(result);
+          callback(result.data);
         }
         if (result.success === false) {
-          logElement("the skippy", skip);
-          logElement("the limity", limit);
           const responseFromListEvents = await getModelByTenant(
             tenant.toLowerCase(),
             "event",
             eventSchema
           ).list({ skip, limit, filter });
 
-          logObject("responseFromListEvents", responseFromListEvents);
-
           if (responseFromListEvents.success === true) {
             const data = cleanDeep(responseFromListEvents.data);
-            const responseFromSetCache = createEvent.setCache(data, request);
-            logObject("responseFromSetCache", responseFromSetCache);
-            if (responseFromSetCache.success === true) {
-              logText(responseFromSetCache.message);
-            }
-            if (responseFromSetCache.success === false) {
-              logText(responseFromSetCache.message);
-            }
+            createEvent.setCache(data, request, (result) => {
+              if (result.success === true) {
+                logText(result.message);
+              }
+              if (result.success === false) {
+                logText(result.message);
+              }
+            });
+
             const status = responseFromListEvents.status
               ? responseFromListEvents.status
               : "";
