@@ -8,7 +8,6 @@ const {
 } = require("./date");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
 const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
@@ -153,7 +152,6 @@ const generateFilter = {
         }
         return value;
       });
-      logObject("the modifiedDeviceArray ", modifiedDeviceArray);
       let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
       filter["values.device"]["$in"] = mergedArray;
     }
@@ -361,7 +359,6 @@ const generateFilter = {
           }
           return value;
         });
-        logObject("the modifiedDeviceArray ", modifiedDeviceArray);
         let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
         filter["values.device"]["$in"] = mergedArray;
         filter["device"] = true;

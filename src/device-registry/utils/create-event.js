@@ -15,6 +15,9 @@ const { registerDeviceUtil } = require("./create-device");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const { findLastIndex } = require("underscore");
+const eventsModel = (tenant) => {
+  return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
+};
 
 const createEvent = {
   generateCacheID: (request) => {
@@ -50,9 +53,7 @@ const createEvent = {
       external ? external : "noExternal"
     }`;
   },
-  getDevicesCount: async (tenant) => {
-    return 120;
-  },
+  getEventsCount: async (request) => {},
   setCache: (data, request, callback) => {
     try {
       const cacheID = createEvent.generateCacheID(request);
@@ -82,7 +83,6 @@ const createEvent = {
     try {
       const cacheID = createEvent.generateCacheID(request);
       redis.get(cacheID, async (err, result) => {
-        logObject("the result in the getCache function", result);
         const resultJSON = JSON.parse(result);
         if (result) {
           callback({
@@ -116,7 +116,7 @@ const createEvent = {
   list: async (request, callback) => {
     try {
       const { query } = request;
-      const {
+      let {
         recent,
         metadata,
         external,
@@ -145,50 +145,65 @@ const createEvent = {
           callback(result.data);
         }
         if (result.success === false) {
-          const responseFromListEvents = await getModelByTenant(
-            tenant.toLowerCase(),
-            "event",
-            eventSchema
-          ).list({ skip, limit, filter });
+          let devicesCount = 2000;
+          await registerDeviceUtil.getDevicesCount(request, async (result) => {
+            if (result.success === true) {
+              devicesCount = result.data;
+            }
+            if (result.success === false) {
+              logText(result.message);
+            }
+            if (recent === "yes") {
+              limit = devicesCount;
+            }
 
-          if (responseFromListEvents.success === true) {
-            const data = cleanDeep(responseFromListEvents.data);
-            createEvent.setCache(data, request, (result) => {
-              if (result.success === true) {
-                logText(result.message);
-              }
-              if (result.success === false) {
-                logText(result.message);
-              }
-            });
+            logElement("the limit for real", limit);
 
-            const status = responseFromListEvents.status
-              ? responseFromListEvents.status
-              : "";
-            callback({
-              success: true,
-              message: responseFromListEvents.message,
-              data,
-              status,
-              isCache: false,
-            });
-          }
+            const responseFromListEvents = await getModelByTenant(
+              tenant.toLowerCase(),
+              "event",
+              eventSchema
+            ).list({ skip, limit, filter });
 
-          if (responseFromListEvents.success === false) {
-            const status = responseFromListEvents.status
-              ? responseFromListEvents.status
-              : "";
-            const errors = responseFromListEvents.errors
-              ? responseFromListEvents.errors
-              : "";
-            callback({
-              success: false,
-              message: responseFromListEvents.message,
-              errors,
-              status,
-              isCache: false,
-            });
-          }
+            if (responseFromListEvents.success === true) {
+              const data = cleanDeep(responseFromListEvents.data);
+              createEvent.setCache(data, request, (result) => {
+                if (result.success === true) {
+                  logText(result.message);
+                }
+                if (result.success === false) {
+                  logText(result.message);
+                }
+              });
+
+              const status = responseFromListEvents.status
+                ? responseFromListEvents.status
+                : "";
+              callback({
+                success: true,
+                message: responseFromListEvents.message,
+                data,
+                status,
+                isCache: false,
+              });
+            }
+
+            if (responseFromListEvents.success === false) {
+              const status = responseFromListEvents.status
+                ? responseFromListEvents.status
+                : "";
+              const errors = responseFromListEvents.errors
+                ? responseFromListEvents.errors
+                : "";
+              callback({
+                success: false,
+                message: responseFromListEvents.message,
+                errors,
+                status,
+                isCache: false,
+              });
+            }
+          });
         }
       });
     } catch (error) {
@@ -751,7 +766,18 @@ const createEvent = {
               endTime
             );
 
-            let devicesCount = await getDevicesCount(tenant);
+            let request = {};
+            request["query"] = {};
+            request["query"]["tenant"] = getModelByTenant;
+            let devicesCount = 1000;
+            await registerDeviceUtil.getDevicesCount(request, (result) => {
+              if (result.success === true) {
+                devicesCount = result.data;
+              }
+              if (result.success === false) {
+                logText(result.message);
+              }
+            });
 
             let _skip = skip ? skip : 0;
             let _limit = limit
