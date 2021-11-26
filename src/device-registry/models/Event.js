@@ -611,7 +611,7 @@ eventSchema.statics = {
       projection[as] = 0;
     }
 
-    if (tenant !== "airqo") {
+    if (tenant !== "airqo" || frequency === "raw") {
       pm2_5 = "$pm2_5";
       pm10 = "$pm10";
     }
