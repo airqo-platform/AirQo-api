@@ -10,8 +10,6 @@ const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("../config/constants");
 const { isElement, isEmpty } = require("underscore");
-const mongooseAggregatePaginationV2 = require("mongoose-aggregate-paginate-v2");
-const mongooseAggregatePaginate = require("mongoose-aggregate-paginate");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("../utils/multitenancy");
 
@@ -294,9 +292,6 @@ eventSchema.pre("save", function() {
 eventSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
-
-// eventSchema.plugin(mongooseAggregatePaginationV2);
-eventSchema.plugin(mongooseAggregatePaginate);
 
 eventSchema.methods = {
   toJSON() {

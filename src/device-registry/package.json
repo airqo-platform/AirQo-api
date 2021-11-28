@@ -51,8 +51,6 @@
         "kafka-node": "^5.0.0",
         "log4js": "^6.3.0",
         "mongoose": "^5.13.5",
-        "mongoose-aggregate-paginate": "^2.0.2",
-        "mongoose-aggregate-paginate-v2": "^1.0.5",
         "mongoose-unique-validator": "^2.0.3",
         "morgan": "^1.9.1",
         "mqtt": "^3.0.0",
