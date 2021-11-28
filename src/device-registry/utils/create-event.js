@@ -1,4 +1,5 @@
-const eventSchema = require("../models/Event");
+// const eventSchema = require("../models/Event");
+const eventModel = require("../models/Event");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
@@ -69,7 +70,7 @@ const createEvent = {
       redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
       callback({
         success: true,
-        message: "cache is set",
+        message: "response stored in cache",
       });
     } catch (error) {
       callback({
@@ -87,7 +88,7 @@ const createEvent = {
         if (result) {
           callback({
             success: true,
-            message: "cache present",
+            message: "utilising cache...",
             data: resultJSON,
           });
         } else if (err) {
@@ -116,18 +117,7 @@ const createEvent = {
   list: async (request, callback) => {
     try {
       const { query } = request;
-      let {
-        recent,
-        metadata,
-        external,
-        frequency,
-        tenant,
-        endTime,
-        startTime,
-        device,
-        limit,
-        skip,
-      } = query;
+      let { recent, tenant, limit, skip } = query;
       let filter = {};
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
@@ -139,9 +129,10 @@ const createEvent = {
           : "";
         logObject("responseFromFilter", errors);
       }
-      const cacheID = createEvent.generateCacheID(request);
+
       createEvent.getCache(request, async (result) => {
         if (result.success === true) {
+          logText(result.message);
           callback(result.data);
         }
         if (result.success === false) {
@@ -157,13 +148,11 @@ const createEvent = {
               limit = devicesCount;
             }
 
-            logElement("the limit for real", limit);
-
-            const responseFromListEvents = await getModelByTenant(
-              tenant.toLowerCase(),
-              "event",
-              eventSchema
-            ).list({ skip, limit, filter });
+            const responseFromListEvents = await eventModel(tenant).list({
+              skip,
+              limit,
+              filter,
+            });
 
             if (responseFromListEvents.success === true) {
               const data = cleanDeep(responseFromListEvents.data);
@@ -218,8 +207,7 @@ const createEvent = {
     try {
       const { query, body } = request;
       /**
-       * need to transform the event from here
-       * before sending it for insertion
+       * transform the events before insertion
        */
       const responseFromRegisterEvent = await getModelByTenant(
         tenant.toLowerCase(),
