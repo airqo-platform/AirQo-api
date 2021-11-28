@@ -1,6 +1,4 @@
-// const eventSchema = require("../models/Event");
 const eventModel = require("../models/Event");
-const { getModelByTenant } = require("./multitenancy");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
@@ -16,9 +14,6 @@ const { registerDeviceUtil } = require("./create-device");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const { findLastIndex } = require("underscore");
-const eventsModel = (tenant) => {
-  return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
-};
 
 const createEvent = {
   generateCacheID: (request) => {
@@ -209,11 +204,9 @@ const createEvent = {
       /**
        * transform the events before insertion
        */
-      const responseFromRegisterEvent = await getModelByTenant(
-        tenant.toLowerCase(),
-        "event",
-        eventSchema
-      ).createEvent(body);
+      const responseFromRegisterEvent = await eventModel(tenant).createEvent(
+        body
+      );
       if (responseFromRegisterEvent.success === true) {
       }
       if (responseFromRegisterEvent.success === false) {
@@ -552,11 +545,11 @@ const createEvent = {
 
           logger.info(`the options -- ${JSON.stringify(options)}`);
 
-          const addedEvents = await getModelByTenant(
-            tenant.toLowerCase(),
-            "event",
-            eventSchema
-          ).updateOne(modifiedFilter, update, options);
+          const addedEvents = await eventModel(tenant).updateOne(
+            modifiedFilter,
+            update,
+            options
+          );
 
           logger.info(`addedEvents -- ${JSON.stringify(addedEvents)}`);
 
@@ -644,11 +637,11 @@ const createEvent = {
     }
     let _limit = limit ? limit : 100;
     let _skip = skip ? skip : 0;
-    let responseFromListEvents = await getModelByTenant(
-      tenant.toLowerCase(),
-      "event",
-      eventSchema
-    ).view({ _skip, _limit, filter });
+    let responseFromListEvents = await eventModel(tenant).view({
+      _skip,
+      _limit,
+      filter,
+    });
 
     if (responseFromListEvents.success === true) {
       let eventsArray = responseFromListEvents.data;
@@ -756,7 +749,7 @@ const createEvent = {
 
             let request = {};
             request["query"] = {};
-            request["query"]["tenant"] = getModelByTenant;
+            request["query"]["tenant"] = tenant;
             let devicesCount = 1000;
             await registerDeviceUtil.getDevicesCount(request, (result) => {
               if (result.success === true) {
