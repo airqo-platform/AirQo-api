@@ -220,6 +220,7 @@ const generateFilter = {
 
   events_v2: (request) => {
     try {
+      const { query } = request;
       const {
         device,
         device_number,
@@ -233,7 +234,8 @@ const generateFilter = {
         metadata,
         tenant,
         recent,
-      } = request.query;
+      } = query;
+
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);
       let today = monthsInfront(0);
@@ -415,6 +417,7 @@ const generateFilter = {
       /**
        * ends unique site and device ids
        */
+
       if (frequency) {
         filter["values.frequency"] = frequency;
         filter["frequency"] = frequency;
