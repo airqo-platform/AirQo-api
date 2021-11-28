@@ -10,9 +10,10 @@ const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("../config/constants");
 const { isElement, isEmpty } = require("underscore");
-const aggregatePaginate = require("mongoose-aggregate-paginate-v2");
+const mongooseAggregatePaginationV2 = require("mongoose-aggregate-paginate-v2");
 const mongooseAggregatePaginate = require("mongoose-aggregate-paginate");
 const httpStatus = require("http-status");
+const { getModelByTenant } = require("../utils/multitenancy");
 
 const valueSchema = new Schema({
   time: {
@@ -294,7 +295,7 @@ eventSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-eventSchema.plugin(aggregatePaginate);
+// eventSchema.plugin(mongooseAggregatePaginationV2);
 eventSchema.plugin(mongooseAggregatePaginate);
 
 eventSchema.methods = {
@@ -362,9 +363,6 @@ eventSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      logText("the list MAIN is in motion baby...");
-      logElement("limitu", limit);
-      logElement("skipu", skip);
       let modifiedLimit = limit;
       let modifiedSkip = skip;
       if (isEmpty(modifiedLimit)) {
@@ -374,7 +372,6 @@ eventSchema.statics = {
         modifiedSkip = 0;
       }
       const { metadata, frequency, external, tenant, device, recent } = filter;
-      logElement("");
       let search = filter;
       let groupId = "$device";
       let localField = "device";
@@ -384,11 +381,14 @@ eventSchema.statics = {
       let as = "deviceDetails";
       let pm2_5 = "$average_pm2_5";
       let pm10 = "$average_pm10";
+      let s1_pm2_5 = "$pm2_5";
+      let s1_pm10 = "$pm10";
       let elementAtIndex0 = elementAtIndexName(metadata, recent);
-      logObject("elementAtIndex0", elementAtIndex0);
       let projection = {
         _id: 0,
       };
+      let siteProjection = {};
+      let deviceProjection = {};
 
       delete search["external"];
       delete search["frequency"];
@@ -397,55 +397,59 @@ eventSchema.statics = {
       delete search["device"];
       delete search["recent"];
 
-      logObject("the search", search);
-
-      if (device) {
-        modifiedLimit = 1000;
-      }
-
       if (external === "yes") {
         projection["s2_pm10"] = 0;
+        projection["s1_pm10"] = 0;
         projection["s2_pm2_5"] = 0;
+        projection["s1_pm2_5"] = 0;
         projection[as] = 0;
       }
 
-      if (tenant !== "airqo" || frequency === "raw") {
+      if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
         pm10 = "$pm10";
       }
 
-      if (metadata === "site") {
-        groupId = "$site";
-        localField = "site";
-        foreignField = "generated_name";
-        from = "sites";
-        _as = "_siteDetails";
-        as = "siteDetails";
-        elementAtIndex0 = elementAtIndexName(metadata, recent);
-      }
+      if (!metadata || metadata === "device" || metadata === "device_id") {
+        groupId = "$" + metadata ? metadata : groupId;
+        localField = metadata ? metadata : localField;
+        if (metadata === "device_id") {
+          foreignField = "_id";
+        }
+        if (metadata === "device" || !metadata) {
+          foreignField = "name";
+        }
 
-      if (metadata === "site_id") {
-        groupId = "$site_id";
-        localField = "site_id";
-        foreignField = "_id";
-        from = "sites";
-        _as = "_siteDetails";
-        as = "siteDetails";
-        elementAtIndex0 = elementAtIndexName(metadata, recent);
-      }
-
-      if (metadata === "device_id") {
-        groupId = "$device_id";
-        localField = "device_id";
-        foreignField = "_id";
         from = "devices";
         _as = "_deviceDetails";
         as = "deviceDetails";
         elementAtIndex0 = elementAtIndexName(metadata, recent);
+        deviceProjection = constants.EVENTS_METADATA_PROJECTION("device", as);
+        Object.assign(projection, deviceProjection);
       }
 
+      if (metadata === "site_id" || metadata === "site") {
+        groupId = "$" + metadata;
+        localField = metadata;
+        if (metadata === "site") {
+          foreignField = "generated_name";
+        }
+        if (metadata === "site_id") {
+          foreignField = "_id";
+        }
+        from = "sites";
+        _as = "_siteDetails";
+        as = "siteDetails";
+        elementAtIndex0 = elementAtIndexName(metadata, recent);
+        siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
+        Object.assign(projection, siteProjection);
+      }
+
+      if (device) {
+        modifiedLimit = 1000;
+      }
+      logObject("the query for this request", search);
       if (!recent || recent === "yes") {
-        logText("we are now doing recent");
         let data = await this.aggregate()
           .unwind("values")
           .match(search)
@@ -499,7 +503,6 @@ eventSchema.statics = {
       }
 
       if (recent === "no") {
-        logText("we are not doing recent for now");
         let data = await this.aggregate()
           .unwind("values")
           .match(search)
@@ -516,9 +519,11 @@ eventSchema.statics = {
             _time: "$time",
             _average_pm2_5: "$average_pm2_5",
             _pm2_5: pm2_5,
+            _s1_pm2_5: s1_pm2_5,
             _s2_pm2_5: "$s2_pm2_5",
             _average_pm10: "$average_pm10",
             _pm10: pm10,
+            _s1_pm10: s1_pm10,
             _s2_pm10: "$s2_pm10",
             _frequency: "$frequency",
             _battery: "$battery",
@@ -549,9 +554,11 @@ eventSchema.statics = {
             time: "$_time",
             average_pm2_5: "$_average_pm2_5",
             pm2_5: "$_pm2_5",
+            s1_pm2_5: "$_s1_pm2_5",
             s2_pm2_5: "$_s2_pm2_5",
             average_pm10: "$_average_pm10",
             pm10: "$_pm10",
+            s1_pm10: "$_s1_pm10",
             s2_pm10: "$_s2_pm10",
             frequency: "$_frequency",
             battery: "$_battery",
@@ -781,4 +788,8 @@ eventSchema.statics = {
   },
 };
 
-module.exports = eventSchema;
+const eventsModel = (tenant) => {
+  return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
+};
+
+module.exports = eventsModel;

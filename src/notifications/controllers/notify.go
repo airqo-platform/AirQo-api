@@ -24,10 +24,10 @@ func SendWelcomeMessage(c *gin.Context) {
 	var templatePath string
 
 	if strings.Compare(messageModel.Platform, "mobile") == 0 {
-		body.Write([]byte(fmt.Sprintf("Subject: Welcome to the AirQo Mobile App\n%s\n\n", mimeHeaders)))
+		body.Write([]byte(fmt.Sprintf("Subject: AirQo Mobile App\n%s\n\n", mimeHeaders)))
 		templatePath = "templates/mobile-welcome-email-template.html"
 	} else if strings.Compare(messageModel.Platform, "netmanager") == 0 {
-		body.Write([]byte(fmt.Sprintf("Subject: Welcome to the AirQo Netamanger platform\n%s\n\n", mimeHeaders)))
+		body.Write([]byte(fmt.Sprintf("Subject: AirQo Netamanger Platform\n%s\n\n", mimeHeaders)))
 		templatePath = "templates/netmanager-welcome-email-template.html"
 	} else {
 		body.Write([]byte(fmt.Sprintf("Subject: Welcome to AirQo \n%s\n\n", mimeHeaders)))
