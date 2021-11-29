@@ -19,3 +19,7 @@ __pycache__/
 venv/
 .idea/
 *.pyc
+src/data-mgt/java/measurements-consumer/.mvn/wrapper/maven-wrapper.properties
+src/data-mgt/java/measurements-consumer/HELP.md
+src/data-mgt/java/measurements-consumer/measurements-consumer.iml
+src/data-mgt/java/measurements-consumer/src/main/resources/application.properties
