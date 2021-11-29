@@ -48,9 +48,14 @@ const callbackErrors = (error, req, res) => {
     .send({ success: false, message: "server error", error: error });
 };
 
+const badRequest = (res, message, errors) => {
+  res.status(HTTPStatus.BAD_REQUEST).json({ success: false, message, errors });
+};
+
 module.exports = {
   axiosError,
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
+  badRequest,
 };

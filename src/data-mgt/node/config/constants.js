@@ -40,13 +40,13 @@ const defaultConfig = {
   GET_CHANNEL_LAST_ENTRY_AGE: (channel) => {
     return `https://api.thingspeak.com/channels/${channel.trim()}/feeds/last_data_age.json`;
   },
-  GENERATE_LAST_ENTRY: ({
+  READ_DEVICE_FEEDS: ({
     channel = process.env.TS_TEST_CHANNEL,
     api_key = process.env.TS_API_KEY_TEST_DEVICE,
+    start = "",
+    end = "",
   } = {}) => {
-    // logElement("the channel inside", channel);
-    // logElement("the api_key", api_key);
-    return `https://api.thingspeak.com/channels/${channel}/feeds.json?api_key=${api_key}`;
+    return `https://api.thingspeak.com/channels/${channel}/feeds.json?api_key=${api_key}&start=${start}&end=${end}`;
   },
   GET_FEEDS: (channel) => {
     return `https://api.thingspeak.com/channels/${channel}/feeds.json`;
@@ -71,11 +71,18 @@ const defaultConfig = {
           let deviceDetails = responseJSON.devices[0];
           let readKey = deviceDetails.readKey;
           if (!isEmpty(readKey)) {
-            return {
-              success: true,
-              data: readKey,
-              message: "read key successfully retrieved",
-            };
+            return axios
+              .post("https://platform.airqo.net/api/v1/devices/decrypt", {
+                encrypted_key: readKey,
+              })
+              .then((response) => {
+                let decrypted_key = response.data.decrypted_key;
+                return {
+                  success: true,
+                  data: decrypted_key,
+                  message: "read key successfully retrieved",
+                };
+              });
           } else {
             return {
               success: false,
@@ -98,6 +105,7 @@ const defaultConfig = {
         }
       })
       .catch((error) => {
+        logObject("the server error for GET_API _KEY", error);
         return {
           success: false,
           error: error.message,

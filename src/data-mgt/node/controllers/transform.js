@@ -3,7 +3,7 @@ const fetch = require("node-fetch");
 const request = require("request");
 const Channel = require("../models/Channel");
 const Feed = require("../models/Feed");
-const axios = require("axios");
+const axios = require("axios").default;
 const redis = require("../config/redis");
 const MaintenanceLog = require("../models/MaintenanceLogs");
 const Issue = require("../models/Issue");
@@ -24,6 +24,7 @@ const {
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
+  badRequest,
 } = require("../utils/errors");
 
 const {
@@ -35,7 +36,9 @@ const {
   GET_LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION,
   GET_DEVICE_COUNT_CACHE_EXPIRATION,
 } = require("../config/constants");
-const { logObject, logElement } = require("../utils/log");
+const { logObject, logElement, logText } = require("../utils/log");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const { validationResult } = require("express-validator");
 
 async function asyncForEach(array, callback) {
   for (let index = 0; index < array.length; index++) {
@@ -100,7 +103,7 @@ const data = {
           } else {
             let channel = ch_id;
             axios
-              .get(constants.GENERATE_LAST_ENTRY({ channel }))
+              .get(constants.READ_DEVICE_FEEDS({ channel }))
               .then(async (response) => {
                 let readings = response.data;
 
@@ -109,10 +112,6 @@ const data = {
                   return item.entry_id === lastEntryId;
                 });
                 let responseData = recentReadings[0];
-
-                let referenceForRefactor =
-                  "https://docs.google.com/document/d/163T5dZj_FaDHJ_sBAmKamqGN2PSuaZdBEirx-Kz-80Q/edit?usp=sharing";
-
                 redis.set(
                   cacheID,
                   JSON.stringify({ isCache: true, ...responseData })
@@ -185,9 +184,138 @@ const data = {
     }
   },
 
+  readBAM: async (req, res) => {
+    try {
+    } catch (error) {}
+  },
+
+  readDataRangeOfEvents: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { channel, start, end } = req.query;
+      let api_key = "";
+      let errors = [];
+      let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
+      logObject("responseFromGetAPIKey", responseFromGetAPIKey);
+      if (responseFromGetAPIKey.success === true) {
+        api_key = responseFromGetAPIKey.data;
+        logElement("api_key", api_key);
+      }
+
+      if (responseFromGetAPIKey.success === false) {
+        if (responseFromGetAPIKey.error) {
+          errors.push(responseFromGetAPIKey.error);
+          errors.push(responseFromGetAPIKey.message);
+        } else {
+          errors.push(responseFromGetAPIKey.message);
+        }
+      }
+      let ts = Date.now();
+      let day = await generateDateFormat(ts);
+      let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
+      redis.get(cacheID, (err, result) => {
+        if (result) {
+          const resultJSON = JSON.parse(result);
+          return res.status(HTTPStatus.OK).json(resultJSON);
+        } else {
+          logElement(
+            "URL",
+            constants.READ_DEVICE_FEEDS({ channel, api_key, start, end })
+          );
+          axios
+            .get(constants.READ_DEVICE_FEEDS({ channel, api_key, start, end }))
+            .then(async (response) => {
+              const readings = response.data;
+              const { feeds } = readings;
+              logObject("response from axios", response.data);
+              let lastEntryId = readings.channel.last_entry_id;
+
+              if (isEmpty(lastEntryId) && isEmpty(feeds)) {
+                return res.status(HTTPStatus.NOT_FOUND).json({
+                  success: true,
+                  message: "no recent measurements for this device",
+                });
+              }
+
+              let recentReadings = await readings.feeds.filter((item) => {
+                return item.entry_id === lastEntryId;
+              });
+              let responseData = recentReadings[0];
+
+              delete responseData.entry_id;
+
+              let cleanedDeviceMeasurements = cleanMeasurements(responseData);
+              logObject("cleanedMeasurement", cleanedDeviceMeasurements);
+
+              let transformedData = await transformMeasurement(
+                cleanedDeviceMeasurements
+              );
+              let transformedField = {};
+              let otherData = transformedData.other_data;
+
+              if (otherData) {
+                transformedField = await trasformFieldValues(otherData);
+                delete transformedData.other_data;
+              }
+
+              let newResp = {
+                success: true,
+                ...transformedData,
+                ...transformedField,
+                errors,
+              };
+
+              let cleanedFinalTransformation = cleanMeasurements(newResp);
+
+              logObject(
+                "cleanedTransformedMeasurement",
+                cleanedFinalTransformation
+              );
+              redis.set(
+                cacheID,
+                JSON.stringify({
+                  isCache: true,
+                  ...cleanedFinalTransformation,
+                })
+              );
+
+              redis.expire(
+                cacheID,
+                GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
+              );
+
+              return res.status(HTTPStatus.OK).json({
+                isCache: false,
+                ...cleanedFinalTransformation,
+              });
+            })
+            .catch((error) => {
+              logObject("axios server error", error);
+              let extra = errors;
+              axiosError({ error, res, extra });
+            });
+        }
+      });
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   generateDescriptiveLastEntry: async (req, res) => {
     try {
-      const { channel, device } = req.query;
+      const { channel, device, start, end } = req.query;
       if (channel) {
         let api_key = "";
         let errors = [];
@@ -195,6 +323,7 @@ const data = {
         logObject("responseFromGetAPIKey", responseFromGetAPIKey);
         if (responseFromGetAPIKey.success === true) {
           api_key = responseFromGetAPIKey.data;
+          logElement("api_key", api_key);
         }
 
         if (responseFromGetAPIKey.success === false) {
@@ -213,11 +342,26 @@ const data = {
             const resultJSON = JSON.parse(result);
             return res.status(HTTPStatus.OK).json(resultJSON);
           } else {
+            logElement(
+              "URL",
+              constants.READ_DEVICE_FEEDS({ channel, api_key, start, end })
+            );
             axios
-              .get(constants.GENERATE_LAST_ENTRY({ channel, api_key }))
+              .get(
+                constants.READ_DEVICE_FEEDS({ channel, api_key, start, end })
+              )
               .then(async (response) => {
-                let readings = response.data;
+                const readings = response.data;
+                const { feeds } = readings;
+                logObject("response from axios", response.data);
                 let lastEntryId = readings.channel.last_entry_id;
+
+                if (isEmpty(lastEntryId) && isEmpty(feeds)) {
+                  return res.status(HTTPStatus.NOT_FOUND).json({
+                    success: true,
+                    message: "no recent measurements for this device",
+                  });
+                }
 
                 let recentReadings = await readings.feeds.filter((item) => {
                   return item.entry_id === lastEntryId;
@@ -272,6 +416,7 @@ const data = {
                 });
               })
               .catch((error) => {
+                logObject("axios server error", error);
                 let extra = errors;
                 axiosError({ error, res, extra });
               });
@@ -281,6 +426,7 @@ const data = {
         missingQueryParams(req, res);
       }
     } catch (e) {
+      logObject("error", e);
       tryCatchErrors(e, req, res);
     }
   },
