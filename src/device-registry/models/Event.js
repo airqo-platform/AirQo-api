@@ -358,14 +358,6 @@ eventSchema.statics = {
   },
   async list({ skip = 0, limit = 100, filter = {} } = {}) {
     try {
-      let modifiedLimit = limit;
-      let modifiedSkip = skip;
-      if (isEmpty(modifiedLimit)) {
-        modifiedLimit = 100;
-      }
-      if (isEmpty(modifiedSkip)) {
-        modifiedSkip = 0;
-      }
       const { metadata, frequency, external, tenant, device, recent } = filter;
       let search = filter;
       let groupId = "$device";
@@ -391,14 +383,6 @@ eventSchema.statics = {
       delete search["tenant"];
       delete search["device"];
       delete search["recent"];
-
-      if (external === "yes") {
-        projection["s2_pm10"] = 0;
-        projection["s1_pm10"] = 0;
-        projection["s2_pm2_5"] = 0;
-        projection["s1_pm2_5"] = 0;
-        projection[as] = 0;
-      }
 
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
@@ -440,8 +424,12 @@ eventSchema.statics = {
         Object.assign(projection, siteProjection);
       }
 
-      if (device) {
-        modifiedLimit = 1000;
+      if (external === "yes") {
+        projection["s2_pm10"] = 0;
+        projection["s1_pm10"] = 0;
+        projection["s2_pm2_5"] = 0;
+        projection["s1_pm2_5"] = 0;
+        projection[as] = 0;
       }
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
@@ -487,8 +475,31 @@ eventSchema.statics = {
             [as]: elementAtIndex0,
           })
           .project(projection)
-          .skip(modifiedSkip)
-          .limit(modifiedLimit)
+          .facet({
+            total: [{ $count: "device" }],
+            data: [{ $addFields: { device: "$device" } }],
+          })
+          .project({
+            meta: {
+              total: { $arrayElemAt: ["$total.device", 0] },
+              limit: { $literal: limit },
+              page: { $literal: skip / limit + 1 },
+              pages: {
+                $ceil: {
+                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+                },
+              },
+            },
+            data: {
+              $slice: [
+                "$data",
+                skip,
+                {
+                  $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+                },
+              ],
+            },
+          })
           .allowDiskUse(true);
         return {
           success: true,
@@ -572,8 +583,35 @@ eventSchema.statics = {
             [as]: "$" + _as,
           })
           .project(projection)
-          .skip(modifiedSkip)
-          .limit(modifiedLimit)
+          .facet({
+            total: [{ $count: "device" }],
+            data: [
+              {
+                $addFields: { device: "$device" },
+              },
+            ],
+          })
+          .project({
+            meta: {
+              total: { $arrayElemAt: ["$total.device", 0] },
+              limit: { $literal: limit },
+              page: { $literal: skip / limit + 1 },
+              pages: {
+                $ceil: {
+                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+                },
+              },
+            },
+            data: {
+              $slice: [
+                "$data",
+                skip,
+                {
+                  $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+                },
+              ],
+            },
+          })
           .allowDiskUse(true);
         return {
           success: true,

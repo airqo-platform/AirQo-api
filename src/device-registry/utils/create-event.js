@@ -112,7 +112,17 @@ const createEvent = {
   list: async (request, callback) => {
     try {
       const { query } = request;
-      let { recent, tenant, limit, skip } = query;
+      let {
+        recent,
+        tenant,
+        device,
+        device_number,
+        device_id,
+        site_id,
+        site,
+      } = query;
+      let limit = parseInt(query.limit);
+      let skip = parseInt(query.skip);
       let filter = {};
       const responseFromFilter = generateFilter.events_v2(request);
       if (responseFromFilter.success === true) {
@@ -131,61 +141,76 @@ const createEvent = {
           callback(result.data);
         }
         if (result.success === false) {
-          let devicesCount = 2000;
           await registerDeviceUtil.getDevicesCount(request, async (result) => {
+            logObject("result", result);
             if (result.success === true) {
-              devicesCount = result.data;
+              if (!recent || recent === "yes") {
+                logElement("result.data", result.data);
+                if (!limit) {
+                  limit = result.data;
+                }
+                if (!skip) {
+                  skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+                }
+              }
+              if (device || device_number || device_id || site_id || site) {
+                if (!limit) {
+                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
+                }
+                if (!skip) {
+                  skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+                }
+              }
+              logElement("the skip", skip);
+              logElement("the limit", limit);
+              logObject("the filter", filter);
+              const responseFromListEvents = await eventModel(tenant).list({
+                skip,
+                limit,
+                filter,
+              });
+
+              if (responseFromListEvents.success === true) {
+                const data = cleanDeep(responseFromListEvents.data);
+                createEvent.setCache(data, request, (result) => {
+                  if (result.success === true) {
+                    logText(result.message);
+                  }
+                  if (result.success === false) {
+                    logText(result.message);
+                  }
+                });
+
+                const status = responseFromListEvents.status
+                  ? responseFromListEvents.status
+                  : "";
+                callback({
+                  success: true,
+                  message: responseFromListEvents.message,
+                  data,
+                  status,
+                  isCache: false,
+                });
+              }
+
+              if (responseFromListEvents.success === false) {
+                const status = responseFromListEvents.status
+                  ? responseFromListEvents.status
+                  : "";
+                const errors = responseFromListEvents.errors
+                  ? responseFromListEvents.errors
+                  : "";
+                callback({
+                  success: false,
+                  message: responseFromListEvents.message,
+                  errors,
+                  status,
+                  isCache: false,
+                });
+              }
             }
             if (result.success === false) {
               logText(result.message);
-            }
-            if (recent === "yes") {
-              limit = devicesCount;
-            }
-
-            const responseFromListEvents = await eventModel(tenant).list({
-              skip,
-              limit,
-              filter,
-            });
-
-            if (responseFromListEvents.success === true) {
-              const data = cleanDeep(responseFromListEvents.data);
-              createEvent.setCache(data, request, (result) => {
-                if (result.success === true) {
-                  logText(result.message);
-                }
-                if (result.success === false) {
-                  logText(result.message);
-                }
-              });
-
-              const status = responseFromListEvents.status
-                ? responseFromListEvents.status
-                : "";
-              callback({
-                success: true,
-                message: responseFromListEvents.message,
-                data,
-                status,
-                isCache: false,
-              });
-            }
-
-            if (responseFromListEvents.success === false) {
-              const status = responseFromListEvents.status
-                ? responseFromListEvents.status
-                : "";
-              const errors = responseFromListEvents.errors
-                ? responseFromListEvents.errors
-                : "";
-              callback({
-                success: false,
-                message: responseFromListEvents.message,
-                errors,
-                status,
-                isCache: false,
-              });
             }
           });
         }
