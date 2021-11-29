@@ -1,27 +1,25 @@
-const client = require('../config/kafka');
-const kafka = require('kafka-node');
+const { client, sendMessagesToTopics } = require("../config/kafka");
+const kafka = require("kafka-node");
 
-let topicsToCreate = [{
-
-    topic: 'bbaale',
+let topicsToCreate = [
+  {
+    topic: "bbaale",
     partitions: 1,
-    replicationFactor: 1
-},
-{
-
-    topic: 'martin',
+    replicationFactor: 1,
+  },
+  {
+    topic: "martin",
     partitions: 1,
-    replicationFactor: 1
-}
+    replicationFactor: 1,
+  },
 ];
 
 client.createTopics(topicsToCreate, (error, result) => {
-    if (error) {
-        console.log("we erroring");
-        console.error(error);
-    }
-    else {
-        console.log("we good");
-        console.log(result);
-    }
-})
+  if (error) {
+    console.log("we erroring");
+    console.error(error);
+  } else {
+    console.log("we good");
+    console.log(result);
+  }
+});
