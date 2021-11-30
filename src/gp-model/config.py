@@ -18,6 +18,9 @@ class Config:
 class ProductionConfig(Config):
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+    VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_PROD')
+    LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_PROD')
+    EVENTS_URI = os.getenv('EVENTS_URI_PROD')
 
 
 class DevelopmentConfig(Config):
@@ -25,6 +28,9 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = os.getenv("MONGO_DEV_URI")
     DB_NAME = os.getenv("DB_NAME_DEV")
+    VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_DEV')
+    LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_DEV')
+    EVENTS_URI = os.getenv('EVENTS_URI_DEV')
 
 
 class TestingConfig(Config):
@@ -32,6 +38,9 @@ class TestingConfig(Config):
     TESTING = True
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
+    VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_STAGE')
+    LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_STAGE')
+    EVENTS_URI = os.getenv('EVENTS_URI_STAGE')
 
 
 app_config = {
