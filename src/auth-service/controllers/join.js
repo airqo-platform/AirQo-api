@@ -529,6 +529,8 @@ const join = {
             success: true,
             message: value.message,
             token: value.data.token,
+            auth_link: value.data.link,
+            auth_code: value.data.emailLinkCode,
             email: value.data.email,
           });
         }
