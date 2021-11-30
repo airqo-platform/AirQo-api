@@ -481,7 +481,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/gp-model/
-          kubectl apply -f stage-gp-model-api.yaml
+          kubectl apply -f stage-airqo-gp-model-job.yaml
           kubectl rollout restart deployment/airqo-stage-gp-model-job -n staging
   
   ### exceddences ###
