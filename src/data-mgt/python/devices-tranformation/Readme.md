@@ -66,3 +66,9 @@ Update sites to include the nearest Tahmo Station.
 ```bash
     python main.py devices_without_forecast csv
 ```
+
+## Update sites external names based on csv file
+
+```bash
+    python main.py update_site_external_names
+```

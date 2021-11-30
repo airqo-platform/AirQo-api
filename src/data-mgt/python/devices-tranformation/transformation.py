@@ -37,6 +37,23 @@ class Transformation:
             if name and deployed.strip().lower() == "deployed":
                 self.airqo_api.update_primary_device(tenant=tenant, name=name, primary=is_primary)
 
+    def update_site_external_names(self):
+
+        updated_site_names = []
+        sites = pd.read_csv("sites.csv")
+        for _, site in sites.iterrows():
+
+            site_dict = dict(site.to_dict())
+
+            update = dict({
+                "search_name": site_dict.get("display_name"),
+                "lat_long": site_dict.get("lat_long"),
+                "tenant": self.tenant,
+            })
+            updated_site_names.append(update)
+
+        self.airqo_api.update_sites(updated_site_names)
+
     def map_devices_to_tahmo_station(self):
 
         devices = self.airqo_api.get_devices(self.tenant)
@@ -111,9 +128,7 @@ class Transformation:
                     update = dict({
                         "nearest_tahmo_station": station_data,
                         "_id": site_dict.get("_id"),
-                        "name": site_dict.get("name"),
-                        "latitude": latitude,
-                        "longitude": longitude,
+                        "tenant": self.tenant,
                     })
 
                     updated_sites.append(update)
