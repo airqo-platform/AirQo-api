@@ -114,6 +114,16 @@ const defaultConfig = {
   MESSAGE_TYPE: "events",
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
+  BAM_THINGSPEAK_FIELD_DESCRIPTIONS: {
+    field1: "RTC ADC",
+    field2: "RTCV",
+    field3: "Real Time PM Concentration - RTC",
+    field4: "STCADC",
+    field5: "STCV",
+    field6: "Short Term PM Concentration - STC",
+    field7: "Battery Voltage",
+    field8: "ExtraData",
+  },
   THINGSPEAK_FIELD_DESCRIPTIONS: {
     field1: "Sensor1 PM2.5_CF_1_ug/m3",
     field2: "Sensor1 PM10_CF_1_ug/m3",
