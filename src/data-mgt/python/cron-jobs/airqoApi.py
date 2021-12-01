@@ -114,9 +114,9 @@ class AirQoApi:
                 value_dict = dict(value)
                 data = {
                     "device_id": value_dict.get("device"),
-                    "sensor1_pm2.5": float(to_double(value_dict.get("pm2_5"))),
+                    "sensor1_pm2.5": float(to_double(value_dict.get("s1_pm2_5"))),
                     "sensor2_pm2.5": float(to_double(value_dict.get("s2_pm2_5"))),
-                    "sensor1_pm10": float(to_double(value_dict.get("pm10"))),
+                    "sensor1_pm10": float(to_double(value_dict.get("s1_pm10"))),
                     "sensor2_pm10": float(to_double(value_dict.get("s2_pm10"))),
                     "temperature": float(to_double(value_dict.get("temperature"))),
                     "humidity": float(to_double(value_dict.get("humidity"))),
