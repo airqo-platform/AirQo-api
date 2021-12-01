@@ -130,7 +130,8 @@ const createEvent = {
             success: true,
             isCache: result.isCache,
             message: result.message,
-            measurements: result.data,
+            meta: result.data[0].meta,
+            measurements: result.data[0].data,
           });
         }
 
