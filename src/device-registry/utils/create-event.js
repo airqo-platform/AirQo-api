@@ -152,8 +152,7 @@ const createEvent = {
                 if (!skip) {
                   skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
                 }
-              }
-              if (device || device_number || device_id || site_id || site) {
+              } else {
                 if (!limit) {
                   limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
                 }
