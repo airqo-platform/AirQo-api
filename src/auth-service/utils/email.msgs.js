@@ -74,4 +74,12 @@ module.exports = {
       `The code: ${token}`
     );
   },
+  authenticate_email: (token) => {
+    return (
+      `You are about to make changes to your email address. \n\n` +
+      `First, you need you to re-authenticate.\n\n` +
+      `Enter the code below in the app. \n\n` +
+      `The code: ${token}`
+    );
+  },
 };
