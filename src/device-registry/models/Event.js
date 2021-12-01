@@ -12,6 +12,8 @@ const constants = require("../config/constants");
 const { isElement, isEmpty } = require("underscore");
 const httpStatus = require("http-status");
 const { getModelByTenant } = require("../utils/multitenancy");
+const log4js = require("log4js");
+const logger = log4js.getLogger("event-model");
 
 const valueSchema = new Schema({
   time: {
@@ -622,6 +624,7 @@ eventSchema.statics = {
         };
       }
     } catch (error) {
+      logger.error(`list events -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
