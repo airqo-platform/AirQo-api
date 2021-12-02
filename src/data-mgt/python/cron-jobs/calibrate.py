@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 from config import configuration
 from airqoApi import AirQoApi
-from utils import to_double, average_values
+from date import date_to_str2, date_to_str_hours
+from utils import to_double
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -23,13 +24,13 @@ class CalibrationJob:
         self.airqo_api = AirQoApi()
         self.hours = 1
 
-    def calibrate(self):
-        self.get_events()
+    def calibrate(self, start_time=None, end_time=None):
+        self.get_events(start_time, end_time)
         self.average_measurements()
         self.calibrate_measurements()
         self.save_calibrated_measurements()
 
-    def get_events(self):
+    def get_events(self, start_time=None, end_time=None):
 
         # ####
         # Getting devices
@@ -46,13 +47,16 @@ class CalibrationJob:
         # Getting events
         # ####
 
-        time = datetime.utcnow()
-        start_time = (time - timedelta(hours=self.hours)).strftime('%Y-%m-%dT%H:00:00Z')
-        end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=self.hours)) \
-            .strftime('%Y-%m-%dT%H:00:00Z')
+        if start_time is None or end_time is None:
+            time = datetime.utcnow()
+            start_time = date_to_str_hours(time - timedelta(hours=self.hours))
+            end_time = date_to_str_hours(datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') +
+                                         timedelta(hours=self.hours))
 
+        interval = f"{self.hours}H"
         print(f'UTC start time : {start_time}')
         print(f'UTC end time : {end_time}')
+        dates = pd.date_range(start_time, end_time, freq=interval)
 
         for device in devices_list:
 
@@ -61,15 +65,20 @@ class CalibrationJob:
                     print(f'name missing in device keys : {device}')
                     continue
 
-                device_name = device['name']
-                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time, frequency="raw",
-                                                   end_time=end_time, device=device_name)
+                for date in dates:
+                    start_datetime = date_to_str2(date)
+                    end_datetime = date_to_str2(date + timedelta(hours=int(self.hours)))
 
-                if not events:
-                    print(f"No measurements for {device_name} : startTime {start_time} : endTime : {end_time}")
-                    continue
+                    device_name = device['name']
+                    events = self.airqo_api.get_events(tenant='airqo', start_time=start_datetime, frequency="raw",
+                                                       end_time=end_datetime, device=device_name)
 
-                self.raw_events.extend(events)
+                    if not events:
+                        print(f"No measurements for {device_name} : "
+                              f"startTime {start_datetime} : endTime : {end_datetime}")
+                        continue
+
+                    self.raw_events.extend(events)
             except:
                 traceback.print_exc()
 
@@ -295,3 +304,8 @@ class CalibrationJob:
 def main():
     calibration_job = CalibrationJob()
     calibration_job.calibrate()
+
+
+def main_historical_data(start_time, end_time):
+    calibration_job = CalibrationJob()
+    calibration_job.calibrate(start_time, end_time)
