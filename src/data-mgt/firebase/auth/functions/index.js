@@ -1,7 +1,7 @@
 "use strict";
 require("dotenv").config();
 
-const {default: axios} = require("axios");
+const axios = require('axios')
 const {initializeApp} = require("firebase-admin/app");
 const {getFirestore} = require("firebase-admin/firestore");
 
@@ -25,10 +25,10 @@ async function createUserProfile(user) {
 
   try {
     const id = user.uid;
-    const emailAddress = user.email ? "" : user.email;
-    const phoneNumber = user.phoneNumber ? "" : user.phoneNumber;
-    const photoUrl = user.photoURL ? "" : user.photoURL;
-    const displayName = user.displayName ? "" : user.displayName;
+    const emailAddress = user.email == null ? "" : user.email;
+    const phoneNumber = user.phoneNumber == null ? "" : user.phoneNumber;
+    const photoUrl = user.photoURL == null ? "" : user.photoURL;
+    const displayName = user.displayName == null ? "" : user.displayName;
     const profile = {
       "userId": id,
       "title": "",
@@ -61,26 +61,27 @@ async function createUserProfile(user) {
 async function sendWelcomeMessage(user) {
 
   try {
-    const emailAddress = user.email ? "" : user.email;
+    const emailAddress = user.email == null ? "" : user.email;
     if (emailAddress == "") {
       return null;
     }
   
-    const displayName = user.displayName ? "" : user.displayName;
+    const displayName = user.displayName == null ? "" : user.displayName;
     const endPoint = process.env.WELCOME_MESSAGE_ENDPOINT;
     const body = {
       "platform": "mobile",
       "firstName": displayName,
       "emailAddress": emailAddress,
     };
+
+    axios.post(endPoint, JSON.stringify(body), {headers: {"Content-Type": "application/json"}})
+    .then(res => {
+      console.log(`Welcome message status code: ${res.status}`)
+    })
+    .catch(error => {
+      console.error(error)
+    })
   
-    axios.post(endPoint, JSON.stringify(body))
-        .then((res) => {
-          console.log("Request complete! response:", res);
-        })
-        .catch(function(error) {
-          console.log(error);
-        });
   } catch (error) {
     console.log(error);
   }
@@ -116,8 +117,8 @@ async function sendWelcomeNotification(user) {
 
 exports.createUserProfile = functions.auth.user().onCreate((user) => {
   createUserProfile(user);
-  sendWelcomeMessage(user);
   sendWelcomeNotification(user);
+  sendWelcomeMessage(user);
   return null;
 });
 
