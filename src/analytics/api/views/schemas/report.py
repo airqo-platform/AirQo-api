@@ -12,11 +12,11 @@ class ReportAttributeSchema(Schema):
 
 class ReportPeriodSchema(Schema):
     is_relative = marshmallow_fields.Boolean(required=True)
+    label = marshmallow_fields.String()
     value = marshmallow_fields.Int()
     unit = marshmallow_fields.String()
     start_date = marshmallow_fields.DateTime()
     end_date = marshmallow_fields.DateTime()
-    str_rep = marshmallow_fields.String()
 
 
 class ReportSchema(Schema):
