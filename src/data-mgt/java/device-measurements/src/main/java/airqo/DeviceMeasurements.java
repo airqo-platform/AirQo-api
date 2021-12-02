@@ -1,8 +1,8 @@
 package airqo;
 
+import airqo.models.TransformedDeviceMeasurements;
 import io.confluent.kafka.serializers.AbstractKafkaSchemaSerDeConfig;
 import io.confluent.kafka.streams.serdes.avro.SpecificAvroSerde;
-import airqo.models.TransformedDeviceMeasurements;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.KafkaStreams;
@@ -16,7 +16,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.Date;
+import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.CountDownLatch;
 
 public class DeviceMeasurements {
@@ -29,15 +32,14 @@ public class DeviceMeasurements {
 
         try {
 
-            if(!properties.containsKey("bootstrap.servers") ||
+            if (!properties.containsKey("bootstrap.servers") ||
                     !properties.containsKey("input.topic") ||
                     !properties.containsKey("tenant") ||
                     !properties.containsKey("output.topic") ||
                     !properties.containsKey(AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG) ||
                     !properties.containsKey("application.id"))
                 throw new IOException("Some properties are missing");
-        }
-        catch (IOException ex){
+        } catch (IOException ex) {
             System.err.println(ex.getMessage());
             System.exit(1);
         }
@@ -53,21 +55,25 @@ public class DeviceMeasurements {
 
     static void createMeasurementsStream(final StreamsBuilder builder, Properties properties) {
 
-        final Map<String, String> serdeConfig = Collections.singletonMap(
-                AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
+        try {
+            final Map<String, String> serdeConfig = Collections.singletonMap(
+                    AbstractKafkaSchemaSerDeConfig.SCHEMA_REGISTRY_URL_CONFIG, properties.getProperty("schema.registry.url"));
 
-        // `TransformedDeviceMeasurements` are Java classes generated from Avro schemas
-        final Serde<TransformedDeviceMeasurements>
-                valueSpecificAvroSerde = new SpecificAvroSerde<>();
-        valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
+            // `TransformedDeviceMeasurements` are Java classes generated from Avro schemas
+            final Serde<TransformedDeviceMeasurements>
+                    valueSpecificAvroSerde = new SpecificAvroSerde<>();
+            valueSpecificAvroSerde.configure(serdeConfig, false); // `false` for record values
 
-        final KStream<String, String> source = builder
-                .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
+            final KStream<String, String> source = builder
+                    .stream(properties.getProperty("input.topic"), Consumed.with(Serdes.String(), Serdes.String()));
 
-        final KStream<String, TransformedDeviceMeasurements> transformedList = source
-                .map((key, value) -> new KeyValue<>("", Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
+            final KStream<String, TransformedDeviceMeasurements> transformedList = source
+                    .map((key, value) -> new KeyValue<>(null, Utils.generateTransformedOutput(Utils.transformMeasurements(value, properties))));
 
-        transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde) );
+            transformedList.to(properties.getProperty("output.topic"), Produced.valueSerde(valueSpecificAvroSerde));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     public static void main(final String[] args) {
@@ -75,7 +81,7 @@ public class DeviceMeasurements {
         final Properties streamsConfiguration = getStreamsConfig("application.properties");
 
         logger.info("Started Connector");
-        logger.info(new Date( System.currentTimeMillis()).toString());
+        logger.info(new Date(System.currentTimeMillis()).toString());
 
         final StreamsBuilder builder = new StreamsBuilder();
         createMeasurementsStream(builder, streamsConfiguration);

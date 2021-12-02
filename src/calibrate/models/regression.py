@@ -1,8 +1,19 @@
+import os
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 import pickle
 import gcsfs
 import joblib
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent
+dotenv_path = os.path.join(BASE_DIR, '.env')
+load_dotenv(dotenv_path)
+
+RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
+LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
 
 class Regression():
     """
@@ -41,12 +52,14 @@ class Regression():
         input_variables = input_variables[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
 
         #load model from disk
-        rf_regressor = pickle.load(open('jobs/rf_reg_model.pkl', 'rb'))
+        rf_regressor = pickle.load(open(RF_REG_MODEL, 'rb'))
+        lasso_regressor = pickle.load(open(LASSO_MODEL, 'rb'))
         # # load model from GCP 
         # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
-        calibrated_value_rf =  rf_regressor.predict(input_variables)[0] 
+        calibrated_pm2_5 =  rf_regressor.predict(input_variables)[0]
+        calibrated_pm10 =  lasso_regressor.predict(input_variables)[0]  
         
-        return calibrated_value_rf
+        return calibrated_pm2_5, calibrated_pm10
                
     
 if __name__ == "__main__":

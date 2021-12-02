@@ -1,5 +1,3 @@
-const CandidateSchema = require("../models/Candidate");
-const UserSchema = require("../models/User");
 const HTTPStatus = require("http-status");
 const msgs = require("../utils/email.msgs");
 const register = require("../utils/register");
@@ -9,91 +7,97 @@ const requestUtil = require("../utils/request");
 const generateFilter = require("../utils/generate-filter");
 const validations = require("../utils/validations");
 
-const CandidateModel = (tenant) => {
-  return getModelByTenant(tenant, "candidate", CandidateSchema);
-};
-
-const UserModel = (tenant) => {
-  return getModelByTenant(tenant, "user", UserSchema);
-};
+const { validationResult } = require("express-validator");
+const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const { badRequest } = require("../utils/errors");
 
 const { tryCatchErrors, missingQueryParams } = require("utils/errors");
-const { logObject } = require("utils/log");
-const { logText, logElement } = require("../utils/log");
+const { logText, logElement, logObject, logError } = require("../utils/log");
 const isEmpty = require("is-empty");
 const { request } = require("../app");
 
 const candidate = {
   create: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       const {
         firstName,
         lastName,
         email,
-        organization,
+        long_organization,
         jobTitle,
         website,
         description,
         category,
       } = req.body;
+
       const { errors, isValid } = validations.candidate(req.body);
       if (!isValid) {
         return res
           .status(HTTPStatus.BAD_REQUEST)
           .json({ success: false, errors, message: "validation error" });
       }
-      const mailOptions = {
-        from: constants.EMAIL,
-        to: `${req.body.email}`,
-        subject: "AirQo Platform JOIN request",
-        text: msgs.joinRequest,
-      };
 
-      let responseFromUserCreation = await requestUtil.create(
-        tenant.toLowerCase(),
-        firstName,
-        lastName,
-        email,
-        organization,
-        jobTitle,
-        website,
-        description,
-        category,
-        mailOptions
-      );
+      let request = {};
+      request["tenant"] = tenant.toLowerCase();
+      request["firstName"] = firstName;
+      request["lastName"] = lastName;
+      request["email"] = email;
+      request["long_organization"] = long_organization;
+      request["jobTitle"] = jobTitle;
+      request["website"] = website;
+      request["description"] = description;
+      request["category"] = category;
 
-      if (responseFromUserCreation.success == true) {
-        return res.status(HTTPStatus.OK).json({
-          success: true,
-          message: responseFromUserCreation.message,
-          candidate: responseFromUserCreation.data,
-        });
-      } else if (responseFromUserCreation.success == false) {
-        if (responseFromUserCreation.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromUserCreation.message,
-            error: responseFromUserCreation.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
-            success: false,
-            message: responseFromUserCreation.message,
-          });
-        }
-      }
+      await requestUtil
+        .create(request, (value) => {
+          if (value.success === true) {
+            return res.status(value.status).json({
+              success: true,
+              message: value.message,
+              candidate: value.data,
+            });
+          }
+
+          if (value.success === false) {
+            const errors = value.errors ? value.errors : "";
+            return res.status(value.status).json({
+              success: false,
+              message: value.message,
+              errors,
+            });
+          }
+        })
+        .catch((error) => {});
     } catch (error) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
-        message: "controller server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       });
     }
   },
 
   list: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       if (isEmpty(tenant)) {
         missingQueryParams(req, res);
@@ -158,15 +162,26 @@ const candidate = {
   confirm: async (req, res) => {
     console.log("inside the confirm candidate");
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const {
         firstName,
         lastName,
         email,
-        organization,
+        long_organization,
         jobTitle,
         website,
         category,
+        description,
       } = req.body;
+
       const { errors, isValid } = validations.candidate(req.body);
       if (!isValid) {
         return res
@@ -181,23 +196,26 @@ const candidate = {
       let responseFromFilter = generateFilter.candidates(req);
       logObject("responseFromFilter", responseFromFilter);
 
-      if (responseFromFilter.success == true) {
+      if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
         logObject("the filter in controller", filter);
-        let responseFromConfirmCandidate = await requestUtil.confirm(
-          tenant,
-          firstName,
-          lastName,
-          email,
-          organization,
-          jobTitle,
-          website,
-          category,
-          filter
-        );
+        let request = {};
+        request["tenant"] = tenant.toLowerCase();
+        request["firstName"] = firstName;
+        request["lastName"] = lastName;
+        request["email"] = email;
+        request["organization"] = tenant;
+        request["long_organization"] = long_organization;
+        request["jobTitle"] = jobTitle;
+        request["website"] = website;
+        request["description"] = description;
+        request["category"] = category;
+        request["filter"] = filter;
+
+        let responseFromConfirmCandidate = await requestUtil.confirm(request);
 
         logObject("responseFromConfirmCandidate", responseFromConfirmCandidate);
-        if (responseFromConfirmCandidate.success == true) {
+        if (responseFromConfirmCandidate.success === true) {
           let status = responseFromConfirmCandidate.status
             ? responseFromConfirmCandidate.status
             : HTTPStatus.OK;
@@ -206,7 +224,7 @@ const candidate = {
             message: responseFromConfirmCandidate.message,
             user: responseFromConfirmCandidate.data,
           });
-        } else if (responseFromConfirmCandidate.success == false) {
+        } else if (responseFromConfirmCandidate.success === false) {
           let status = responseFromConfirmCandidate.status
             ? responseFromConfirmCandidate.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -222,7 +240,7 @@ const candidate = {
             });
           }
         }
-      } else if (responseFromFilter.success == false) {
+      } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
           if (responseFromFilter.error) {
             return res.status(HTTPStatus.BAD_GATEWAY).json({
@@ -248,6 +266,15 @@ const candidate = {
   },
   delete: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       if (!tenant) {
         missingQueryParams(req, res);
@@ -306,6 +333,15 @@ const candidate = {
   },
   update: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { tenant } = req.query;
       if (!tenant) {
         missingQueryParams(req, res);

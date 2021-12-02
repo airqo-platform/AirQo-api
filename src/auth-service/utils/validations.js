@@ -1,6 +1,13 @@
 const Validator = require("validator");
 const isEmpty = require("is-empty");
 const joi = require("joi");
+const httpStatus = require("http-status");
+const { logObject } = require("./log");
+constants = require("../config/constants");
+const kickbox = require("kickbox")
+  .client(`${constants.KICKBOX_API_KEY}`)
+  .kickbox();
+const emailExistence = require("email-existence");
 
 const validation = {
   candidate: (data) => {
@@ -10,7 +17,9 @@ const validation = {
     data.lastName = !isEmpty(data.lastName) ? data.lastName : "";
     data.email = !isEmpty(data.email) ? data.email : "";
     data.description = !isEmpty(data.description) ? data.description : "";
-    data.organization = !isEmpty(data.organization) ? data.organization : "";
+    data.long_organization = !isEmpty(data.long_organization)
+      ? data.long_organization
+      : "";
     data.jobTitle = !isEmpty(data.jobTitle) ? data.jobTitle : "";
     data.category = !isEmpty(data.category) ? data.category : "";
     data.website = !isEmpty(data.website) ? data.website : "";
@@ -31,8 +40,8 @@ const validation = {
       errors.description = "Description is required";
     }
 
-    if (Validator.isEmpty(data.organization)) {
-      errors.organization = "organization name is required";
+    if (Validator.isEmpty(data.long_organization)) {
+      errors.long_organization = "long_organization name is required";
     }
 
     if (Validator.isEmpty(data.jobTitle)) {
@@ -92,12 +101,15 @@ const validation = {
   register: (data) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions
-    data.userName = !isEmpty(data.userName) ? data.userName : "";
     data.firstName = !isEmpty(data.firstName) ? data.firstName : "";
     data.lastName = !isEmpty(data.lastName) ? data.lastName : "";
     data.email = !isEmpty(data.email) ? data.email : "";
     data.privilege = !isEmpty(data.privilege) ? data.privilege : "";
     data.organization = !isEmpty(data.organization) ? data.organization : "";
+    data.long_organization = !isEmpty(data.long_organization)
+      ? data.long_organization
+      : "";
+
     // Name checks
     if (Validator.isEmpty(data.firstName)) {
       errors.firstName = "firstName field is required";
@@ -117,10 +129,8 @@ const validation = {
       errors.organization = "organization field is required";
     }
 
-    //userName checks
-    if (Validator.isEmpty(data.userName || data.email)) {
-      errors.userName = "userName field is required";
-      errors.email = "userName field is required";
+    if (Validator.isEmpty(data.long_organization)) {
+      errors.long_organization = "long_organization name is required";
     }
 
     // Email checks
@@ -154,6 +164,119 @@ const validation = {
       errors,
       isValid: isEmpty(errors),
     };
+  },
+  /**
+   *
+   * @param {string} email
+   * @param {function} callback
+   */
+  checkEmailExistance: async (email, callback) => {
+    try {
+      await emailExistence.check(email, (response, error) => {
+        if (response === true) {
+          callback({
+            success: true,
+            message: "email exists",
+            status: httpStatus.OK,
+          });
+        }
+        if (response !== true) {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: response.code },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+        if (error) {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: error },
+            status: httpStatus.BAD_GATEWAY,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  /**
+   *
+   * @param {string} email
+   * @param {function} callback
+   */
+  checkEmailExistenceUsingKickbox: async (email, callback) => {
+    try {
+      await kickbox.verify(email, async (err, response) => {
+        if (response.body.result === "undeliverable") {
+          callback({
+            success: false,
+            message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
+            errors: { message: response.body.reason },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+
+        if (err) {
+          callback({
+            success: false,
+            message: "email verification error",
+            errors: { message: err },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+
+        if (response.body.result === "deliverable") {
+          callback({
+            success: true,
+            message: "deliverable",
+            status: httpStatus.OK,
+          });
+        }
+
+        if (response.body.result === "risky") {
+          callback({
+            success: false,
+            message: "risky email",
+            errors: { message: response.body.reason },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+
+        if (response.body.result === "unknown") {
+          callback({
+            success: false,
+            message: "unknown email",
+            errors: { message: response.body.reason },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+
+        if (response.body.role === true) {
+          callback({
+            success: false,
+            message: "role email addresses are not accepted",
+            errors: { message: "role email addresses are not accepted" },
+            status: httpStatus.BAD_REQUEST,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
   },
 };
 

@@ -1,9 +1,9 @@
 const mongoose = require("mongoose");
 const validator = require("validator");
 const ObjectId = mongoose.Schema.Types.ObjectId;
-const jsonify = require("../utils/jsonify");
 const { logObject, logElement } = require("../utils/log");
 const isEmpty = require("is-empty");
+const httpStatus = require("http-status");
 
 const CandidateSchema = new mongoose.Schema({
   email: {
@@ -28,7 +28,10 @@ const CandidateSchema = new mongoose.Schema({
     trim: true,
   },
   description: { type: String, required: [true, "description is required"] },
-  organization: { type: String, required: [true, "organization is required"] },
+  long_organization: {
+    type: String,
+    required: [true, "long_organization is required"],
+  },
   jobTitle: { type: String, required: [true, "jobTitle is required"] },
   category: { type: String, required: [true, "category is required"] },
   website: { type: String, required: [true, "website is required"] },
@@ -37,6 +40,7 @@ const CandidateSchema = new mongoose.Schema({
   },
   status: {
     type: String,
+    default: "pending",
   },
 });
 
@@ -49,12 +53,14 @@ CandidateSchema.statics = {
           ...args,
         }),
         message: "candidate created",
+        status: httpStatus.OK,
       };
     } catch (error) {
       return {
-        error: error.message,
+        errors: { message: error.message },
         message: "unable to create candidate",
         success: false,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -65,8 +71,9 @@ CandidateSchema.statics = {
         .skip(skip)
         .limit(limit)
         .exec();
-      let data = jsonify(candidates);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(candidates)) {
+        let data = candidates;
         return {
           success: true,
           data,
@@ -90,16 +97,14 @@ CandidateSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      let udpatedCandidate = await this.findOneAndUpdate(
+      let updatedCandidate = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
 
-      let data = jsonify(udpatedCandidate);
-      logObject("updatedCandidate", data);
-
-      if (!isEmpty(data)) {
+      if (!isEmpty(updatedCandidate)) {
+        let data = updatedCandidate._doc;
         return {
           success: true,
           message: "successfully modified the candidate",
@@ -128,9 +133,8 @@ CandidateSchema.statics = {
         filter,
         options
       ).exec();
-      logElement("removedCandidate", removedCandidate);
-      let data = jsonify(removedCandidate);
-      if (!isEmpty(data)) {
+      if (!isEmpty(removedCandidate)) {
+        let data = removedCandidate._doc;
         return {
           success: true,
           message: "successfully removed the candidate",
@@ -161,9 +165,10 @@ CandidateSchema.methods = {
       email: this.email,
       description: this.description,
       category: this.category,
-      organization: this.organization,
+      long_organization: this.long_organization,
       jobTitle: this.jobTitle,
       website: this.website,
+      status: this.status,
     };
   },
 };

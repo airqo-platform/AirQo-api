@@ -2,7 +2,6 @@ package airqo;
 
 import airqo.models.*;
 import com.google.gson.Gson;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -172,58 +171,27 @@ public class UtilsTest {
         assertEquals(transformedMeasurements.get(0).getDevice(), rawMeasurements.getDevice());
         assertEquals(transformedMeasurements.get(0).getTenant().trim().toLowerCase(), "airqo");
 
-        assertEquals(transformedMeasurements.get(0).getInternalHumidity().getValue(), Utils.stringToDouble(rawMeasurements.getInternalHumidity()));
-        assertEquals(transformedMeasurements.get(0).getInternalTemperature().getValue(), Utils.stringToDouble(rawMeasurements.getInternalTemperature()));
+        assertEquals(transformedMeasurements.get(0).getInternalHumidity().getValue(), Utils.stringToDouble(rawMeasurements.getInternalHumidity(), false));
+        assertEquals(transformedMeasurements.get(0).getInternalTemperature().getValue(), Utils.stringToDouble(rawMeasurements.getInternalTemperature(), false));
 
-        assertEquals(transformedMeasurements.get(0).getPm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getPm25()));
+        assertEquals(transformedMeasurements.get(0).getPm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getPm25(), false));
 //        assertNotNull(transformedMeasurements.get(0).getPm2_5().getCalibratedValue());
 
-        assertEquals(transformedMeasurements.get(0).getPm10().getValue(), Utils.stringToDouble(rawMeasurements.getPm10()));
+        assertEquals(transformedMeasurements.get(0).getPm10().getValue(), Utils.stringToDouble(rawMeasurements.getPm10(), false));
 
-        assertEquals(transformedMeasurements.get(0).getS2_pm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm25()));
-        assertEquals(transformedMeasurements.get(0).getS2_pm10().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm10()));
+        assertEquals(transformedMeasurements.get(0).getS2_pm2_5().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm25(), false));
+        assertEquals(transformedMeasurements.get(0).getS2_pm10().getValue(), Utils.stringToDouble(rawMeasurements.getS2Pm10(), false));
 
-        assertEquals(transformedMeasurements.get(0).getBattery().getValue(), Utils.stringToDouble(rawMeasurements.getBattery()));
-        assertEquals(transformedMeasurements.get(0).getSatellites().getValue(), Utils.stringToDouble(rawMeasurements.getSatellites()));
-        assertEquals(transformedMeasurements.get(0).getHdop().getValue(), Utils.stringToDouble(rawMeasurements.getHdop()));
+        assertEquals(transformedMeasurements.get(0).getBattery().getValue(), Utils.stringToDouble(rawMeasurements.getBattery(), false));
+        assertEquals(transformedMeasurements.get(0).getSatellites().getValue(), Utils.stringToDouble(rawMeasurements.getSatellites(), false));
+        assertEquals(transformedMeasurements.get(0).getHdop().getValue(), Utils.stringToDouble(rawMeasurements.getHdop(), false));
 
-        assertEquals(transformedMeasurements.get(0).getSpeed().getValue(), Utils.stringToDouble(rawMeasurements.getSpeed()));
-        assertEquals(transformedMeasurements.get(0).getAltitude().getValue(), Utils.stringToDouble(rawMeasurements.getAltitude()));
+        assertEquals(transformedMeasurements.get(0).getSpeed().getValue(), Utils.stringToDouble(rawMeasurements.getSpeed(), false));
+        assertEquals(transformedMeasurements.get(0).getAltitude().getValue(), Utils.stringToDouble(rawMeasurements.getAltitude(), false));
 
-        assertEquals(transformedMeasurements.get(0).getLocation().getLatitude().getValue(), Utils.stringToDouble(rawMeasurements.getLatitude()));
-        assertEquals(transformedMeasurements.get(0).getLocation().getLongitude().getValue(), Utils.stringToDouble(rawMeasurements.getLongitude()));
+        assertEquals(transformedMeasurements.get(0).getLocation().getLatitude().getValue(), Utils.stringToDouble(rawMeasurements.getLatitude(), false));
+        assertEquals(transformedMeasurements.get(0).getLocation().getLongitude().getValue(), Utils.stringToDouble(rawMeasurements.getLongitude(), false));
 
-    }
-
-    @Test
-    public void testAddAirQoCalibratedValues(){
-
-        TransformedMeasurement transformedMeasurement = new TransformedMeasurement(){{
-            setDevice("aq_01");
-            setTime("2021-01-01T00:00:00Z");
-            setPm2_5(new TransformedValue(){{
-                setValue(34.7);
-            }});
-            setPm10(new TransformedValue(){{
-                setValue(34.5);
-            }});
-            setInternalTemperature(new TransformedValue(){{
-                setValue(365.44);
-            }});
-            setInternalHumidity(new TransformedValue(){{
-                setValue(334.3);
-            }});
-        }};
-
-        List<TransformedMeasurement> transformedMeasurements = new ArrayList<>();
-
-        transformedMeasurements.add(transformedMeasurement);
-
-        transformedMeasurements = Utils.addAirQoCalibratedValues(transformedMeasurements);
-
-        transformedMeasurements.forEach(measurement -> {
-            assertNotNull(measurement.getPm2_5().getCalibratedValue());
-        });
     }
 
     @Test
@@ -277,10 +245,10 @@ public class UtilsTest {
     @Test
     public void testStringToDouble(){
 
-        Object object = Utils.stringToDouble("invalid double");
+        Object object = Utils.stringToDouble("invalid double", true);
         assertNull(object);
 
-        object = Utils.stringToDouble("0.0");
+        object = Utils.stringToDouble("0.0", true);
         assertEquals(object, 0.0);
 
     }

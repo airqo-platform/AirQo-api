@@ -12,7 +12,7 @@
 (Uses "production" dockerfile.)
 
 1. Add file `airqo-250220-5149c2aac8f2.json` to `jobs/`. Obtain from a team member or GCP.
-1. `docker build -t calibrate .`
+1. `docker build --target=dev -t calibrate .`
 2. `docker run -d -p 4001:4001 --env FLASK_APP=app.py --env FLASK_ENV=development --env MONGO_URI=mongodb://localhost:27017 calibrate`
 
 It is implicit that `mongodb` should be installed and running.
@@ -26,32 +26,32 @@ Make a "POST" request to http://localhost:4001/api/v1/calibrate with the followi
     "datetime": "2020-07-15 13:00:00",
     "raw_values": [
         {
-            "device_id": "aq_01",
-            "pm2.5": 44.12,
-            "pm10": 54.20,
-            "temperature": 25.3,
-            "humidity": 62.0
+            "device_id":"aq_01", 
+            "sensor1_pm2.5": 44.12 , 
+            "sensor1_pm10":54.20, 
+            "sensor2_pm2.5": 44.12 , 
+            "sensor2_pm10":54.20,
+            "temperature":25.3, 
+            "humidity":62.0 
         },
         {
             "device_id": "aq_02",
-            "pm2.5": 35.42,
-            "pm10": 41.53,
-            "temperature": 26.5,
-            "humidity": 57.0
+            "sensor1_pm2.5": 44.12 , 
+            "sensor1_pm10":54.20, 
+            "sensor2_pm2.5": 44.12 , 
+            "sensor2_pm10":54.20,
+            "temperature":25.3, 
+            "humidity":62.0 
         },
         {
             "device_id": "aq_03",
-            "pm2.5": 36.34,
-            "pm10": 43.06,
-            "temperature": 27.0,
-            "humidity": 56.0
+            "sensor1_pm2.5": 44.12 , 
+            "sensor1_pm10":54.20, 
+            "sensor2_pm2.5": 44.12 , 
+            "sensor2_pm10":54.20,
+            "temperature":25.3, 
+            "humidity":62.0 
         }
     ]
 }
-```
-
-## Kafka
-Building the docker image
-```commandline
-DOCKER_BUILDKIT=1 docker build --build-arg BOOTSTRAP_SERVERS=127.0.0.1:9092 --build-arg SCHEMA_REGISTRY=http://127.0.0.1:8081 -f Kafka.Stage.Dockerfile -t calibrate-kafka . 
 ```

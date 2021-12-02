@@ -35,7 +35,7 @@ To run on Windows
 
 Build the image within the microservice's directory
 ```bash
-docker build -t {IMAGE_NAME} .
+docker build --target={TARGET_STAGE} -t {IMAGE_NAME} .
 ```
 Then run the container based on the newly created image
 
@@ -53,7 +53,7 @@ To deploy this project, we take advantages of kubernetes
 
   Build the image within the microservice's directory
 ```bash
-docker build -t {IMAGE_NAME} .
+docker build --target={TARGET_STAGE} -t {IMAGE_NAME} .
 ```
 
 Push the respective images to a respective Docker register
@@ -125,7 +125,6 @@ Use the images in deployment files for Kubernetes accordingly
 | `endTime`      | `string` | **Optional**. the endTime which can be datetime (YYYY-MM-DDTHH:MM:SS.MSSZ) or just a day (YYYY-MM-DD) |
 | `device`      | `string` | **Optional**. the unique name of the device |
 | `frequency`      | `string` | **Optional**. the frequency of the events. Includes: hourly, daily and raw |
-
 
 #### Get all Site activities
 

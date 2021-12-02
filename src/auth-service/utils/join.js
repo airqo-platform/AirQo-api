@@ -3,19 +3,21 @@ const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../services/mailer");
 const generatePassword = require("./generate-password");
-const jsonify = require("./jsonify");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const constants = require("../config/constants");
 const isEmpty = require("is-empty");
+const HTTPStatus = require("http-status");
+const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
+const actionCodeSettings = require("../config/firebase-settings");
+const httpStatus = require("http-status");
 
 const UserModel = (tenant) => {
   try {
-    let users;
-    users = mongoose.model("users");
+    let users = mongoose.model("users");
     return users;
   } catch (error) {
-    users = getModelByTenant(tenant, "user", UserSchema);
+    let users = getModelByTenant(tenant, "user", UserSchema);
     return users;
   }
 };
@@ -59,15 +61,12 @@ const join = {
   },
   update: async (tenant, filter, update) => {
     try {
-      // logObject("the filter sent to DB", filter);
-      // logObject("the update sent to DB", update);
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
           filter,
           update,
         }
       );
-      // logObject("responseFromModifyUser", responseFromModifyUser);
       if (responseFromModifyUser.success == true) {
         let user = responseFromModifyUser.data;
         let responseFromSendEmail = await mailer.update(
@@ -75,7 +74,7 @@ const join = {
           user.firstName,
           user.lastName
         );
-        // logObject("responseFromSendEmail", responseFromSendEmail);
+
         if (responseFromSendEmail.success == true) {
           return {
             success: true,
@@ -119,6 +118,85 @@ const join = {
       };
     }
   },
+  generateSignInWithEmailLink: async (request, callback) => {
+    try {
+      const { body, query } = request;
+      const { email } = body;
+      const { purpose } = query;
+      let token = "TOKEN";
+      return getAuth()
+        .generateSignInWithEmailLink(email, actionCodeSettings)
+        .then(async (link) => {
+          let linkSegments = link.split("%").filter((segment) => segment);
+          const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
+          const indexOfCode = indexBeforeCode + 1;
+          let emailLinkCode = linkSegments[indexOfCode].substring(2);
+
+          const token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+          let responseFromSendEmail = {};
+          if (purpose === "auth") {
+            responseFromSendEmail = await mailer.authenticateEmail(
+              email,
+              token
+            );
+          }
+          if (purpose === "login") {
+            responseFromSendEmail = await mailer.signInWithEmailLink(
+              email,
+              token
+            );
+          }
+
+          if (responseFromSendEmail.success === true) {
+            callback({
+              success: true,
+              message: "process successful, check your email for token",
+              status: httpStatus.OK,
+              data: {
+                link,
+                token,
+                email,
+                emailLinkCode,
+              },
+            });
+          }
+
+          if (responseFromSendEmail.success === false) {
+            callback({
+              success: false,
+              message: "email sending process unsuccessful",
+              errors: responseFromSendEmail.errors,
+              status: httpStatus.BAD_GATEWAY,
+            });
+          }
+        })
+        .catch((error) => {
+          logObject("the error", error);
+          let status = httpStatus.INTERNAL_SERVER_ERROR;
+
+          if (error.code === "auth/invalid-email") {
+            status = httpStatus.BAD_REQUEST;
+          }
+          callback({
+            success: false,
+            message: "unable to sign in using email link",
+            status,
+            errors: {
+              message: error,
+            },
+          });
+        });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
   delete: async (tenant, filter) => {
     try {
       let responseFromRemoveUser = await UserModel(tenant.toLowerCase()).remove(
@@ -156,26 +234,29 @@ const join = {
     }
   },
 
-  create: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    privilege
-  ) => {
+  create: async (request) => {
     try {
+      let {
+        tenant,
+        firstName,
+        lastName,
+        email,
+        organization,
+        long_organization,
+        privilege,
+      } = request;
       let response = {};
       logText("...........create user util...................");
-      let responseFromGeneratePassword = generatePassword();
+      let responseFromGeneratePassword = generatePassword(10);
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-      if (responseFromGeneratePassword.success == true) {
+      if (responseFromGeneratePassword.success === true) {
         let password = responseFromGeneratePassword.data;
         let requestBody = {
           firstName,
           lastName,
           email,
           organization,
+          long_organization,
           privilege,
           userName: email,
           password,
@@ -184,13 +265,10 @@ const join = {
         let responseFromCreateUser = await UserModel(tenant).register(
           requestBody
         );
-        logObject("responseFromCreateUser", responseFromCreateUser);
-        let createdUser = await responseFromCreateUser.data;
-        let jsonifyCreatedUser = jsonify(createdUser);
 
-        logObject("created user in util", jsonifyCreatedUser);
-
-        if (responseFromCreateUser.success == true) {
+        if (responseFromCreateUser.success === true) {
+          let createdUser = await responseFromCreateUser.data;
+          logObject("created user in util", createdUser._doc);
           let responseFromSendEmail = await mailer.user(
             firstName,
             lastName,
@@ -200,64 +278,70 @@ const join = {
             "user"
           );
           logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success == true) {
+          if (responseFromSendEmail.success === true) {
             return {
               success: true,
               message: "user successfully created",
-              data: jsonifyCreatedUser,
+              data: createdUser._doc,
             };
-          } else if (responseFromSendEmail.success == false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-                error: responseFromSendEmail.error,
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
+          }
+
+          if (responseFromSendEmail.success === false) {
+            let status = responseFromSendEmail.status
+              ? responseFromSendEmail.status
+              : "";
+            let error = responseFromSendEmail.error
+              ? responseFromSendEmail.error
+              : "";
+            return {
+              success: false,
+              message: responseFromSendEmail.message,
+              error,
+              status,
+            };
           }
         }
 
-        if (responseFromCreateUser.success == false) {
-          if (responseFromCreateUser.error) {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-              error: responseFromCreateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromCreateUser.message,
-            };
-          }
+        if (responseFromCreateUser.success === false) {
+          let error = responseFromCreateUser.error
+            ? responseFromCreateUser.error
+            : "";
+          let status = responseFromCreateUser.status
+            ? responseFromCreateUser.status
+            : "";
+          logObject("the error from the model", error);
+          return {
+            success: false,
+            message: responseFromCreateUser.message,
+            error,
+            status,
+          };
         }
       }
 
-      if (responseFromGeneratePassword.success == false) {
-        if (responseFromGeneratePassword.error) {
-          return {
-            success: false,
-            message: responseFromGeneratePassword.message,
-            error: responseFromGeneratePassword.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGeneratePassword.message,
-          };
-        }
+      if (responseFromGeneratePassword.success === false) {
+        let error = responseFromGeneratePassword.error
+          ? responseFromGeneratePassword.error
+          : "";
+        let status = responseFromGeneratePassword.status
+          ? responseFromGeneratePassword.status
+          : "";
+        logElement("error when password generation fails", error);
+        return {
+          success: false,
+          message: responseFromGeneratePassword.message,
+          error,
+          status,
+        };
       }
     } catch (e) {
       logElement("create users util", e.message);
+      logObject("create user util error", e);
       return {
         success: false,
         message: "util server error",
         error: e.message,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

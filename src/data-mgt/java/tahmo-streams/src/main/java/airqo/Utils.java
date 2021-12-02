@@ -14,35 +14,37 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class Utils {
 
     private static final Logger logger = LoggerFactory.getLogger(Utils.class);
-    public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
     private static final HttpClient httpClient = HttpClient.newBuilder().build();
+    private static final DecimalFormat decimalFormat = new DecimalFormat("#.##");
+    public static SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss'Z'");
 
-    public static Properties loadEnvProperties(String propertiesFile){
+    public static Properties loadEnvProperties(String propertiesFile) {
 
-        if(propertiesFile == null)
+        if (propertiesFile == null)
             propertiesFile = "application.properties";
 
         Properties props = new Properties();
 
         try (InputStream input = Utils.class.getClassLoader().getResourceAsStream(propertiesFile)) {
             props.load(input);
-        }
-        catch (Exception ex){
+        } catch (Exception ex) {
             logger.error("Error loading properties file `{}` : {}", propertiesFile, ex.toString());
         }
 
         Set<String> systemKeys = System.getenv().keySet();
 
-        for(String envKey : systemKeys){
-            if (System.getenv(envKey) != null){
+        for (String envKey : systemKeys) {
+            if (System.getenv(envKey) != null) {
                 String propKey = envKey.trim().toLowerCase();
                 props.setProperty(propKey, System.getenv(envKey));
             }
@@ -51,7 +53,7 @@ public class Utils {
         return props;
     }
 
-    public static TransformedDeviceMeasurements addHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props){
+    public static TransformedDeviceMeasurements addHumidityAndTemp(TransformedDeviceMeasurements deviceMeasurements, Properties props) {
 
         List<Site> sites = Utils.getSites(props.getProperty("airqo.base.url"), props.getProperty("tenant"));
         Set<Site> filteredSites = new HashSet<>();
@@ -101,22 +103,26 @@ public class Utils {
         });
         Date startTime, endTime;
 
-        try {
-
-            if(!(startMeasurement.isPresent() && endMeasurement.isPresent())){
-                throw new Exception("Not present");
+        if (!(startMeasurement.isPresent() && endMeasurement.isPresent())) {
+            try {
+                throw new Exception("Start and end Measurements are not present");
+            } catch (Exception e) {
+                e.printStackTrace();
+                return deviceMeasurements;
             }
+        }
 
+        try {
             startTime = DateUtils.addHours(dateFormat.parse(startMeasurement.get().getTime().toString()), -interval);
             endTime = dateFormat.parse(endMeasurement.get().getTime().toString());
-        } catch (Exception e) {
+        } catch (ParseException e) {
             e.printStackTrace();
             return deviceMeasurements;
         }
 
         StationData stationData = new StationData();
 
-        for (Site site :filteredSites){
+        for (Site site : filteredSites) {
             StationData stationResponse = getStationMeasurements(props, site.getNearestStation().getCode(),
                     startTime, endTime, site.getNearestStation().getTimezone());
             stationData.getMeasurements().addAll(stationResponse.getMeasurements());
@@ -124,7 +130,7 @@ public class Utils {
 
         List<Measurement> measurementList = new ArrayList<>();
 
-        for(Measurement measurement : measurements){
+        for (Measurement measurement : measurements) {
 
             List<StationMeasurement> stationMeasurements = stationData.getMeasurements().stream().filter(stationMeasurement -> {
 
@@ -141,25 +147,29 @@ public class Utils {
                     .filter(stationMeasurement2 -> (stationMeasurement2.isNotNull() && stationMeasurement2.isTemperature()))
                     .reduce((measurement1, measurement2) -> {
 
-                if (measurement1.getTime().after(measurement2.getTime()))
-                    return measurement1;
-                return measurement2;
-            });
+                        if (measurement1.getTime().after(measurement2.getTime()))
+                            return measurement1;
+                        return measurement2;
+                    });
 
             Optional<StationMeasurement> stationHumidity = stationMeasurements
                     .stream()
                     .filter(stationMeasurement2 -> (stationMeasurement2.isNotNull() && stationMeasurement2.isHumidity()))
                     .reduce((measurement1, measurement2) -> {
-                if (measurement1.getTime().after(measurement2.getTime()))
-                    return measurement1;
-                return measurement2;
-            });
+                        if (measurement1.getTime().after(measurement2.getTime()))
+                            return measurement1;
+                        return measurement2;
+                    });
 
             try {
                 stationHumidity.ifPresent(stationMeasurement -> {
                     Double oldValue = measurement.getExternalHumidity().getValue();
 
-                    measurement.getExternalHumidity().setValue(stationMeasurement.getHumidity());
+                    Double humidityValue = null;
+                    if (stationMeasurement.getHumidity() != null)
+                        humidityValue = Double.valueOf(decimalFormat.format(stationMeasurement.getHumidity()));
+
+                    measurement.getExternalHumidity().setValue(humidityValue);
                     logger.info("Device : {} , Old Hum : {} , New Hum {}",
                             measurement.getDevice().toString(),
                             oldValue,
@@ -168,7 +178,12 @@ public class Utils {
 
                 stationTemp.ifPresent(stationMeasurement -> {
                     Double oldValue = measurement.getExternalTemperature().getValue();
-                    measurement.getExternalTemperature().setValue(stationMeasurement.getTemperature());
+
+                    Double tempValue = null;
+                    if (stationMeasurement.getTemperature() != null)
+                        tempValue = Double.valueOf(decimalFormat.format(stationMeasurement.getTemperature()));
+
+                    measurement.getExternalTemperature().setValue(tempValue);
                     logger.info("Device : {} , Old Temp : {} , New Temp {}",
                             measurement.getDevice().toString(),
                             oldValue,
@@ -179,6 +194,20 @@ public class Utils {
                 e.printStackTrace();
             }
 
+            if (measurement.getExternalHumidity().getValue() != null) {
+                if (measurement.getExternalHumidity().getValue() < 0.0
+                        || measurement.getExternalHumidity().getValue() > 99) {
+                    measurement.getExternalHumidity().setValue(null);
+                }
+            }
+
+            if (measurement.getExternalTemperature().getValue() != null) {
+                if (measurement.getExternalTemperature().getValue() < 0.0
+                        || measurement.getExternalTemperature().getValue() > 45) {
+                    measurement.getExternalTemperature().setValue(null);
+                }
+            }
+
             measurementList.add(measurement);
         }
 
@@ -187,7 +216,7 @@ public class Utils {
         return TransformedDeviceMeasurements.newBuilder().setMeasurements(measurementList).build();
     }
 
-    public static List<Site> getSites(String baseUrl, String tenant){
+    public static List<Site> getSites(String baseUrl, String tenant) {
 
         logger.info("\n\n********** Fetching Sites **************\n");
 
@@ -195,7 +224,7 @@ public class Utils {
 
         try {
 
-            String urlString =  String.format("%sdevices/sites?tenant=%s", baseUrl, tenant);
+            String urlString = String.format("%sdevices/sites?tenant=%s", baseUrl, tenant);
 
             HttpRequest request = HttpRequest.newBuilder()
                     .GET()
@@ -206,9 +235,9 @@ public class Utils {
             HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             ObjectMapper objectMapper = new ObjectMapper();
-            sitesResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {});
-        }
-        catch (Exception e){
+            sitesResponse = objectMapper.readValue(httpResponse.body(), new TypeReference<>() {
+            });
+        } catch (Exception e) {
             e.printStackTrace();
             return new ArrayList<>();
         }
@@ -218,7 +247,7 @@ public class Utils {
     }
 
     public static StationData getStationMeasurements(Properties props, String stationCode, Date startTime,
-                                                         Date endTime, String stationTimeZone){
+                                                     Date endTime, String stationTimeZone) {
 
         logger.info("\n\n********** Fetching Station Data **************\n");
 
@@ -232,8 +261,8 @@ public class Utils {
             logger.info("{}", dateFormat.format(startTime));
             logger.info("{}", dateFormat.format(endTime));
 
-            String urlString =  String.format("%sservices/measurements/v2/stations/%s/measurements/%s?start=%s&end=%s",
-                    props.getProperty("tahmo.base.url") , stationCode, "controlled",
+            String urlString = String.format("%sservices/measurements/v2/stations/%s/measurements/%s?start=%s&end=%s",
+                    props.getProperty("tahmo.base.url"), stationCode, "controlled",
                     dateFormat.format(startTime), dateFormat.format(endTime));
 
             logger.info("Station Measurements url {}", urlString);
@@ -258,8 +287,7 @@ public class Utils {
             ObjectMapper objectMapper = new ObjectMapper();
             stationData = objectMapper.readValue(httpResponse.body(), StationData.class);
 
-        }
-        catch (Exception e){
+        } catch (Exception e) {
             e.printStackTrace();
         }
 

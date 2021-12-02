@@ -1,10 +1,10 @@
 const generatePassword = require("generate-password");
 const constants = require("../config/constants");
 
-const createPassword = () => {
+const createPassword = (length) => {
   try {
     let password = generatePassword.generate(
-      constants.RANDOM_PASSWORD_CONFIGURATION
+      constants.RANDOM_PASSWORD_CONFIGURATION(length)
     );
     return {
       success: true,

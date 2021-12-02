@@ -8,6 +8,11 @@ var jsonify = require("./jsonify");
 const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
+const validationsUtil = require("./validations");
+constants = require("../config/constants");
+const kickbox = require("kickbox")
+  .client(`${constants.KICKBOX_API_KEY}`)
+  .kickbox();
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -18,75 +23,94 @@ const CandidateModel = (tenant) => {
 };
 
 const request = {
-  create: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    jobTitle,
-    website,
-    description,
-    category
-  ) => {
+  create: async (request, callback) => {
     try {
-      let requestBody = {
+      let {
         firstName,
         lastName,
         email,
-        organization,
+        long_organization,
         jobTitle,
         website,
         description,
         category,
-      };
+        tenant,
+      } = request;
 
-      let responseFromCreateCandidate =
-        CandidateModel(tenant).register(requestBody);
+      await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
+        if (value.success == false) {
+          const errors = value.errors ? value.errors : "";
+          callback({
+            success: false,
+            message: value.message,
+            errors,
+            status: value.status,
+          });
+        }
+      });
 
-      let createdCandidate = await responseFromCreateCandidate.data;
-      let jsonifyCreatedCandidate = jsonify(createdCandidate);
+      const responseFromCreateCandidate = await CandidateModel(tenant).register(
+        request
+      );
 
-      if (responseFromCreateCandidate.success == true) {
+      if (responseFromCreateCandidate.success === true) {
+        let createdCandidate = await responseFromCreateCandidate.data;
         let responseFromSendEmail = await mailer.candidate(
           firstName,
           lastName,
           email,
           tenant
         );
-        if (responseFromSendEmail.success == true) {
-          return {
+        if (responseFromSendEmail.success === true) {
+          const status = responseFromSendEmail.status
+            ? responseFromSendEmail.status
+            : "";
+          callback({
             success: true,
             message: "candidate successfully created",
-            data: jsonifyCreatedCandidate,
-          };
-        } else if (responseFromSendEmail.success == false) {
-          if (responseFromSendEmail.error) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error: responseFromSendEmail.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-            };
-          }
+            data: createdCandidate,
+            status,
+          });
         }
-      } else {
-        return {
+
+        if (responseFromSendEmail.success === false) {
+          const errors = responseFromSendEmail.error
+            ? responseFromSendEmail.error
+            : "";
+          const status = responseFromSendEmail.status
+            ? responseFromSendEmail.status
+            : "";
+
+          callback({
+            success: false,
+            message: responseFromSendEmail.message,
+            errors,
+            status,
+          });
+        }
+      }
+
+      if (responseFromCreateCandidate.success === false) {
+        const errors = responseFromCreateCandidate.errors
+          ? responseFromCreateCandidate.errors
+          : "";
+        const status = responseFromCreateCandidate.status
+          ? responseFromCreateCandidate.status
+          : "";
+        callback({
           success: false,
           message: responseFromCreateCandidate.message,
-        };
+          errors,
+          status,
+        });
       }
     } catch (e) {
-      logElement("server error in util", e.message);
-      return {
+      callback({
         success: false,
-        message: "util server error",
-        error: e.message,
-      };
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      });
     }
   },
 
@@ -176,17 +200,20 @@ const request = {
     }
   },
 
-  confirm: async (
-    tenant,
-    firstName,
-    lastName,
-    email,
-    organization,
-    jobTitle,
-    website,
-    category,
-    filter
-  ) => {
+  confirm: async (req) => {
+    let {
+      tenant,
+      firstName,
+      lastName,
+      email,
+      organization,
+      long_organization,
+      jobTitle,
+      website,
+      category,
+      filter,
+      description,
+    } = req;
     try {
       let responseFromListCandidate = await request.list({ tenant, filter });
       logObject(
@@ -195,22 +222,25 @@ const request = {
       );
 
       if (
-        responseFromListCandidate.success == true &&
+        responseFromListCandidate.success === true &&
         !isEmpty(responseFromListCandidate.data)
       ) {
-        let responseFromGeneratePassword = generatePassword();
+        let responseFromGeneratePassword = generatePassword(10);
         logObject("responseFromGeneratePassword", responseFromGeneratePassword);
-        if (responseFromGeneratePassword.success == true) {
+        if (responseFromGeneratePassword.success === true) {
           let password = responseFromGeneratePassword.data;
+
           let requestBody = {
             tenant,
             firstName,
             lastName,
             email,
             organization,
+            long_organization,
             jobTitle,
             website,
             password,
+            description,
             category,
             privilege: "user",
             userName: email,
@@ -228,7 +258,7 @@ const request = {
           let jsonifyCreatedUser = jsonify(createdUser);
           logObject("jsonifyCreatedUser", jsonifyCreatedUser);
 
-          if (responseFromCreateUser.success == true) {
+          if (responseFromCreateUser.success === true) {
             let responseFromSendEmail = await mailer.user(
               firstName,
               lastName,
@@ -241,18 +271,18 @@ const request = {
               "responseFromSendEmail during confirmation",
               responseFromSendEmail
             );
-            if (responseFromSendEmail.success == true) {
+            if (responseFromSendEmail.success === true) {
               let responseFromDeleteCandidate = await request.delete(
                 tenant,
                 filter
               );
-              if (responseFromDeleteCandidate.success == true) {
+              if (responseFromDeleteCandidate.success === true) {
                 return {
                   success: true,
                   message: "candidate successfully confirmed",
                   data: jsonifyCreatedUser,
                 };
-              } else if (responseFromDeleteCandidate.success == false) {
+              } else if (responseFromDeleteCandidate.success === false) {
                 if (responseFromDeleteCandidate.error) {
                   return {
                     success: false,
@@ -268,7 +298,7 @@ const request = {
                   };
                 }
               }
-            } else if (responseFromSendEmail.success == false) {
+            } else if (responseFromSendEmail.success === false) {
               if (responseFromSendEmail.error) {
                 return {
                   success: false,
@@ -299,7 +329,7 @@ const request = {
           }
         }
 
-        if (responseFromGeneratePassword == false) {
+        if (responseFromGeneratePassword.success === false) {
           if (responseFromGeneratePassword.error) {
             return {
               success: false,
@@ -316,7 +346,7 @@ const request = {
       }
 
       if (
-        responseFromListCandidate.success == true &&
+        responseFromListCandidate.success === true &&
         isEmpty(responseFromListCandidate.data)
       ) {
         return {
@@ -325,7 +355,7 @@ const request = {
         };
       }
 
-      if (responseFromListCandidate.success == false) {
+      if (responseFromListCandidate.success === false) {
         if (responseFromListCandidate.error) {
           return {
             success: false,

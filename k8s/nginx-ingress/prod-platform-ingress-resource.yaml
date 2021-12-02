@@ -4,9 +4,91 @@ metadata:
   name: ingress-platform-resource
   namespace: production
   annotations:
-    kubernetes.io/ingress.class: nginx 
+    kubernetes.io/ingress.class: "nginx" 
     nginx.ingress.kubernetes.io/rewrite-target: /
     nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.org/location-snippets: |
+      auth_request /auth;
+      error_page 404 = @page_not_found;
+      error_page 403 = @unauthorized;
+      error_page 401 = @access_denied;
+    nginx.org/server-snippets: |
+
+      add_header Content-Type "application/json" always;
+
+      location @page_not_found {
+       return 404 '{"error": "Page Not Found"}';
+      }
+
+      location @unauthorized {
+       return 403 '{"error": "Unauthorized"}';
+      }
+
+      location @access_denied {
+       return 401 '{"error": "Access Denied"}';
+      }
+      
+      location = /auth {
+        if ($request_uri = "/") {
+            return 200;
+        }
+
+        if ($request_uri = "/login") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/users/candidates/register)|(/api/v2/users/candidates/register)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(api/v1/users/loginUser)|(api/v2/users/loginUser)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(api/v1/users/forgotPassword)|(api/v2/users/forgotPassword)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/incentives)|(/api/v2/incentives)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/predict)|(/api/v2/predict)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/analytics)|(/api/v2/analytics)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/map)|(/api/v2/map)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/data)|(/api/v2/data)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/devices)|(/api/v2/devices)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/users)|(/api/v2/users)") {
+            return 200;
+        }
+
+        if ($request_uri ~ "(/api/v1/monitor)|(/api/v2/monitor)") {
+            return 200;
+        }
+
+        internal;
+        proxy_method            POST;
+        proxy_pass              http://airqo-auth-api-svc.production.svc.cluster.local:3000/api/v1/users/verify?tenant=airqo;
+        proxy_pass_request_body off;
+        proxy_set_header        Content-Length "";
+        proxy_set_header        X-Original-URI $request_uri;
+      }
+
 spec:
   rules:
     - host: platform.airqo.net
@@ -35,7 +117,7 @@ spec:
           - path: /api/v1/data
             backend:
               serviceName: airqo-data-mgt-api-svc
-              servicePort: 
+              servicePort: 3000
           - path: /api/v2/data
             backend:
               serviceName: airqo-data-mgt-api-svc
@@ -88,4 +170,15 @@ spec:
             backend:
               serviceName: airqo-incentives-api-svc
               servicePort: 3000
-          
+          - path: /api/v1/datawarehouse
+            backend:
+              serviceName: airqo-datawarehouse-api-svc
+              servicePort: 4001
+          - path: /api/v2/datawarehouse
+            backend:
+              serviceName: airqo-datawarehouse-api-svc
+              servicePort: 4001
+          - path: /api/v1/notifications
+            backend:
+              serviceName: airqo-notification-api-svc
+              servicePort: 8080

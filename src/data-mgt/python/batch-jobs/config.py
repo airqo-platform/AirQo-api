@@ -23,16 +23,16 @@ class Config:
     END_TIME = os.getenv("END_TIME")
     BATCH_FETCH_TIME_INTERVAL = os.getenv("BATCH_FETCH_TIME_INTERVAL")
     BATCH_OUTPUT_SIZE = os.getenv("BATCH_OUTPUT_SIZE")
-    BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
+    BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS").strip(",")
     TENANT = os.getenv("TENANT")
     PERIODIC = os.getenv("PERIODIC")
-    PERIODIC_FETCH_TIME_INTERVAL = os.getenv("PERIODIC_FETCH_TIME_INTERVAL")
+    TIME_PERIOD = os.getenv("TIME_PERIOD")
 
     def __init__(self):
 
         if self.PERIODIC.strip().lower() == "true":
             self.END_TIME = date_to_str(datetime.utcnow())
-            self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_FETCH_TIME_INTERVAL)))
+            self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.TIME_PERIOD)))
 
         if self.TENANT.strip().lower() == "airqo":
             self.OUTPUT_TOPIC = os.getenv("AIRQO_OUTPUT_TOPIC")

@@ -175,6 +175,26 @@ const valueSchema = new Schema({
       default: null,
     },
   },
+  average_pm2_5: {
+    value: {
+      type: Number,
+      trim: true,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  average_pm10: {
+    value: {
+      type: Number,
+      trim: true,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
   externalPressure: {
     value: { type: Number, default: null },
   },
@@ -243,7 +263,7 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: constants.N_VALUES } },
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
   }
 );
 
@@ -258,7 +278,7 @@ eventSchema.index(
   },
   {
     unique: true,
-    partialFilterExpression: { nValues: { $lt: `${constants.N_VALUES}` } },
+    partialFilterExpression: { nValues: { $lt: parseInt(constants.N_VALUES) } },
   }
 );
 
@@ -315,45 +335,357 @@ eventSchema.statics = {
     }
   },
   list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    logObject("the filter", filter);
+    const { metadata, frequency, external, tenant } = filter;
+    let search = filter;
+    let groupId = "$device";
+    let localField = "device";
+    let foreignField = "name";
+    let from = "devices";
+    let _as = "_deviceDetails";
+    let as = "deviceDetails";
+    let elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
+    let pm2_5 = "$average_pm2_5";
+    let pm10 = "$average_pm10";
+    let s1_pm2_5 = "$pm2_5";
+    let s1_pm10 = "$pm10";
+    let projection = {
+      _id: 0,
+    };
+
+    delete search["external"];
+    delete search["frequency"];
+    delete search["metadata"];
+    delete search["tenant"];
+
+    if (!metadata || metadata === "device" || metadata === "device_id") {
+      groupId = "$" + metadata ? metadata : groupId;
+      localField = metadata ? metadata : localField;
+      if (metadata === "device_id") {
+        foreignField = "_id";
+      }
+      if (metadata === "device" || !metadata) {
+        foreignField = "name";
+      }
+
+      from = "devices";
+      _as = "_deviceDetails";
+      as = "deviceDetails";
+      elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
+
+      projection[as] = {};
+      projection[as]["ISP"] = 0;
+      projection[as]["height"] = 0;
+      projection[as]["device_number"] = 0;
+      projection[as]["description"] = 0;
+      projection[as]["isUsedForCollocation"] = 0;
+      projection[as]["powerType"] = 0;
+      projection[as]["mountType"] = 0;
+      projection[as]["createdAt"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["isActive"] = 0;
+      projection[as]["site_id"] = 0;
+      projection[as]["long_name"] = 0;
+      projection[as]["readKey"] = 0;
+      projection[as]["writeKey"] = 0;
+      projection[as]["phoneNumber"] = 0;
+      projection[as]["deployment_date"] = 0;
+      projection[as]["nextMaintenance"] = 0;
+      projection[as]["recall_date"] = 0;
+      projection[as]["maintenance_date"] = 0;
+      projection[as]["siteName"] = 0;
+      projection[as]["locationName"] = 0;
+      projection[as]["device_manufacturer"] = 0;
+      projection[as]["product_name"] = 0;
+      projection[as]["visibility"] = 0;
+      projection[as]["owner"] = 0;
+    }
+
+    if (external === "yes") {
+      projection["s2_pm10"] = 0;
+      projection["s1_pm10"] = 0;
+      projection["s2_pm2_5"] = 0;
+      projection["s1_pm2_5"] = 0;
+      projection[as] = 0;
+    }
+
+    if (tenant !== "airqo") {
+      pm2_5 = "$pm2_5";
+      pm10 = "$pm10";
+    }
+
+    if (metadata === "site_id" || metadata === "site") {
+      groupId = "$" + metadata;
+      localField = metadata;
+      if (metadata === "site") {
+        foreignField = "generated_name";
+      }
+      if (metadata === "site_id") {
+        foreignField = "_id";
+      }
+      from = "sites";
+      _as = "_siteDetails";
+      as = "siteDetails";
+      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
+      projection[as] = {};
+      projection[as]["nearest_tahmo_station"] = 0;
+      projection[as]["site_tags"] = 0;
+      projection[as]["formatted_name"] = 0;
+      projection[as]["geometry"] = 0;
+      projection[as]["google_place_id"] = 0;
+      projection[as]["town"] = 0;
+      projection[as]["city"] = 0;
+      projection[as]["county"] = 0;
+      projection[as]["lat_long"] = 0;
+      projection[as]["altitude"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["airqloud_id"] = 0;
+      projection[as]["airqlouds"] = 0;
+      projection[as]["sub_county"] = 0;
+      projection[as]["parish"] = 0;
+      projection[as]["greenness"] = 0;
+      projection[as]["landform_90"] = 0;
+      projection[as]["landform_270"] = 0;
+      projection[as]["aspect"] = 0;
+      projection[as]["distance_to_nearest_road"] = 0;
+      projection[as]["distance_to_nearest_primary_road"] = 0;
+      projection[as]["distance_to_nearest_tertiary_road"] = 0;
+      projection[as]["distance_to_nearest_unclassified_road"] = 0;
+      projection[as]["distance_to_nearest_residential_road"] = 0;
+      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["street"] = 0;
+      projection[as]["village"] = 0;
+      projection[as]["distance_to_nearest_secondary_road"] = 0;
+      projection[as]["distance_to_kampala_center"] = 0;
+    }
+
     return this.aggregate()
       .unwind("values")
-      .match(filter)
+      .match(search)
       .replaceRoot("values")
+      .lookup({
+        from,
+        localField,
+        foreignField,
+        as,
+      })
       .sort({ time: -1 })
       .project({
-        _id: 0,
-        day: 0,
-        __v: 0,
-        createdAt: 0,
-        first: 0,
-        last: 0,
-        nValues: 0,
-        updatedAt: 0,
+        _device: "$device",
+        _time: "$time",
+        _average_pm2_5: "$average_pm2_5",
+        _pm2_5: pm2_5,
+        _s1_pm2_5: s1_pm2_5,
+        _s2_pm2_5: "$s2_pm2_5",
+        _average_pm10: "$average_pm10",
+        _pm10: pm10,
+        _s1_pm10: s1_pm10,
+        _s2_pm10: "$s2_pm10",
+        _frequency: "$frequency",
+        _battery: "$battery",
+        _location: "$location",
+        _altitude: "$altitude",
+        _speed: "$speed",
+        _satellites: "$satellites",
+        _hdop: "$hdop",
+        _site_id: "$site_id",
+        _device_id: "$device_id",
+        _site: "$site",
+        _device_number: "$device_number",
+        _internalTemperature: "$internalTemperature",
+        _externalTemperature: "$externalTemperature",
+        _internalHumidity: "$internalHumidity",
+        _externalHumidity: "$externalHumidity",
+        _externalAltitude: "$externalAltitude",
+        _pm1: "$pm1",
+        _no2: "$no2",
+        [_as]: elementAtIndex0,
       })
+      .project({
+        device: "$_device",
+        device_id: "$_device_id",
+        device_number: "$_device_number",
+        site: "$_site",
+        site_id: "$_site_id",
+        time: "$_time",
+        average_pm2_5: "$_average_pm2_5",
+        pm2_5: "$_pm2_5",
+        s1_pm2_5: "$_s1_pm2_5",
+        s2_pm2_5: "$_s2_pm2_5",
+        average_pm10: "$_average_pm10",
+        pm10: "$_pm10",
+        s1_pm10: "$_s1_pm10",
+        s2_pm10: "$_s2_pm10",
+        frequency: "$_frequency",
+        battery: "$_battery",
+        location: "$_location",
+        altitude: "$_altitude",
+        speed: "$_speed",
+        satellites: "$_satellites",
+        hdop: "$_hdop",
+        internalTemperature: "$_internalTemperature",
+        externalTemperature: "$_externalTemperature",
+        internalHumidity: "$_internalHumidity",
+        externalHumidity: "$_externalHumidity",
+        externalAltitude: "$_externalAltitude",
+        pm1: "$_pm1",
+        no2: "$_no2",
+        [as]: "$" + _as,
+      })
+      .project(projection)
       .skip(skipInt)
       .limit(limitInt)
       .allowDiskUse(true);
   },
   listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    logObject("the filter", filter);
+    logObject("the filter in the model", filter);
+    const { metadata, frequency, external, tenant } = filter;
+    let search = filter;
+    let groupId = "$device";
+    let localField = "device";
+    let foreignField = "name";
+    let from = "devices";
+    let as = "deviceDetails";
+    let s1_pm2_5 = "$pm2_5";
+    let pm2_5 = "$average_pm2_5";
+    let s1_pm10 = "$pm10";
+    let pm10 = "$average_pm10";
+
+    let projection = {
+      _id: 0,
+    };
+
+    let elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+
+    delete search["external"];
+    delete search["frequency"];
+    delete search["metadata"];
+    delete search["tenant"];
+
+    if (!metadata || metadata === "device" || metadata === "device_id") {
+      if (metadata) {
+        groupId = "$" + metadata ? metadata : groupId;
+        localField = metadata ? metadata : localField;
+        if (metadata === "device_id") {
+          foreignField = "_id";
+        }
+        if (metadata === "device") {
+          foreignField = "name";
+        }
+      }
+      from = "devices";
+      _as = "_deviceDetails";
+      as = "deviceDetails";
+      elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+      projection[as] = {};
+      projection[as]["ISP"] = 0;
+      projection[as]["height"] = 0;
+      projection[as]["device_number"] = 0;
+      projection[as]["description"] = 0;
+      projection[as]["isUsedForCollocation"] = 0;
+      projection[as]["powerType"] = 0;
+      projection[as]["mountType"] = 0;
+      projection[as]["createdAt"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["isActive"] = 0;
+      projection[as]["site_id"] = 0;
+      projection[as]["long_name"] = 0;
+      projection[as]["readKey"] = 0;
+      projection[as]["writeKey"] = 0;
+      projection[as]["deployment_date"] = 0;
+      projection[as]["nextMaintenance"] = 0;
+      projection[as]["recall_date"] = 0;
+      projection[as]["maintenance_date"] = 0;
+      projection[as]["siteName"] = 0;
+      projection[as]["locationName"] = 0;
+      projection[as]["device_manufacturer"] = 0;
+      projection[as]["product_name"] = 0;
+      projection[as]["visibility"] = 0;
+      projection[as]["owner"] = 0;
+    }
+
+    if (external === "yes") {
+      projection["s2_pm2_5"] = 0;
+      projection["s1_pm2_5"] = 0;
+      projection["s2_pm10"] = 0;
+      projection["s1_pm10"] = 0;
+      projection[as] = 0;
+    }
+
+    if (tenant !== "airqo") {
+      pm2_5 = "$pm2_5";
+      pm10 = "$pm10";
+    }
+
+    if (metadata === "site_id" || metadata === "site") {
+      groupId = "$" + metadata;
+      localField = metadata;
+      if (metadata === "site") {
+        foreignField = "generated_name";
+      }
+      if (metadata === "site_id") {
+        foreignField = "_id";
+      }
+      from = "sites";
+      as = "siteDetails";
+      elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
+      projection[as] = {};
+      projection[as]["nearest_tahmo_station"] = 0;
+      projection[as]["site_tags"] = 0;
+      projection[as]["formatted_name"] = 0;
+      projection[as]["geometry"] = 0;
+      projection[as]["google_place_id"] = 0;
+      projection[as]["town"] = 0;
+      projection[as]["city"] = 0;
+      projection[as]["county"] = 0;
+      projection[as]["lat_long"] = 0;
+      projection[as]["altitude"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["airqloud_id"] = 0;
+      projection[as]["airqlouds"] = 0;
+      projection[as]["sub_county"] = 0;
+      projection[as]["parish"] = 0;
+      projection[as]["greenness"] = 0;
+      projection[as]["landform_90"] = 0;
+      projection[as]["landform_270"] = 0;
+      projection[as]["aspect"] = 0;
+      projection[as]["distance_to_nearest_road"] = 0;
+      projection[as]["distance_to_nearest_primary_road"] = 0;
+      projection[as]["distance_to_nearest_tertiary_road"] = 0;
+      projection[as]["distance_to_nearest_unclassified_road"] = 0;
+      projection[as]["distance_to_nearest_residential_road"] = 0;
+      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["street"] = 0;
+      projection[as]["village"] = 0;
+      projection[as]["distance_to_nearest_secondary_road"] = 0;
+      projection[as]["distance_to_kampala_center"] = 0;
+    }
+
     return this.aggregate()
       .unwind("values")
-      .match(filter)
+      .match(search)
       .replaceRoot("values")
       .lookup({
-        from: "devices",
-        localField: "device",
-        foreignField: "name",
-        as: "deviceDetails",
+        from,
+        localField,
+        foreignField,
+        as,
       })
       .sort({ time: -1 })
       .group({
         _id: "$device",
+        device: { $first: "$device" },
+        device_id: { $first: "$device_id" },
+        device_number: { $first: "$device_number" },
+        site: { $first: "$site" },
+        site_id: { $first: "$site_id" },
         time: { $first: "$time" },
-        pm2_5: { $first: "$pm2_5" },
+        average_pm2_5: { $first: "$average_pm2_5" },
+        pm2_5: { $first: pm2_5 },
+        s1_pm2_5: { $first: s1_pm2_5 },
         s2_pm2_5: { $first: "$s2_pm2_5" },
-        pm10: { $first: "$pm10" },
+        average_pm10: { $first: "$average_pm10" },
+        pm10: { $first: pm10 },
+        s1_pm10: { $first: s1_pm10 },
         s2_pm10: { $first: "$s2_pm10" },
         frequency: { $first: "$frequency" },
         battery: { $first: "$battery" },
@@ -362,10 +694,6 @@ eventSchema.statics = {
         speed: { $first: "$speed" },
         satellites: { $first: "$satellites" },
         hdop: { $first: "$hdop" },
-        site_id: { $first: "$site_id" },
-        device_id: { $first: "$device_id" },
-        site: { $first: "$site" },
-        device: { $first: "$device" },
         internalTemperature: { $first: "$internalTemperature" },
         externalTemperature: { $first: "$externalTemperature" },
         internalHumidity: { $first: "$internalHumidity" },
@@ -373,8 +701,9 @@ eventSchema.statics = {
         externalAltitude: { $first: "$externalAltitude" },
         pm1: { $first: "$pm1" },
         no2: { $first: "$no2" },
-        deviceDetails: { $first: { $arrayElemAt: ["$deviceDetails", 0] } },
+        [as]: elementAtIndex0,
       })
+      .project(projection)
       .skip(skipInt)
       .limit(limitInt)
       .allowDiskUse(true);
@@ -387,6 +716,7 @@ eventSchema.statics = {
       let groupOperator = "$avg";
       let search = filter;
       let groupId = {};
+      let average = frequency;
       let localField = "device_id";
       let foreignField = "_id";
       let from = "devices";
@@ -429,11 +759,13 @@ eventSchema.statics = {
         groupId = {
           $dateToString: { format: "%Y-%m-%dT%H:00:00.%LZ", date: "$time" },
         };
+        average = "hourly";
         delete search["frequency"];
       }
 
       if (frequency === "daily") {
         groupId = { $dateToString: { format: "%Y-%m-%d", date: "$time" } };
+        average = "daily";
         delete search["frequency"];
       }
 
@@ -442,6 +774,7 @@ eventSchema.statics = {
           $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%LZ", date: "$time" },
         };
         groupOperator = "$first";
+        average = "average";
         delete search["frequency"];
       }
 
@@ -478,7 +811,6 @@ eventSchema.statics = {
           site_id: { $first: "$site_id" },
           site: { $first: "$site" },
           device: { $first: "$device" },
-          frequency: { $first: "$frequency" },
           is_test_data: { $first: "$is_test_data" },
           "pm2_5-value": { [groupOperator]: "$pm2_5.value" },
           "pm2_5-calibrationValue": {

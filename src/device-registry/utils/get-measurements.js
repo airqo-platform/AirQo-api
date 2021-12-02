@@ -4,6 +4,7 @@ const HTTPStatus = require("http-status");
 const { getModelByTenant } = require("./multitenancy");
 const redis = require("../config/redis");
 const constants = require("../config/constants");
+const cleanDeep = require("clean-deep");
 const {
   axiosError,
   tryCatchErrors,
@@ -20,12 +21,12 @@ const getDetail = require("../utils/get-device-details");
 
 const isRecentTrue = (recent) => {
   let isRecentEmpty = isEmpty(recent);
-  if (isRecentEmpty == true) {
-    return true;
+  if (isRecentEmpty === true) {
+    return false;
   }
-  if (recent.toLowerCase() == "yes" && isRecentEmpty == false) {
+  if (recent.toLowerCase() === "yes" && isRecentEmpty === false) {
     return true;
-  } else if (recent.toLowerCase() == "no" && isRecentEmpty == false) {
+  } else if (recent.toLowerCase() === "no" && isRecentEmpty === false) {
     return false;
   }
 };
@@ -49,7 +50,9 @@ const generateCacheID = (
   frequency,
   recent,
   startTime,
-  endTime
+  endTime,
+  metadata,
+  external
 ) => {
   return `get_events_device_${device ? device : "noDevice"}_${tenant}_${
     skip ? skip : 0
@@ -59,25 +62,34 @@ const generateCacheID = (
     startTime ? startTime : "noStartTime"
   }_${device_id ? device_id : "noDeviceId"}_${site ? site : "noSite"}_${
     site_id ? site_id : "noSiteId"
-  }_${day ? day : "noDay"}_${device_number ? device_number : "noDeviceNumber"}`;
+  }_${day ? day : "noDay"}_${
+    device_number ? device_number : "noDeviceNumber"
+  }_${metadata ? metadata : "noMetadata"}_${
+    external ? external : "noExternal"
+  }`;
 };
 
 const getEvents = async (tenant, recentFlag, skipInt, limitInt, filter) => {
-  let allEvents = await getModelByTenant(tenant, "event", EventSchema).list({
-    skipInt,
-    limitInt,
-    filter,
-  });
+  logObject("the filter in the getEvents util", filter);
+  logElement("the recent flag", recentFlag);
 
-  let recentEvents = await getModelByTenant(
-    tenant,
-    "event",
-    EventSchema
-  ).listRecent({ skipInt, limitInt, filter });
+  if (recentFlag === true) {
+    let recentEvents = await getModelByTenant(
+      tenant,
+      "event",
+      EventSchema
+    ).listRecent({ skipInt, limitInt, filter });
+    return cleanDeep(recentEvents);
+  }
 
-  let events = recentFlag ? recentEvents : allEvents;
-
-  return events;
+  if (recentFlag === false) {
+    let allEvents = await getModelByTenant(tenant, "event", EventSchema).list({
+      skipInt,
+      limitInt,
+      filter,
+    });
+    return cleanDeep(allEvents);
+  }
 };
 
 const getMeasurements = async (
@@ -93,7 +105,9 @@ const getMeasurements = async (
   frequency,
   tenant,
   startTime,
-  endTime
+  endTime,
+  metadata,
+  external
 ) => {
   try {
     const currentTime = new Date().toISOString();
@@ -111,7 +125,9 @@ const getMeasurements = async (
       frequency,
       recent,
       startTime,
-      endTime
+      endTime,
+      metadata,
+      external
     );
 
     redis.get(cacheID, async (err, result) => {
@@ -130,13 +146,19 @@ const getMeasurements = async (
             site_id,
             frequency,
             startTime,
-            endTime
+            endTime,
+            metadata,
+            external,
+            tenant
           );
 
           let devicesCount = await getDevicesCount(tenant);
-
+          logElement(
+            "type of constants.DEFAULT_EVENTS_LIMIT",
+            typeof constants.DEFAULT_EVENTS_LIMIT
+          );
           let _skip = skip ? skip : 0;
-          let _limit = limit ? limit : constants.DEFAULT_EVENTS_LIMIT;
+          let _limit = limit ? limit : parseInt(constants.DEFAULT_EVENTS_LIMIT);
           let options = {
             skipInt: _skip,
             limitInt: _limit,
@@ -166,7 +188,11 @@ const getMeasurements = async (
               measurements: events,
             })
           );
-          redis.expire(cacheID, constants.EVENTS_CACHE_LIMIT);
+          logElement(
+            "constants.EVENTS_CACHE_LIMIT",
+            parseInt(constants.EVENTS_CACHE_LIMIT)
+          );
+          redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
           return res.status(HTTPStatus.OK).json({
             success: true,
             isCache: false,

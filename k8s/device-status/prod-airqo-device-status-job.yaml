@@ -26,6 +26,9 @@ spec:
             - name: prod-device-status-job
               image: us.gcr.io/airqo-250220/airqo-device-status-job:latest
               imagePullPolicy: Always
+              envFrom:
+                - configMapRef:
+                    name: env-device-status-production
               resources: {}
               terminationMessagePath: /dev/termination-log
               terminationMessagePolicy: File

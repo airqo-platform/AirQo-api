@@ -10,11 +10,10 @@ const nearestDevices = {
 
             devices.forEach(device => {
 
-                if ('latitude' in device && 'longitude' in device && device['isActive'] == true) {
+                if ('latitude' in device && 'longitude' in device && device['isActive'] == true && device['isPrimaryInLocation'] == true) {
                     distance = nearestDevices.calculateDistance(latitude, longitude, device['latitude'], device['longitude']);
 
                     if (distance < radius) {
-                        logElement("Found a node ", distance);
                         device['distance'] = distance;
                         nearest_devices.push(device);
                     }
