@@ -116,8 +116,13 @@ class CalibrationJob:
 
                 averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean())
 
-                averages['average_pm2_5.value'] = averages[['s1_pm2_5.value', 's2_pm2_5.value']].mean(axis=1)
-                averages['average_pm10.value'] = averages[['s1_pm10.value', 's2_pm10.value']].mean(axis=1)
+                if 'pm2_5.value' not in averages.columns:
+                    averages['pm2_5.value'] = averages['s1_pm2_5.value']
+                if 'pm10.value' not in averages.columns:
+                    averages['pm10.value'] = averages['s1_pm10.value']
+
+                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1)
+                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1)
 
                 averages["time"] = averages.index
                 averages["time"] = averages["time"].apply(lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%SZ'))
@@ -143,12 +148,11 @@ class CalibrationJob:
         hourly_measurements_groups = hourly_measurements_df.groupby("time")
 
         for _, time_group in hourly_measurements_groups:
-
             try:
                 date_time = time_group.iloc[0]["time"]
-                time_group["s1_pm2_5"] = time_group["s1_pm2_5.value"]
+                time_group["pm2_5"] = time_group["pm2_5.value"]
                 time_group["s2_pm2_5"] = time_group["s2_pm2_5.value"]
-                time_group["s1_pm10"] = time_group["s1_pm10.value"]
+                time_group["pm10"] = time_group["pm10.value"]
                 time_group["s2_pm10"] = time_group["s2_pm10.value"]
                 time_group["temperature"] = time_group["externalTemperature.value"]
                 time_group["humidity"] = time_group["externalHumidity.value"]
@@ -235,14 +239,14 @@ class CalibrationJob:
                         "value": to_double(row["hdop.value"]) if "hdop.value" in columns else None
                     },
                     "pm10": {
-                        "value": to_double(row["s1_pm10.value"]) if "s1_pm10.value" in columns else None,
+                        "value": to_double(row["pm10.value"]) if "pm10.value" in columns else None,
                         "uncertaintyValue": to_double(row["pm10.uncertaintyValue"])
                         if "pm10.uncertaintyValue" in columns else None,
                         "standardDeviationValue": to_double(row["pm10.standardDeviationValue"])
                         if "pm10.standardDeviationValue" in columns else None
                     },
                     "pm2_5": {
-                        "value": to_double(row["s1_pm2_5.value"]) if "s1_pm2_5.value" in columns else None,
+                        "value": to_double(row["pm2_5.value"]) if "pm2_5.value" in columns else None,
                         "uncertaintyValue": to_double(row["pm2_5.uncertaintyValue"])
                         if "pm2_5.uncertaintyValue" in columns else None,
                         "standardDeviationValue": to_double(row["pm2_5.standardDeviationValue"])
