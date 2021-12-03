@@ -24,6 +24,8 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/users", apiV1);
 app.use("/api/v2/users", apiV2);
 
+require("./config/firebase-admin");
+
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {
   const err = new Error("Not Found");

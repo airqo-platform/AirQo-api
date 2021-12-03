@@ -15,14 +15,14 @@ class AirQoApi:
         self.request_body_size = configuration.REQUEST_BODY_SIZE
         self.timeout = configuration.REQUEST_TIMEOUT
 
-    def get_events(self, tenant, start_time, end_time, device=None):
+    def get_events(self, tenant, start_time, end_time, frequency, device=None):
         headers = {'Authorization': self.airqo_api_key}
 
         params = {
             "tenant": tenant,
             "startTime": start_time,
             "endTime": end_time,
-            "frequency": "raw",
+            "frequency": frequency,
             "recent": "no",
             "external": "no"
         }
@@ -56,6 +56,7 @@ class AirQoApi:
                 }
                 url = f'{self.airqo_base_url}devices/events?tenant={tenant}'
                 json_data = json.dumps(values)
+                print(json_data)
 
                 response = requests.post(url, json_data, headers=headers, verify=False, timeout=int(self.timeout))
 
@@ -113,9 +114,9 @@ class AirQoApi:
                 value_dict = dict(value)
                 data = {
                     "device_id": value_dict.get("device"),
-                    "sensor1_pm2.5": float(to_double(value_dict.get("pm2_5"))),
+                    "sensor1_pm2.5": float(to_double(value_dict.get("s1_pm2_5"))),
                     "sensor2_pm2.5": float(to_double(value_dict.get("s2_pm2_5"))),
-                    "sensor1_pm10": float(to_double(value_dict.get("pm10"))),
+                    "sensor1_pm10": float(to_double(value_dict.get("s1_pm10"))),
                     "sensor2_pm10": float(to_double(value_dict.get("s2_pm10"))),
                     "temperature": float(to_double(value_dict.get("temperature"))),
                     "humidity": float(to_double(value_dict.get("humidity"))),
@@ -134,7 +135,8 @@ class AirQoApi:
                 '%s' % self.calibrate_url,
                 data=request_body,
                 headers=headers,
-                verify=False
+                verify=False,
+                timeout=180
             )
 
             if api_request.status_code == 200:

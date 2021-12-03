@@ -8,7 +8,6 @@ const {
 } = require("./date");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
 const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
@@ -153,7 +152,6 @@ const generateFilter = {
         }
         return value;
       });
-      logObject("the modifiedDeviceArray ", modifiedDeviceArray);
       let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
       filter["values.device"]["$in"] = mergedArray;
     }
@@ -222,6 +220,7 @@ const generateFilter = {
 
   events_v2: (request) => {
     try {
+      const { query } = request;
       const {
         device,
         device_number,
@@ -233,21 +232,43 @@ const generateFilter = {
         site_id,
         external,
         metadata,
-      } = request.query;
+        tenant,
+        recent,
+      } = query;
+
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);
       let today = monthsInfront(0);
       let oneWeekBack = addDays(-7);
       let oneWeekInfront = addDays(7);
       let filter = {
+        day: {
+          $gte: generateDateFormatWithoutHrs(oneWeekBack),
+          $lte: generateDateFormatWithoutHrs(today),
+        },
         "values.time": { $gte: oneWeekBack, $lte: today },
-        device_id: {},
-        site_id: {},
-        site: {},
-        device: {},
-        device_number: {},
+        "values.device": {},
+        "values.site": {},
+        "values.device_id": {},
+        "values.site_id": {},
         "values.device_number": {},
+        device_number: {},
       };
+
+      if (metadata) {
+        filter["metadata"] = metadata;
+      }
+
+      if (external) {
+        filter["external"] = external;
+      }
+      if (!external) {
+        filter["external"] = "yes";
+      }
+
+      if (tenant) {
+        filter["tenant"] = tenant;
+      }
 
       if (startTime) {
         if (isTimeEmpty(startTime) == false) {
@@ -256,6 +277,7 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
       }
 
       if (endTime) {
@@ -265,6 +287,7 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
       }
 
       if (startTime && !endTime) {
@@ -276,6 +299,13 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+          startTime,
+          1
+        );
+        filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+          addedOneMonthToProvidedDateTime
+        );
       }
 
       if (!startTime && endTime) {
@@ -287,6 +317,13 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+          endTime,
+          -1
+        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+          removedOneMonthFromProvidedDateTime
+        );
       }
 
       if (startTime && endTime) {
@@ -311,41 +348,27 @@ const generateFilter = {
         }
       }
       /**
-       * the unique site and device ids
-       */
-      if (device_id) {
-        let deviceIdArray = device_id.split(",");
-        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
-          return ObjectId(device_id);
-        });
-        filter["device_id"]["$in"] = modifiedDeviceIdArray;
-      }
-
-      if (!device_id) {
-        delete filter["device_id"];
-      }
-
-      if (site_id) {
-        let siteIdArray = site_id.split(",");
-        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
-          return ObjectId(site_id);
-        });
-        filter["site_id"]["$in"] = modifiedSiteIdArray;
-      }
-
-      if (!site_id) {
-        delete filter["site_id"];
-      }
-      /**
-       * the unique site and device names
+       * unique names for sites and devices
        */
       if (device) {
         let deviceArray = device.split(",");
-        filter["device"]["$in"] = deviceArray;
+        let modifiedDeviceArray = deviceArray.map((value) => {
+          if (isLowerCase(value)) {
+            return value.toUpperCase();
+          }
+          if (!isLowerCase(value)) {
+            return value.toLowerCase();
+          }
+          return value;
+        });
+        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+        filter["values.device"]["$in"] = mergedArray;
+        filter["device"] = true;
       }
 
       if (!device) {
-        delete filter["device"];
+        delete filter["values.device"];
+        filter["device"] = false;
       }
 
       if (device_number) {
@@ -360,19 +383,52 @@ const generateFilter = {
       }
 
       if (site) {
-        let siteArray = site.split(",");
-        filter["site"]["$in"] = siteArray;
+        let deviceArray = site.split(",");
+        filter["values.site"]["$in"] = deviceArray;
       }
 
       if (!site) {
-        delete filter["site"];
+        delete filter["values.site"];
+      }
+
+      /**
+       * unique ids for devices and sites
+       */
+      if (device_id) {
+        let deviceIdArray = device_id.split(",");
+        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+          return ObjectId(device_id);
+        });
+        filter["values.device_id"]["$in"] = modifiedDeviceIdArray;
+      }
+      if (!device_id) {
+        delete filter["values.device_id"];
+      }
+      if (site_id) {
+        let siteIdArray = site_id.split(",");
+        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+          return ObjectId(site_id);
+        });
+        filter["values.site_id"]["$in"] = modifiedSiteIdArray;
+      }
+      if (!site_id) {
+        delete filter["values.site_id"];
       }
       /**
-       * end unique site and device names
+       * ends unique site and device ids
        */
 
       if (frequency) {
+        filter["values.frequency"] = frequency;
         filter["frequency"] = frequency;
+      }
+      if (!frequency) {
+        filter["values.frequency"] = "hourly";
+        filter["frequency"] = "hourly";
+      }
+
+      if (recent) {
+        filter["recent"] = recent;
       }
 
       return {

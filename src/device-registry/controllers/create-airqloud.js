@@ -6,6 +6,7 @@ const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-controller");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const httpStatus = require("http-status");
 
 const createAirqloud = {
   register: async (req, res) => {
@@ -110,6 +111,106 @@ const createAirqloud = {
       tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
+  refresh: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { id, admin_level, name, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["admin_level"] = admin_level;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      const responseFromRefreshAirQloud = await createAirQloudUtil.refresh(
+        request
+      );
+      if (responseFromRefreshAirQloud.success === true) {
+        const status = responseFromRefreshAirQloud.status
+          ? responseFromRefreshAirQloud.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromRefreshAirQloud.message,
+          refreshed_airqloud: responseFromRefreshAirQloud.data,
+        });
+      }
+      if (responseFromRefreshAirQloud.success === false) {
+        const status = responseFromRefreshAirQloud.status
+          ? responseFromRefreshAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromRefreshAirQloud.errors
+          ? responseFromRefreshAirQloud.errors
+          : "";
+        res.status(status).json({
+          message: responseFromRefreshAirQloud.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logObject("refresh controller", error);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  findSites: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query, body } = req;
+      const { id, name, admin_level, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["name"] = name;
+      request["query"]["admin_level"] = admin_level;
+      request["query"]["tenant"] = tenant;
+      logObject("request", request);
+      let responseFromFindSites = await createAirQloudUtil.findSites(request);
+      logObject("responseFromFindSites", responseFromFindSites);
+      if (responseFromFindSites.success === true) {
+        let status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          sites: responseFromFindSites.data,
+          message: responseFromFindSites.message,
+        });
+      }
+      if (responseFromFindSites.success === false) {
+        let errors = responseFromFindSites.errors
+          ? responseFromFindSites.errors
+          : "";
+        let status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromFindSites.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
 
   update: async (req, res) => {
     try {
@@ -207,7 +308,11 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "create airqloud controller");
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 

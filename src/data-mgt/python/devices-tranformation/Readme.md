@@ -10,7 +10,7 @@ Contains Utils for manipulating devices' data
     pip install -r requirements.txt
 ```
 
-Obtain and add the `.env` to this directory.
+Add the `.env` to this directory. [link to env file](https://docs.google.com/document/d/12SFbaC9aECzQJDtGp4ECkLpMqVAnmQQ22QyqE2d9L94/edit?usp=sharing)
 
 In scenarios where the output is  **csv** or **json**, a file named `output.json` or `output.csv` is generated with the
 data.
@@ -65,4 +65,10 @@ Update sites to include the nearest Tahmo Station.
 
 ```bash
     python main.py devices_without_forecast csv
+```
+
+## Update sites external names based on csv file
+
+```bash
+    python main.py update_site_external_names
 ```

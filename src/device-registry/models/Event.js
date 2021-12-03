@@ -10,6 +10,10 @@ const { logObject, logElement, logText } = require("../utils/log");
 const ObjectId = Schema.Types.ObjectId;
 const constants = require("../config/constants");
 const { isElement, isEmpty } = require("underscore");
+const httpStatus = require("http-status");
+const { getModelByTenant } = require("../utils/multitenancy");
+const log4js = require("log4js");
+const logger = log4js.getLogger("event-model");
 
 const valueSchema = new Schema({
   time: {
@@ -300,6 +304,26 @@ eventSchema.methods = {
   },
 };
 
+const elementAtIndexName = (metadata, recent) => {
+  if (metadata === "site" || metadata === "site_id") {
+    if (!recent || recent === "yes") {
+      return { $first: { $arrayElemAt: ["$siteDetails", 0] } };
+    }
+    if (recent === "no") {
+      return { $arrayElemAt: ["$siteDetails", 0] };
+    }
+  }
+
+  if (!metadata || metadata === "device" || metadata === "device_id") {
+    if (!recent || recent === "yes") {
+      return { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
+    }
+    if (recent === "no") {
+      return { $arrayElemAt: ["$deviceDetails", 0] };
+    }
+  }
+};
+
 eventSchema.statics = {
   createEvent(args) {
     return this.create({
@@ -334,250 +358,280 @@ eventSchema.statics = {
       };
     }
   },
-  list({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    const { metadata, frequency, external, tenant } = filter;
-    let search = filter;
-    let groupId = "$device";
-    let localField = "device";
-    let foreignField = "name";
-    let from = "devices";
-    let _as = "_deviceDetails";
-    let as = "deviceDetails";
-    let elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
-    let pm2_5 = "$average_pm2_5";
-    let pm10 = "$average_pm10";
-    let projection = {
-      _id: 0,
-    };
+  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+    try {
+      const { metadata, frequency, external, tenant, device, recent } = filter;
+      let search = filter;
+      let groupId = "$device";
+      let localField = "device";
+      let foreignField = "name";
+      let from = "devices";
+      let _as = "_deviceDetails";
+      let as = "deviceDetails";
+      let pm2_5 = "$average_pm2_5";
+      let pm10 = "$average_pm10";
+      let s1_pm2_5 = "$pm2_5";
+      let s1_pm10 = "$pm10";
+      let elementAtIndex0 = elementAtIndexName(metadata, recent);
+      let projection = {
+        _id: 0,
+      };
+      let siteProjection = {};
+      let deviceProjection = {};
 
-    delete search["external"];
-    delete search["frequency"];
-    delete search["metadata"];
-    delete search["tenant"];
+      delete search["external"];
+      delete search["frequency"];
+      delete search["metadata"];
+      delete search["tenant"];
+      delete search["device"];
+      delete search["recent"];
 
-    if (external === "yes") {
-      projection["s2_pm10"] = 0;
-      projection["s2_pm2_5"] = 0;
-      projection[as] = 0;
+      if (tenant !== "airqo") {
+        pm2_5 = "$pm2_5";
+        pm10 = "$pm10";
+      }
+
+      if (!metadata || metadata === "device" || metadata === "device_id") {
+        groupId = "$" + metadata ? metadata : groupId;
+        localField = metadata ? metadata : localField;
+        if (metadata === "device_id") {
+          foreignField = "_id";
+        }
+        if (metadata === "device" || !metadata) {
+          foreignField = "name";
+        }
+
+        from = "devices";
+        _as = "_deviceDetails";
+        as = "deviceDetails";
+        elementAtIndex0 = elementAtIndexName(metadata, recent);
+        deviceProjection = constants.EVENTS_METADATA_PROJECTION("device", as);
+        Object.assign(projection, deviceProjection);
+      }
+
+      if (metadata === "site_id" || metadata === "site") {
+        groupId = "$" + metadata;
+        localField = metadata;
+        if (metadata === "site") {
+          foreignField = "generated_name";
+        }
+        if (metadata === "site_id") {
+          foreignField = "_id";
+        }
+        from = "sites";
+        _as = "_siteDetails";
+        as = "siteDetails";
+        elementAtIndex0 = elementAtIndexName(metadata, recent);
+        siteProjection = constants.EVENTS_METADATA_PROJECTION("site", as);
+        Object.assign(projection, siteProjection);
+      }
+
+      if (external === "yes") {
+        projection["s2_pm10"] = 0;
+        projection["s1_pm10"] = 0;
+        projection["s2_pm2_5"] = 0;
+        projection["s1_pm2_5"] = 0;
+        projection[as] = 0;
+      }
+      logObject("the query for this request", search);
+      if (!recent || recent === "yes") {
+        let data = await this.aggregate()
+          .unwind("values")
+          .match(search)
+          .replaceRoot("values")
+          .lookup({
+            from,
+            localField,
+            foreignField,
+            as,
+          })
+          .sort({ time: -1 })
+          .group({
+            _id: "$device",
+            device: { $first: "$device" },
+            device_id: { $first: "$device_id" },
+            device_number: { $first: "$device_number" },
+            site: { $first: "$site" },
+            site_id: { $first: "$site_id" },
+            time: { $first: "$time" },
+            average_pm2_5: { $first: "$average_pm2_5" },
+            pm2_5: { $first: pm2_5 },
+            s1_pm2_5: { $first: s1_pm2_5 },
+            s2_pm2_5: { $first: "$s2_pm2_5" },
+            average_pm10: { $first: "$average_pm10" },
+            pm10: { $first: pm10 },
+            s1_pm10: { $first: s1_pm10 },
+            s2_pm10: { $first: "$s2_pm10" },
+            frequency: { $first: "$frequency" },
+            battery: { $first: "$battery" },
+            location: { $first: "$location" },
+            altitude: { $first: "$altitude" },
+            speed: { $first: "$speed" },
+            satellites: { $first: "$satellites" },
+            hdop: { $first: "$hdop" },
+            internalTemperature: { $first: "$internalTemperature" },
+            externalTemperature: { $first: "$externalTemperature" },
+            internalHumidity: { $first: "$internalHumidity" },
+            externalHumidity: { $first: "$externalHumidity" },
+            externalAltitude: { $first: "$externalAltitude" },
+            pm1: { $first: "$pm1" },
+            no2: { $first: "$no2" },
+            [as]: elementAtIndex0,
+          })
+          .project(projection)
+          .facet({
+            total: [{ $count: "device" }],
+            data: [{ $addFields: { device: "$device" } }],
+          })
+          .project({
+            meta: {
+              total: { $arrayElemAt: ["$total.device", 0] },
+              limit: { $literal: limit },
+              page: { $literal: skip / limit + 1 },
+              pages: {
+                $ceil: {
+                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+                },
+              },
+            },
+            data: {
+              $slice: [
+                "$data",
+                skip,
+                {
+                  $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+                },
+              ],
+            },
+          })
+          .allowDiskUse(true);
+        return {
+          success: true,
+          data,
+          status: httpStatus.OK,
+        };
+      }
+
+      if (recent === "no") {
+        let data = await this.aggregate()
+          .unwind("values")
+          .match(search)
+          .replaceRoot("values")
+          .lookup({
+            from,
+            localField,
+            foreignField,
+            as,
+          })
+          .sort({ time: -1 })
+          .project({
+            _device: "$device",
+            _time: "$time",
+            _average_pm2_5: "$average_pm2_5",
+            _pm2_5: pm2_5,
+            _s1_pm2_5: s1_pm2_5,
+            _s2_pm2_5: "$s2_pm2_5",
+            _average_pm10: "$average_pm10",
+            _pm10: pm10,
+            _s1_pm10: s1_pm10,
+            _s2_pm10: "$s2_pm10",
+            _frequency: "$frequency",
+            _battery: "$battery",
+            _location: "$location",
+            _altitude: "$altitude",
+            _speed: "$speed",
+            _satellites: "$satellites",
+            _hdop: "$hdop",
+            _site_id: "$site_id",
+            _device_id: "$device_id",
+            _site: "$site",
+            _device_number: "$device_number",
+            _internalTemperature: "$internalTemperature",
+            _externalTemperature: "$externalTemperature",
+            _internalHumidity: "$internalHumidity",
+            _externalHumidity: "$externalHumidity",
+            _externalAltitude: "$externalAltitude",
+            _pm1: "$pm1",
+            _no2: "$no2",
+            [_as]: elementAtIndex0,
+          })
+          .project({
+            device: "$_device",
+            device_id: "$_device_id",
+            device_number: "$_device_number",
+            site: "$_site",
+            site_id: "$_site_id",
+            time: "$_time",
+            average_pm2_5: "$_average_pm2_5",
+            pm2_5: "$_pm2_5",
+            s1_pm2_5: "$_s1_pm2_5",
+            s2_pm2_5: "$_s2_pm2_5",
+            average_pm10: "$_average_pm10",
+            pm10: "$_pm10",
+            s1_pm10: "$_s1_pm10",
+            s2_pm10: "$_s2_pm10",
+            frequency: "$_frequency",
+            battery: "$_battery",
+            location: "$_location",
+            altitude: "$_altitude",
+            speed: "$_speed",
+            satellites: "$_satellites",
+            hdop: "$_hdop",
+            internalTemperature: "$_internalTemperature",
+            externalTemperature: "$_externalTemperature",
+            internalHumidity: "$_internalHumidity",
+            externalHumidity: "$_externalHumidity",
+            externalAltitude: "$_externalAltitude",
+            pm1: "$_pm1",
+            no2: "$_no2",
+            [as]: "$" + _as,
+          })
+          .project(projection)
+          .facet({
+            total: [{ $count: "device" }],
+            data: [
+              {
+                $addFields: { device: "$device" },
+              },
+            ],
+          })
+          .project({
+            meta: {
+              total: { $arrayElemAt: ["$total.device", 0] },
+              limit: { $literal: limit },
+              page: { $literal: skip / limit + 1 },
+              pages: {
+                $ceil: {
+                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+                },
+              },
+            },
+            data: {
+              $slice: [
+                "$data",
+                skip,
+                {
+                  $ifNull: [limit, { $arrayElemAt: ["$total.device", 0] }],
+                },
+              ],
+            },
+          })
+          .allowDiskUse(true);
+        return {
+          success: true,
+          data,
+          status: httpStatus.OK,
+        };
+      }
+    } catch (error) {
+      logger.error(`list events -- ${error.message}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
-
-    if (tenant !== "airqo" || frequency === "raw" || frequency === "daily") {
-      pm2_5 = "$pm2_5";
-      pm10 = "$pm10";
-    }
-
-    if (metadata === "site") {
-      groupId = "$site";
-      localField = "site";
-      foreignField = "generated_name";
-      from = "sites";
-      _as = "_siteDetails";
-      as = "siteDetails";
-      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
-    }
-
-    if (metadata === "site_id") {
-      groupId = "$site_id";
-      localField = "site_id";
-      foreignField = "_id";
-      from = "sites";
-      _as = "_siteDetails";
-      as = "siteDetails";
-      elementAtIndex0 = { $arrayElemAt: ["$siteDetails", 0] };
-    }
-
-    if (metadata === "device_id") {
-      groupId = "$device_id";
-      localField = "device_id";
-      foreignField = "_id";
-      from = "devices";
-      _as = "_deviceDetails";
-      as = "deviceDetails";
-      elementAtIndex0 = { $arrayElemAt: ["$deviceDetails", 0] };
-    }
-
-    return this.aggregate()
-      .unwind("values")
-      .match(search)
-      .replaceRoot("values")
-      .lookup({
-        from,
-        localField,
-        foreignField,
-        as,
-      })
-      .sort({ time: -1 })
-      .project({
-        _device: "$device",
-        _time: "$time",
-        _average_pm2_5: "$average_pm2_5",
-        _pm2_5: pm2_5,
-        _s2_pm2_5: "$s2_pm2_5",
-        _average_pm10: "$average_pm10",
-        _pm10: pm10,
-        _s2_pm10: "$s2_pm10",
-        _frequency: "$frequency",
-        _battery: "$battery",
-        _location: "$location",
-        _altitude: "$altitude",
-        _speed: "$speed",
-        _satellites: "$satellites",
-        _hdop: "$hdop",
-        _site_id: "$site_id",
-        _device_id: "$device_id",
-        _site: "$site",
-        _device_number: "$device_number",
-        _internalTemperature: "$internalTemperature",
-        _externalTemperature: "$externalTemperature",
-        _internalHumidity: "$internalHumidity",
-        _externalHumidity: "$externalHumidity",
-        _externalAltitude: "$externalAltitude",
-        _pm1: "$pm1",
-        _no2: "$no2",
-        [_as]: elementAtIndex0,
-      })
-      .project({
-        device: "$_device",
-        device_id: "$_device_id",
-        device_number: "$_device_number",
-        site: "$_site",
-        site_id: "$_site_id",
-        time: "$_time",
-        average_pm2_5: "$_average_pm2_5",
-        pm2_5: "$_pm2_5",
-        s2_pm2_5: "$_s2_pm2_5",
-        average_pm10: "$_average_pm10",
-        pm10: "$_pm10",
-        s2_pm10: "$_s2_pm10",
-        frequency: "$_frequency",
-        battery: "$_battery",
-        location: "$_location",
-        altitude: "$_altitude",
-        speed: "$_speed",
-        satellites: "$_satellites",
-        hdop: "$_hdop",
-        internalTemperature: "$_internalTemperature",
-        externalTemperature: "$_externalTemperature",
-        internalHumidity: "$_internalHumidity",
-        externalHumidity: "$_externalHumidity",
-        externalAltitude: "$_externalAltitude",
-        pm1: "$_pm1",
-        no2: "$_no2",
-        [as]: "$" + _as,
-      })
-      .project(projection)
-      .skip(skipInt)
-      .limit(limitInt)
-      .allowDiskUse(true);
-  },
-  listRecent({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
-    logObject("the filter in the model", filter);
-    const { metadata, frequency, external, tenant } = filter;
-    let search = filter;
-    let groupId = "$device";
-    let localField = "device";
-    let foreignField = "name";
-    let from = "devices";
-    let as = "deviceDetails";
-    let pm2_5 = "$average_pm2_5";
-    let pm10 = "$average_pm10";
-    let projection = {
-      _id: 0,
-    };
-
-    let elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
-
-    delete search["external"];
-    delete search["frequency"];
-    delete search["metadata"];
-    delete search["tenant"];
-
-    if (!metadata || metadata === "device") {
-    }
-
-    if (external === "yes") {
-      projection["s2_pm2_5"] = 0;
-      projection["s2_pm10"] = 0;
-      projection[as] = 0;
-    }
-
-    if (tenant !== "airqo" || frequency === "raw" || frequency === "daily") {
-      pm2_5 = "$pm2_5";
-      pm10 = "$pm10";
-    }
-
-    if (metadata === "site") {
-      groupId = "$site";
-      localField = "site";
-      foreignField = "generated_name";
-      from = "sites";
-      as = "siteDetails";
-      elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
-    }
-
-    if (metadata === "site_id") {
-      groupId = "$site_id";
-      localField = "site_id";
-      foreignField = "_id";
-      from = "sites";
-      as = "siteDetails";
-      elementAtIndex0 = { $first: { $arrayElemAt: ["$siteDetails", 0] } };
-    }
-
-    if (metadata === "device_id") {
-      groupId = "$device_id";
-      localField = "device_id";
-      foreignField = "_id";
-      from = "devices";
-      as = "deviceDetails";
-      elementAtIndex0 = { $first: { $arrayElemAt: ["$deviceDetails", 0] } };
-    }
-
-    return this.aggregate()
-      .unwind("values")
-      .match(search)
-      .replaceRoot("values")
-      .lookup({
-        from,
-        localField,
-        foreignField,
-        as,
-      })
-      .sort({ time: -1 })
-      .group({
-        _id: "$device",
-        device: { $first: "$device" },
-        device_id: { $first: "$device_id" },
-        device_number: { $first: "$device_number" },
-        site: { $first: "$site" },
-        site_id: { $first: "$site_id" },
-        time: { $first: "$time" },
-        average_pm2_5: { $first: "$average_pm2_5" },
-        pm2_5: { $first: pm2_5 },
-        s2_pm2_5: { $first: "$s2_pm2_5" },
-        average_pm10: { $first: "$average_pm10" },
-        pm10: { $first: pm10 },
-        s2_pm10: { $first: "$s2_pm10" },
-        frequency: { $first: "$frequency" },
-        battery: { $first: "$battery" },
-        location: { $first: "$location" },
-        altitude: { $first: "$altitude" },
-        speed: { $first: "$speed" },
-        satellites: { $first: "$satellites" },
-        hdop: { $first: "$hdop" },
-        internalTemperature: { $first: "$internalTemperature" },
-        externalTemperature: { $first: "$externalTemperature" },
-        internalHumidity: { $first: "$internalHumidity" },
-        externalHumidity: { $first: "$externalHumidity" },
-        externalAltitude: { $first: "$externalAltitude" },
-        pm1: { $first: "$pm1" },
-        no2: { $first: "$no2" },
-        [as]: elementAtIndex0,
-      })
-      .project(projection)
-      .skip(skipInt)
-      .limit(limitInt)
-      .allowDiskUse(true);
   },
   async view({ skipInt = 0, limitInt = 100, filter = {} } = {}) {
     try {
@@ -772,4 +826,8 @@ eventSchema.statics = {
   },
 };
 
-module.exports = eventSchema;
+const eventsModel = (tenant) => {
+  return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
+};
+
+module.exports = eventsModel;

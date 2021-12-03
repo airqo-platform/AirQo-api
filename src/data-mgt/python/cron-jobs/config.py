@@ -17,6 +17,7 @@ load_dotenv(dotenv_path)
 
 class JobType(Enum):
     CALIBRATE = "CALIBRATE"
+    DAILY_AVERAGES = "DAILY_AVERAGES"
     UNDEFINED = "UNDEFINED"
 
 
@@ -25,7 +26,6 @@ class Config:
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
     JOB_TYPE = os.getenv("JOB_TYPE")
-    FREQUENCY = os.getenv("FREQUENCY", "raw")
     START_TIME = os.getenv("START_TIME")
     END_TIME = os.getenv("END_TIME")
     BATCH_FETCH_TIME_INTERVAL = os.getenv("BATCH_FETCH_TIME_INTERVAL")
@@ -41,11 +41,15 @@ class Config:
 
     # Calibration
     CALIBRATE_BASE_URL = os.getenv("CALIBRATE_BASE_URL")
+    CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 10)
 
     def __init__(self):
 
         if self.JOB_TYPE.lower().strip() == "calibrate":
             self.JOB_TYPE = JobType.CALIBRATE
+
+        elif self.JOB_TYPE.lower().strip() == "daily_averages":
+            self.JOB_TYPE = JobType.DAILY_AVERAGES
 
         elif self.PERIODIC.strip().lower() == "true":
             self.END_TIME = date_to_str(datetime.utcnow())

@@ -32,6 +32,7 @@ const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { getModelByTenant } = require("../utils/multitenancy");
 
 const log4js = require("log4js");
+const httpStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
 
 const manageSite = {
@@ -49,7 +50,6 @@ const manageSite = {
       }
       const { tenant } = req.query;
       let responseFromCreateSite = await createSiteUtil.create(tenant, req);
-      logObject("responseFromCreateSite in controller", responseFromCreateSite);
       if (responseFromCreateSite.success === true) {
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
@@ -85,7 +85,7 @@ const manageSite = {
   },
 
   generateMetadata: async (req, res) => {
-    logText("registering site.............");
+    logText("generating site metadata.............");
     try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
@@ -132,6 +132,148 @@ const manageSite = {
     }
   },
 
+  listNearestWeatherStation: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query, body } = req;
+      const { id, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["tenant"] = tenant;
+      let responseFromFindNearestSite = await createSiteUtil.findNearestWeatherStation(
+        request
+      );
+      if (responseFromFindNearestSite.success === true) {
+        const status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: "nearest site retrieved",
+          nearest_weather_station: responseFromFindNearestSite.data,
+        });
+      }
+
+      if (responseFromFindNearestSite.success === false) {
+        const status = responseFromFindNearestSite.status
+          ? responseFromFindNearestSite.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromFindNearestSite.errors
+          ? responseFromFindNearestSite.errors
+          : "";
+        res.status(status).json({
+          success: false,
+          message: responseFromFindNearestSite.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  listWeatherStations: async (req, res) => {
+    try {
+      const responseFromListTahmoStations = await createSiteUtil.listWeatherStations();
+      logObject("responseFromListTahmoStations", responseFromListTahmoStations);
+      if (responseFromListTahmoStations.success === true) {
+        const status = responseFromListTahmoStations.status
+          ? responseFromListTahmoStations.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromListTahmoStations.message,
+          stations: responseFromListTahmoStations.data,
+        });
+      }
+      if (responseFromListTahmoStations.success === false) {
+        const status = responseFromListTahmoStations.status
+          ? responseFromListTahmoStations.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromListTahmoStations.errors
+          ? responseFromListTahmoStations.errors
+          : "";
+        res.status(status).json({
+          success: false,
+          message: responseFromListTahmoStations.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  findAirQlouds: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query, body } = req;
+      const { id, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["tenant"] = tenant;
+      logObject("request", request);
+      let responseFromFindAirQloud = await createSiteUtil.findAirQlouds(
+        request
+      );
+      logObject("responseFromFindAirQloud", responseFromFindAirQloud);
+      if (responseFromFindAirQloud.success === true) {
+        let status = responseFromFindAirQloud.status
+          ? responseFromFindAirQloud.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          airqlouds: responseFromFindAirQloud.data,
+          message: responseFromFindAirQloud.message,
+        });
+      }
+      if (responseFromFindAirQloud.success === false) {
+        let errors = responseFromFindAirQloud.errors
+          ? responseFromFindAirQloud.errors
+          : "";
+        let status = responseFromFindAirQloud.status
+          ? responseFromFindAirQloud.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromFindAirQloud.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   delete: async (req, res) => {
     try {
       logText(".................................................");
@@ -149,25 +291,29 @@ const manageSite = {
       let filter = generateFilter.sites(req);
       logObject("filter", filter);
       let responseFromRemoveSite = await createSiteUtil.delete(tenant, filter);
-      if (responseFromRemoveSite.success == true) {
-        return res.status(HTTPStatus.OK).json({
+      if (responseFromRemoveSite.success === true) {
+        const status = responseFromRemoveSite.status
+          ? responseFromRemoveSite.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
           success: true,
           message: responseFromRemoveSite.message,
           site: responseFromRemoveSite.data,
         });
-      } else if (responseFromRemoveSite.success == false) {
-        if (responseFromRemoveSite.errors) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRemoveSite.message,
-            errors: responseFromRemoveSite.errors,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromRemoveSite.message,
-          });
-        }
+      }
+
+      if (responseFromRemoveSite.success === false) {
+        const status = responseFromRemoveSite.status
+          ? responseFromRemoveSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromRemoveSite.errors
+          ? responseFromRemoveSite.errors
+          : "";
+        return res.status(status).json({
+          success: false,
+          message: responseFromRemoveSite.message,
+          errors,
+        });
       }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({

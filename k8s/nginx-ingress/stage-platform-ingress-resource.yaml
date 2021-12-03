@@ -100,7 +100,7 @@ spec:
             backend:
               serviceName: airqo-stage-views-api-svc
               servicePort: 8080
-          - path: /api/v2/views
+          - path: /api/v1/notifications
             backend:
-              serviceName: airqo-stage-views-api-svc
+              serviceName: airqo-stage-notification-api-svc
               servicePort: 8080

@@ -1,4 +1,5 @@
 from datetime import timedelta
+from time import sleep
 
 import pandas as pd
 import requests
@@ -51,10 +52,15 @@ class KccaBatchFetch:
             if transformed_data:
                 self.kafka_client.produce(transformed_data)
 
+            sleep(60.0)
+
     def __get_measurements(self, start_time, end_time):
 
         api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
-                  f"startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
+                  f"startTime={start_time}&endTime={end_time}"
+
+        if self.device_codes_str != '':
+            api_url = f"{api_url}&code={self.device_codes_str}"
 
         frequency = configuration.FREQUENCY.strip().lower()
         if frequency == "hour":
