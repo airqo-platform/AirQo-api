@@ -1,21 +1,36 @@
 # Inherit from the Python Docker image
-FROM python:3.7-slim
+FROM python:3.7-slim as base
 
   
-# Copy the source code to app folder
 COPY . /app/
-# Change the working directory
 WORKDIR /app/
 
-# Install the Flask package via pip
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
+
+ENV PYTHONDONWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
 # Set environment variables
 ENV FLASK_APP=app.py
-ENV GOOGLE_APPLICATION_CREDENTIALS=airqo-250220-642e046f4223.json
+ENV GOOGLE_APPLICATION_CREDENTIALS=AirQo-e37846081569.json
 
-# Expose the application's port, default is 5000 for python flask
 EXPOSE 5000
 
-# Run the application
+# production 
+FROM base as production 
+ENV ENV=production
+
+CMD ["flask", "run", "--host=0.0.0.0"]
+
+# production 
+FROM base as staging 
+ENV ENV=staging
+
+CMD ["flask", "run", "--host=0.0.0.0"]
+
+# production 
+FROM base as dev
+ENV ENV=development
+
 CMD ["flask", "run", "--host=0.0.0.0"]
