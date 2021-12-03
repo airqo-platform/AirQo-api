@@ -204,7 +204,6 @@ const data = {
       let api_key = "";
       let errors = [];
       let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
-      logObject("responseFromGetAPIKey", responseFromGetAPIKey);
       if (responseFromGetAPIKey.success === true) {
         api_key = responseFromGetAPIKey.data;
         logElement("api_key", api_key);
@@ -235,10 +234,9 @@ const data = {
             .then(async (response) => {
               const readings = response.data;
               const { feeds } = readings;
-              logObject("response from axios", response.data);
               let lastEntryId = readings.channel.last_entry_id;
 
-              if (isEmpty(lastEntryId) && isEmpty(feeds)) {
+              if (isEmpty(lastEntryId) || isEmpty(feeds)) {
                 return res.status(HTTPStatus.NOT_FOUND).json({
                   success: true,
                   message: "no recent measurements for this device",
@@ -253,7 +251,6 @@ const data = {
               delete responseData.entry_id;
 
               let cleanedDeviceMeasurements = cleanMeasurements(responseData);
-              logObject("cleanedMeasurement", cleanedDeviceMeasurements);
 
               let transformedData = await transformMeasurement(
                 cleanedDeviceMeasurements
@@ -274,11 +271,6 @@ const data = {
               };
 
               let cleanedFinalTransformation = cleanMeasurements(newResp);
-
-              logObject(
-                "cleanedTransformedMeasurement",
-                cleanedFinalTransformation
-              );
               redis.set(
                 cacheID,
                 JSON.stringify({
@@ -300,11 +292,17 @@ const data = {
             .catch((error) => {
               logObject("axios server error", error);
               let extra = errors;
-              axiosError({ error, res, extra });
+              return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+                errors: {
+                  message: errors,
+                  message: "Internal Server Error",
+                },
+              });
             });
         }
       });
     } catch (error) {
+      logObject("Internal Server Error", error);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
@@ -320,7 +318,6 @@ const data = {
         let api_key = "";
         let errors = [];
         let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
-        logObject("responseFromGetAPIKey", responseFromGetAPIKey);
         if (responseFromGetAPIKey.success === true) {
           api_key = responseFromGetAPIKey.data;
           logElement("api_key", api_key);
@@ -353,7 +350,6 @@ const data = {
               .then(async (response) => {
                 const readings = response.data;
                 const { feeds } = readings;
-                logObject("response from axios", response.data);
                 let lastEntryId = readings.channel.last_entry_id;
 
                 if (isEmpty(lastEntryId) && isEmpty(feeds)) {
@@ -371,7 +367,6 @@ const data = {
                 delete responseData.entry_id;
 
                 let cleanedDeviceMeasurements = cleanMeasurements(responseData);
-                logObject("cleanedMeasurement", cleanedDeviceMeasurements);
 
                 let transformedData = await transformMeasurement(
                   cleanedDeviceMeasurements

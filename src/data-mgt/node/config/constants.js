@@ -90,10 +90,11 @@ const defaultConfig = {
             };
           }
         } else if (responseJSON.success === false) {
-          if (responseJSON.error) {
+          logObject("GET API false success", responseJSON);
+          if (responseJSON.errors) {
             return {
               success: false,
-              error: error,
+              errors: { message: responseJSON.errors },
               message: responseJSON.message,
             };
           } else {
@@ -108,8 +109,8 @@ const defaultConfig = {
         logObject("the server error for GET_API _KEY", error);
         return {
           success: false,
-          error: error.message,
-          message: "constants server side error",
+          errors: { message: error.response },
+          message: "Server Side Error",
         };
       });
   },
