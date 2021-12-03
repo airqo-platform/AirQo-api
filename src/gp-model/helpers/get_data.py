@@ -23,7 +23,7 @@ def get_device_details(device_id, tenant):
     name: str
         Name of the device
     """
-    db= connect_mongo(tenant)    
+    db= connect_mongo(tenant, db_host=configuration.MONGO_URI_DEVICE_REGISTRY)    
     query = {
         'channelID': device_id
     }
