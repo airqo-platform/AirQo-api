@@ -19,16 +19,16 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @AutoConfigureRestDocs(uriHost = "api.airqo.net/v1/views", uriScheme = "https", uriPort = 443)
-public class EventControllerTests {
+public class MeasurementControllerTests {
 
 	@Autowired
 	protected MockMvc mockMvc;
 
 	public void shouldReturnEvents() throws Exception {
-		this.mockMvc.perform(get("/events"))
+		this.mockMvc.perform(get("/measurements"))
 			.andDo(print())
 			.andExpect(status().isOk())
-			.andDo(document("events"));
+			.andDo(document("measurements"));
 	}
 
 	@TestConfiguration

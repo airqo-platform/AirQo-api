@@ -1,6 +1,6 @@
 package airqo.models;
 
-import airqo.serializers.EventSerializer;
+import airqo.serializers.MeasurementSerializer;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
@@ -23,12 +23,8 @@ import java.util.List;
 @NoArgsConstructor
 @ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
-@JsonSerialize(using = EventSerializer.Serializer.class)
-@Document(collection = "events")
-//@CompoundIndexes({
-//	@CompoundIndex(name = "PM 2.5", def = "{'time' : 1, 'device_id': 1, 'pm2_5.value': 1}", unique = true)
-//})
-public class Event implements Serializable {
+@JsonSerialize(using = MeasurementSerializer.Serializer.class)
+public class Measurement implements Serializable {
 
 
 	@Transient
@@ -65,13 +61,6 @@ public class Event implements Serializable {
 	private MeasurementValue pm10;
 	private MeasurementValue pm2_5;
 	private MeasurementValue no2;
-	private GeoJsonPoint geoJsonPoint;
-
-	public GeoJsonPoint getGeoJsonPoint() {
-		double latitude = this.getLocation().latitude;
-		double longitude = this.getLocation().longitude;
-		return new GeoJsonPoint(latitude, longitude);
-	}
 
 	public void setFrequency(String frequency) {
 		this.frequency = Frequency.valueOf(frequency).toString();
@@ -97,15 +86,15 @@ public class Event implements Serializable {
 		Double latitude, longitude;
 	}
 
-	@Getter
-	@Setter
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@ToString
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class EventList implements Serializable {
-		private List<Event> events;
-	}
+//	@Getter
+//	@Setter
+//	@AllArgsConstructor
+//	@NoArgsConstructor
+//	@ToString
+//	@JsonIgnoreProperties(ignoreUnknown = true)
+//	public static class MeasurementsList implements Serializable {
+//		private List<Measurement> measurements;
+//	}
 
 }
 

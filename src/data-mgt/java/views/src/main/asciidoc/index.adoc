@@ -44,18 +44,18 @@ include::{snippets}/devices/curl-request.adoc[]
 .httpie request
 include::{snippets}/devices/httpie-request.adoc[]
 
-[[Events]]
-== Get Events
+[[Measurements]]
+== Get Measurements
 
 === Response Body
 
-include::{snippets}/events/response-body.adoc[]
+include::{snippets}/measurements/response-body.adoc[]
 
 === Examples
 
 .http request
-include::{snippets}/events/http-request.adoc[]
+include::{snippets}/measurements/http-request.adoc[]
 .curl request
-include::{snippets}/events/curl-request.adoc[]
+include::{snippets}/measurements/curl-request.adoc[]
 .httpie request
-include::{snippets}/events/httpie-request.adoc[]
+include::{snippets}/measurements/httpie-request.adoc[]
