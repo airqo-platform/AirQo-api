@@ -18,6 +18,8 @@ const {
 } = require("../utils/mappings");
 const { generateDateFormat } = require("../utils/date");
 const constants = require("../config/constants");
+const getDevice = require("../utils/get-device");
+const getFeed = require("../utils/get-feed");
 const { gpsCheck, getGPSFromDB } = require("../utils/gps-check");
 const {
   axiosError,
@@ -203,102 +205,143 @@ const data = {
       const { channel, start, end } = req.query;
       let api_key = "";
       let errors = [];
-      let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
-      if (responseFromGetAPIKey.success === true) {
-        api_key = responseFromGetAPIKey.data;
-        logElement("api_key", api_key);
+      let lastPath = "";
+
+      if (req.path) {
+        logElement("the path is alive!", req.path);
+        let arrayOfPaths = req.path.split("/");
+        let lastPathIndex = arrayOfPaths.length - 1;
+        lastPath = arrayOfPaths[lastPathIndex];
+        logElement("lastPath", lastPath);
       }
 
-      if (responseFromGetAPIKey.success === false) {
-        if (responseFromGetAPIKey.error) {
-          errors.push(responseFromGetAPIKey.error);
-          errors.push(responseFromGetAPIKey.message);
-        } else {
-          errors.push(responseFromGetAPIKey.message);
-        }
-      }
-      let ts = Date.now();
-      let day = await generateDateFormat(ts);
-      let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
-      redis.get(cacheID, (err, result) => {
-        if (result) {
-          const resultJSON = JSON.parse(result);
-          return res.status(HTTPStatus.OK).json(resultJSON);
-        } else {
-          logElement(
-            "URL",
-            constants.READ_DEVICE_FEEDS({ channel, api_key, start, end })
-          );
-          axios
-            .get(constants.READ_DEVICE_FEEDS({ channel, api_key, start, end }))
-            .then(async (response) => {
-              const readings = response.data;
-              const { feeds } = readings;
-              let lastEntryId = readings.channel.last_entry_id;
+      await getDevice.getAPIKey(channel, async (result) => {
+        if (result.success === true) {
+          api_key = result.data;
+          let ts = Date.now();
+          let day = await generateDateFormat(ts);
+          let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;
+          redis.get(cacheID, (err, result) => {
+            if (result) {
+              const resultJSON = JSON.parse(result);
+              return res.status(HTTPStatus.OK).json(resultJSON);
+            } else if (err) {
+              return res
+                .status(HTTPStatus.INTERNAL_SERVER_ERROR)
+                .json({ error: err, message: "Internal Server Error" });
+            } else {
+              axios
+                .get(
+                  getFeed.readDeviceMeasurementsFromThingspeak({
+                    channel,
+                    api_key,
+                    start,
+                    end,
+                  })
+                )
+                .then(async (response) => {
+                  const readings = response.data;
+                  const { feeds } = readings;
 
-              if (isEmpty(lastEntryId) || isEmpty(feeds)) {
-                return res.status(HTTPStatus.NOT_FOUND).json({
-                  success: true,
-                  message: "no recent measurements for this device",
-                });
-              }
+                  if (isEmpty(feeds)) {
+                    return res.status(HTTPStatus.NOT_FOUND).json({
+                      success: true,
+                      message: "no measurements for this device",
+                    });
+                  }
+                  let measurements = [];
 
-              let recentReadings = await readings.feeds.filter((item) => {
-                return item.entry_id === lastEntryId;
-              });
-              let responseData = recentReadings[0];
+                  if (lastPath === "last") {
+                    let lastEntryId = readings.channel.last_entry_id;
+                    let recentReadings = await readings.feeds.filter((item) => {
+                      return item.entry_id === lastEntryId;
+                    });
 
-              delete responseData.entry_id;
+                    delete recentReadings[0].entry_id;
 
-              let cleanedDeviceMeasurements = cleanMeasurements(responseData);
+                    let transformedData = await transformMeasurement(
+                      recentReadings[0]
+                    );
+                    let transformedField = {};
 
-              let transformedData = await transformMeasurement(
-                cleanedDeviceMeasurements
-              );
-              let transformedField = {};
-              let otherData = transformedData.other_data;
+                    if (transformedData.other_data) {
+                      transformedField = await trasformFieldValues(
+                        transformedData.other_data
+                      );
+                      delete transformedData.other_data;
+                    }
+                    let data = { ...transformedData, ...transformedField };
 
-              if (otherData) {
-                transformedField = await trasformFieldValues(otherData);
-                delete transformedData.other_data;
-              }
+                    let newResp = {
+                      ...data,
+                      errors,
+                    };
+                    measurements.push(newResp);
+                  }
 
-              let newResp = {
-                success: true,
-                ...transformedData,
-                ...transformedField,
-                errors,
-              };
+                  if (lastPath === "feeds") {
+                    for (const feed of feeds) {
+                      delete feed.entry_id;
+                      let transformedField = {};
+                      let transformedData = await transformMeasurement(feed);
+                      if (transformedData.other_data) {
+                        transformedField = await trasformFieldValues(
+                          transformedData.other_data
+                        );
+                        delete transformedData.other_data;
+                      }
+                      let data = { ...transformedData, ...transformedField };
+                      let newResp = {
+                        ...data,
+                        errors,
+                      };
+                      measurements.push(newResp);
+                    }
+                  }
 
-              let cleanedFinalTransformation = cleanMeasurements(newResp);
-              redis.set(
-                cacheID,
-                JSON.stringify({
-                  isCache: true,
-                  ...cleanedFinalTransformation,
+                  redis.set(
+                    cacheID,
+                    JSON.stringify({
+                      isCache: true,
+                      success: true,
+                      measurements,
+                    })
+                  );
+
+                  redis.expire(
+                    cacheID,
+                    constants.GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
+                  );
+
+                  return res.status(HTTPStatus.OK).json({
+                    isCache: false,
+                    success: true,
+                    measurements,
+                  });
                 })
-              );
-
-              redis.expire(
-                cacheID,
-                GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION
-              );
-
-              return res.status(HTTPStatus.OK).json({
-                isCache: false,
-                ...cleanedFinalTransformation,
-              });
-            })
-            .catch((error) => {
-              logObject("axios server error", error);
-              let extra = errors;
-              return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-                errors: {
-                  message: errors,
-                  message: "Internal Server Error",
-                },
-              });
-            });
+                .catch((error) => {
+                  logObject("axios server error", error);
+                  return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+                    errors: {
+                      message: error,
+                    },
+                    message: "Internal Server Error",
+                    success: false,
+                  });
+                });
+            }
+          });
+        }
+        if (result.success === false) {
+          logText("Not able to get the API key");
+          const errors = result.errors
+            ? result.errors
+            : { message: "Internal Server Error" };
+          return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+            message: result.message,
+            errors,
+            success: false,
+          });
         }
       });
     } catch (error) {
@@ -317,20 +360,18 @@ const data = {
       if (channel) {
         let api_key = "";
         let errors = [];
-        let responseFromGetAPIKey = await constants.GET_API_KEY(channel);
-        if (responseFromGetAPIKey.success === true) {
-          api_key = responseFromGetAPIKey.data;
-          logElement("api_key", api_key);
-        }
-
-        if (responseFromGetAPIKey.success === false) {
-          if (responseFromGetAPIKey.error) {
-            errors.push(responseFromGetAPIKey.error);
-            errors.push(responseFromGetAPIKey.message);
-          } else {
-            errors.push(responseFromGetAPIKey.message);
+        await constants.GET_API_KEY(channel, (result) => {
+          if (result.success === true) {
+            api_key = result.data;
           }
-        }
+          if (result.success === false) {
+            res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+              message: result.message,
+              errors: result.errors,
+            });
+          }
+        });
+
         let ts = Date.now();
         let day = await generateDateFormat(ts);
         let cacheID = `descriptive_last_entry_${channel.trim()}_${day}`;

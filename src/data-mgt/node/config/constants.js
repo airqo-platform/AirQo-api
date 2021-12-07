@@ -9,6 +9,10 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
+    return `http://localhost:3000/api/v1/devices?tenant=${tenant}&device_number=${channel.trim()}`;
+  },
+  DECYPT_DEVICE_KEY_URL: "http://localhost:3000/api/v1/devices/decrypt",
 };
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -16,6 +20,11 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
+    return `https://staging-platform.airqo.net/api/v1/devices?tenant=${tenant}&device_number=${channel.trim()}`;
+  },
+  DECYPT_DEVICE_KEY_URL:
+    "https://staging-platform.airqo.net/api/v1/devices/decrypt",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -23,8 +32,14 @@ const prodConfig = {
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
+    return `https://platform.airqo.net/api/v1/devices?tenant=${tenant}&device_number=${channel.trim()}`;
+  },
+  DECYPT_DEVICE_KEY_URL: "https://platform.airqo.net/api/v1/devices/decrypt",
 };
 const defaultConfig = {
+  TS_TEST_CHANNEL: process.env.TS_TEST_CHANNEL,
+  TS_API_KEY_TEST_DEVICE: process.env.TS_API_KEY_TEST_DEVICE,
   GET_CHANNELS_CACHE_EXPIRATION: 300,
   GET_LAST_ENTRY_CACHE_EXPIRATION: 30,
   GET_HOURLY_CACHE_EXPIRATION: 3600,
@@ -40,11 +55,12 @@ const defaultConfig = {
   GET_CHANNEL_LAST_ENTRY_AGE: (channel) => {
     return `https://api.thingspeak.com/channels/${channel.trim()}/feeds/last_data_age.json`;
   },
+  THINGSPEAK_BASE_URL: "https://api.thingspeak.com/channels",
   READ_DEVICE_FEEDS: ({
     channel = process.env.TS_TEST_CHANNEL,
     api_key = process.env.TS_API_KEY_TEST_DEVICE,
-    start = "",
-    end = "",
+    start = Date.now(),
+    end = Date.now(),
   } = {}) => {
     return `https://api.thingspeak.com/channels/${channel}/feeds.json?api_key=${api_key}&start=${start}&end=${end}`;
   },
@@ -57,62 +73,6 @@ const defaultConfig = {
   },
   GET_GPS: (channel) => {
     return `${channel}`;
-  },
-  GET_API_KEY: async (channel) => {
-    logText("GET_API_KEY...........");
-    // logElement("the channel", channel);
-    let url = `https://platform.airqo.net/api/v1/devices?tenant=airqo&device_number=${channel.trim()}`;
-    return axios
-      .get(url)
-      .then(async (response) => {
-        let responseJSON = response.data;
-        logObject("the response", responseJSON);
-        if (responseJSON.success === true) {
-          let deviceDetails = responseJSON.devices[0];
-          let readKey = deviceDetails.readKey;
-          if (!isEmpty(readKey)) {
-            return axios
-              .post("https://platform.airqo.net/api/v1/devices/decrypt", {
-                encrypted_key: readKey,
-              })
-              .then((response) => {
-                let decrypted_key = response.data.decrypted_key;
-                return {
-                  success: true,
-                  data: decrypted_key,
-                  message: "read key successfully retrieved",
-                };
-              });
-          } else {
-            return {
-              success: false,
-              message: "readKey unavailable, please update device details",
-            };
-          }
-        } else if (responseJSON.success === false) {
-          logObject("GET API false success", responseJSON);
-          if (responseJSON.errors) {
-            return {
-              success: false,
-              errors: { message: responseJSON.errors },
-              message: responseJSON.message,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseJSON.message,
-            };
-          }
-        }
-      })
-      .catch((error) => {
-        logObject("the server error for GET_API _KEY", error);
-        return {
-          success: false,
-          errors: { message: error.response },
-          message: "Server Side Error",
-        };
-      });
   },
 };
 

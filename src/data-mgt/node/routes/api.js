@@ -33,4 +33,20 @@ router.get(
   transformController.readDataRangeOfEvents
 );
 
+router.get(
+  "/feeds/last",
+  oneOf([
+    query("channel")
+      .exists()
+      .withMessage(
+        "the device identifier is missing in request, consider using the channel"
+      )
+      .bail()
+      .trim()
+      .isInt()
+      .withMessage("the channel should be an integer value"),
+  ]),
+  transformController.readDataRangeOfEvents
+);
+
 module.exports = router;
