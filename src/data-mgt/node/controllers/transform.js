@@ -360,7 +360,7 @@ const data = {
       if (channel) {
         let api_key = "";
         let errors = [];
-        await constants.GET_API_KEY(channel, (result) => {
+        await getDevice.getAPIKey(channel, (result) => {
           if (result.success === true) {
             api_key = result.data;
           }
@@ -382,11 +382,21 @@ const data = {
           } else {
             logElement(
               "URL",
-              constants.READ_DEVICE_FEEDS({ channel, api_key, start, end })
+              getFeed.readDeviceMeasurementsFromThingspeak({
+                channel,
+                api_key,
+                start,
+                end,
+              })
             );
             axios
               .get(
-                constants.READ_DEVICE_FEEDS({ channel, api_key, start, end })
+                getFeed.readDeviceMeasurementsFromThingspeak({
+                  channel,
+                  api_key,
+                  start,
+                  end,
+                })
               )
               .then(async (response) => {
                 const readings = response.data;
