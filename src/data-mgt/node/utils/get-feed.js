@@ -5,13 +5,10 @@ const jsonify = require("./jsonify");
 const constants = require("../config/constants");
 
 const feed = {
-  readDeviceMeasurementsFromThingspeak: ({
-    channel,
-    api_key,
-    start,
-    end,
-  } = {}) => {
+  readDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
     try {
+      logObject("the request", request);
+      const { channel, api_key, start, end, path } = request;
       if (isEmpty(start) && !isEmpty(end)) {
         return `${constants.THINGSPEAK_BASE_URL}/${channel}/feeds.json?api_key=${api_key}&end=${end}`;
       }
@@ -22,8 +19,8 @@ const feed = {
       if (isEmpty(end) && isEmpty(start)) {
         return `${constants.THINGSPEAK_BASE_URL}/${channel}/feeds.json?api_key=${api_key}`;
       }
-      if (!isEmpty(end) && !isEmpty(start)) {
-        return `${constants.THINGSPEAK_BASE_URL}/${channel}/feeds.json?api_key=${api_key}&start=${start}&end=${end}`;
+      if (path === "last" || (!isEmpty(end) && !isEmpty(start))) {
+        return `${constants.THINGSPEAK_BASE_URL}/${channel}/feeds.json?api_key=${api_key}`;
       }
     } catch (error) {
       logElement(

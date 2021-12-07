@@ -230,25 +230,19 @@ const data = {
                 .status(HTTPStatus.INTERNAL_SERVER_ERROR)
                 .json({ error: err, message: "Internal Server Error" });
             } else {
+              let request = {};
+              request["channel"] = channel;
+              request["api_key"] = api_key;
+              request["start"] = start;
+              request["end"] = end;
+              request["path"] = lastPath;
+
               axios
-                .get(
-                  getFeed.readDeviceMeasurementsFromThingspeak({
-                    channel,
-                    api_key,
-                    start,
-                    end,
-                  })
-                )
+                .get(getFeed.readDeviceMeasurementsFromThingspeak({ request }))
                 .then(async (response) => {
                   const readings = response.data;
                   const { feeds } = readings;
 
-                  if (isEmpty(feeds)) {
-                    return res.status(HTTPStatus.NOT_FOUND).json({
-                      success: true,
-                      message: "no measurements for this device",
-                    });
-                  }
                   let measurements = [];
 
                   if (lastPath === "last") {
@@ -380,24 +374,14 @@ const data = {
             const resultJSON = JSON.parse(result);
             return res.status(HTTPStatus.OK).json(resultJSON);
           } else {
-            logElement(
-              "URL",
-              getFeed.readDeviceMeasurementsFromThingspeak({
-                channel,
-                api_key,
-                start,
-                end,
-              })
-            );
+            let request = {};
+            request["channel"] = channel;
+            request["api_key"] = api_key;
+            request["start"] = start;
+            request["end"] = end;
+            request["path"] = lastPath;
             axios
-              .get(
-                getFeed.readDeviceMeasurementsFromThingspeak({
-                  channel,
-                  api_key,
-                  start,
-                  end,
-                })
-              )
+              .get(getFeed.readDeviceMeasurementsFromThingspeak({ request }))
               .then(async (response) => {
                 const readings = response.data;
                 const { feeds } = readings;
