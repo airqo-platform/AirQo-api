@@ -379,7 +379,6 @@ const data = {
             request["api_key"] = api_key;
             request["start"] = start;
             request["end"] = end;
-            request["path"] = lastPath;
             axios
               .get(getFeed.readDeviceMeasurementsFromThingspeak({ request }))
               .then(async (response) => {
