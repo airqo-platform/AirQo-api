@@ -37,7 +37,7 @@ class Transformation:
             if name and deployed.strip().lower() == "deployed":
                 self.airqo_api.update_primary_device(tenant=tenant, name=name, primary=is_primary)
 
-    def update_site_external_names(self):
+    def update_site_search_names(self):
 
         updated_site_names = []
         sites = pd.read_csv("sites.csv")
@@ -46,7 +46,7 @@ class Transformation:
             site_dict = dict(site.to_dict())
 
             update = dict({
-                "search_name": site_dict.get("display_name"),
+                "search_name": site_dict.get("search_name"),
                 "lat_long": site_dict.get("lat_long"),
                 "tenant": self.tenant,
             })
@@ -169,6 +169,17 @@ class Transformation:
                 sites_without_primary_devices.append(site_dict)
 
         self.__print(data=sites_without_primary_devices)
+
+    def metadata_to_csv(self, component=''):
+
+        metadata = self.airqo_api.get_sites(tenant=self.tenant)\
+            if component.strip().lower() == 'sites' \
+            else self.airqo_api.get_devices(tenant=self.tenant, all_devices=True)
+
+        metadata_df = pd.DataFrame(metadata)
+        data = pd.json_normalize(metadata_df.to_dict(orient='records'))
+
+        self.__print(data=data)
 
     def get_devices_without_forecast(self):
 

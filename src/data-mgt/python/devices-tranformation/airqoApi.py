@@ -120,8 +120,6 @@ class AirQoApi:
             handle_api_error("Invalid")
             return None
 
-        print(api_request.url)
-
         if api_request.status_code == 200 or api_request.status_code == 201:
             return api_request.json()
         else:
