@@ -5,7 +5,9 @@ import pandas as pd
 import urllib3
 from dotenv import load_dotenv
 
+from config import configuration
 from airqoApi import AirQoApi
+from date import date_to_str2, date_to_str_hours
 from utils import to_double
 
 load_dotenv()
@@ -22,13 +24,13 @@ class CalibrationJob:
         self.airqo_api = AirQoApi()
         self.hours = 1
 
-    def calibrate(self):
-        self.get_events()
+    def calibrate(self, start_time=None, end_time=None):
+        self.get_events(start_time, end_time)
         self.average_measurements()
         self.calibrate_measurements()
         self.save_calibrated_measurements()
 
-    def get_events(self):
+    def get_events(self, start_time=None, end_time=None):
 
         # ####
         # Getting devices
@@ -45,13 +47,16 @@ class CalibrationJob:
         # Getting events
         # ####
 
-        time = datetime.utcnow()
-        start_time = (time - timedelta(hours=self.hours)).strftime('%Y-%m-%dT%H:00:00Z')
-        end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=self.hours)) \
-            .strftime('%Y-%m-%dT%H:00:00Z')
+        if start_time is None or end_time is None:
+            time = datetime.utcnow()
+            start_time = date_to_str_hours(time - timedelta(hours=self.hours))
+            end_time = date_to_str_hours(datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') +
+                                         timedelta(hours=self.hours))
 
+        interval = f"{self.hours}H"
         print(f'UTC start time : {start_time}')
         print(f'UTC end time : {end_time}')
+        dates = pd.date_range(start_time, end_time, freq=interval)
 
         for device in devices_list:
 
@@ -60,15 +65,20 @@ class CalibrationJob:
                     print(f'name missing in device keys : {device}')
                     continue
 
-                device_name = device['name']
-                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time,
-                                                   end_time=end_time, device=device_name)
+                for date in dates:
+                    start_datetime = date_to_str2(date)
+                    end_datetime = date_to_str2(date + timedelta(hours=int(self.hours)))
 
-                if not events:
-                    print(f"No measurements for {device_name} : startTime {start_time} : endTime : {end_time}")
-                    continue
+                    device_name = device['name']
+                    events = self.airqo_api.get_events(tenant='airqo', start_time=start_datetime, frequency="raw",
+                                                       end_time=end_datetime, device=device_name)
 
-                self.raw_events.extend(events)
+                    if not events:
+                        print(f"No measurements for {device_name} : "
+                              f"startTime {start_datetime} : endTime : {end_datetime}")
+                        continue
+
+                    self.raw_events.extend(events)
             except:
                 traceback.print_exc()
 
@@ -87,8 +97,6 @@ class CalibrationJob:
         for _, device_group in devices_groups:
 
             try:
-
-                del device_group['deviceDetails']
                 device_measurements = pd.json_normalize(device_group.to_dict(orient='records'))
 
                 measurement_metadata = device_measurements[['site_id', 'device_id', 'device', 'device_number']].copy()
@@ -101,15 +109,20 @@ class CalibrationJob:
                 del measurement_readings['device']
                 del measurement_readings['device_number']
 
+                measurement_readings.dropna(subset=['time'], inplace=True)
                 measurement_readings['time'] = pd.to_datetime(measurement_readings['time'])
                 measurement_readings.set_index('time')
                 measurement_readings.sort_index(axis=0)
-                measurement_readings = measurement_readings.ffill().bfill()
 
-                averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean().round(2))
+                averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean())
 
-                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1).round(2)
-                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1).round(2)
+                if 'pm2_5.value' not in averages.columns:
+                    averages['pm2_5.value'] = averages['s1_pm2_5.value']
+                if 'pm10.value' not in averages.columns:
+                    averages['pm10.value'] = averages['s1_pm10.value']
+
+                averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1)
+                averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1)
 
                 averages["time"] = averages.index
                 averages["time"] = averages["time"].apply(lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%SZ'))
@@ -135,7 +148,6 @@ class CalibrationJob:
         hourly_measurements_groups = hourly_measurements_df.groupby("time")
 
         for _, time_group in hourly_measurements_groups:
-
             try:
                 date_time = time_group.iloc[0]["time"]
                 time_group["pm2_5"] = time_group["pm2_5.value"]
@@ -146,19 +158,23 @@ class CalibrationJob:
                 time_group["humidity"] = time_group["externalHumidity.value"]
 
                 calibrate_body = time_group.to_dict(orient="records")
-                calibrated_values = self.airqo_api.get_calibrated_values(date_time, calibrate_body)
 
-                for value in calibrated_values:
-                    try:
-                        time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
-                            = round(value["calibrated_PM2.5"], 2)
-                        time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
-                            = round(value["calibrated_PM10"], 2)
-                    except:
-                        traceback.print_exc()
-                        pass
+                for i in range(0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)):
+                    values = calibrate_body[i:i + int(configuration.CALIBRATE_REQUEST_BODY_SIZE)]
 
-                self.hourly_calibrated_measurements.extend(time_group.to_dict(orient='records'))
+                    calibrated_values = self.airqo_api.get_calibrated_values(date_time, values)
+
+                    for value in calibrated_values:
+                        try:
+                            time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
+                                = value["calibrated_PM2.5"]
+                            time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
+                                = value["calibrated_PM10"]
+                        except:
+                            traceback.print_exc()
+                            pass
+
+                    self.hourly_calibrated_measurements.extend(time_group.to_dict(orient='records'))
 
             except:
                 traceback.print_exc()
@@ -292,3 +308,8 @@ class CalibrationJob:
 def main():
     calibration_job = CalibrationJob()
     calibration_job.calibrate()
+
+
+def main_historical_data(start_time, end_time):
+    calibration_job = CalibrationJob()
+    calibration_job.calibrate(start_time, end_time)

@@ -1,6 +1,7 @@
 import urllib3
 from dotenv import load_dotenv
 
+import averages
 import calibrate
 from config import configuration, JobType
 
@@ -11,6 +12,12 @@ load_dotenv()
 def main():
     if configuration.JOB_TYPE == JobType.CALIBRATE:
         calibrate.main()
+
+    if configuration.JOB_TYPE == JobType.CALIBRATE_HISTORICAL:
+        calibrate.main_historical_data(configuration.START_TIME, configuration.END_TIME)
+
+    if configuration.JOB_TYPE == JobType.DAILY_AVERAGES:
+        averages.main()
 
 
 if __name__ == '__main__':

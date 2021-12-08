@@ -240,8 +240,7 @@ router.post(
           return isValid;
         })
         .withMessage("phoneNumber must be a valid one")
-        .bail()
-        .toInt(),
+        .bail(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
@@ -484,8 +483,7 @@ router.put(
           return isValid;
         })
         .withMessage("phoneNumber must be a valid one")
-        .bail()
-        .toInt(),
+        .bail(),
       body("height")
         .if(body("height").exists())
         .notEmpty()
@@ -820,8 +818,7 @@ router.put(
           return isValid;
         })
         .withMessage("phoneNumber must be a valid one")
-        .bail()
-        .toInt(),
+        .bail(),
       body("height")
         .if(body("height").exists())
         .notEmpty()

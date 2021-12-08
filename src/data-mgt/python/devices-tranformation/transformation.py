@@ -37,6 +37,23 @@ class Transformation:
             if name and deployed.strip().lower() == "deployed":
                 self.airqo_api.update_primary_device(tenant=tenant, name=name, primary=is_primary)
 
+    def update_site_search_names(self):
+
+        updated_site_names = []
+        sites = pd.read_csv("sites.csv")
+        for _, site in sites.iterrows():
+
+            site_dict = dict(site.to_dict())
+
+            update = dict({
+                "search_name": site_dict.get("search_name"),
+                "lat_long": site_dict.get("lat_long"),
+                "tenant": self.tenant,
+            })
+            updated_site_names.append(update)
+
+        self.airqo_api.update_sites(updated_site_names)
+
     def map_devices_to_tahmo_station(self):
 
         devices = self.airqo_api.get_devices(self.tenant)
@@ -111,9 +128,7 @@ class Transformation:
                     update = dict({
                         "nearest_tahmo_station": station_data,
                         "_id": site_dict.get("_id"),
-                        "name": site_dict.get("name"),
-                        "latitude": latitude,
-                        "longitude": longitude,
+                        "tenant": self.tenant,
                     })
 
                     updated_sites.append(update)
@@ -155,20 +170,30 @@ class Transformation:
 
         self.__print(data=sites_without_primary_devices)
 
+    def metadata_to_csv(self, component=''):
+
+        metadata = self.airqo_api.get_sites(tenant=self.tenant)\
+            if component.strip().lower() == 'sites' \
+            else self.airqo_api.get_devices(tenant=self.tenant, all_devices=True)
+
+        metadata_df = pd.DataFrame(metadata)
+        data = pd.json_normalize(metadata_df.to_dict(orient='records'))
+
+        self.__print(data=data)
+
     def get_devices_without_forecast(self):
 
         devices = self.airqo_api.get_devices(tenant=self.tenant, active=True)
         devices_without_forecast = []
-        date_time = date_to_str_v2(datetime.utcnow())
 
         for device in devices:
             device_dict = dict(device)
-            latitude = device_dict.get("latitude", None)
-            longitude = device_dict.get("longitude", None)
+            device_number = device_dict.get("device_number", None)
 
-            if longitude and latitude:
-                forecast = self.airqo_api.get_forecast(tenant=self.tenant, latitude=latitude,
-                                                       longitude=longitude, selected_datetime=date_time)
+            if device_number:
+                time = int(datetime.utcnow().timestamp())
+
+                forecast = self.airqo_api.get_forecast_v2(channel_id=device_number, timestamp=time)
                 if not forecast:
                     device_details = {
                         "device_number": device_dict.get("device_number", None),

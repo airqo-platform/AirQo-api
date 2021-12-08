@@ -42,6 +42,16 @@ class AirQoApi:
 
         return []
 
+    def get_forecast_v2(self, timestamp, channel_id):
+
+        endpoint = f"predict/{channel_id}/{timestamp}"
+        response = self.__request(endpoint=endpoint, params={}, method="get")
+
+        if response is not None and "predictions" in response:
+            return response["predictions"]
+
+        return []
+
     def get_airqo_device_current_measurements(self, device_number):
         response = self.__request("data/feeds/transform/recent", {"channel": device_number})
         return response
@@ -67,7 +77,13 @@ class AirQoApi:
     def update_sites(self, updated_sites):
         for i in updated_sites:
             site = dict(i)
-            params = {"tenant": site.pop("tenant"), "id": site.pop("_id")}
+
+            params = {"tenant": site.pop("tenant")}
+
+            if "_id" in site.keys():
+                params["id"] = site.pop("_id")
+            if "lat_long" in site.keys():
+                params["lat_long"] = site.pop("lat_long")
 
             response = self.__request("devices/sites", params, site, "put")
             print(response)
@@ -75,7 +91,7 @@ class AirQoApi:
     def __request(self, endpoint, params, body=None, method=None):
 
         headers = {'Authorization': self.AIRQO_API_KEY}
-        if method is None:
+        if method is None or method == "get":
             api_request = requests.get(
                 '%s%s' % (self.AIRQO_BASE_URL, endpoint),
                 params=params,
@@ -104,7 +120,7 @@ class AirQoApi:
             handle_api_error("Invalid")
             return None
 
-        if api_request.status_code == 200:
+        if api_request.status_code == 200 or api_request.status_code == 201:
             return api_request.json()
         else:
             handle_api_error(api_request)

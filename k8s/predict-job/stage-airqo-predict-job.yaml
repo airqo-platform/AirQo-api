@@ -7,8 +7,8 @@ metadata:
       manager: kubectl
       operation: Update
       time: "2020-08-13T11:00:12Z"
-  name: airqo-predict-job
-  namespace: production
+  name: stage-airqo-predict-job
+  namespace: staging
   resourceVersion: "11584449"
   selfLink: /apis/batch/v1beta1/namespaces/default/cronjobs/airqo-stage-predict-job
   uid: 9b71a693-43e2-4559-aff2-d821fc3bfe80
@@ -18,7 +18,7 @@ spec:
   jobTemplate:
     metadata:
       creationTimestamp: null
-      name: airqo-predict-job
+      name: stage-airqo-predict-job
     spec:
       template:
         metadata:
@@ -27,7 +27,7 @@ spec:
           containers:
             - image: us.gcr.io/airqo-250220/airqo-stage-predict-job:latest
               imagePullPolicy: Always
-              name: airqo-predict-job
+              name: stage-airqo-predict-job
               envFrom:
                 - configMapRef:
                     name: env-predict-job-staging

@@ -1,0 +1,13 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: airqo-app-notifications-topic 
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  topicName: airqo-app-notifications-topic  
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 3600000 # 1 hour

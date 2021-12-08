@@ -17,6 +17,8 @@ load_dotenv(dotenv_path)
 
 class JobType(Enum):
     CALIBRATE = "CALIBRATE"
+    CALIBRATE_HISTORICAL = "CALIBRATE_HISTORICAL"
+    DAILY_AVERAGES = "DAILY_AVERAGES"
     UNDEFINED = "UNDEFINED"
 
 
@@ -25,14 +27,13 @@ class Config:
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
     JOB_TYPE = os.getenv("JOB_TYPE")
-    FREQUENCY = os.getenv("FREQUENCY", "raw")
     START_TIME = os.getenv("START_TIME")
     END_TIME = os.getenv("END_TIME")
     BATCH_FETCH_TIME_INTERVAL = os.getenv("BATCH_FETCH_TIME_INTERVAL")
     BATCH_OUTPUT_SIZE = os.getenv("BATCH_OUTPUT_SIZE")
     BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
     TENANT = os.getenv("TENANT")
-    PERIODIC = os.getenv("PERIODIC")
+    PERIODIC = os.getenv("PERIODIC", 'false')
     PERIODIC_FETCH_TIME_INTERVAL = os.getenv("PERIODIC_FETCH_TIME_INTERVAL")
 
     # Posting events
@@ -41,17 +42,24 @@ class Config:
 
     # Calibration
     CALIBRATE_BASE_URL = os.getenv("CALIBRATE_BASE_URL")
+    CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 10)
 
     def __init__(self):
 
         if self.JOB_TYPE.lower().strip() == "calibrate":
             self.JOB_TYPE = JobType.CALIBRATE
 
-        elif self.PERIODIC.strip().lower() == "true":
+        elif self.JOB_TYPE.lower().strip() == "daily_averages":
+            self.JOB_TYPE = JobType.DAILY_AVERAGES
+
+        elif self.JOB_TYPE.lower().strip() == "calibrate_historical":
+            self.JOB_TYPE = JobType.CALIBRATE_HISTORICAL
+
+        if self.PERIODIC.strip().lower() == "true":
             self.END_TIME = date_to_str(datetime.utcnow())
             self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_FETCH_TIME_INTERVAL)))
 
-        elif self.TENANT.strip().lower() == "airqo":
+        if self.TENANT.strip().lower() == "airqo":
             self.OUTPUT_TOPIC = os.getenv("AIRQO_OUTPUT_TOPIC")
         elif self.TENANT.strip().lower() == "kcca":
             self.OUTPUT_TOPIC = os.getenv("KCCA_OUTPUT_TOPIC")
