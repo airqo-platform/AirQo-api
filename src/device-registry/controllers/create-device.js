@@ -3,7 +3,7 @@ const iot = require("@google-cloud/iot");
 const isEmpty = require("is-empty");
 const client = new iot.v1.DeviceManagerClient();
 const { logObject, logElement, logText } = require("../utils/log");
-const { registerDeviceUtil } = require("../utils/create-device");
+const createDeviceUtil = require("../utils/create-device");
 const nearestDevices = require("../utils/nearest-device");
 const { validationResult } = require("express-validator");
 const {
@@ -30,7 +30,7 @@ const device = {
     }
 
     let { encrypted_key } = req.body;
-    let responseFromDecryptKey = await registerDeviceUtil.decryptKey(
+    let responseFromDecryptKey = await createDeviceUtil.decryptKey(
       encrypted_key
     );
     logObject("responseFromDecryptKey", responseFromDecryptKey);
@@ -71,7 +71,7 @@ const device = {
         );
       }
 
-      let responseFromCreateDevice = await registerDeviceUtil.create(req);
+      let responseFromCreateDevice = await createDeviceUtil.create(req);
       logger.info(
         `responseFromCreateDevice -- ${JSON.stringify(
           responseFromCreateDevice
@@ -133,7 +133,7 @@ const device = {
       request["query"]["name"] = name;
       request["body"] = body;
 
-      let responseFromGenerateQRCode = await registerDeviceUtil.generateQR(
+      let responseFromGenerateQRCode = await createDeviceUtil.generateQR(
         request
       );
       logger.info(
@@ -194,7 +194,7 @@ const device = {
         tenant,
       };
 
-      let responseFromRemoveDevice = await registerDeviceUtil.delete(
+      let responseFromRemoveDevice = await createDeviceUtil.delete(
         requestObject
       );
 
@@ -254,9 +254,7 @@ const device = {
       requestBody["query"]["device"] = device;
       requestBody["body"] = body;
 
-      let responseFromUpdateDevice = await registerDeviceUtil.update(
-        requestBody
-      );
+      let responseFromUpdateDevice = await createDeviceUtil.update(requestBody);
       logger.info(
         `responseFromUpdateDevice ${JSON.stringify(responseFromUpdateDevice)}`
       );
@@ -317,7 +315,7 @@ const device = {
       requestObject["body"] = body;
 
       logObject("we see", requestObject);
-      let responseFromEncryptKeys = await registerDeviceUtil.encryptKeys(
+      let responseFromEncryptKeys = await createDeviceUtil.encryptKeys(
         requestObject
       );
 
@@ -372,7 +370,7 @@ const device = {
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
         );
       }
-      let responseFromListDeviceDetails = await registerDeviceUtil.list(req);
+      let responseFromListDeviceDetails = await createDeviceUtil.list(req);
       logElement(
         "is responseFromListDeviceDetails in controller a success?",
         responseFromListDeviceDetails.success
@@ -470,7 +468,7 @@ const device = {
       requestObject["body"] = body;
 
       logObject("we see", requestObject);
-      let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
+      let responseFromUpdateDeviceOnPlatform = await createDeviceUtil.updateOnPlatform(
         requestObject
       );
 
@@ -536,7 +534,7 @@ const device = {
         tenant,
       };
 
-      let responseFromRemoveDevice = await registerDeviceUtil.deleteOnPlatform(
+      let responseFromRemoveDevice = await createDeviceUtil.deleteOnPlatform(
         requestObject
       );
 
@@ -597,7 +595,7 @@ const device = {
       requestBody["query"]["tenant"] = tenant;
       requestBody["body"] = body;
 
-      let responseFromCreateOnPlatform = await registerDeviceUtil.createOnPlatform(
+      let responseFromCreateOnPlatform = await createDeviceUtil.createOnPlatform(
         requestBody
       );
       logger.info(

@@ -11,7 +11,7 @@ const { generateDateFormatWithoutHrs } = require("./date");
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
-const { registerDeviceUtil } = require("./create-device");
+const createDeviceUtil = require("./create-device");
 const HTTPStatus = require("http-status");
 
 const createEvent = {
@@ -102,9 +102,7 @@ const createEvent = {
         )}`
       );
 
-      const responseFromGetDeviceDetails = await registerDeviceUtil.list(
-        request
-      );
+      const responseFromGetDeviceDetails = await createDeviceUtil.list(request);
       logger.info(
         `responseFromGetDeviceDetails ${JSON.stringify(
           responseFromGetDeviceDetails

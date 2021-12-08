@@ -9,13 +9,9 @@ const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
 const imageUpload = require("../utils/multer");
 const photoController = require("../controllers/create-photo");
-const { checkTenancy } = require("../utils/validators/auth");
-const { validateRequestQuery } = require("../utils/validators/requestQuery");
-const { validateRequestBody } = require("../utils/validators/requestBody");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("../config/constants");
 const mongoose = require("mongoose");
-const sanitize = require("../utils/sanitize");
 const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
@@ -23,7 +19,6 @@ const createAirQloudUtil = require("../utils/create-location");
 const { logElement } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
-const { registerDeviceUtil } = require("../utils/create-device");
 
 middlewareConfig(router);
 

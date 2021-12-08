@@ -7,19 +7,11 @@ const {
   missingQueryParams,
   badRequest,
 } = require("../utils/errors");
-const getDetail = require("../utils/get-device-details");
-const isEmpty = require("is-empty");
-const {
-  updateThingBodies,
-  getChannelID,
-} = require("../utils/does-device-exist");
-const updateDeviceUtil = require("../utils/update-device");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-photo-controller");
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const createPhotoUtil = require("../utils/create-photo");
-const { registerDeviceUtil } = require("../utils/create-device");
 
 const processImage = {
   create: async (req, res) => {
