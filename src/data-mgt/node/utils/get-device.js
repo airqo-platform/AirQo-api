@@ -14,7 +14,6 @@ const device = {
       .get(url)
       .then(async (response) => {
         let responseJSON = response.data;
-        logObject("the response", responseJSON);
         if (responseJSON.success === true) {
           let deviceDetails = responseJSON.devices[0];
           let readKey = deviceDetails.readKey;
