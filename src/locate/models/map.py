@@ -1,8 +1,4 @@
-import pandas as pd
-from pymongo import MongoClient
-from dotenv import load_dotenv
-import os
-from helpers import db_helpers
+from config import connect_mongo
 
 class Map():
     '''
@@ -12,52 +8,47 @@ class Map():
         attr2 (:obj:`int`, optional): Description of `attr2`.
     '''
 
-    def __init__(self):
-        ''' initialize ''' 
+    def __init__(self, tenant):
+        self.db = connect_mongo(tenant) 
 
-    def save_locate_map(self, tenant, user_id, space_name, plan):
+    def save_locate_map(self, user_id, space_name, plan):
         '''
         Saves current planning space
         '''
-        db = db_helpers.connect_mongo(tenant)
-        db.locate_map.insert({
+        
+        self.db.locate_map.insert({
             "user_id": user_id,
             "space_name": space_name,
             "plan": plan
         })
 
 
-    def get_locate_map(self, tenant, user_id):
+    def get_locate_map(self, user_id):
         '''
         Retrieves previously saved planning space
         '''
-        db = db_helpers.connect_mongo(tenant)
-        documents = db.locate_map.find({"user_id": str(user_id)})
+        documents = self.db.locate_map.find({"user_id": str(user_id)})
         return documents
 
-    def plan_space_exist(self, tenant, user_id, space_name):
+    def plan_space_exist(self, user_id, space_name):
         '''
         check if planning space name already exits for a given user. Avoid duplicates
         '''
-        db = db_helpers.connect_mongo(tenant)
-        documents = db.locate_map.find({"$and": [{"user_id":str(user_id)}, {"space_name":space_name}]})
-        return documents.count()
+        documents = self.db.locate_map.find({"$and": [{"user_id":str(user_id)}, {"space_name":space_name}]})
+        return len(list(documents))
 
-
-    def update_locate_map(self, tenant, user_id, space_name, updated_plan):
+    def update_locate_map(self, user_id, space_name, updated_plan):
         '''
         Updates previously saved planning space
         '''
-        db = db_helpers.connect_mongo(tenant)
-        response = db.locate_map.update_one(
+        response = self.db.locate_map.update_one(
             {"$and": [{'user_id': user_id}, {'space_name': space_name}]}, {'$set': {'plan': updated_plan}})
         return response
 
 
-    def delete_locate_map(self, tenant, user_id, space_name):
+    def delete_locate_map(self, user_id, space_name):
         '''
         Deletes previously sved planning space
         '''
-        db = db_helpers.connect_mongo(tenant)
-        response = db.locate_map.delete_one({"$and": [{'user_id': user_id}, {'space_name': space_name}]})
+        response = self.db.locate_map.delete_one({"$and": [{'user_id': user_id}, {'space_name': space_name}]})
         return response

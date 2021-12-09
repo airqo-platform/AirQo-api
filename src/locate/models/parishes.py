@@ -1,11 +1,4 @@
-import pandas as pd
-from pymongo import MongoClient
-from dotenv import load_dotenv
-import os, sys
-from helpers import helper
-from helpers import db_helpers
-from flask import Blueprint, request, jsonify
-
+from config import connect_mongo
 
 class Parish():
     '''
@@ -15,11 +8,10 @@ class Parish():
         attr2 (:obj:`int`, optional): Description of `attr2`.
     '''
 
-    def __init__(self):
-        ''' initialize ''' 
+    def __init__(self, tenant):
+        self.db = connect_mongo(tenant)
 
-
-    def get_parishes_map(self, tenant, polygon):
+    def get_parishes_map(self, polygon):
         '''
         Gets all the parishes in a given polygon
         '''
@@ -39,14 +31,13 @@ class Parish():
                                 }
                 projection = {'_id': 0}
 
-                db = db_helpers.connect_mongo(tenant)
-                records = db.locate.find(query, projection)
+                records = self.db.locate.find(query, projection)
                 records_list = list(records)
                 return records_list
             except:
                 return 'Invalid polygon'
 
-    def get_parish_for_point(self, tenant, point):
+    def get_parish_for_point(self, point):
         '''
         Gets the parish in which the given coordinates belong
         '''
@@ -61,7 +52,6 @@ class Parish():
             }
         }
         projection = {'_id': 0}
-        db = db_helpers.connect_mongo(tenant)
-        records = db.locate.find(query, projection)
+        records = self.db.locate.find(query, projection)
         records_list = list(records)
         return records_list

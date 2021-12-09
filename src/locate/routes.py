@@ -1,0 +1,8 @@
+BASE_URL = '/api/v1'
+ROOT = '/'
+HEALTH_CHECK = '/health'
+PARISHES = f'{BASE_URL}/map/parishes'
+SAVE_MAP = f'{BASE_URL}/map/savelocatemap'
+GET_MAP = f'{BASE_URL}/map/getlocatemap/<user_id>'
+UPDATE_MAP = f'{BASE_URL}/map/updatelocatemap/<user_id>/<space_name>'
+DELETE_MAP =  f'{BASE_URL}/map/deletelocatemap/<user_id>/<space_name>'

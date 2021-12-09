@@ -3,10 +3,10 @@ from helpers import helper
 import sys, ast, json, logging
 from models.parishes import Parish
 from models.map import Map
-from helpers import db_helpers
-from routes import api
+import routes
 from flask_caching import Cache
 from pymongo import MongoClient
+from config import configuration
 
 
 _logger = logging.getLogger(__name__)
@@ -14,13 +14,11 @@ _logger = logging.getLogger(__name__)
 locate_blueprint = Blueprint('locate_blueprint', __name__)
 cache = Cache(config={'CACHE_TYPE': 'simple'})
 
-client = MongoClient(db_helpers.app_configuration.MONGO_URI)
+client = MongoClient(configuration.MONGO_URI)
 dbs = client.list_database_names()
 
-locate_map = Map()
 
-
-@locate_blueprint.route(api.route['parishes'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
+@locate_blueprint.route(routes.PARISHES, methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
 def place_sensors_map():
     '''
     Returns parishes recommended by the model given the polygon and must-have coordinates
@@ -31,7 +29,7 @@ def place_sensors_map():
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        org = f'{configuration.DB_NAME}_{tenant.lower()}'
         if org not in dbs:
            return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400        
         if not json_data:
@@ -70,7 +68,7 @@ def place_sensors_map():
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
 
-@locate_blueprint.route(api.route['save_map'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
+@locate_blueprint.route(routes.SAVE_MAP, methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
 def save_locate_map():
     '''
     Saves planning space
@@ -97,23 +95,26 @@ def save_locate_map():
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        locate_map = Map(tenant)
+
+
+        org = f'{configuration.DB_NAME}_{tenant.lower()}'
         if org not in dbs:
             return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400
-
+        
         # check if space name already been taken by the same user. 
         # avoid duplicated planning space name for the same user
-        if locate_map.plan_space_exist(tenant, user_id, space_name) > 0:
+        if locate_map.plan_space_exist(user_id, space_name) > 0:
             return jsonify({"message": f'planning space name: {space_name} already exist for user: {user_id}', "success": False}), 400
 
-        locate_map.save_locate_map(tenant, user_id, space_name, plan)
+        locate_map.save_locate_map(user_id, space_name, plan)
         return jsonify({"message": "Locate Planning Space Saved Successfully", "success": True}), 200
     else:
         return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
 
 
 
-@locate_blueprint.route(api.route['get_map'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
+@locate_blueprint.route(routes.GET_MAP, methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
 def get_locate_map(user_id):
     '''
     Get saved planning space for the user
@@ -122,11 +123,13 @@ def get_locate_map(user_id):
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        locate_map = Map(tenant)
+
+        org = f'{configuration.DB_NAME}_{tenant.lower()}'
         if org not in dbs:
             return jsonify({"message": "organization doesn't exist. Refer to the API documentation for details.", "success": False}), 400
 
-        documents = locate_map.get_locate_map(tenant, user_id)
+        documents = locate_map.get_locate_map(user_id)
         response = []
         for document in documents:
             document['_id'] = str(document['_id'])
@@ -138,7 +141,7 @@ def get_locate_map(user_id):
         return jsonify({"message": "Invalid request method. please refer to the API documentation", "success": False}), 400
 
 
-@locate_blueprint.route(api.route['update_map'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
+@locate_blueprint.route(routes.UPDATE_MAP, methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
 def update_locate_map(user_id, space_name):
     '''
     updates a previously saved planning space
@@ -159,12 +162,15 @@ def update_locate_map(user_id, space_name):
             tenant = request.args.get('tenant')
             if not tenant:
                 return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-            org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+            
+            locate_map = Map(tenant)
+            
+            org = f'{configuration.DB_NAME}_{tenant.lower()}'
             if org not in dbs:
                 return jsonify({"message": "organization doesnot exist. Refer to the API documentation for details.", "success": False}), 400
             
             # Updating the planning space
-            records_updated = locate_map.update_locate_map(tenant, user_id, space_name, update_plan)
+            records_updated = locate_map.update_locate_map(user_id, space_name, update_plan)
 
             # Check if resource is updated
             if records_updated.modified_count > 0:
@@ -180,7 +186,7 @@ def update_locate_map(user_id, space_name):
        return jsonify({"message": "Invalid request method. Please refer to the API documentation", "success": False}), 400
  
 
-@locate_blueprint.route(api.route['delete_map'], methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
+@locate_blueprint.route(routes.DELETE_MAP, methods=['DELETE', 'GET', 'PUT', 'PATCH', 'POST'])
 def delete_locate_map(user_id, space_name):
     '''
     deletes a previously saved planning space
@@ -191,11 +197,14 @@ def delete_locate_map(user_id, space_name):
         tenant = request.args.get('tenant')
         if not tenant:
             return jsonify({"message": "please specify the organization name. Refer to the API documentation for details.", "success": False}), 400
-        org = f'{db_helpers.app_configuration.DB_NAME}_{tenant.lower()}'
+        
+        locate_map = Map(tenant)
+
+        org = f'{configuration.DB_NAME}_{tenant.lower()}'
         if org not in dbs:
             return jsonify({"message": "organization doesnot exist. Refer to the API documentation for details.", "success": False}), 400
         if space_name is not None:
-            db_response = locate_map.delete_locate_map(tenant, user_id, space_name)
+            db_response = locate_map.delete_locate_map(user_id, space_name)
             if db_response.deleted_count == 1:
                 response = {
                     "message": "planning space deleted successfully", "success": True}

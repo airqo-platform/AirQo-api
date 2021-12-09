@@ -1,12 +1,10 @@
 from flask import Flask
 import logging, os, sys
-from config import app_config
+import config
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.locate import locate_blueprint, cache
 from controllers.helpers import monitor_bp
-from dotenv import load_dotenv
-load_dotenv()
 
 
 _logger = logging.getLogger(__name__)
@@ -18,7 +16,7 @@ mongo = PyMongo()
 def create_app(environment):
     # create a flask app instance
     app = Flask(__name__)
-    app.config.from_object(app_config[environment])
+    app.config.from_object(config.app_config[environment])
     mongo.init_app(app)
     cache.init_app(app)
 
@@ -33,7 +31,7 @@ def create_app(environment):
     return app
 
 
-application = create_app(os.getenv("FLASK_ENV"))
+application = create_app(config.environment)
 
 if __name__ == '__main__':
     application.run()

@@ -11,7 +11,7 @@ import sys
 from collections.abc import MutableMapping
 from models.parishes import Parish
 
-locate_parish = Parish()
+#locate_parish = Parish()
 
 def json_to_df(json_list):
     '''
@@ -120,11 +120,11 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon, tenant):
     '''
     recommends parishes in which to place sensors
     '''
-    parish = Parish()
+    locate_parish = Parish(tenant)
     if polygon==None:
         return jsonify({'response': 'Please draw a polygon'}), 200
     elif must_have_coordinates==None:
-        all_parishes = locate_parish.get_parishes_map(tenant, polygon)
+        all_parishes = locate_parish.get_parishes_map(polygon)
         print('All Parishes', file=sys.stderr)
         print(len(all_parishes), file=sys.stderr)
         if all_parishes == 'Invalid polygon' or len(all_parishes)<2:
@@ -139,14 +139,14 @@ def recommend_locations(sensor_number, must_have_coordinates, polygon, tenant):
                 parish['fill_color'] = 'blue'
             return jsonify(recommended_parishes)
     else:
-        all_parishes = locate_parish.get_parishes_map(tenant, polygon)
+        all_parishes = locate_parish.get_parishes_map(polygon)
         count = 0 #number of coordinates that don't exist in polygon and aren't in database
         known_must_have_parishes = []#coordinates that in the polygon and database
         unknown_must_have_parishes = [] #for coordinates that are in database but aren't in polygondon't belong to any parish in the database
 
         for coordinates in must_have_coordinates:
             exists = point_exists_in_polygon(coordinates, polygon)
-            parish= locate_parish.get_parish_for_point(tenant, coordinates)
+            parish= locate_parish.get_parish_for_point(coordinates)
             if parish and exists:
                 known_must_have_parishes.append(parish[0])
             elif parish:
