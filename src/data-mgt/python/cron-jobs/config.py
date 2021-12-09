@@ -17,6 +17,7 @@ load_dotenv(dotenv_path)
 
 class JobType(Enum):
     CALIBRATE = "CALIBRATE"
+    CALIBRATE_HISTORICAL = "CALIBRATE_HISTORICAL"
     DAILY_AVERAGES = "DAILY_AVERAGES"
     UNDEFINED = "UNDEFINED"
 
@@ -32,7 +33,7 @@ class Config:
     BATCH_OUTPUT_SIZE = os.getenv("BATCH_OUTPUT_SIZE")
     BOOT_STRAP_SERVERS = os.getenv("BOOT_STRAP_SERVERS")
     TENANT = os.getenv("TENANT")
-    PERIODIC = os.getenv("PERIODIC")
+    PERIODIC = os.getenv("PERIODIC", 'false')
     PERIODIC_FETCH_TIME_INTERVAL = os.getenv("PERIODIC_FETCH_TIME_INTERVAL")
 
     # Posting events
@@ -41,6 +42,7 @@ class Config:
 
     # Calibration
     CALIBRATE_BASE_URL = os.getenv("CALIBRATE_BASE_URL")
+    CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 10)
 
     def __init__(self):
 
@@ -50,11 +52,14 @@ class Config:
         elif self.JOB_TYPE.lower().strip() == "daily_averages":
             self.JOB_TYPE = JobType.DAILY_AVERAGES
 
-        elif self.PERIODIC.strip().lower() == "true":
+        elif self.JOB_TYPE.lower().strip() == "calibrate_historical":
+            self.JOB_TYPE = JobType.CALIBRATE_HISTORICAL
+
+        if self.PERIODIC.strip().lower() == "true":
             self.END_TIME = date_to_str(datetime.utcnow())
             self.START_TIME = date_to_str(datetime.utcnow() - timedelta(hours=int(self.PERIODIC_FETCH_TIME_INTERVAL)))
 
-        elif self.TENANT.strip().lower() == "airqo":
+        if self.TENANT.strip().lower() == "airqo":
             self.OUTPUT_TOPIC = os.getenv("AIRQO_OUTPUT_TOPIC")
         elif self.TENANT.strip().lower() == "kcca":
             self.OUTPUT_TOPIC = os.getenv("KCCA_OUTPUT_TOPIC")

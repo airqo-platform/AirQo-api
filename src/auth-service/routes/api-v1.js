@@ -57,17 +57,6 @@ router.post(
 router.post(
   "/emailLogin",
   oneOf([
-    query("tenant")
-      .if(query("tenant").exists())
-      .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
-      .trim()
-      .toLowerCase()
-      .isIn(["kcca", "airqo"])
-      .withMessage("the tenant value is not among the expected ones"),
-  ]),
-  oneOf([
     [
       body("email")
         .exists()
@@ -78,6 +67,21 @@ router.post(
     ],
   ]),
   joinController.loginInViaEmail
+);
+
+router.post(
+  "/emailAuth",
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address"),
+    ],
+  ]),
+  joinController.emailAuth
 );
 
 router.post("/verify", setJWTAuth, authJWT, joinController.verify);
