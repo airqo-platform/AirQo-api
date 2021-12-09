@@ -145,7 +145,7 @@ class ChartDataResource(Resource):
 
 @rest_api.route('/dashboard/chart/d3/data')
 class D3ChartDataResource(Resource):
-    @swag_from('/api/docs/dashboard/customised_chart_post.yml')
+    @swag_from('/api/docs/dashboard/d3_chart_data_post.yml')
     @validate_request_json(
         'sites|required:list', 'startDate|required:datetime',
         'endDate|required:datetime', 'frequency|required:str',
