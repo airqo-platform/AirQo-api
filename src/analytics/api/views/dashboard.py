@@ -143,6 +143,34 @@ class ChartDataResource(Resource):
         ), Status.HTTP_200_OK
 
 
+@rest_api.route('/dashboard/chart/d3/data')
+class D3ChartDataResource(Resource):
+    @swag_from('/api/docs/dashboard/customised_chart_post.yml')
+    @validate_request_json(
+        'sites|required:list', 'startDate|required:datetime',
+        'endDate|required:datetime', 'frequency|required:str',
+        'pollutant|required:str', 'chartType|required:str'
+    )
+    def post(self):
+        tenant = request.args.get('tenant')
+
+        json_data = request.get_json()
+        sites = json_data["sites"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
+        frequency = json_data["frequency"]
+        pollutant = json_data["pollutant"]
+        chart_type = json_data["chartType"]
+
+        events_model = EventsModel(tenant)
+        data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+
+        return create_response(
+            "successfully retrieved d3 chart data",
+            data=data
+        ), Status.HTTP_200_OK
+
+
 @rest_api.route('/dashboard/sites')
 class MonitoringSiteResource(Resource):
 
