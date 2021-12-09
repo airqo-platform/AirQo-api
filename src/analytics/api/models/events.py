@@ -177,6 +177,58 @@ class EventsModel(BasePyMongoModel):
                 .exec()
         )
 
+    @cache.memoize()
+    def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
+        time_format_mapper = {
+            'raw': '%Y-%m-%dT%H:%M:%S%z',
+            'hourly': '%Y-%m-%dT%H:00:00:00%z',
+            'daily': '%Y-%m-%dT00:00:00:00%z',
+            'monthly': '%Y-%m-01T00:00:00:00%z'
+        }
+
+        return (
+            self
+                .project(**{"values.time": 1, "values.site_id": 1, f"values.{pollutant}": 1})
+                .date_range("values.time", start_date=start_date, end_date=end_date)
+                .match_in(**{"values.site_id": self.to_object_ids(sites)})
+                .filter_by(**{"values.frequency": "raw"})
+                .unwind("values")
+                .replace_root("values")
+                .project(
+                    _id=0,
+                    time={
+                        "$dateToString": {
+                            'format': time_format_mapper.get(frequency) or time_format_mapper.get('hourly'),
+                            'date': '$time',
+                            'timezone': 'Africa/Kampala'
+                        }
+                    },
+                    **{f"{pollutant}.value": 1},
+                    site_id={"$toString": "$site_id"},
+                )
+                .remove_outliers(pollutant)
+                .group(
+                    _id={"site_id": "$site_id", "time": "$time"},
+                    time={"$first": "$time"},
+                    site_id={"$first": "$site_id"},
+                    value={"$avg": f"${pollutant}.value"},
+                )
+                .sort(time=self.ASCENDING)
+                .project(_id=0, site_id={"$toObjectId": "$site_id"}, time=1,value=1)
+                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
+                .project(
+                    _id=0,
+                    time=1,
+                    value={"$round": ["$value", 2]},
+                    site_id={"$toString": "$site_id"},
+                    name="$site.name",
+                    generated_name="$site.generated_name",
+                )
+                .unwind("name")
+                .unwind("generated_name")
+                .exec()
+        )
+
     def get_events(self, sites, start_date, end_date, frequency):
         time_format_mapper = {
             'raw': '%Y-%m-%dT%H:%M:%S%z',
