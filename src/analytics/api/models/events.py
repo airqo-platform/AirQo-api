@@ -181,9 +181,9 @@ class EventsModel(BasePyMongoModel):
     def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
         time_format_mapper = {
             'raw': '%Y-%m-%dT%H:%M:%S%z',
-            'hourly': '%Y-%m-%dT%H:00:00:00%z',
-            'daily': '%Y-%m-%dT00:00:00:00%z',
-            'monthly': '%Y-%m-01T00:00:00:00%z'
+            'hourly': '%Y-%m-%dT%H:00:00%z',
+            'daily': '%Y-%m-%dT00:00:00%z',
+            'monthly': '%Y-%m-01T00:00:00%z'
         }
 
         return (
