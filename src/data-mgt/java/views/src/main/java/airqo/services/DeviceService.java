@@ -12,7 +12,11 @@ import java.util.List;
 public interface DeviceService {
 	Page<Device> getDevices(Predicate predicate, Pageable pageable);
 
+	Device getDeviceByUniqueKey(String id, String deviceName);
+
 	List<Device> getDevicesList(Predicate predicate);
+
+	List<Device> getDevices(Tenant tenant);
 
 	Page<Device> getDevices(Predicate predicate, Pageable pageable, MultiValueMap<String, String> parameters);
 

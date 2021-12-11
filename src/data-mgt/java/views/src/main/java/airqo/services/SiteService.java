@@ -15,5 +15,7 @@ public interface SiteService {
 
 	List<Site> insertSites(List<Site> sites, Tenant tenant);
 
+	List<Site> getSites(Tenant tenant);
+
 	void insertSite(Site sites);
 }

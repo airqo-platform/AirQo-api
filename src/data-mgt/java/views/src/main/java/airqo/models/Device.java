@@ -15,7 +15,6 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "devices")
 public class Device implements Serializable {
@@ -63,6 +62,23 @@ public class Device implements Serializable {
 	private Double latitude;
 	private Double longitude;
 
+	@Override
+	public String toString() {
+		return "Device{" +
+			"id='" + id + '\'' +
+			", longName='" + longName + '\'' +
+			", name='" + name + '\'' +
+			", tenant='" + tenant + '\'' +
+			", primaryInLocation=" + primaryInLocation +
+			", nextMaintenance=" + nextMaintenance +
+			", isActive=" + isActive +
+			", deviceNumber=" + deviceNumber +
+			", description='" + description + '\'' +
+			", createdAt=" + createdAt +
+			", latitude=" + latitude +
+			", longitude=" + longitude +
+			'}';
+	}
 
 	@Getter
 	@Setter

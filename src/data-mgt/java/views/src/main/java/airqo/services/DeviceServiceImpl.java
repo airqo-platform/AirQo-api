@@ -25,9 +25,19 @@ public class DeviceServiceImpl implements DeviceService {
 	}
 
 	@Override
+	public Device getDeviceByUniqueKey(String id, String deviceName) {
+		return deviceRepository.getByIdOrName(id, deviceName);
+	}
+
+	@Override
 	@Cacheable(value = "viewDevicesCache")
 	public List<Device> getDevicesList(Predicate predicate) {
 		return (List<Device>) deviceRepository.findAll(predicate);
+	}
+
+	@Override
+	public List<Device> getDevices(Tenant tenant) {
+		return deviceRepository.getAllByTenant(tenant.toString());
 	}
 
 	@Override

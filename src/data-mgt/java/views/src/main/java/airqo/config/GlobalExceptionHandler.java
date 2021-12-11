@@ -1,10 +1,7 @@
 package airqo.config;
 
+import airqo.models.ApiResponseBody;
 import io.micrometer.core.instrument.config.validate.ValidationException;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.convert.ConversionFailedException;
@@ -33,49 +30,49 @@ public class GlobalExceptionHandler {
 	Logger logger = LoggerFactory.getLogger(getClass());
 
 	@ExceptionHandler(NotFoundException.class)
-	public ResponseEntity<ApiCallError> handleNotFoundException(HttpServletRequest request, Exception exception) {
+	public ResponseEntity<ApiResponseBody> handleNotFoundException(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.NOT_FOUND)
-			.body(new ApiCallError("Not Found", null));
+			.body(new ApiResponseBody("Not Found", null));
 	}
 
 
 	@ExceptionHandler(NumberFormatException.class)
-	public ResponseEntity<ApiCallError> handleNumberFormatException(HttpServletRequest request, Exception exception) {
+	public ResponseEntity<ApiResponseBody> handleNumberFormatException(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
-			.body(new ApiCallError("Invalid number format", exception.getMessage()));
+			.body(new ApiResponseBody("Invalid number format", exception.getMessage()));
 	}
 
 	@ExceptionHandler(IllegalArgumentException.class)
-	public ResponseEntity<ApiCallError> handleIllegalArgumentException(HttpServletRequest request, Exception exception) {
+	public ResponseEntity<ApiResponseBody> handleIllegalArgumentException(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
-			.body(new ApiCallError("Invalid Argument", exception.getLocalizedMessage()));
+			.body(new ApiResponseBody("Invalid Argument", exception.getLocalizedMessage()));
 	}
 
 	@ExceptionHandler(ConversionFailedException.class)
-	public ResponseEntity<ApiCallError> handleConversionFailedException(HttpServletRequest request, Exception exception) {
+	public ResponseEntity<ApiResponseBody> handleConversionFailedException(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
-			.body(new ApiCallError("Conversion error", exception.toString()));
+			.body(new ApiResponseBody("Conversion error", exception.toString()));
 	}
 
 	@ExceptionHandler(ParseException.class)
-	public ResponseEntity<ApiCallError> handleParseException(HttpServletRequest request, Exception exception) {
+	public ResponseEntity<ApiResponseBody> handleParseException(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.BAD_REQUEST)
-			.body(new ApiCallError("Parsing error", exception.getLocalizedMessage()));
+			.body(new ApiResponseBody("Parsing error", exception.getLocalizedMessage()));
 	}
 
 	@ExceptionHandler(NoHandlerFoundException.class)
@@ -85,25 +82,25 @@ public class GlobalExceptionHandler {
 	}
 
 	@ExceptionHandler(ValidationException.class)
-	public ResponseEntity<ApiCallError> handleValidationException(HttpServletRequest request, ValidationException ex) {
+	public ResponseEntity<ApiResponseBody> handleValidationException(HttpServletRequest request, ValidationException ex) {
 		logger.error("ValidationException {}\n", request.getRequestURI(), ex);
 		logger.error("{}", List.of(ex.getMessage()));
 		return ResponseEntity
 			.badRequest()
-			.body(new ApiCallError("Validation exception", ex.getMessage()));
+			.body(new ApiResponseBody("Validation exception", ex.getMessage()));
 	}
 
 	@ExceptionHandler(MissingServletRequestParameterException.class)
-	public ResponseEntity<ApiCallError> handleMissingServletRequestParameterException(HttpServletRequest request, MissingServletRequestParameterException ex) {
+	public ResponseEntity<ApiResponseBody> handleMissingServletRequestParameterException(HttpServletRequest request, MissingServletRequestParameterException ex) {
 		logger.error("handleMissingServletRequestParameterException {}\n", request.getRequestURI(), ex);
 		logger.error("{}", ex.getMessage());
 		return ResponseEntity
 			.badRequest()
-			.body(new ApiCallError("Missing request parameter", ex.getMessage()));
+			.body(new ApiResponseBody("Missing request parameter", ex.getMessage()));
 	}
 
 	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
-	public ResponseEntity<ApiCallError> handleMethodArgumentTypeMismatchException(HttpServletRequest request, MethodArgumentTypeMismatchException ex) {
+	public ResponseEntity<ApiResponseBody> handleMethodArgumentTypeMismatchException(HttpServletRequest request, MethodArgumentTypeMismatchException ex) {
 		logger.error("handleMethodArgumentTypeMismatchException {}\n", request.getRequestURI(), ex);
 
 		Map<String, String> details = new HashMap<>();
@@ -113,11 +110,11 @@ public class GlobalExceptionHandler {
 
 		return ResponseEntity
 			.badRequest()
-			.body(new ApiCallError("Method argument type mismatch", List.of(details)));
+			.body(new ApiResponseBody("Method argument type mismatch", List.of(details)));
 	}
 
 	@ExceptionHandler(MethodArgumentNotValidException.class)
-	public ResponseEntity<ApiCallError> handleMethodArgumentNotValidException(HttpServletRequest request, MethodArgumentNotValidException ex) {
+	public ResponseEntity<ApiResponseBody> handleMethodArgumentNotValidException(HttpServletRequest request, MethodArgumentNotValidException ex) {
 		logger.error("handleMethodArgumentNotValidException {}\n", request.getRequestURI(), ex);
 
 		List<Map<String, String>> details = new ArrayList<>();
@@ -134,25 +131,17 @@ public class GlobalExceptionHandler {
 
 		return ResponseEntity
 			.badRequest()
-			.body(new ApiCallError("Method argument validation failed", details));
+			.body(new ApiResponseBody("Method argument validation failed", details));
 	}
 
 
 	@ExceptionHandler(Exception.class)
-	public ResponseEntity<ApiCallError> handleInternalServerError(HttpServletRequest request, Exception exception) {
+	public ResponseEntity<ApiResponseBody> handleInternalServerError(HttpServletRequest request, Exception exception) {
 		logger.error("{}", request.getRequestURI(), exception);
 		logger.error("{}", List.of(exception.getMessage()));
 		return ResponseEntity
 			.status(HttpStatus.INTERNAL_SERVER_ERROR)
-			.body(new ApiCallError("Internal Server Error", null));
+			.body(new ApiResponseBody("Internal Server Error", null));
 	}
 
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@Getter
-	@Setter
-	public static class ApiCallError {
-		private String message;
-		private Object data;
-	}
 }

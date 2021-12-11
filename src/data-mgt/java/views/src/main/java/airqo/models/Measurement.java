@@ -2,20 +2,22 @@ package airqo.models;
 
 import airqo.serializers.MeasurementSerializer;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
-import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
+import org.springframework.data.mongodb.core.index.IndexDirection;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
-import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
+
+import static airqo.config.Constants.dateTimeFormat;
 
 @Getter
 @Setter
@@ -27,28 +29,27 @@ import java.util.List;
 public class Measurement implements Serializable {
 
 
+	private final String frequency = "raw";
 	@Transient
 	@JsonAlias("device_id")
 	private String deviceId = "";
-
 	@Field("_id")
 	@JsonAlias("_id")
 	@Id
 	private String id = "";
-
 	@DBRef
+	@JsonAlias("deviceDetails")
 	private Device device = new Device();
-
-	//  @Indexed(direction = IndexDirection.DESCENDING, name =  "Descending order")
-	//  @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss'Z'", timezone = "UTC")
-	//  @Indexed(direction = IndexDirection.DESCENDING)
-	@DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+	@DBRef
+	@JsonAlias("siteDetails")
+	private Site site = new Site();
+	@Indexed(direction = IndexDirection.DESCENDING, name = "Descending order")
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	private Date time = new Date();
 
 	@JsonAlias("hdop")
 	private MeasurementValue hDop;
 
-	private String frequency = "";
 	private Location location;
 	private MeasurementValue internalTemperature;
 	private MeasurementValue internalHumidity;
@@ -61,10 +62,6 @@ public class Measurement implements Serializable {
 	private MeasurementValue pm10;
 	private MeasurementValue pm2_5;
 	private MeasurementValue no2;
-
-	public void setFrequency(String frequency) {
-		this.frequency = Frequency.valueOf(frequency).toString();
-	}
 
 	@Getter
 	@Setter
@@ -86,15 +83,15 @@ public class Measurement implements Serializable {
 		Double latitude, longitude;
 	}
 
-//	@Getter
-//	@Setter
-//	@AllArgsConstructor
-//	@NoArgsConstructor
-//	@ToString
-//	@JsonIgnoreProperties(ignoreUnknown = true)
-//	public static class MeasurementsList implements Serializable {
-//		private List<Measurement> measurements;
-//	}
+	@Getter
+	@Setter
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@ToString
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class MeasurementsList implements Serializable {
+		private List<Measurement> measurements;
+	}
 
 }
 

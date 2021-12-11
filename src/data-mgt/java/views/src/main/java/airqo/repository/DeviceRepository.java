@@ -9,6 +9,8 @@ import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
 import org.springframework.data.querydsl.binding.QuerydslBindings;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+
 @Repository
 public interface DeviceRepository extends MongoRepository<Device, String>, QuerydslPredicateExecutor<Device>, QuerydslBinderCustomizer<QDevice> {
 
@@ -18,5 +20,11 @@ public interface DeviceRepository extends MongoRepository<Device, String>, Query
 			(StringPath path, String value) -> path.containsIgnoreCase(value));
 		bindings.excluding(root.deploymentDate, root.site, root.createdAt, root.maintenanceDate);
 	}
+
+	List<Device> getAllByTenant(String tenant);
+
+	Device getByIdOrName(String id, String name);
+
+	Device getById(String id);
 
 }

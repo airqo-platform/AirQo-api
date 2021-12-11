@@ -36,6 +36,8 @@ public class Site implements Serializable {
 	private String latLong;
 	@JsonAlias("formatted_name")
 	private String formattedName = "";
+	@JsonAlias("search_name")
+	private String searchName = "";
 	@JsonAlias("generated_name")
 	private String generatedName = "";
 	@JsonAlias("landform_90")
@@ -83,6 +85,10 @@ public class Site implements Serializable {
 	private Double greenness;
 	@JsonAlias({"geometry"})
 	private Geometry geometry;
+
+	public String getLocation() {
+		return this.getDistrict() + " " + this.getCountry();
+	}
 
 	@Getter
 	@Setter

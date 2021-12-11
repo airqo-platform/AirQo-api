@@ -47,6 +47,11 @@ public class SiteServiceImpl implements SiteService {
 	}
 
 	@Override
+	public List<Site> getSites(Tenant tenant) {
+		return siteRepository.findAllByTenant(tenant.toString());
+	}
+
+	@Override
 	public void insertSite(Site site) {
 		siteRepository.save(site);
 	}
