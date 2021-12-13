@@ -1,10 +1,8 @@
 const AirQloudSchema = require("../models/Airqloud");
 const SiteSchema = require("../models/Site");
-const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const axios = require("axios");
 const HTTPStatus = require("http-status");
 const axiosInstance = () => {
@@ -14,9 +12,9 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-util");
 const createLocationUtil = require("./create-location");
-const createSiteUtil = require("./create-site");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
+const { kafkaProducer } = require("../config/kafka");
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -127,6 +125,19 @@ const createAirqloud = {
       logObject("responseFromRegisterAirQloud", responseFromRegisterAirQloud);
 
       if (responseFromRegisterAirQloud.success === true) {
+        const payloads = [
+          {
+            topic: "airqlouds",
+            messages: JSON.stringify(responseFromRegisterAirQloud.data),
+            partition: 0,
+          },
+        ];
+        kafkaProducer.send(payloads, (err, data) => {
+          logObject("Kafka producer data", data);
+          logger.info(`Kafka producer data, ${data}`);
+          logObject("Kafka producer error", err);
+          logger.error(`Kafka producer error, ${err}`);
+        });
         let status = responseFromRegisterAirQloud.status
           ? responseFromRegisterAirQloud.status
           : "";

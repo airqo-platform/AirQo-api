@@ -4,20 +4,17 @@ const DeviceSchema = require("../models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
-const deleteChannel = require("./delete-channel");
 const { transform } = require("node-json-transform");
 const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
 const { utillErrors } = require("./errors");
-const jsonify = require("./jsonify");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
-const { logger_v2 } = require("../utils/errors");
 const QRCode = require("qrcode");
-const cleanDeep = require("clean-deep");
+const { kafkaProducer } = require("../config/kafka");
 
 const createDevice = {
   doesDeviceExist: async (request) => {
@@ -595,6 +592,20 @@ const createDevice = {
       );
 
       if (responseFromRegisterDevice.success === true) {
+        const payloads = [
+          {
+            topic: "devices",
+            messages: JSON.stringify(responseFromRegisterDevice.data),
+            partition: 0,
+          },
+        ];
+        kafkaProducer.send(payloads, (err, data) => {
+          logObject("Kafka producer data", data);
+          logger.info(`Kafka producer data, ${data}`);
+          logObject("Kafka producer error", err);
+          logger.error(`Kafka producer error, ${err}`);
+        });
+
         return {
           success: true,
           data: responseFromRegisterDevice.data,

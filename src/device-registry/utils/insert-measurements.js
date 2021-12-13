@@ -2,6 +2,9 @@ const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
 const EventSchema = require("../models/Event");
+const { kafkaProducer } = require("../config/kafka");
+const log4js = require("log4js");
+const logger = log4js.getLogger("insert-measurements-util");
 
 const insert = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
@@ -53,6 +56,19 @@ const insert = async (tenant, transformedMeasurements) => {
       if (addedEvents) {
         nAdded += 1;
         eventsAdded.push(measurement);
+        const payloads = [
+          {
+            topic: "events",
+            messages: JSON.stringify(measurement),
+            partition: 0,
+          },
+        ];
+        kafkaProducer.send(payloads, (err, data) => {
+          logObject("Kafka producer data", data);
+          logger.info(`Kafka producer data, ${data}`);
+          logObject("Kafka producer error", err);
+          logger.error(`Kafka producer error, ${err}`);
+        });
       } else if (!addedEvents) {
         eventsRejected.push(measurement);
         let errMsg = {

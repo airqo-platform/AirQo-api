@@ -26,6 +26,7 @@ const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
+const { kafkaProducer } = require("../config/kafka");
 
 const manageSite = {
   hasWhiteSpace: (name) => {
@@ -438,6 +439,20 @@ const manageSite = {
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
+        const payloads = [
+          {
+            topic: "sites",
+            messages: JSON.stringify(createdSite),
+            partition: 0,
+          },
+        ];
+        kafkaProducer.send(payloads, (err, data) => {
+          logObject("Kafka producer data", data);
+          logger.info(`Kafka producer data, ${data}`);
+          logObject("Kafka producer error", err);
+          logger.error(`Kafka producer error, ${err}`);
+        });
+
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : "";

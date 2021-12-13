@@ -20,6 +20,10 @@ const {
 
 const getDetail = require("./get-device-details");
 
+const { kafkaProducer } = require("../config/kafka");
+const log4js = require("log4js");
+const logger = log4js.getLogger("site-activities-util");
+
 const {
   tryCatchErrors,
   axiosError,
@@ -89,6 +93,20 @@ const carryOutActivity = async (
         )
           .createLocationActivity(activityBody)
           .then((log) => (createdActivity = log));
+
+        const payloads = [
+          {
+            topic: "activities",
+            messages: JSON.stringify(createdActivity),
+            partition: 0,
+          },
+        ];
+        kafkaProducer.send(payloads, (err, data) => {
+          logObject("Kafka producer data", data);
+          logger.info(`Kafka producer data, ${data}`);
+          logObject("Kafka producer error", err);
+          logger.error(`Kafka producer error, ${err}`);
+        });
 
         return res.status(HTTPStatus.OK).json({
           message:
