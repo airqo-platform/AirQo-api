@@ -163,7 +163,7 @@ class EventsModel(BasePyMongoModel):
                     _id="$_id.site_id",
                     values={"$push": {
                         "time": "$time",
-                        "value": "$value"
+                        "value": {"$round": ["$value", 2]},
                     }},
                 )
                 .project(site_id={"$toObjectId": "$_id"}, values=1)

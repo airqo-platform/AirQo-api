@@ -15,6 +15,11 @@ const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const QRCode = require("qrcode");
 const { kafkaProducer } = require("../config/kafka");
+const cleanDeep = require("clean-deep");
+const httpStatus = require("http-status");
+let devicesModel = (tenant) => {
+  return getModelByTenant(tenant, "device", DeviceSchema);
+};
 
 const createDevice = {
   doesDeviceExist: async (request) => {
@@ -25,6 +30,36 @@ const createDevice = {
       return true;
     }
     return false;
+  },
+  getDevicesCount: async (request, callback) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      await devicesModel(tenant).countDocuments({}, (err, count) => {
+        if (count) {
+          callback({
+            success: true,
+            message: "retrieved the number of devices",
+            status: httpStatus.OK,
+            data: count,
+          });
+        }
+        if (err) {
+          callback({
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: err },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
   },
   generateQR: async (request) => {
     try {

@@ -1,10 +1,10 @@
 const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
-const EventSchema = require("../models/Event");
 const { kafkaProducer } = require("../config/kafka");
 const log4js = require("log4js");
 const logger = log4js.getLogger("insert-measurements-util");
+const EventModel = require("../models/Event");
 
 const insert = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
@@ -45,13 +45,13 @@ const insert = async (tenant, transformedMeasurements) => {
         $inc: { nValues: 1 },
       };
 
-      const addedEvents = await getModelByTenant(
-        tenant.toLowerCase(),
-        "event",
-        EventSchema
-      ).updateOne(eventBody, options, {
-        upsert: true,
-      });
+      const addedEvents = await EventModel(tenant).updateOne(
+        eventBody,
+        options,
+        {
+          upsert: true,
+        }
+      );
       logObject("addedEvents", addedEvents);
       if (addedEvents) {
         nAdded += 1;

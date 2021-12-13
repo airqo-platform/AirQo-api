@@ -480,7 +480,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/gp-model/
-          kubectl apply -f prod-gp-model-api.yaml
+          kubectl apply -f prod-airqo-gp-model-job.yaml
           kubectl rollout restart deployment/airqo-gp-model-job -n production
   
   ### exceddences ###

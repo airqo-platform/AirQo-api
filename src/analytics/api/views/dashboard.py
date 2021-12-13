@@ -233,10 +233,7 @@ class ExceedancesResource(Resource):
         sites = json_data.get("sites", None)
 
         exc_model = ExceedanceModel(tenant)
-        print("raw sites", sites)
         data = exc_model.get_exceedances(start_date, end_date, pollutant, standard, sites=sites)
-
-        print('data', data)
 
         return create_response(
             "exceedance data successfully fetched",

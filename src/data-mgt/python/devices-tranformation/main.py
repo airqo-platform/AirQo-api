@@ -41,8 +41,17 @@ if __name__ == '__main__':
     elif action.lower().strip() == "update_primary_devices":
         transformation.update_primary_devices()
 
+    elif action.lower().strip() == "update_site_search_names":
+        transformation.update_site_search_names()
+
     elif action.lower().strip() == "devices_without_forecast":
         transformation.get_devices_without_forecast()
+
+    elif action.lower().strip() == "sites_to_csv":
+        transformation.metadata_to_csv(component='sites')
+
+    elif action.lower().strip() == "devices_to_csv":
+        transformation.metadata_to_csv(component='devices')
 
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")
