@@ -31,7 +31,7 @@ public class SiteServiceImpl implements SiteService {
 	}
 
 	@Override
-	public List<Site> insertSites(List<Site> sites, Tenant tenant) {
+	public void insertSites(List<Site> sites, Tenant tenant) {
 		for (Site site : sites) {
 			try {
 				if (tenant != null) {
@@ -42,8 +42,6 @@ public class SiteServiceImpl implements SiteService {
 				e.printStackTrace();
 			}
 		}
-
-		return sites;
 	}
 
 	@Override

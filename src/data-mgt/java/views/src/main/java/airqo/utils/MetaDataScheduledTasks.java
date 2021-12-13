@@ -49,7 +49,7 @@ public class MetaDataScheduledTasks {
 			RestTemplate restTemplate = new RestTemplate();
 
 			Site.SiteList airqoSites = restTemplate.getForObject(
-				String.format("%s/devices/sites?tenant=airqo", airQoBaseUrl), Site.SiteList.class);
+				String.format("%s/devices/sites?tenant=airqo", airQoBaseUrl.trim()), Site.SiteList.class);
 
 			if (airqoSites != null) {
 				logger.info(airqoSites.toString());
@@ -57,7 +57,7 @@ public class MetaDataScheduledTasks {
 			}
 
 			Site.SiteList kccaSites = restTemplate.getForObject(
-				String.format("%s/devices/sites?tenant=kcca", airQoBaseUrl), Site.SiteList.class);
+				String.format("%s/devices/sites?tenant=kcca", airQoBaseUrl.trim()), Site.SiteList.class);
 
 			if (kccaSites != null) {
 				logger.info(kccaSites.toString());
@@ -77,7 +77,7 @@ public class MetaDataScheduledTasks {
 
 			// AirQo
 			Device.DeviceList airqoDevices = restTemplate.getForObject(
-				String.format("%s/devices?tenant=airqo", airQoBaseUrl), Device.DeviceList.class);
+				String.format("%s/devices?tenant=airqo", airQoBaseUrl.trim()), Device.DeviceList.class);
 			if (airqoDevices != null) {
 				logger.info(airqoDevices.toString());
 				deviceService.insertDevices(airqoDevices.getDevices(), Tenant.AIRQO);
@@ -85,7 +85,7 @@ public class MetaDataScheduledTasks {
 
 			// Kcca
 			Device.DeviceList kccaDevices = restTemplate.getForObject(
-				String.format("%s/devices?tenant=kcca", airQoBaseUrl), Device.DeviceList.class);
+				String.format("%s/devices?tenant=kcca", airQoBaseUrl.trim()), Device.DeviceList.class);
 
 			if (kccaDevices != null) {
 				logger.info(kccaDevices.toString());

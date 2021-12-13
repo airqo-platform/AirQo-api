@@ -6,7 +6,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 @Document(collection = "raw_measurements")
 @CompoundIndexes({
-	@CompoundIndex(name = "PM 2.5", def = "{'time' : 1, 'device_id': 1, 'pm2_5.value': 1}", unique = true)
+	@CompoundIndex(name = "Faw Measurements Composite Key", def = "{'time' : 1, 'device': 1}", unique = true)
 })
 public class RawMeasurement extends Measurement {
 }

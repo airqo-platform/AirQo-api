@@ -50,7 +50,7 @@ public class ForecastScheduledTasks {
 			List<Forecast> forecastList = new ArrayList<>();
 
 			long time = Instant.now().getEpochSecond();
-			String baseUrl = airQoBaseUrl.replaceFirst("v1", "v2");
+			String baseUrl = airQoBaseUrl.trim().replaceFirst("v1", "v2");
 			baseUrl = baseUrl + "predict/";
 
 			HttpClient httpClient = HttpClient.newBuilder()

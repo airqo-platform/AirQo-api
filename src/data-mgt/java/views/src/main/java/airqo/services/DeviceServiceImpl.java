@@ -4,6 +4,8 @@ import airqo.models.Device;
 import airqo.models.Tenant;
 import airqo.repository.DeviceRepository;
 import com.querydsl.core.types.Predicate;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -15,6 +17,8 @@ import java.util.List;
 
 @Service
 public class DeviceServiceImpl implements DeviceService {
+
+	private static final Logger logger = LoggerFactory.getLogger(DeviceService.class);
 
 	@Autowired
 	DeviceRepository deviceRepository;
@@ -56,6 +60,7 @@ public class DeviceServiceImpl implements DeviceService {
 				insertDevice(device);
 			} catch (Exception e) {
 				e.printStackTrace();
+				logger.info(device.toString());
 			}
 		}
 	}

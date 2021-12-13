@@ -108,15 +108,12 @@ public class InsightsScheduledTasks {
 		}
 
 		for (Insight insight : insights) {
-			placeHolderInsights.removeIf(placeHolderInsight -> {
-				return (insight.getSiteId().equalsIgnoreCase(placeHolderInsight.getSiteId()))
-					&& (placeHolderInsight.getTime() == insight.getTime());
-			});
+			placeHolderInsights.removeIf(placeHolderInsight -> (insight.getSiteId().equalsIgnoreCase(placeHolderInsight.getSiteId()))
+				&& (placeHolderInsight.getTime() == insight.getTime()));
 		}
 
-
 		insights.addAll(placeHolderInsights);
-		measurementService.insertInsights(insights, true);
+		measurementService.insertInsights(insights);
 	}
 
 	public void saveDailyInsights() {
@@ -186,8 +183,7 @@ public class InsightsScheduledTasks {
 
 		}
 
-
-		measurementService.insertInsights(insights, true);
+		measurementService.insertInsights(insights);
 	}
 
 	private double getRandomValue(Double maxValue) {

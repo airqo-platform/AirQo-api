@@ -13,7 +13,7 @@ FROM base as test
 RUN ["./mvnw", "test"]
 
 FROM base as dev
-CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.profiles=development,api", "-Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000'"]
+CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.profiles=api", "-Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000'"]
 
 FROM base as build
 RUN ./mvnw package -Dmaven.test.skip=true
@@ -31,6 +31,11 @@ CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.activ
 
 FROM base as build-jobs
 RUN ./mvnw package -Dmaven.test.skip=true
+
+FROM openjdk:11-jre-slim as view-jobs
+COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views-jobs.jar
+
+CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/views-jobs.jar"]
 
 FROM openjdk:11-jre-slim as forecast-job
 COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views.jar

@@ -13,7 +13,7 @@ public interface SiteService {
 
 	List<Site> getSitesList(Predicate predicate);
 
-	List<Site> insertSites(List<Site> sites, Tenant tenant);
+	void insertSites(List<Site> sites, Tenant tenant);
 
 	List<Site> getSites(Tenant tenant);
 

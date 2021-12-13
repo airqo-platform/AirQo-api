@@ -4,6 +4,7 @@ import airqo.models.ApiResponseBody;
 import io.micrometer.core.instrument.config.validate.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,10 +25,11 @@ import java.util.Map;
 
 import static java.util.Optional.ofNullable;
 
+@Profile({"api"})
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-	Logger logger = LoggerFactory.getLogger(getClass());
+	final Logger logger = LoggerFactory.getLogger(getClass());
 
 	@ExceptionHandler(NotFoundException.class)
 	public ResponseEntity<ApiResponseBody> handleNotFoundException(HttpServletRequest request, Exception exception) {
@@ -77,8 +79,10 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(NoHandlerFoundException.class)
 	@ResponseStatus(value = HttpStatus.NOT_FOUND)
-	public String handleNotFoundError(NoHandlerFoundException ex) {
-		return "path does not exists";
+	public ResponseEntity<ApiResponseBody> handleNotFoundError(NoHandlerFoundException exception) {
+		return ResponseEntity
+			.status(HttpStatus.BAD_REQUEST)
+			.body(new ApiResponseBody("Path does not exists", exception.getLocalizedMessage()));
 	}
 
 	@ExceptionHandler(ValidationException.class)

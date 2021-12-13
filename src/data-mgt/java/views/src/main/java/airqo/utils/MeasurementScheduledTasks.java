@@ -88,7 +88,7 @@ public class MeasurementScheduledTasks {
 					break;
 			}
 
-			String url = airQoBaseUrl +
+			String url = airQoBaseUrl.trim() +
 				"devices/events/?frequency=" + frequency + "&recent=no&external=no&tenant=" + tenant.toString() + "&startTime="
 				+ dateFormat.format(startTime);
 

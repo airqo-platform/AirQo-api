@@ -63,7 +63,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public void insertInsights(List<Insight> insights, boolean replace) {
+	public void insertInsights(List<Insight> insights) {
 		logger.info("inserting insights");
 		insightRepository.saveAll(insights);
 	}

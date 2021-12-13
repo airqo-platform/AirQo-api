@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.querydsl.QuerydslPredicateExecutor;
 import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
 import org.springframework.data.querydsl.binding.QuerydslBindings;
+import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
@@ -14,7 +15,7 @@ import java.util.Date;
 public interface InsightRepository extends MongoRepository<Insight, String>, QuerydslPredicateExecutor<Insight>, QuerydslBinderCustomizer<QInsight> {
 
 	@Override
-	default void customize(QuerydslBindings querydslBindings, QInsight qInsight) {
+	default void customize(@NonNull QuerydslBindings querydslBindings, @NonNull QInsight qInsight) {
 	}
 
 	void deleteAllByTimeBefore(Date startTime);

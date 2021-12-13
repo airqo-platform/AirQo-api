@@ -3,6 +3,8 @@ package airqo.models;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.io.Serializable;
@@ -17,9 +19,9 @@ import static airqo.config.Constants.dateTimeFormat;
 @ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "insights_measurements")
-//@CompoundIndexes({
-//	@CompoundIndex(name = "Insights Compound Index", def = "{'time' : 1, 'frequency': 1, 'siteId': 1}", unique = true)
-//})
+@CompoundIndexes({
+	@CompoundIndex(name = "Insights Measurements Compound Index", def = "{'time' : 1, 'frequency': 1, 'siteId': 1}", unique = true)
+})
 public class Insight implements Serializable {
 
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")

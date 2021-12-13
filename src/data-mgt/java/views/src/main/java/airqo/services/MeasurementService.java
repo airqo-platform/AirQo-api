@@ -18,7 +18,7 @@ public interface MeasurementService {
 
 	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
 
-	void insertInsights(List<Insight> insights, boolean replace);
+	void insertInsights(List<Insight> insights);
 
 	void deleteInsightsBefore(Date startTime);
 
@@ -31,7 +31,6 @@ public interface MeasurementService {
 	List<HourlyMeasurement> getHourlyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant);
 
 	List<DailyMeasurement> getDailyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant);
-
 
 	void insertMeasurements(List<RawMeasurement> rawMeasurements,
 							List<HourlyMeasurement> hourlyMeasurements, List<DailyMeasurement> dailyMeasurements);

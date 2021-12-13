@@ -26,7 +26,7 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "forecast_measurements")
 @CompoundIndexes({
-	@CompoundIndex(name = "Forecast Compound Index", def = "{'time' : 1, 'device.id': 1}", unique = true)
+	@CompoundIndex(name = "Forecast Measurement Composite Index", def = "{'time' : 1, 'device': 1}", unique = true)
 })
 public class Forecast implements Serializable {
 
@@ -35,7 +35,6 @@ public class Forecast implements Serializable {
 
 	@JsonAlias("prediction_time")
 	@Indexed(direction = IndexDirection.DESCENDING, name = "Descending order")
-//	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	@JsonSerialize(using = ForecastSerializer.ForecastDateSerializer.class)
 	@JsonDeserialize(using = ForecastSerializer.ForecastDateDeserializer.class)
 	private Date time = new Date();

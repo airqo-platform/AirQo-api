@@ -22,7 +22,7 @@ import java.util.List;
 @Component
 public class KafkaComponent {
 
-	Logger logger = LoggerFactory.getLogger(getClass());
+	final Logger logger = LoggerFactory.getLogger(getClass());
 
 	@Autowired
 	MeasurementService measurementService;
@@ -50,7 +50,6 @@ public class KafkaComponent {
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
 	public void receiveDevices(String content) {
 		try {
-
 			ObjectMapper objectMapper = new ObjectMapper();
 			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);
 			deviceService.insertDevices(deviceList.getDevices(), null);
@@ -64,8 +63,6 @@ public class KafkaComponent {
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.rawMeasurements}'.split(',')}")
 	public void receiveRawMeasurements(String content) {
 		try {
-
-			ObjectMapper objectMapper = new ObjectMapper();
 			List<RawMeasurement> measurementsList = new ArrayList<>();
 			measurementService.insertMeasurements(measurementsList, new ArrayList<>(), new ArrayList<>());
 			logger.info(measurementsList.toString());

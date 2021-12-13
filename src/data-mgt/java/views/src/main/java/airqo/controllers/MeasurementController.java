@@ -3,14 +3,12 @@ package airqo.controllers;
 import airqo.models.*;
 import airqo.services.DeviceService;
 import airqo.services.MeasurementService;
-import com.querydsl.core.types.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.querydsl.binding.QuerydslPredicate;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -87,7 +85,8 @@ public class MeasurementController {
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}
 
-	@GetMapping("/app/insights")
+
+	@GetMapping("/insights")
 	public ResponseEntity<ApiResponseBody> getAppInsights(
 		@RequestParam(defaultValue = "undefined") String frequency,
 		@RequestParam(defaultValue = "airqo") String tenant,
@@ -130,26 +129,6 @@ public class MeasurementController {
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
-	}
-
-	@GetMapping("/hourly")
-	public ResponseEntity<?> getHourlyMeasurements(
-		@QuerydslPredicate(root = HourlyMeasurement.class) Predicate predicate,
-		@PageableDefault(sort = "time") Pageable pageable,
-		@RequestParam MultiValueMap<String, String> parameters
-	) {
-		Page<HourlyMeasurement> measurements = measurementService.getHourlyMeasurements(pageable, predicate);
-		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
-	}
-
-	@GetMapping("/raw")
-	public ResponseEntity<?> getRawMeasurements(
-		@QuerydslPredicate(root = RawMeasurement.class) Predicate predicate,
-		@PageableDefault(sort = "time") Pageable pageable,
-		@RequestParam MultiValueMap<String, String> parameters
-	) {
-		Page<RawMeasurement> measurements = measurementService.getRawMeasurements(pageable, predicate);
-		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
 	}
 
 }

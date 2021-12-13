@@ -1,0 +1,178 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: insights-job
+  namespace: staging
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 2
+  schedule: "30 * * * *"
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    metadata:
+      name: insights-job
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers:
+              - name: insights-job
+                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                imagePullPolicy: Always
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: "500m"
+                  limits:
+                    memory: 1Gi
+                    cpu: "2000m"
+                env:
+                  - name: spring.profiles.active
+                    value: insights-job 
+                  - name: JAVA_OPTIONS
+                    value: -Dspring.profiles.active=insights-job
+                envFrom:
+                  - configMapRef:
+                      name: views-job-config
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: forecast-job
+  namespace: staging
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 2
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    metadata:
+      name: forecast-job
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers:
+              - name: forecast-job
+                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                imagePullPolicy: Always
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: "500m"
+                  limits:
+                    memory: 1Gi
+                    cpu: "2000m"
+                env:
+                  - name: spring.profiles.active
+                    value: forecast-job
+                  - name: JAVA_OPTIONS
+                    value: -Dspring.profiles.active=forecast-job
+                envFrom:
+                  - configMapRef:
+                      name: views-job-config
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: metadata-job
+  namespace: staging
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 2
+  schedule: "0 0 * * *"
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    metadata:
+      name: metadata-job
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers:
+              - name: metadata-job
+                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                imagePullPolicy: Always
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: "500m"
+                  limits:
+                    memory: 1Gi
+                    cpu: "2000m"
+                env:
+                  - name: spring.profiles.active
+                    value: metadata-job
+                  - name: JAVA_OPTIONS
+                    value: -Dspring.profiles.active=metadata-job
+                envFrom:
+                  - configMapRef:
+                      name: views-job-config
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: measurements-job
+  namespace: staging
+spec:
+  concurrencyPolicy: Allow
+  failedJobsHistoryLimit: 2
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 2
+  jobTemplate:
+    metadata:
+      name: measurements-job
+    spec:
+      template:
+        metadata:
+          annotations:
+            sidecar.istio.io/inject: "false"
+        spec:
+          containers:
+              - name: measurements-job
+                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                imagePullPolicy: Always
+                resources:
+                  requests:
+                    memory: 256Mi
+                    cpu: "500m"
+                  limits:
+                    memory: 1Gi
+                    cpu: "2000m"
+                env:
+                  - name: spring.profiles.active
+                    value: measurements-job
+                  - name: JAVA_OPTIONS
+                    value: -Dspring.profiles.active=measurements-job
+                envFrom:
+                  - configMapRef:
+                      name: views-job-config
+          dnsPolicy: ClusterFirst
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          securityContext: {}
+          terminationGracePeriodSeconds: 30

@@ -3,8 +3,6 @@ package airqo.controllers;
 import airqo.models.Site;
 import airqo.services.SiteService;
 import com.querydsl.core.types.Predicate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.core.env.Environment;
@@ -24,8 +22,6 @@ import java.util.List;
 @RestController
 @RequestMapping("sites")
 public class SiteController {
-
-	private static final Logger logger = LoggerFactory.getLogger(SiteController.class);
 
 	@Autowired
 	SiteService siteService;
@@ -48,6 +44,4 @@ public class SiteController {
 		Page<Site> sites = siteService.getSites(predicate, pageable);
 		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);
 	}
-
-
 }
