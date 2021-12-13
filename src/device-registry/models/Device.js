@@ -7,7 +7,6 @@ const { monthsInfront } = require("../utils/date");
 const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
-const jsonify = require("../utils/jsonify");
 const log4js = require("log4js");
 const logger = log4js.getLogger("device-model");
 const HTTPStatus = require("http-status");
@@ -234,7 +233,7 @@ deviceSchema.statics = {
         return {
           success: true,
           message: "successfully created the device",
-          data: createdDevice,
+          data: createdDevice._doc,
           status: HTTPStatus.CREATED,
         };
       }
@@ -242,7 +241,7 @@ deviceSchema.statics = {
       return {
         success: true,
         message: "operation successful but device not created",
-        data: createdDevice,
+        data: createdDevice._doc,
         status: HTTPStatus.OK,
       };
     } catch (err) {

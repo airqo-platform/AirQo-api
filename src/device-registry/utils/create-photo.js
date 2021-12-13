@@ -7,7 +7,6 @@ const constants = require("../config/constants");
 const cloudinary = require("../config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
-const jsonify = require("../utils/jsonify");
 const { tryCatchErrors } = require("./errors");
 
 const createPhoto = {
@@ -775,7 +774,7 @@ const createPhoto = {
         let status = responseFromRegisterPhoto.status
           ? responseFromRegisterPhoto.status
           : "";
-        let data = jsonify(responseFromRegisterPhoto.data);
+        let data = responseFromRegisterPhoto.data;
         return {
           success: true,
           message: responseFromRegisterPhoto.message,

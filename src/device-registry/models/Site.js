@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
@@ -312,9 +311,10 @@ siteSchema.statics = {
 
       logObject("modifiedArgs", modifiedArgs);
 
-      let data = await this.create({
+      let createdSite = await this.create({
         ...modifiedArgs,
       });
+      let data = createdSite._doc;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -547,7 +547,7 @@ siteSchema.statics = {
         },
       };
       let removedSite = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedSite);
+      let data = removedSite._doc;
       if (!isEmpty(data)) {
         return {
           success: true,

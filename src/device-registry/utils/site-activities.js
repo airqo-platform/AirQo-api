@@ -18,8 +18,6 @@ const {
   getApiKeys,
 } = require("./does-device-exist");
 
-const jsonify = require("./jsonify");
-
 const getDetail = require("./get-device-details");
 
 const {

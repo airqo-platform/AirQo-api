@@ -4,8 +4,6 @@ const iot = require("@google-cloud/iot");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 
-const jsonify = require("./jsonify");
-
 const generateFilter = require("./generate-filter");
 
 const getDetail = async (
@@ -38,8 +36,7 @@ const getDetail = async (
       "device",
       DeviceSchema
     ).list({ skip, limit, filter });
-    let parsedDevices = jsonify(devices.data);
-    return parsedDevices;
+    return devices.data;
   } catch (error) {
     logElement("error", error);
   }

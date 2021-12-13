@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 
@@ -129,7 +128,7 @@ locationSchema.statics = {
       let createdAirQloud = await this.create({
         ...body,
       });
-      let data = jsonify(createdAirQloud);
+      let data = createdAirQloud._doc;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -146,7 +145,7 @@ locationSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
+      let e = err;
       let response = {};
       logObject("the err", e);
       message = "validation errors for some of the provided fields";
@@ -230,12 +229,12 @@ locationSchema.statics = {
       if (modifiedUpdateBody.isCustom) {
         modifiedUpdateBody.isCustom = false;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+      let updatedLocation = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
+      let data = updatedLocation._doc;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -277,8 +276,8 @@ locationSchema.statics = {
           metadata: 1,
         },
       };
-      let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedAirqloud);
+      let removedLocation = await this.findOneAndRemove(filter, options).exec();
+      let data = removedLocation._doc;
       if (!isEmpty(data)) {
         return {
           success: true,

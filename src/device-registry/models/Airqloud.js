@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const log4js = require("log4js");
@@ -152,7 +151,7 @@ airqloudSchema.statics = {
       let createdAirQloud = await this.create({
         ...body,
       });
-      let data = jsonify(createdAirQloud);
+      let data = createdAirQloud._doc;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -169,7 +168,7 @@ airqloudSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
+      let e = err;
       let response = {};
       logObject("the err in the model", err);
       message = "validation errors for some of the provided fields";
@@ -295,7 +294,7 @@ airqloudSchema.statics = {
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(updatedAirQloud);
+      let data = updatedAirQloud._doc;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -338,7 +337,7 @@ airqloudSchema.statics = {
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedAirqloud);
+      let data = removedAirqloud._doc;
       if (!isEmpty(data)) {
         return {
           success: true,

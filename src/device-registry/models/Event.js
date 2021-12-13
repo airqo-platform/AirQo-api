@@ -312,7 +312,7 @@ eventSchema.statics = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
       let removedEvents = await this.deleteMany(filter, options).exec();
-      let data = jsonify(removedEvents);
+      let data = removedEvents;
       if (!isEmpty(data)) {
         return {
           success: true,

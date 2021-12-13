@@ -3,7 +3,6 @@ const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const axios = require("axios");
 const HTTPStatus = require("http-status");
 const axiosInstance = () => {
