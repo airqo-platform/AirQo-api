@@ -1,8 +1,8 @@
 package airqo.repository;
 
+import airqo.models.DailyMeasurement;
 import airqo.models.Device;
-import airqo.models.HourlyMeasurement;
-import airqo.models.QHourlyMeasurement;
+import airqo.models.QDailyMeasurement;
 import com.querydsl.core.types.dsl.StringPath;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.querydsl.QuerydslPredicateExecutor;
@@ -14,14 +14,15 @@ import java.util.Date;
 import java.util.List;
 
 @Repository
-public interface HourlyMeasurementRepository extends MongoRepository<HourlyMeasurement, String>, QuerydslPredicateExecutor<HourlyMeasurement>, QuerydslBinderCustomizer<QHourlyMeasurement> {
+public interface DailyMeasurementRepository extends MongoRepository<DailyMeasurement, String>, QuerydslPredicateExecutor<DailyMeasurement>, QuerydslBinderCustomizer<QDailyMeasurement> {
 
 	@Override
-	default void customize(QuerydslBindings bindings, QHourlyMeasurement root) {
+	default void customize(QuerydslBindings bindings, QDailyMeasurement root) {
 		bindings.bind(String.class).first(
 			(StringPath path, String value) -> path.containsIgnoreCase(value));
 		bindings.excluding(root.time);
 	}
 
-	List<HourlyMeasurement> findAllByDeviceAndTimeGreaterThanEqual(Device device, Date startTime);
+	List<DailyMeasurement> findAllByDeviceAndTimeGreaterThanEqual(Device device, Date startTime);
+
 }

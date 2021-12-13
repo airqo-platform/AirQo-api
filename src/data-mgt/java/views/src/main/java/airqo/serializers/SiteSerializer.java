@@ -50,8 +50,6 @@ public class SiteSerializer {
 			jGen.writeObjectField("bearingToKampalaCenter", site.getBearingToKampalaCenter());
 			jGen.writeObjectField("distanceToKampalaCenter", site.getDistanceToKampalaCenter());
 
-//			jGen.writeObjectField("location", site.getLocation());
-
 			jGen.writeObjectField("nearestTahmoStation", site.getTahmo());
 			jGen.writeObjectField("devices", deviceViews);
 			jGen.writeEndObject();

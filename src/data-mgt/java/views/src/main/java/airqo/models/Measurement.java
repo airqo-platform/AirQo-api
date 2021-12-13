@@ -4,20 +4,19 @@ import airqo.serializers.MeasurementSerializer;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
-import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.IndexDirection;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.util.Date;
 import java.util.List;
 
-import static airqo.config.Constants.dateTimeFormat;
+import static airqo.config.Constants.longDateTimeFormat;
 
 @Getter
 @Setter
@@ -28,28 +27,27 @@ import static airqo.config.Constants.dateTimeFormat;
 @JsonSerialize(using = MeasurementSerializer.Serializer.class)
 public class Measurement implements Serializable {
 
-
-	private final String frequency = "raw";
 	@Transient
 	@JsonAlias("device_id")
 	private String deviceId = "";
-	@Field("_id")
-	@JsonAlias("_id")
-	@Id
-	private String id = "";
-	@DBRef
-	@JsonAlias("deviceDetails")
-	private Device device = new Device();
-	@DBRef
+
+	@Transient
 	@JsonAlias("siteDetails")
 	private Site site = new Site();
+
+	@DBRef
+	@JsonAlias("deviceDetails")
+	@JsonProperty("deviceDetails")
+	private Device device = new Device();
+
 	@Indexed(direction = IndexDirection.DESCENDING, name = "Descending order")
-	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = longDateTimeFormat, timezone = "UTC")
 	private Date time = new Date();
 
 	@JsonAlias("hdop")
 	private MeasurementValue hDop;
 
+	private String frequency;
 	private Location location;
 	private MeasurementValue internalTemperature;
 	private MeasurementValue internalHumidity;

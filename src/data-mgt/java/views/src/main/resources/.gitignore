@@ -1,8 +1,8 @@
 *prod*
 *stage*
+*dev*
 *test*
 .env
-application.properties
 application-dev.properties
 application-stage.properties
 application-prod.properties

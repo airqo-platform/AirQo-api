@@ -34,10 +34,9 @@ public class MeasurementSerializer {
 				.readValue(mapper.writeValueAsString(measurement.getDevice()), Device.DeviceView.class);
 
 			jGen.writeStartObject();
-			jGen.writeStringField("id", measurement.getId());
 			jGen.writeStringField("tenant", measurement.getDevice().getTenant());
 
-//			jGen.writeStringField("frequency", measurement.getFrequency());
+			jGen.writeStringField("frequency", measurement.getFrequency());
 			jGen.writeStringField("time", simpleDateFormat.format(measurement.getTime()));
 
 			jGen.writeObjectField("pm2_5", getAllValues(measurement.getPm2_5()));
@@ -50,7 +49,6 @@ public class MeasurementSerializer {
 			jGen.writeObjectField("speed", getValue(measurement.getPm1()));
 			jGen.writeObjectField("altitude", getValue(measurement.getNo2()));
 			jGen.writeObjectField("location", measurement.getLocation());
-//			jGen.writeObjectField("geoLocation", event.getGeoJsonPoint());
 
 			jGen.writeObjectField("device", deviceView);
 			jGen.writeObjectField("site", siteView);

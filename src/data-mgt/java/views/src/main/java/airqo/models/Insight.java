@@ -3,7 +3,6 @@ package airqo.models;
 import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
-import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.io.Serializable;
@@ -23,9 +22,6 @@ import static airqo.config.Constants.dateTimeFormat;
 //})
 public class Insight implements Serializable {
 
-
-	@Id
-	private String id;
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	private Date time;
 	private double pm2_5;
@@ -36,18 +32,5 @@ public class Insight implements Serializable {
 	private String location;
 	private String frequency;
 	private String siteId;
-
-	public Insight(Date time, double pm2_5, double pm10, Boolean isEmpty, Boolean isForecast, String name, String location, String frequency, String siteId) {
-		this.time = time;
-		this.pm2_5 = pm2_5;
-		this.pm10 = pm10;
-		this.isEmpty = isEmpty;
-		this.isForecast = isForecast;
-		this.name = name;
-		this.location = location;
-		this.frequency = frequency;
-		this.siteId = siteId;
-		this.id = siteId + frequency + time.toString();
-	}
 }
 

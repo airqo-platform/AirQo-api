@@ -1,15 +1,21 @@
 package airqo.repository;
 
 import airqo.models.Insight;
+import airqo.models.QInsight;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.querydsl.QuerydslPredicateExecutor;
+import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
+import org.springframework.data.querydsl.binding.QuerydslBindings;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
-import java.util.List;
 
 @Repository
-public interface InsightRepository extends MongoRepository<Insight, String> {
-	void deleteAllByTimeBefore(Date startTime);
+public interface InsightRepository extends MongoRepository<Insight, String>, QuerydslPredicateExecutor<Insight>, QuerydslBinderCustomizer<QInsight> {
 
-	List<Insight> getAllByFrequencyAndSiteIdAndTimeBetween(String frequency, String siteId, Date startTime, Date endTime);
+	@Override
+	default void customize(QuerydslBindings querydslBindings, QInsight qInsight) {
+	}
+
+	void deleteAllByTimeBefore(Date startTime);
 }

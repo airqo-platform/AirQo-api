@@ -14,17 +14,17 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
 
-import static airqo.config.Constants.dateTimeHourlyFormat;
+import static airqo.config.Constants.dateTimeDailyFormat;
 
-@Document(collection = "hourly_measurements")
+@Document(collection = "daily_measurements")
 @CompoundIndexes({
 	@CompoundIndex(name = "PM 2.5", def = "{'time' : 1, 'device_id': 1, 'pm2_5.value': 1}", unique = true)
 })
-public class HourlyMeasurement extends Measurement {
+public class DailyMeasurement extends Measurement {
 
 	@Transient
 	@JsonIgnore
-	private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeHourlyFormat);
+	private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeDailyFormat);
 
 	@Override
 	public Date getTime() {
@@ -50,13 +50,14 @@ public class HourlyMeasurement extends Measurement {
 
 	@Override
 	public String getFrequency() {
-		return Frequency.HOURLY.toString();
+		return Frequency.DAILY.toString();
 	}
 
 	@Override
 	public void setFrequency(String frequency) {
-		super.setFrequency(Frequency.HOURLY.toString());
+		super.setFrequency(Frequency.DAILY.toString());
 	}
+
 
 	@Getter
 	@Setter
@@ -65,6 +66,6 @@ public class HourlyMeasurement extends Measurement {
 	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class MeasurementsList implements Serializable {
-		private List<HourlyMeasurement> measurements;
+		private List<DailyMeasurement> measurements;
 	}
 }

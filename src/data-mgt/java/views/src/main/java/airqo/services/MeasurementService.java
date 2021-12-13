@@ -4,6 +4,8 @@ import airqo.models.*;
 import com.querydsl.core.types.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.lang.NonNull;
+import org.springframework.lang.Nullable;
 import org.springframework.util.MultiValueMap;
 
 import java.util.Date;
@@ -14,9 +16,7 @@ public interface MeasurementService {
 
 	Page<RawMeasurement> getRawMeasurements(Pageable pageable, Predicate predicate);
 
-	List<Insight> getAppInsights(String frequency, Date startTime, Date endTime, String tenant, String siteId);
-
-	List<Insight> getInsights(String frequency, Date startTime, Date endTime, String tenant, String siteId);
+	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
 
 	void insertInsights(List<Insight> insights, boolean replace);
 
@@ -28,5 +28,11 @@ public interface MeasurementService {
 
 	Page<HourlyMeasurement> getHourlyMeasurements(Pageable pageable, Predicate predicate);
 
-	void insertMeasurements(List<RawMeasurement> rawMeasurements, List<HourlyMeasurement> hourlyMeasurements);
+	List<HourlyMeasurement> getHourlyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant);
+
+	List<DailyMeasurement> getDailyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant);
+
+
+	void insertMeasurements(List<RawMeasurement> rawMeasurements,
+							List<HourlyMeasurement> hourlyMeasurements, List<DailyMeasurement> dailyMeasurements);
 }

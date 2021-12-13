@@ -12,6 +12,7 @@ java -jar target/views-0.0.1-SNAPSHOT.jar
 ### Using docker
 ```bash
 docker build --platform=linux/x86-64 [linux/amd64,linux/arm64] --target=dev -t view-api  .
+docker build --platform=linux/amd64 --target=dev -t view-api  .
 ```
 ### Using springboot
 ```bash

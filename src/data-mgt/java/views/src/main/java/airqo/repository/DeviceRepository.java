@@ -25,6 +25,4 @@ public interface DeviceRepository extends MongoRepository<Device, String>, Query
 
 	Device getByIdOrName(String id, String name);
 
-	Device getById(String id);
-
 }

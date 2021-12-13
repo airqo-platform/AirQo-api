@@ -17,8 +17,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-import static airqo.config.Constants.dateTimeFormat;
-import static airqo.config.Constants.forecastDateTimeFormat;
+import static airqo.config.Constants.*;
 
 @JsonComponent
 public class ForecastSerializer {
@@ -36,7 +35,6 @@ public class ForecastSerializer {
 				.readValue(mapper.writeValueAsString(forecast.getDevice()), Device.DeviceView.class);
 
 			jGen.writeStartObject();
-			jGen.writeStringField("id", forecast.getId());
 			jGen.writeStringField("time", simpleDateFormat.format(forecast.getTime()));
 			jGen.writeNumberField("pm2_5", forecast.getPm2_5());
 			jGen.writeNumberField("lowerConfidenceInterval", forecast.getLowerConfidenceInterval());
@@ -45,12 +43,11 @@ public class ForecastSerializer {
 
 			jGen.writeEndObject();
 		}
-
 	}
 
 	public static class ForecastDateSerializer extends StdSerializer<Date> {
 
-		private final SimpleDateFormat formatter = new SimpleDateFormat(forecastDateTimeFormat);
+		private final SimpleDateFormat formatter = new SimpleDateFormat(dateTimeHourlyFormat);
 
 		public ForecastDateSerializer() {
 			this(null);
@@ -70,6 +67,7 @@ public class ForecastSerializer {
 	public static class ForecastDateDeserializer extends StdDeserializer<Date> {
 
 		private final SimpleDateFormat formatter = new SimpleDateFormat(forecastDateTimeFormat);
+		private final SimpleDateFormat hourlyFormatter = new SimpleDateFormat(dateTimeHourlyFormat);
 
 		public ForecastDateDeserializer() {
 			this(null);
@@ -83,7 +81,8 @@ public class ForecastSerializer {
 		public Date deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
 			String date = jsonParser.getText();
 			try {
-				return formatter.parse(date);
+				Date forecastDate = formatter.parse(date);
+				return hourlyFormatter.parse(hourlyFormatter.format(forecastDate));
 			} catch (ParseException e) {
 				throw new RuntimeException(e);
 			}

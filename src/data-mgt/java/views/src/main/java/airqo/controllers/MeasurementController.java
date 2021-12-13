@@ -7,6 +7,7 @@ import com.querydsl.core.types.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
@@ -27,6 +28,7 @@ import java.util.List;
 
 import static airqo.config.Constants.dateTimeFormat;
 
+@Profile({"api"})
 @RestController
 @RequestMapping("measurements")
 public class MeasurementController {
@@ -49,6 +51,7 @@ public class MeasurementController {
 		Page<RawMeasurement> measurements = measurementService.getRawMeasurements(pageable, parameters);
 		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
 	}
+
 
 	@GetMapping("/forecast")
 	public ResponseEntity<ApiResponseBody> getForecast(
@@ -104,14 +107,26 @@ public class MeasurementController {
 			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
 		}
 
-		if (!(frequency.equalsIgnoreCase("hourly") || frequency.equalsIgnoreCase("daily")
-			|| frequency.equalsIgnoreCase("undefined"))) {
-			ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Frequency", null);
+		if (startDateTime.after(endDateTime)) {
+			ApiResponseBody httpResponseBody = new ApiResponseBody(null, "Start Time must be a date before the end time");
 			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
 		}
 
+		Frequency queryFrequency;
+		switch (frequency.toLowerCase()) {
+			case "hourly":
+				queryFrequency = Frequency.HOURLY;
+				break;
+			case "daily":
+				queryFrequency = Frequency.DAILY;
+				break;
+			default:
+				ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Frequency", null);
+				return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
+		}
+
 		List<Insight> insights = measurementService
-			.getInsights(frequency, startDateTime, endDateTime, tenant, siteId);
+			.getInsights(queryFrequency, startDateTime, endDateTime, tenant, siteId);
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);

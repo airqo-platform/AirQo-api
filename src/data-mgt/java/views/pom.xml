@@ -59,6 +59,36 @@
                 <defaultProperties>prod</defaultProperties>
             </properties>
         </profile>
+      <profile>
+        <id>forecast-job</id>
+        <properties>
+          <defaultProperties>forecast-job</defaultProperties>
+        </properties>
+      </profile>
+      <profile>
+        <id>insights-job</id>
+        <properties>
+          <defaultProperties>insights-job</defaultProperties>
+        </properties>
+      </profile>
+      <profile>
+        <id>measurements-job</id>
+        <properties>
+          <defaultProperties>measurements-job</defaultProperties>
+        </properties>
+      </profile>
+      <profile>
+        <id>api</id>
+        <properties>
+          <defaultProperties>api</defaultProperties>
+        </properties>
+      </profile>
+      <profile>
+        <id>metadata-job</id>
+        <properties>
+          <defaultProperties>metadata-job</defaultProperties>
+        </properties>
+      </profile>
     </profiles>
 
     <dependencies>

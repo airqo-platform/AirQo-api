@@ -1,10 +1,10 @@
 package airqo.models;
 
 public enum Frequency {
-	ROW {
+	RAW {
 		@Override
 		public String toString() {
-			return "row";
+			return "raw";
 		}
 	},
 	HOURLY {
@@ -17,12 +17,6 @@ public enum Frequency {
 		@Override
 		public String toString() {
 			return "daily";
-		}
-	},
-	MONTHLY {
-		@Override
-		public String toString() {
-			return "monthly";
 		}
 	}
 }

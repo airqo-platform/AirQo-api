@@ -1,4 +1,4 @@
-package airqo.tasks;
+package airqo.utils;
 
 import airqo.models.Device;
 import airqo.models.Site;
@@ -9,6 +9,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
@@ -17,24 +19,28 @@ import org.springframework.web.client.RestTemplate;
 import javax.annotation.PostConstruct;
 
 
+@Profile({"metadata-job"})
 @Component
-public class DbLoad {
+public class MetaDataScheduledTasks {
 
-	private static final Logger logger = LoggerFactory.getLogger(DbLoad.class);
-
+	private static final Logger logger = LoggerFactory.getLogger(MetaDataScheduledTasks.class);
 	@Autowired
 	SiteService siteService;
-
 	@Autowired
 	DeviceService deviceService;
-
-	@Value("${airqo.api}")
-	private String airqoBaseUrl;
+	@Autowired
+	private ApplicationContext context;
+	@Value("${airQoApi}")
+	private String airQoBaseUrl;
 
 	@PostConstruct
 	public void getSitesAndDevices() {
+		logger.info("getting devices");
 		getSites();
 		getDevices();
+		logger.info("exiting");
+		int exitCode = SpringApplication.exit(context, () -> 0);
+		System.exit(exitCode);
 	}
 
 	public void getSites() {
@@ -43,7 +49,7 @@ public class DbLoad {
 			RestTemplate restTemplate = new RestTemplate();
 
 			Site.SiteList airqoSites = restTemplate.getForObject(
-				String.format("%s/devices/sites?tenant=airqo", airqoBaseUrl), Site.SiteList.class);
+				String.format("%s/devices/sites?tenant=airqo", airQoBaseUrl), Site.SiteList.class);
 
 			if (airqoSites != null) {
 				logger.info(airqoSites.toString());
@@ -51,7 +57,7 @@ public class DbLoad {
 			}
 
 			Site.SiteList kccaSites = restTemplate.getForObject(
-				String.format("%s/devices/sites?tenant=kcca", airqoBaseUrl), Site.SiteList.class);
+				String.format("%s/devices/sites?tenant=kcca", airQoBaseUrl), Site.SiteList.class);
 
 			if (kccaSites != null) {
 				logger.info(kccaSites.toString());
@@ -71,7 +77,7 @@ public class DbLoad {
 
 			// AirQo
 			Device.DeviceList airqoDevices = restTemplate.getForObject(
-				String.format("%s/devices?tenant=airqo", airqoBaseUrl), Device.DeviceList.class);
+				String.format("%s/devices?tenant=airqo", airQoBaseUrl), Device.DeviceList.class);
 			if (airqoDevices != null) {
 				logger.info(airqoDevices.toString());
 				deviceService.insertDevices(airqoDevices.getDevices(), Tenant.AIRQO);
@@ -79,7 +85,7 @@ public class DbLoad {
 
 			// Kcca
 			Device.DeviceList kccaDevices = restTemplate.getForObject(
-				String.format("%s/devices?tenant=kcca", airqoBaseUrl), Device.DeviceList.class);
+				String.format("%s/devices?tenant=kcca", airQoBaseUrl), Device.DeviceList.class);
 
 			if (kccaDevices != null) {
 				logger.info(kccaDevices.toString());

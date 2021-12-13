@@ -18,7 +18,7 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-@Profile({"excluded"})
+@Profile({"kafka"})
 @Component
 public class KafkaComponent {
 
@@ -67,7 +67,7 @@ public class KafkaComponent {
 
 			ObjectMapper objectMapper = new ObjectMapper();
 			List<RawMeasurement> measurementsList = new ArrayList<>();
-			measurementService.insertMeasurements(measurementsList, new ArrayList<>());
+			measurementService.insertMeasurements(measurementsList, new ArrayList<>(), new ArrayList<>());
 			logger.info(measurementsList.toString());
 
 		} catch (Exception e) {

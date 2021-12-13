@@ -10,11 +10,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
-import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClientException;
 
+import javax.annotation.PostConstruct;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -25,22 +27,22 @@ import java.util.List;
 
 import static airqo.models.Forecast.Forecasts.refactorRecords;
 
-@Profile({"forecast-jobs-dev", "forecast-jobs-staging", "forecast-jobs-production"})
+@Profile({"forecast-job"})
 @Component
 public class ForecastScheduledTasks {
 
 	private static final Logger logger = LoggerFactory.getLogger(ForecastScheduledTasks.class);
-
 	@Autowired
 	MeasurementService measurementService;
-
 	@Autowired
 	DeviceService deviceService;
-
-	@Value("${airqo.api}")
+	@Autowired
+	private ApplicationContext context;
+	@Value("${airQoApi}")
 	private String airQoBaseUrl;
 
-	@Scheduled(cron = "${airqo.forecast.data.cronSpec}")
+	@PostConstruct
+//	@Scheduled(cron = "${airqo.forecast.data.cronSpec}")
 	public void fetchForecastData() {
 		try {
 
@@ -80,6 +82,9 @@ public class ForecastScheduledTasks {
 		} catch (RestClientException e) {
 			e.printStackTrace();
 		}
+
+		int exitCode = SpringApplication.exit(context, () -> 0);
+		System.exit(exitCode);
 	}
 
 }

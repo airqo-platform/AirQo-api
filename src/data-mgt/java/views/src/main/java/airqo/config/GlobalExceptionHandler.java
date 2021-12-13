@@ -92,8 +92,6 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(MissingServletRequestParameterException.class)
 	public ResponseEntity<ApiResponseBody> handleMissingServletRequestParameterException(HttpServletRequest request, MissingServletRequestParameterException ex) {
-		logger.error("handleMissingServletRequestParameterException {}\n", request.getRequestURI(), ex);
-		logger.error("{}", ex.getMessage());
 		return ResponseEntity
 			.badRequest()
 			.body(new ApiResponseBody("Missing request parameter", ex.getMessage()));

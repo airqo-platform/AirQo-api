@@ -1,136 +1,133 @@
 package airqo.utils;
 
+import airqo.models.*;
 import airqo.services.MeasurementService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.lang3.time.DateUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.SpringApplication;
+import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.PostConstruct;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
 
-@Profile({"staging", "production"})
+import static airqo.config.Constants.*;
+
+@Profile({"measurements-job"})
 @Component
 public class MeasurementScheduledTasks {
 
 	private static final Logger logger = LoggerFactory.getLogger(MeasurementScheduledTasks.class);
-
-	private static final SimpleDateFormat dateFormat = new SimpleDateFormat("yyy-MM-dd'T'HH:00:00'Z'");
-
+	private final HttpClient httpClient = HttpClient.newBuilder().build();
 	@Autowired
 	MeasurementService measurementService;
+	@Autowired
+	private ApplicationContext context;
+	@Value("${airQoApi}")
+	private String airQoBaseUrl;
 
-	@Value("${airqo.api}")
-	private String airqoBaseUrl;
+	@PostConstruct
+//	@Scheduled(cron = "${measurements.daily.cronSpec}")
+	public void getMeasurements() {
+		getDailyMeasurements();
+		getHourlyMeasurements();
+		int exitCode = SpringApplication.exit(context, () -> 0);
+		System.exit(exitCode);
+	}
+
+	private void getHourlyMeasurements() {
+
+		Date startTime = DateUtils.addHours(new Date(), -12);
+		List<HourlyMeasurement> airQoMeasurements = (List<HourlyMeasurement>) getMeasurements(Tenant.AIRQO, startTime, Frequency.HOURLY);
+		measurementService.insertMeasurements(new ArrayList<>(), airQoMeasurements, new ArrayList<>());
+
+		List<HourlyMeasurement> kccaMeasurements = (List<HourlyMeasurement>) getMeasurements(Tenant.KCCA, startTime, Frequency.HOURLY);
+		measurementService.insertMeasurements(new ArrayList<>(), kccaMeasurements, new ArrayList<>());
+	}
+
+	public void getDailyMeasurements() {
+
+		Date startTime = DateUtils.addDays(new Date(), -2);
+		List<DailyMeasurement> airQoMeasurements = (List<DailyMeasurement>) getMeasurements(Tenant.AIRQO, startTime, Frequency.DAILY);
+		measurementService.insertMeasurements(new ArrayList<>(), new ArrayList<>(), airQoMeasurements);
+
+		List<DailyMeasurement> kccaMeasurements = (List<DailyMeasurement>) getMeasurements(Tenant.KCCA, startTime, Frequency.DAILY);
+		measurementService.insertMeasurements(new ArrayList<>(), new ArrayList<>(), kccaMeasurements);
+	}
+
+	private Object getMeasurements(Tenant tenant, Date startTime, Frequency frequency) {
+
+		try {
+
+			SimpleDateFormat dateFormat;
+
+			switch (frequency) {
+				case RAW:
+					dateFormat = new SimpleDateFormat(longDateTimeFormat);
+					break;
+				case HOURLY:
+					dateFormat = new SimpleDateFormat(dateTimeHourlyFormat);
+					break;
+				case DAILY:
+					dateFormat = new SimpleDateFormat(dateTimeDailyFormat);
+					break;
+				default:
+					dateFormat = new SimpleDateFormat(dateTimeFormat);
+					break;
+			}
+
+			String url = airQoBaseUrl +
+				"devices/events/?frequency=" + frequency + "&recent=no&external=no&tenant=" + tenant.toString() + "&startTime="
+				+ dateFormat.format(startTime);
+
+			logger.info(url);
+			HttpRequest request = HttpRequest.newBuilder()
+				.GET()
+				.uri(URI.create(url))
+				.setHeader("Accept", "application/json")
+				.build();
 
 
-//	@Scheduled(cron = "${airqo.measurements.raw.cronSpec}")
-//	public void getRowMeasurements() {
-//
-//		RestTemplate restTemplate = new RestTemplate();
-//
-//		try {
-//			// AirQo
-//			Measurement.MeasurementsList airqoRowMeasurements = restTemplate.getForObject(
-//				String.format("%s/devices/events?tenant=airqo&frequency=raw&tenant=airqo&startTime=%s",
-//					airqoBaseUrl, dateFormat.format(DateUtils.addHours(new Date(), -1))),
-//				Measurement.MeasurementsList.class);
-//
-//			if (airqoRowMeasurements != null) {
-//				logger.info(airqoRowMeasurements.toString());
-//				measurementService.insertMeasurements(airqoRowMeasurements.getMeasurements());
-//			}
-//		} catch (RestClientException e) {
-//			e.printStackTrace();
-//		}
-//
-//		try {
-//			// Kcca
-//			Measurement.MeasurementsList kccaRowMeasurements = restTemplate.getForObject(
-//				String.format("%s/devices/events?tenant=airqo&frequency=raw&tenant=kcca&startTime=%s",
-//					airqoBaseUrl, dateFormat.format(DateUtils.addHours(new Date(), -1))),
-//				Measurement.MeasurementsList.class);
-//			if (kccaRowMeasurements != null) {
-//				logger.info(kccaRowMeasurements.toString());
-//				measurementService.insertMeasurements(kccaRowMeasurements.getMeasurements());
-//			}
-//		} catch (RestClientException e) {
-//			e.printStackTrace();
-//		}
-//
-//	}
-//
-//	@Scheduled(cron = "${airqo.measurements.hourly.cronSpec}")
-//	public void getHourlyMeasurements() {
-//
-//		RestTemplate restTemplate = new RestTemplate();
-//
-//		try {
-//			// AirQo
-//			Measurement.MeasurementsList airqoHourlyMeasurements = restTemplate.getForObject(
-//				String.format("%s/devices/events?tenant=airqo&frequency=hourly&tenant=airqo&startTime=%s",
-//					airqoBaseUrl, dateFormat.format(DateUtils.addHours(new Date(), -1))),
-//				Measurement.MeasurementsList.class);
-//			if (airqoHourlyMeasurements != null) {
-//				logger.info(airqoHourlyMeasurements.toString());
-//				measurementService.insertMeasurements(airqoHourlyMeasurements.getMeasurements());
-//			}
-//		} catch (RestClientException e) {
-//			e.printStackTrace();
-//		}
-//
-//		try {
-//			// Kcca
-//			Measurement.MeasurementsList kccaHourlyMeasurements = restTemplate.getForObject(
-//				String.format("%s/devices/events?tenant=airqo&frequency=hourly&tenant=kcca&startTime=%s",
-//					airqoBaseUrl, dateFormat.format(DateUtils.addHours(new Date(), -1))),
-//				Measurement.MeasurementsList.class);
-//			if (kccaHourlyMeasurements != null) {
-//				logger.info(kccaHourlyMeasurements.toString());
-//				measurementService.insertMeasurements(kccaHourlyMeasurements.getMeasurements());
-//			}
-//		} catch (RestClientException e) {
-//			e.printStackTrace();
-//		}
-//
-//	}
-//
-//	@Scheduled(cron = "${airqo.measurements.daily.cronSpec}")
-//	public void getDailyMeasurements() {
-//
-//		RestTemplate restTemplate = new RestTemplate();
-//
-//		try {
-//			// AirQo
-//			Measurement.MeasurementsList airqoDailyMeasurements = restTemplate.getForObject(
-//				String.format("%s/devices/events?tenant=airqo&frequency=daily&tenant=kcca&startTime=%s",
-//					airqoBaseUrl, dateFormat.format(DateUtils.addHours(new Date(), -24))),
-//				Measurement.MeasurementsList.class);
-//
-//			if (airqoDailyMeasurements != null) {
-//				logger.info(airqoDailyMeasurements.toString());
-//				measurementService.insertMeasurements(airqoDailyMeasurements.getMeasurements());
-//			}
-//		} catch (RestClientException e) {
-//			e.printStackTrace();
-//		}
-//
-//		try {
-//			// Kcca
-//			Measurement.MeasurementsList kccaDailyMeasurements = restTemplate.getForObject(
-//				String.format("%s/devices/events?tenant=airqo&frequency=daily&tenant=kcca&startTime=%s",
-//					airqoBaseUrl, dateFormat.format(DateUtils.addHours(new Date(), -24))),
-//				Measurement.MeasurementsList.class);
-//
-//			if (kccaDailyMeasurements != null) {
-//				logger.info(kccaDailyMeasurements.toString());
-//				measurementService.insertMeasurements(kccaDailyMeasurements.getMeasurements());
-//			}
-//		} catch (RestClientException e) {
-//			e.printStackTrace();
-//		}
-//
-//
-//	}
+			HttpResponse<String> httpResponse = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+			ObjectMapper objectMapper = new ObjectMapper();
+
+			switch (frequency) {
+				case RAW:
+					RawMeasurement.MeasurementsList rawMeasurements = objectMapper.readValue(httpResponse.body(),
+						RawMeasurement.MeasurementsList.class);
+
+					return rawMeasurements.getMeasurements();
+				case DAILY:
+					DailyMeasurement.MeasurementsList dailyMeasurements = objectMapper.readValue(httpResponse.body(),
+						DailyMeasurement.MeasurementsList.class);
+
+					return dailyMeasurements.getMeasurements();
+				case HOURLY:
+					HourlyMeasurement.MeasurementsList hourlyMeasurements = objectMapper.readValue(httpResponse.body(),
+						HourlyMeasurement.MeasurementsList.class);
+					return hourlyMeasurements.getMeasurements();
+				default:
+					return new ArrayList<>();
+			}
+
+
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+
+		return new ArrayList<>();
+	}
+
 }
