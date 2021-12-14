@@ -96,7 +96,7 @@ const carryOutActivity = async (
 
         const payloads = [
           {
-            topic: "activities",
+            topic: `${constants.ENV_ACRONYM}-activities`,
             messages: JSON.stringify(createdActivity),
             partition: 0,
           },

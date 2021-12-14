@@ -777,7 +777,7 @@ const createPhoto = {
         let data = responseFromRegisterPhoto.data;
         const payloads = [
           {
-            topic: "photos",
+            topic: `${constants.ENV_ACRONYM}-photos`,
             messages: JSON.stringify(data),
             partition: 0,
           },

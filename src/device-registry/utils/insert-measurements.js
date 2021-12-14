@@ -58,7 +58,7 @@ const insert = async (tenant, transformedMeasurements) => {
         eventsAdded.push(measurement);
         const payloads = [
           {
-            topic: "events",
+            topic: `${constants.ENV_ACRONYM}-events`,
             messages: JSON.stringify(measurement),
             partition: 0,
           },

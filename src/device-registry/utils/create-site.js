@@ -441,7 +441,7 @@ const manageSite = {
         let createdSite = responseFromCreateSite.data;
         const payloads = [
           {
-            topic: "sites",
+            topic: `${constants.ENV_ACRONYM}-sites`,
             messages: JSON.stringify(createdSite),
             partition: 0,
           },

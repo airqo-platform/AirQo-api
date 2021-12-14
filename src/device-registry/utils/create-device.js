@@ -629,7 +629,7 @@ const createDevice = {
       if (responseFromRegisterDevice.success === true) {
         const payloads = [
           {
-            topic: "devices",
+            topic: `${constants.ENV_ACRONYM}-devices`,
             messages: JSON.stringify(responseFromRegisterDevice.data),
             partition: 0,
           },

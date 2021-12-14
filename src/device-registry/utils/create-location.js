@@ -11,6 +11,7 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-location-util");
 const { kafkaProducer } = require("../config/kafka");
+const constants = require("../config/constants");
 
 const createLocation = {
   initialIsCapital: (word) => {
@@ -46,7 +47,7 @@ const createLocation = {
           : "";
         const payloads = [
           {
-            topic: "locations",
+            topic: `${constants.ENV_ACRONYM}-locations`,
             messages: JSON.stringify(responseFromRegisterLocation.data),
             partition: 0,
           },
