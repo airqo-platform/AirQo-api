@@ -128,7 +128,7 @@ const createAirqloud = {
       if (responseFromRegisterAirQloud.success === true) {
         const payloads = [
           {
-            topic: `${constants.ENV_ACRONYM}-airqlouds`,
+            topic: `gcp-${constants.ENV_ACRONYM}-createAirQloud-airqlouds-0`,
             messages: JSON.stringify(responseFromRegisterAirQloud.data),
             partition: 0,
           },

@@ -58,7 +58,7 @@ const insert = async (tenant, transformedMeasurements) => {
         eventsAdded.push(measurement);
         const payloads = [
           {
-            topic: `${constants.ENV_ACRONYM}-events`,
+            topic: `gcp-${constants.ENV_ACRONYM}-createEvent-events-0`,
             messages: JSON.stringify(measurement),
             partition: 0,
           },

@@ -629,7 +629,7 @@ const createDevice = {
       if (responseFromRegisterDevice.success === true) {
         const payloads = [
           {
-            topic: `${constants.ENV_ACRONYM}-devices`,
+            topic: `gcp-${constants.ENV_ACRONYM}-createDevice-devices-0`,
             messages: JSON.stringify(responseFromRegisterDevice.data),
             partition: 0,
           },

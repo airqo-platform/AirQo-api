@@ -47,7 +47,7 @@ const createLocation = {
           : "";
         const payloads = [
           {
-            topic: `${constants.ENV_ACRONYM}-locations`,
+            topic: `gcp-${constants.ENV_ACRONYM}-createLocation-locations-0`,
             messages: JSON.stringify(responseFromRegisterLocation.data),
             partition: 0,
           },

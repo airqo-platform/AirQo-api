@@ -93,10 +93,9 @@ const carryOutActivity = async (
         )
           .createLocationActivity(activityBody)
           .then((log) => (createdActivity = log));
-
         const payloads = [
           {
-            topic: `${constants.ENV_ACRONYM}-activities`,
+            topic: `gcp-${constants.ENV_ACRONYM}-createActivity-activities-0`,
             messages: JSON.stringify(createdActivity),
             partition: 0,
           },
