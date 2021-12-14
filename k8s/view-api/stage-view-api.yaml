@@ -44,16 +44,16 @@ spec:
           envFrom:
             - configMapRef:
                 name: stage-view-api-config
-          # readinessProbe:
-          #   initialDelaySeconds: 60
-          #   httpGet:
-          #     port: 8080
-          #     path: /actuator/health/readiness
-          # livenessProbe:
-          #   initialDelaySeconds: 60
-          #   httpGet:
-          #     port: 8080
-          #     path: /actuator/health/liveness
+          readinessProbe:
+            initialDelaySeconds: 60
+            httpGet:
+              port: 8080
+              path: /actuator/health/readiness
+          livenessProbe:
+            initialDelaySeconds: 60
+            httpGet:
+              port: 8080
+              path: /actuator/health/liveness
           lifecycle:
             preStop:
               exec:

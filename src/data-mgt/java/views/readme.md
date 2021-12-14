@@ -16,7 +16,7 @@ docker build --platform=linux/amd64 --target=dev -t view-api  .
 ```
 ### Using springboot
 ```bash
-./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=view-api -Dspring.profiles.active=dev
+./mvnw spring-boot:build-image -Dspring-boot.build-image.imageName=view-api -Dspring.profiles.active=api
 ```
 
 ## Other useful commands

@@ -42,7 +42,6 @@ public class ForecastScheduledTasks {
 	private String airQoBaseUrl;
 
 	@PostConstruct
-//	@Scheduled(cron = "${airqo.forecast.data.cronSpec}")
 	public void fetchForecastData() {
 		try {
 

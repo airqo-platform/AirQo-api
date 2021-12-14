@@ -39,7 +39,6 @@ public class MeasurementScheduledTasks {
 	private String airQoBaseUrl;
 
 	@PostConstruct
-//	@Scheduled(cron = "${measurements.daily.cronSpec}")
 	public void getMeasurements() {
 		getDailyMeasurements();
 		getHourlyMeasurements();

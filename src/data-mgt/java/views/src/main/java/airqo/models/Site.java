@@ -62,7 +62,6 @@ public class Site implements Serializable {
 	private Collection<String> tags;
 	@JsonAlias("devices")
 	@DBRef
-//	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private Collection<Device> devices = new ArrayList<>();
 
 	@JsonAlias("nearest_tahmo_station")

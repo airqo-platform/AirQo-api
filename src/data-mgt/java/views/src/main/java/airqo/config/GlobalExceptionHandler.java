@@ -108,7 +108,6 @@ public class GlobalExceptionHandler {
 		Map<String, String> details = new HashMap<>();
 		details.put("paramName", ex.getName());
 		details.put("paramValue", ofNullable(ex.getValue()).map(Object::toString).orElse(""));
-//        details.put("errorMessage", ex.getMessage());
 
 		return ResponseEntity
 			.badRequest()

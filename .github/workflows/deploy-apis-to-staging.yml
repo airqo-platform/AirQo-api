@@ -40,7 +40,7 @@ jobs:
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
       run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
-      run_views: ${{ steps.check_files.outputs.run_views }} # datawarehouse
+      run_views: ${{ steps.check_files.outputs.run_views }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
