@@ -20,9 +20,13 @@ public interface MeasurementService {
 
 	void insertInsights(List<Insight> insights);
 
+	void insertInsight(Insight insight);
+
 	void deleteInsightsBefore(Date startTime);
 
 	void insertForecast(List<Forecast> forecasts);
+
+	void insertForecast(Forecast forecast);
 
 	List<Forecast> getForecasts(Date startTime, Device device);
 
@@ -34,4 +38,6 @@ public interface MeasurementService {
 
 	void insertMeasurements(List<RawMeasurement> rawMeasurements,
 							List<HourlyMeasurement> hourlyMeasurements, List<DailyMeasurement> dailyMeasurements);
+
+	void insertMeasurement(RawMeasurement rawMeasurement, HourlyMeasurement hourlyMeasurement, DailyMeasurement dailyMeasurement);
 }
