@@ -1,7 +1,7 @@
 var log4js = require("log4js");
 var express = require("express");
 var path = require("path");
-var log = log4js.getLogger("app");
+var logger = log4js.getLogger("app");
 
 const dotenv = require("dotenv");
 var bodyParser = require("body-parser");
