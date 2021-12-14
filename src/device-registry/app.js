@@ -34,6 +34,7 @@ app.use(function(req, res, next) {
 });
 
 app.use(function(err, req, res, next) {
+  logger.error(`${err.message}`);
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,
