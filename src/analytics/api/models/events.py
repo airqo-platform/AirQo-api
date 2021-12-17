@@ -1,3 +1,5 @@
+import pytz
+from datetime import datetime
 from api.models.base.base_model import BasePyMongoModel
 
 from main import cache
@@ -183,7 +185,8 @@ class EventsModel(BasePyMongoModel):
             'raw': '%Y-%m-%dT%H:%M:%S%z',
             'hourly': '%Y-%m-%dT%H:00:00%z',
             'daily': '%Y-%m-%dT00:00:00%z',
-            'monthly': '%Y-%m-01T00:00:00%z'
+            'monthly': '%Y-%m-01T00:00:00%z',
+            'diurnal': f'{datetime.now(pytz.utc).strftime("%Y-%m-%d")}T%H:00:00%z',
         }
 
         return (
