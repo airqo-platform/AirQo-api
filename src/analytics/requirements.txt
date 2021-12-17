@@ -6,6 +6,7 @@ Flask-Caching
 flasgger
 pandas
 pymongo
+pytz
 flask_pymongo
 python-decouple
 python-dotenv

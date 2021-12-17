@@ -9,6 +9,8 @@ load_dotenv(dotenv_path=env_path, verbose=True)
 
 TWO_HOURS = 7200 # seconds
 
+BASE_URL = "/api/v1/analytics"
+
 
 class Config:
     DEBUG = False
@@ -46,7 +48,8 @@ class Config:
         },
         'ui_params_text': '''{
             "operationsSorter" : (a, b) => a.get("path").localeCompare(b.get("path"))
-        }'''
+        }''',
+        "url_prefix": f"{BASE_URL}"
     }
 
 
