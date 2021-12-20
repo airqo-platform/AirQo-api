@@ -2,8 +2,10 @@ package airqo.repository;
 
 import airqo.models.QSite;
 import airqo.models.Site;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.querydsl.core.types.dsl.StringPath;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.data.querydsl.QuerydslPredicateExecutor;
 import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
 import org.springframework.data.querydsl.binding.QuerydslBindings;

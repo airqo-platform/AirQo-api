@@ -3,6 +3,7 @@ package airqo.models;
 import com.fasterxml.jackson.annotation.*;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -38,20 +39,29 @@ public class Device implements Serializable {
 
 	@DBRef
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
+	@Indexed
 	private Site site = new Site();
 
+	@Indexed
 	private String name = "";
+
+	@Indexed
 	private String tenant = "";
 	private String mountType = "";
 	private Double height;
+
+	@Indexed
 	private boolean primaryInLocation = false;
 
 	@JsonIgnore
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
 	private Date nextMaintenance = new Date();
+
+	@Indexed
 	private boolean isActive = false;
 
 	@JsonAlias("device_number")
+	@Indexed
 	private Integer deviceNumber = 0;
 	private String description = "";
 

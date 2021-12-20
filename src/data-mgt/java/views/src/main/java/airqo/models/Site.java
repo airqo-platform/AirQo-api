@@ -6,6 +6,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.geo.GeoJsonPoint;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
+import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
@@ -30,8 +33,7 @@ public class Site implements Serializable {
 	@Id
 	@JsonAlias("_id")
 	public String id;
-	@JsonIgnore
-	GeoJsonPoint location;
+	@Indexed
 	@JsonAlias("lat_long")
 	private String latLong;
 	@JsonAlias("formatted_name")
@@ -66,7 +68,11 @@ public class Site implements Serializable {
 
 	@JsonAlias("nearest_tahmo_station")
 	private Tahmo tahmo;
+
+	@Indexed
 	private String tenant = "";
+
+	@Indexed
 	private String name = "";
 	private String description = "";
 	private Double latitude;

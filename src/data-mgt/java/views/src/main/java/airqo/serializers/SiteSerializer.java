@@ -31,8 +31,8 @@ public class SiteSerializer {
 			jGen.writeStringField("tenant", site.getTenant());
 			jGen.writeStringField("description", site.getDescription());
 
-			jGen.writeNumberField("latitude", site.getLatitude());
-			jGen.writeNumberField("longitude", site.getLongitude());
+			jGen.writeObjectField("latitude", site.getLatitude());
+			jGen.writeObjectField("longitude", site.getLongitude());
 			jGen.writeStringField("street", site.getStreet());
 			jGen.writeStringField("city", site.getCity());
 			jGen.writeStringField("subCounty", site.getSub_county());
