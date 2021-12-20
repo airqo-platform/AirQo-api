@@ -28,32 +28,23 @@ spec:
         - name: views-api
           image: us.gcr.io/airqo-250220/airqo-stage-views-api:latest
           imagePullPolicy: Always
-          resources:
-            requests:
-              memory: 256Mi
-              cpu: "200m"
-            limits:
-              memory: 700Mi
-              cpu: "1000m"
+          resources: {}
           ports:
             - containerPort: 8080
               name: views-api
-          env:
-            - name: JAVA_OPTIONS
-              value: -Dspring.profiles.active=staging
           envFrom:
             - configMapRef:
                 name: stage-view-api-config
           readinessProbe:
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             httpGet:
               port: 8080
-              path: /actuator/health/readiness
+              path: api/v1/views/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             httpGet:
               port: 8080
-              path: /actuator/health/liveness
+              path: api/v1/views/actuator/health/liveness
           lifecycle:
             preStop:
               exec:

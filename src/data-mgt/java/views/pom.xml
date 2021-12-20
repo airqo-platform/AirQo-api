@@ -112,13 +112,6 @@
       <scope>test</scope>
     </dependency>
 
-    <!--Config maps -->
-    <dependency>
-      <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter-kubernetes-config</artifactId>
-      <version>0.3.0.RELEASE</version>
-    </dependency>
-
     <!--Apache -->
     <dependency>
       <groupId>org.apache.commons</groupId>
@@ -179,18 +172,6 @@
       <artifactId>querydsl-apt</artifactId>
     </dependency>
   </dependencies>
-
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>org.springframework.cloud</groupId>
-        <artifactId>spring-cloud-dependencies</artifactId>
-        <version>${spring-cloud.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
 
   <build>
     <plugins>

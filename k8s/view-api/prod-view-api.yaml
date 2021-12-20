@@ -38,22 +38,19 @@ spec:
           ports:
             - containerPort: 8080
               name: views-api
-          env:
-            - name: JAVA_OPTIONS
-              value: -Dspring.profiles.active=production
           envFrom:
             - configMapRef:
                 name: prod-view-api-config
           readinessProbe:
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             httpGet:
               port: 8080
-              path: /actuator/health/readiness
+              path: api/v1/views/actuator/health/readiness
           livenessProbe:
-            initialDelaySeconds: 60
+            initialDelaySeconds: 30
             httpGet:
               port: 8080
-              path: /actuator/health/liveness
+              path: api/v1/views/actuator/health/liveness
           lifecycle:
             preStop:
               exec:

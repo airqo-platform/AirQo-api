@@ -19,7 +19,7 @@ spec:
         spec:
           containers:
               - name: insights-job
-                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
                 resources:
                   requests:
@@ -35,7 +35,7 @@ spec:
                     value: -Dspring.profiles.active=insights-job
                 envFrom:
                   - configMapRef:
-                      name: views-job-config
+                      name: stage-view-jobs-config
           dnsPolicy: ClusterFirst
           restartPolicy: OnFailure
           schedulerName: default-scheduler
@@ -64,7 +64,7 @@ spec:
         spec:
           containers:
               - name: forecast-job
-                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
                 resources:
                   requests:
@@ -80,7 +80,7 @@ spec:
                     value: -Dspring.profiles.active=forecast-job
                 envFrom:
                   - configMapRef:
-                      name: views-job-config
+                      name: stage-view-jobs-config
           dnsPolicy: ClusterFirst
           restartPolicy: OnFailure
           schedulerName: default-scheduler
@@ -109,7 +109,7 @@ spec:
         spec:
           containers:
               - name: metadata-job
-                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
                 resources:
                   requests:
@@ -125,7 +125,7 @@ spec:
                     value: -Dspring.profiles.active=metadata-job
                 envFrom:
                   - configMapRef:
-                      name: views-job-config
+                      name: stage-view-jobs-config
           dnsPolicy: ClusterFirst
           restartPolicy: OnFailure
           schedulerName: default-scheduler
@@ -154,7 +154,7 @@ spec:
         spec:
           containers:
               - name: measurements-job
-                image: us.gcr.io/airqo-250220/stage-airqo-views-job:latest
+                image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
                 resources:
                   requests:
@@ -170,7 +170,7 @@ spec:
                     value: -Dspring.profiles.active=measurements-job
                 envFrom:
                   - configMapRef:
-                      name: views-job-config
+                      name: stage-view-jobs-config
           dnsPolicy: ClusterFirst
           restartPolicy: OnFailure
           schedulerName: default-scheduler
