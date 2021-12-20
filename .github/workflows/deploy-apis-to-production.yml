@@ -43,6 +43,7 @@ jobs:
       run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
       run_views: ${{ steps.check_files.outputs.run_views }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
+      run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
 
@@ -77,6 +78,7 @@ jobs:
           echo "::set-output name=run_datawarehouse::false"
           echo "::set-output name=run_views::false"
           echo "::set-output name=run_calibrate::false"
+          echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
 
@@ -137,7 +139,11 @@ jobs:
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
-            
+
+            if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
+              echo "::set-output name=run_average_jobs::true"
+            fi
+
             if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
               echo "::set-output name=run_events_check::true"
             fi
@@ -150,6 +156,7 @@ jobs:
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
+              echo "::set-output name=run_average_jobs::true"
               echo "::set-output name=run_datawarehouse::true"
               echo "::set-output name=run_exceedances::true"
               echo "::set-output name=run_gp_model::true"
@@ -671,6 +678,45 @@ jobs:
           kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+
+  ### averages and calibration jobs ###
+  averages:
+    name: build-push-deploy-average-and-calibration-jobs
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_average_jobs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/data-mgt/python/cron-jobs/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:latest
+
+      - name: Deploy to K8S
+        run: |
+          cd src/data-mgt/python/cron-jobs/
+          sh 'cat prod-calibrate-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
+          sh 'cat prod-airqo-daily-average-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
 
   ### events check ###
   events-check:
