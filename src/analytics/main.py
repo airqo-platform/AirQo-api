@@ -17,10 +17,10 @@ from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 
 # Config
-from config import config
+from config import config, BASE_URL
 
 config_name = env_config('FLASK_ENV', 'production')
-rest_api = Api(prefix='/api/v1/analytics', doc=False)
+rest_api = Api(prefix=BASE_URL, doc=False)
 cache = Cache()
 
 
