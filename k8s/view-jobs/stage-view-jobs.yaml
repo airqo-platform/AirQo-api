@@ -21,13 +21,6 @@ spec:
               - name: insights-job
                 image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
-                resources:
-                  requests:
-                    memory: 256Mi
-                    cpu: "500m"
-                  limits:
-                    memory: 1Gi
-                    cpu: "2000m"
                 env:
                   - name: spring.profiles.active
                     value: insights-job 
@@ -66,13 +59,6 @@ spec:
               - name: forecast-job
                 image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
-                resources:
-                  requests:
-                    memory: 256Mi
-                    cpu: "500m"
-                  limits:
-                    memory: 1Gi
-                    cpu: "2000m"
                 env:
                   - name: spring.profiles.active
                     value: forecast-job
@@ -111,13 +97,6 @@ spec:
               - name: metadata-job
                 image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
-                resources:
-                  requests:
-                    memory: 256Mi
-                    cpu: "500m"
-                  limits:
-                    memory: 1Gi
-                    cpu: "2000m"
                 env:
                   - name: spring.profiles.active
                     value: metadata-job
@@ -156,13 +135,6 @@ spec:
               - name: measurements-job
                 image: us.gcr.io/airqo-250220/stage-airqo-view-jobs:latest
                 imagePullPolicy: Always
-                resources:
-                  requests:
-                    memory: 256Mi
-                    cpu: "500m"
-                  limits:
-                    memory: 1Gi
-                    cpu: "2000m"
                 env:
                   - name: spring.profiles.active
                     value: measurements-job

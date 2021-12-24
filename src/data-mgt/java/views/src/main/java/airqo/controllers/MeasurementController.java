@@ -125,7 +125,7 @@ public class MeasurementController {
 		}
 
 		List<Insight> insights = measurementService
-			.getInsights(queryFrequency, startDateTime, endDateTime, tenant, siteId);
+			.getForecastInsightsBefore(queryFrequency, startDateTime, endDateTime, tenant, siteId);
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);

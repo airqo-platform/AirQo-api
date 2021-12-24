@@ -10,6 +10,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
+import java.util.List;
 
 @Repository
 public interface InsightRepository extends MongoRepository<Insight, String>, QuerydslPredicateExecutor<Insight>, QuerydslBinderCustomizer<QInsight> {
@@ -18,5 +19,9 @@ public interface InsightRepository extends MongoRepository<Insight, String>, Que
 	default void customize(@NonNull QuerydslBindings querydslBindings, @NonNull QInsight qInsight) {
 	}
 
-	void deleteAllByTimeBefore(Date startTime);
+	void deleteAllByTimeBefore(Date time);
+
+	void deleteAllByTimeAfter(Date time);
+
+	List<Insight> findAllByTimeBeforeAndIsForecast(Date time, boolean forecast);
 }

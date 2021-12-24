@@ -52,9 +52,9 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId) {
+	public List<Insight> getForecastInsightsBefore(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId) {
 		QInsight qInsight = new QInsight("frequency");
-		Predicate predicate = qInsight.frequency.eq(frequency.toString())
+		Predicate predicate = qInsight.frequency.eq(frequency)
 			.and(qInsight.siteId.eq(siteId))
 			.and(
 				qInsight.time.between(startTime, endTime).or(qInsight.time.eq(startTime)).or(qInsight.time.eq(endTime))
@@ -63,16 +63,20 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
+	public List<Insight> getForecastInsightsBefore(Date beforeTime) {
+		return insightRepository.findAllByTimeBeforeAndIsForecast(beforeTime, true);
+	}
+
+	@Override
 	public void insertInsights(List<Insight> insights) {
-		logger.info("inserting insights");
-		for(Insight insight : insights){
+		for (Insight insight : insights) {
 			insertInsight(insight);
 		}
 	}
 
 	@Override
 	public void insertInsight(Insight insight) {
-		if(insight != null){
+		if (insight != null) {
 			try {
 				insightRepository.save(insight);
 			} catch (Exception e) {
@@ -82,20 +86,21 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public void deleteInsightsBefore(Date startTime) {
-		insightRepository.deleteAllByTimeBefore(startTime);
+	public void deleteInsights(Date laterDate, Date afterDate) {
+		insightRepository.deleteAllByTimeBefore(laterDate);
+		insightRepository.deleteAllByTimeAfter(afterDate);
 	}
 
 	@Override
 	public void insertForecast(List<Forecast> forecasts) {
-		for(Forecast forecast : forecasts){
+		for (Forecast forecast : forecasts) {
 			insertForecast(forecast);
 		}
 	}
 
 	@Override
 	public void insertForecast(Forecast forecast) {
-		if(forecast != null){
+		if (forecast != null) {
 			try {
 				forecastRepository.save(forecast);
 			} catch (Exception e) {
@@ -140,6 +145,28 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
+	public List<HourlyMeasurement> getRecentHourlyMeasurements(Device device, Tenant tenant) {
+		List<HourlyMeasurement> measurements = new ArrayList<>();
+		if (device == null) {
+
+			List<Device> devices = deviceService.getDevices(tenant);
+			for (Device tenantDevice : devices) {
+				HourlyMeasurement measurement = hourlyMeasurementRepository.findTopByDeviceOrderByTimeDesc(tenantDevice);
+				if (measurement != null) {
+					measurements.add(measurement);
+				}
+			}
+
+		} else {
+			HourlyMeasurement measurement = hourlyMeasurementRepository.findTopByDeviceOrderByTimeDesc(device);
+			if (measurement != null) {
+				measurements.add(measurement);
+			}
+		}
+		return measurements;
+	}
+
+	@Override
 	public List<DailyMeasurement> getDailyMeasurements(Device device, @NonNull Date startTime, @NonNull Tenant tenant) {
 		if (device == null) {
 
@@ -163,36 +190,36 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Override
 	public void insertMeasurements(List<RawMeasurement> rawMeasurements, List<HourlyMeasurement> hourlyMeasurements,
 								   List<DailyMeasurement> dailyMeasurements) {
-		for(HourlyMeasurement hourlyMeasurement : hourlyMeasurements){
+		for (HourlyMeasurement hourlyMeasurement : hourlyMeasurements) {
 			insertMeasurement(null, hourlyMeasurement, null);
 		}
 
-		for(DailyMeasurement dailyMeasurement : dailyMeasurements){
+		for (DailyMeasurement dailyMeasurement : dailyMeasurements) {
 			insertMeasurement(null, null, dailyMeasurement);
 		}
 
-		for(RawMeasurement rawMeasurement : rawMeasurements){
+		for (RawMeasurement rawMeasurement : rawMeasurements) {
 			insertMeasurement(rawMeasurement, null, null);
 		}
 	}
 
 	@Override
 	public void insertMeasurement(RawMeasurement rawMeasurement, HourlyMeasurement hourlyMeasurement, DailyMeasurement dailyMeasurement) {
-		if(rawMeasurement != null){
+		if (rawMeasurement != null) {
 			try {
 				rawMeasurementRepository.save(rawMeasurement);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
-		if(hourlyMeasurement != null){
+		if (hourlyMeasurement != null) {
 			try {
 				hourlyMeasurementRepository.save(hourlyMeasurement);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
-		if(dailyMeasurement != null){
+		if (dailyMeasurement != null) {
 			try {
 				dailyMeasurementRepository.save(dailyMeasurement);
 			} catch (Exception e) {

@@ -24,4 +24,7 @@ public interface HourlyMeasurementRepository extends MongoRepository<HourlyMeasu
 	}
 
 	List<HourlyMeasurement> findAllByDeviceAndTimeGreaterThanEqual(Device device, Date startTime);
+
+	HourlyMeasurement findTopByDeviceOrderByTimeDesc(Device device);
+
 }

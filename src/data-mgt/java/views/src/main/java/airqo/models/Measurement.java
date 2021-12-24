@@ -31,10 +31,6 @@ public class Measurement implements Serializable {
 	@JsonAlias("device_id")
 	private String deviceId = "";
 
-	@Transient
-	@JsonAlias("siteDetails")
-	private Site site = new Site();
-
 	@DBRef
 	@JsonAlias("deviceDetails")
 	@JsonProperty("deviceDetails")
@@ -69,6 +65,13 @@ public class Measurement implements Serializable {
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class MeasurementValue implements Serializable {
 		Double value, calibratedValue, uncertaintyValue, standardDeviationValue;
+
+		public Double getValue() {
+			if (calibratedValue == null) {
+				return value;
+			}
+			return calibratedValue;
+		}
 	}
 
 	@Getter

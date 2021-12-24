@@ -16,13 +16,15 @@ public interface MeasurementService {
 
 	Page<RawMeasurement> getRawMeasurements(Pageable pageable, Predicate predicate);
 
-	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
+	List<Insight> getForecastInsightsBefore(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
+
+	List<Insight> getForecastInsightsBefore(Date beforeTime);
 
 	void insertInsights(List<Insight> insights);
 
 	void insertInsight(Insight insight);
 
-	void deleteInsightsBefore(Date startTime);
+	void deleteInsights(Date laterDate, Date afterDate);
 
 	void insertForecast(List<Forecast> forecasts);
 
@@ -33,6 +35,8 @@ public interface MeasurementService {
 	Page<HourlyMeasurement> getHourlyMeasurements(Pageable pageable, Predicate predicate);
 
 	List<HourlyMeasurement> getHourlyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant);
+
+	List<HourlyMeasurement> getRecentHourlyMeasurements(@Nullable Device device, @Nullable Tenant tenant);
 
 	List<DailyMeasurement> getDailyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant);
 
