@@ -16,9 +16,10 @@ const ObjectId = mongoose.Types.ObjectId;
 const numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 const createAirQloudUtil = require("../utils/create-location");
-const { logElement } = require("../utils/log");
+const { logElement, logText } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
+const decimalPlaces = require("decimal-places");
 
 middlewareConfig(router);
 
@@ -214,6 +215,16 @@ router.put(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -225,6 +236,16 @@ router.put(
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -377,6 +398,16 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -388,6 +419,16 @@ router.post(
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -750,6 +791,16 @@ router.put(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -761,6 +812,16 @@ router.put(
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -1086,6 +1147,16 @@ router.put(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -1097,6 +1168,16 @@ router.put(
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -1885,6 +1966,16 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("the latitude provided is not valid")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -1896,6 +1987,16 @@ router.post(
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("the longitude provided is not valid")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -2140,6 +2241,16 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("the latitude provided is not valid")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -2151,6 +2262,16 @@ router.post(
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("the longitude provided is not valid")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -2197,6 +2318,16 @@ router.post(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("the latitude provided is not valid")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -2208,6 +2339,16 @@ router.post(
         .bail()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("the longitude should be provided")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -2441,6 +2582,16 @@ router.put(
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -2452,6 +2603,16 @@ router.put(
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
@@ -2574,6 +2735,16 @@ router.get(
         .matches(constants.LONGITUDE_REGEX, "i")
         .withMessage("please provide valid longitude value")
         .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
+        .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
         })
@@ -2595,6 +2766,16 @@ router.get(
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
         .withMessage("please provide valid latitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
         .bail()
         .customSanitizer((value) => {
           return numeral(value).format("0.00000");
