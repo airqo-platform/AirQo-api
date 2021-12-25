@@ -41,21 +41,37 @@ public class Measurement implements Serializable {
 	private Date time = new Date();
 
 	@JsonAlias("hdop")
-	private MeasurementValue hDop;
+	private MeasurementValue hDop = new MeasurementValue();
 
-	private String frequency;
-	private Location location;
-	private MeasurementValue internalTemperature;
-	private MeasurementValue internalHumidity;
-	private MeasurementValue externalTemperature;
-	private MeasurementValue externalHumidity;
-	private MeasurementValue externalPressure;
-	private MeasurementValue speed;
-	private MeasurementValue altitude;
-	private MeasurementValue pm1;
-	private MeasurementValue pm10;
-	private MeasurementValue pm2_5;
-	private MeasurementValue no2;
+	private String frequency = "";
+	private Location location = new Location();
+	private MeasurementValue internalTemperature = new MeasurementValue();
+	private MeasurementValue internalHumidity = new MeasurementValue();
+	private MeasurementValue externalTemperature = new MeasurementValue();
+	private MeasurementValue externalHumidity = new MeasurementValue();
+	private MeasurementValue externalPressure = new MeasurementValue();
+	private MeasurementValue speed = new MeasurementValue();
+	private MeasurementValue altitude = new MeasurementValue();
+	private MeasurementValue pm1 = new MeasurementValue();
+	private MeasurementValue pm10 = new MeasurementValue();
+	private MeasurementValue pm2_5 = new MeasurementValue();
+	private MeasurementValue no2 = new MeasurementValue();
+
+	public void setLocation(Location location) {
+		if(location.latitude == null || location.longitude == null){
+			this.location = new Location(device.getLatitude(), device.getLongitude());
+		}
+		else{
+			this.location = location;
+		}
+	}
+
+	public Location getLocation() {
+		if(location.latitude == null || location.longitude == null){
+			return new Location(device.getLatitude(), device.getLongitude());
+		}
+		return location;
+	}
 
 	@Getter
 	@Setter

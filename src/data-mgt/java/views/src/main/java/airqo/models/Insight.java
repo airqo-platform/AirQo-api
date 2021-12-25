@@ -41,7 +41,7 @@ public class Insight implements Serializable {
 	private Boolean isForecast = false;
 	private String name;
 	private String location;
-	private Frequency frequency;
+	private String frequency;
 	private String siteId;
 
 	public Insight(Date time, double pm2_5, double pm10, Boolean isEmpty, Boolean isForecast, String name, String location, Frequency frequency, String siteId) {
@@ -52,7 +52,7 @@ public class Insight implements Serializable {
 		this.isForecast = isForecast;
 		this.name = name;
 		this.location = location;
-		this.frequency = frequency;
+		this.frequency = frequency.toString();
 		this.siteId = siteId;
 		this.id = new InsightId(time, frequency, siteId);
 	}

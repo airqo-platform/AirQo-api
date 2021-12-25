@@ -61,7 +61,7 @@ public class InsightsScheduledTasks {
 		measurementService.deleteInsights(startTime, endTime);
 
 		logger.info("Formatting forecast measurements .......");
-		List<Insight> insights = measurementService.getForecastInsightsBefore(new Date());
+		List<Insight> insights = measurementService.getInsights(new Date());
 		List<Insight> formattedInsights = new ArrayList<>();
 		for (Insight insight : insights) {
 			insight.setIsForecast(false);

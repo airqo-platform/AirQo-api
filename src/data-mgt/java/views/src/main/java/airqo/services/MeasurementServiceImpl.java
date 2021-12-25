@@ -41,7 +41,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 	ForecastRepository forecastRepository;
 
 	@Override
-	public Page<RawMeasurement> getRawMeasurements(Pageable pageable, MultiValueMap<String, String> parameters) {
+	public Page<RawMeasurement> getRawMeasurements(Pageable pageable, MultiValueMap<String, Object> parameters) {
 		return rawMeasurementRepository.findAll(pageable);
 	}
 
@@ -52,9 +52,9 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Insight> getForecastInsightsBefore(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId) {
+	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId) {
 		QInsight qInsight = new QInsight("frequency");
-		Predicate predicate = qInsight.frequency.eq(frequency)
+		Predicate predicate = qInsight.frequency.eq(frequency.toString())
 			.and(qInsight.siteId.eq(siteId))
 			.and(
 				qInsight.time.between(startTime, endTime).or(qInsight.time.eq(startTime)).or(qInsight.time.eq(endTime))
@@ -63,15 +63,13 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Insight> getForecastInsightsBefore(Date beforeTime) {
+	public List<Insight> getInsights(Date beforeTime) {
 		return insightRepository.findAllByTimeBeforeAndIsForecast(beforeTime, true);
 	}
 
 	@Override
 	public void insertInsights(List<Insight> insights) {
-		for (Insight insight : insights) {
-			insertInsight(insight);
-		}
+		insightRepository.saveAll(insights);
 	}
 
 	@Override

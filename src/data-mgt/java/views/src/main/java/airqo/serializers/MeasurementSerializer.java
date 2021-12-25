@@ -4,9 +4,9 @@ import airqo.models.Device;
 import airqo.models.Measurement;
 import airqo.models.Site;
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.databind.JsonSerializer;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.*;
 import org.springframework.boot.jackson.JsonComponent;
 
 import java.io.IOException;
@@ -41,14 +41,28 @@ public class MeasurementSerializer {
 
 			jGen.writeObjectField("pm2_5", getAllValues(measurement.getPm2_5()));
 			jGen.writeObjectField("pm10", getAllValues(measurement.getPm10()));
-			jGen.writeObjectField("pm1", getAllValues(measurement.getPm1()));
-			jGen.writeObjectField("no2", getAllValues(measurement.getNo2()));
+
 			jGen.writeObjectField("externalTemperature", getValue(measurement.getExternalTemperature()));
 			jGen.writeObjectField("externalHumidity", getValue(measurement.getExternalHumidity()));
-			jGen.writeObjectField("externalPressure", getValue(measurement.getExternalPressure()));
-			jGen.writeObjectField("speed", getValue(measurement.getPm1()));
-			jGen.writeObjectField("altitude", getValue(measurement.getNo2()));
+
 			jGen.writeObjectField("location", measurement.getLocation());
+
+			if(measurement.getDevice().getTenant().equalsIgnoreCase("kcca")) {
+				jGen.writeObjectField("pm1", getAllValues(measurement.getPm1()));
+				jGen.writeObjectField("no2", getAllValues(measurement.getNo2()));
+			}
+
+			if(measurement.getExternalPressure().getValue() != null){
+				jGen.writeObjectField("externalPressure", getValue(measurement.getExternalPressure()));
+			}
+
+			if(measurement.getSpeed().getValue() != null){
+				jGen.writeObjectField("speed", getValue(measurement.getSpeed()));
+			}
+
+			if(measurement.getAltitude().getValue() != null){
+				jGen.writeObjectField("altitude", getValue(measurement.getAltitude()));
+			}
 
 			jGen.writeObjectField("device", deviceView);
 			jGen.writeObjectField("site", siteView);
@@ -70,6 +84,5 @@ public class MeasurementSerializer {
 		}
 
 	}
-
 }
 

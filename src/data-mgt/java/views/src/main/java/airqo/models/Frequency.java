@@ -4,19 +4,19 @@ public enum Frequency {
 	RAW {
 		@Override
 		public String toString() {
-			return "raw";
+			return "RAW";
 		}
 	},
 	HOURLY {
 		@Override
 		public String toString() {
-			return "hourly";
+			return "HOURLY";
 		}
 	},
 	DAILY {
 		@Override
 		public String toString() {
-			return "daily";
+			return "DAILY";
 		}
 	}
 }

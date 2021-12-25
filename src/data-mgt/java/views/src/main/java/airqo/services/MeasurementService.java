@@ -12,13 +12,13 @@ import java.util.Date;
 import java.util.List;
 
 public interface MeasurementService {
-	Page<RawMeasurement> getRawMeasurements(Pageable pageable, MultiValueMap<String, String> parameters);
+	Page<RawMeasurement> getRawMeasurements(Pageable pageable, MultiValueMap<String, Object> parameters);
 
 	Page<RawMeasurement> getRawMeasurements(Pageable pageable, Predicate predicate);
 
-	List<Insight> getForecastInsightsBefore(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
+	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
 
-	List<Insight> getForecastInsightsBefore(Date beforeTime);
+	List<Insight> getInsights(Date beforeTime);
 
 	void insertInsights(List<Insight> insights);
 

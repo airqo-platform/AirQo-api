@@ -2,6 +2,7 @@ package airqo.repository;
 
 import airqo.models.Insight;
 import airqo.models.QInsight;
+import com.querydsl.core.types.dsl.StringPath;
 import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.data.querydsl.QuerydslPredicateExecutor;
 import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
@@ -17,6 +18,9 @@ public interface InsightRepository extends MongoRepository<Insight, String>, Que
 
 	@Override
 	default void customize(@NonNull QuerydslBindings querydslBindings, @NonNull QInsight qInsight) {
+		querydslBindings.bind(String.class).first(
+			(StringPath path, String value) -> path.containsIgnoreCase(value));
+		querydslBindings.excluding(qInsight.id);
 	}
 
 	void deleteAllByTimeBefore(Date time);

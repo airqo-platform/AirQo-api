@@ -43,8 +43,15 @@ public class MeasurementController {
 	@GetMapping("")
 	public ResponseEntity<?> getMeasurements(
 		@PageableDefault(sort = "time") Pageable pageable,
-		@RequestParam MultiValueMap<String, String> parameters
+		@RequestParam MultiValueMap<String, Object> parameters
 	) {
+
+		if(parameters.containsKey("recent")){
+			List<HourlyMeasurement> measurements = measurementService.getRecentHourlyMeasurements(null, null);
+
+			ApiResponseBody httpResponseBody = new ApiResponseBody("Operation Successful", measurements);
+			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.OK);
+		}
 		logger.info(String.valueOf(parameters));
 		Page<RawMeasurement> measurements = measurementService.getRawMeasurements(pageable, parameters);
 		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
@@ -125,7 +132,7 @@ public class MeasurementController {
 		}
 
 		List<Insight> insights = measurementService
-			.getForecastInsightsBefore(queryFrequency, startDateTime, endDateTime, tenant, siteId);
+			.getInsights(queryFrequency, startDateTime, endDateTime, tenant, siteId);
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
