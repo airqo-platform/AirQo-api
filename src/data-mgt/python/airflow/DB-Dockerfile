@@ -1,0 +1,3 @@
+FROM postgres
+COPY airflow-db-setup.sh airflow-db-setup.sh
+CMD ["/bin/sh", "airflow-db-setup.sh"]

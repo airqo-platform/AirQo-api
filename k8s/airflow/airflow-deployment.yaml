@@ -4,10 +4,15 @@ metadata:
   name: airflow
   namespace: airflow
 spec:
-  replicas: 1
   selector:
     matchLabels:
       app: airflow
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   template:
     metadata:
       labels:
