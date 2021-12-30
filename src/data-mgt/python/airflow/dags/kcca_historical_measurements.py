@@ -37,19 +37,19 @@ def create_dag(dag_id, start_time, end_time, file_name, freq):
         clean_data = PythonOperator(
             task_id='clean_data',
             python_callable=clean_kcca_measurements,
-            op_args=[f'kcca_{file_name}_uncleaned_data.csv', f'kcca_{file_name}_cleaned_data.csv']
+            op_args=[f'kcca_{file_name}_uncleaned_data.csv', f'kcca_{file_name}_cleaned_data.json']
         )
 
         save_data = PythonOperator(
             task_id='save_data',
             python_callable=save_measurements,
-            op_args=[f'kcca_{file_name}_cleaned_data.csv', 'kcca']
+            op_args=[f'kcca_{file_name}_cleaned_data.json', 'kcca']
         )
 
         clean_up = PythonOperator(
             task_id='clean_up',
             python_callable=clean_up_task,
-            op_args=[[f'kcca_{file_name}_uncleaned_data.csv', f'kcca_{file_name}_cleaned_data.csv']]
+            op_args=[[f'kcca_{file_name}_uncleaned_data.csv', f'kcca_{file_name}_cleaned_data.json']]
         )
 
         fetch_data.set_downstream(clean_data)
@@ -59,7 +59,7 @@ def create_dag(dag_id, start_time, end_time, file_name, freq):
     return dag
 
 
-for year in ["2019", "2020", "2021", "2022", "2023"]:
+for year in ["2019", "2020", "2021", "2022"]:
     if int(year) > today.year:
         continue
     for month in range(1, 13):

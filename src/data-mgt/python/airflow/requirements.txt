@@ -2,3 +2,4 @@ pandas
 requests
 python-dotenv
 numpy
+pyarrow

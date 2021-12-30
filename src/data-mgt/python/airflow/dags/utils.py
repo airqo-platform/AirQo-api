@@ -111,9 +111,44 @@ def to_double(x):
         return None
 
 
-def get_column_value(column_name, series, columns_names):
+def get_column_value(column_name, series, columns_names, data_name=None):
     if column_name in columns_names:
-        return to_double(series[column_name])
+        value = to_double(series[column_name])
+
+        if not data_name or not value:
+            return value
+
+        if data_name == "pm2_5" or data_name == "s2_pm2_5" or data_name == "pm10" or data_name == "s2_pm10":
+            if value < 1 or value > 1000:
+                return None
+        elif data_name == "latitude":
+            if value < -90 or value > 90:
+                return None
+        elif data_name == "longitude":
+            if value < -180 or value > 180:
+                return None
+        elif data_name == "battery":
+            if value < 2.7 or value > 5:
+                return None
+        elif data_name == "altitude" or data_name == "hdop":
+            if value < 0:
+                return None
+        elif data_name == "satellites":
+            if value < 0 or value > 50:
+                return None
+        elif data_name == "externalTemperature":
+            if value < 0 or value > 45:
+                return None
+        elif data_name == "externalHumidity":
+            if value < 0 or value > 99:
+                return None
+        elif data_name == "pressure":
+            if value < 30 or value > 110:
+                return None
+        else:
+            return value
+
+        return value
     return None
 
 
@@ -125,24 +160,55 @@ def clean_up_task(list_of_files):
             print(ex)
 
 
+def get_site_and_device_id(devices, channel_id=None, device_name=None):
+    try:
+        if channel_id is not None:
+            result = list(filter(lambda device: (device["device_number"] == channel_id), devices))
+        elif device_name is not None:
+            result = list(filter(lambda device: (device["name"] == device_name), devices))
+        else:
+            return None, None
+
+        if not result:
+            print("Device not found")
+            return None, None
+
+        return result[0]["site"]["_id"], result[0]["_id"]
+    except Exception as ex:
+        print(ex)
+        print("Site ID not found")
+        return None, None
+
+
 def get_airqo_device_data(start_time, end_time, channel_ids):
-    # print(os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
-    # client = bigquery.Client()
-    #
-    # query = """
-    #          SELECT channel_id, created_at, pm2_5, pm10 , s2_pm2_5,
-    #           s2_pm10, temperature , humidity, voltage, altitude, latitude, longitude, no_sats, hdope, wind
-    #           FROM airqo-250220.thingspeak.clean_feeds_pms where ({0})
-    #           AND created_at BETWEEN '{1}' AND '{2}'
-    #             """.format(channel_ids, str_to_date(start_time), str_to_date(end_time))
-    #
-    # dataframe = (
-    #     client.query(query).result().to_dataframe()
-    # )
 
-    return [{'name': 'noah', 'tribe': 'mutooro'}, {'name': 'peter', 'tribe': 'mutooro'}]
+    client = bigquery.Client()
 
-    # return dataframe.to_dict(orient='records')
+    query = """
+             SELECT channel_id, created_at, pm2_5, pm10 , s2_pm2_5,
+              s2_pm10, temperature , humidity, voltage, altitude, latitude, longitude, no_sats, hdope, wind
+              FROM airqo-250220.thingspeak.clean_feeds_pms where ({0})
+              AND created_at BETWEEN '{1}' AND '{2}' ORDER BY created_at
+                """.format(channel_ids, str_to_date(start_time), str_to_date(end_time))
+
+    dataframe = (
+        client.query(query).result().to_dataframe()
+    )
+
+    return dataframe.to_dict(orient='records')
+
+
+def get_device(devices=None, channel_id=None):
+    if devices is None:
+        devices = []
+
+    if channel_id:
+        result = list(filter(lambda x: x["device_number"] == channel_id, devices))
+        if not result:
+            return None
+        return result[0]
+
+    return None
 
 
 def get_devices(base_url, tenant):

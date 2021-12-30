@@ -5,7 +5,7 @@ import pandas as pd
 import requests
 
 from config import configuration
-from utils import get_devices, get_column_value, to_double
+from utils import get_devices, get_column_value, to_double, get_site_and_device_id
 from date import date_to_str_hours
 
 
@@ -44,12 +44,6 @@ def clean_group(group, site_id, device_id):
                 "value": get_column_value("characteristics.pm2_5ConcMass.raw", row, columns),
                 "calibratedValue": get_column_value("characteristics.pm2_5ConcMass.calibratedValue", row, columns),
             },
-            "externalTemperature": {
-                "value": get_column_value("characteristics.temperature.raw", row, columns),
-            },
-            "externalHumidity": {
-                "value": get_column_value("characteristics.relHumid.raw", row, columns),
-            },
             "pm1": {
                 "value": get_column_value("characteristics.pm1ConcMass.value", row, columns),
                 "calibratedValue": get_column_value("characteristics.pm1ConcMass.calibratedValue", row, columns),
@@ -57,6 +51,12 @@ def clean_group(group, site_id, device_id):
             "pm10": {
                 "value": get_column_value("characteristics.pm10ConcMass.raw", row, columns),
                 "calibratedValue": get_column_value("characteristics.pm10ConcMass.calibratedValue", row, columns),
+            },
+            "externalTemperature": {
+                "value": get_column_value("characteristics.temperature.raw", row, columns),
+            },
+            "externalHumidity": {
+                "value": get_column_value("characteristics.relHumid.raw", row, columns),
             },
             "no2": {
                 "value": get_column_value("characteristics.no2Conc.raw", row, columns),
@@ -73,21 +73,6 @@ def clean_group(group, site_id, device_id):
     return transformed_data
 
 
-def get_site_and_device_id(devices, name):
-    try:
-        result = list(filter(lambda device: (device["name"] == name), devices))
-
-        if not result:
-            print("Device not found")
-            return None, None
-
-        return result[0]["site"]["_id"], result[0]["_id"]
-    except Exception as ex:
-        print(ex)
-        print("Site ID not found")
-        return None, None
-
-
 def clean_kcca_measurements(input_file, output_file):
     data = pd.read_csv(input_file)
     if data.empty:
@@ -101,7 +86,7 @@ def clean_kcca_measurements(input_file, output_file):
     for _, group in data_device_gps:
         device_name = group.iloc[0]['deviceCode']
 
-        site_id, device_id = get_site_and_device_id(devices, device_name)
+        site_id, device_id = get_site_and_device_id(devices, device_name=device_name)
 
         if site_id and device_id:
             cleaned_data = clean_group(group, site_id, device_id)
@@ -111,6 +96,7 @@ def clean_kcca_measurements(input_file, output_file):
 
     with open(output_file, 'w', encoding='utf-8') as f:
         json.dump(cleaned_measurements, f, ensure_ascii=False, indent=4)
+    return
 
 
 def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
