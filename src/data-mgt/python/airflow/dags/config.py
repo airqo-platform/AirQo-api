@@ -12,12 +12,17 @@ load_dotenv(dotenv_path)
 
 
 class Config:
-
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
     BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS").strip(",")
     TENANT = os.getenv("TENANT")
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
+    POST_WEATHER_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
+
+    TAHMO_BASE_URL = os.getenv("TAHMO_API_BASE_URL")
+    TAHMO_API_MAX_PERIOD = os.getenv("TAHMO_API_MAX_PERIOD")
+    TAHMO_API_KEY = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
+    TAHMO_API_SECRET = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
 
     def __init__(self):
 

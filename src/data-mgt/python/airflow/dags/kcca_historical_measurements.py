@@ -3,9 +3,8 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 
-from kcca_historical_measurements_utils import retrieve_kcca_measurements, clean_kcca_measurements
+from kcca_measurements_utils import retrieve_kcca_measurements, clean_kcca_measurements
 from utils import get_month, get_last_datetime, get_first_datetime, save_measurements, clean_up_task
-
 
 default_args = {
     "owner": "airflow",
@@ -21,7 +20,6 @@ today = datetime.today()
 
 
 def create_dag(dag_id, start_time, end_time, file_name, freq):
-
     dag = DAG(dag_id,
               schedule_interval=None,
               default_args=default_args,
@@ -66,7 +64,6 @@ for year in ["2019", "2020", "2021", "2022"]:
         if month > today.month and int(year) == today.year:
             break
         for frequency in ["raw", "hourly", "daily"]:
-
             month_name = get_month(month)
             pipeline_id = 'kcca_{}-{}_{}_measurements'.format(year, month_name, frequency)
             start = get_first_datetime(year, month)

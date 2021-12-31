@@ -42,5 +42,5 @@ def generate_datetime(date, time):
     else:
         if time is None or time == "":
             time = "00:00"
-        date_time = date+"T"+time+":00Z"
+        date_time = date + "T" + time + ":00Z"
         return date_time

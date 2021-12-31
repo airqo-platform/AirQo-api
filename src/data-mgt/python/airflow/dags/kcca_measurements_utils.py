@@ -5,12 +5,11 @@ import pandas as pd
 import requests
 
 from config import configuration
-from utils import get_devices, get_column_value, to_double, get_site_and_device_id
 from date import date_to_str_hours
+from utils import get_devices_or_sites, get_column_value, to_double, get_site_and_device_id
 
 
 def clean_group(group, site_id, device_id):
-
     transformed_data = []
     columns = group.columns
 
@@ -35,7 +34,7 @@ def clean_group(group, site_id, device_id):
             "tenant": "kcca",
             "site_id": site_id,
             "device_id": device_id,
-            "device":  row["deviceCode"],
+            "device": row["deviceCode"],
             "location": dict({
                 "longitude": dict({"value": to_double(location_coordinates[0])}),
                 "latitude": dict({"value": to_double(location_coordinates[1])})}
@@ -80,7 +79,7 @@ def clean_kcca_measurements(input_file, output_file):
         data.to_csv(output_file, index=False)
         return
 
-    devices = get_devices(configuration.AIRQO_BASE_URL, 'kcca')
+    devices = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'kcca')
     data_device_gps = data.groupby('deviceCode')
     cleaned_measurements = []
     for _, group in data_device_gps:
@@ -100,7 +99,6 @@ def clean_kcca_measurements(input_file, output_file):
 
 
 def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
-
     """
         retrieve_measurements fetch kcca data from the clarity API
         :param output_file: str
@@ -137,7 +135,6 @@ def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
 
 
 def get_kcca_measurements(frequency, start_time, end_time):
-
     api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
               f"startTime={start_time}&endTime={end_time}"
 

@@ -3,14 +3,14 @@ from datetime import timedelta
 
 import pandas as pd
 
-from date import date_to_str
-from utils import build_channel_id_filter, get_valid_devices, get_airqo_device_data, get_devices, \
-    get_site_and_device_id, to_double, get_column_value, get_device
 from config import configuration
+from date import date_to_str
+from utils import build_channel_id_filter, get_valid_devices, get_airqo_device_data, get_devices_or_sites, \
+    get_column_value, \
+    get_device
 
 
 def clean_airqo_data(data, devices):
-
     transformed_data = []
 
     columns = data.columns
@@ -51,12 +51,11 @@ def clean_airqo_data(data, devices):
     return transformed_data
 
 
-def add_temp_and_humidity_data(input_file, output_file):
-    # data = pd.read_csv(input_file)
-    # measurements = data.to_json
-    #
-    # with open(output_file, 'w', encoding='utf-8') as f:
-    #     json.dump(measurements, f, ensure_ascii=False, indent=4)
+def add_weather_data(input_file, output_file, frequency):
+    # TODO implement addition of weather values
+    data = pd.read_csv(input_file)
+    measurements = pd.DataFrame(data)
+    measurements.to_csv(path_or_buf=output_file, index=False)
     return
 
 
@@ -67,7 +66,7 @@ def clean_airqo_measurements(input_file, output_file):
         data.to_csv(output_file, index=False)
         return
 
-    devices = get_devices(configuration.AIRQO_BASE_URL, 'airqo')
+    devices = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo')
     cleaned_data = clean_airqo_data(data, devices)
 
     with open(output_file, 'w', encoding='utf-8') as f:
@@ -94,4 +93,3 @@ def retrieve_airqo_raw_measurements(start_time, end_time, output_file):
     measurements_df = pd.DataFrame(measurements)
     measurements_df.to_csv(path_or_buf=output_file, index=False)
     return
-
