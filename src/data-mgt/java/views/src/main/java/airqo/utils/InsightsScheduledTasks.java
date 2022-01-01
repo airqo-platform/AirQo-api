@@ -24,7 +24,7 @@ import static airqo.config.Constants.dateTimeDailyFormat;
 import static airqo.config.Constants.dateTimeHourlyFormat;
 
 
-@Profile({"insights-job"})
+@Profile({"insights-job", "jobs"})
 @Component
 public class InsightsScheduledTasks {
 
@@ -155,8 +155,8 @@ public class InsightsScheduledTasks {
 			for (Site site : sites) {
 				Insight insight = new Insight(
 					formatTime(placeHolderStartTime, frequency),
-					getRandomValue(150.0),
 					getRandomValue(100.0),
+					getRandomValue(50.0),
 					true, false, site.getSearchName(),
 					site.getLocation(), frequency, site.getId());
 				emptyInsights.add(insight);
@@ -207,7 +207,7 @@ public class InsightsScheduledTasks {
 					insight.getTime().equals(hourlyMeasurement.getTime()));
 
 			Insight insight = new Insight(
-				hourlyMeasurement.getTime(),
+				formatTime(hourlyMeasurement.getTime(), Frequency.DAILY),
 				hourlyMeasurement.getPm2_5().getValue(),
 				hourlyMeasurement.getPm10().getValue(),
 				false, false,
@@ -229,6 +229,6 @@ public class InsightsScheduledTasks {
 
 	private double getRandomValue(Double maxValue) {
 		double random = Math.random();
-		return 1.0 + (random * (maxValue - 1.0));
+		return 50.0 + (random * (maxValue - 50.0));
 	}
 }

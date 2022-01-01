@@ -54,7 +54,7 @@ public class Insight implements Serializable {
 		this.location = location;
 		this.frequency = frequency.toString();
 		this.siteId = siteId;
-		this.id = new InsightId(time, frequency, siteId);
+		this.id = new InsightId(time, frequency.toString(), siteId);
 	}
 
 	@Override
@@ -77,7 +77,7 @@ public class Insight implements Serializable {
 	public static class InsightId implements Serializable {
 
 		private Date time;
-		private Frequency frequency;
+		private String frequency;
 		private String siteId;
 
 		@Override

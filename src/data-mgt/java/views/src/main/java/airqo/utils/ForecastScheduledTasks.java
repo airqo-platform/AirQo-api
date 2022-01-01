@@ -27,7 +27,7 @@ import java.util.List;
 
 import static airqo.models.Forecast.Forecasts.refactorRecords;
 
-@Profile({"forecast-job"})
+@Profile({"forecast-job", "jobs"})
 @Component
 public class ForecastScheduledTasks {
 

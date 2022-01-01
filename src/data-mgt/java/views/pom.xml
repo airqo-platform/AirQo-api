@@ -42,9 +42,21 @@
       </activation>
     </profile>
     <profile>
+      <id>jobs</id>
+      <properties>
+        <defaultProperties>jobs</defaultProperties>
+      </properties>
+    </profile>
+    <profile>
       <id>testing</id>
       <properties>
         <defaultProperties>test</defaultProperties>
+      </properties>
+    </profile>
+    <profile>
+      <id>messageBroker</id>
+      <properties>
+        <defaultProperties>messageBroker</defaultProperties>
       </properties>
     </profile>
     <profile>

@@ -35,7 +35,7 @@ RUN ./mvnw package -Dmaven.test.skip=true
 FROM openjdk:11-jre-slim as view-jobs
 COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views-jobs.jar
 
-CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/views-jobs.jar"]
+CMD ["java", "-Djava.security.egd=file:/dev/./urandom",  "-Dspring.profiles.active=jobs", "-jar", "/views-jobs.jar"]
 
 FROM openjdk:11-jre-slim as forecast-job
 COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views.jar

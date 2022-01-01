@@ -18,7 +18,7 @@ import static airqo.config.Constants.dateTimeHourlyFormat;
 
 @Document(collection = "hourly_measurements")
 @CompoundIndexes({
-	@CompoundIndex(name = "Hourly Measurements Composite Key", def = "{'time' : 1, 'device': 1}", unique = true)
+	@CompoundIndex(name = "Hourly Measurements Composite Key", def = "{'time' : 1, 'device.id': 1, 'frequency': 1}", unique = true)
 })
 public class HourlyMeasurement extends Measurement {
 

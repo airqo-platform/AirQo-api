@@ -5,7 +5,6 @@ import airqo.services.SiteService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.core.env.Environment;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
@@ -25,9 +24,6 @@ public class SiteController {
 
 	@Autowired
 	SiteService siteService;
-
-	@Autowired
-	Environment env;
 
 	@GetMapping("")
 	public ResponseEntity<?> getSitesList(

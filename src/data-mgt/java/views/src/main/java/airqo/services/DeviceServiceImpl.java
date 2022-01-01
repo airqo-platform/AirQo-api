@@ -41,7 +41,7 @@ public class DeviceServiceImpl implements DeviceService {
 
 	@Override
 	public List<Device> getDevices(Tenant tenant) {
-		if(tenant == null){
+		if (tenant == null) {
 			return deviceRepository.findAll();
 		}
 		return deviceRepository.getAllByTenant(tenant.toString());

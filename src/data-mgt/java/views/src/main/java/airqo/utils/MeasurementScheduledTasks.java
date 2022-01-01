@@ -1,6 +1,9 @@
 package airqo.utils;
 
-import airqo.models.*;
+import airqo.models.DailyMeasurement;
+import airqo.models.Frequency;
+import airqo.models.HourlyMeasurement;
+import airqo.models.Tenant;
 import airqo.services.MeasurementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.commons.lang3.time.DateUtils;
@@ -25,7 +28,7 @@ import java.util.List;
 
 import static airqo.config.Constants.*;
 
-@Profile({"measurements-job"})
+@Profile({"measurements-job", "jobs"})
 @Component
 public class MeasurementScheduledTasks {
 
@@ -50,20 +53,20 @@ public class MeasurementScheduledTasks {
 
 		Date startTime = DateUtils.addHours(new Date(), -12);
 		List<HourlyMeasurement> airQoMeasurements = (List<HourlyMeasurement>) getMeasurements(Tenant.AIRQO, startTime, Frequency.HOURLY);
-		measurementService.insertMeasurements(new ArrayList<>(), airQoMeasurements, new ArrayList<>());
+		measurementService.insertMeasurements(airQoMeasurements, new ArrayList<>());
 
 		List<HourlyMeasurement> kccaMeasurements = (List<HourlyMeasurement>) getMeasurements(Tenant.KCCA, startTime, Frequency.HOURLY);
-		measurementService.insertMeasurements(new ArrayList<>(), kccaMeasurements, new ArrayList<>());
+		measurementService.insertMeasurements(kccaMeasurements, new ArrayList<>());
 	}
 
 	public void getDailyMeasurements() {
 
 		Date startTime = DateUtils.addDays(new Date(), -2);
 		List<DailyMeasurement> airQoMeasurements = (List<DailyMeasurement>) getMeasurements(Tenant.AIRQO, startTime, Frequency.DAILY);
-		measurementService.insertMeasurements(new ArrayList<>(), new ArrayList<>(), airQoMeasurements);
+		measurementService.insertMeasurements(new ArrayList<>(), airQoMeasurements);
 
 		List<DailyMeasurement> kccaMeasurements = (List<DailyMeasurement>) getMeasurements(Tenant.KCCA, startTime, Frequency.DAILY);
-		measurementService.insertMeasurements(new ArrayList<>(), new ArrayList<>(), kccaMeasurements);
+		measurementService.insertMeasurements(new ArrayList<>(), kccaMeasurements);
 	}
 
 	private Object getMeasurements(Tenant tenant, Date startTime, Frequency frequency) {
@@ -103,11 +106,6 @@ public class MeasurementScheduledTasks {
 			ObjectMapper objectMapper = new ObjectMapper();
 
 			switch (frequency) {
-				case RAW:
-					RawMeasurement.MeasurementsList rawMeasurements = objectMapper.readValue(httpResponse.body(),
-						RawMeasurement.MeasurementsList.class);
-
-					return rawMeasurements.getMeasurements();
 				case DAILY:
 					DailyMeasurement.MeasurementsList dailyMeasurements = objectMapper.readValue(httpResponse.body(),
 						DailyMeasurement.MeasurementsList.class);

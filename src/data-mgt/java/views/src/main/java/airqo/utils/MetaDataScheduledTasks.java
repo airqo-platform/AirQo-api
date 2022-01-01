@@ -19,7 +19,7 @@ import org.springframework.web.client.RestTemplate;
 import javax.annotation.PostConstruct;
 
 
-@Profile({"metadata-job"})
+@Profile({"metadata-job", "jobs"})
 @Component
 public class MetaDataScheduledTasks {
 

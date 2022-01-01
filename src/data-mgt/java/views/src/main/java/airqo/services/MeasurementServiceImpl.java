@@ -11,7 +11,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.lang.NonNull;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
-import org.springframework.util.MultiValueMap;
 
 import java.util.ArrayList;
 import java.util.Date;
@@ -31,8 +30,6 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Autowired
 	DeviceService deviceService;
 
-	@Autowired
-	RawMeasurementRepository rawMeasurementRepository;
 
 	@Autowired
 	InsightRepository insightRepository;
@@ -40,16 +37,9 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Autowired
 	ForecastRepository forecastRepository;
 
-	@Override
-	public Page<RawMeasurement> getRawMeasurements(Pageable pageable, MultiValueMap<String, Object> parameters) {
-		return rawMeasurementRepository.findAll(pageable);
-	}
+	@Autowired
+	WeatherRepository weatherRepository;
 
-	@Override
-	public Page<RawMeasurement> getRawMeasurements(Pageable pageable, Predicate predicate) {
-		return rawMeasurementRepository.findAll(predicate, pageable);
-
-	}
 
 	@Override
 	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId) {
@@ -60,6 +50,29 @@ public class MeasurementServiceImpl implements MeasurementService {
 				qInsight.time.between(startTime, endTime).or(qInsight.time.eq(startTime)).or(qInsight.time.eq(endTime))
 			);
 		return (List<Insight>) insightRepository.findAll(predicate);
+	}
+
+	@Override
+	public List<Weather> getWeather(Frequency frequency, Date startTime, Date endTime, String siteId) {
+
+		QWeather qWeather = new QWeather("frequency");
+		Predicate predicate = qWeather.frequency.eq(frequency.toString())
+			.and(qWeather.site.id.eq(siteId))
+			.and(
+				qWeather.time.between(startTime, endTime).or(qWeather.time.eq(startTime)).or(qWeather.time.eq(endTime))
+			);
+		return (List<Weather>) weatherRepository.findAll(predicate);
+
+	}
+
+	@Override
+	public void insertWeather(List<Weather> weather) {
+		weatherRepository.saveAll(weather);
+	}
+
+	@Override
+	public void insertWeather(Weather weather) {
+		weatherRepository.save(weather);
 	}
 
 	@Override
@@ -186,30 +199,20 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public void insertMeasurements(List<RawMeasurement> rawMeasurements, List<HourlyMeasurement> hourlyMeasurements,
+	public void insertMeasurements(List<HourlyMeasurement> hourlyMeasurements,
 								   List<DailyMeasurement> dailyMeasurements) {
 		for (HourlyMeasurement hourlyMeasurement : hourlyMeasurements) {
-			insertMeasurement(null, hourlyMeasurement, null);
+			insertMeasurement(hourlyMeasurement, null);
 		}
 
 		for (DailyMeasurement dailyMeasurement : dailyMeasurements) {
-			insertMeasurement(null, null, dailyMeasurement);
-		}
-
-		for (RawMeasurement rawMeasurement : rawMeasurements) {
-			insertMeasurement(rawMeasurement, null, null);
+			insertMeasurement(null, dailyMeasurement);
 		}
 	}
 
 	@Override
-	public void insertMeasurement(RawMeasurement rawMeasurement, HourlyMeasurement hourlyMeasurement, DailyMeasurement dailyMeasurement) {
-		if (rawMeasurement != null) {
-			try {
-				rawMeasurementRepository.save(rawMeasurement);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
+	public void insertMeasurement(HourlyMeasurement hourlyMeasurement, DailyMeasurement dailyMeasurement) {
+
 		if (hourlyMeasurement != null) {
 			try {
 				hourlyMeasurementRepository.save(hourlyMeasurement);

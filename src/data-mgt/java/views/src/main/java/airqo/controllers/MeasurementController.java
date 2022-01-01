@@ -7,7 +7,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpHeaders;
@@ -46,14 +45,14 @@ public class MeasurementController {
 		@RequestParam MultiValueMap<String, Object> parameters
 	) {
 
-		if(parameters.containsKey("recent")){
+		if (parameters.containsKey("recent")) {
 			List<HourlyMeasurement> measurements = measurementService.getRecentHourlyMeasurements(null, null);
 
 			ApiResponseBody httpResponseBody = new ApiResponseBody("Operation Successful", measurements);
 			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.OK);
 		}
 		logger.info(String.valueOf(parameters));
-		Page<RawMeasurement> measurements = measurementService.getRawMeasurements(pageable, parameters);
+		List<HourlyMeasurement> measurements = measurementService.getRecentHourlyMeasurements(null, null);
 		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
 	}
 
@@ -135,6 +134,49 @@ public class MeasurementController {
 			.getInsights(queryFrequency, startDateTime, endDateTime, tenant, siteId);
 
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
+		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
+	}
+
+	@GetMapping("/weather")
+	public ResponseEntity<ApiResponseBody> getSiteWeather(
+		@RequestParam(defaultValue = "hourly") String frequency,
+		@RequestParam String startTime,
+		@RequestParam String endTime,
+		@RequestParam String siteId
+	) {
+
+		Date startDateTime;
+		Date endDateTime;
+		try {
+			startDateTime = simpleDateFormat.parse(startTime);
+			endDateTime = simpleDateFormat.parse(endTime);
+		} catch (ParseException e) {
+			e.printStackTrace();
+			ApiResponseBody httpResponseBody = new ApiResponseBody(null, "Invalid DateTime");
+			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
+		}
+
+		if (startDateTime.after(endDateTime)) {
+			ApiResponseBody httpResponseBody = new ApiResponseBody(null, "Start Time must be a date before the end time");
+			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
+		}
+
+		Frequency queryFrequency;
+		switch (frequency.toLowerCase()) {
+			case "hourly":
+				queryFrequency = Frequency.HOURLY;
+				break;
+			case "daily":
+				queryFrequency = Frequency.DAILY;
+				break;
+			default:
+				ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Frequency", null);
+				return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
+		}
+
+		List<Weather> weather = measurementService.getWeather(queryFrequency, startDateTime, endDateTime, siteId);
+
+		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", weather);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}
 

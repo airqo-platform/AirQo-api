@@ -87,6 +87,10 @@ public class Site implements Serializable {
 	@JsonAlias({"geometry"})
 	private Geometry geometry;
 
+	public Site(String id) {
+		this.id = id;
+	}
+
 	public String getLocation() {
 		return this.getDistrict() + " " + this.getCountry();
 	}

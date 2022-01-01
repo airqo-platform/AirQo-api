@@ -46,6 +46,9 @@ public class SiteServiceImpl implements SiteService {
 
 	@Override
 	public List<Site> getSites(Tenant tenant) {
+		if (tenant == null) {
+			return siteRepository.findAll();
+		}
 		return siteRepository.findAllByTenant(tenant.toString());
 	}
 
