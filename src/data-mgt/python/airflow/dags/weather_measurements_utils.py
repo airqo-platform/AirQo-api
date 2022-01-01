@@ -2,9 +2,11 @@ import json
 from datetime import timedelta, datetime
 
 import pandas as pd
+import simplejson as simplejson
 
 from config import configuration
 from date import date_to_str_hours
+from kafka_client import KafkaBrokerClient
 from tahmo import TahmoApi
 from utils import get_devices_or_sites, get_column_value
 
@@ -12,7 +14,7 @@ from utils import get_devices_or_sites, get_column_value
 def get_site_ids_from_station(station, sites=None):
     if sites is None:
         sites = []
-    station_sites = list(filter(lambda site: site["nearest_tahmo_station"]["code"] == station, sites))
+    station_sites = list(filter(lambda x: x["nearest_tahmo_station"]["code"] == station, sites))
 
     if not station_sites:
         return []
@@ -22,7 +24,7 @@ def get_site_ids_from_station(station, sites=None):
     return site_ids
 
 
-def transform_weather_measurements(input_file, output_file):
+def transform_weather_measurements(input_file, output_file, frequency):
     weather_raw_data = pd.read_csv(input_file)
 
     if weather_raw_data.empty:
@@ -53,6 +55,9 @@ def transform_weather_measurements(input_file, output_file):
         station_time_gps = station_group.groupby('time')
         for _, time_group in station_time_gps:
 
+            if time_group.empty:
+                continue
+
             station = time_group.iloc[0]["station"]
             station_sites = get_site_ids_from_station(station, valid_sites)
 
@@ -64,7 +69,8 @@ def transform_weather_measurements(input_file, output_file):
                 "humidity": None,
                 "temperature": None,
                 "windSpeed": None,
-                "site_id": None
+                "frequency": "raw",
+                "siteId": None
             }
 
             for _, row in time_group.iterrows():
@@ -83,15 +89,40 @@ def transform_weather_measurements(input_file, output_file):
             if time_series_data["time"]:
 
                 for site in station_sites:
-                    time_series_data["site_id"] = site
+                    time_series_data["siteId"] = site
                     weather_data.append(time_series_data)
 
+    if frequency == "hourly" or frequency == "daily":
+
+        resample_value = '1H' if frequency == "hourly" else '24H'
+        weather_data_df = pd.DataFrame(weather_data)
+        weather_data = []
+
+        site_groups = weather_data_df.groupby("siteId")
+
+        for _, site_group in site_groups:
+            site_id = site_group.iloc[0]["siteId"]
+            site_group.dropna(subset=['time'], inplace=True)
+            site_group['time'] = pd.to_datetime(site_group['time'])
+            site_group.set_index('time')
+            site_group.sort_index(axis=0)
+
+            averages = pd.DataFrame(site_group.resample(resample_value, on='time').mean())
+
+            averages["time"] = averages.index
+            averages["time"] = averages["time"].apply(lambda x: date_to_str_hours(x))
+
+            averages["frequency"] = frequency
+            averages["siteId"] = site_id
+
+            weather_data.extend(averages.to_dict(orient="records"))
+
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(weather_data, f, ensure_ascii=False, indent=4)
+        simplejson.dump(weather_data, f, ensure_ascii=False, indent=4, ignore_nan=True)
     return
 
 
-def get_weather_measurements(output_file, start_time=None, end_time=None):
+def get_weather_measurements(output_file, start_time=None, end_time=None, time_delta=None):
     airqo_sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo', sites=True)
     station_codes = []
     for site in airqo_sites:
@@ -106,10 +137,13 @@ def get_weather_measurements(output_file, start_time=None, end_time=None):
     tahmo_api = TahmoApi()
 
     if start_time is None or end_time is None:
-        interval = 3
+
+        if time_delta:
+            raise Exception("Interval not specified")
+
         date = datetime.now()
         end_time = date_to_str_hours(date)
-        start_time = date_to_str_hours(date - timedelta(hours=interval))
+        start_time = date_to_str_hours(date - timedelta(hours=time_delta))
 
         print(start_time + " : " + end_time)
 
@@ -143,25 +177,7 @@ def get_weather_measurements(output_file, start_time=None, end_time=None):
 
 def save_weather_measurements(input_file):
     file = open(input_file)
-    base_url = configuration.AIRQO_BASE_URL
     data = json.load(file)
 
-    for i in range(0, len(data), int(configuration.POST_WEATHER_BODY_SIZE)):
-        json_data = json.dumps(data[i:i + int(configuration.POST_WEATHER_BODY_SIZE)])
-        try:
-            headers = {'Content-Type': 'application/json'}
-            url = base_url + "devices/events?tenant="
-            print(json_data)
-            print(url)
-
-            # results = requests.post(url, json_data, headers=headers, verify=False)
-            #
-            # if results.status_code == 200:
-            #     print(results.json())
-            # else:
-            #     print(f"Device registry failed to insert values. Status Code : {results.status_code}")
-            #     print(f"Response : {results.content}")
-            #     print(f"Request Url : {url}")
-            #     print(f"Request body : {json_data}")
-        except Exception as ex:
-            print("Error Occurred while inserting measurements: " + str(ex))
+    kafka = KafkaBrokerClient()
+    kafka.send_data(data=data, topic=configuration.WEATHER_MEASUREMENTS_TOPIC)

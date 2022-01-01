@@ -1,8 +1,8 @@
-import json
 from datetime import timedelta
 
 import pandas as pd
 import requests
+import simplejson
 
 from config import configuration
 from date import date_to_str_hours
@@ -94,7 +94,7 @@ def clean_kcca_measurements(input_file, output_file):
                 cleaned_measurements.extend(cleaned_data)
 
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(cleaned_measurements, f, ensure_ascii=False, indent=4)
+        simplejson.dump(cleaned_measurements, f, ensure_ascii=False, indent=4, ignore_nan=True)
     return
 
 

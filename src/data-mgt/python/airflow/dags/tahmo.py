@@ -55,7 +55,6 @@ class TahmoApi:
         return columns, measurements
 
     def __request(self, endpoint, params):
-        print('API request: %s' % endpoint)
         api_request = requests.get(
             '%s/%s' % (self.BASE_URL, endpoint),
             params=params,
@@ -64,6 +63,8 @@ class TahmoApi:
                 self.API_SECRET
             )
         )
+
+        print('Tahmo API request: %s' % api_request.request.url)
 
         if api_request.status_code == 200:
             return api_request.json()

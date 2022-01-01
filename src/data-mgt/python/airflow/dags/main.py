@@ -20,8 +20,8 @@ def airqo_raw():
 
 
 def weather_data():
-    get_weather_measurements("test-weather.csv", "2021-01-01T00:00:00Z", "2021-01-02T00:00:00Z", )
-    transform_weather_measurements("test-weather.csv", "cleaned-test-weather.json")
+    get_weather_measurements("test-weather.csv", "2021-01-01T00:00:00Z", "2021-01-02T00:00:00Z")
+    transform_weather_measurements("test-weather.csv", "cleaned-test-weather.json", "hourly")
     save_weather_measurements("cleaned-test-weather.json")
     clean_up_task(["test-weather.csv", "cleaned-test-weather.json"])
 

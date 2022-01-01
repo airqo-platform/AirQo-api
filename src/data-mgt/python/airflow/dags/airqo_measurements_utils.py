@@ -1,7 +1,7 @@
-import json
 from datetime import timedelta
 
 import pandas as pd
+import simplejson
 
 from config import configuration
 from date import date_to_str
@@ -70,7 +70,7 @@ def clean_airqo_measurements(input_file, output_file):
     cleaned_data = clean_airqo_data(data, devices)
 
     with open(output_file, 'w', encoding='utf-8') as f:
-        json.dump(cleaned_data, f, ensure_ascii=False, indent=4)
+        simplejson.dump(cleaned_data, f, ensure_ascii=False, indent=4, ignore_nan=True)
 
 
 def retrieve_airqo_raw_measurements(start_time, end_time, output_file):

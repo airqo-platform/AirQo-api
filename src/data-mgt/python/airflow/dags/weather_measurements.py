@@ -9,7 +9,7 @@ from weather_measurements_utils import get_weather_measurements, transform_weath
 
 default_args = {
     "owner": "airflow",
-    "start_date": datetime(2019, 1, 1),
+    "start_date": datetime(2020, 1, 1),
     "depends_on_past": False,
     "email_on_failure": False,
     "email_on_retry": False,
@@ -20,9 +20,12 @@ default_args = {
 today = datetime.today()
 
 
-def create_dag(dag_id, start_time, end_time, file_name, interval=None):
+def create_dag(dag_id, start_time, end_time, file_name, freq):
+    schedule_interval = '@hourly' if freq == "hourly" else '@daily'
+    time_delta = '3H' if freq == "hourly" else '30H'
+
     dag = DAG(dag_id,
-              schedule_interval=interval,
+              schedule_interval=schedule_interval,
               default_args=default_args,
               tags=['weather'] + file_name.split("_"))
 
@@ -30,13 +33,13 @@ def create_dag(dag_id, start_time, end_time, file_name, interval=None):
         fetch_data = PythonOperator(
             task_id="fetch_data",
             python_callable=get_weather_measurements,
-            op_args=[f'weather_{file_name}_uncleaned_data.csv', f'{start_time}', f'{end_time}']
+            op_args=[f'weather_{file_name}_uncleaned_data.csv', f'{start_time}', f'{end_time}', time_delta]
         )
 
         clean_data = PythonOperator(
             task_id='clean_data',
             python_callable=transform_weather_measurements,
-            op_args=[f'weather_{file_name}_uncleaned_data.csv', f'weather_{file_name}_cleaned_data.json']
+            op_args=[f'weather_{file_name}_uncleaned_data.csv', f'weather_{file_name}_cleaned_data.json', freq]
         )
 
         save_data = PythonOperator(
@@ -64,11 +67,16 @@ for year in ["2020", "2021", "2022"]:
     for month in range(1, 13):
         if month > today.month and int(year) == today.year:
             break
+        for frequency in ["raw", "hourly", "daily"]:
+            month_name = get_month(month)
+            pipeline_id = 'weather_{}-{}_{}_measurements'.format(year, month_name, frequency)
+            start = get_first_datetime(year, month)
+            end = get_last_datetime(year, month)
+            file = '{}_{}_{}'.format(year, month_name, frequency)
 
-        month_name = get_month(month)
-        pipeline_id = 'weather_{}-{}_measurements'.format(year, month_name)
-        start = get_first_datetime(year, month)
-        end = get_last_datetime(year, month)
-        file = '{}_{}'.format(year, month_name)
+            globals()[pipeline_id] = create_dag(pipeline_id, start, end, file, frequency)
 
-        globals()[pipeline_id] = create_dag(pipeline_id, start, end, file)
+for frequency in ["hourly", "daily"]:
+    pipeline_id = 'weather_{}_streams_measurements'.format(frequency)
+    file = '{}'.format(frequency)
+    globals()[pipeline_id] = create_dag(pipeline_id, None, None, file, frequency)

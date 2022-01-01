@@ -3,3 +3,6 @@ requests
 python-dotenv
 numpy
 pyarrow
+kafka-python
+confluent-avro
+simplejson

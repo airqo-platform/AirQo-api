@@ -4,6 +4,7 @@ import os
 from datetime import timedelta, datetime
 
 import requests
+import simplejson
 from google.cloud import bigquery
 
 from config import configuration
@@ -73,7 +74,7 @@ def save_measurements(input_file, tenant):
     data = json.load(file)
 
     for i in range(0, len(data), int(configuration.POST_EVENTS_BODY_SIZE)):
-        json_data = json.dumps(data[i:i + int(configuration.POST_EVENTS_BODY_SIZE)])
+        json_data = simplejson.dumps(data[i:i + int(configuration.POST_EVENTS_BODY_SIZE)])
         try:
             headers = {'Content-Type': 'application/json'}
             url = base_url + "devices/events?tenant=" + tenant
