@@ -246,6 +246,17 @@ def filter_valid_kcca_devices(devices_data):
     return valid_devices
 
 
+def handle_api_error(api_request):
+    try:
+        print(api_request.request.url)
+        print(api_request.request.body)
+    except Exception as ex:
+        print(ex)
+    finally:
+        print(api_request.content)
+        print('API request failed with status code %s' % api_request.status_code)
+
+
 def build_channel_id_filter(devices_data):
     channel_filter = "channel_id = 0"
     for device in devices_data:

@@ -1,4 +1,5 @@
 from airqo_measurements_utils import retrieve_airqo_raw_measurements, clean_airqo_measurements
+from app_insights import get_insights_averaged_data, create_insights_data, get_insights_forecast
 from kcca_measurements_utils import retrieve_kcca_measurements, clean_kcca_measurements
 from utils import save_measurements, clean_up_task
 from weather_measurements_utils import transform_weather_measurements, get_weather_measurements, \
@@ -26,5 +27,12 @@ def weather_data():
     clean_up_task(["test-weather.csv", "cleaned-test-weather.json"])
 
 
+def insights_data():
+    get_insights_forecast("airqo", "test-insights-forecast.csv")
+    get_insights_averaged_data("airqo", "test-insights-averaged.csv")
+    create_insights_data("test-insights-forecast.csv", "test-insights-averaged.csv", "insights.json")
+    clean_up_task(["test-insights-forecast.csv", "test-insights-averaged.csv", "insights.json"])
+
+
 if __name__ == "__main__":
-    pass
+    insights_data()

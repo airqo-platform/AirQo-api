@@ -126,7 +126,7 @@ def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
         end_time = date_to_str_hours(date + timedelta(hours=time_delta))
         print(start_time + " : " + end_time)
 
-        range_measurements = get_kcca_measurements(freq, start_time, end_time)
+        range_measurements = query_kcca_measurements(freq, start_time, end_time)
         measurements.extend(range_measurements)
 
     measurements_df = pd.json_normalize(measurements)
@@ -134,7 +134,7 @@ def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
     return
 
 
-def get_kcca_measurements(frequency, start_time, end_time):
+def query_kcca_measurements(frequency, start_time, end_time):
     api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
               f"startTime={start_time}&endTime={end_time}"
 

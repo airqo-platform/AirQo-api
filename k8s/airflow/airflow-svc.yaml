@@ -2,6 +2,22 @@ kind: Service
 apiVersion: v1
 metadata:
  name: airflow-svc
+ namespace: stage-airflow
+spec:
+ type: NodePort
+ ports:
+ - port: 8080
+   protocol: TCP
+   targetPort: 8080
+   nodePort: 30333
+ selector:
+  app: airflow
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+ name: airflow-svc
  namespace: airflow
 spec:
  type: NodePort
@@ -9,5 +25,6 @@ spec:
  - port: 8080
    protocol: TCP
    targetPort: 8080
+   nodePort: 30332
  selector:
   app: airflow

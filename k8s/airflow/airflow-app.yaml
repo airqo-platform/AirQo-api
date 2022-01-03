@@ -1,0 +1,80 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: airflow
+  namespace: airflow
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      containers:
+        - name: airflow-scheduler
+          image: us.gcr.io/airqo-250220/airqo-apache-airflow
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          command: ["airflow"]
+          args: ["scheduler"]
+          resources: {}
+        - name: airflow-webserver
+          image: us.gcr.io/airqo-250220/airqo-apache-airflow
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          command: ["airflow"]
+          args: ["webserver"]
+          resources: {}
+      restartPolicy: Always
+
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: airflow
+  namespace: default
+spec:
+  maxReplicas: 10
+  minReplicas: 2
+  scaleTargetRef:
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    name: airflow
+  # targetCPUUtilizationPercentage: 60
+
+---
+apiVersion: autoscaling.k8s.io/v1beta2
+kind: VerticalPodAutoscaler
+metadata:
+  name: airflow
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: hairflow
+  resourcePolicy:
+    containerPolicies:
+      - containerName: '*'
+        controlledResources: ["cpu", "memory"]
+        minAllowed:
+          cpu: 200m
+          memory: 50Mi
+        maxAllowed:
+          cpu: 500m
+          memory: 500Mi
+  updatePolicy:
+    updateMode: "Auto"

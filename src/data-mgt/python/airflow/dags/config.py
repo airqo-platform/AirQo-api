@@ -40,11 +40,13 @@ class Config:
 
 class ProductionConfig(Config):
     AIRQO_BASE_URL = os.getenv("PROD_AIRQO_BASE_URL")
+    AIRQO_BASE_URL_V2 = os.getenv("PROD_AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("PROD_AIRQO_API_KEY")
 
 
 class StagingConfig(Config):
     AIRQO_BASE_URL = os.getenv("STAGE_AIRQO_BASE_URL")
+    AIRQO_BASE_URL_V2 = os.getenv("STAGE_AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("STAGE_AIRQO_API_KEY")
 
 

@@ -2,12 +2,12 @@ kind: Deployment
 apiVersion: apps/v1
 metadata:
   name: airflow
-  namespace: airflow
+  namespace: stage-airflow
 spec:
   selector:
     matchLabels:
       app: airflow
-  replicas: 1
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: airflow-scheduler
-          image: us.gcr.io/airqo-250220/apache-airflow
+          image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
@@ -29,7 +29,7 @@ spec:
           args: ["scheduler"]
           resources: {}
         - name: airflow-webserver
-          image: us.gcr.io/airqo-250220/apache-airflow
+          image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
