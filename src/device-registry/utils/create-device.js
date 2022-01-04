@@ -595,6 +595,37 @@ const createDevice = {
       };
     }
   },
+  getDetail: (request) => {
+    try {
+      let responseFromListDevices = createDevice.list(request);
+      if (responseFromListDevices.success === true) {
+        let data = responseFromListDevices.data;
+        if (data.length === 1) {
+          return {
+            success: true,
+            message: responseFromListDevices.message,
+            data,
+          };
+        } else {
+          return {
+            success: false,
+            message: "unable to retrieve the device details",
+          };
+        }
+      }
+      if (responseFromListDevices.success === false) {
+        return responseFromListDevices;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: "Internal Server Error",
+        },
+      };
+    }
+  },
   clear: (request) => {
     return {
       success: false,
