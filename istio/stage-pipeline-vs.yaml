@@ -20,7 +20,18 @@ spec:
         port:
           number: 8081
         host: stage-schema-registry-svc.staging.svc.cluster.local  
-  - name: apache-airflow
+  - name: stage-apache-airflow
+    match:
+    - uri:
+        prefix: /stage-airflow
+    rewrite:
+      uri: /stage-airflow
+    route:
+    - destination:
+        port:
+          number: 8080
+        host: airflow-svc.stage-airflow.svc.cluster.local  
+  - name: prod-apache-airflow
     match:
     - uri:
         prefix: /airflow

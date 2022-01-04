@@ -22,7 +22,8 @@ class KafkaBrokerClient:
         try:
             # avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
             # bytes_data = avro_serde.value.serialize(measurements, schema_str)
-            producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers)
+            producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers,
+                                     api_version_auto_timeout_ms=300000)
             producer.send(topic, simplejson.dumps(data).encode('utf-8'))
         except Exception as ex:
             print(ex)

@@ -39,4 +39,10 @@ spec:
           command: ["airflow"]
           args: ["webserver"]
           resources: {}
+          readinessProbe: 
+            initialDelaySeconds: 300
+            timeoutSeconds: 120
+            httpGet:
+              path: /stage-airflow
+              port: 8080
       restartPolicy: Always

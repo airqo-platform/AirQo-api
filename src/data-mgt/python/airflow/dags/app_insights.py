@@ -1,28 +1,15 @@
 import json
 import traceback
-from datetime import datetime, timedelta
+from datetime import datetime
+from datetime import timedelta
 
 import pandas as pd
-import simplejson
-from airflow import DAG
-from airflow.operators.python import PythonOperator
+from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date
 from kafka_client import KafkaBrokerClient
-from utils import clean_up_task
-
-default_args = {
-    "owner": "airflow",
-    "start_date": datetime(2020, 1, 1),
-    "depends_on_past": False,
-    "email_on_failure": False,
-    "email_on_retry": False,
-    "email": "devs@airqo.net",
-    "retries": 1,
-    "retry_delay": timedelta(minutes=5)
-}
 
 
 def predict_time_to_string(time):
@@ -35,9 +22,9 @@ def measurement_time_to_string(time):
     return date_to_str(date_time)
 
 
-def get_insights_forecast(tenant, output_file):
+def get_insights_forecast(tenant):
     airqo_api = AirQoApi()
-    columns = ['time', 'pm2_5', 'siteId', 'frequency']
+    columns = ['time', 'pm2_5', 'siteId', 'frequency', 'forecast']
     devices = airqo_api.get_devices(tenant=tenant, active=True)
 
     forecast_measurements = pd.DataFrame(data=[], columns=columns)
@@ -59,16 +46,20 @@ def get_insights_forecast(tenant, output_file):
                 forecast_cleaned_df['pm2_5'] = forecast_df['prediction_value']
                 forecast_cleaned_df['siteId'] = site_id
                 forecast_cleaned_df['frequency'] = 'hourly'
+                forecast_cleaned_df['forecast'] = True
 
                 forecast_measurements = forecast_measurements.append(forecast_cleaned_df, ignore_index=True)
+
+        # if forecast_measurements.size > 72:
+        #     break
 
     forecast_measurements['time'] = forecast_measurements['time'].apply(lambda x: predict_time_to_string(x))
     forecast_measurements = forecast_measurements[forecast_measurements['pm2_5'].notna()]
 
-    forecast_measurements.to_csv(path_or_buf=output_file, index=False)
+    return forecast_measurements.to_dict(orient="records")
 
 
-def get_insights_averaged_data(tenant, output_file):
+def get_insights_averaged_data(tenant):
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant=tenant, active=True)
     averaged_measurements = []
@@ -105,91 +96,79 @@ def get_insights_averaged_data(tenant, output_file):
 
                 averaged_measurements.extend(events)
 
-            except:
+            except Exception as ex:
+                print(ex)
                 traceback.print_exc()
+        #
+        # if len(averaged_measurements) > 20:
+        #     break
 
     measurements_df = pd.json_normalize(averaged_measurements)
 
     measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
     measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
-    measurements_df['siteDetails.search_name'].fillna(measurements_df['siteDetails.name'], inplace=True)
-
-    measurements_df['location'] = measurements_df.apply(
-        lambda row: row['siteDetails.district'] + " " + row['siteDetails.country'], axis=1)
 
     measurements_df['time'] = measurements_df['time'].apply(lambda x: measurement_time_to_string(x))
 
-    measurements_df = measurements_df[['time', 'frequency', 'siteDetails._id',
-                                       'average_pm2_5.calibratedValue', 'average_pm10.calibratedValue',
-                                       'siteDetails.search_name', 'location']]
+    measurements_df = measurements_df[['time', 'frequency', 'siteDetails._id', 'average_pm2_5.calibratedValue',
+                                       'average_pm10.calibratedValue']]
 
-    measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10',
-                               'name', 'location']
+    measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
 
     measurements_df = measurements_df[measurements_df['pm2_5'].notna()]
 
-    measurements_df.to_csv(path_or_buf=output_file, index=False)
+    return measurements_df.to_dict(orient="records")
 
 
-def create_insights_data(forecast_data_file, averaged_data_file, output_file):
-    forecast_data = pd.read_csv(forecast_data_file)
-    averaged_data = pd.read_csv(averaged_data_file)
+def create_insights_data(forecast_data_file, averaged_data_file):
+    print("creating insights .... ")
+
+    forecast_data = pd.DataFrame(forecast_data_file)
+    averaged_data = pd.DataFrame(averaged_data_file)
 
     insights_data = forecast_data.append(averaged_data, ignore_index=True)
+    insights_data['forecast'].fillna(False, inplace=True)
+    insights_data['pm10'].fillna(insights_data['pm2_5'], inplace=True)
 
-    # output_file = str(output_file).replace('json', 'csv')
-    # insights_data.to_csv(path_or_buf=output_file, index=False)
-
-    with open(output_file, 'w', encoding='utf-8') as f:
-        simplejson.dump(insights_data.to_dict(orient="records"), f, ensure_ascii=False, indent=4, ignore_nan=True)
-    return
+    return insights_data.to_dict(orient="records")
 
 
 def save_insights_data(insights_data_file):
-    file = open(insights_data_file)
-    data = json.load(file)
+    print("saving insights .... ")
+
+    json_data = json.dumps(insights_data_file)
+    data = json.loads(json_data)
 
     kafka = KafkaBrokerClient()
-    kafka.send_data(data=data, topic=configuration.WEATHER_MEASUREMENTS_TOPIC)
+    kafka.send_data(data=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
 
 
-with DAG(
-        'App-Insights',
-        default_args=default_args,
-        description='App Insights DAG',
-        schedule_interval=timedelta(days=1),
-        start_date=datetime(2021, 1, 1),
-        catchup=False,
-        tags=['insights', 'app'],
-) as dag:
-    fetch_forecast_data = PythonOperator(
-        task_id="fetch_forecast_data",
-        python_callable=get_insights_forecast,
-        op_args=['airqo', 'forecast_data.csv']
-    )
+@dag('App-Insights-Pipeline', schedule_interval=None, start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
+def app_insights_etl():
+    @task(multiple_outputs=True)
+    def extract():
+        forecast_data = get_insights_forecast('airqo')
+        averaged_data = get_insights_averaged_data('airqo')
 
-    fetch_averaged_data = PythonOperator(
-        task_id="fetch_averaged_data",
-        python_callable=get_insights_averaged_data,
-        op_args=['airqo', 'averaged_data.csv']
-    )
+        return dict({"forecast_data": forecast_data, "averaged_data": averaged_data})
 
-    create_insights = PythonOperator(
-        task_id="create_insights",
-        python_callable=create_insights_data,
-        op_args=['forecast_data.csv', 'averaged_data.csv', 'insights_data.json']
-    )
+    @task(multiple_outputs=True)
+    def transform(measurements_data: dict):
+        forecast_data = measurements_data.get("forecast_data")
+        averaged_data = measurements_data.get("averaged_data")
 
-    save_insights = PythonOperator(
-        task_id="save_insights",
-        python_callable=save_insights_data,
-        op_args=['insights_data.json']
-    )
+        insights_data = create_insights_data(forecast_data, averaged_data)
 
-    clean_up = PythonOperator(
-        task_id='clean_up',
-        python_callable=clean_up_task,
-        op_args=[['averaged_data.csv', 'forecast_data.csv', 'insights_data.json']]
-    )
+        return dict({"insights_data": insights_data})
 
-    fetch_forecast_data >> fetch_averaged_data >> create_insights >> save_insights >> clean_up
+    @task()
+    def load(data: dict):
+        insights_data = data.get("insights_data")
+        save_insights_data(insights_data)
+
+    extracted_data = extract()
+    insights = transform(extracted_data)
+    load(insights)
+
+
+app_insights_etl_dag = app_insights_etl()
