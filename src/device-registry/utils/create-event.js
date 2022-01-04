@@ -13,9 +13,313 @@ const cleanDeep = require("clean-deep");
 const createDeviceUtil = require("./create-device");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
-const { findLastIndex } = require("underscore");
+const axios = require("axios");
+const writeToThingMappings = require("./writeToThingMappings");
+const {
+  tryCatchErrors,
+  axiosError,
+  missingQueryParams,
+  callbackErrors,
+} = require("./errors");
+const createRequestBody = require("./create-request-body");
+const getDetail = require("./get-device-details");
+const {
+  transformMeasurements,
+  transformMeasurementFields,
+} = require("./transform-measurements");
 
 const createEvent = {
+  list: async (request, callback) => {
+    try {
+      const { query } = request;
+      let { recent, tenant, device } = query;
+      let page = parseInt(query.page);
+      let limit = parseInt(query.limit);
+      let skip = parseInt(query.skip);
+      let filter = {};
+      const responseFromFilter = generateFilter.events_v2(request);
+      if (responseFromFilter.success === true) {
+        filter = responseFromFilter.data;
+      }
+      if (responseFromFilter.success === false) {
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : "";
+        logObject("responseFromFilter", errors);
+      }
+
+      createEvent.getCache(request, async (result) => {
+        if (result.success === true) {
+          logText(result.message);
+          callback(result.data);
+        }
+        if (result.success === false) {
+          await createDeviceUtil.getDevicesCount(request, async (result) => {
+            if (result.success === true) {
+              if ((device && !recent) || recent === "no") {
+                if (!limit) {
+                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
+                }
+                if (!skip) {
+                  if (page) {
+                    skip = parseInt((page - 1) * limit);
+                  } else {
+                    skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+                  }
+                }
+              }
+              if ((!recent && !device) || recent === "yes") {
+                if (!limit) {
+                  limit = result.data;
+                }
+                if (!skip) {
+                  if (page) {
+                    skip = parseInt((page - 1) * limit);
+                  } else {
+                    skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
+                  }
+                }
+              }
+              const responseFromListEvents = await eventModel(tenant).list({
+                skip,
+                limit,
+                filter,
+                page,
+              });
+
+              if (responseFromListEvents.success === true) {
+                const data = cleanDeep(responseFromListEvents.data);
+                createEvent.setCache(data, request, (result) => {
+                  if (result.success === true) {
+                    logText(result.message);
+                  }
+                  if (result.success === false) {
+                    logText(result.message);
+                  }
+                });
+
+                const status = responseFromListEvents.status
+                  ? responseFromListEvents.status
+                  : "";
+                callback({
+                  success: true,
+                  message: responseFromListEvents.message,
+                  data,
+                  status,
+                  isCache: false,
+                });
+              }
+
+              if (responseFromListEvents.success === false) {
+                const status = responseFromListEvents.status
+                  ? responseFromListEvents.status
+                  : "";
+                const errors = responseFromListEvents.errors
+                  ? responseFromListEvents.errors
+                  : "";
+                callback({
+                  success: false,
+                  message: responseFromListEvents.message,
+                  errors,
+                  status,
+                  isCache: false,
+                });
+              }
+            }
+            if (result.success === false) {
+              logText(result.message);
+            }
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      });
+    }
+  },
+  create: async (request) => {
+    try {
+      const { query, body } = request;
+      /**
+       * transform the events util just adds the day
+       * insert measurement util just creates the event body and options
+       * ..........field for the update procedure.
+       */
+
+      const responseFromTransformEvent = await createEvent.transformManyEvents(
+        request
+      );
+      if (responseFromTransformEvent.success === "true") {
+        const responseFromRegisterEvent = await eventModel(tenant).createEvent(
+          body
+        );
+        if (responseFromRegisterEvent.success === true) {
+        }
+        if (responseFromRegisterEvent.success === false) {
+        }
+      }
+      if (responseFromTransformEvent.success === "false") {
+        return {
+          success: false,
+          message: "Internal Server Error",
+          errors: { message: "Internal Server Error" },
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+  transmitValues: async (req, res) => {
+    try {
+      const { type, tenant } = req.query;
+      if (type == "one" && tenant) {
+        await createEvent.transmitOneSensorValue(req, res);
+      } else if (type == "many" && tenant) {
+        await createEvent.transmitMultipleSensorValues(req, res);
+      } else if (type == "bulk" && tenant) {
+        await createEvent.bulkTransmitMultipleSensorValues(req, res, tenant);
+      } else {
+        return {
+          success: false,
+          status: HTTPStatus.BAD_REQUEST,
+          message: "misssing request parameters, please check documentation",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
+  transmitOneSensorValue: async (req, res) => {
+    try {
+      const { quantity_kind, value } = req.body;
+      const { tenant } = req.query;
+      const deviceDetail = await getDetail(req, res);
+      const api_key = deviceDetail[0]._doc.writeKey;
+
+      if (tenant && quantity_kind && value) {
+        await axios
+          .get(
+            constants.ADD_VALUE(
+              writeToThingMappings(quantity_kind),
+              value,
+              api_key
+            )
+          )
+          .then(function(response) {
+            let resp = {};
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
+            return {
+              message: "successfully transmitted the data",
+              success: true,
+              data: resp,
+            };
+          })
+          .catch(function(error) {
+            return {
+              success: false,
+              errors: { message: error.response.data },
+            };
+          });
+      } else {
+        return {
+          success: false,
+          status: HTTPStatus.BAD_REQUEST,
+          message: "misssing request parameters, please check documentation",
+        };
+      }
+    } catch (e) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+      };
+    }
+  },
+
+  transmitMultipleSensorValues: async (req, res) => {
+    try {
+      logText("write to thing json.......");
+      let { tenant } = req.query;
+      const requestBody = createRequestBody(req);
+      const deviceDetail = await getDetail(req, res);
+      const api_key = deviceDetail[0]._doc.writeKey;
+      requestBody.api_key = api_key;
+
+      if (tenant) {
+        await axios
+          .post(constants.ADD_VALUE_JSON, requestBody)
+          .then(function(response) {
+            let resp = {};
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
+            res.status(HTTPStatus.OK).json({
+              message: "successfully transmitted the data",
+              success: true,
+              update: resp,
+            });
+          })
+          .catch(function(error) {
+            logElement("the error", error.message);
+            axiosError(error, req, res);
+          });
+      } else {
+        missingQueryParams(req, res);
+      }
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+
+  bulkTransmitMultipleSensorValues: async (req, res) => {
+    try {
+      logText("bulk write to thing.......");
+      let { tenant, type } = req.query;
+      let { updates } = req.body;
+      const deviceDetail = await getDetail(req, res);
+      const channel = deviceDetail[0]._doc.channelID;
+      const api_key = deviceDetail[0]._doc.writeKey;
+      if (updates && tenant && type) {
+        let transformedUpdates = await transformMeasurementFields(updates);
+        let requestObject = {};
+        requestObject.write_api_key = api_key;
+        requestObject.updates = transformedUpdates;
+        await axios
+          .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
+          .then(function(response) {
+            console.log(response.data);
+            let output = response.data;
+            res.status(HTTPStatus.OK).json({
+              message: "successfully transmitted the data",
+              success: true,
+              data: output,
+            });
+          })
+          .catch(function(error) {
+            axiosError(error, req, res);
+          });
+      } else {
+        missingQueryParams(req, res);
+      }
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+
   generateCacheID: (request) => {
     const {
       device,
@@ -109,140 +413,7 @@ const createEvent = {
       };
     }
   },
-  list: async (request, callback) => {
-    try {
-      const { query } = request;
-      let {
-        recent,
-        tenant,
-        device,
-        device_number,
-        device_id,
-        site_id,
-        site,
-      } = query;
-      let limit = parseInt(query.limit);
-      let skip = parseInt(query.skip);
-      let filter = {};
-      const responseFromFilter = generateFilter.events_v2(request);
-      if (responseFromFilter.success === true) {
-        filter = responseFromFilter.data;
-      }
-      if (responseFromFilter.success === false) {
-        const errors = responseFromFilter.errors
-          ? responseFromFilter.errors
-          : "";
-        logObject("responseFromFilter", errors);
-      }
 
-      createEvent.getCache(request, async (result) => {
-        if (result.success === true) {
-          logText(result.message);
-          callback(result.data);
-        }
-        if (result.success === false) {
-          await registerDeviceUtil.getDevicesCount(request, async (result) => {
-            logObject("result", result);
-            if (result.success === true) {
-              if (!recent || recent === "yes") {
-                logElement("result.data", result.data);
-                if (!limit) {
-                  limit = result.data;
-                }
-                if (!skip) {
-                  skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-                }
-              } else {
-                if (!limit) {
-                  limit = parseInt(constants.DEFAULT_EVENTS_LIMIT);
-                }
-                if (!skip) {
-                  skip = parseInt(constants.DEFAULT_EVENTS_SKIP);
-                }
-              }
-              logElement("the skip", skip);
-              logElement("the limit", limit);
-              logObject("the filter", filter);
-              const responseFromListEvents = await eventModel(tenant).list({
-                skip,
-                limit,
-                filter,
-              });
-
-              if (responseFromListEvents.success === true) {
-                const data = cleanDeep(responseFromListEvents.data);
-                createEvent.setCache(data, request, (result) => {
-                  if (result.success === true) {
-                    logText(result.message);
-                  }
-                  if (result.success === false) {
-                    logText(result.message);
-                  }
-                });
-
-                const status = responseFromListEvents.status
-                  ? responseFromListEvents.status
-                  : "";
-                callback({
-                  success: true,
-                  message: responseFromListEvents.message,
-                  data,
-                  status,
-                  isCache: false,
-                });
-              }
-
-              if (responseFromListEvents.success === false) {
-                const status = responseFromListEvents.status
-                  ? responseFromListEvents.status
-                  : "";
-                const errors = responseFromListEvents.errors
-                  ? responseFromListEvents.errors
-                  : "";
-                callback({
-                  success: false,
-                  message: responseFromListEvents.message,
-                  errors,
-                  status,
-                  isCache: false,
-                });
-              }
-            }
-            if (result.success === false) {
-              logText(result.message);
-            }
-          });
-        }
-      });
-    } catch (error) {
-      callback({
-        success: false,
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      });
-    }
-  },
-  create: async (request) => {
-    try {
-      const { query, body } = request;
-      /**
-       * transform the events before insertion
-       */
-      const responseFromRegisterEvent = await eventModel(tenant).createEvent(
-        body
-      );
-      if (responseFromRegisterEvent.success === true) {
-      }
-      if (responseFromRegisterEvent.success === false) {
-      }
-    } catch (error) {
-      return {
-        success: false,
-        errors: { message: error.message },
-        status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
   transformOneEvent: async ({ data = {}, map = {}, context = {} } = {}) => {
     try {
       let dot = new Dot(".");
@@ -773,7 +944,7 @@ const createEvent = {
             request["query"] = {};
             request["query"]["tenant"] = tenant;
             let devicesCount = 1000;
-            await registerDeviceUtil.getDevicesCount(request, (result) => {
+            await createDeviceUtil.getDevicesCount(request, (result) => {
               if (result.success === true) {
                 devicesCount = result.data;
               }

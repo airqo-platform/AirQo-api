@@ -105,6 +105,7 @@ const createEvent = {
         recent,
         skip,
         limit,
+        page,
       } = query;
       let request = {};
       request["query"] = {};
@@ -122,6 +123,7 @@ const createEvent = {
       request["query"]["recent"] = recent;
       request["query"]["skip"] = parseInt(skip);
       request["query"]["limit"] = parseInt(limit);
+      request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
         if (result.success === true) {

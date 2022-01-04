@@ -358,7 +358,7 @@ eventSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {}, page = 1 } = {}) {
     try {
       const { metadata, frequency, external, tenant, device, recent } = filter;
       let search = filter;
@@ -376,6 +376,21 @@ eventSchema.statics = {
       let projection = {
         _id: 0,
       };
+      let meta = {
+        total: { $arrayElemAt: ["$total.device", 0] },
+        skip: { $literal: skip },
+        limit: { $literal: limit },
+        page: {
+          $trunc: {
+            $literal: skip / limit + 1,
+          },
+        },
+        pages: {
+          $ceil: {
+            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+          },
+        },
+      };
       let siteProjection = {};
       let deviceProjection = {};
 
@@ -385,6 +400,7 @@ eventSchema.statics = {
       delete search["tenant"];
       delete search["device"];
       delete search["recent"];
+      delete search["page"];
 
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
@@ -484,16 +500,7 @@ eventSchema.statics = {
             data: [{ $addFields: { device: "$device" } }],
           })
           .project({
-            meta: {
-              total: { $arrayElemAt: ["$total.device", 0] },
-              limit: { $literal: limit },
-              page: { $literal: skip / limit + 1 },
-              pages: {
-                $ceil: {
-                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-                },
-              },
-            },
+            meta,
             data: {
               $slice: [
                 "$data",
@@ -596,16 +603,7 @@ eventSchema.statics = {
             ],
           })
           .project({
-            meta: {
-              total: { $arrayElemAt: ["$total.device", 0] },
-              limit: { $literal: limit },
-              page: { $literal: skip / limit + 1 },
-              pages: {
-                $ceil: {
-                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-                },
-              },
-            },
+            meta,
             data: {
               $slice: [
                 "$data",

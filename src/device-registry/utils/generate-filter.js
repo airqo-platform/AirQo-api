@@ -234,6 +234,7 @@ const generateFilter = {
         metadata,
         tenant,
         recent,
+        page,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -369,6 +370,14 @@ const generateFilter = {
       if (!device) {
         delete filter["values.device"];
         filter["device"] = false;
+      }
+
+      if (device && !recent && (!external || external === "yes")) {
+        filter["recent"] = "no";
+      }
+
+      if (page) {
+        filter["page"] = page;
       }
 
       if (device_number) {
