@@ -12,7 +12,7 @@ import java.util.List;
 
 public interface MeasurementService {
 
-	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId);
+	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String siteId);
 
 	List<Weather> getWeather(Frequency frequency, Date startTime, Date endTime, String siteId);
 
@@ -20,9 +20,13 @@ public interface MeasurementService {
 
 	void insertWeather(Weather weather);
 
-	List<Insight> getInsights(Date beforeTime);
+	List<Insight> getInsights(Date beforeTime, boolean forecast);
+
+	void saveInsights(List<Insight> insights);
 
 	void insertInsights(List<Insight> insights);
+
+	List<Insight> insertAndCacheInsights(List<Insight> insights);
 
 	void insertInsight(Insight insight);
 

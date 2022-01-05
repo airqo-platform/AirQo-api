@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Objects;
 
@@ -31,7 +32,7 @@ public class Insight implements Serializable {
 	@Id
 	@Field("_id")
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-	private InsightId id;
+	private String id;
 
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	private Date time;
@@ -39,22 +40,26 @@ public class Insight implements Serializable {
 	private double pm10;
 	private Boolean isEmpty = false;
 	private Boolean isForecast = false;
-	private String name;
-	private String location;
 	private String frequency;
 	private String siteId;
 
-	public Insight(Date time, double pm2_5, double pm10, Boolean isEmpty, Boolean isForecast, String name, String location, Frequency frequency, String siteId) {
+	public Insight(Date time, double pm2_5, double pm10, Boolean isEmpty, Boolean isForecast, Frequency frequency, String siteId) {
 		this.time = time;
 		this.pm2_5 = pm2_5;
 		this.pm10 = pm10;
 		this.isEmpty = isEmpty;
 		this.isForecast = isForecast;
-		this.name = name;
-		this.location = location;
-		this.frequency = frequency.toString();
+		this.frequency = frequency.toString().toUpperCase();
 		this.siteId = siteId;
-		this.id = new InsightId(time, frequency.toString(), siteId);
+		this.id = new InsightId(time, frequency.toString(), siteId).toString();
+	}
+
+	public void setId(String id) {
+		this.id = new InsightId(time, frequency, siteId).toString();
+	}
+
+	public void setId() {
+		this.id = new InsightId(time, frequency, siteId).toString();
 	}
 
 	@Override
@@ -66,7 +71,7 @@ public class Insight implements Serializable {
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(time, frequency, siteId);
+		return Objects.hash(siteId, frequency, time);
 	}
 
 	@Getter
@@ -75,6 +80,8 @@ public class Insight implements Serializable {
 	@NoArgsConstructor
 	@ToString
 	public static class InsightId implements Serializable {
+
+		private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
 
 		private Date time;
 		private String frequency;
@@ -91,7 +98,14 @@ public class Insight implements Serializable {
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(time, frequency, siteId);
+			return Objects.hash(siteId, frequency, time);
+		}
+
+		@Override
+		public String toString() {
+			String dateTime = simpleDateFormat.format(time).trim();
+			String frequencyValue = frequency.trim().toLowerCase();
+			return (siteId + ":" + frequencyValue + ":" + dateTime).toUpperCase();
 		}
 	}
 

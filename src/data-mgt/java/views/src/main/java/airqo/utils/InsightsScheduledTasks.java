@@ -32,6 +32,7 @@ public class InsightsScheduledTasks {
 	final SimpleDateFormat hourlyDateFormat = new SimpleDateFormat(dateTimeHourlyFormat);
 	final SimpleDateFormat dailyDateFormat = new SimpleDateFormat(dateTimeDailyFormat);
 	private final int timeBoundary = 21;
+
 	@Autowired
 	MeasurementService measurementService;
 	@Autowired
@@ -44,12 +45,53 @@ public class InsightsScheduledTasks {
 	@PostConstruct
 	public void createInsights() {
 
-		saveHourlyInsights();
-		saveDailyInsights();
+		populateInsights();
 		formatInsights();
+		//		saveHourlyInsights();
+//		saveDailyInsights();
 
 		int exitCode = SpringApplication.exit(context, () -> 0);
 		System.exit(exitCode);
+	}
+
+	private void populateInsights() {
+
+		List<Site> sites = siteService.getSites(Tenant.AIRQO);
+		Date placeHolderStartTime = DateUtils.addDays(new Date(), -timeBoundary);
+		Date placeHolderEndTime = DateUtils.addDays(new Date(), timeBoundary);
+
+		List<Insight> insights = new ArrayList<>();
+
+		while (placeHolderStartTime.before(placeHolderEndTime)) {
+			placeHolderStartTime = DateUtils.addDays(placeHolderStartTime, 1);
+
+			for (Site site : sites) {
+				Insight insight = new Insight(
+					formatTime(placeHolderStartTime, Frequency.DAILY),
+					getRandomValue(100.0),
+					getRandomValue(100.0),
+					true, false, Frequency.DAILY, site.getId());
+				insights.add(insight);
+			}
+		}
+
+		placeHolderStartTime = DateUtils.addDays(new Date(), -timeBoundary);
+		while (placeHolderStartTime.before(placeHolderEndTime)) {
+			placeHolderStartTime = DateUtils.addHours(placeHolderStartTime, 1);
+
+			for (Site site : sites) {
+				Insight insight = new Insight(
+					formatTime(placeHolderStartTime, Frequency.HOURLY),
+					getRandomValue(100.0),
+					getRandomValue(100.0),
+					true, false, Frequency.HOURLY, site.getId());
+				insights.add(insight);
+			}
+		}
+
+		logger.info(String.valueOf(insights.size()));
+
+		measurementService.saveInsights(insights);
 	}
 
 	private void formatInsights() {
@@ -61,7 +103,7 @@ public class InsightsScheduledTasks {
 		measurementService.deleteInsights(startTime, endTime);
 
 		logger.info("Formatting forecast measurements .......");
-		List<Insight> insights = measurementService.getInsights(new Date());
+		List<Insight> insights = measurementService.getInsights(new Date(), true);
 		List<Insight> formattedInsights = new ArrayList<>();
 		for (Insight insight : insights) {
 			insight.setIsForecast(false);
@@ -101,8 +143,6 @@ public class InsightsScheduledTasks {
 				hourlyMeasurement.getPm2_5().getValue(),
 				hourlyMeasurement.getPm2_5().getValue(),
 				false, false,
-				hourlyMeasurement.getDevice().getSite().getSearchName(),
-				hourlyMeasurement.getDevice().getSite().getLocation(),
 				Frequency.HOURLY, hourlyMeasurement.getDevice().getSite().getId());
 			insights.add(insight);
 		}
@@ -117,9 +157,7 @@ public class InsightsScheduledTasks {
 			boolean isForecast = forecast.getTime().compareTo(referenceDate) < 0;
 			Insight insight = new Insight(
 				formatTime(forecast.getTime(), Frequency.HOURLY), forecast.getPm2_5(), forecast.getPm2_5(),
-				false, isForecast, forecast.getDevice().getSite().getSearchName(),
-				forecast.getDevice().getSite().getLocation(), Frequency.HOURLY,
-				forecast.getDevice().getSite().getId());
+				false, isForecast, Frequency.HOURLY, forecast.getDevice().getSite().getId());
 			forecastInsights.add(insight);
 		}
 		for (Insight insight : insights) {
@@ -134,7 +172,7 @@ public class InsightsScheduledTasks {
 
 		logger.info("Inserting hourly measurements .......");
 		logger.info(String.valueOf(dbInsights.size()));
-		measurementService.insertInsights(dbInsights);
+//		measurementService.insertInsights(dbInsights);
 	}
 
 	private List<Insight> addEmptyInsights(Frequency frequency, List<Insight> insights) {
@@ -157,8 +195,7 @@ public class InsightsScheduledTasks {
 					formatTime(placeHolderStartTime, frequency),
 					getRandomValue(100.0),
 					getRandomValue(50.0),
-					true, false, site.getSearchName(),
-					site.getLocation(), frequency, site.getId());
+					true, false, frequency, site.getId());
 				emptyInsights.add(insight);
 			}
 		}
@@ -185,9 +222,7 @@ public class InsightsScheduledTasks {
 				formatTime(dailyMeasurement.getTime(), Frequency.DAILY),
 				dailyMeasurement.getPm2_5().getValue(),
 				dailyMeasurement.getPm2_5().getValue(),
-				false, false,
-				dailyMeasurement.getDevice().getSite().getSearchName(),
-				dailyMeasurement.getDevice().getSite().getLocation(), Frequency.DAILY,
+				false, false, Frequency.DAILY,
 				dailyMeasurement.getDevice().getSite().getId());
 			insights.add(insight);
 		}
@@ -210,9 +245,7 @@ public class InsightsScheduledTasks {
 				formatTime(hourlyMeasurement.getTime(), Frequency.DAILY),
 				hourlyMeasurement.getPm2_5().getValue(),
 				hourlyMeasurement.getPm10().getValue(),
-				false, false,
-				hourlyMeasurement.getDevice().getSite().getSearchName(),
-				hourlyMeasurement.getDevice().getSite().getLocation(), Frequency.DAILY,
+				false, false, Frequency.DAILY,
 				hourlyMeasurement.getDevice().getSite().getId());
 
 			insights.add(insight);
@@ -224,7 +257,7 @@ public class InsightsScheduledTasks {
 
 		logger.info("Inserting daily measurements .......");
 		logger.info(String.valueOf(dbInsights.size()));
-		measurementService.insertInsights(dbInsights);
+//		measurementService.insertInsights(dbInsights);
 	}
 
 	private double getRandomValue(Double maxValue) {

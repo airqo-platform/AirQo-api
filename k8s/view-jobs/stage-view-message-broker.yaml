@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-views-message-broker
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: views-message-broker
+  replicas: 1
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: views-message-broker
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      containers:
+        - name: views-message-broker
+          image: us.gcr.io/airqo-250220/stage-airqo-view-message-broker:latest
+          imagePullPolicy: Always
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: stage-view-message-broker-config

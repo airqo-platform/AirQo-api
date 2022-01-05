@@ -66,6 +66,12 @@
       </properties>
     </profile>
     <profile>
+      <id>development</id>
+      <properties>
+        <defaultProperties>dev</defaultProperties>
+      </properties>
+    </profile>
+    <profile>
       <id>production</id>
       <properties>
         <defaultProperties>prod</defaultProperties>

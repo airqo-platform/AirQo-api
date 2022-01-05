@@ -18,9 +18,11 @@ public class CacheConfig {
 	public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
 		return (builder) -> builder
 			.withCacheConfiguration("viewSitesCache",
-				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(30)))
+			.withCacheConfiguration("viewInsightsCache",
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(30)))
 			.withCacheConfiguration("viewDevicesCache",
-				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)));
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofSeconds(1)));
 	}
 
 	@Bean

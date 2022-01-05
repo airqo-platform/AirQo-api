@@ -1,6 +1,7 @@
 package airqo.controllers;
 
 import airqo.models.Device;
+import airqo.models.Insight;
 import airqo.models.Site;
 import airqo.models.Weather;
 import airqo.services.DeviceService;
@@ -16,6 +17,7 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -36,7 +38,7 @@ public class MessageBroker {
 	DeviceService deviceService;
 
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
-	public void receiveSites(String content) {
+	public void sites(String content) {
 		try {
 
 			ObjectMapper objectMapper = new ObjectMapper();
@@ -50,7 +52,7 @@ public class MessageBroker {
 	}
 
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.weather}'.split(',')}")
-	public void receiveWeatherData(String content) {
+	public void weatherData(String content) {
 		try {
 
 			ObjectMapper objectMapper = new ObjectMapper();
@@ -58,7 +60,7 @@ public class MessageBroker {
 			List<Weather> weatherList = objectMapper.readValue(content, new TypeReference<>() {
 			});
 			List<Site> sites = siteService.getSites(null);
-
+			List<Weather> weatherData = new ArrayList<>();
 			for (Weather weather : weatherList) {
 				try {
 					List<Site> weatherSite = sites.stream().filter(site ->
@@ -67,11 +69,37 @@ public class MessageBroker {
 						continue;
 					}
 					weather.setSite(weatherSite.get(0));
-					measurementService.insertWeather(weather);
+					weatherData.add(weather);
+
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
 			}
+			measurementService.insertWeather(weatherData);
+
+		} catch (JsonProcessingException e) {
+			e.printStackTrace();
+		}
+	}
+
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}")
+	public void appInsights(String content) {
+		try {
+
+			ObjectMapper objectMapper = new ObjectMapper();
+
+			List<Insight> insights = objectMapper.readValue(content, new TypeReference<>() {
+			});
+
+			List<Insight> insightsList = new ArrayList<>();
+			for (Insight insight : insights) {
+				insight.setId();
+				insightsList.add(insight);
+			}
+
+			logger.info(insightsList.toString());
+			measurementService.saveInsights(insightsList);
+			logger.info(insights.toString());
 
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();
@@ -79,7 +107,7 @@ public class MessageBroker {
 	}
 
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
-	public void receiveDevices(String content) {
+	public void devices(String content) {
 		try {
 			ObjectMapper objectMapper = new ObjectMapper();
 			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);

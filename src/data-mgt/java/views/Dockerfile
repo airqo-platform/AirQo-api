@@ -29,30 +29,35 @@ COPY --from=build /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=production,api", "-jar", "/views.jar"]
 
-FROM base as build-jobs
+FROM base as build-package
 RUN ./mvnw package -Dmaven.test.skip=true
 
-FROM openjdk:11-jre-slim as view-jobs
-COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views-jobs.jar
+FROM openjdk:11-jre-slim as message-broker
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views-jobs.jar
 
-CMD ["java", "-Djava.security.egd=file:/dev/./urandom",  "-Dspring.profiles.active=jobs", "-jar", "/views-jobs.jar"]
+CMD ["java", "-Djava.security.egd=file:/dev/./urandom",  "-Dspring.profiles.active=messageBroker", "-jar", "/message-broker.jar"]
+
+FROM openjdk:11-jre-slim as view-jobs
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views-jobs.jar
+
+CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-jar", "/views-jobs.jar"]
 
 FROM openjdk:11-jre-slim as forecast-job
-COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=forecast-job", "-jar", "/views.jar"]
 
 FROM openjdk:11-jre-slim as insights-job
-COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=insights-job", "-jar", "/views.jar"]
 
 FROM openjdk:11-jre-slim as metadata-job
-COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=metadata-job", "-jar", "/views.jar"]
 
 FROM openjdk:11-jre-slim as measurements-job
-COPY --from=build-jobs /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=measurements-job", "-jar", "/views.jar"]

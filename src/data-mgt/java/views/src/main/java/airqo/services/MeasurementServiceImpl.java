@@ -6,6 +6,7 @@ import com.querydsl.core.types.Predicate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.lang.NonNull;
@@ -42,7 +43,8 @@ public class MeasurementServiceImpl implements MeasurementService {
 
 
 	@Override
-	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String tenant, String siteId) {
+	@Cacheable(value = "viewInsightsCache", cacheNames = {"viewInsightsCache"})
+	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String siteId) {
 		QInsight qInsight = new QInsight("frequency");
 		Predicate predicate = qInsight.frequency.eq(frequency.toString())
 			.and(qInsight.siteId.eq(siteId))
@@ -76,13 +78,29 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Insight> getInsights(Date beforeTime) {
-		return insightRepository.findAllByTimeBeforeAndIsForecast(beforeTime, true);
+	public List<Insight> getInsights(Date beforeTime, boolean forecast) {
+		return insightRepository.findAllByTimeBeforeAndIsForecast(beforeTime, forecast);
+	}
+
+	@Override
+	public void saveInsights(List<Insight> insights) {
+		insightRepository.saveAll(insights);
 	}
 
 	@Override
 	public void insertInsights(List<Insight> insights) {
-		insightRepository.saveAll(insights);
+		for (Insight insight : insights) {
+			try {
+				insightRepository.insert(insight);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+	}
+
+	@Override
+	public List<Insight> insertAndCacheInsights(List<Insight> insights) {
+		return insightRepository.saveAll(insights);
 	}
 
 	@Override

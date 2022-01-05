@@ -94,8 +94,7 @@ public class MeasurementController {
 
 	@GetMapping("/insights")
 	public ResponseEntity<ApiResponseBody> getAppInsights(
-		@RequestParam(defaultValue = "undefined") String frequency,
-		@RequestParam(defaultValue = "airqo") String tenant,
+		@RequestParam(defaultValue = "hourly", required = false) String frequency,
 		@RequestParam String startTime,
 		@RequestParam String endTime,
 		@RequestParam String siteId
@@ -130,9 +129,7 @@ public class MeasurementController {
 				return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
 		}
 
-		List<Insight> insights = measurementService
-			.getInsights(queryFrequency, startDateTime, endDateTime, tenant, siteId);
-
+		List<Insight> insights = measurementService.getInsights(queryFrequency, startDateTime, endDateTime, siteId);
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}
