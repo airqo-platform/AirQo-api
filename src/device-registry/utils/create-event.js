@@ -142,19 +142,23 @@ const createEvent = {
   },
   create: async (request) => {
     try {
-      const { query, body } = request;
       /**
        * transform the events util just adds the day
        * insert measurement util just creates the event body and options
        * ..........field for the update procedure.
+       *
+       * *************
+       * afterwards, just insert the events accordingly using the Events
+       * entity
        */
 
       const responseFromTransformEvent = await createEvent.transformManyEvents(
         request
       );
       if (responseFromTransformEvent.success === "true") {
+        let transformedEvents = responseFromTransformEvent.data;
         const responseFromRegisterEvent = await eventModel(tenant).createEvent(
-          body
+          transformedEvents
         );
         if (responseFromRegisterEvent.success === true) {
         }
@@ -445,10 +449,10 @@ const createEvent = {
 
         modifiedFilter["$or"] = [
           { "values.time": { $ne: filter["values.time"] } },
-          { device: { $ne: filter.device } },
+          { "values.device": { $ne: filter.device } },
           { "values.frequency": { $ne: filter["values.frequency"] } },
-          { device_id: { $ne: filter.device_id } },
-          { site_id: { $ne: filter.site_id } },
+          { "values.device_id": { $ne: filter.device_id } },
+          { "values.site_id": { $ne: filter.site_id } },
           { day: { $ne: filter.day } },
         ];
         modifiedFilter["day"] = filter.day;
@@ -552,6 +556,11 @@ const createEvent = {
   },
   transformManyEvents: async (request) => {
     try {
+      /**
+       * transform the events util just adds the day
+       * insert measurement util just creates the event body and options
+       * ..........field for the update procedure.
+       */
       let { tenant } = request.query;
       logger.info(`the tenant being sent for transformation -- ${tenant}`);
       let { body } = request;
@@ -625,7 +634,7 @@ const createEvent = {
           );
           return {
             success: false,
-            error: errors,
+            errors,
             message: "failed transformations",
           };
         }

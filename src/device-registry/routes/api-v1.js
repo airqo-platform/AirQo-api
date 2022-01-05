@@ -2888,6 +2888,99 @@ router.post(
   ]),
   eventController.addValues
 );
+
+router.post(
+  "/events/transform",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage("the tenant value is not among the expected ones"),
+    ],
+  ]),
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
+      body("*.device_id")
+        .exists()
+        .trim()
+        .withMessage("device_id is missing")
+        .bail()
+        .isMongoId()
+        .withMessage("device_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("*.is_device_primary")
+        .if(body("*.is_device_primary").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("is_device_primary should be Boolean"),
+      body("*.site_id")
+        .exists()
+        .trim()
+        .withMessage("site_id is missing")
+        .bail()
+        .isMongoId()
+        .withMessage("site_id must be an object ID")
+        .bail()
+        .customSanitizer((value) => {
+          return ObjectId(value);
+        }),
+      body("*.time")
+        .exists()
+        .trim()
+        .withMessage("time is missing")
+        .bail()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("time must be a valid datetime."),
+      body("*.frequency")
+        .exists()
+        .trim()
+        .toLowerCase()
+        .withMessage("frequency is missing")
+        .bail()
+        .isIn(["raw", "hourly", "daily"])
+        .withMessage(
+          "the frequency value is not among the expected ones which include: raw, hourly and daily"
+        ),
+      body("*.is_test_data")
+        .if(body("*.is_test_data").exists())
+        .notEmpty()
+        .trim()
+        .isBoolean()
+        .withMessage("is_test_data should be boolean"),
+      body("*.device")
+        .if(body("*.device").exists())
+        .notEmpty()
+        .trim(),
+      body("*.site")
+        .if(body("*.site").exists())
+        .notEmpty()
+        .trim(),
+      body("*.device_number")
+        .if(body("*.device_number").exists())
+        .notEmpty()
+        .isInt()
+        .withMessage("the device_number should be an integer value")
+        .bail()
+        .trim(),
+    ],
+  ]),
+  eventController.transform
+);
 router.get(
   "/events",
   oneOf([

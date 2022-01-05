@@ -158,6 +158,58 @@ const createEvent = {
     }
   },
 
+  transform: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let request = {};
+      request["query"] = {};
+      request["body"] = {};
+      request["query"] = query;
+      request["body"] = body;
+
+      const responseFromTransformEvents = await createEventUtil.transformManyEvents(
+        request
+      );
+
+      if (responseFromTransformEvents.success === true) {
+        const status = responseFromTransformEvents.status
+          ? responseFromTransformEvents.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          message: responseFromTransformEvents.message,
+          transformedEvents: responseFromTransformEvents.data,
+        });
+      }
+      if (responseFromTransformEvents.success === false) {
+        const status = responseFromTransformEvents.status
+          ? responseFromTransformEvents.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransformEvents.errors
+          ? responseFromTransformEvents.errors
+          : "";
+        return res.status(status).json({
+          message: responseFromTransformEvents.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  create: async (req, res) => {
+    try {
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   getValues: (req, res) => {
     try {
       const {
