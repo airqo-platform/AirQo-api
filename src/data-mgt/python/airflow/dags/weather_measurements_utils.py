@@ -179,5 +179,10 @@ def save_weather_measurements(input_file):
     file = open(input_file)
     data = json.load(file)
 
+    info = {
+        "data": data,
+        "action": "save"
+    }
+
     kafka = KafkaBrokerClient()
-    kafka.send_data(data=data, topic=configuration.WEATHER_MEASUREMENTS_TOPIC)
+    kafka.send_data(info=info, topic=configuration.WEATHER_MEASUREMENTS_TOPIC)

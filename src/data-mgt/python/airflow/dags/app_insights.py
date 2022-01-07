@@ -1,4 +1,3 @@
-import json
 import traceback
 from datetime import datetime
 from datetime import timedelta
@@ -130,20 +129,26 @@ def create_insights_data(forecast_data_file, averaged_data_file):
     insights_data['forecast'].fillna(False, inplace=True)
     insights_data['pm10'].fillna(insights_data['pm2_5'], inplace=True)
 
+    insights_data.dropna(inplace=True)
+    insights_data['frequency'] = insights_data['frequency'].apply(lambda x: str(x).upper())
+
     return insights_data.to_dict(orient="records")
 
 
-def save_insights_data(insights_data_file):
+def save_insights_data(insights_data):
     print("saving insights .... ")
 
-    json_data = json.dumps(insights_data_file)
-    data = json.loads(json_data)
+    data = {
+        "data": insights_data,
+        "action": "save"
+    }
 
     kafka = KafkaBrokerClient()
-    kafka.send_data(data=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
 
 
-@dag('App-Insights-Pipeline', schedule_interval=None, start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
+@dag('App-Insights-Pipeline', schedule_interval="*/40 * * * *",
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
 def app_insights_etl():
     @task(multiple_outputs=True)
     def extract():

@@ -70,4 +70,4 @@ for year in ["2019", "2020", "2021", "2022"]:
             end = get_last_datetime(year, month)
             file = '{}_{}_{}'.format(year, month_name, frequency)
 
-            globals()[pipeline_id] = create_dag(pipeline_id, start, end, file, frequency)
+            # globals()[pipeline_id] = create_dag(pipeline_id, start, end, file, frequency)

@@ -74,9 +74,9 @@ for year in ["2020", "2021", "2022"]:
             end = get_last_datetime(year, month)
             file = '{}_{}_{}'.format(year, month_name, frequency)
 
-            globals()[pipeline_id] = create_dag(pipeline_id, start, end, file, frequency)
+            # globals()[pipeline_id] = create_dag(pipeline_id, start, end, file, frequency)
 
 for frequency in ["hourly", "daily"]:
     pipeline_id = 'weather_{}_streams_measurements'.format(frequency)
     file = '{}'.format(frequency)
-    globals()[pipeline_id] = create_dag(pipeline_id, None, None, file, frequency)
+    # globals()[pipeline_id] = create_dag(pipeline_id, None, None, file, frequency)
