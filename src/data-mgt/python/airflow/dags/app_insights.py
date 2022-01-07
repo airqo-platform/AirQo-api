@@ -16,9 +16,12 @@ def predict_time_to_string(time):
     return date_to_str(date_time)
 
 
-def measurement_time_to_string(time):
+def measurement_time_to_string(time, day=None):
     date_time = str_to_date(time)
-    return date_to_str(date_time)
+    if day:
+        return date_to_str(date_time)
+    else:
+        return date_to_str_days(date_time)
 
 
 def get_insights_forecast(tenant):
@@ -103,6 +106,15 @@ def get_insights_averaged_data(tenant):
         #     break
 
     measurements_df = pd.json_normalize(averaged_measurements)
+
+    recent_events = airqo_api.get_events(tenant='airqo', start_time=None, frequency='hourly',
+                                         end_time=None, device=None, meta_data="site", recent=True)
+
+    if recent_events:
+        recent_events_df = pd.json_normalize(recent_events)
+        recent_events_df["frequency"] = "daily"
+        recent_events_df['time'] = recent_events_df['time'].apply(lambda x: measurement_time_to_string(x))
+        measurements_df = measurements_df.append(recent_events_df, ignore_index=True)
 
     measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
     measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)

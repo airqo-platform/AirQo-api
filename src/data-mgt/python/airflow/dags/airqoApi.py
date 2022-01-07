@@ -26,15 +26,24 @@ class AirQoApi:
 
         return []
 
-    def get_events(self, tenant, start_time, end_time, frequency, device=None, meta_data=None):
-        params = {
-            "tenant": tenant,
-            "startTime": start_time,
-            "endTime": end_time,
-            "frequency": frequency,
-            "recent": "no",
-            "external": "no"
-        }
+    def get_events(self, tenant, start_time, end_time, frequency, device=None, meta_data=None, recent=None):
+        if recent:
+            params = {
+                "tenant": tenant,
+                "frequency": frequency,
+                "recent": "yes",
+                "external": "no"
+            }
+        else:
+            params = {
+                "tenant": tenant,
+                "startTime": start_time,
+                "endTime": end_time,
+                "frequency": frequency,
+                "recent": "no",
+                "external": "no"
+            }
+
         if device:
             params["device"] = device
         if meta_data:

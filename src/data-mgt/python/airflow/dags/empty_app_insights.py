@@ -1,13 +1,13 @@
 import random
 from datetime import datetime
-from datetime import timedelta
 
 import pandas as pd
 from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
-from date import date_to_str_hours, date_to_str_days
+from date import date_to_str_hours, date_to_str_days, first_day_of_week, first_day_of_month, last_day_of_week, \
+    last_day_of_month
 from kafka_client import KafkaBrokerClient
 
 
@@ -28,8 +28,9 @@ def save_insights_data(insights_data):
 def app_empty_insights_etl():
     @task()
     def load():
-        start_time = date_to_str_days(datetime.utcnow() - timedelta(days=23))
-        end_time = date_to_str_days(datetime.utcnow() + timedelta(days=23))
+        start_time = date_to_str_days(first_day_of_week(first_day_of_month(date_time=datetime.now())))
+        end_time = date_to_str_days(last_day_of_week(last_day_of_month(date_time=datetime.now())))
+
         airqo_api = AirQoApi()
         sites = airqo_api.get_sites(tenant="airqo")
         empty_insights = []
