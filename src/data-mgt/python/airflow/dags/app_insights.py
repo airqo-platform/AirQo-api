@@ -6,9 +6,8 @@ import pandas as pd
 from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
-from config import configuration
 from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date
-from kafka_client import KafkaBrokerClient
+from utils import save_insights_data
 
 
 def predict_time_to_string(time):
@@ -139,24 +138,11 @@ def create_insights_data(forecast_data_file, averaged_data_file):
 
     insights_data = forecast_data.append(averaged_data, ignore_index=True)
     insights_data['forecast'].fillna(False, inplace=True)
-    insights_data['pm10'].fillna(insights_data['pm2_5'], inplace=True)
 
     insights_data.dropna(inplace=True)
     insights_data['frequency'] = insights_data['frequency'].apply(lambda x: str(x).upper())
 
     return insights_data.to_dict(orient="records")
-
-
-def save_insights_data(insights_data):
-    print("saving insights .... ")
-
-    data = {
-        "data": insights_data,
-        "action": "save"
-    }
-
-    kafka = KafkaBrokerClient()
-    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
 
 
 @dag('App-Insights-Pipeline', schedule_interval="*/40 * * * *",
@@ -181,7 +167,7 @@ def app_insights_etl():
     @task()
     def load(data: dict):
         insights_data = data.get("insights_data")
-        save_insights_data(insights_data)
+        save_insights_data(insights_data=insights_data, action="save")
 
     extracted_data = extract()
     insights = transform(extracted_data)

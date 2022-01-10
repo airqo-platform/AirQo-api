@@ -67,7 +67,7 @@ for year in ["2020", "2021", "2022"]:
     for month in range(1, 13):
         if month > today.month and int(year) == today.year:
             break
-        for frequency in ["raw", "hourly", "daily"]:
+        for frequency in ["raw", "hourly"]:
             month_name = get_month(month)
             pipeline_id = 'weather_{}-{}_{}_measurements'.format(year, month_name, frequency)
             start = get_first_datetime(year, month)
@@ -76,7 +76,7 @@ for year in ["2020", "2021", "2022"]:
 
             # globals()[pipeline_id] = create_dag(pipeline_id, start, end, file, frequency)
 
-for frequency in ["hourly", "daily"]:
+for frequency in ["raw", "hourly"]:
     pipeline_id = 'weather_{}_streams_measurements'.format(frequency)
     file = '{}'.format(frequency)
     # globals()[pipeline_id] = create_dag(pipeline_id, None, None, file, frequency)

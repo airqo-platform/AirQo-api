@@ -28,6 +28,12 @@ spec:
           command: ["airflow"]
           args: ["scheduler"]
           resources: {}
+            # requests:
+            #   memory: 2Mi
+            #   cpu: 50m
+            # limits:
+            #   memory: 100Mi
+            #   cpu: 100m
         - name: airflow-webserver
           image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
           imagePullPolicy: Always
@@ -39,8 +45,14 @@ spec:
           command: ["airflow"]
           args: ["webserver"]
           resources: {}
+            # requests:
+            #   memory: 10Mi
+            #   cpu: 100m
+            # limits:
+            #   memory: 500Mi
+            #   cpu: 500m
           readinessProbe: 
-            initialDelaySeconds: 300
+            initialDelaySeconds: 180
             timeoutSeconds: 120
             httpGet:
               path: /stage-airflow

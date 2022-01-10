@@ -39,42 +39,10 @@ spec:
           command: ["airflow"]
           args: ["webserver"]
           resources: {}
+          readinessProbe: 
+            initialDelaySeconds: 180
+            timeoutSeconds: 120
+            httpGet:
+              path: /airflow
+              port: 8080
       restartPolicy: Always
-
----
-apiVersion: autoscaling/v1
-kind: HorizontalPodAutoscaler
-metadata:
-  name: airflow
-  namespace: default
-spec:
-  maxReplicas: 10
-  minReplicas: 2
-  scaleTargetRef:
-    apiVersion: extensions/v1beta1
-    kind: Deployment
-    name: airflow
-  # targetCPUUtilizationPercentage: 60
-
----
-apiVersion: autoscaling.k8s.io/v1beta2
-kind: VerticalPodAutoscaler
-metadata:
-  name: airflow
-spec:
-  targetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: hairflow
-  resourcePolicy:
-    containerPolicies:
-      - containerName: '*'
-        controlledResources: ["cpu", "memory"]
-        minAllowed:
-          cpu: 200m
-          memory: 50Mi
-        maxAllowed:
-          cpu: 500m
-          memory: 500Mi
-  updatePolicy:
-    updateMode: "Auto"

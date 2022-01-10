@@ -1,31 +1,18 @@
 import random
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pandas as pd
 from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
-from config import configuration
 from date import date_to_str_hours, date_to_str_days, first_day_of_week, first_day_of_month, last_day_of_week, \
     last_day_of_month
-from kafka_client import KafkaBrokerClient
+from utils import save_insights_data
 
 
-def save_insights_data(insights_data):
-    print("saving insights .... ")
-
-    data = {
-        "data": insights_data,
-        "action": "insert"
-    }
-
-    kafka = KafkaBrokerClient()
-    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
-
-
-@dag('Empty-App-Insights-Pipeline', schedule_interval="@daily",
+@dag('App-Placeholder-Insights-Pipeline', schedule_interval="@monthly",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
-def app_empty_insights_etl():
+def app_placeholder_insights_etl():
     @task()
     def load():
         start_time = date_to_str_days(first_day_of_week(first_day_of_month(date_time=datetime.now())))
@@ -71,9 +58,17 @@ def app_empty_insights_etl():
                 except Exception as ex:
                     print(ex)
 
-        save_insights_data(empty_insights)
+        save_insights_data(insights_data=empty_insights, action="insert")
+
+    @task()
+    def delete():
+        start_time = first_day_of_week(first_day_of_month(date_time=datetime.now())) - timedelta(days=7)
+        end_time = last_day_of_week(last_day_of_month(date_time=datetime.now())) + timedelta(days=7)
+
+        save_insights_data(insights_data=[], action="delete", start_time=start_time, end_time=end_time)
 
     load()
+    delete()
 
 
-app_empty_insights_dag = app_empty_insights_etl()
+app_placeholder_insights_dag = app_placeholder_insights_etl()

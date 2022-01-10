@@ -8,7 +8,26 @@ import simplejson
 from google.cloud import bigquery
 
 from config import configuration
-from date import str_to_date
+from date import str_to_date, date_to_str
+from kafka_client import KafkaBrokerClient
+
+
+def save_insights_data(insights_data=None, action="insert", start_time=datetime(year=2020, month=1, day=1),
+                       end_time=datetime(year=2020, month=1, day=1)):
+    if insights_data is None:
+        insights_data = []
+
+    print("saving insights .... ")
+
+    data = {
+        "data": insights_data,
+        "action": action,
+        "startTime": date_to_str(start_time),
+        "endTime": date_to_str(end_time),
+    }
+
+    kafka = KafkaBrokerClient()
+    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
 
 
 def get_last_datetime(year, month):
