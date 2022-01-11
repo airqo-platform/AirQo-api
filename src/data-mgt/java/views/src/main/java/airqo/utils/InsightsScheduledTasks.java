@@ -45,8 +45,9 @@ public class InsightsScheduledTasks {
 	@PostConstruct
 	public void createInsights() {
 
-		populateInsights();
 		formatInsights();
+		populateInsights();
+
 		//		saveHourlyInsights();
 //		saveDailyInsights();
 
@@ -91,7 +92,7 @@ public class InsightsScheduledTasks {
 
 		logger.info(String.valueOf(insights.size()));
 
-		measurementService.saveInsights(insights);
+		measurementService.insertInsights(insights);
 	}
 
 	private void formatInsights() {
@@ -106,11 +107,11 @@ public class InsightsScheduledTasks {
 		List<Insight> insights = measurementService.getInsights(new Date(), true);
 		List<Insight> formattedInsights = new ArrayList<>();
 		for (Insight insight : insights) {
-			insight.setIsForecast(false);
+			insight.setForecast(false);
 			formattedInsights.add(insight);
 		}
 
-		measurementService.insertInsights(formattedInsights);
+		measurementService.saveInsights(formattedInsights);
 	}
 
 	private Date formatTime(Date time, Frequency frequency) {
@@ -154,10 +155,10 @@ public class InsightsScheduledTasks {
 		List<Insight> forecastInsights = new ArrayList<>();
 		List<Forecast> devicesForecast = measurementService.getForecasts(startTime, null);
 		for (Forecast forecast : devicesForecast) {
-			boolean isForecast = forecast.getTime().compareTo(referenceDate) < 0;
+			boolean deviceForecast = forecast.getTime().compareTo(referenceDate) < 0;
 			Insight insight = new Insight(
 				formatTime(forecast.getTime(), Frequency.HOURLY), forecast.getPm2_5(), forecast.getPm2_5(),
-				false, isForecast, Frequency.HOURLY, forecast.getDevice().getSite().getId());
+				false, deviceForecast, Frequency.HOURLY, forecast.getDevice().getSite().getId());
 			forecastInsights.add(insight);
 		}
 		for (Insight insight : insights) {

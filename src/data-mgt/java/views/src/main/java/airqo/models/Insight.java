@@ -12,7 +12,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 
 import static airqo.config.Constants.dateTimeFormat;
@@ -35,31 +37,35 @@ public class Insight implements Serializable {
 	private String id;
 
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
-	private Date time;
-	private double pm2_5;
-	private double pm10;
-	private Boolean isEmpty = false;
-	private Boolean isForecast = false;
-	private String frequency;
-	private String siteId;
+	private Date time = new Date();
+	private double pm2_5 = 0.0;
+	private double pm10 = 0.0;
+	private Boolean empty = false;
+	private Boolean forecast = false;
+	private String frequency = "";
+	private String siteId = "";
 
-	public Insight(Date time, double pm2_5, double pm10, Boolean isEmpty, Boolean isForecast, Frequency frequency, String siteId) {
+	public Insight(Date time, double pm2_5, double pm10, Boolean empty, Boolean forecast, Frequency frequency, String siteId) {
 		this.time = time;
 		this.pm2_5 = pm2_5;
 		this.pm10 = pm10;
-		this.isEmpty = isEmpty;
-		this.isForecast = isForecast;
+		this.empty = empty;
+		this.forecast = forecast;
 		this.frequency = frequency.toString().toUpperCase();
 		this.siteId = siteId;
 		this.id = new InsightId(time, frequency.toString(), siteId).toString();
 	}
 
-	public void setId(String id) {
+	public void setId() {
 		this.id = new InsightId(time, frequency, siteId).toString();
 	}
 
-	public void setId() {
-		this.id = new InsightId(time, frequency, siteId).toString();
+	public String getFrequency() {
+		return frequency.toUpperCase();
+	}
+
+	public void setFrequency(String frequency) {
+		this.frequency = frequency.toUpperCase();
 	}
 
 	@Override
@@ -107,6 +113,20 @@ public class Insight implements Serializable {
 			String frequencyValue = frequency.trim().toLowerCase();
 			return (siteId + ":" + frequencyValue + ":" + dateTime).toUpperCase();
 		}
+	}
+
+	@Getter
+	@Setter
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@ToString
+	public static class InsightMessage implements Serializable {
+
+		private List<Insight> data = new ArrayList<>();
+		private String action = "insert";
+		private Date startTime = null;
+		private Date endTime = null;
+
 	}
 
 }

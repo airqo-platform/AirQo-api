@@ -30,7 +30,7 @@ public interface MeasurementService {
 
 	void insertInsight(Insight insight);
 
-	void deleteInsights(Date laterDate, Date afterDate);
+	void deleteInsights(Date beforeTime, Date afterDate);
 
 	void insertForecast(List<Forecast> forecasts);
 

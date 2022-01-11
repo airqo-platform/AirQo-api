@@ -27,5 +27,5 @@ public interface InsightRepository extends MongoRepository<Insight, String>, Que
 
 	void deleteAllByTimeAfter(Date time);
 
-	List<Insight> findAllByTimeBeforeAndIsForecast(Date time, boolean forecast);
+	List<Insight> findAllByTimeBeforeAndForecast(Date time, boolean forecast);
 }

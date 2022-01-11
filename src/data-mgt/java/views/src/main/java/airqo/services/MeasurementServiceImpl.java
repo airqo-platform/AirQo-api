@@ -43,26 +43,26 @@ public class MeasurementServiceImpl implements MeasurementService {
 
 
 	@Override
-	@Cacheable(value = "viewInsightsCache", cacheNames = {"viewInsightsCache"})
+	@Cacheable(value = "viewInsightsCache", cacheNames = {"viewInsightsCache"}, unless = "#result.size() <= 0")
 	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String siteId) {
-		QInsight qInsight = new QInsight("frequency");
-		Predicate predicate = qInsight.frequency.eq(frequency.toString())
-			.and(qInsight.siteId.eq(siteId))
-			.and(
-				qInsight.time.between(startTime, endTime).or(qInsight.time.eq(startTime)).or(qInsight.time.eq(endTime))
-			);
+		QInsight qInsight = QInsight.insight;
+		Predicate predicate = qInsight.frequency.equalsIgnoreCase(frequency.toString())
+			.and(qInsight.siteId.equalsIgnoreCase(siteId))
+			.and(qInsight.time.goe(startTime))
+			.and(qInsight.time.loe(endTime));
+		logger.info(predicate.toString());
 		return (List<Insight>) insightRepository.findAll(predicate);
 	}
 
 	@Override
 	public List<Weather> getWeather(Frequency frequency, Date startTime, Date endTime, String siteId) {
 
-		QWeather qWeather = new QWeather("frequency");
-		Predicate predicate = qWeather.frequency.eq(frequency.toString())
-			.and(qWeather.site.id.eq(siteId))
-			.and(
-				qWeather.time.between(startTime, endTime).or(qWeather.time.eq(startTime)).or(qWeather.time.eq(endTime))
-			);
+		QWeather qWeather = QWeather.weather;
+		Predicate predicate = qWeather.frequency.equalsIgnoreCase(frequency.toString())
+			.and(qWeather.site.id.equalsIgnoreCase(siteId))
+			.and(qWeather.time.goe(startTime))
+			.and(qWeather.time.loe(endTime));
+		logger.info(predicate.toString());
 		return (List<Weather>) weatherRepository.findAll(predicate);
 
 	}
@@ -79,7 +79,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 
 	@Override
 	public List<Insight> getInsights(Date beforeTime, boolean forecast) {
-		return insightRepository.findAllByTimeBeforeAndIsForecast(beforeTime, forecast);
+		return insightRepository.findAllByTimeBeforeAndForecast(beforeTime, forecast);
 	}
 
 	@Override
@@ -115,8 +115,11 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public void deleteInsights(Date laterDate, Date afterDate) {
-		insightRepository.deleteAllByTimeBefore(laterDate);
+	public void deleteInsights(Date beforeTime, Date afterDate) {
+		if(beforeTime == null || afterDate == null){
+			return;
+		}
+		insightRepository.deleteAllByTimeBefore(beforeTime);
 		insightRepository.deleteAllByTimeAfter(afterDate);
 	}
 

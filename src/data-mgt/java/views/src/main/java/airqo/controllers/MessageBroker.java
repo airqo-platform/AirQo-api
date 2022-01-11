@@ -37,59 +37,64 @@ public class MessageBroker {
 	@Autowired
 	DeviceService deviceService;
 
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
-	public void sites(String content) {
-		try {
+	final ObjectMapper objectMapper = new ObjectMapper();
 
-			ObjectMapper objectMapper = new ObjectMapper();
-			Site.SiteList siteList = objectMapper.readValue(content, Site.SiteList.class);
-			siteService.insertSites(siteList.getSites(), null);
-			logger.info(siteList.toString());
-
-		} catch (JsonProcessingException e) {
-			e.printStackTrace();
-		}
-	}
-
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.weather}'.split(',')}")
-	public void weatherData(String content) {
-		try {
-
-			ObjectMapper objectMapper = new ObjectMapper();
-
-			List<Weather> weatherList = objectMapper.readValue(content, new TypeReference<>() {
-			});
-			List<Site> sites = siteService.getSites(null);
-			List<Weather> weatherData = new ArrayList<>();
-			for (Weather weather : weatherList) {
-				try {
-					List<Site> weatherSite = sites.stream().filter(site ->
-						Objects.equals(site.getId(), weather.getSite().getId())).collect(Collectors.toList());
-					if (weatherSite.isEmpty()) {
-						continue;
-					}
-					weather.setSite(weatherSite.get(0));
-					weatherData.add(weather);
-
-				} catch (Exception e) {
-					e.printStackTrace();
-				}
-			}
-			measurementService.insertWeather(weatherData);
-
-		} catch (JsonProcessingException e) {
-			e.printStackTrace();
-		}
-	}
+//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
+//	public void sites(String content) {
+//		try {
+//
+//			ObjectMapper objectMapper = new ObjectMapper();
+//			Site.SiteList siteList = objectMapper.readValue(content, Site.SiteList.class);
+//			siteService.insertSites(siteList.getSites(), null);
+//			logger.info(siteList.toString());
+//
+//		} catch (JsonProcessingException e) {
+//			e.printStackTrace();
+//		}
+//	}
+//
+//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.weather}'.split(',')}")
+//	public void weatherData(String content) {
+//		try {
+//
+//			ObjectMapper objectMapper = new ObjectMapper();
+//
+//			List<Weather> weatherList = objectMapper.readValue(content, new TypeReference<>() {
+//			});
+//			List<Site> sites = siteService.getSites(null);
+//			List<Weather> weatherData = new ArrayList<>();
+//			for (Weather weather : weatherList) {
+//				try {
+//					List<Site> weatherSite = sites.stream().filter(site ->
+//						Objects.equals(site.getId(), weather.getSite().getId())).collect(Collectors.toList());
+//					if (weatherSite.isEmpty()) {
+//						continue;
+//					}
+//					weather.setSite(weatherSite.get(0));
+//					weatherData.add(weather);
+//
+//				} catch (Exception e) {
+//					e.printStackTrace();
+//				}
+//			}
+//			measurementService.insertWeather(weatherData);
+//
+//		} catch (JsonProcessingException e) {
+//			e.printStackTrace();
+//		}
+//	}
 
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}")
 	public void appInsights(String content) {
 		try {
 
-			ObjectMapper objectMapper = new ObjectMapper();
+			Insight.InsightMessage insightMessage = objectMapper.readValue(content, Insight.InsightMessage.class);
 
-			List<Insight> insights = objectMapper.readValue(content, new TypeReference<>() {
-			});
+			List<Insight> insights = insightMessage.getData();
+
+			if (insights.isEmpty()){
+				return;
+			}
 
 			List<Insight> insightsList = new ArrayList<>();
 			for (Insight insight : insights) {
@@ -98,24 +103,33 @@ public class MessageBroker {
 			}
 
 			logger.info(insightsList.toString());
-			measurementService.saveInsights(insightsList);
-			logger.info(insights.toString());
+			if(insightMessage.getAction().equalsIgnoreCase("save")){
+				measurementService.saveInsights(insightsList);
+			}
+			else if(insightMessage.getAction().equalsIgnoreCase("delete")){
+				measurementService.deleteInsights(insightMessage.getStartTime(), insightMessage.getEndTime());
+			}
+			else {
+				measurementService.insertInsights(insightsList);
+			}
+
+			logger.info(insightsList.toString());
 
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();
 		}
 	}
 
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
-	public void devices(String content) {
-		try {
-			ObjectMapper objectMapper = new ObjectMapper();
-			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);
-			deviceService.insertDevices(deviceList.getDevices(), null);
-			logger.info(deviceList.toString());
-
-		} catch (JsonProcessingException e) {
-			e.printStackTrace();
-		}
-	}
+//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
+//	public void devices(String content) {
+//		try {
+//			ObjectMapper objectMapper = new ObjectMapper();
+//			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);
+//			deviceService.insertDevices(deviceList.getDevices(), null);
+//			logger.info(deviceList.toString());
+//
+//		} catch (JsonProcessingException e) {
+//			e.printStackTrace();
+//		}
+//	}
 }

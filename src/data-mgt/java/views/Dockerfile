@@ -33,7 +33,7 @@ FROM base as build-package
 RUN ./mvnw package -Dmaven.test.skip=true
 
 FROM openjdk:11-jre-slim as message-broker
-COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views-jobs.jar
+COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /message-broker.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom",  "-Dspring.profiles.active=messageBroker", "-jar", "/message-broker.jar"]
 
