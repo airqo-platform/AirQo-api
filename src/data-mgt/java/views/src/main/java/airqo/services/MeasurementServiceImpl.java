@@ -3,8 +3,7 @@ package airqo.services;
 import airqo.models.*;
 import airqo.repository.*;
 import com.querydsl.core.types.Predicate;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -17,30 +16,26 @@ import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
+@Slf4j
 @Service
 public class MeasurementServiceImpl implements MeasurementService {
 
-	private static final Logger logger = LoggerFactory.getLogger(MeasurementService.class);
+	private final HourlyMeasurementRepository hourlyMeasurementRepository;
+	private final DailyMeasurementRepository dailyMeasurementRepository;
+	private final DeviceService deviceService;
+	private final InsightRepository insightRepository;
+	private final ForecastRepository forecastRepository;
+	private final WeatherRepository weatherRepository;
 
 	@Autowired
-	HourlyMeasurementRepository hourlyMeasurementRepository;
-
-	@Autowired
-	DailyMeasurementRepository dailyMeasurementRepository;
-
-	@Autowired
-	DeviceService deviceService;
-
-
-	@Autowired
-	InsightRepository insightRepository;
-
-	@Autowired
-	ForecastRepository forecastRepository;
-
-	@Autowired
-	WeatherRepository weatherRepository;
-
+	public MeasurementServiceImpl(HourlyMeasurementRepository hourlyMeasurementRepository, DailyMeasurementRepository dailyMeasurementRepository, DeviceService deviceService, InsightRepository insightRepository, ForecastRepository forecastRepository, WeatherRepository weatherRepository) {
+		this.hourlyMeasurementRepository = hourlyMeasurementRepository;
+		this.dailyMeasurementRepository = dailyMeasurementRepository;
+		this.deviceService = deviceService;
+		this.insightRepository = insightRepository;
+		this.forecastRepository = forecastRepository;
+		this.weatherRepository = weatherRepository;
+	}
 
 	@Override
 	@Cacheable(value = "viewInsightsCache", cacheNames = {"viewInsightsCache"}, unless = "#result.size() <= 0")
@@ -50,7 +45,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 			.and(qInsight.siteId.equalsIgnoreCase(siteId))
 			.and(qInsight.time.goe(startTime))
 			.and(qInsight.time.loe(endTime));
-		logger.info(predicate.toString());
+		log.info(predicate.toString());
 		return (List<Insight>) insightRepository.findAll(predicate);
 	}
 
@@ -62,7 +57,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 			.and(qWeather.site.id.equalsIgnoreCase(siteId))
 			.and(qWeather.time.goe(startTime))
 			.and(qWeather.time.loe(endTime));
-		logger.info(predicate.toString());
+		log.info(predicate.toString());
 		return (List<Weather>) weatherRepository.findAll(predicate);
 
 	}
@@ -115,12 +110,12 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public void deleteInsights(Date beforeTime, Date afterDate) {
-		if(beforeTime == null || afterDate == null){
-			return;
-		}
-		insightRepository.deleteAllByTimeBefore(beforeTime);
-		insightRepository.deleteAllByTimeAfter(afterDate);
+	public void deleteInsightsBefore(Date date) {
+//		QInsight qInsight = QInsight.insight;
+//		Predicate predicate = qInsight.time.loe(date);
+//		List<Insight> insights = (List<Insight>) insightRepository.findAll(predicate);
+		log.info(String.format("Deleting insights before %s", date));
+		insightRepository.deleteAllByTimeBefore(date);
 	}
 
 	@Override

@@ -3,8 +3,7 @@ package airqo.controllers;
 import airqo.models.*;
 import airqo.services.DeviceService;
 import airqo.services.MeasurementService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Pageable;
@@ -25,19 +24,21 @@ import java.util.List;
 
 import static airqo.config.Constants.dateTimeFormat;
 
+@Slf4j
 @Profile({"api"})
 @RestController
 @RequestMapping("measurements")
 public class MeasurementController {
 
-	private static final Logger logger = LoggerFactory.getLogger(MeasurementController.class);
-	final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
+	private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
+	private final MeasurementService measurementService;
+	private final DeviceService deviceService;
 
 	@Autowired
-	MeasurementService measurementService;
-
-	@Autowired
-	DeviceService deviceService;
+	public MeasurementController(MeasurementService measurementService, DeviceService deviceService) {
+		this.measurementService = measurementService;
+		this.deviceService = deviceService;
+	}
 
 	@GetMapping("")
 	public ResponseEntity<?> getMeasurements(
@@ -51,7 +52,7 @@ public class MeasurementController {
 			ApiResponseBody httpResponseBody = new ApiResponseBody("Operation Successful", measurements);
 			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.OK);
 		}
-		logger.info(String.valueOf(parameters));
+		log.info(String.valueOf(parameters));
 		List<HourlyMeasurement> measurements = measurementService.getRecentHourlyMeasurements(null, null);
 		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
 	}

@@ -1,44 +1,6 @@
 apiVersion: batch/v1beta1
 kind: CronJob
 metadata:
-  name: insights-job
-  namespace: production
-spec:
-  concurrencyPolicy: Allow
-  failedJobsHistoryLimit: 2
-  schedule: "30 * * * *"
-  successfulJobsHistoryLimit: 2
-  jobTemplate:
-    metadata:
-      name: insights-job
-    spec:
-      template:
-        metadata:
-          annotations:
-            sidecar.istio.io/inject: "false"
-        spec:
-          containers:
-              - name: insights-job
-                image: us.gcr.io/airqo-250220/airqo-view-jobs:latest
-                imagePullPolicy: Always
-                env:
-                  - name: spring.profiles.active
-                    value: insights-job 
-                  - name: JAVA_OPTIONS
-                    value: -Dspring.profiles.active=insights-job
-                envFrom:
-                  - configMapRef:
-                      name: prod-view-jobs-config
-          dnsPolicy: ClusterFirst
-          restartPolicy: OnFailure
-          schedulerName: default-scheduler
-          securityContext: {}
-          terminationGracePeriodSeconds: 30
-
----
-apiVersion: batch/v1beta1
-kind: CronJob
-metadata:
   name: forecast-job
   namespace: production
 spec:

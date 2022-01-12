@@ -1,10 +1,8 @@
 package airqo.models;
 
-import airqo.serializers.ForecastSerializer;
 import com.fasterxml.jackson.annotation.JsonAlias;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import lombok.*;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
@@ -17,6 +15,8 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+
+import static airqo.config.Constants.dateTimeFormat;
 
 @Getter
 @Setter
@@ -34,9 +34,8 @@ public class Forecast implements Serializable {
 	private Device device = new Device();
 
 	@JsonAlias("prediction_time")
-	@Indexed(direction = IndexDirection.DESCENDING, name = "Descending order")
-	@JsonSerialize(using = ForecastSerializer.ForecastDateSerializer.class)
-	@JsonDeserialize(using = ForecastSerializer.ForecastDateDeserializer.class)
+	@Indexed(direction = IndexDirection.DESCENDING, name = "Time Descending order")
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	private Date time = new Date();
 
 	@JsonAlias("prediction_value")

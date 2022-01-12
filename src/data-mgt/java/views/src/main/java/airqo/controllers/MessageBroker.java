@@ -1,17 +1,12 @@
 package airqo.controllers;
 
-import airqo.models.Device;
 import airqo.models.Insight;
-import airqo.models.Site;
-import airqo.models.Weather;
 import airqo.services.DeviceService;
 import airqo.services.MeasurementService;
 import airqo.services.SiteService;
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -19,27 +14,26 @@ import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
-import java.util.stream.Collectors;
 
+@Slf4j
 @Profile({"messageBroker"})
 @Component
 public class MessageBroker {
 
-	final Logger logger = LoggerFactory.getLogger(getClass());
+	private final MeasurementService measurementService;
+	private final SiteService siteService;
+	private final DeviceService deviceService;
+	private final ObjectMapper objectMapper;
 
 	@Autowired
-	MeasurementService measurementService;
+	public MessageBroker(MeasurementService measurementService, SiteService siteService, DeviceService deviceService, ObjectMapper objectMapper) {
+		this.measurementService = measurementService;
+		this.siteService = siteService;
+		this.deviceService = deviceService;
+		this.objectMapper = objectMapper;
+	}
 
-	@Autowired
-	SiteService siteService;
-
-	@Autowired
-	DeviceService deviceService;
-
-	final ObjectMapper objectMapper = new ObjectMapper();
-
-//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
+	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
 //	public void sites(String content) {
 //		try {
 //
@@ -92,28 +86,22 @@ public class MessageBroker {
 
 			List<Insight> insights = insightMessage.getData();
 
-			if (insights.isEmpty()){
-				return;
-			}
-
 			List<Insight> insightsList = new ArrayList<>();
 			for (Insight insight : insights) {
 				insight.setId();
 				insightsList.add(insight);
 			}
 
-			logger.info(insightsList.toString());
-			if(insightMessage.getAction().equalsIgnoreCase("save")){
+			log.info(insightMessage.toString());
+			if (insightMessage.getAction().equalsIgnoreCase("save")) {
 				measurementService.saveInsights(insightsList);
-			}
-			else if(insightMessage.getAction().equalsIgnoreCase("delete")){
-				measurementService.deleteInsights(insightMessage.getStartTime(), insightMessage.getEndTime());
-			}
-			else {
+			} else if (insightMessage.getAction().equalsIgnoreCase("delete")) {
+				measurementService.deleteInsightsBefore(insightMessage.getStartTime());
+			} else {
 				measurementService.insertInsights(insightsList);
 			}
 
-			logger.info(insightsList.toString());
+			log.info(insightsList.toString());
 
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();

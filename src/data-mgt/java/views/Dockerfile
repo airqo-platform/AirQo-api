@@ -47,11 +47,6 @@ COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 
 CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=forecast-job", "-jar", "/views.jar"]
 
-FROM openjdk:11-jre-slim as insights-job
-COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
-
-CMD ["java", "-Djava.security.egd=file:/dev/./urandom", "-Dspring.profiles.active=insights-job", "-jar", "/views.jar"]
-
 FROM openjdk:11-jre-slim as metadata-job
 COPY --from=build-package /app/target/views-0.0.1-SNAPSHOT.jar /views.jar
 

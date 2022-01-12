@@ -3,21 +3,15 @@ package airqo.serializers;
 import airqo.models.Device;
 import airqo.models.Forecast;
 import com.fasterxml.jackson.core.JsonGenerator;
-import com.fasterxml.jackson.core.JsonParser;
-import com.fasterxml.jackson.databind.DeserializationContext;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
-import com.fasterxml.jackson.databind.deser.std.StdDeserializer;
-import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import org.springframework.boot.jackson.JsonComponent;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 
-import static airqo.config.Constants.*;
+import static airqo.config.Constants.dateTimeFormat;
 
 @JsonComponent
 public class ForecastSerializer {
@@ -45,49 +39,49 @@ public class ForecastSerializer {
 		}
 	}
 
-	public static class ForecastDateSerializer extends StdSerializer<Date> {
-
-		private final SimpleDateFormat formatter = new SimpleDateFormat(dateTimeHourlyFormat);
-
-		public ForecastDateSerializer() {
-			this(null);
-		}
-
-		public ForecastDateSerializer(Class<Date> t) {
-			super(t);
-		}
-
-		@Override
-		public void serialize(Date date, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
-			throws IOException {
-			jsonGenerator.writeString(formatter.format(date));
-		}
-	}
-
-	public static class ForecastDateDeserializer extends StdDeserializer<Date> {
-
-		private final SimpleDateFormat formatter = new SimpleDateFormat(forecastDateTimeFormat);
-		private final SimpleDateFormat hourlyFormatter = new SimpleDateFormat(dateTimeHourlyFormat);
-
-		public ForecastDateDeserializer() {
-			this(null);
-		}
-
-		public ForecastDateDeserializer(Class<?> vc) {
-			super(vc);
-		}
-
-		@Override
-		public Date deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
-			String date = jsonParser.getText();
-			try {
-				Date forecastDate = formatter.parse(date);
-				return hourlyFormatter.parse(hourlyFormatter.format(forecastDate));
-			} catch (ParseException e) {
-				throw new RuntimeException(e);
-			}
-		}
-	}
+//	public static class ForecastDateSerializer extends StdSerializer<Date> {
+//
+//		private final SimpleDateFormat formatter = new SimpleDateFormat(dateTimeHourlyFormat);
+//
+//		public ForecastDateSerializer() {
+//			this(null);
+//		}
+//
+//		public ForecastDateSerializer(Class<Date> t) {
+//			super(t);
+//		}
+//
+//		@Override
+//		public void serialize(Date date, JsonGenerator jsonGenerator, SerializerProvider serializerProvider)
+//			throws IOException {
+//			jsonGenerator.writeString(formatter.format(date));
+//		}
+//	}
+//
+//	public static class ForecastDateDeserializer extends StdDeserializer<Date> {
+//
+//		private final SimpleDateFormat formatter = new SimpleDateFormat(forecastDateTimeFormat);
+//		private final SimpleDateFormat hourlyFormatter = new SimpleDateFormat(dateTimeHourlyFormat);
+//
+//		public ForecastDateDeserializer() {
+//			this(null);
+//		}
+//
+//		public ForecastDateDeserializer(Class<?> vc) {
+//			super(vc);
+//		}
+//
+//		@Override
+//		public Date deserialize(JsonParser jsonParser, DeserializationContext deserializationContext) throws IOException {
+//			String date = jsonParser.getText();
+//			try {
+//				Date forecastDate = formatter.parse(date);
+//				return hourlyFormatter.parse(hourlyFormatter.format(forecastDate));
+//			} catch (ParseException e) {
+//				throw new RuntimeException(e);
+//			}
+//		}
+//	}
 
 }
 
