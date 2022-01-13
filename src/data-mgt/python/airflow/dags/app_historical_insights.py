@@ -8,14 +8,6 @@ from date import date_to_str_days, first_day_of_month, first_day_of_week
 from utils import save_insights_data, format_measurements_to_insights
 
 
-# def measurement_time_to_string(time: str, daily=False):
-#     date_time = str_to_date(time)
-#     if daily:
-#         return date_to_str_days(date_time)
-#     else:
-#         return date_to_str_hours(date_time)
-
-
 def get_insights_historical_data(tenant: str):
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant=tenant, active=True)
@@ -40,28 +32,6 @@ def get_insights_historical_data(tenant: str):
 
     insights = format_measurements_to_insights(data=historical_measurements)
     return insights
-
-    # measurements_df = pd.DataFrame(historical_measurements)
-    #
-    # measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
-    # measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
-    #
-    # measurements_df = measurements_df[['time', 'frequency', 'site_id', 'average_pm2_5.calibratedValue',
-    #                                    'average_pm10.calibratedValue']]
-    #
-    # measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
-    # measurements_df = measurements_df[measurements_df['pm2_5'].notna()]
-    # measurements_df['frequency'] = measurements_df['frequency'].apply(lambda x: str(x).upper())
-    #
-    # hourly_measurements_df = measurements_df[measurements_df["frequency"] == "HOURLY"]
-    # hourly_measurements_df['time'] = hourly_measurements_df['time'].apply(
-    #     lambda x: measurement_time_to_string(x, daily=False))
-    #
-    # daily_measurements_df = measurements_df[measurements_df["frequency"] == "DAILY"]
-    # daily_measurements_df['time'] = daily_measurements_df['time'].apply(
-    #     lambda x: measurement_time_to_string(x, daily=True))
-    #
-    # return hourly_measurements_df.to_dict(orient="records").extend(daily_measurements_df.to_dict(orient="records"))
 
 
 def create_insights_data(averaged_data_file):

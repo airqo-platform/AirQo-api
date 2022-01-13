@@ -44,7 +44,7 @@ def clean_kcca_device_data(group, site_id, device_id):
                 "calibratedValue": get_column_value("characteristics.pm2_5ConcMass.value", row, columns),
             },
             "pm1": {
-                "value": get_column_value("characteristics.pm1ConcMass.value", row, columns),
+                "value": get_column_value("characteristics.pm1ConcMass.raw", row, columns),
                 "calibratedValue": get_column_value("characteristics.pm1ConcMass.value", row, columns),
             },
             "pm10": {
@@ -62,8 +62,7 @@ def clean_kcca_device_data(group, site_id, device_id):
                 "calibratedValue": get_column_value("characteristics.no2Conc.value", row, columns),
             },
             "speed": {
-                "value": get_column_value("characteristics.windSpeed.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.windSpeed.value", row, columns),
+                "value": get_column_value("characteristics.windSpeed.value", row, columns),
             },
         })
 

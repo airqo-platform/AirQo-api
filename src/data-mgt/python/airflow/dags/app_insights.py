@@ -107,37 +107,6 @@ def get_insights_averaged_data(tenant):
     insights = format_measurements_to_insights(data=averaged_measurements)
     return insights
 
-    # measurements_df = pd.json_normalize(averaged_measurements)
-    #
-    # recent_events = airqo_api.get_events(tenant='airqo', start_time=None, frequency='hourly',
-    #                                      end_time=None, device=None, meta_data="site", recent=True)
-    #
-    # if recent_events:
-    #     recent_events_df = pd.json_normalize(recent_events)
-    #     recent_events_df["frequency"] = "DAILY"
-    #     measurements_df = measurements_df.append(recent_events_df, ignore_index=True)
-    #
-    # measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
-    # measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
-    #
-    # measurements_df = measurements_df[['time', 'frequency', 'siteDetails._id', 'average_pm2_5.calibratedValue',
-    #                                    'average_pm10.calibratedValue']]
-    #
-    # measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
-    #
-    # measurements_df = measurements_df[measurements_df['pm2_5'].notna()]
-    # measurements_df['frequency'] = measurements_df['frequency'].apply(lambda x: str(x).upper())
-    #
-    # hourly_measurements_df = measurements_df[measurements_df["frequency"] == "HOURLY"]
-    # hourly_measurements_df['time'] = hourly_measurements_df['time'].apply(
-    #     lambda x: measurement_time_to_string(x, daily=False))
-    #
-    # daily_measurements_df = measurements_df[measurements_df["frequency"] == "DAILY"]
-    # daily_measurements_df['time'] = daily_measurements_df['time'].apply(
-    #     lambda x: measurement_time_to_string(x, daily=True))
-    #
-    # return hourly_measurements_df.to_dict(orient="records").extend(daily_measurements_df.to_dict(orient="records"))
-
 
 def create_insights_data(forecast_data_file, averaged_data_file):
     print("creating insights .... ")

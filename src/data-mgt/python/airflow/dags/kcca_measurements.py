@@ -1,5 +1,4 @@
-from datetime import datetime
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 import pandas as pd
 from airflow.decorators import dag, task
@@ -33,7 +32,7 @@ def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list
         measurements.extend(range_measurements)
 
     measurements_df = pd.json_normalize(measurements)
-    dataframe = measurements_df.where(pd.notnull(measurements_df), None)
+    dataframe = measurements_df.fillna('None')
     return dataframe.to_dict(orient="records")
 
 

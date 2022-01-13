@@ -7,10 +7,9 @@ from weather_measurements_utils import transform_weather_measurements, get_weath
 
 
 def kcca():
-    kcca_unclean_data = extract_kcca_measurements("2021-01-01T00:00:00Z", "2021-01-03T00:00:00Z", "daily")
+    kcca_unclean_data = extract_kcca_measurements("2021-01-01T08:00:00Z", "2021-01-01T12:00:00Z", "hourly")
     cleaned_data = transform_kcca_measurements(kcca_unclean_data)
     save_measurements_via_api(measurements=cleaned_data, tenant='kcca')
-    # clean_up_task(["test-kcca.csv", "cleaned-test-kcca.json"])
 
 
 def airqo_raw():
