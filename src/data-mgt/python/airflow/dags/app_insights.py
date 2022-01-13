@@ -33,7 +33,11 @@ def get_insights_forecast(tenant):
     for device in devices:
         device_dict = dict(device)
         device_number = device_dict.get("device_number", None)
-        site_id = device_dict.get("site", None)["_id"]
+        site = device_dict.get("site", None)
+        if not site:
+            print(f'device {device_number} isn\'t attached to  a site.')
+            continue
+        site_id = site["_id"]
 
         if device_number:
             time = int(datetime.utcnow().timestamp())

@@ -2,8 +2,8 @@ from airqo_measurements_utils import retrieve_airqo_raw_measurements, clean_airq
 from app_insights import get_insights_averaged_data, create_insights_data, get_insights_forecast
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
 from utils import clean_up_task, save_measurements_via_api
-from weather_measurements_utils import transform_weather_measurements, get_weather_measurements, \
-    save_weather_measurements
+from weather_measurements import transform_weather_measurements, extract_weather_measurements, \
+    load_weather_measurements
 
 
 def kcca():
@@ -20,10 +20,9 @@ def airqo_raw():
 
 
 def weather_data():
-    get_weather_measurements("test-weather.csv", "2021-01-01T00:00:00Z", "2021-01-02T00:00:00Z")
-    transform_weather_measurements("test-weather.csv", "cleaned-test-weather.json", "hourly")
-    save_weather_measurements("cleaned-test-weather.json")
-    clean_up_task(["test-weather.csv", "cleaned-test-weather.json"])
+    data = extract_weather_measurements(start_time="2021-01-01T5:00:00Z", end_time="2021-01-01T17:00:00Z")
+    cleaned_data = transform_weather_measurements(data)
+    load_weather_measurements(cleaned_data)
 
 
 def insights_data():

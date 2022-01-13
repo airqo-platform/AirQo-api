@@ -2,6 +2,7 @@ import math
 import os
 from datetime import timedelta, datetime
 
+import numpy as np
 import pandas as pd
 import requests
 import simplejson
@@ -150,11 +151,10 @@ def save_measurements_via_api(measurements: list, tenant: str) -> None:
 def to_double(x):
     try:
         value = float(x)
-        if math.isnan(value):
+        if math.isnan(value) or np.isnan(value):
             return None
         return value
-    except Exception as ex:
-        print(ex)
+    except Exception:
         return None
 
 
