@@ -9,7 +9,7 @@ from date import date_to_str_hours
 from utils import get_devices_or_sites, get_column_value, to_double, get_site_and_device_id
 
 
-def clean_group(group, site_id, device_id):
+def clean_kcca_device_data(group, site_id, device_id):
     transformed_data = []
     columns = group.columns
 
@@ -41,29 +41,29 @@ def clean_group(group, site_id, device_id):
             ),
             "pm2_5": {
                 "value": get_column_value("characteristics.pm2_5ConcMass.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.pm2_5ConcMass.calibratedValue", row, columns),
+                "calibratedValue": get_column_value("characteristics.pm2_5ConcMass.value", row, columns),
             },
             "pm1": {
                 "value": get_column_value("characteristics.pm1ConcMass.value", row, columns),
-                "calibratedValue": get_column_value("characteristics.pm1ConcMass.calibratedValue", row, columns),
+                "calibratedValue": get_column_value("characteristics.pm1ConcMass.value", row, columns),
             },
             "pm10": {
                 "value": get_column_value("characteristics.pm10ConcMass.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.pm10ConcMass.calibratedValue", row, columns),
+                "calibratedValue": get_column_value("characteristics.pm10ConcMass.value", row, columns),
             },
             "externalTemperature": {
-                "value": get_column_value("characteristics.temperature.raw", row, columns),
+                "value": get_column_value("characteristics.temperature.value", row, columns),
             },
             "externalHumidity": {
-                "value": get_column_value("characteristics.relHumid.raw", row, columns),
+                "value": get_column_value("characteristics.relHumid.value", row, columns),
             },
             "no2": {
                 "value": get_column_value("characteristics.no2Conc.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.no2Conc.calibratedValue", row, columns),
+                "calibratedValue": get_column_value("characteristics.no2Conc.value", row, columns),
             },
             "speed": {
                 "value": get_column_value("characteristics.windSpeed.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.windSpeed.calibratedValue", row, columns),
+                "calibratedValue": get_column_value("characteristics.windSpeed.value", row, columns),
             },
         })
 
@@ -88,7 +88,7 @@ def clean_kcca_measurements(input_file, output_file):
         site_id, device_id = get_site_and_device_id(devices, device_name=device_name)
 
         if site_id and device_id:
-            cleaned_data = clean_group(group, site_id, device_id)
+            cleaned_data = clean_kcca_device_data(group, site_id, device_id)
 
             if cleaned_data:
                 cleaned_measurements.extend(cleaned_data)
@@ -98,7 +98,7 @@ def clean_kcca_measurements(input_file, output_file):
     return
 
 
-def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
+def retrieve_kcca_measurements(start_time: str, end_time: str, freq: str, output_file):
     """
         retrieve_measurements fetch kcca data from the clarity API
         :param output_file: str
@@ -134,7 +134,7 @@ def retrieve_kcca_measurements(start_time, end_time, freq, output_file):
     return
 
 
-def query_kcca_measurements(frequency, start_time, end_time):
+def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
     api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
               f"startTime={start_time}&endTime={end_time}"
 

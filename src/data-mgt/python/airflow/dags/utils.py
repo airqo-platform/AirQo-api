@@ -1,14 +1,14 @@
-import json
 import math
 import os
 from datetime import timedelta, datetime
 
+import pandas as pd
 import requests
 import simplejson
 from google.cloud import bigquery
 
 from config import configuration
-from date import str_to_date, date_to_str
+from date import str_to_date, date_to_str, date_to_str_days, date_to_str_hours
 from kafka_client import KafkaBrokerClient
 
 
@@ -28,6 +28,42 @@ def save_insights_data(insights_data=None, action="insert", start_time=datetime(
 
     kafka = KafkaBrokerClient()
     kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+
+
+def measurement_time_to_string(time: str, daily=False):
+    date_time = str_to_date(time)
+    if daily:
+        return date_to_str_days(date_time)
+    else:
+        return date_to_str_hours(date_time)
+
+
+def format_measurements_to_insights(data: list):
+    measurements_df = pd.json_normalize(data)
+
+    measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
+    measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
+
+    measurements_df = measurements_df[['time', 'frequency', 'site_id', 'average_pm2_5.calibratedValue',
+                                       'average_pm10.calibratedValue']]
+
+    measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
+    measurements_df = measurements_df.dropna()
+
+    measurements_df['frequency'] = measurements_df['frequency'].apply(lambda x: str(x).upper())
+
+    hourly_measurements_df = measurements_df.loc[measurements_df["frequency"] == "HOURLY"]
+    hourly_measurements_df['time'] = hourly_measurements_df['time'].apply(
+        lambda x: measurement_time_to_string(x, daily=False))
+
+    daily_measurements_df = measurements_df.loc[measurements_df["frequency"] == "DAILY"]
+    daily_measurements_df['time'] = daily_measurements_df['time'].apply(
+        lambda x: measurement_time_to_string(x, daily=True))
+
+    data = pd.concat([hourly_measurements_df, daily_measurements_df])
+    data.reset_index(inplace=True)
+
+    return data.to_dict(orient="records")
 
 
 def get_last_datetime(year, month):
@@ -86,29 +122,27 @@ def to_float(string):
         return None
 
 
-def save_measurements(input_file, tenant):
-    # TODO Implement saving to API
-    file = open(input_file)
+def save_measurements_via_api(measurements: list, tenant: str) -> None:
     base_url = configuration.AIRQO_BASE_URL
-    data = json.load(file)
 
-    for i in range(0, len(data), int(configuration.POST_EVENTS_BODY_SIZE)):
-        json_data = simplejson.dumps(data[i:i + int(configuration.POST_EVENTS_BODY_SIZE)])
+    for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
+        json_data = simplejson.dumps(measurements[i:i + int(configuration.POST_EVENTS_BODY_SIZE)])
         try:
             headers = {'Content-Type': 'application/json'}
             url = base_url + "devices/events?tenant=" + tenant
-            print(json_data)
-            print(url)
 
-            # results = requests.post(url, json_data, headers=headers, verify=False)
-            #
-            # if results.status_code == 200:
-            #     print(results.json())
-            # else:
-            #     print(f"Device registry failed to insert values. Status Code : {results.status_code}")
-            #     print(f"Response : {results.content}")
-            #     print(f"Request Url : {url}")
-            #     print(f"Request body : {json_data}")
+            results = requests.post(url, json_data, headers=headers, verify=False)
+
+            if results.status_code == 200:
+                print('\n')
+                print(url)
+                print(results.json())
+            else:
+                print('\n')
+                print(f"Device registry failed to insert values. Status Code : {results.status_code}")
+                print(f"Response : {results.content}")
+                print(f"Request Url : {url}")
+                print(f"Request body : {json_data}")
         except Exception as ex:
             print("Error Occurred while inserting measurements: " + str(ex))
 

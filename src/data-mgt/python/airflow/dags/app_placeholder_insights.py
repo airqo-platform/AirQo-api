@@ -1,5 +1,5 @@
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 from airflow.decorators import dag, task
@@ -10,7 +10,7 @@ from date import date_to_str_hours, date_to_str_days, first_day_of_week, first_d
 from utils import save_insights_data
 
 
-@dag('App-Placeholder-Insights-Pipeline', schedule_interval="@monthly",
+@dag('App-Placeholder-Insights', schedule_interval="@monthly",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
 def app_placeholder_insights_etl():
     @task()
@@ -60,15 +60,7 @@ def app_placeholder_insights_etl():
 
         save_insights_data(insights_data=empty_insights, action="insert")
 
-    @task()
-    def delete():
-        start_time = first_day_of_week(first_day_of_month(date_time=datetime.now())) - timedelta(days=7)
-        end_time = last_day_of_week(last_day_of_month(date_time=datetime.now())) + timedelta(days=7)
-
-        save_insights_data(insights_data=[], action="delete", start_time=start_time, end_time=end_time)
-
     load()
-    delete()
 
 
 app_placeholder_insights_dag = app_placeholder_insights_etl()

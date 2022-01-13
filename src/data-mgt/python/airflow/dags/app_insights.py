@@ -7,7 +7,7 @@ from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date
-from utils import save_insights_data
+from utils import save_insights_data, format_measurements_to_insights
 
 
 def predict_time_to_string(time):
@@ -15,12 +15,12 @@ def predict_time_to_string(time):
     return date_to_str(date_time)
 
 
-def measurement_time_to_string(time, day=None):
+def measurement_time_to_string(time: str, daily=False):
     date_time = str_to_date(time)
-    if day:
-        return date_to_str(date_time)
-    else:
+    if daily:
         return date_to_str_days(date_time)
+    else:
+        return date_to_str_hours(date_time)
 
 
 def get_insights_forecast(tenant):
@@ -88,7 +88,7 @@ def get_insights_averaged_data(tenant):
                 start_time = hourly_start_time if frequency == "hourly" else daily_start_time
                 end_time = hourly_end_time if frequency == "hourly" else daily_end_time
                 events = airqo_api.get_events(tenant='airqo', start_time=start_time, frequency=frequency,
-                                              end_time=end_time, device=device['name'], meta_data="site")
+                                              end_time=end_time, device=device['name'])
 
                 if not events:
                     print(f"No {frequency} measurements for {device['name']} : "
@@ -104,30 +104,39 @@ def get_insights_averaged_data(tenant):
         # if len(averaged_measurements) > 20:
         #     break
 
-    measurements_df = pd.json_normalize(averaged_measurements)
+    insights = format_measurements_to_insights(data=averaged_measurements)
+    return insights
 
-    recent_events = airqo_api.get_events(tenant='airqo', start_time=None, frequency='hourly',
-                                         end_time=None, device=None, meta_data="site", recent=True)
-
-    if recent_events:
-        recent_events_df = pd.json_normalize(recent_events)
-        recent_events_df["frequency"] = "daily"
-        recent_events_df['time'] = recent_events_df['time'].apply(lambda x: measurement_time_to_string(x))
-        measurements_df = measurements_df.append(recent_events_df, ignore_index=True)
-
-    measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
-    measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
-
-    measurements_df['time'] = measurements_df['time'].apply(lambda x: measurement_time_to_string(x))
-
-    measurements_df = measurements_df[['time', 'frequency', 'siteDetails._id', 'average_pm2_5.calibratedValue',
-                                       'average_pm10.calibratedValue']]
-
-    measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
-
-    measurements_df = measurements_df[measurements_df['pm2_5'].notna()]
-
-    return measurements_df.to_dict(orient="records")
+    # measurements_df = pd.json_normalize(averaged_measurements)
+    #
+    # recent_events = airqo_api.get_events(tenant='airqo', start_time=None, frequency='hourly',
+    #                                      end_time=None, device=None, meta_data="site", recent=True)
+    #
+    # if recent_events:
+    #     recent_events_df = pd.json_normalize(recent_events)
+    #     recent_events_df["frequency"] = "DAILY"
+    #     measurements_df = measurements_df.append(recent_events_df, ignore_index=True)
+    #
+    # measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
+    # measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
+    #
+    # measurements_df = measurements_df[['time', 'frequency', 'siteDetails._id', 'average_pm2_5.calibratedValue',
+    #                                    'average_pm10.calibratedValue']]
+    #
+    # measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
+    #
+    # measurements_df = measurements_df[measurements_df['pm2_5'].notna()]
+    # measurements_df['frequency'] = measurements_df['frequency'].apply(lambda x: str(x).upper())
+    #
+    # hourly_measurements_df = measurements_df[measurements_df["frequency"] == "HOURLY"]
+    # hourly_measurements_df['time'] = hourly_measurements_df['time'].apply(
+    #     lambda x: measurement_time_to_string(x, daily=False))
+    #
+    # daily_measurements_df = measurements_df[measurements_df["frequency"] == "DAILY"]
+    # daily_measurements_df['time'] = daily_measurements_df['time'].apply(
+    #     lambda x: measurement_time_to_string(x, daily=True))
+    #
+    # return hourly_measurements_df.to_dict(orient="records").extend(daily_measurements_df.to_dict(orient="records"))
 
 
 def create_insights_data(forecast_data_file, averaged_data_file):
@@ -145,7 +154,7 @@ def create_insights_data(forecast_data_file, averaged_data_file):
     return insights_data.to_dict(orient="records")
 
 
-@dag('App-Insights-Pipeline', schedule_interval="*/40 * * * *",
+@dag('App-Insights', schedule_interval="*/40 * * * *",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
 def app_insights_etl():
     @task(multiple_outputs=True)

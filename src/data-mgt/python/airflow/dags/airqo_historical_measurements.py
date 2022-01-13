@@ -4,7 +4,7 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 
 from airqo_measurements_utils import retrieve_airqo_raw_measurements, add_weather_data, clean_airqo_measurements
-from utils import save_measurements, clean_up_task, get_month, get_first_datetime, get_last_datetime
+from utils import save_measurements_via_api, clean_up_task, get_month, get_first_datetime, get_last_datetime
 
 default_args = {
     "owner": "airflow",
@@ -45,7 +45,7 @@ def create_dag(dag_id, start_time, end_time, file_name, freq):
 
             save_data = PythonOperator(
                 task_id='save_data',
-                python_callable=save_measurements,
+                python_callable=save_measurements_via_api,
                 op_args=[f'airqo_{file_name}_cleaned_data.json', 'airqo']
             )
 
@@ -82,7 +82,7 @@ def create_dag(dag_id, start_time, end_time, file_name, freq):
 
             save_data = PythonOperator(
                 task_id='save_data',
-                python_callable=save_measurements,
+                python_callable=save_measurements_via_api,
                 op_args=[f'airqo_{file_name}_cleaned_data.csv', 'airqo']
             )
 
