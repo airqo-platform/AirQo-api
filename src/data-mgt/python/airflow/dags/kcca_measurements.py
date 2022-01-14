@@ -1,12 +1,95 @@
 from datetime import datetime, timedelta
 
 import pandas as pd
+import requests
 from airflow.decorators import dag, task
 
 from config import configuration
-from date import date_to_str_hours, date_to_str_days
-from kcca_measurements_utils import query_kcca_measurements, clean_kcca_device_data
-from utils import get_devices_or_sites, get_site_and_device_id, save_measurements_via_api
+from date import date_to_str_days
+from date import date_to_str_hours
+from utils import get_devices_or_sites, get_column_value, to_double, get_site_and_device_id
+from utils import save_measurements_via_api
+
+
+def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) -> list:
+    transformed_data = []
+    columns = group.columns
+
+    for index, row in group.iterrows():
+
+        location = str(row["location.coordinates"])
+        location = location.replace('[', '').replace(']', '')
+        location_coordinates = location.split(",")
+
+        frequency = str(row.get("outputFrequency", "raw"))
+
+        if frequency.lower() == "hour":
+            frequency = "hourly"
+        elif frequency.lower() == "day":
+            frequency = "daily"
+        else:
+            frequency = "raw"
+
+        row_data = dict({
+            "frequency": frequency,
+            "time": row.get("time"),
+            "tenant": "kcca",
+            "site_id": site_id,
+            "device_id": device_id,
+            "device": row["deviceCode"],
+            "location": dict({
+                "longitude": dict({"value": to_double(location_coordinates[0])}),
+                "latitude": dict({"value": to_double(location_coordinates[1])})}
+            ),
+            "pm2_5": {
+                "value": get_column_value("characteristics.pm2_5ConcMass.raw", row, columns),
+                "calibratedValue": get_column_value("characteristics.pm2_5ConcMass.value", row, columns),
+            },
+            "pm1": {
+                "value": get_column_value("characteristics.pm1ConcMass.raw", row, columns),
+                "calibratedValue": get_column_value("characteristics.pm1ConcMass.value", row, columns),
+            },
+            "pm10": {
+                "value": get_column_value("characteristics.pm10ConcMass.raw", row, columns),
+                "calibratedValue": get_column_value("characteristics.pm10ConcMass.value", row, columns),
+            },
+            "externalTemperature": {
+                "value": get_column_value("characteristics.temperature.value", row, columns),
+            },
+            "externalHumidity": {
+                "value": get_column_value("characteristics.relHumid.value", row, columns),
+            },
+            "no2": {
+                "value": get_column_value("characteristics.no2Conc.raw", row, columns),
+                "calibratedValue": get_column_value("characteristics.no2Conc.value", row, columns),
+            },
+            "speed": {
+                "value": get_column_value("characteristics.windSpeed.value", row, columns),
+            },
+        })
+
+        transformed_data.append(row_data)
+
+    return transformed_data
+
+
+def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
+    api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
+              f"startTime={start_time}&endTime={end_time}"
+
+    if frequency == "hourly":
+        api_url = f"{api_url}&outputFrequency=hour"
+    elif frequency == "daily":
+        api_url = f"{api_url}&outputFrequency=day"
+    else:
+        api_url = f"{api_url}&outputFrequency=minute"
+
+    headers = {'x-api-key': configuration.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
+    results = requests.get(api_url, headers=headers)
+    if results.status_code != 200:
+        print(f"{results.content}")
+        return []
+    return results.json()
 
 
 def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list:

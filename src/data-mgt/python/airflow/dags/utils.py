@@ -41,9 +41,15 @@ def measurement_time_to_string(time: str, daily=False):
 
 def format_measurements_to_insights(data: list):
     measurements_df = pd.json_normalize(data)
+    if 'average_pm2_5.calibratedValue' not in measurements_df.columns:
+        measurements_df['average_pm2_5.calibratedValue'] = ['average_pm2_5.value']
+    else:
+        measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
 
-    measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
-    measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
+    if 'average_pm10.calibratedValue' not in measurements_df.columns:
+        measurements_df['average_pm10.calibratedValue'] = measurements_df['average_pm10.value']
+    else:
+        measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
 
     measurements_df = measurements_df[['time', 'frequency', 'site_id', 'average_pm2_5.calibratedValue',
                                        'average_pm10.calibratedValue']]
