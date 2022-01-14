@@ -61,7 +61,7 @@ public class WeatherSerializer {
 
 				Weather weather = new Weather(time, frequency, temperature, humidity, windSpeed);
 				weather.setSite(new Site(siteId));
-				weather.setId("");
+				weather.setId();
 
 				return weather;
 			} catch (Exception e) {

@@ -63,7 +63,19 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public void insertWeather(List<Weather> weather) {
+	public void insertWeather(List<Weather> weatherList) {
+		for (Weather weather : weatherList) {
+			try {
+				weatherRepository.insert(weather);
+			} catch (Exception e) {
+				log.info(e.toString());
+			}
+		}
+
+	}
+
+	@Override
+	public void saveWeather(List<Weather> weather) {
 		weatherRepository.saveAll(weather);
 	}
 
@@ -88,7 +100,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 			try {
 				insightRepository.insert(insight);
 			} catch (Exception e) {
-				e.printStackTrace();
+				log.info(e.toString());
 			}
 		}
 	}
@@ -111,9 +123,6 @@ public class MeasurementServiceImpl implements MeasurementService {
 
 	@Override
 	public void deleteInsightsBefore(Date date) {
-//		QInsight qInsight = QInsight.insight;
-//		Predicate predicate = qInsight.time.loe(date);
-//		List<Insight> insights = (List<Insight>) insightRepository.findAll(predicate);
 		log.info(String.format("Deleting insights before %s", date));
 		insightRepository.deleteAllByTimeBefore(date);
 	}
@@ -121,17 +130,10 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Override
 	public void insertForecast(List<Forecast> forecasts) {
 		for (Forecast forecast : forecasts) {
-			insertForecast(forecast);
-		}
-	}
-
-	@Override
-	public void insertForecast(Forecast forecast) {
-		if (forecast != null) {
 			try {
 				forecastRepository.save(forecast);
 			} catch (Exception e) {
-				e.printStackTrace();
+				log.info(e.toString());
 			}
 		}
 	}

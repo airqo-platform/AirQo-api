@@ -18,6 +18,8 @@ public interface MeasurementService {
 
 	void insertWeather(List<Weather> weather);
 
+	void saveWeather(List<Weather> weather);
+
 	void insertWeather(Weather weather);
 
 	List<Insight> getInsights(Date beforeTime, boolean forecast);
@@ -33,8 +35,6 @@ public interface MeasurementService {
 	void deleteInsightsBefore(Date date);
 
 	void insertForecast(List<Forecast> forecasts);
-
-	void insertForecast(Forecast forecast);
 
 	List<Forecast> getForecasts(Date startTime, Device device);
 

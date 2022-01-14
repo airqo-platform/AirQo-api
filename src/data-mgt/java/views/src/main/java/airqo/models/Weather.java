@@ -18,7 +18,9 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Objects;
 
 import static airqo.config.Constants.dateTimeFormat;
@@ -67,7 +69,7 @@ public class Weather implements Serializable {
 		return new WeatherId(time, frequency, site).toString();
 	}
 
-	public void setId(String id) {
+	public void setId() {
 		this.id = new WeatherId(time, frequency, site).toString();
 	}
 
@@ -103,6 +105,20 @@ public class Weather implements Serializable {
 			String siteId = site.getId().trim();
 			return (siteId + ":" + frequencyValue + ":" + dateTime).toUpperCase();
 		}
+
+	}
+
+	@Getter
+	@Setter
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@ToString
+	public static class WeatherMessage implements Serializable {
+
+		private List<Weather> data = new ArrayList<>();
+		private String action = "insert";
+		private Date startTime = null;
+		private Date endTime = null;
 
 	}
 }
