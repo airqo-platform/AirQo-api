@@ -1,5 +1,3 @@
-import traceback
-
 import requests
 
 from config import configuration
@@ -48,7 +46,6 @@ class TahmoApi:
 
                     measurements.extend(values)
             except Exception as ex:
-                traceback.print_exc()
                 print(ex)
                 continue
 

@@ -1,6 +1,8 @@
 import math
 import os
+import traceback
 from datetime import timedelta, datetime
+from functools import reduce
 
 import numpy as np
 import pandas as pd
@@ -11,6 +13,7 @@ from google.cloud import bigquery
 from config import configuration
 from date import str_to_date, date_to_str, date_to_str_days, date_to_str_hours
 from kafka_client import KafkaBrokerClient
+from tahmo import TahmoApi
 
 
 def save_insights_data(insights_data=None, action="insert", start_time=datetime(year=2020, month=1, day=1),
@@ -164,44 +167,232 @@ def to_double(x):
         return None
 
 
-def get_column_value(column_name, series, columns_names, data_name=None):
+def get_valid_value(raw_value, name=None):
+    value = to_double(raw_value)
+
+    if not name or not value:
+        return value
+
+    if (name == "pm2_5" or name == "pm10") and (value < 1 or value > 1000):
+        return None
+    elif name == "latitude" and (value < -90 or value > 90):
+        return None
+    elif name == "longitude" and (value < -180 or value > 180):
+        return None
+    elif name == "battery" and (value < 2.7 or value > 5):
+        return None
+    elif (name == "altitude" or name == "hdop") and value < 0:
+        return None
+    elif name == "satellites" and (value < 0 or value > 50):
+        return None
+    elif name == "externalTemperature" and (value < 0 or value > 45):
+        return None
+    elif name == "externalHumidity" and (value < 0 or value > 100):
+        return None
+    elif name == "pressure":
+        return None
+    else:
+        pass
+
+    return value
+
+
+def get_site_ids_from_station(station: str, sites: list):
+    station_sites = list(filter(lambda x: str(x["nearest_tahmo_station"]["code"]).lower() == station.lower(), sites))
+
+    if not station_sites:
+        return []
+    site_ids = []
+    for site in station_sites:
+        site_ids.append(site["_id"])
+
+    return site_ids
+
+
+def get_device_site_id(device_id: str, devices: list):
+    device = list(filter(lambda x: str(x["_id"]).lower() == device_id.lower(), devices))
+
+    if not device:
+        return None
+
+    try:
+        return device[0]['site']['_id']
+    except KeyError:
+        return None
+
+
+def get_device_ids_from_station(station: str, sites: list):
+    station_sites = list(filter(lambda x: str(x["nearest_tahmo_station"]["code"]).lower() == station.lower(), sites))
+
+    if not station_sites:
+        return []
+    device_ids = []
+
+    for site in station_sites:
+        try:
+            for device in site['devices']:
+                device_ids.append(device["_id"])
+        except KeyError:
+            continue
+
+    return device_ids
+
+
+def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
+    data = data.dropna(subset=['time'])
+    data['time'] = pd.to_datetime(data['time'])
+    data.set_index('time')
+    data.sort_index(axis=0)
+
+    resample_value = '24H' if frequency.lower() == 'daily' else '1H'
+    averages = pd.DataFrame(data.resample(resample_value, on='time').mean())
+
+    averages["time"] = averages.index
+    averages["time"] = averages["time"].apply(lambda x: date_to_str(x))
+    averages = averages.reset_index(drop=True)
+
+    return averages
+
+
+def resample_weather_data(data):
+    weather_raw_data = pd.DataFrame(data)
+
+    sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo', sites=True)
+    valid_sites = list(filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites))
+
+    # to include site id
+    # devices = get_devices_or_sites(configuration.AIRQO_BASE_URL, tenant='airqo', sites=False)
+
+    temperature = weather_raw_data.loc[weather_raw_data["variable"] == "te", ["value", "variable", "station", "time"]]
+    humidity = weather_raw_data.loc[weather_raw_data["variable"] == "rh", ["value", "variable", "station", "time"]]
+    wind_speed = weather_raw_data.loc[weather_raw_data["variable"] == "ws", ["value", "variable", "station", "time"]]
+
+    humidity["value"] = pd.to_numeric(humidity["value"], errors='coerce')
+    humidity['value'] = humidity['value'].apply(lambda x: x * 100)
+
+    data = pd.concat([temperature, humidity, wind_speed])
+    data.reset_index(inplace=True)
+    devices_weather_data = []
+
+    data["value"] = pd.to_numeric(data["value"], errors='coerce', downcast="float")
+    data = data.fillna(0)
+
+    data_station_gps = data.groupby('station')
+
+    for _, station_group in data_station_gps:
+
+        device_weather_data = []
+        station = station_group.iloc[0]["station"]
+
+        try:
+
+            # resampling station values
+            temperature = resample_data(station_group.loc[station_group["variable"] == "te", ["value", "time"]],
+                                        'hourly')
+            temperature.columns = ['temperature', 'time']
+            humidity = resample_data(station_group.loc[station_group["variable"] == "rh", ["value", "time"]], 'hourly')
+            humidity.columns = ['humidity', 'time']
+            wind_speed = resample_data(station_group.loc[station_group["variable"] == "ws", ["value", "time"]],
+                                       'hourly')
+            wind_speed.columns = ['wind_speed', 'time']
+
+            data_frames = [temperature, humidity, wind_speed]
+
+            station_df = reduce(lambda left, right: pd.merge(left, right, on=['time'],
+                                                             how='outer'), data_frames).fillna('None')
+            station_df['frequency'] = 'hourly'
+
+            # mapping device to station
+            station_devices = get_device_ids_from_station(station, valid_sites)
+
+            if len(station_devices) == 0:
+                continue
+
+            for device_id in station_devices:
+                device_station_df = station_df.copy(deep=True)
+                device_station_df['device_id'] = device_id
+                device_station_df = device_station_df.fillna(0)
+                device_weather_data.extend(device_station_df.to_dict(orient='records'))
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+            continue
+
+        # to include site id
+        # device_station_data_df = pd.DataFrame(device_weather_data)
+        # device_station_data_df['site_id'] = device_station_data_df['device_id'].apply(
+        #     lambda x: get_device_site_id(x, devices))
+        # devices_weather_data.extend(device_station_data_df.to_dict(orient='records'))
+
+        devices_weather_data.extend(device_weather_data)
+
+    # pd.DataFrame(devices_weather_data).to_csv(path_or_buf='devices_weather.csv', index=False)
+
+    return devices_weather_data
+
+
+def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
+    airqo_sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, tenant, sites=True)
+    station_codes = []
+    for site in airqo_sites:
+        try:
+            if 'nearest_tahmo_station' in dict(site).keys():
+                station_codes.append(site['nearest_tahmo_station']['code'])
+        except Exception as ex:
+            print(ex)
+
+    measurements = []
+    columns = []
+    tahmo_api = TahmoApi()
+
+    dates = pd.date_range(start_time, end_time, freq='12H')
+
+    for date in dates:
+        start = date_to_str(date)
+        end = date_to_str(date + timedelta(hours=12))
+        print(start + " : " + end)
+
+        cols, range_measurements = tahmo_api.get_measurements(start, end, station_codes)
+        measurements.extend(range_measurements)
+        if len(columns) == 0:
+            columns = cols
+
+    if len(measurements) != 0 and len(columns) != 0:
+        measurements_df = pd.DataFrame(data=measurements, columns=columns)
+    else:
+        measurements_df = pd.DataFrame([])
+    measurements_df = measurements_df.fillna('None')
+
+    # pd.DataFrame(measurements_df).to_csv(path_or_buf='raw_weather_data.csv', index=False)
+
+    clean_measurements_df = remove_invalid_dates(dataframe=measurements_df, start_time=start_time, end_time=end_time)
+    return clean_measurements_df.to_dict(orient='records')
+
+    # return measurements_df.to_dict(orient="records")
+
+
+def remove_invalid_dates(dataframe: pd.DataFrame, start_time: str, end_time: str) -> pd.DataFrame:
+    start = pd.to_datetime(start_time)
+    end = pd.to_datetime(end_time)
+
+    dataframe['time'] = pd.to_datetime(dataframe['time'])
+    data_frame = dataframe.set_index(['time'])
+
+    time_data_frame = data_frame.loc[(data_frame.index >= start) & (data_frame.index <= end)]
+
+    time_data_frame['time'] = time_data_frame.index
+    time_data_frame["time"] = time_data_frame["time"].apply(lambda x: date_to_str(x))
+    time_data_frame = time_data_frame.reset_index(drop=True)
+
+    return time_data_frame
+
+
+def get_column_value(column_name, series, columns_names, data_name):
     if column_name in columns_names:
         value = to_double(series[column_name])
+        return get_valid_value(value, data_name)
 
-        if not data_name or not value:
-            return value
-
-        if data_name == "pm2_5" or data_name == "s2_pm2_5" or data_name == "pm10" or data_name == "s2_pm10":
-            if value < 1 or value > 1000:
-                return None
-        elif data_name == "latitude":
-            if value < -90 or value > 90:
-                return None
-        elif data_name == "longitude":
-            if value < -180 or value > 180:
-                return None
-        elif data_name == "battery":
-            if value < 2.7 or value > 5:
-                return None
-        elif data_name == "altitude" or data_name == "hdop":
-            if value < 0:
-                return None
-        elif data_name == "satellites":
-            if value < 0 or value > 50:
-                return None
-        elif data_name == "externalTemperature":
-            if value < 0 or value > 45:
-                return None
-        elif data_name == "externalHumidity":
-            if value < 0 or value > 100:
-                return None
-        elif data_name == "pressure":
-            if value < 30 or value > 110:
-                return None
-        else:
-            return value
-
-        return value
     return None
 
 
@@ -250,12 +441,18 @@ def get_airqo_device_data(start_time, end_time, channel_ids):
     return dataframe.to_dict(orient='records')
 
 
-def get_device(devices=None, channel_id=None):
+def get_device(devices=None, channel_id=None, device_id=None):
     if devices is None:
         devices = []
 
     if channel_id:
         result = list(filter(lambda x: x["device_number"] == channel_id, devices))
+        if not result:
+            return None
+        return result[0]
+
+    elif device_id:
+        result = list(filter(lambda x: x["_id"] == device_id, devices))
         if not result:
             return None
         return result[0]

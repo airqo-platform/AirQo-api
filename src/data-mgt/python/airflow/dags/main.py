@@ -1,9 +1,13 @@
-from airqo_measurements_utils import retrieve_airqo_raw_measurements, clean_airqo_measurements
+from datetime import datetime, timedelta
+
+import pandas as pd
+
+from airqo_measurements import extract_airqo_data_from_thingspeak, extract_airqo_weather_data_from_tahmo, \
+    average_airqo_data, merge_airqo_and_weather_data, calibrate_hourly_airqo_measurements, restructure_airqo_data
 from app_insights import get_insights_averaged_data, create_insights_data, get_insights_forecast
+from date import date_to_str_hours
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
 from utils import clean_up_task, save_measurements_via_api
-from weather_measurements import transform_weather_measurements, extract_weather_measurements, \
-    load_weather_measurements
 
 
 def kcca():
@@ -12,17 +16,31 @@ def kcca():
     save_measurements_via_api(measurements=cleaned_data, tenant='kcca')
 
 
-def airqo_raw():
-    retrieve_airqo_raw_measurements("2021-01-01T00:00:00Z", "2021-01-02T00:00:00Z", "test-airqo.csv")
-    clean_airqo_measurements("test-airqo.csv", "cleaned-test-airqo.json")
-    save_measurements_via_api("cleaned-test-airqo.json", 'airqo')
-    clean_up_task(["test-airqo.csv", "cleaned-test-airqo.json"])
+def airqo_hourly_measurements():
+    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    start_time = date_to_str_hours(hour_of_day)
+    end_time = datetime.strftime(hour_of_day, '%Y-%m-%dT%H:59:59Z')
 
+    # extract_airqo_data
+    raw_airqo_data = extract_airqo_data_from_thingspeak(start_time=start_time, end_time=end_time)
+    average_data = average_airqo_data(data=raw_airqo_data, frequency='hourly')
+    pd.DataFrame(average_data).to_csv(path_or_buf='average_data.csv', index=False)
 
-def weather_data():
-    data = extract_weather_measurements(start_time="2021-01-01T5:00:00Z", end_time="2021-01-01T17:00:00Z")
-    cleaned_data = transform_weather_measurements(data)
-    load_weather_measurements(cleaned_data)
+    # extract_weather_data
+    airqo_weather_data = extract_airqo_weather_data_from_tahmo(start_time=start_time, end_time=end_time)
+    pd.DataFrame(airqo_weather_data).to_csv(path_or_buf='airqo_weather_data.csv', index=False)
+
+    # merge_data
+    merged_measurements = merge_airqo_and_weather_data(airqo_data=average_data, weather_data=airqo_weather_data)
+    pd.DataFrame(merged_measurements).to_csv(path_or_buf='data.csv', index=False)
+
+    # calibrate data
+    calibrated_data = calibrate_hourly_airqo_measurements(measurements=merged_measurements)
+    pd.DataFrame(calibrated_data).to_csv(path_or_buf='calibrated_data.csv', index=False)
+
+    # restructure data
+    restructure_data = restructure_airqo_data(calibrated_data)
+    pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data.csv', index=False)
 
 
 def insights_data():

@@ -7,22 +7,10 @@ from airflow.decorators import dag, task
 from config import configuration
 from date import date_to_str_hours
 from kafka_client import KafkaBrokerClient
-from tahmo import TahmoApi
-from utils import get_devices_or_sites, get_column_value
+from utils import get_devices_or_sites, get_column_value, get_site_ids_from_station, resample_data
 
 
-def get_site_ids_from_station(station: str, sites: list):
-    station_sites = list(filter(lambda x: x["nearest_tahmo_station"]["code"] == station, sites))
-
-    if not station_sites:
-        return []
-    site_ids = []
-    for site in station_sites:
-        site_ids.append(site["_id"])
-    return site_ids
-
-
-def transform_weather_measurements(data):
+def dag_resample_weather_data(data, frequency='hourly'):
     weather_raw_data = pd.DataFrame(data)
 
     sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo', sites=True)
@@ -39,7 +27,7 @@ def transform_weather_measurements(data):
     data.reset_index(inplace=True)
     weather_data = []
 
-    data["value"] = pd.to_numeric(data["value"], errors='coerce')
+    data["value"] = pd.to_numeric(data["value"], errors='coerce', downcast="float")
     data = data.fillna('None')
 
     data_station_gps = data.groupby('station')
@@ -90,19 +78,16 @@ def transform_weather_measurements(data):
 
     site_groups = weather_data_df.groupby("siteId")
 
+    # pd.DataFrame(weather_data_df).to_csv(path_or_buf='airqo_raw_weather_data.csv', index=False)
+
     for _, site_group in site_groups:
         site_id = site_group.iloc[0]["siteId"]
+
+        averages = resample_data(site_group, frequency)
+
         site_group.dropna(subset=['time'], inplace=True)
-        site_group['time'] = pd.to_datetime(site_group['time'])
-        site_group.set_index('time')
-        site_group.sort_index(axis=0)
 
-        averages = pd.DataFrame(site_group.resample('1H', on='time').mean())
-
-        averages["time"] = averages.index
-        averages["time"] = averages["time"].apply(lambda x: date_to_str_hours(x))
-
-        averages["frequency"] = "hourly"
+        averages["frequency"] = frequency.lower()
         averages["siteId"] = site_id
 
         averages["temperature"] = pd.to_numeric(averages["temperature"], errors='coerce')
@@ -118,41 +103,7 @@ def transform_weather_measurements(data):
     return sampled_data
 
 
-def extract_weather_measurements(start_time=None, end_time=None):
-    airqo_sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo', sites=True)
-    station_codes = []
-    for site in airqo_sites:
-        try:
-            if 'nearest_tahmo_station' in dict(site).keys():
-                station_codes.append(site['nearest_tahmo_station']['code'])
-        except Exception as ex:
-            print(ex)
-
-    measurements = []
-    columns = []
-    tahmo_api = TahmoApi()
-
-    dates = pd.date_range(start_time, end_time, freq='12H')
-
-    for date in dates:
-        start_time = date_to_str_hours(date)
-        end_time = date_to_str_hours(date + timedelta(hours=12))
-        print(start_time + " : " + end_time)
-
-        cols, range_measurements = tahmo_api.get_measurements(start_time, end_time, station_codes)
-        measurements.extend(range_measurements)
-        if len(columns) == 0:
-            columns = cols
-
-    if len(measurements) != 0 and len(columns) != 0:
-        measurements_df = pd.DataFrame(data=measurements, columns=columns)
-    else:
-        measurements_df = pd.DataFrame([])
-    measurements_df = measurements_df.fillna('None')
-    return measurements_df.to_dict(orient="records")
-
-
-def load_weather_measurements(data):
+def dag_load_weather_measurements(data):
     weather_data = {
         "data": data,
         "action": "save"
@@ -178,7 +129,7 @@ def historical_weather_measurements_etl():
             end_time = date_to_str_hours(date)
             start_time = date_to_str_hours(date - timedelta(hours=30))
 
-        weather_data = extract_weather_measurements(start_time=start_time, end_time=end_time)
+        weather_data = extract_weather_data_from_tahmo(start_time=start_time, end_time=end_time)
 
         return dict({"data": weather_data})
 
@@ -186,13 +137,13 @@ def historical_weather_measurements_etl():
     def transform(inputs: dict):
         data = inputs.get("data")
 
-        cleaned_data = transform_weather_measurements(data)
+        cleaned_data = transform_and_resample_weather_data(data)
         return dict({"data": cleaned_data})
 
     @task()
     def load(inputs: dict):
         weather_data = inputs.get("data")
-        load_weather_measurements(data=weather_data)
+        dag_load_weather_measurements(data=weather_data)
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)
@@ -207,26 +158,25 @@ def hourly_weather_measurements_etl():
         start_time = date_to_str_hours(datetime.utcnow() - timedelta(hours=3))
         end_time = date_to_str_hours(datetime.utcnow())
 
-        hourly_kcca_data = extract_weather_measurements(start_time=start_time, end_time=end_time)
+        weather_data = extract_weather_data_from_tahmo(start_time=start_time, end_time=end_time)
 
-        return dict({"data": hourly_kcca_data})
+        return dict({"data": weather_data})
 
     @task(multiple_outputs=True)
     def transform(inputs: dict):
         data = inputs.get("data")
-        cleaned_data = transform_weather_measurements(data)
+        cleaned_data = transform_and_resample_weather_data(data)
 
         return dict({"data": cleaned_data})
 
     @task()
     def load(inputs: dict):
         weather_data = inputs.get("data")
-        load_weather_measurements(data=weather_data)
+        dag_load_weather_measurements(data=weather_data)
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)
     load(transformed_data)
 
-
-historical_weather_measurements_etl_dag = historical_weather_measurements_etl()
-hourly_weather_measurements_etl_dag = hourly_weather_measurements_etl()
+# historical_weather_measurements_etl_dag = historical_weather_measurements_etl()
+# hourly_weather_measurements_etl_dag = hourly_weather_measurements_etl()

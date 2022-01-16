@@ -1,3 +1,4 @@
+import random
 import traceback
 from datetime import datetime
 from datetime import timedelta
@@ -6,7 +7,8 @@ import pandas as pd
 from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
-from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date
+from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date, \
+    first_day_of_week, last_day_of_week, first_day_of_month, last_day_of_month
 from utils import save_insights_data, format_measurements_to_insights
 
 
@@ -156,4 +158,72 @@ def app_insights_etl():
     load(insights)
 
 
+@dag('Delete-Insights', schedule_interval="@monthly",
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'delete'])
+def app_delete_insights_etl():
+    @task()
+    def delete():
+        start_time = first_day_of_week(first_day_of_month(date_time=datetime.now())) - timedelta(days=7)
+        end_time = last_day_of_week(last_day_of_month(date_time=datetime.now())) + timedelta(days=7)
+
+        save_insights_data(insights_data=[], action="delete", start_time=start_time, end_time=end_time)
+
+    delete()
+
+
+@dag('App-Placeholder-Insights', schedule_interval="@monthly",
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
+def app_placeholder_insights_etl():
+    @task()
+    def load():
+        start_time = date_to_str_days(first_day_of_week(first_day_of_month(date_time=datetime.now())))
+        end_time = date_to_str_days(last_day_of_week(last_day_of_month(date_time=datetime.now())))
+
+        airqo_api = AirQoApi()
+        sites = airqo_api.get_sites(tenant="airqo")
+        empty_insights = []
+
+        dates = pd.date_range(start_time, end_time, freq='1H')
+        for date in dates:
+            date_time = date_to_str_hours(date)
+            for site in sites:
+                try:
+                    hourly_insight = {
+                        "time": date_time,
+                        "pm2_5": random.uniform(50.0, 150.0),
+                        "pm10": random.uniform(50.0, 150.0),
+                        "empty": True,
+                        "frequency": "HOURLY",
+                        "forecast": False,
+                        "siteId": site["_id"],
+                    }
+                    empty_insights.append(hourly_insight)
+                except Exception as ex:
+                    print(ex)
+
+        dates = pd.date_range(start_time, end_time, freq='24H')
+        for date in dates:
+            date_time = date_to_str_days(date)
+            for site in sites:
+                try:
+                    daily_insight = {
+                        "time": date_time,
+                        "pm2_5": random.uniform(50.0, 150.0),
+                        "pm10": random.uniform(50.0, 150.0),
+                        "empty": True,
+                        "frequency": "DAILY",
+                        "forecast": False,
+                        "siteId": site["_id"],
+                    }
+                    empty_insights.append(daily_insight)
+                except Exception as ex:
+                    print(ex)
+
+        save_insights_data(insights_data=empty_insights, action="insert")
+
+    load()
+
+
 app_insights_etl_dag = app_insights_etl()
+app_delete_insights_dag = app_delete_insights_etl()
+app_placeholder_insights_dag = app_placeholder_insights_etl()

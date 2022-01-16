@@ -1,4 +1,5 @@
 import json
+import traceback
 
 import requests
 
@@ -11,6 +12,44 @@ class AirQoApi:
         self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL
         self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
+
+    def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
+        calibrated_data = []
+        for i in range(0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)):
+            values = calibrate_body[i:i + int(configuration.CALIBRATE_REQUEST_BODY_SIZE)]
+
+            request_body = dict()
+            request_body["datetime"] = time
+            request_body["raw_values"] = []
+
+            for value in values:
+                try:
+                    value_dict = dict(value)
+                    data = {
+                        "device_id": value_dict.get("device_id"),
+                        "sensor1_pm2.5": value_dict.get("pm2_5"),
+                        "sensor2_pm2.5": value_dict.get("s2_pm2_5"),
+                        "sensor1_pm10": value_dict.get("pm10"),
+                        "sensor2_pm10": value_dict.get("s2_pm10"),
+                        "temperature": value_dict.get("temperature"),
+                        "humidity": value_dict.get("humidity"),
+                    }
+
+                    if data["sensor1_pm2.5"] > 0.0 and data["sensor2_pm2.5"] > 0.0 and data["sensor1_pm10"] > 0.0 and \
+                            data["sensor2_pm10"] > 0.0 and data["temperature"] > 0.0 and data["humidity"] > 0.0:
+                        request_body["raw_values"].append(data)
+
+                except Exception as ex:
+                    traceback.print_exc()
+                    print(ex)
+
+            endpoint = "calibrate"
+            response = self.__request(endpoint=endpoint, method="post", body=request_body)
+
+            if response is not None:
+                calibrated_data.extend(response)
+
+        return calibrated_data
 
     def get_devices(self, tenant, active=True, all_devices=False):
         params = {
@@ -79,7 +118,7 @@ class AirQoApi:
 
         return []
 
-    def __request(self, endpoint, params, body=None, method=None, version='v1'):
+    def __request(self, endpoint, params=None, body=None, method=None, version='v1'):
 
         base_url = self.AIRQO_BASE_URL_V2 if version == 'v2' else self.AIRQO_BASE_URL
 
@@ -103,7 +142,7 @@ class AirQoApi:
         elif method == "post":
             headers['Content-Type'] = 'application/json'
             api_request = requests.post(
-                '%s%s/' % (base_url, endpoint),
+                '%s%s' % (base_url, endpoint),
                 params=params,
                 headers=headers,
                 data=json.dumps(body),

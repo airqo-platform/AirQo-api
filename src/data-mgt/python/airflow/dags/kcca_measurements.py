@@ -42,29 +42,40 @@ def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) ->
                 "latitude": dict({"value": to_double(location_coordinates[1])})}
             ),
             "pm2_5": {
-                "value": get_column_value("characteristics.pm2_5ConcMass.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.pm2_5ConcMass.value", row, columns),
+                "value": get_column_value(column_name="characteristics.pm2_5ConcMass.raw", series=row,
+                                          columns_names=columns, data_name="pm2_5"),
+                "calibratedValue": get_column_value(column_name="characteristics.pm2_5ConcMass.value", series=row,
+                                                    columns_names=columns, data_name="pm2_5"),
             },
             "pm1": {
-                "value": get_column_value("characteristics.pm1ConcMass.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.pm1ConcMass.value", row, columns),
+                "value": get_column_value(column_name="characteristics.pm1ConcMass.raw", series=row,
+                                          columns_names=columns, data_name=None),
+                "calibratedValue": get_column_value(column_name="characteristics.pm1ConcMass.value", series=row,
+                                                    columns_names=columns, data_name=None),
             },
             "pm10": {
-                "value": get_column_value("characteristics.pm10ConcMass.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.pm10ConcMass.value", row, columns),
+                "value": get_column_value(column_name="characteristics.pm10ConcMass.raw", series=row,
+                                          columns_names=columns, data_name="pm10"),
+                "calibratedValue": get_column_value(column_name="characteristics.pm10ConcMass.value", series=row,
+                                                    columns_names=columns, data_name="pm10"),
             },
             "externalTemperature": {
-                "value": get_column_value("characteristics.temperature.value", row, columns),
+                "value": get_column_value(column_name="characteristics.temperature.value", series=row,
+                                          columns_names=columns, data_name="externalTemperature"),
             },
             "externalHumidity": {
-                "value": get_column_value("characteristics.relHumid.value", row, columns),
+                "value": get_column_value(column_name="characteristics.relHumid.value", series=row,
+                                          columns_names=columns, data_name="externalHumidity"),
             },
             "no2": {
-                "value": get_column_value("characteristics.no2Conc.raw", row, columns),
-                "calibratedValue": get_column_value("characteristics.no2Conc.value", row, columns),
+                "value": get_column_value(column_name="characteristics.no2Conc.raw", series=row,
+                                          columns_names=columns, data_name=None),
+                "calibratedValue": get_column_value(column_name="characteristics.no2Conc.value", series=row,
+                                                    columns_names=columns, data_name=None),
             },
             "speed": {
-                "value": get_column_value("characteristics.windSpeed.value", row, columns),
+                "value": get_column_value(column_name="characteristics.windSpeed.value", series=row,
+                                          columns_names=columns, data_name=None),
             },
         })
 
