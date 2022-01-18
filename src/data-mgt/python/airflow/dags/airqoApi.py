@@ -4,7 +4,6 @@ import traceback
 import requests
 
 from config import configuration
-from utils import handle_api_error
 
 
 class AirQoApi:
@@ -27,9 +26,9 @@ class AirQoApi:
                     value_dict = dict(value)
                     data = {
                         "device_id": value_dict.get("device_id"),
-                        "sensor1_pm2.5": value_dict.get("pm2_5"),
+                        "sensor1_pm2.5": value_dict.get("s1_pm2_5"),
                         "sensor2_pm2.5": value_dict.get("s2_pm2_5"),
-                        "sensor1_pm10": value_dict.get("pm10"),
+                        "sensor1_pm10": value_dict.get("s1_pm10"),
                         "sensor2_pm10": value_dict.get("s2_pm10"),
                         "temperature": value_dict.get("temperature"),
                         "humidity": value_dict.get("humidity"),
@@ -64,6 +63,22 @@ class AirQoApi:
             return response["devices"]
 
         return []
+
+    def get_read_keys(self, devices: list) -> dict:
+
+        decrypted_keys = dict({})
+
+        for device in devices:
+            try:
+                read_key = device['readKey']
+                body = {"encrypted_key": read_key}
+                response = self.__request("devices/decrypt", body=body, method='post')
+                decrypted_keys[str(device['device_number'])] = response['decrypted_key']
+            except Exception as ex:
+                traceback.print_exc()
+                print(ex)
+
+        return decrypted_keys
 
     def get_events(self, tenant, start_time, end_time, frequency, device=None, meta_data=None, recent=None):
         if recent:
@@ -159,3 +174,14 @@ class AirQoApi:
         else:
             handle_api_error(api_request)
             return None
+
+
+def handle_api_error(api_request):
+    try:
+        print(api_request.request.url)
+        print(api_request.request.body)
+    except Exception as ex:
+        print(ex)
+    finally:
+        print(api_request.content)
+        print('API request failed with status code %s' % api_request.status_code)

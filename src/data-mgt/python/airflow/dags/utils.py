@@ -10,6 +10,7 @@ import requests
 import simplejson
 from google.cloud import bigquery
 
+from airqoApi import AirQoApi
 from config import configuration
 from date import str_to_date, date_to_str, date_to_str_days, date_to_str_hours
 from kafka_client import KafkaBrokerClient
@@ -167,6 +168,12 @@ def to_double(x):
         return None
 
 
+def fill_nan(data: list) -> list:
+    data_df = pd.DataFrame(data)
+    data_df = data_df.fillna('none')
+    return data_df.to_dict(orient='records')
+
+
 def get_valid_value(raw_value, name=None):
     value = to_double(raw_value)
 
@@ -254,10 +261,10 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     return averages
 
 
-def resample_weather_data(data):
+def resample_weather_data(data, frequency: str):
     weather_raw_data = pd.DataFrame(data)
-
-    sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo', sites=True)
+    airqo_api = AirQoApi()
+    sites = airqo_api.get_sites(tenant='airqo')
     valid_sites = list(filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites))
 
     # to include site id
@@ -288,19 +295,20 @@ def resample_weather_data(data):
 
             # resampling station values
             temperature = resample_data(station_group.loc[station_group["variable"] == "te", ["value", "time"]],
-                                        'hourly')
+                                        frequency)
             temperature.columns = ['temperature', 'time']
-            humidity = resample_data(station_group.loc[station_group["variable"] == "rh", ["value", "time"]], 'hourly')
+            humidity = resample_data(station_group.loc[station_group["variable"] == "rh", ["value", "time"]],
+                                     frequency)
             humidity.columns = ['humidity', 'time']
             wind_speed = resample_data(station_group.loc[station_group["variable"] == "ws", ["value", "time"]],
-                                       'hourly')
+                                       frequency)
             wind_speed.columns = ['wind_speed', 'time']
 
             data_frames = [temperature, humidity, wind_speed]
 
             station_df = reduce(lambda left, right: pd.merge(left, right, on=['time'],
                                                              how='outer'), data_frames).fillna('None')
-            station_df['frequency'] = 'hourly'
+            station_df['frequency'] = frequency
 
             # mapping device to station
             station_devices = get_device_ids_from_station(station, valid_sites)
@@ -311,7 +319,7 @@ def resample_weather_data(data):
             for device_id in station_devices:
                 device_station_df = station_df.copy(deep=True)
                 device_station_df['device_id'] = device_id
-                device_station_df = device_station_df.fillna(0)
+                device_station_df = device_station_df.fillna('None')
                 device_weather_data.extend(device_station_df.to_dict(orient='records'))
 
         except Exception as ex:
@@ -333,7 +341,8 @@ def resample_weather_data(data):
 
 
 def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
-    airqo_sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, tenant, sites=True)
+    airqo_api = AirQoApi()
+    airqo_sites = airqo_api.get_sites(tenant=tenant)
     station_codes = []
     for site in airqo_sites:
         try:
@@ -368,8 +377,6 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
 
     clean_measurements_df = remove_invalid_dates(dataframe=measurements_df, start_time=start_time, end_time=end_time)
     return clean_measurements_df.to_dict(orient='records')
-
-    # return measurements_df.to_dict(orient="records")
 
 
 def remove_invalid_dates(dataframe: pd.DataFrame, start_time: str, end_time: str) -> pd.DataFrame:
@@ -460,28 +467,6 @@ def get_device(devices=None, channel_id=None, device_id=None):
     return None
 
 
-def get_devices_or_sites(base_url, tenant, sites=False):
-    if sites:
-        api_url = f"{base_url}devices/sites?tenant={tenant}"
-    else:
-        api_url = f"{base_url}devices?tenant={tenant}&active=yes"
-
-    headers = {'x-api-key': ''}
-
-    results = requests.get(api_url, headers=headers, verify=False)
-
-    if results.status_code != 200:
-        print(results.content)
-        return []
-
-    if sites:
-        sites = list(results.json()["sites"])
-        return sites
-    else:
-        devices = list(results.json()["devices"])
-        return devices
-
-
 def filter_valid_devices(devices_data):
     valid_devices = []
     for device in devices_data:
@@ -502,17 +487,6 @@ def filter_valid_kcca_devices(devices_data):
     return valid_devices
 
 
-def handle_api_error(api_request):
-    try:
-        print(api_request.request.url)
-        print(api_request.request.body)
-    except Exception as ex:
-        print(ex)
-    finally:
-        print(api_request.content)
-        print('API request failed with status code %s' % api_request.status_code)
-
-
 def build_channel_id_filter(devices_data):
     channel_filter = "channel_id = 0"
     for device in devices_data:
@@ -522,7 +496,8 @@ def build_channel_id_filter(devices_data):
     return channel_filter
 
 
-def get_valid_devices(base_url, tenant):
-    devices = get_devices_or_sites(base_url, tenant)
+def get_valid_devices(tenant):
+    airqo_api = AirQoApi()
+    devices = airqo_api.get_devices(tenant=tenant)
     filtered_devices = filter_valid_devices(devices)
     return filtered_devices

@@ -25,7 +25,7 @@ def measurement_time_to_string(time: str, daily=False):
         return date_to_str_hours(date_time)
 
 
-def get_insights_forecast(tenant):
+def extract_insights_forecast(tenant):
     airqo_api = AirQoApi()
     columns = ['time', 'pm2_5', 'siteId', 'frequency', 'forecast']
     devices = airqo_api.get_devices(tenant=tenant, active=True)
@@ -66,7 +66,7 @@ def get_insights_forecast(tenant):
     return forecast_measurements.to_dict(orient="records")
 
 
-def get_insights_averaged_data(tenant):
+def extract_airqo_data(tenant):
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant=tenant, active=True)
     averaged_measurements = []
@@ -129,36 +129,39 @@ def create_insights_data(forecast_data_file, averaged_data_file):
     return insights_data.to_dict(orient="records")
 
 
-@dag('App-Insights', schedule_interval="*/40 * * * *",
+@dag('App-Insights', schedule_interval="*/30 * * * *",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
 def app_insights_etl():
     @task(multiple_outputs=True)
-    def extract():
-        forecast_data = get_insights_forecast('airqo')
-        averaged_data = get_insights_averaged_data('airqo')
+    def extract_measurements_data():
+        measurements_data = extract_airqo_data('airqo')
 
-        return dict({"forecast_data": forecast_data, "averaged_data": averaged_data})
+        return dict({"data": measurements_data})
 
     @task(multiple_outputs=True)
-    def transform(measurements_data: dict):
-        forecast_data = measurements_data.get("forecast_data")
-        averaged_data = measurements_data.get("averaged_data")
+    def extract_forecast():
+        forecast_data = extract_insights_forecast('airqo')
 
-        insights_data = create_insights_data(forecast_data, averaged_data)
+        return dict({"data": forecast_data})
 
-        return dict({"insights_data": insights_data})
+    @task(multiple_outputs=True)
+    def merge_data(measurements_data: dict, forecast_data: dict):
+        insights_data = create_insights_data(forecast_data, measurements_data)
+
+        return dict({"data": insights_data})
 
     @task()
     def load(data: dict):
-        insights_data = data.get("insights_data")
+        insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
 
-    extracted_data = extract()
-    insights = transform(extracted_data)
+    measurements = extract_measurements_data()
+    forecast = extract_forecast()
+    insights = merge_data(measurements_data=measurements, forecast_data=forecast)
     load(insights)
 
 
-@dag('Delete-Insights', schedule_interval="@monthly",
+@dag('Delete-Insights', schedule_interval="@weekly",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'delete'])
 def app_delete_insights_etl():
     @task()
@@ -171,7 +174,7 @@ def app_delete_insights_etl():
     delete()
 
 
-@dag('App-Placeholder-Insights', schedule_interval="@monthly",
+@dag('App-Placeholder-Insights', schedule_interval="@weekly",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
 def app_placeholder_insights_etl():
     @task()

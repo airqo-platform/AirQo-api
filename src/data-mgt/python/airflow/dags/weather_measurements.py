@@ -4,16 +4,17 @@ import numpy as np
 import pandas as pd
 from airflow.decorators import dag, task
 
+from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_hours
 from kafka_client import KafkaBrokerClient
-from utils import get_devices_or_sites, get_column_value, get_site_ids_from_station, resample_data
+from utils import get_column_value, get_site_ids_from_station, resample_data
 
 
 def dag_resample_weather_data(data, frequency='hourly'):
     weather_raw_data = pd.DataFrame(data)
-
-    sites = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'airqo', sites=True)
+    airqo_api = AirQoApi()
+    sites = airqo_api.get_sites(tenant='airqo')
     valid_sites = list(filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites))
 
     temperature = weather_raw_data.loc[weather_raw_data["variable"] == "te", ["value", "variable", "station", "time"]]

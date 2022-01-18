@@ -4,10 +4,11 @@ import pandas as pd
 import requests
 from airflow.decorators import dag, task
 
+from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_days
 from date import date_to_str_hours
-from utils import get_devices_or_sites, get_column_value, to_double, get_site_and_device_id
+from utils import get_column_value, to_double, get_site_and_device_id
 from utils import save_measurements_via_api
 
 
@@ -132,8 +133,8 @@ def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list
 
 def transform_kcca_measurements(unclean_data) -> list:
     data = pd.DataFrame(unclean_data)
-
-    devices = get_devices_or_sites(configuration.AIRQO_BASE_URL, 'kcca', sites=False)
+    airqo_api = AirQoApi()
+    devices = airqo_api.get_devices(tenant='kcca')
     device_gps = data.groupby('deviceCode')
     cleaned_measurements = []
     for _, group in device_gps:
