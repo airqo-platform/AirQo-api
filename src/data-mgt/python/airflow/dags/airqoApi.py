@@ -1,7 +1,7 @@
-import json
 import traceback
 
 import requests
+import simplejson
 
 from config import configuration
 
@@ -11,6 +11,14 @@ class AirQoApi:
         self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL
         self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
+
+    def save_events(self, measurements: list, tenant: str) -> None:
+
+        for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
+            data = measurements[i:i + int(configuration.POST_EVENTS_BODY_SIZE)]
+            response = self.__request(endpoint='devices/events', params={"tenant": tenant},
+                                      method='post', body=data)
+            print(response)
 
     def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
         calibrated_data = []
@@ -50,7 +58,7 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant, active=True, all_devices=False):
+    def get_devices(self, tenant, active=True, all_devices=False) -> list:
         params = {
             "tenant": tenant,
             "active": "yes" if active else "no"
@@ -80,7 +88,7 @@ class AirQoApi:
 
         return decrypted_keys
 
-    def get_events(self, tenant, start_time, end_time, frequency, device=None, meta_data=None, recent=None):
+    def get_events(self, tenant, start_time, end_time, frequency, device=None, meta_data=None, recent=None) -> list:
         if recent:
             params = {
                 "tenant": tenant,
@@ -111,7 +119,7 @@ class AirQoApi:
 
         return []
 
-    def get_forecast(self, timestamp, channel_id):
+    def get_forecast(self, timestamp, channel_id) -> list:
 
         endpoint = f"predict/{channel_id}/{timestamp}"
         response = self.__request(endpoint=endpoint, params={}, method="get", version='v2')
@@ -122,10 +130,10 @@ class AirQoApi:
         return []
 
     def get_airqo_device_current_measurements(self, device_number):
-        response = self.__request("data/feeds/transform/recent", {"channel": device_number})
+        response = self.__request(endpoint="data/feeds/transform/recent", params={"channel": device_number})
         return response
 
-    def get_sites(self, tenant):
+    def get_sites(self, tenant) -> list:
         response = self.__request("devices/sites", {"tenant": tenant})
 
         if "sites" in response:
@@ -135,7 +143,7 @@ class AirQoApi:
 
     def __request(self, endpoint, params=None, body=None, method=None, version='v1'):
 
-        base_url = self.AIRQO_BASE_URL_V2 if version == 'v2' else self.AIRQO_BASE_URL
+        base_url = self.AIRQO_BASE_URL_V2 if version.lower() == 'v2' else self.AIRQO_BASE_URL
 
         headers = {'Authorization': self.AIRQO_API_KEY}
         if method is None or method == "get":
@@ -151,7 +159,7 @@ class AirQoApi:
                 '%s%s' % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=json.dumps(body),
+                data=simplejson.dumps(body),
                 verify=False,
             )
         elif method == "post":
@@ -160,7 +168,7 @@ class AirQoApi:
                 '%s%s' % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=json.dumps(body),
+                data=simplejson.dumps(body),
                 verify=False,
             )
         else:

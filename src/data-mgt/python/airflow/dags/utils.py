@@ -6,8 +6,6 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
-import requests
-import simplejson
 from google.cloud import bigquery
 
 from airqoApi import AirQoApi
@@ -131,31 +129,6 @@ def to_float(string):
         return value
     except Exception:
         return None
-
-
-def save_measurements_via_api(measurements: list, tenant: str) -> None:
-    base_url = configuration.AIRQO_BASE_URL
-
-    for i in range(0, len(measurements), int(configuration.POST_EVENTS_BODY_SIZE)):
-        json_data = simplejson.dumps(measurements[i:i + int(configuration.POST_EVENTS_BODY_SIZE)])
-        try:
-            headers = {'Content-Type': 'application/json'}
-            url = base_url + "devices/events?tenant=" + tenant
-
-            results = requests.post(url, json_data, headers=headers, verify=False)
-
-            if results.status_code == 200:
-                print('\n')
-                print(url)
-                print(results.json())
-            else:
-                print('\n')
-                print(f"Device registry failed to insert values. Status Code : {results.status_code}")
-                print(f"Response : {results.content}")
-                print(f"Request Url : {url}")
-                print(f"Request body : {json_data}")
-        except Exception as ex:
-            print("Error Occurred while inserting measurements: " + str(ex))
 
 
 def to_double(x):

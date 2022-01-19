@@ -7,15 +7,18 @@ from airqo_measurements import extract_airqo_data_from_thingspeak, average_airqo
     extract_airqo_weather_data_from_tahmo, merge_airqo_and_weather_data, calibrate_hourly_airqo_measurements, \
     restructure_airqo_data
 from app_insights import extract_airqo_data, create_insights_data, extract_insights_forecast
+from dags.airqoApi import AirQoApi
 from date import date_to_str_hours
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
-from utils import clean_up_task, save_measurements_via_api
+from utils import clean_up_task
 
 
 def kcca():
     kcca_unclean_data = extract_kcca_measurements("2021-01-01T08:00:00Z", "2021-01-01T12:00:00Z", "hourly")
     cleaned_data = transform_kcca_measurements(kcca_unclean_data)
-    save_measurements_via_api(measurements=cleaned_data, tenant='kcca')
+
+    airqo_api = AirQoApi()
+    airqo_api.save_events(measurements=cleaned_data, tenant='kcca')
 
 
 def airqo_hourly_measurements():

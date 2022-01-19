@@ -6,10 +6,8 @@ from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
-from date import date_to_str_days
-from date import date_to_str_hours
+from date import date_to_str_days, date_to_str_hours
 from utils import get_column_value, to_double, get_site_and_device_id
-from utils import save_measurements_via_api
 
 
 def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) -> list:
@@ -86,8 +84,7 @@ def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) ->
 
 
 def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
-    api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
-              f"startTime={start_time}&endTime={end_time}"
+    api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}"
 
     if frequency == "hourly":
         api_url = f"{api_url}&outputFrequency=hour"
@@ -180,7 +177,9 @@ def kcca_historical_measurements_etl():
     @task()
     def load(inputs: dict):
         kcca_data = inputs.get("data")
-        save_measurements_via_api(measurements=kcca_data, tenant="kcca")
+
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=kcca_data, tenant='kcca')
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)
@@ -209,7 +208,9 @@ def kcca_hourly_measurements_etl():
     @task()
     def load(inputs: dict):
         kcca_data = inputs.get("data")
-        save_measurements_via_api(measurements=kcca_data, tenant="kcca")
+
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=kcca_data, tenant='kcca')
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)
@@ -238,7 +239,9 @@ def kcca_daily_measurements_etl():
     @task()
     def load(inputs: dict):
         kcca_data = inputs.get("data")
-        save_measurements_via_api(measurements=kcca_data, tenant="kcca")
+
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=kcca_data, tenant='kcca')
 
     extracted_data = extract()
     transformed_data = transform(extracted_data)

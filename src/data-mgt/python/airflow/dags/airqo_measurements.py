@@ -10,8 +10,7 @@ from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str, date_to_str_days, date_to_str_hours
 from utils import get_column_value, get_valid_devices, build_channel_id_filter, get_airqo_device_data, get_device, \
-    get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, remove_invalid_dates, \
-    save_measurements_via_api, fill_nan
+    get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, remove_invalid_dates, fill_nan
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -269,11 +268,11 @@ def restructure_airqo_data(data: list) -> list:
     # data_df['raw_pm2_5'] = data_df[['s1_pm2_5', 's2_pm2_5']].mean(axis=1)
     # data_df['raw_pm10'] = data_df[['s1_pm10', 's2_pm10']].mean(axis=1)
     #
-    # data_df['pm2_5_value'] = data_df['calibrated_pm2_5'] if 'calibrated_pm2_5' in data_df.columns else None
-    # data_df['pm10_value'] = data_df['calibrated_pm10'] if 'calibrated_pm10' in data_df.columns else None
+    # data_df['pm2_5'] = data_df['calibrated_pm2_5'] if 'calibrated_pm2_5' in data_df.columns else None
+    # data_df['pm10'] = data_df['calibrated_pm10'] if 'calibrated_pm10' in data_df.columns else None
     #
-    # data_df['pm2_5_value'].fillna(data_df['raw_pm2_5'])
-    # data_df['pm10_value'].fillna(data_df['raw_pm10'])
+    # data_df['pm2_5'] = data_df['pm2_5'].fillna(data_df['raw_pm2_5'])
+    # data_df['pm2_5'] = data_df['pm10'].fillna(data_df['raw_pm10'])
 
     data_df['average_pm2_5'] = data_df[['s1_pm2_5', 's2_pm2_5']].mean(axis=1)
     data_df['average_pm10'] = data_df[['s1_pm10', 's2_pm10']].mean(axis=1)
@@ -314,12 +313,12 @@ def restructure_airqo_data(data: list) -> list:
                 "value": get_column_value("s1_pm10", data_row, columns, "pm10"),
             },
             # "pm2_5": {
-            #     "value": get_column_value("pm2_5_value", data_row, columns, "pm2_5"),
+            #     "value": get_column_value("pm2_5", data_row, columns, "pm2_5"),
             #     "rawValue": get_column_value("raw_pm2_5", data_row, columns, "pm2_5"),
             #     "calibratedValue": get_column_value("calibrated_pm2_5", data_row, columns, "pm2_5")
             # },
             # "pm10": {
-            #     "value": get_column_value("pm10_value", data_row, columns, "pm10"),
+            #     "value": get_column_value("pm10", data_row, columns, "pm10"),
             #     "rawValue": get_column_value("raw_pm10", data_row, columns, "pm10"),
             #     "calibratedValue": get_column_value("calibrated_pm10", data_row, columns, "pm10")
             # },
@@ -403,7 +402,6 @@ def calibrate_hourly_airqo_measurements(measurements: list) -> list:
 
             for value in calibrated_values:
                 try:
-
                     data.loc[data['device_id'] == value["device_id"], 'calibrated_pm2_5'] = value["calibrated_PM2.5"]
                     data.loc[data['device_id'] == value["device_id"], 'calibrated_pm10'] = value["calibrated_PM10"]
                 except Exception as ex:
@@ -445,7 +443,7 @@ def airqo_hourly_measurements_etl():
         raw_airqo_data = extract_airqo_data_from_thingspeak(start_time=start_time, end_time=end_time)
         average_data = average_airqo_data(data=raw_airqo_data, frequency='hourly')
 
-        return dict({"data": average_data})
+        return dict({"data": fill_nan(data=average_data)})
 
     @task(multiple_outputs=True)
     def extract_weather_data(**kwargs):
@@ -478,8 +476,8 @@ def airqo_hourly_measurements_etl():
         data = inputs.get("data")
 
         airqo_restructured_data = restructure_airqo_data(data)
-
-        save_measurements_via_api(measurements=airqo_restructured_data, tenant="airqo")
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=airqo_restructured_data, tenant='airqo')
 
     extracted_airqo_data = extract_airqo_data()
     extracted_weather_data = extract_weather_data()
@@ -509,22 +507,22 @@ def airqo_daily_measurements_etl():
         start_time, end_time = time_values(**kwargs)
         data = extract_airqo_hourly_data_from_api(start_time=start_time, end_time=end_time)
 
-        return dict({"data": data})
+        return dict({"data": fill_nan(data=data)})
 
     @task(multiple_outputs=True)
     def average_data(inputs: dict):
         data = inputs.get("data")
         averaged_data = average_airqo_api_measurements(data=data, frequency='daily')
 
-        return dict({"data": averaged_data})
+        return dict({"data": fill_nan(data=averaged_data)})
 
     @task()
     def load(inputs: dict):
         data = inputs.get("data")
 
         airqo_restructured_data = restructure_airqo_data(data)
-
-        save_measurements_via_api(measurements=airqo_restructured_data, tenant="airqo")
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=airqo_restructured_data, tenant='airqo')
 
     hourly_airqo_data = extract_airqo_data()
     averaged_airqo_data = average_data(hourly_airqo_data)
