@@ -6,7 +6,7 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
-from google.cloud import bigquery
+from google.cloud import bigquery, storage
 
 from airqoApi import AirQoApi
 from config import configuration
@@ -311,6 +311,15 @@ def resample_weather_data(data, frequency: str):
     # pd.DataFrame(devices_weather_data).to_csv(path_or_buf='devices_weather.csv', index=False)
 
     return devices_weather_data
+
+
+def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):
+    storage_client = storage.Client()
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(source_file)
+    blob.download_to_filename(destination_file)
+    print(f'file: {destination_file} downloaded from bucket: {bucket_name} successfully')
+    return destination_file
 
 
 def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):

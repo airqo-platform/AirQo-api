@@ -43,6 +43,6 @@ spec:
             initialDelaySeconds: 180
             timeoutSeconds: 120
             httpGet:
-              path: /airflow
+              path: /airflow/health
               port: 8080
       restartPolicy: Always

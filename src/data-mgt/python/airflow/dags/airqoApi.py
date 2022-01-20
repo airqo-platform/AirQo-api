@@ -20,6 +20,23 @@ class AirQoApi:
                                       method='post', body=data)
             print(response)
 
+    def get_maintenance_logs(self, tenant: str, device: str, activity_type: str = None) -> list:
+        params = {
+            "tenant": tenant,
+            "device": device
+        }
+
+        if activity_type:
+            params['activity_type'] = activity_type
+
+        response = self.__request("devices/activities", params)
+
+        if "site_activities" in response:
+            return response["site_activities"]
+        elif "device_activities" in response:
+            return response["device_activities"]
+        return []
+
     def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
         calibrated_data = []
         for i in range(0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)):
