@@ -13,7 +13,7 @@ from config import configuration
 from date import date_to_str, date_to_str_days, date_to_str_hours, str_to_date
 from utils import get_column_value, get_valid_devices, build_channel_id_filter, get_airqo_device_data, get_device, \
     get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, remove_invalid_dates, fill_nan, \
-    download_file_from_gcs
+    download_file_from_gcs, get_frequency, slack_failure_notification
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -164,7 +164,8 @@ def extract_airqo_data_from_thingspeak(start_time: str, end_time: str) -> list:
     read_keys = airqo_api.get_read_keys(devices=airqo_devices)
 
     channels_data = []
-    dates = pd.date_range(start_time, end_time, freq='1H')
+
+    frequency = get_frequency(start_time=start_time, end_time=end_time)
 
     def get_field_8_value(x: str, position: int):
 
@@ -175,14 +176,23 @@ def extract_airqo_data_from_thingspeak(start_time: str, end_time: str) -> list:
             print(exc)
             return None
 
+    dates = pd.date_range(start_time, end_time, freq=frequency)
     for device in airqo_devices:
         try:
 
             channel_id = str(device['device_number'])
+            last_date_time = dates.values[len(dates.values) - 1]
+
             for date in dates:
 
                 start = date_to_str(date)
-                end = date_to_str(date + timedelta(hours=1))
+                end_date_time = date + timedelta(hours=dates.freq.n)
+
+                if np.datetime64(end_date_time) > last_date_time:
+                    end = end_time
+                else:
+                    end = date_to_str(end_date_time)
+
                 read_key = read_keys[str(channel_id)]
 
                 channel_url = f'{thingspeak_base_url}{channel_id}/feeds.json?start={start}&end={end}&api_key={read_key}'
@@ -420,12 +430,17 @@ def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
     def merge_values(row, variable):
         return row[f'{variable}_y'] if row[f'{variable}_y'] else row[f'{variable}_x']
 
-    merged_data_df['temperature'] = merged_data_df.apply(lambda row: merge_values(row, 'temperature'), axis=1)
-    merged_data_df['humidity'] = merged_data_df.apply(lambda row: merge_values(row, 'humidity'), axis=1)
-    merged_data_df['wind_speed'] = merged_data_df.apply(lambda row: merge_values(row, 'wind_speed'), axis=1)
+    if 'temperature_y' in merged_data_df.columns and 'temperature_x' in merged_data_df.columns:
+        merged_data_df['temperature'] = merged_data_df.apply(lambda row: merge_values(row, 'temperature'), axis=1)
+        merged_data_df = merged_data_df.drop(columns=['temperature_x', 'temperature_y'], axis=1)
 
-    merged_data_df = merged_data_df.drop(columns=['temperature_x', 'temperature_y', 'humidity_x',
-                                                  'humidity_y', 'wind_speed_x', 'wind_speed_y'], axis=1)
+    if 'humidity_y' in merged_data_df.columns and 'humidity_x' in merged_data_df.columns:
+        merged_data_df['humidity'] = merged_data_df.apply(lambda row: merge_values(row, 'humidity'), axis=1)
+        merged_data_df = merged_data_df.drop(columns=['humidity_x', 'humidity_y'], axis=1)
+
+    if 'wind_speed_y' in merged_data_df.columns and 'wind_speed_x' in merged_data_df.columns:
+        merged_data_df['wind_speed'] = merged_data_df.apply(lambda row: merge_values(row, 'wind_speed'), axis=1)
+        merged_data_df = merged_data_df.drop(columns=['wind_speed_x', 'wind_speed_y'], axis=1)
 
     return merged_data_df.to_dict(orient='records')
 
@@ -514,7 +529,7 @@ def calibrate_hourly_airqo_measurements(measurements: list) -> list:
     return calibrated_measurements
 
 
-@dag('AirQo-Hourly-Measurements', schedule_interval="@hourly",
+@dag('AirQo-Hourly-Measurements', schedule_interval="@hourly", on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly'])
 def airqo_hourly_measurements_etl():
     def time_values(**kwargs):

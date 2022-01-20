@@ -3,11 +3,11 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from airqoApi import AirQoApi
 from airqo_measurements import extract_airqo_data_from_thingspeak, average_airqo_data, \
     extract_airqo_weather_data_from_tahmo, merge_airqo_and_weather_data, calibrate_hourly_airqo_measurements, \
-    restructure_airqo_data
+    extract_airqo_devices_deployment_history, restructure_airqo_data
 from app_insights import extract_airqo_data, create_insights_data, extract_insights_forecast
-from dags.airqoApi import AirQoApi
 from date import date_to_str_hours
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
 from utils import clean_up_task
@@ -25,6 +25,8 @@ def airqo_hourly_measurements():
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
     start_time = date_to_str_hours(hour_of_day)
     end_time = datetime.strftime(hour_of_day, '%Y-%m-%dT%H:59:59Z')
+    # start_time = '2020-01-01T16:00:00Z'
+    # end_time = '2020-01-01T17:00:00Z'
 
     # extract_airqo_data
     raw_airqo_data = extract_airqo_data_from_thingspeak(start_time=start_time, end_time=end_time)
@@ -44,8 +46,9 @@ def airqo_hourly_measurements():
     calibrated_data = calibrate_hourly_airqo_measurements(measurements=merged_measurements)
     pd.DataFrame(calibrated_data).to_csv(path_or_buf='calibrated_data.csv', index=False)
 
+    device_logs = extract_airqo_devices_deployment_history()
     # restructure data
-    restructure_data = restructure_airqo_data(calibrated_data)
+    restructure_data = restructure_airqo_data(data=calibrated_data, devices_logs=device_logs)
     pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data.csv', index=False)
 
 
@@ -57,7 +60,6 @@ def insights_data():
 
 
 if __name__ == "__main__":
-
     strings_list = sys.argv
     action = f"{strings_list[1]}"
 

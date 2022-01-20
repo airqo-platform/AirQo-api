@@ -6,6 +6,8 @@ from functools import reduce
 
 import numpy as np
 import pandas as pd
+from airflow.hooks.base import BaseHook
+from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import bigquery, storage
 
 from airqoApi import AirQoApi
@@ -313,6 +315,60 @@ def resample_weather_data(data, frequency: str):
     return devices_weather_data
 
 
+def slack_success_notification(context):
+    slack_webhook_token = BaseHook.get_connection('slack').password
+
+    msg = """
+          :green_circle: Task Successful. 
+          *Task*: {task}  
+          *Dag*: {dag} 
+          *Execution Time*: {exec_date}  
+          *Log Url*: {log_url} 
+          """.format(
+        task=context.get('task_instance').task_id,
+        dag=context.get('task_instance').dag_id,
+        ti=context.get('task_instance'),
+        exec_date=context.get('execution_date'),
+        log_url=context.get('task_instance').log_url,
+    )
+
+    success_alert = SlackWebhookOperator(
+        task_id='slack_success_notification',
+        http_conn_id='slack',
+        webhook_token=slack_webhook_token,
+        message=msg,
+        username='airflow')
+
+    return success_alert.execute(context=context)
+
+
+def slack_failure_notification(context):
+    slack_webhook_token = BaseHook.get_connection('slack').password
+
+    msg = """
+          :red_circle: Task Failed. 
+          *Task*: {task}  
+          *Dag*: {dag}
+          *Execution Time*: {exec_date}  
+          *Log Url*: {log_url} 
+          """.format(
+        task=context.get('task_instance').task_id,
+        dag=context.get('task_instance').dag_id,
+        ti=context.get('task_instance'),
+        exec_date=context.get('execution_date'),
+        log_url=context.get('task_instance').log_url,
+    )
+
+    failed_alert = SlackWebhookOperator(
+        task_id='slack_failed_notification',
+        http_conn_id='slack',
+        webhook_token=slack_webhook_token,
+        message=msg,
+        username='airflow')
+
+    return failed_alert.execute(context=context)
+
+
 def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):
     storage_client = storage.Client()
     bucket = storage_client.bucket(bucket_name)
@@ -320,6 +376,20 @@ def download_file_from_gcs(bucket_name: str, source_file: str, destination_file:
     blob.download_to_filename(destination_file)
     print(f'file: {destination_file} downloaded from bucket: {bucket_name} successfully')
     return destination_file
+
+
+def get_frequency(start_time: str, end_time: str) -> str:
+    diff_days = round((str_to_date(end_time) - str_to_date(start_time)).total_seconds() / 86400)
+
+    if diff_days >= 5:
+        frequency = '96H'
+    elif diff_days <= 1:
+        diff_hours = round((str_to_date(end_time) - str_to_date(start_time)).seconds / 3600)
+        frequency = '1H' if diff_hours <= 0 else f'{diff_hours}H'
+    else:
+        frequency = f'{round(diff_days * 24)}H'
+
+    return frequency
 
 
 def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
@@ -337,11 +407,22 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
     columns = []
     tahmo_api = TahmoApi()
 
-    dates = pd.date_range(start_time, end_time, freq='12H')
+    frequency = get_frequency(start_time=start_time, end_time=end_time)
+    dates = pd.date_range(start_time, end_time, freq=frequency)
+    last_date_time = dates.values[len(dates.values) - 1]
 
     for date in dates:
+
         start = date_to_str(date)
-        end = date_to_str(date + timedelta(hours=12))
+        end_date_time = date + timedelta(hours=dates.freq.n)
+
+        if np.datetime64(end_date_time) > last_date_time:
+            end = end_time
+        else:
+            end = date_to_str(end_date_time)
+
+        # start = date_to_str(date)
+        # end = date_to_str(date + timedelta(hours=12))
         print(start + " : " + end)
 
         cols, range_measurements = tahmo_api.get_measurements(start, end, station_codes)
