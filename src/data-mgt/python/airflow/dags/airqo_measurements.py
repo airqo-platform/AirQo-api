@@ -427,20 +427,20 @@ def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
 
     merged_data_df = pd.merge(airqo_data_df, weather_data_df, on=['device_id', 'time', 'frequency'], how='left')
 
-    def merge_values(row, variable):
-        return row[f'{variable}_y'] if row[f'{variable}_y'] else row[f'{variable}_x']
+    def merge_values(dataframe: pd.DataFrame, variable: str) -> pd.DataFrame:
+        dataframe[variable] = dataframe[f'{variable}_x'].apply(lambda x: get_valid_value(x, variable))
+        dataframe[variable] = dataframe[variable].fillna(dataframe[f'{variable}_y'])
+        dataframe = dataframe.drop(columns=[f'{variable}_x', f'{variable}_y'], axis=1)
+        return dataframe
 
     if 'temperature_y' in merged_data_df.columns and 'temperature_x' in merged_data_df.columns:
-        merged_data_df['temperature'] = merged_data_df.apply(lambda row: merge_values(row, 'temperature'), axis=1)
-        merged_data_df = merged_data_df.drop(columns=['temperature_x', 'temperature_y'], axis=1)
+        merged_data_df = merge_values(merged_data_df, 'temperature')
 
     if 'humidity_y' in merged_data_df.columns and 'humidity_x' in merged_data_df.columns:
-        merged_data_df['humidity'] = merged_data_df.apply(lambda row: merge_values(row, 'humidity'), axis=1)
-        merged_data_df = merged_data_df.drop(columns=['humidity_x', 'humidity_y'], axis=1)
+        merged_data_df = merge_values(merged_data_df, 'humidity')
 
     if 'wind_speed_y' in merged_data_df.columns and 'wind_speed_x' in merged_data_df.columns:
-        merged_data_df['wind_speed'] = merged_data_df.apply(lambda row: merge_values(row, 'wind_speed'), axis=1)
-        merged_data_df = merged_data_df.drop(columns=['wind_speed_x', 'wind_speed_y'], axis=1)
+        merged_data_df = merge_values(merged_data_df, 'wind_speed')
 
     return merged_data_df.to_dict(orient='records')
 

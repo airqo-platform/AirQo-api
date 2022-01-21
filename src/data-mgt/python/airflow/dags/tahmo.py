@@ -1,3 +1,4 @@
+import pandas as pd
 import requests
 
 from config import configuration
@@ -24,13 +25,14 @@ class TahmoApi:
         if station_codes is None:
             station_codes = []
 
-        measurements = []
         params = {
             'start': start_time,
             'end': end_time,
         }
-        columns = []
+
         stations = set(station_codes)
+        columns = ["value", "variable", "station", "time"]
+        measurements_df = pd.DataFrame(columns=columns)
 
         for code in stations:
 
@@ -41,15 +43,18 @@ class TahmoApi:
                 if 'results' in response and isinstance(response["results"], list):
                     results = response["results"]
                     values = results[0]["series"][0]["values"]
-                    if len(columns) == 0:
-                        columns = results[0]["series"][0]["columns"]
+                    columns = results[0]["series"][0]["columns"]
 
-                    measurements.extend(values)
+                    station_measurements_df = pd.DataFrame(data=values, columns=columns)
+
+                    station_measurements_df = station_measurements_df[columns]
+                    measurements_df = measurements_df.append(station_measurements_df, ignore_index=True)
+
             except Exception as ex:
                 print(ex)
                 continue
 
-        return columns, measurements
+        return measurements_df.to_dict(orient="records")
 
     def __request(self, endpoint, params):
         api_request = requests.get(

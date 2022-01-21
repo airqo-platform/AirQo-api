@@ -152,7 +152,7 @@ def fill_nan(data: list) -> list:
 def get_valid_value(raw_value, name=None):
     value = to_double(raw_value)
 
-    if not name or not value:
+    if name is None or value is None:
         return value
 
     if (name == "pm2_5" or name == "pm10") and (value < 1 or value > 1000):
@@ -167,9 +167,9 @@ def get_valid_value(raw_value, name=None):
         return None
     elif name == "satellites" and (value < 0 or value > 50):
         return None
-    elif name == "externalTemperature" and (value < 0 or value > 45):
+    elif (name == "externalTemperature" or name == "temperature") and (value <= 0 or value > 45):
         return None
-    elif name == "externalHumidity" and (value < 0 or value > 100):
+    elif (name == "externalHumidity" or name == "humidity") and (value <= 0 or value > 100):
         return None
     elif name == "pressure":
         return None
@@ -404,7 +404,6 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
             print(ex)
 
     measurements = []
-    columns = []
     tahmo_api = TahmoApi()
 
     frequency = get_frequency(start_time=start_time, end_time=end_time)
@@ -423,13 +422,11 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
 
         print(start + " : " + end)
 
-        cols, range_measurements = tahmo_api.get_measurements(start, end, station_codes)
+        range_measurements = tahmo_api.get_measurements(start, end, station_codes)
         measurements.extend(range_measurements)
-        if len(columns) == 0:
-            columns = cols
 
-    if len(measurements) != 0 and len(columns) != 0:
-        measurements_df = pd.DataFrame(data=measurements, columns=columns)
+    if len(measurements) != 0:
+        measurements_df = pd.DataFrame(data=measurements)
     else:
         measurements_df = pd.DataFrame([])
     measurements_df = measurements_df.fillna('None')
