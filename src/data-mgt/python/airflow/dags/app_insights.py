@@ -129,7 +129,7 @@ def create_insights_data(forecast_data_file, averaged_data_file):
     return insights_data.to_dict(orient="records")
 
 
-@dag('App-Insights', schedule_interval="*/30 * * * *",
+@dag('App-Insights', schedule_interval="30 * * * *",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
 def app_insights_etl():
     @task(multiple_outputs=True)

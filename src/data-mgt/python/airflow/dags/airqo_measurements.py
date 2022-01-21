@@ -12,8 +12,8 @@ from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str, date_to_str_days, date_to_str_hours, str_to_date
 from utils import get_column_value, get_valid_devices, build_channel_id_filter, get_airqo_device_data, get_device, \
-    get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, remove_invalid_dates, fill_nan, \
-    download_file_from_gcs, get_frequency, slack_failure_notification
+    get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, \
+    remove_invalid_dates, fill_nan, download_file_from_gcs, get_frequency, slack_failure_notification
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -445,60 +445,77 @@ def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
     return merged_data_df.to_dict(orient='records')
 
 
-def calibrate_hourly_airqo_measurements_using_pickle_file(pm2_5, s2_pm2_5, pm10, s2_pm10, temperature,
-                                                          humidity, date_time):
-    model_file = download_file_from_gcs(bucket_name="airqo_prediction_bucket",
-                                        source_file="PM2.5_calibrate_model.pkl",
-                                        destination_file="pm2_5_model.pkl")
+def calibrate_using_pickle_file(measurements: list) -> list:
+    pm_2_5_model_file = download_file_from_gcs(bucket_name="airqo_prediction_bucket",
+                                               source_file="PM2.5_calibrate_model.pkl",
+                                               destination_file="pm2_5_model.pkl")
 
-    time = pd.to_datetime(date_time)
-    hour = time.hour
-    input_variables = pd.DataFrame([[pm2_5, s2_pm2_5, pm10, s2_pm10, temperature, humidity, hour]],
-                                   columns=['pm2_5', 's2_pm2_5', 'pm10', 's2_pm10', 'temperature', 'humidity',
-                                            'hour'],
-                                   dtype='float',
-                                   index=['input'])
-    input_variables["avg_pm2_5"] = input_variables[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
-    input_variables["avg_pm10"] = input_variables[['pm10', 's2_pm10']].mean(axis=1).round(2)
-    input_variables["error_pm10"] = np.abs(input_variables["pm10"] - input_variables["s2_pm10"])
-    input_variables["error_pm2_5"] = np.abs(input_variables["pm2_5"] - input_variables["s2_pm2_5"])
-    input_variables["pm2_5_pm10"] = input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
-    input_variables["pm2_5_pm10_mod"] = input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
-    input_variables = input_variables.drop(['pm2_5', 's2_pm2_5', 'pm10', 's2_pm10'], axis=1)
+    pm_10_model_file = download_file_from_gcs(bucket_name="airqo_prediction_bucket",
+                                              source_file="PM10_calibrate_model.pkl",
+                                              destination_file="pm10_model.pkl")
 
-    # reorganise columns
-    input_variables = input_variables[
-        ['avg_pm2_5', 'avg_pm10', 'temperature', 'humidity', 'hour', 'error_pm2_5', 'error_pm10', 'pm2_5_pm10',
-         'pm2_5_pm10_mod']]
+    with open(pm_2_5_model_file, "rb") as f:
+        rf_regressor = pickle.load(f)
 
-    rf_regressor = pickle.load(open(model_file, 'rb'))
-    calibrated_pm2_5 = rf_regressor.predict(input_variables)[0]
+    with open(pm_10_model_file, "rb") as f:
+        lasso_regressor = pickle.load(f)
 
-    return calibrated_pm2_5
-
-
-def calibrate_hourly_airqo_measurements(measurements: list) -> list:
+    calibrated_measurements = []
     data_df = pd.DataFrame(measurements)
 
-    data_df["s1_pm2_5"] = data_df["s1_pm2_5"].apply(lambda x: get_valid_value(x, 'pm2_5'))
-    data_df["s2_pm2_5"] = data_df["s2_pm2_5"].apply(lambda x: get_valid_value(x, 'pm2_5'))
-    data_df["s1_pm10"] = data_df["s1_pm10"].apply(lambda x: get_valid_value(x, 'pm10'))
-    data_df["s2_pm10"] = data_df["s2_pm10"].apply(lambda x: get_valid_value(x, 'pm10'))
-    data_df["temperature"] = data_df["temperature"].apply(lambda x: get_valid_value(x, 'temperature'))
-    data_df["humidity"] = data_df["humidity"].apply(lambda x: get_valid_value(x, 'humidity'))
+    for _, row in data_df:
+        try:
+            calibrated_row = row
+            hour = pd.to_datetime(row["time"]).hour
+            s1_pm2_5 = row["s1_pm2_5"]
+            s2_pm2_5 = row["s2_pm2_5"]
+            s1_pm10 = row["s1_pm10"]
+            s2_pm10 = row["s2_pm10"]
+            temperature = row["temperature"]
+            humidity = row["humidity"]
 
-    uncalibrated_data = data_df.loc[(data_df["s1_pm2_5"].isnull()) | (data_df["s1_pm10"].isnull()) |
-                                    (data_df["s2_pm2_5"].isnull()) | (data_df["s2_pm10"].isnull()) |
-                                    (data_df["temperature"].isnull()) | (data_df["humidity"].isnull())]
+            input_variables = pd.DataFrame([[s1_pm2_5, s2_pm2_5, s1_pm10, s2_pm10, temperature, humidity, hour]],
+                                           columns=['s1_pm2_5', 's2_pm2_5', 's1_pm10', 's2_pm10', 'temperature',
+                                                    'humidity', 'hour'],
+                                           dtype='float',
+                                           index=['input'])
 
-    data_for_calibration = data_df.dropna(subset=["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10",
-                                                  "temperature", "humidity"])
+            input_variables["avg_pm2_5"] = input_variables[['s1_pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
+            input_variables["avg_pm10"] = input_variables[['s1_pm10', 's2_pm10']].mean(axis=1).round(2)
+            input_variables["error_pm10"] = np.abs(input_variables["s1_pm10"] - input_variables["s2_pm10"])
+            input_variables["error_pm2_5"] = np.abs(input_variables["s1_pm2_5"] - input_variables["s2_pm2_5"])
+            input_variables["pm2_5_pm10"] = input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
+            input_variables["pm2_5_pm10_mod"] = input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
+            input_variables = input_variables.drop(['s1_pm2_5', 's2_pm2_5', 's1_pm10', 's2_pm10'], axis=1)
 
-    hourly_measurements_groups = data_for_calibration.groupby("time")
+            # reorganise columns
+            input_variables = input_variables[['avg_pm2_5', 'avg_pm10', 'temperature', 'humidity', 'hour',
+                                               'error_pm2_5', 'error_pm10', 'pm2_5_pm10', 'pm2_5_pm10_mod']]
+
+            calibrated_pm2_5 = rf_regressor.predict(input_variables)[0]
+            calibrated_pm10 = lasso_regressor.predict(input_variables)[0]
+
+            calibrated_row['calibrated_pm2_5'] = calibrated_pm2_5
+            calibrated_row['calibrated_pm10'] = calibrated_pm10
+
+            calibrated_measurements.append(calibrated_row.to_dict(orient='records'))
+
+        except Exception as ex:
+            traceback.print_exc()
+            print(ex)
+            continue
+
+    return calibrated_measurements
+
+
+def calibrate_using_api(measurements: list) -> list:
+    data_df = pd.DataFrame(measurements)
+
+    data_df_groups = data_df.groupby("time")
     airqo_api = AirQoApi()
     calibrated_measurements = []
 
-    for _, time_group in hourly_measurements_groups:
+    for _, time_group in data_df_groups:
 
         try:
             data = time_group
@@ -524,12 +541,40 @@ def calibrate_hourly_airqo_measurements(measurements: list) -> list:
             print(ex)
             continue
 
+    return calibrated_measurements
+
+
+def calibrate_hourly_airqo_measurements(measurements: list, method: str = 'api') -> list:
+    data_df = pd.DataFrame(measurements)
+
+    data_df["s1_pm2_5"] = data_df["s1_pm2_5"].apply(lambda x: get_valid_value(x, 'pm2_5'))
+    data_df["s2_pm2_5"] = data_df["s2_pm2_5"].apply(lambda x: get_valid_value(x, 'pm2_5'))
+    data_df["s1_pm10"] = data_df["s1_pm10"].apply(lambda x: get_valid_value(x, 'pm10'))
+    data_df["s2_pm10"] = data_df["s2_pm10"].apply(lambda x: get_valid_value(x, 'pm10'))
+    data_df["temperature"] = data_df["temperature"].apply(lambda x: get_valid_value(x, 'temperature'))
+    data_df["humidity"] = data_df["humidity"].apply(lambda x: get_valid_value(x, 'humidity'))
+
+    uncalibrated_data = data_df.loc[(data_df["s1_pm2_5"].isnull()) | (data_df["s1_pm10"].isnull()) |
+                                    (data_df["s2_pm2_5"].isnull()) | (data_df["s2_pm10"].isnull()) |
+                                    (data_df["temperature"].isnull()) | (data_df["humidity"].isnull())]
+
+    data_for_calibration = data_df.dropna(subset=["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10",
+                                                  "temperature", "humidity"])
+    calibrated_measurements = []
+
+    if method.lower() == 'pickle':
+        calibrated_data = calibrate_using_pickle_file(data_for_calibration)
+        calibrated_measurements.extend(calibrated_data)
+    else:
+        calibrated_data = calibrate_using_api(data_for_calibration)
+        calibrated_measurements.extend(calibrated_data)
+
     calibrated_measurements.extend(uncalibrated_data.to_dict(orient='records'))
 
     return calibrated_measurements
 
 
-@dag('AirQo-Hourly-Measurements', schedule_interval="@hourly", on_failure_callback=slack_failure_notification,
+@dag('AirQo-Hourly-Measurements', schedule_interval="10 * * * *", on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly'])
 def airqo_hourly_measurements_etl():
     def time_values(**kwargs):

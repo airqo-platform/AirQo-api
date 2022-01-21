@@ -421,8 +421,6 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
         else:
             end = date_to_str(end_date_time)
 
-        # start = date_to_str(date)
-        # end = date_to_str(date + timedelta(hours=12))
         print(start + " : " + end)
 
         cols, range_measurements = tahmo_api.get_measurements(start, end, station_codes)
@@ -435,8 +433,6 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
     else:
         measurements_df = pd.DataFrame([])
     measurements_df = measurements_df.fillna('None')
-
-    # pd.DataFrame(measurements_df).to_csv(path_or_buf='raw_weather_data.csv', index=False)
 
     clean_measurements_df = remove_invalid_dates(dataframe=measurements_df, start_time=start_time, end_time=end_time)
     return clean_measurements_df.to_dict(orient='records')
