@@ -339,9 +339,6 @@ def restructure_airqo_data(data: list, devices_logs: list) -> list:
     data_df['pm2_5'] = data_df['pm2_5'].fillna(data_df['raw_pm2_5'])
     data_df['pm10'] = data_df['pm10'].fillna(data_df['raw_pm10'])
 
-    data_df['average_pm2_5'] = data_df[['s1_pm2_5', 's2_pm2_5']].mean(axis=1)
-    data_df['average_pm10'] = data_df[['s1_pm10', 's2_pm10']].mean(axis=1)
-
     data_df = data_df.replace(to_replace='None', value=None)
     columns = data_df.columns
 
@@ -373,12 +370,12 @@ def restructure_airqo_data(data: list, devices_logs: list) -> list:
             "frequency": data_row['frequency'],
             "time": data_row["time"],
             "average_pm2_5": {
-                "value": get_column_value("average_pm2_5", data_row, columns, "pm2_5"),
-                "calibratedValue": get_column_value("calibrated_pm2_5", data_row, columns, "pm2_5")
+                "value": get_valid_value(data_row["raw_pm2_5"], "pm2_5"),
+                "calibratedValue": get_column_value("pm2_5", data_row, columns, "pm2_5")
             },
             "average_pm10": {
-                "value": get_column_value("average_pm10", data_row, columns, "pm10"),
-                "calibratedValue": get_column_value("calibrated_pm10", data_row, columns, "pm10")
+                "value": get_valid_value(data_row["raw_pm10"], "pm10"),
+                "calibratedValue": get_column_value("pm10", data_row, columns, "pm10")
             },
             "pm2_5": {
                 "value": get_column_value("s1_pm2_5", data_row, columns, "pm2_5"),
@@ -398,8 +395,8 @@ def restructure_airqo_data(data: list, devices_logs: list) -> list:
             # },
             "s1_pm2_5": {"value": get_column_value("s1_pm2_5", data_row, columns, "pm2_5")},
             "s1_pm10": {"value": get_column_value("s1_pm10", data_row, columns, "pm10")},
-            "s2_pm2_5": {"value": get_column_value("s2_pm2_5", data_row, columns, "s2_pm2_5")},
-            "s2_pm10": {"value": get_column_value("s2_pm10", data_row, columns, "s2_pm10")},
+            "s2_pm2_5": {"value": get_column_value("s2_pm2_5", data_row, columns, "pm2_5")},
+            "s2_pm10": {"value": get_column_value("s2_pm10", data_row, columns, "pm10")},
             "battery": {"value": get_column_value("voltage", data_row, columns, "battery")},
             "altitude": {"value": get_column_value("altitude", data_row, columns, "altitude")},
             "speed": {"value": get_column_value("wind_speed", data_row, columns, "speed")},
@@ -564,11 +561,10 @@ def calibrate_hourly_airqo_measurements(measurements: list, method: str = 'api')
 
     if method.lower() == 'pickle':
         calibrated_data = calibrate_using_pickle_file(data_for_calibration)
-        calibrated_measurements.extend(calibrated_data)
     else:
         calibrated_data = calibrate_using_api(data_for_calibration)
-        calibrated_measurements.extend(calibrated_data)
 
+    calibrated_measurements.extend(calibrated_data)
     calibrated_measurements.extend(uncalibrated_data.to_dict(orient='records'))
 
     return calibrated_measurements

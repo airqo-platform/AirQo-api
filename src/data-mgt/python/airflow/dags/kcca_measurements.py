@@ -1,12 +1,13 @@
 from datetime import datetime, timedelta
 
+import numpy as np
 import pandas as pd
 import requests
 from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
-from date import date_to_str_days, date_to_str_hours
+from date import date_to_str_days, date_to_str_hours, date_to_str
 from utils import get_column_value, to_double, get_site_and_device_id
 
 
@@ -104,23 +105,28 @@ def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
 def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list:
     if freq.lower() == "hourly":
         interval = "6H"
-        time_delta = 6
     elif freq.lower() == "daily":
         interval = "48H"
-        time_delta = 48
     else:
         interval = "1H"
-        time_delta = 1
 
     dates = pd.date_range(start_time, end_time, freq=interval)
     measurements = []
+    last_date_time = dates.values[len(dates.values) - 1]
 
     for date in dates:
-        start_time = date_to_str_hours(date)
-        end_time = date_to_str_hours(date + timedelta(hours=time_delta))
+
+        start = date_to_str(date)
+        end_date_time = date + timedelta(hours=dates.freq.n)
+
+        if np.datetime64(end_date_time) > last_date_time:
+            end = end_time
+        else:
+            end = date_to_str(end_date_time)
+
         print(start_time + " : " + end_time)
 
-        range_measurements = query_kcca_measurements(freq, start_time, end_time)
+        range_measurements = query_kcca_measurements(freq, start, end)
         measurements.extend(range_measurements)
 
     measurements_df = pd.json_normalize(measurements)
@@ -148,9 +154,8 @@ def transform_kcca_measurements(unclean_data) -> list:
     return cleaned_measurements
 
 
-@dag('KCCA-Historical-Measurements', schedule_interval=None,
-     start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'historical'])
-def kcca_historical_measurements_etl():
+@dag('KCCA-Measurements', schedule_interval="30 * * * *", start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca'])
+def kcca_measurements_etl():
     @task(multiple_outputs=True)
     def extract(**kwargs):
         try:
@@ -160,7 +165,7 @@ def kcca_historical_measurements_etl():
             end_time = dag_run.conf['endTime']
         except KeyError:
             frequency = 'hourly'
-            start_time = date_to_str_hours(datetime.utcnow() - timedelta(hours=24))
+            start_time = date_to_str_hours(datetime.utcnow() - timedelta(hours=4))
             end_time = date_to_str_hours(datetime.utcnow())
 
         kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq=frequency)
@@ -186,38 +191,7 @@ def kcca_historical_measurements_etl():
     load(transformed_data)
 
 
-@dag('KCCA-Hourly-Measurements', schedule_interval="@hourly",
-     start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'hourly'])
-def kcca_hourly_measurements_etl():
-    @task(multiple_outputs=True)
-    def extract():
-        start_time = date_to_str_hours(datetime.utcnow() - timedelta(hours=3))
-        end_time = date_to_str_hours(datetime.utcnow())
-
-        hourly_kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq='hourly')
-
-        return dict({"data": hourly_kcca_data})
-
-    @task(multiple_outputs=True)
-    def transform(inputs: dict):
-        data = inputs.get("data")
-        cleaned_data = transform_kcca_measurements(data)
-
-        return dict({"data": cleaned_data})
-
-    @task()
-    def load(inputs: dict):
-        kcca_data = inputs.get("data")
-
-        airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=kcca_data, tenant='kcca')
-
-    extracted_data = extract()
-    transformed_data = transform(extracted_data)
-    load(transformed_data)
-
-
-@dag('KCCA-Daily-Measurements', schedule_interval="@daily",
+@dag('KCCA-Daily-Measurements', schedule_interval="0 2 * * *",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'daily'])
 def kcca_daily_measurements_etl():
     @task(multiple_outputs=True)
@@ -248,6 +222,5 @@ def kcca_daily_measurements_etl():
     load(transformed_data)
 
 
-kcca_historical_measurements_etl_dag = kcca_historical_measurements_etl()
-kcca_hourly_measurements_etl_dag = kcca_hourly_measurements_etl()
+kcca_measurements_etl_etl_dag = kcca_measurements_etl()
 kcca_daily_measurements_etl_dag = kcca_daily_measurements_etl()

@@ -46,7 +46,10 @@ def airqo_hourly_measurements():
     calibrated_data = calibrate_hourly_airqo_measurements(measurements=merged_measurements)
     pd.DataFrame(calibrated_data).to_csv(path_or_buf='calibrated_data.csv', index=False)
 
+    # device logs
     device_logs = extract_airqo_devices_deployment_history()
+    pd.DataFrame(device_logs).to_csv(path_or_buf='device_logs.csv', index=False)
+
     # restructure data
     restructure_data = restructure_airqo_data(data=calibrated_data, devices_logs=device_logs)
     pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data.csv', index=False)
