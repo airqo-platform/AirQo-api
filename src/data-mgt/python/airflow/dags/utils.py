@@ -77,62 +77,6 @@ def format_measurements_to_insights(data: list):
     return data.to_dict(orient="records")
 
 
-def get_last_datetime(year, month):
-    next_month = int(month) + 1
-    next_year = int(year) + 1 if next_month > 12 else year
-    next_month = 1 if next_month > 12 else next_month
-
-    date_time = datetime(int(next_year), int(next_month), 1) - timedelta(days=1)
-
-    return datetime.strftime(date_time, '%Y-%m-%dT00:00:00Z')
-
-
-def get_first_datetime(year, month):
-    month_value = 1 if int(month) > 12 else month
-    date_time = datetime(int(year), int(month_value), 1)
-
-    return datetime.strftime(date_time, '%Y-%m-%dT00:00:00Z')
-
-
-def get_month(value):
-    if value == 1:
-        return "Jan"
-    elif value == 2:
-        return "Feb"
-    elif value == 3:
-        return "Mar"
-    elif value == 4:
-        return "Apr"
-    elif value == 5:
-        return "May"
-    elif value == 6:
-        return "Jun"
-    elif value == 7:
-        return "July"
-    elif value == 8:
-        return "Aug"
-    elif value == 9:
-        return "Sept"
-    elif value == 10:
-        return "Oct"
-    elif value == 11:
-        return "Nov"
-    elif value == 12:
-        return "Dec"
-    else:
-        Exception("Invalid month value")
-
-
-def to_float(string):
-    try:
-        value = float(string)
-        if math.isnan(value):
-            return None
-        return value
-    except Exception:
-        return None
-
-
 def to_double(x):
     try:
         value = float(x)
@@ -149,10 +93,16 @@ def fill_nan(data: list) -> list:
     return data_df.to_dict(orient='records')
 
 
+def un_fill_nan(data: list) -> list:
+    data_df = pd.DataFrame(data)
+    data_df = data_df.replace(to_replace='none', value=None)
+    return data_df.to_dict(orient='records')
+
+
 def get_valid_value(raw_value, name=None):
     value = to_double(raw_value)
 
-    if name is None or value is None:
+    if name is None or value is None or value is np.nan:
         return value
 
     if (name == "pm2_5" or name == "pm10") and (value < 1 or value > 1000):
@@ -189,18 +139,6 @@ def get_site_ids_from_station(station: str, sites: list):
         site_ids.append(site["_id"])
 
     return site_ids
-
-
-def get_device_site_id(device_id: str, devices: list):
-    device = list(filter(lambda x: str(x["_id"]).lower() == device_id.lower(), devices))
-
-    if not device:
-        return None
-
-    try:
-        return device[0]['site']['_id']
-    except KeyError:
-        return None
 
 
 def get_device_ids_from_station(station: str, sites: list):

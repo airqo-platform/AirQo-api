@@ -13,7 +13,7 @@ from config import configuration
 from date import date_to_str, date_to_str_days, date_to_str_hours, str_to_date
 from utils import get_column_value, get_valid_devices, build_channel_id_filter, get_airqo_device_data, get_device, \
     get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, \
-    remove_invalid_dates, fill_nan, download_file_from_gcs, get_frequency, slack_failure_notification
+    remove_invalid_dates, fill_nan, download_file_from_gcs, get_frequency, slack_failure_notification, un_fill_nan
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -328,6 +328,7 @@ def restructure_airqo_data(data: list, devices_logs: list) -> list:
     devices_logs_df['start_time'] = devices_logs_df['start_time'].apply(lambda x: str_to_date(x))
     devices_logs_df['end_time'] = devices_logs_df['end_time'].apply(lambda x: str_to_date(x))
 
+    data = un_fill_nan(data)
     data_df = pd.DataFrame(data)
 
     data_df['raw_pm2_5'] = data_df[['s1_pm2_5', 's2_pm2_5']].mean(axis=1)
@@ -339,7 +340,6 @@ def restructure_airqo_data(data: list, devices_logs: list) -> list:
     data_df['pm2_5'] = data_df['pm2_5'].fillna(data_df['raw_pm2_5'])
     data_df['pm10'] = data_df['pm10'].fillna(data_df['raw_pm10'])
 
-    data_df = data_df.replace(to_replace='None', value=None)
     columns = data_df.columns
 
     for _, data_row in data_df.iterrows():
@@ -604,8 +604,9 @@ def airqo_hourly_measurements_etl():
 
     @task(multiple_outputs=True)
     def merge_data(raw_data: dict, weather_data: dict):
-        hourly_airqo_data = raw_data.get("data")
-        hourly_weather_data = weather_data.get("data")
+
+        hourly_airqo_data = un_fill_nan(raw_data.get("data"))
+        hourly_weather_data = un_fill_nan(weather_data.get("data"))
 
         merged_measurements = merge_airqo_and_weather_data(airqo_data=hourly_airqo_data,
                                                            weather_data=hourly_weather_data)
@@ -614,7 +615,7 @@ def airqo_hourly_measurements_etl():
 
     @task(multiple_outputs=True)
     def calibrate(inputs: dict):
-        data = inputs.get("data")
+        data = un_fill_nan(inputs.get("data"))
 
         airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
 
@@ -628,7 +629,7 @@ def airqo_hourly_measurements_etl():
 
     @task()
     def load(airqo_data: dict, device_logs: dict):
-        data = airqo_data.get("data")
+        data = un_fill_nan(airqo_data.get("data"))
         logs = device_logs.get("data")
 
         airqo_restructured_data = restructure_airqo_data(data=data, devices_logs=logs)
@@ -668,7 +669,7 @@ def airqo_daily_measurements_etl():
 
     @task(multiple_outputs=True)
     def average_data(inputs: dict):
-        data = inputs.get("data")
+        data = un_fill_nan(inputs.get("data"))
         averaged_data = average_airqo_api_measurements(data=data, frequency='daily')
 
         return dict({"data": fill_nan(data=averaged_data)})
@@ -681,7 +682,7 @@ def airqo_daily_measurements_etl():
 
     @task()
     def load(airqo_data: dict, device_logs: dict):
-        data = airqo_data.get("data")
+        data = un_fill_nan(airqo_data.get("data"))
         logs = device_logs.get("data")
 
         airqo_restructured_data = restructure_airqo_data(data=data, devices_logs=logs)

@@ -79,8 +79,6 @@ def dag_resample_weather_data(data, frequency='hourly'):
 
     site_groups = weather_data_df.groupby("siteId")
 
-    # pd.DataFrame(weather_data_df).to_csv(path_or_buf='airqo_raw_weather_data.csv', index=False)
-
     for _, site_group in site_groups:
         site_id = site_group.iloc[0]["siteId"]
 

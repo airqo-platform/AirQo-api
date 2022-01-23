@@ -3,22 +3,18 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from airqoApi import AirQoApi
 from airqo_measurements import extract_airqo_data_from_thingspeak, average_airqo_data, \
     extract_airqo_weather_data_from_tahmo, merge_airqo_and_weather_data, calibrate_hourly_airqo_measurements, \
     extract_airqo_devices_deployment_history, restructure_airqo_data
 from app_insights import extract_airqo_data, create_insights_data, extract_insights_forecast
 from date import date_to_str_hours
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
-from utils import clean_up_task
 
 
 def kcca():
     kcca_unclean_data = extract_kcca_measurements("2021-01-01T08:00:00Z", "2021-01-01T12:00:00Z", "hourly")
     cleaned_data = transform_kcca_measurements(kcca_unclean_data)
-
-    airqo_api = AirQoApi()
-    airqo_api.save_events(measurements=cleaned_data, tenant='kcca')
+    pd.DataFrame(cleaned_data).to_csv(path_or_buf='kcca_cleaned_data.csv', index=False)
 
 
 def airqo_hourly_measurements():
@@ -55,11 +51,10 @@ def airqo_hourly_measurements():
     pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data.csv', index=False)
 
 
-def insights_data():
+def insights():
     extract_insights_forecast("airqo", "test-insights-forecast.csv")
     extract_airqo_data("airqo", "test-insights-averaged.csv")
     create_insights_data("test-insights-forecast.csv", "test-insights-averaged.csv", "insights.json")
-    clean_up_task(["test-insights-forecast.csv", "test-insights-averaged.csv", "insights.json"])
 
 
 if __name__ == "__main__":

@@ -56,7 +56,7 @@ spec:
             #   memory: 500Mi
             #   cpu: 500m
           readinessProbe: 
-            initialDelaySeconds: 180
+            initialDelaySeconds: 120
             timeoutSeconds: 120
             httpGet:
               path: /stage-airflow/health
