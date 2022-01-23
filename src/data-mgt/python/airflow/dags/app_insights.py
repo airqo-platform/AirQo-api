@@ -12,7 +12,7 @@ from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_t
 from utils import save_insights_data, format_measurements_to_insights
 
 
-def predict_time_to_string(time):
+def predict_time_to_string(time: str):
     date_time = predict_str_to_date(time)
     return date_to_str(date_time)
 
@@ -25,7 +25,7 @@ def measurement_time_to_string(time: str, daily=False):
         return date_to_str_hours(date_time)
 
 
-def extract_insights_forecast(tenant):
+def extract_insights_forecast(tenant: str) -> list:
     airqo_api = AirQoApi()
     columns = ['time', 'pm2_5', 'siteId', 'frequency', 'forecast']
     devices = airqo_api.get_devices(tenant=tenant, active=True)
@@ -51,6 +51,7 @@ def extract_insights_forecast(tenant):
                 forecast_cleaned_df = pd.DataFrame(columns=columns)
                 forecast_cleaned_df['time'] = forecast_df['prediction_time']
                 forecast_cleaned_df['pm2_5'] = forecast_df['prediction_value']
+                forecast_cleaned_df['pm10'] = forecast_df['prediction_value']
                 forecast_cleaned_df['siteId'] = site_id
                 forecast_cleaned_df['frequency'] = 'hourly'
                 forecast_cleaned_df['forecast'] = True
@@ -66,46 +67,58 @@ def extract_insights_forecast(tenant):
     return forecast_measurements.to_dict(orient="records")
 
 
-def extract_airqo_data(tenant):
+def extract_airqo_data(tenant: str, start_time: str = None, end_time: str = None) -> list:
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant=tenant, active=True)
     averaged_measurements = []
 
-    time = datetime.utcnow()
-    hourly_start_time = date_to_str_hours(time - timedelta(hours=4))
-    hourly_end_time = date_to_str_hours(time)
-    daily_start_time = date_to_str_days(time - timedelta(days=2))
-    daily_end_time = date_to_str_days(time)
+    if start_time and end_time:
+        start = str_to_date(start_time)
+        end = str_to_date(end_time)
+
+        hourly_start_time = date_to_str_hours(start)
+        hourly_end_time = date_to_str_hours(end)
+
+        daily_end_time = date_to_str_days(end)
+        daily_start_time = date_to_str_days(start)
+
+    else:
+        time = datetime.utcnow()
+
+        hourly_start_time = date_to_str_hours(time - timedelta(hours=4))
+        hourly_end_time = date_to_str_hours(time)
+
+        daily_start_time = date_to_str_days(time - timedelta(days=2))
+        daily_end_time = date_to_str_days(time)
 
     print(f'hourly start time : {hourly_start_time}')
     print(f'hourly end time : {hourly_end_time}')
-    print(f'hourly start time : {daily_start_time}')
-    print(f'hourly end time : {daily_end_time}')
+    print(f'daily start time : {daily_start_time}')
+    print(f'daily end time : {daily_end_time}')
 
     for device in devices:
 
-        for frequency in ["daily", "hourly"]:
+        try:
+            hourly_events = airqo_api.get_events(tenant='airqo', start_time=hourly_start_time,
+                                                 frequency='hourly', end_time=hourly_end_time, device=device['name'])
+            if hourly_events:
+                averaged_measurements.extend(hourly_events)
+            else:
+                print(f"No hourly measurements for {device['name']} : "
+                      f"startTime {hourly_start_time} : endTime : {hourly_end_time}")
 
-            try:
-                if 'name' not in device.keys():
-                    print(f'name missing in device keys : {device}')
-                    continue
+            daily_events = airqo_api.get_events(tenant='airqo', start_time=daily_start_time, frequency='daily',
+                                                end_time=daily_end_time, device=device['name'])
+            if daily_events:
+                averaged_measurements.extend(daily_events)
+            else:
+                print(f"No daily measurements for {device['name']} : "
+                      f"startTime {daily_start_time} : endTime : {daily_end_time}")
 
-                start_time = hourly_start_time if frequency == "hourly" else daily_start_time
-                end_time = hourly_end_time if frequency == "hourly" else daily_end_time
-                events = airqo_api.get_events(tenant='airqo', start_time=start_time, frequency=frequency,
-                                              end_time=end_time, device=device['name'])
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
 
-                if not events:
-                    print(f"No {frequency} measurements for {device['name']} : "
-                          f"startTime {start_time} : endTime : {end_time}")
-                    continue
-
-                averaged_measurements.extend(events)
-
-            except Exception as ex:
-                print(ex)
-                traceback.print_exc()
         #
         # if len(averaged_measurements) > 20:
         #     break
@@ -114,17 +127,17 @@ def extract_airqo_data(tenant):
     return insights
 
 
-def create_insights_data(forecast_data_file, averaged_data_file):
+def create_insights_data(device_forecast: list, device_data: list):
     print("creating insights .... ")
 
-    forecast_data = pd.DataFrame(forecast_data_file)
-    averaged_data = pd.DataFrame(averaged_data_file)
+    forecast_data = pd.DataFrame(device_forecast)
+    averaged_data = pd.DataFrame(device_data)
 
     insights_data = forecast_data.append(averaged_data, ignore_index=True)
-    insights_data['forecast'].fillna(False, inplace=True)
 
-    insights_data.dropna(inplace=True)
     insights_data['frequency'] = insights_data['frequency'].apply(lambda x: str(x).upper())
+    insights_data['forecast'] = insights_data['forecast'].fillna(False)
+    insights_data = insights_data.dropna()
 
     return insights_data.to_dict(orient="records")
 
@@ -132,9 +145,21 @@ def create_insights_data(forecast_data_file, averaged_data_file):
 @dag('App-Insights', schedule_interval="30 * * * *",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
 def app_insights_etl():
+    def time_values(**kwargs):
+        try:
+            dag_run = kwargs.get('dag_run')
+            start_time = dag_run.conf['startTime']
+            end_time = dag_run.conf['endTime']
+        except KeyError:
+            start_time = None
+            end_time = None
+
+        return start_time, end_time
+
     @task(multiple_outputs=True)
-    def extract_measurements_data():
-        measurements_data = extract_airqo_data('airqo')
+    def extract_measurements_data(**kwargs):
+        start_time, end_time = time_values(**kwargs)
+        measurements_data = extract_airqo_data('airqo', start_time=start_time, end_time=end_time)
 
         return dict({"data": measurements_data})
 
@@ -146,7 +171,11 @@ def app_insights_etl():
 
     @task(multiple_outputs=True)
     def merge_data(measurements_data: dict, forecast_data: dict):
-        insights_data = create_insights_data(forecast_data, measurements_data)
+
+        device_forecast = forecast_data.get("data")
+        device_measurements = measurements_data.get("data")
+
+        insights_data = create_insights_data(device_forecast=device_forecast, device_data=device_measurements)
 
         return dict({"data": insights_data})
 
@@ -161,24 +190,11 @@ def app_insights_etl():
     load(insights)
 
 
-@dag('Delete-Insights', schedule_interval="@weekly",
-     start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'delete'])
-def app_delete_insights_etl():
-    @task()
-    def delete():
-        start_time = first_day_of_week(first_day_of_month(date_time=datetime.now())) - timedelta(days=7)
-        end_time = last_day_of_week(last_day_of_month(date_time=datetime.now())) + timedelta(days=7)
-
-        save_insights_data(insights_data=[], action="delete", start_time=start_time, end_time=end_time)
-
-    delete()
-
-
-@dag('App-Placeholder-Insights', schedule_interval="@weekly",
+@dag('Insights-cleanup', schedule_interval="@weekly",
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
-def app_placeholder_insights_etl():
+def insights_cleanup_etl():
     @task()
-    def load():
+    def load_place_holders():
         start_time = date_to_str_days(first_day_of_week(first_day_of_month(date_time=datetime.now())))
         end_time = date_to_str_days(last_day_of_week(last_day_of_month(date_time=datetime.now())))
 
@@ -224,9 +240,16 @@ def app_placeholder_insights_etl():
 
         save_insights_data(insights_data=empty_insights, action="insert")
 
-    load()
+    @task()
+    def delete_old_insights():
+        start_time = first_day_of_week(first_day_of_month(date_time=datetime.now())) - timedelta(days=7)
+        end_time = last_day_of_week(last_day_of_month(date_time=datetime.now())) + timedelta(days=7)
+
+        save_insights_data(insights_data=[], action="delete", start_time=start_time, end_time=end_time)
+
+    load_place_holders()
+    delete_old_insights()
 
 
 app_insights_etl_dag = app_insights_etl()
-app_delete_insights_dag = app_delete_insights_etl()
-app_placeholder_insights_dag = app_placeholder_insights_etl()
+insights_cleanup_etl_dag = insights_cleanup_etl()

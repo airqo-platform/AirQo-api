@@ -51,10 +51,20 @@ def airqo_hourly_measurements():
     pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data.csv', index=False)
 
 
-def insights():
-    extract_insights_forecast("airqo", "test-insights-forecast.csv")
-    extract_airqo_data("airqo", "test-insights-averaged.csv")
-    create_insights_data("test-insights-forecast.csv", "test-insights-averaged.csv", "insights.json")
+def insights_data():
+    # extract airqo data
+    # start_time = '2020-01-01T16:00:00Z'
+    # end_time = '2020-01-01T17:00:00Z'
+    airqo_data = extract_airqo_data(tenant="airqo")
+    pd.DataFrame(airqo_data).to_csv(path_or_buf='insights_airqo_data.csv', index=False)
+
+    # extract forecast data
+    forecast_data = extract_insights_forecast(tenant="airqo")
+    pd.DataFrame(forecast_data).to_csv(path_or_buf='insights_forecast_data.csv', index=False)
+
+    # create insights
+    insights = create_insights_data(device_forecast=forecast_data, device_data=airqo_data)
+    pd.DataFrame(insights).to_csv(path_or_buf='insights_data.csv', index=False)
 
 
 if __name__ == "__main__":
@@ -63,6 +73,9 @@ if __name__ == "__main__":
 
     if action == "airqo_hourly_data":
         airqo_hourly_measurements()
+
+    elif action == "insights_data":
+        insights_data()
 
     else:
         raise Exception('Invalid arguments')

@@ -17,8 +17,8 @@ from kafka_client import KafkaBrokerClient
 from tahmo import TahmoApi
 
 
-def save_insights_data(insights_data=None, action="insert", start_time=datetime(year=2020, month=1, day=1),
-                       end_time=datetime(year=2020, month=1, day=1)):
+def save_insights_data(insights_data: list = None, action: str = "insert",
+                       start_time=datetime(year=2020, month=1, day=1), end_time=datetime(year=2020, month=1, day=1)):
     if insights_data is None:
         insights_data = []
 
@@ -71,8 +71,7 @@ def format_measurements_to_insights(data: list):
     daily_measurements_df['time'] = daily_measurements_df['time'].apply(
         lambda x: measurement_time_to_string(x, daily=True))
 
-    data = pd.concat([hourly_measurements_df, daily_measurements_df])
-    data.reset_index(inplace=True)
+    data = pd.concat([hourly_measurements_df, daily_measurements_df], ignore_index=True)
 
     return data.to_dict(orient="records")
 
