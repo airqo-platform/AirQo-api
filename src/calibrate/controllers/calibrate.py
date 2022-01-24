@@ -63,10 +63,10 @@ def calibrate_tool():
             reference_2_5 = sensor_data.get('reference_2.5')
             reference_10 = sensor_data.get('reference_10')
 
-            if (not datetime or not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity):
-                return jsonify({"message": "Please specify the device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
+            if (not datetime or not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity or not reference_2_5):
+                return jsonify({"message": "Please specify the device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity, reference monitor PM2.5 or reference monitor PM10 values in the body. Refer to the API documentation for details.", "success": False}), 400
             
-            calibrated_pm2_5, calibrated_pm10 = rgModel.compute_calibrated_val(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime)           
+            model_pm2_5, model_pm10 = rgModel.train_model(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_2_5, reference_10)           
         
             response.append({'device_id': device_id, 'calibrated_PM2.5': calibrated_pm2_5, 'calibrated_PM10': calibrated_pm10 })
         return jsonify(response), 200
