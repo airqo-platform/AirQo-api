@@ -24,8 +24,7 @@ client = bigquery.Client.from_service_account_json(CREDENTIALS)
 
 def get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data):
     datetime = pd.to_datetime(datetime)
-    hour = datetime.hour
-    ext_data = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,hour, datetime, reference_data]],
+    ext_data = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,datetime,reference_data]],
                                     columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour', 'datetime','reference_data'],
                                     dtype='float',
                                     index=['input'])
@@ -47,22 +46,12 @@ def get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, dat
     
     ext_data=ext_data[(ext_data['Average_PM2.5'].notnull())&(ext_data['Average_PM10'].notnull())&
                                                   (ext_data['reference_data'].notnull())].reset_index(drop=True)
-    
-                              
+                           
+    ext_data.fillna(method='ffill',inplace = True)
     return  ext_data
 
 
-                                       
-
-
-    hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
-    hourly_combined_dataset=hourly_combined_dataset[(hourly_combined_dataset['avg_pm2_5'].notnull())&
-                                              (hourly_combined_dataset['avg_pm10'].notnull())&
-                                              (hourly_combined_dataset['bam_pm'].notnull())].reset_index(drop=True)
-    # BAM timestamp set to ENDING for this period (July to Mar)
-    hourly_combined_dataset['bam_pm']=hourly_combined_dataset['bam_pm'].shift(-1)
-    #Fill null values
-    hourly_combined_dataset.fillna(method='ffill',inplace = True)
+def get_and_clean_ext_data(ext_data):  
     # extract hour feature
     hourly_combined_dataset['hour'] = hourly_combined_dataset['Time'].dt.hour
 
