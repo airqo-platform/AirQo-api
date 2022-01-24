@@ -22,57 +22,38 @@ client = bigquery.Client.from_service_account_json(CREDENTIALS)
 # RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
 # LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
 
-def get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data ):
-    lowcost_data = lowcost_data[['']]
-    lowcost_data = .to_dataframe()
-    lowcost_data = lowcost_data[(lowcost_data['avg_pm2_5'] > 0)&(lowcost_data['avg_pm2_5'] <= 500.4)]
-    lowcost_data = lowcost_data[(lowcost_data['avg_pm10'] > 0)&(lowcost_data['avg_pm10'] <= 500.4)]
-                                       
-    lowcost_data["TimeStamp"] = pd.to_datetime(lowcost_data["created_at"])
-    lowcost_data["TimeStamp"] = lowcost_data["TimeStamp"]+datetime.timedelta(hours=3)
-    lowcost_data.drop_duplicates(subset="TimeStamp", keep='first', inplace=True)
-    lowcost_data = lowcost_data.set_index('TimeStamp')
-    lowcost_data = lowcost_data.drop(['created_at'], axis=1)
+def get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data):
+    datetime = pd.to_datetime(datetime)
+    hour = datetime.hour
+    ext_data = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,hour, datetime, reference_data]],
+                                    columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour', 'datetime','reference_data'],
+                                    dtype='float',
+                                    index=['input'])
+    # filter outliers
+    ext_data = ext_data[(ext_data['avg_pm2_5'] > 0)&(ext_data['avg_pm2_5'] <= 500.4)]
+    ext_data = ext_data[(ext_data['avg_pm10'] > 0)&(ext_data['avg_pm10'] <= 500.4)]
+    ext_data = ext_data[(ext_data['reference_data'] > 0)&(ext_data['reference_data'] <= 500.4)]
+    ext_data = ext_data[(ext_data['temperature'] >= 0)&(ext_data ['temperature'] <= 30)]
+    ext_data = ext_data[(ext_data['humidity'] >= 0)&(ext_data['humidity'] <= 100)]
     
-    lowcost_hourly_mean = lowcost_data.resample('H').mean().round(2)                          
-    return  lowcost_hourly_mean
+    ext_data.drop_duplicates(subset="datetime", keep='first', inplace=True)
+    ext_data = ext_data.set_index('datetime')
+    ext_data = ext_data.drop(['datetime'], axis=1)
 
-def get_bam_data():
-    sql = """
-    SELECT 
-        Time,
-        ConcHR_ug_m3 as bam_pm,
-        AT_C as temperature, 
-        RH as humidity
-    FROM 
-        `airqo-250220.thingspeak.airqo_bam_data`
-    WHERE 
-        channel_id = -24516
-    GROUP BY 
-        Time,ConcHR_ug_m3, AT_C, RH
-    ORDER BY 
-        Time
-    """
-    bam_data = client.query(sql).to_dataframe()
-    bam_data = bam_data[(bam_data['bam_pm'] > 0)&(bam_data['bam_pm'] <= 500.4)]
-    bam_data  = bam_data[(bam_data['temperature'] >= 0)&(bam_data ['temperature'] <= 30)]
-    bam_data  = bam_data[(bam_data['humidity'] >= 0)&(bam_data['humidity'] <= 100)]
-                                       
-    bam_data["TimeStamp"] = pd.to_datetime(bam_data["Time"])
-    bam_data.drop_duplicates(subset="TimeStamp", keep='first', inplace=True)
-    bam_data = bam_data.set_index('TimeStamp')
-    bam_data = bam_data.drop(['Time'], axis=1)
-    # some data with sampling rate not equal to hourly
-    bam_hourly_mean = bam_data.resample('H').mean().round(2) 
+    ext_data = ext_data.resample('H').mean().round(2)
+
+    ext_data['Average_PM2.5'] = ext_data[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
+    ext_data['Average_PM10'] = ext_data[['pm10', 's2_pm10']].mean(axis=1).round(2)
+    
+    ext_data=ext_data[(ext_data['Average_PM2.5'].notnull())&(ext_data['Average_PM10'].notnull())&
+                                                  (ext_data['reference_data'].notnull())].reset_index(drop=True)
+    
                               
-    return  bam_hourly_mean
+    return  ext_data
 
-def combine_datasets(lowcost_hourly_mean, bam_hourly_mean):
-    lowcost_hourly_timestamp = lowcost_hourly_mean.index.values
-    lowcost_hourly_mean["Time"] = lowcost_hourly_timestamp
 
-    bam_hourly_timestamp = bam_hourly_mean.index.values
-    bam_hourly_mean["Time"] = bam_hourly_timestamp
+                                       
+
 
     hourly_combined_dataset = pd.merge(lowcost_hourly_mean, bam_hourly_mean, on='Time')
     hourly_combined_dataset=hourly_combined_dataset[(hourly_combined_dataset['avg_pm2_5'].notnull())&
