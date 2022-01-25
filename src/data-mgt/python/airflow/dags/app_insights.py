@@ -9,7 +9,7 @@ from airflow.decorators import dag, task
 from airqoApi import AirQoApi
 from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date, \
     first_day_of_week, last_day_of_week, first_day_of_month, last_day_of_month
-from utils import save_insights_data, format_measurements_to_insights
+from utils import save_insights_data, format_measurements_to_insights, slack_failure_notification
 
 
 def predict_time_to_string(time: str):
@@ -25,7 +25,7 @@ def measurement_time_to_string(time: str, daily=False):
         return date_to_str_hours(date_time)
 
 
-def extract_insights_forecast(tenant: str) -> list:
+def get_forecast_data(tenant: str) -> list:
     airqo_api = AirQoApi()
     columns = ['time', 'pm2_5', 'siteId', 'frequency', 'forecast']
     devices = airqo_api.get_devices(tenant=tenant, active=True)
@@ -55,11 +55,9 @@ def extract_insights_forecast(tenant: str) -> list:
                 forecast_cleaned_df['siteId'] = site_id
                 forecast_cleaned_df['frequency'] = 'hourly'
                 forecast_cleaned_df['forecast'] = True
+                forecast_cleaned_df['empty'] = False
 
                 forecast_measurements = forecast_measurements.append(forecast_cleaned_df, ignore_index=True)
-
-        # if forecast_measurements.size > 72:
-        #     break
 
     forecast_measurements['time'] = forecast_measurements['time'].apply(lambda x: predict_time_to_string(x))
     forecast_measurements = forecast_measurements[forecast_measurements['pm2_5'].notna()]
@@ -67,7 +65,7 @@ def extract_insights_forecast(tenant: str) -> list:
     return forecast_measurements.to_dict(orient="records")
 
 
-def extract_airqo_data(tenant: str, start_time: str = None, end_time: str = None) -> list:
+def get_airqo_data(tenant: str, start_time: str = None, end_time: str = None) -> list:
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant=tenant, active=True)
     averaged_measurements = []
@@ -119,32 +117,46 @@ def extract_airqo_data(tenant: str, start_time: str = None, end_time: str = None
             print(ex)
             traceback.print_exc()
 
-        #
-        # if len(averaged_measurements) > 20:
-        #     break
-
     insights = format_measurements_to_insights(data=averaged_measurements)
     return insights
 
 
-def create_insights_data(device_forecast: list, device_data: list):
+def create_insights_data(data: list) -> list:
     print("creating insights .... ")
 
-    forecast_data = pd.DataFrame(device_forecast)
-    averaged_data = pd.DataFrame(device_data)
-
-    insights_data = forecast_data.append(averaged_data, ignore_index=True)
+    insights_data = pd.DataFrame(data)
 
     insights_data['frequency'] = insights_data['frequency'].apply(lambda x: str(x).upper())
     insights_data['forecast'] = insights_data['forecast'].fillna(False)
+    insights_data['empty'] = False
     insights_data = insights_data.dropna()
 
     return insights_data.to_dict(orient="records")
 
 
-@dag('App-Insights', schedule_interval="30 * * * *",
+@dag('App-Forecast-Insights', schedule_interval="@hourly", on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
-def app_insights_etl():
+def app_forecast_insights_etl():
+
+    @task(multiple_outputs=True)
+    def extract_forecast_data():
+        forecast_data = get_forecast_data('airqo')
+        insights_data = create_insights_data(data=forecast_data)
+
+        return dict({"data": insights_data})
+
+    @task()
+    def load(data: dict):
+        insights_data = data.get("data")
+        save_insights_data(insights_data=insights_data, action="save")
+
+    insights = extract_forecast_data()
+    load(insights)
+
+
+@dag('App-Measurements-Insights', schedule_interval="30 * * * *", on_failure_callback=slack_failure_notification,
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
+def app_measurements_insights_etl():
     def time_values(**kwargs):
         try:
             dag_run = kwargs.get('dag_run')
@@ -157,25 +169,10 @@ def app_insights_etl():
         return start_time, end_time
 
     @task(multiple_outputs=True)
-    def extract_measurements_data(**kwargs):
+    def extract_airqo_data(**kwargs):
         start_time, end_time = time_values(**kwargs)
-        measurements_data = extract_airqo_data('airqo', start_time=start_time, end_time=end_time)
-
-        return dict({"data": measurements_data})
-
-    @task(multiple_outputs=True)
-    def extract_forecast():
-        forecast_data = extract_insights_forecast('airqo')
-
-        return dict({"data": forecast_data})
-
-    @task(multiple_outputs=True)
-    def merge_data(measurements_data: dict, forecast_data: dict):
-
-        device_forecast = forecast_data.get("data")
-        device_measurements = measurements_data.get("data")
-
-        insights_data = create_insights_data(device_forecast=device_forecast, device_data=device_measurements)
+        measurements_data = get_airqo_data('airqo', start_time=start_time, end_time=end_time)
+        insights_data = create_insights_data(data=measurements_data)
 
         return dict({"data": insights_data})
 
@@ -184,13 +181,11 @@ def app_insights_etl():
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
 
-    measurements = extract_measurements_data()
-    forecast = extract_forecast()
-    insights = merge_data(measurements_data=measurements, forecast_data=forecast)
+    insights = extract_airqo_data()
     load(insights)
 
 
-@dag('Insights-cleanup', schedule_interval="@weekly",
+@dag('App-Insights-cleanup', schedule_interval="@weekly", on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
 def insights_cleanup_etl():
     @task()
@@ -237,7 +232,6 @@ def insights_cleanup_etl():
                     empty_insights.append(daily_insight)
                 except Exception as ex:
                     print(ex)
-
         save_insights_data(insights_data=empty_insights, action="insert")
 
     @task()
@@ -251,5 +245,6 @@ def insights_cleanup_etl():
     delete_old_insights()
 
 
-app_insights_etl_dag = app_insights_etl()
+app_forecast_insights_etl_dag = app_forecast_insights_etl()
+app_measurements_insights_etl_dag = app_measurements_insights_etl()
 insights_cleanup_etl_dag = insights_cleanup_etl()

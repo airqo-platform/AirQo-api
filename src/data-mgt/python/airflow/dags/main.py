@@ -6,13 +6,13 @@ import pandas as pd
 from airqo_measurements import extract_airqo_data_from_thingspeak, average_airqo_data, \
     extract_airqo_weather_data_from_tahmo, merge_airqo_and_weather_data, calibrate_hourly_airqo_measurements, \
     extract_airqo_devices_deployment_history, restructure_airqo_data
-from app_insights import extract_airqo_data, create_insights_data, extract_insights_forecast
 from date import date_to_str_hours
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
 
 
 def kcca():
     kcca_unclean_data = extract_kcca_measurements("2021-01-01T08:00:00Z", "2021-01-01T12:00:00Z", "hourly")
+    pd.DataFrame(kcca_unclean_data).to_csv(path_or_buf='kcca_unclean_data.csv', index=False)
     cleaned_data = transform_kcca_measurements(kcca_unclean_data)
     pd.DataFrame(cleaned_data).to_csv(path_or_buf='kcca_cleaned_data.csv', index=False)
 
@@ -62,10 +62,6 @@ def insights_data():
     forecast_data = extract_insights_forecast(tenant="airqo")
     pd.DataFrame(forecast_data).to_csv(path_or_buf='insights_forecast_data.csv', index=False)
 
-    # create insights
-    insights = create_insights_data(device_forecast=forecast_data, device_data=airqo_data)
-    pd.DataFrame(insights).to_csv(path_or_buf='insights_data.csv', index=False)
-
 
 if __name__ == "__main__":
     strings_list = sys.argv
@@ -73,7 +69,8 @@ if __name__ == "__main__":
 
     if action == "airqo_hourly_data":
         airqo_hourly_measurements()
-
+    elif action == "kcca_hourly_data":
+        kcca()
     elif action == "insights_data":
         insights_data()
 

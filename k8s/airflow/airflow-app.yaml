@@ -18,10 +18,10 @@ spec:
       labels:
         app: airflow
     spec:
-      # serviceAccountName: airflow
+      serviceAccountName: airflow-sa
       containers:
         - name: airflow-scheduler
-          image: us.gcr.io/airqo-250220/airqo-apache-airflow
+          image: us.gcr.io/airqo-250220/airqo-apache-airflow:latest
           imagePullPolicy: Always
           envFrom:
             - configMapRef:
@@ -39,7 +39,7 @@ spec:
           - name: config-volume
             mountPath: /etc/config
         - name: airflow-webserver
-          image: us.gcr.io/airqo-250220/airqo-apache-airflow
+          image: us.gcr.io/airqo-250220/airqo-apache-airflow:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 8080
@@ -71,6 +71,54 @@ spec:
       restartPolicy: Always
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+ name: airflow-sa
+ namespace: airflow
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: airflow-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/exec"]
+  verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+- apiGroups: ["extensions"]
+  resources: ["ingresses"]
+  verbs: ["get","watch","list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: airflow-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: airflow-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: airflow-sa
+  namespace: airflow
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: airflow-workers
+  
+---
 kind: Service
 apiVersion: v1
 metadata:
@@ -78,61 +126,9 @@ metadata:
  namespace: airflow
 spec:
  ports:
- - port: 8080
-   protocol: TCP
-   targetPort: 8080
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
  selector:
   app: airflow
 
----
-apiVersion: v1
-kind: ServiceAccount
-metadata:
- name: airflow
- namespace: airflow
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
- name: airflow
- namespace: airflow
-rules:
-- apiGroups: [""]
-  resources: ["pods", "pods/exec"]
-  verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
-- apiGroups: ["batch", "extensions"]
-  resources: ["jobs"]
-  verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: airflow-role-binding
-  namespace: airflow
-subjects:
-- kind: ServiceAccount
-  name: airflow
-  namespace: airflow
-roleRef:
-  kind: Role
-  name: airflow
-  apiGroup: rbac.authorization.k8s.io
-
----
-apiVersion: networking.istio.io/v1alpha3
-kind: ServiceEntry
-metadata:
-  name: airflow-db-svc
-  namespace: airflow
-spec:
-
-  addresses:
-    - xx.xx.xx.xx/32
-  ports:
-    - number: 5432
-      name: tcp
-      protocol: tcp
-  resolution: NONE
-  location: MESH_EXTERNAL

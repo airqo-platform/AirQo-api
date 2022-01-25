@@ -72,6 +72,8 @@ def format_measurements_to_insights(data: list):
         lambda x: measurement_time_to_string(x, daily=True))
 
     data = pd.concat([hourly_measurements_df, daily_measurements_df], ignore_index=True)
+    data['empty'] = False
+    data['forecast'] = False
 
     return data.to_dict(orient="records")
 
