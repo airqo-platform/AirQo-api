@@ -88,7 +88,7 @@ rules:
   resources: ["services"]
   verbs: ["get", "list", "watch"]
 - apiGroups: [""]
-  resources: ["pods", "pods/exec"]
+  resources: ["pods", "pods/exec", "pods/log"]
   verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
 - apiGroups: ["extensions"]
   resources: ["ingresses"]

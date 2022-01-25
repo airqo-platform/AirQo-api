@@ -5,7 +5,7 @@ import pandas as pd
 
 from airqo_measurements import extract_airqo_data_from_thingspeak, average_airqo_data, \
     extract_airqo_weather_data_from_tahmo, merge_airqo_and_weather_data, calibrate_hourly_airqo_measurements, \
-    extract_airqo_devices_deployment_history, restructure_airqo_data
+    extract_airqo_devices_deployment_history, restructure_airqo_data, restructure_airqo_data_for_bigquery
 from date import date_to_str_hours
 from kcca_measurements import extract_kcca_measurements, transform_kcca_measurements
 
@@ -48,7 +48,11 @@ def airqo_hourly_measurements():
 
     # restructure data
     restructure_data = restructure_airqo_data(data=calibrated_data, devices_logs=device_logs)
-    pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data.csv', index=False)
+    pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data_for_api.csv', index=False)
+
+    # restructure data for bigquery
+    restructure_data = restructure_airqo_data_for_bigquery(data=calibrated_data, devices_logs=device_logs)
+    pd.DataFrame(restructure_data).to_csv(path_or_buf='restructured_data_for_bigquery.csv', index=False)
 
 
 def insights_data():

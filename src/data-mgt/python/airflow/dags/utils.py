@@ -5,10 +5,12 @@ from datetime import timedelta, datetime
 from functools import reduce
 
 import numpy as np
+import pandas
 import pandas as pd
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
-from google.cloud import bigquery, storage
+from google.cloud import bigquery
+from google.cloud import storage
 
 from airqoApi import AirQoApi
 from config import configuration
@@ -441,6 +443,34 @@ def get_airqo_device_data(start_time, end_time, channel_ids):
     )
 
     return dataframe.to_dict(orient='records')
+
+
+def save_measurements_to_bigquery(measurements: list) -> None:
+    client = bigquery.Client()
+
+    table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+
+    dataframe = pandas.DataFrame(
+        measurements,
+        columns=["time", "tenant", "site_id", "device_number", "device", "latitude", "longitude", "s1_pm2_5",
+                 "s2_pm2_5", "s1_pm10", "s2_pm10", "pm2_5", "pm10", "pm2_5_calibrated_value", "pm10_calibrated_value",
+                 "external_temperature", "external_humidity", "wind_speed", "altitude"],
+    )
+    job_config = bigquery.LoadJobConfig(
+        write_disposition="WRITE_TRUNCATE",
+    )
+
+    job = client.load_table_from_dataframe(
+        dataframe, table_id, job_config=job_config
+    )
+    job.result()
+
+    table = client.get_table(table_id)
+    print(
+        "Loaded {} rows and {} columns to {}".format(
+            table.num_rows, len(table.schema), table_id
+        )
+    )
 
 
 def get_device(devices=None, channel_id=None, device_id=None):

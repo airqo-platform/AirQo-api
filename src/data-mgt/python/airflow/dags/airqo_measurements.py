@@ -13,7 +13,8 @@ from config import configuration
 from date import date_to_str, date_to_str_days, date_to_str_hours, str_to_date
 from utils import get_column_value, get_valid_devices, build_channel_id_filter, get_airqo_device_data, get_device, \
     get_valid_value, get_weather_data_from_tahmo, resample_weather_data, resample_data, \
-    remove_invalid_dates, fill_nan, download_file_from_gcs, get_frequency, slack_failure_notification, un_fill_nan
+    remove_invalid_dates, fill_nan, download_file_from_gcs, get_frequency, slack_failure_notification, un_fill_nan, \
+    save_measurements_to_bigquery
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -412,6 +413,86 @@ def restructure_airqo_data(data: list, devices_logs: list) -> list:
     return restructured_data
 
 
+def restructure_airqo_data_for_bigquery(data: list, devices_logs: list) -> list:
+    restructured_data = []
+    airqo_api = AirQoApi()
+    devices = airqo_api.get_devices(tenant='airqo')
+
+    devices_logs_df = pd.DataFrame(devices_logs)
+    devices_logs_df['start_time'] = devices_logs_df['start_time'].apply(lambda x: str_to_date(x))
+    devices_logs_df['end_time'] = devices_logs_df['end_time'].apply(lambda x: str_to_date(x))
+
+    data = un_fill_nan(data)
+    data_df = pd.DataFrame(data)
+
+    data_df['raw_pm2_5'] = data_df[['s1_pm2_5', 's2_pm2_5']].mean(axis=1)
+    data_df['raw_pm10'] = data_df[['s1_pm10', 's2_pm10']].mean(axis=1)
+
+    if 'calibrated_pm2_5' in data_df.columns:
+        data_df['pm2_5'] = data_df['calibrated_pm2_5']
+    else:
+        data_df['calibrated_pm2_5'] = None
+        data_df['pm2_5'] = None
+
+    if 'calibrated_pm10' in data_df.columns:
+        data_df['pm10'] = data_df['calibrated_pm10']
+    else:
+        data_df['calibrated_pm10'] = None
+        data_df['pm10'] = None
+
+    data_df['pm2_5'] = data_df['pm2_5'].fillna(data_df['raw_pm2_5'])
+    data_df['pm10'] = data_df['pm10'].fillna(data_df['raw_pm10'])
+
+    columns = data_df.columns
+
+    for _, data_row in data_df.iterrows():
+        device = get_device(devices, device_id=data_row["device_id"])
+
+        if not device:
+            continue
+
+        site_id = device.get("site").get("_id")
+        time = str_to_date(data_row["time"])
+        device_logs = devices_logs_df[devices_logs_df['device_id'] == device.get("_id")]
+
+        if not device_logs.empty:
+            for _, log in device_logs.iterrows():
+                if log['start_time'] <= time <= log['end_time']:
+                    site_id = log['site_id']
+
+        device_data = dict({
+
+            "time": str_to_date(data_row["time"]),
+            "tenant": "airqo",
+            "site_id": site_id,
+            "device_number": device.get("device_number", ""),
+            "device": device.get("name", ""),
+            "latitude": get_column_value("latitude", data_row, columns, "latitude"),
+            "longitude": get_column_value("longitude", data_row, columns, "longitude"),
+
+            "pm2_5": get_column_value("pm2_5", data_row, columns, "pm2_5"),
+            "pm10": get_column_value("pm10", data_row, columns, "pm10"),
+
+            "s1_pm2_5": get_column_value("s1_pm2_5", data_row, columns, "pm2_5"),
+            "s1_pm10": get_column_value("s1_pm10", data_row, columns, "pm10"),
+            "s2_pm2_5": get_column_value("s2_pm2_5", data_row, columns, "pm2_5"),
+            "s2_pm10": get_column_value("s2_pm10", data_row, columns, "pm10"),
+
+            "pm2_5_calibrated_value": get_column_value("calibrated_pm2_5", data_row, columns, "pm2_5"),
+            "pm10_calibrated_value": get_column_value("calibrated_pm10", data_row, columns, "pm10"),
+
+            "altitude": get_column_value("altitude", data_row, columns, "altitude"),
+            "wind_speed": get_column_value("wind_speed", data_row, columns, "speed"),
+
+            "external_temperature": get_column_value("temperature", data_row, columns, "externalTemperature"),
+            "external_humidity": get_column_value("humidity", data_row, columns, "externalHumidity"),
+        })
+
+        restructured_data.append(device_data)
+
+    return restructured_data
+
+
 def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
     airqo_data_df = pd.DataFrame(airqo_data)
     weather_data_df = pd.DataFrame(weather_data)
@@ -570,18 +651,18 @@ def calibrate_hourly_airqo_measurements(measurements: list, method: str = 'api')
     return calibrated_measurements
 
 
-@dag('AirQo-Hourly-Measurements', schedule_interval="10 * * * *", on_failure_callback=slack_failure_notification,
-     start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly'])
-def airqo_hourly_measurements_etl():
+@dag('AirQo-Historical-Hourly-Measurements', schedule_interval=None, on_failure_callback=slack_failure_notification,
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly', 'historical'])
+def airqo_historical_hourly_measurements_etl():
     def time_values(**kwargs):
         try:
             dag_run = kwargs.get('dag_run')
             start_time = dag_run.conf['startTime']
             end_time = dag_run.conf['endTime']
         except KeyError:
-            hour_of_day = datetime.utcnow() - timedelta(hours=1)
-            start_time = date_to_str_hours(hour_of_day)
-            end_time = datetime.strftime(hour_of_day, '%Y-%m-%dT%H:59:59Z')
+            yesterday = datetime.utcnow() - timedelta(days=1)
+            start_time = datetime.strftime(yesterday, '%Y-%m-%dT%00:00:00Z')
+            end_time = datetime.strftime(yesterday, '%Y-%m-%dT%11:59:59Z')
 
         return start_time, end_time
 
@@ -628,6 +709,79 @@ def airqo_hourly_measurements_etl():
         return dict({"data": logs})
 
     @task()
+    def load(airqo_data: dict, device_logs: dict, **kwargs):
+        data = un_fill_nan(airqo_data.get("data"))
+        logs = device_logs.get("data")
+
+        try:
+            dag_run = kwargs.get('dag_run')
+            destination = dag_run.conf['destination']
+        except KeyError:
+            destination = "bigquery"
+
+        if destination == "bigquery":
+            airqo_restructured_data = restructure_airqo_data_for_bigquery(data=data, devices_logs=logs)
+            save_measurements_to_bigquery(measurements=airqo_restructured_data)
+
+        else:
+            airqo_restructured_data = restructure_airqo_data(data=data, devices_logs=logs)
+            airqo_api = AirQoApi()
+            airqo_api.save_events(measurements=airqo_restructured_data, tenant='airqo')
+
+    extracted_airqo_data = extract_airqo_data()
+    extracted_weather_data = extract_weather_data()
+    merged_data = merge_data(raw_data=extracted_airqo_data, weather_data=extracted_weather_data)
+    calibrated_data = calibrate(merged_data)
+    devices_logs = extract_devices_logs()
+    load(airqo_data=calibrated_data, device_logs=devices_logs)
+
+
+@dag('AirQo-Hourly-Realtime-Measurements', schedule_interval="10 * * * *",
+     on_failure_callback=slack_failure_notification,
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly'])
+def airqo_hourly_realtime_measurements_etl():
+    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    start_time = date_to_str_hours(hour_of_day)
+    end_time = datetime.strftime(hour_of_day, '%Y-%m-%dT%H:59:59Z')
+
+    @task(multiple_outputs=True)
+    def extract_airqo_data():
+        raw_airqo_data = extract_airqo_data_from_thingspeak(start_time=start_time, end_time=end_time)
+        average_data = average_airqo_data(data=raw_airqo_data, frequency='hourly')
+
+        return dict({"data": fill_nan(data=average_data)})
+
+    @task(multiple_outputs=True)
+    def extract_weather_data():
+        airqo_weather_data = extract_airqo_weather_data_from_tahmo(start_time=start_time, end_time=end_time,
+                                                                   frequency='hourly')
+        return dict({"data": fill_nan(data=airqo_weather_data)})
+
+    @task(multiple_outputs=True)
+    def merge_data(raw_data: dict, weather_data: dict):
+        hourly_airqo_data = un_fill_nan(raw_data.get("data"))
+        hourly_weather_data = un_fill_nan(weather_data.get("data"))
+
+        merged_measurements = merge_airqo_and_weather_data(airqo_data=hourly_airqo_data,
+                                                           weather_data=hourly_weather_data)
+
+        return dict({"data": fill_nan(data=merged_measurements)})
+
+    @task(multiple_outputs=True)
+    def calibrate(inputs: dict):
+        data = un_fill_nan(inputs.get("data"))
+
+        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
+
+        return dict({"data": fill_nan(data=airqo_calibrated_data)})
+
+    @task(multiple_outputs=True)
+    def extract_devices_logs():
+        logs = extract_airqo_devices_deployment_history()
+
+        return dict({"data": logs})
+
+    @task()
     def load(airqo_data: dict, device_logs: dict):
         data = un_fill_nan(airqo_data.get("data"))
         logs = device_logs.get("data")
@@ -644,7 +798,7 @@ def airqo_hourly_measurements_etl():
     load(airqo_data=calibrated_data, device_logs=devices_logs)
 
 
-@dag('AirQo-Daily-Measurements', schedule_interval="@daily",
+@dag('AirQo-Daily-Measurements', schedule_interval="0 1 * * *", on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'daily'])
 def airqo_daily_measurements_etl():
     def time_values(**kwargs):
@@ -695,5 +849,6 @@ def airqo_daily_measurements_etl():
     load(airqo_data=averaged_airqo_data, device_logs=devices_logs)
 
 
-airqo_hourly_measurements_etl_dag = airqo_hourly_measurements_etl()
+airqo_historical_hourly_measurements_etl_dag = airqo_historical_hourly_measurements_etl()
+airqo_hourly_realtime_measurements_etl_dag = airqo_hourly_realtime_measurements_etl()
 # airqo_daily_measurements_etl_dag = airqo_daily_measurements_etl()
