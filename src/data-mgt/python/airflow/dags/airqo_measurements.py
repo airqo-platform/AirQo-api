@@ -443,8 +443,6 @@ def restructure_airqo_data_for_bigquery(data: list, devices_logs: list) -> list:
     data_df['pm2_5'] = data_df['pm2_5'].fillna(data_df['raw_pm2_5'])
     data_df['pm10'] = data_df['pm10'].fillna(data_df['raw_pm10'])
 
-    columns = data_df.columns
-
     for _, data_row in data_df.iterrows():
         device = get_device(devices, device_id=data_row["device_id"])
 
@@ -465,27 +463,27 @@ def restructure_airqo_data_for_bigquery(data: list, devices_logs: list) -> list:
             "time": str_to_date(data_row["time"]),
             "tenant": "airqo",
             "site_id": site_id,
-            "device_number": device.get("device_number", ""),
+            "device_number": device.get("device_number", 0),
             "device": device.get("name", ""),
-            "latitude": get_column_value("latitude", data_row, columns, "latitude"),
-            "longitude": get_column_value("longitude", data_row, columns, "longitude"),
+            "latitude": data_row["latitude"],
+            "longitude": data_row["longitude"],
 
-            "pm2_5": get_column_value("pm2_5", data_row, columns, "pm2_5"),
-            "pm10": get_column_value("pm10", data_row, columns, "pm10"),
+            "pm2_5": data_row["pm2_5"],
+            "pm10": data_row["pm10"],
 
-            "s1_pm2_5": get_column_value("s1_pm2_5", data_row, columns, "pm2_5"),
-            "s1_pm10": get_column_value("s1_pm10", data_row, columns, "pm10"),
-            "s2_pm2_5": get_column_value("s2_pm2_5", data_row, columns, "pm2_5"),
-            "s2_pm10": get_column_value("s2_pm10", data_row, columns, "pm10"),
+            "s1_pm2_5": data_row["s1_pm2_5"],
+            "s1_pm10": data_row["s1_pm10"],
+            "s2_pm2_5": data_row["s2_pm2_5"],
+            "s2_pm10": data_row["s2_pm10"],
 
-            "pm2_5_calibrated_value": get_column_value("calibrated_pm2_5", data_row, columns, "pm2_5"),
-            "pm10_calibrated_value": get_column_value("calibrated_pm10", data_row, columns, "pm10"),
+            "pm2_5_calibrated_value": data_row["calibrated_pm2_5"],
+            "pm10_calibrated_value": data_row["calibrated_pm10"],
 
-            "altitude": get_column_value("altitude", data_row, columns, "altitude"),
-            "wind_speed": get_column_value("wind_speed", data_row, columns, "speed"),
+            "altitude": data_row["altitude"],
+            "wind_speed": data_row["wind_speed"],
 
-            "external_temperature": get_column_value("temperature", data_row, columns, "externalTemperature"),
-            "external_humidity": get_column_value("humidity", data_row, columns, "externalHumidity"),
+            "external_temperature": data_row["temperature"],
+            "external_humidity": data_row["humidity"],
         })
 
         restructured_data.append(device_data)
@@ -605,8 +603,10 @@ def calibrate_using_api(measurements: list) -> list:
 
             for value in calibrated_values:
                 try:
-                    data.loc[data['device_id'] == value["device_id"], 'calibrated_pm2_5'] = value["calibrated_PM2.5"]
-                    data.loc[data['device_id'] == value["device_id"], 'calibrated_pm10'] = value["calibrated_PM10"]
+                    data.loc[(data['device_id'] == value["device_id"]) & (data['time'] == date_time),
+                             'calibrated_pm2_5'] = value["calibrated_PM2.5"]
+                    data.loc[(data['device_id'] == value["device_id"]) & (data['time'] == date_time),
+                             'calibrated_pm10'] = value["calibrated_PM10"]
                 except Exception as ex:
                     traceback.print_exc()
                     print(ex)
@@ -736,7 +736,7 @@ def airqo_historical_hourly_measurements_etl():
     load(airqo_data=calibrated_data, device_logs=devices_logs)
 
 
-@dag('AirQo-Hourly-Realtime-Measurements', schedule_interval="10 * * * *",
+@dag('AirQo-Realtime-Hourly-Measurements', schedule_interval="10 * * * *",
      on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly'])
 def airqo_hourly_realtime_measurements_etl():
@@ -771,7 +771,7 @@ def airqo_hourly_realtime_measurements_etl():
     def calibrate(inputs: dict):
         data = un_fill_nan(inputs.get("data"))
 
-        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
+        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data, method='pickle')
 
         return dict({"data": fill_nan(data=airqo_calibrated_data)})
 
