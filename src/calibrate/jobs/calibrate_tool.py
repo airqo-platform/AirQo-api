@@ -21,6 +21,7 @@ client = bigquery.Client.from_service_account_json(CREDENTIALS)
 
 RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
 LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
+combined_ext_data = 
 
 # def save_trained_model(trained_model,project_name,bucket_name,source_blob_name):
 #     fs = gcsfs.GCSFileSystem(project=project_name)    
@@ -59,7 +60,7 @@ def lasso_reg(combined_ext_data):
     return lasso_regressor
 
 if __name__ == "__main__":
-    ext_data = get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data)
-    combined_ext_data = extract_features(ext_data)
+    # ext_data = get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data)
+    # combined_ext_data = extract_features(ext_data)
     rf_regressor = random_forest(combined_ext_data)
     lasso_regressor = lasso_reg(combined_ext_data)
