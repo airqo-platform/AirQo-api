@@ -116,7 +116,7 @@ class Regression():
         calibrated_pm2_5 = calibrate_tool.random_forest(combined_ext_data)
         calibrated_pm10 = calibrate_tool.lasso_reg(combined_ext_data)
 
-        return 
+        return calibrated_pm2_5, calibrated_pm10
                
     
 if __name__ == "__main__":
