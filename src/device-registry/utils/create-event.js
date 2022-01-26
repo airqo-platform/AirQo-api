@@ -18,6 +18,7 @@ const writeToThingMappings = require("./writeToThingMappings");
 const {
   tryCatchErrors,
   axiosError,
+  badRequest,
   missingQueryParams,
   callbackErrors,
 } = require("./errors");
@@ -425,6 +426,7 @@ const createEvent = {
 
       let result = {};
       let transformedEvent = transform(data, map, context);
+      logObject("transformedEvent in constants", transformedEvent);
       let responseFromEnrichOneEvent = await createEvent.enrichOneEvent(
         transformedEvent
       );
@@ -435,9 +437,11 @@ const createEvent = {
       }
 
       if (responseFromEnrichOneEvent.success === false) {
+        logObject("responseFromEnrichOneEvent", responseFromEnrichOneEvent);
         return {
           success: false,
           message: "unable to enrich event",
+          errors: { message: responseFromEnrichOneEvent.message },
         };
       }
       logObject("the event", result);
@@ -533,16 +537,16 @@ const createEvent = {
         };
       }
       if (responseFromGetDeviceDetails.success === false) {
-        let error = responseFromGetDeviceDetails.error
-          ? responseFromGetDeviceDetails.error
+        let errors = responseFromGetDeviceDetails.errors
+          ? responseFromGetDeviceDetails.errors
           : "";
         logger.error(
-          `responseFromGetDeviceDetails was not a success -- ${responseFromGetDeviceDetails.message} -- ${error}`
+          `responseFromGetDeviceDetails was not a success -- ${responseFromGetDeviceDetails.message} -- ${errors}`
         );
         return {
           success: false,
           message: responseFromGetDeviceDetails.message,
-          error,
+          errors,
         };
       }
     } catch (error) {
@@ -596,15 +600,15 @@ const createEvent = {
         }
 
         if (responseFromTransformEvent.success === false) {
-          let error = responseFromTransformEvent.error
-            ? responseFromTransformEvent.error
+          let errors = responseFromTransformEvent.errors
+            ? responseFromTransformEvent.errors
             : "";
           logger.error(
-            `responseFromTransformEvent is not a success -- unable to transform -- ${error}`
+            `responseFromTransformEvent is not a success -- unable to transform -- ${errors}`
           );
           return {
             success: false,
-            error,
+            errors,
             message: "unable to transform",
           };
         }
@@ -626,7 +630,7 @@ const createEvent = {
 
         if (results.every((res) => !res.success)) {
           for (const result of results) {
-            let error = result.error ? result.error : "";
+            let error = result.errors ? result.errors : "";
             errors.push(error);
           }
           logger.error(
@@ -644,7 +648,7 @@ const createEvent = {
       return {
         success: false,
         message: "server side error - transformEvents ",
-        error: e.message,
+        errors: error.message,
       };
     }
   },
@@ -665,13 +669,13 @@ const createEvent = {
       );
       if (responseFromTransformEvents.success === false) {
         logElement("responseFromTransformEvents was false?", true);
-        let error = responseFromTransformEvents.error
-          ? responseFromTransformEvents.error
+        let errors = responseFromTransformEvents.errors
+          ? responseFromTransformEvents.errors
           : "";
         return {
           success: false,
           message: responseFromTransformEvents.message,
-          error,
+          errors,
         };
       }
 

@@ -3027,6 +3027,15 @@ router.get(
         .withMessage(
           "the external value is not among the expected ones which include: no and yes"
         ),
+      query("recent")
+        .if(query("recent").exists())
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["yes", "no"])
+        .withMessage(
+          "the recent value is not among the expected ones which include: no and yes"
+        ),
       query("device")
         .if(query("device").exists())
         .notEmpty()

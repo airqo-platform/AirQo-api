@@ -89,6 +89,15 @@ const createEvent = {
   },
   list: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
       const { query } = req;
       const {
         device,
@@ -202,6 +211,25 @@ const createEvent = {
 
   create: async (req, res) => {
     try {
+      let request = {};
+      const responseFromCreateEvents = createEventUtil.create(request);
+      if (responseFromCreateEvents.success === true) {
+        const status = responseFromCreateEvents.status
+          ? responseFromCreateEvents.status
+          : HTTPStatus.OK;
+      }
+      if (responseFromCreateEvents.success === false) {
+        const status = responseFromCreateEvents.status
+          ? responseFromCreateEvents.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromCreateEvents.errors
+          ? responseFromCreateEvents.errors
+          : "";
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateEvents.message,
+        });
+      }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
