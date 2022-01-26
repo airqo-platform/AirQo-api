@@ -6,6 +6,7 @@ import pickle
 import gcsfs
 import joblib
 from dotenv import load_dotenv
+from jobs import calibrate_tool
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
@@ -61,7 +62,7 @@ class Regression():
         return calibrated_pm2_5, calibrated_pm10
 
 
-    def get_and_clean_ext_data(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data):
+    def get_and_clean_ext_data(self,pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data):
         datetime = pd.to_datetime(datetime)
         ext_data = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,datetime,reference_data]],
                                         columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour', 'datetime','reference_data'],
@@ -89,7 +90,7 @@ class Regression():
         ext_data.fillna(method='ffill',inplace = True)
         return  ext_data
 
-    def extract_features(ext_data):  
+    def extract_features(self, ext_data):  
         # extract hour feature
         ext_data['hour'] = ext_data['Time'].dt.hour
 
@@ -109,6 +110,13 @@ class Regression():
         combined_ext_data = ext_data
 
         return combined_ext_data
+    
+    
+    def train_calibration_model(self, combined_ext_data):  
+        calibrated_pm2_5 = calibrate_tool.random_forest(combined_ext_data)
+        calibrated_pm10 = calibrate_tool.lasso_reg(combined_ext_data)
+
+        return 
                
     
 if __name__ == "__main__":
