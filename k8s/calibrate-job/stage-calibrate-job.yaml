@@ -19,7 +19,7 @@ spec:
         spec:
           containers: 
               - name: calibrate-job
-                image: us.gcr.io/airqo-250220/airqo-stage-jobs:latest
+                image: us.gcr.io/airqo-250220/airqo-stage-average-jobs:{{IMAGE_VERSION}}
                 imagePullPolicy: Always
                 resources:
                   requests:
