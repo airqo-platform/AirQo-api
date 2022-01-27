@@ -8,7 +8,7 @@ from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_hours
 from kafka_client import KafkaBrokerClient
-from utils import get_column_value, get_site_ids_from_station, resample_data
+from utils import get_valid_column_value, get_site_ids_from_station, resample_data
 
 
 def dag_resample_weather_data(data, frequency='hourly'):
@@ -57,14 +57,14 @@ def dag_resample_weather_data(data, frequency='hourly'):
 
             for _, row in time_group.iterrows():
                 if row["variable"] == "rh":
-                    time_series_data["humidity"] = get_column_value("value", row, ["value"],
-                                                                    data_name="externalHumidity")
+                    time_series_data["humidity"] = get_valid_column_value("value", row, ["value"],
+                                                                          data_name="externalHumidity")
                 elif row["variable"] == "ws":
-                    time_series_data["windSpeed"] = get_column_value("value", row, ["value"],
-                                                                     data_name="windSpeed")
+                    time_series_data["windSpeed"] = get_valid_column_value("value", row, ["value"],
+                                                                           data_name="windSpeed")
                 elif row["variable"] == "te":
-                    time_series_data["temperature"] = get_column_value("value", row, ["value"],
-                                                                       data_name="externalTemperature")
+                    time_series_data["temperature"] = get_valid_column_value("value", row, ["value"],
+                                                                             data_name="externalTemperature")
                 else:
                     continue
 

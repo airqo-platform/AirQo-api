@@ -75,13 +75,12 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant, active=True, all_devices=False) -> list:
+    def get_devices(self, tenant, all_devices=True) -> list:
         params = {
             "tenant": tenant,
-            "active": "yes" if active else "no"
         }
-        if all_devices:
-            params.pop("active")
+        if not all_devices:
+            params["active"] = "yes"
         response = self.__request("devices", params)
 
         if "devices" in response:

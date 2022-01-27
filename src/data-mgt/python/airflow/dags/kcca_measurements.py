@@ -8,7 +8,7 @@ from airflow.decorators import dag, task
 from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_days, date_to_str_hours, date_to_str
-from utils import get_column_value, to_double, get_site_and_device_id, slack_failure_notification
+from utils import get_valid_column_value, to_double, get_site_and_device_id, slack_failure_notification
 
 
 def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) -> list:
@@ -42,40 +42,40 @@ def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) ->
                 "latitude": dict({"value": to_double(location_coordinates[1])})}
             ),
             "pm2_5": {
-                "value": get_column_value(column_name="characteristics.pm2_5ConcMass.raw", series=row,
-                                          columns_names=columns, data_name="pm2_5"),
-                "calibratedValue": get_column_value(column_name="characteristics.pm2_5ConcMass.value", series=row,
-                                                    columns_names=columns, data_name="pm2_5"),
+                "value": get_valid_column_value(column_name="characteristics.pm2_5ConcMass.raw", series=row,
+                                                columns_names=columns, data_name="pm2_5"),
+                "calibratedValue": get_valid_column_value(column_name="characteristics.pm2_5ConcMass.value", series=row,
+                                                          columns_names=columns, data_name="pm2_5"),
             },
             "pm1": {
-                "value": get_column_value(column_name="characteristics.pm1ConcMass.raw", series=row,
-                                          columns_names=columns, data_name=None),
-                "calibratedValue": get_column_value(column_name="characteristics.pm1ConcMass.value", series=row,
-                                                    columns_names=columns, data_name=None),
+                "value": get_valid_column_value(column_name="characteristics.pm1ConcMass.raw", series=row,
+                                                columns_names=columns, data_name=None),
+                "calibratedValue": get_valid_column_value(column_name="characteristics.pm1ConcMass.value", series=row,
+                                                          columns_names=columns, data_name=None),
             },
             "pm10": {
-                "value": get_column_value(column_name="characteristics.pm10ConcMass.raw", series=row,
-                                          columns_names=columns, data_name="pm10"),
-                "calibratedValue": get_column_value(column_name="characteristics.pm10ConcMass.value", series=row,
-                                                    columns_names=columns, data_name="pm10"),
+                "value": get_valid_column_value(column_name="characteristics.pm10ConcMass.raw", series=row,
+                                                columns_names=columns, data_name="pm10"),
+                "calibratedValue": get_valid_column_value(column_name="characteristics.pm10ConcMass.value", series=row,
+                                                          columns_names=columns, data_name="pm10"),
             },
             "externalTemperature": {
-                "value": get_column_value(column_name="characteristics.temperature.value", series=row,
-                                          columns_names=columns, data_name="externalTemperature"),
+                "value": get_valid_column_value(column_name="characteristics.temperature.value", series=row,
+                                                columns_names=columns, data_name="externalTemperature"),
             },
             "externalHumidity": {
-                "value": get_column_value(column_name="characteristics.relHumid.value", series=row,
-                                          columns_names=columns, data_name="externalHumidity"),
+                "value": get_valid_column_value(column_name="characteristics.relHumid.value", series=row,
+                                                columns_names=columns, data_name="externalHumidity"),
             },
             "no2": {
-                "value": get_column_value(column_name="characteristics.no2Conc.raw", series=row,
-                                          columns_names=columns, data_name=None),
-                "calibratedValue": get_column_value(column_name="characteristics.no2Conc.value", series=row,
-                                                    columns_names=columns, data_name=None),
+                "value": get_valid_column_value(column_name="characteristics.no2Conc.raw", series=row,
+                                                columns_names=columns, data_name=None),
+                "calibratedValue": get_valid_column_value(column_name="characteristics.no2Conc.value", series=row,
+                                                          columns_names=columns, data_name=None),
             },
             "speed": {
-                "value": get_column_value(column_name="characteristics.windSpeed.value", series=row,
-                                          columns_names=columns, data_name=None),
+                "value": get_valid_column_value(column_name="characteristics.windSpeed.value", series=row,
+                                                columns_names=columns, data_name=None),
             },
         })
 
@@ -154,9 +154,9 @@ def transform_kcca_measurements(unclean_data) -> list:
     return cleaned_measurements
 
 
-@dag('KCCA-Measurements', schedule_interval="30 * * * *", on_failure_callback=slack_failure_notification,
-     start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca'])
-def kcca_measurements_etl():
+@dag('KCCA-Hourly-Measurements', schedule_interval="30 * * * *", on_failure_callback=slack_failure_notification,
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'hourly'])
+def kcca_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract(**kwargs):
         try:
@@ -170,6 +170,37 @@ def kcca_measurements_etl():
             end_time = date_to_str_hours(datetime.utcnow())
 
         kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq=frequency)
+
+        return dict({"data": kcca_data})
+
+    @task(multiple_outputs=True)
+    def transform(inputs: dict):
+        data = inputs.get("data")
+
+        cleaned_data = transform_kcca_measurements(data)
+        return dict({"data": cleaned_data})
+
+    @task()
+    def load(inputs: dict):
+        kcca_data = inputs.get("data")
+
+        airqo_api = AirQoApi()
+        airqo_api.save_events(measurements=kcca_data, tenant='kcca')
+
+    extracted_data = extract()
+    transformed_data = transform(extracted_data)
+    load(transformed_data)
+
+
+@dag('KCCA-Raw-Measurements', schedule_interval="10 * * * *", on_failure_callback=slack_failure_notification,
+     start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'raw'])
+def kcca_raw_measurements_etl():
+    @task(multiple_outputs=True)
+    def extract():
+        start_time = date_to_str(datetime.utcnow() - timedelta(hours=1))
+        end_time = date_to_str(datetime.utcnow())
+
+        kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq='raw')
 
         return dict({"data": kcca_data})
 
@@ -223,5 +254,6 @@ def kcca_daily_measurements_etl():
     load(transformed_data)
 
 
-kcca_measurements_etl_etl_dag = kcca_measurements_etl()
+kcca_raw_measurements_etl_dag = kcca_raw_measurements_etl()
+kcca_hourly_measurements_etl_dag = kcca_hourly_measurements_etl()
 kcca_daily_measurements_etl_dag = kcca_daily_measurements_etl()

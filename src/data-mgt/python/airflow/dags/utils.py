@@ -392,7 +392,11 @@ def remove_invalid_dates(dataframe: pd.DataFrame, start_time: str, end_time: str
     return time_data_frame
 
 
-def get_column_value(column_name, series, columns_names, data_name):
+def get_column_value(column: str, columns: list, series: pd.Series):
+    return series[column] if column in columns else None
+
+
+def get_valid_column_value(column_name, series, columns_names, data_name):
     if column_name in columns_names:
         value = to_double(series[column_name])
         return get_valid_value(value, data_name)

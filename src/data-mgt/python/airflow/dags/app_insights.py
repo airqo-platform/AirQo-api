@@ -28,7 +28,7 @@ def measurement_time_to_string(time: str, daily=False):
 def get_forecast_data(tenant: str) -> list:
     airqo_api = AirQoApi()
     columns = ['time', 'pm2_5', 'siteId', 'frequency', 'forecast']
-    devices = airqo_api.get_devices(tenant=tenant, active=True)
+    devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
 
     forecast_measurements = pd.DataFrame(data=[], columns=columns)
 
@@ -67,7 +67,7 @@ def get_forecast_data(tenant: str) -> list:
 
 def get_airqo_data(tenant: str, start_time: str = None, end_time: str = None) -> list:
     airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=tenant, active=True)
+    devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
     averaged_measurements = []
 
     if start_time and end_time:
@@ -137,7 +137,6 @@ def create_insights_data(data: list) -> list:
 @dag('App-Forecast-Insights', schedule_interval="@hourly", on_failure_callback=slack_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights'])
 def app_forecast_insights_etl():
-
     @task(multiple_outputs=True)
     def extract_forecast_data():
         forecast_data = get_forecast_data('airqo')
