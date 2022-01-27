@@ -641,7 +641,7 @@ def historical_hourly_measurements_etl():
         return start_time, end_time
 
     @task(multiple_outputs=True)
-    def extract_airqo_data(**kwargs):
+    def extract_hourly_raw_data(**kwargs):
 
         start_time, end_time = time_values(**kwargs)
         raw_airqo_data = extract_airqo_data_from_thingspeak(start_time=start_time, end_time=end_time, all_devices=True)
@@ -665,7 +665,7 @@ def historical_hourly_measurements_etl():
         return dict({"data": fill_nan(data=restructured_data)})
 
     @task(multiple_outputs=True)
-    def extract_weather_data(**kwargs):
+    def extract_hourly_weather_data(**kwargs):
 
         start_time, end_time = time_values(**kwargs)
         airqo_weather_data = extract_airqo_weather_data_from_tahmo(start_time=start_time, end_time=end_time,
@@ -710,11 +710,11 @@ def historical_hourly_measurements_etl():
             airqo_api = AirQoApi()
             airqo_api.save_events(measurements=airqo_restructured_data, tenant='airqo')
 
-    extracted_airqo_data = extract_airqo_data()
+    extracted_airqo_data = extract_hourly_raw_data()
     device_logs = extract_device_deployment_logs()
     data_with_site_ids = map_site_ids(airqo_data=extracted_airqo_data, deployment_logs=device_logs)
 
-    extracted_weather_data = extract_weather_data()
+    extracted_weather_data = extract_hourly_weather_data()
     merged_data = merge_data(averaged_airqo_data=data_with_site_ids, weather_data=extracted_weather_data)
     calibrated_data = calibrate(merged_data)
 
@@ -730,19 +730,19 @@ def realtime_measurements_etl():
     end_time = datetime.strftime(hour_of_day, '%Y-%m-%dT%H:59:59Z')
 
     @task(multiple_outputs=True)
-    def extract_airqo_data():
+    def extract_raw_data():
         raw_airqo_data = extract_airqo_data_from_thingspeak(start_time=start_time, end_time=end_time, all_devices=False)
         return dict({"data": fill_nan(data=raw_airqo_data)})
 
     @task(multiple_outputs=True)
-    def average_airqo_raw_data(raw_data: dict):
+    def average_data_by_hour(raw_data: dict):
         raw_airqo_data = un_fill_nan(raw_data.get("data"))
         average_data = average_airqo_data(data=raw_airqo_data, frequency='hourly')
 
         return dict({"data": fill_nan(data=average_data)})
 
     @task(multiple_outputs=True)
-    def extract_weather_data():
+    def extract_hourly_weather_data():
         airqo_weather_data = extract_airqo_weather_data_from_tahmo(start_time=start_time, end_time=end_time,
                                                                    frequency='hourly')
         return dict({"data": fill_nan(data=airqo_weather_data)})
@@ -781,9 +781,9 @@ def realtime_measurements_etl():
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=airqo_restructured_data, tenant='airqo')
 
-    extracted_airqo_data = extract_airqo_data()
-    averaged_airqo_data = average_airqo_raw_data(extracted_airqo_data)
-    extracted_weather_data = extract_weather_data()
+    extracted_airqo_data = extract_raw_data()
+    averaged_airqo_data = average_data_by_hour(extracted_airqo_data)
+    extracted_weather_data = extract_hourly_weather_data()
     merged_data = merge_data(averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data)
     calibrated_data = calibrate(merged_data)
     save_hourly_data(calibrated_data)

@@ -12,14 +12,6 @@ class TahmoApi:
         self.API_KEY = configuration.TAHMO_API_KEY
         self.API_SECRET = configuration.TAHMO_API_SECRET
 
-    def get_stations(self):
-        response = self.__request('services/assets/v2/stations', {'sort': 'code'})
-        stations = {}
-        if 'data' in response and isinstance(response['data'], list):
-            for element in response['data']:
-                stations[element['code']] = element
-        return stations
-
     def get_measurements(self, start_time, end_time, station_codes=None):
 
         if station_codes is None:

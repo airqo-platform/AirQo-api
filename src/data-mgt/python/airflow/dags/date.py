@@ -1,13 +1,6 @@
 from datetime import datetime, timedelta
 
 
-def date_to_formatted_str(date: datetime):
-    """
-    Converts datetime to a string
-    """
-    return datetime.strftime(date, '%Y-%m-%d %H:%M')
-
-
 def predict_str_to_date(st: str):
     """
     Converts a predict string to utc datetime

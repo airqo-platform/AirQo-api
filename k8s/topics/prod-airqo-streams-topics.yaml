@@ -91,21 +91,6 @@ spec:
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: sites-weather-topic 
-  namespace: production
-  labels:
-    strimzi.io/cluster: prod-kafka-cluster
-spec:
-  topicName: sites-weather-topic 
-  partitions: 3
-  replicas: 1
-  config:
-    retention.ms: 86400000 # 1 day
-
----
-apiVersion: kafka.strimzi.io/v1beta2
-kind: KafkaTopic
-metadata:
   name: app-insights-measurements-topic
   namespace: production
   labels:

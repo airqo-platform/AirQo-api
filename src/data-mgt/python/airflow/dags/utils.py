@@ -1,5 +1,4 @@
 import math
-import os
 import traceback
 from datetime import timedelta, datetime
 from functools import reduce
@@ -404,14 +403,6 @@ def get_valid_column_value(column_name, series, columns_names, data_name):
     return None
 
 
-def clean_up_task(list_of_files):
-    for item in list_of_files:
-        try:
-            os.remove(item)
-        except Exception as ex:
-            print(ex)
-
-
 def get_site_and_device_id(devices, channel_id=None, device_name=None):
     try:
         if channel_id is not None:
@@ -494,39 +485,3 @@ def get_device(devices=None, channel_id=None, device_id=None):
         return result[0]
 
     return None
-
-
-def filter_valid_devices(devices_data):
-    valid_devices = []
-    for device in devices_data:
-        device_dict = dict(device)
-        if "site" in device_dict.keys() and "device_number" in device_dict.keys():
-            valid_devices.append(device_dict)
-
-    return valid_devices
-
-
-def filter_valid_kcca_devices(devices_data):
-    valid_devices = []
-    for device in devices_data:
-        device_dict = dict(device)
-        if "site" in device_dict.keys():
-            valid_devices.append(device_dict)
-
-    return valid_devices
-
-
-def build_channel_id_filter(devices_data):
-    channel_filter = "channel_id = 0"
-    for device in devices_data:
-        device_dict = dict(device)
-        channel_filter = channel_filter + f" or channel_id = {device_dict.get('device_number')}"
-
-    return channel_filter
-
-
-def get_valid_devices(tenant):
-    airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=tenant)
-    filtered_devices = filter_valid_devices(devices)
-    return filtered_devices
