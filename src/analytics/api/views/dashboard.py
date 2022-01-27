@@ -18,6 +18,7 @@ from api.utils.coordinates import approximate_coordinates
 from api.utils.request_validators import validate_request_params, validate_request_json
 from api.utils.pollutants import (
     generate_pie_chart_data,
+    d3_generate_pie_chart_data,
     PM_COLOR_CATEGORY,
     set_pm25_category_background,
 )
@@ -164,6 +165,9 @@ class D3ChartDataResource(Resource):
 
         events_model = EventsModel(tenant)
         data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+
+        if chart_type.lower() == 'pie':
+            data = d3_generate_pie_chart_data(data, pollutant)
 
         return create_response(
             "successfully retrieved d3 chart data",
