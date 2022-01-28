@@ -177,11 +177,11 @@ def extract_airqo_data_from_thingspeak(start_time: str, end_time: str, all_devic
             return None
 
     dates = pd.date_range(start_time, end_time, freq=frequency)
+    last_date_time = dates.values[len(dates.values) - 1]
     for device in airqo_devices:
         try:
 
             channel_id = str(device['device_number'])
-            last_date_time = dates.values[len(dates.values) - 1]
 
             for date in dates:
 

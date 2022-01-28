@@ -29,7 +29,6 @@ def dag_resample_weather_data(data, frequency='hourly'):
     weather_data = []
 
     data["value"] = pd.to_numeric(data["value"], errors='coerce', downcast="float")
-    data = data.fillna('None')
 
     data_station_gps = data.groupby('station')
     for _, station_group in data_station_gps:

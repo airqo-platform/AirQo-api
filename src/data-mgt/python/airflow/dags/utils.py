@@ -46,18 +46,18 @@ def measurement_time_to_string(time: str, daily=False):
 
 def format_measurements_to_insights(data: list):
     measurements_df = pd.json_normalize(data)
-    if 'average_pm2_5.calibratedValue' not in measurements_df.columns:
-        measurements_df['average_pm2_5.calibratedValue'] = ['average_pm2_5.value']
+    if 'pm2_5.calibratedValue' not in measurements_df.columns:
+        measurements_df['pm2_5.calibratedValue'] = ['pm2_5.value']
     else:
-        measurements_df['average_pm2_5.calibratedValue'].fillna(measurements_df['average_pm2_5.value'], inplace=True)
+        measurements_df['pm2_5.calibratedValue'].fillna(measurements_df['pm2_5.value'], inplace=True)
 
-    if 'average_pm10.calibratedValue' not in measurements_df.columns:
-        measurements_df['average_pm10.calibratedValue'] = measurements_df['average_pm10.value']
+    if 'pm10.calibratedValue' not in measurements_df.columns:
+        measurements_df['pm10.calibratedValue'] = measurements_df['pm10.value']
     else:
-        measurements_df['average_pm10.calibratedValue'].fillna(measurements_df['average_pm10.value'], inplace=True)
+        measurements_df['pm10.calibratedValue'].fillna(measurements_df['pm10.value'], inplace=True)
 
-    measurements_df = measurements_df[['time', 'frequency', 'site_id', 'average_pm2_5.calibratedValue',
-                                       'average_pm10.calibratedValue']]
+    measurements_df = measurements_df[['time', 'frequency', 'site_id', 'pm2_5.calibratedValue',
+                                       'pm10.calibratedValue']]
 
     measurements_df.columns = ['time', 'frequency', 'siteId', 'pm2_5', 'pm10']
     measurements_df = measurements_df.dropna()
@@ -222,7 +222,7 @@ def resample_weather_data(data, frequency: str):
             data_frames = [temperature, humidity, wind_speed]
 
             station_df = reduce(lambda left, right: pd.merge(left, right, on=['time'],
-                                                             how='outer'), data_frames).fillna('None')
+                                                             how='outer'), data_frames)
             station_df['frequency'] = frequency
 
             # mapping device to station
@@ -234,7 +234,6 @@ def resample_weather_data(data, frequency: str):
             for device_id in station_devices:
                 device_station_df = station_df.copy(deep=True)
                 device_station_df['device_id'] = device_id
-                device_station_df = device_station_df.fillna('None')
                 device_weather_data.extend(device_station_df.to_dict(orient='records'))
 
         except Exception as ex:
@@ -332,6 +331,16 @@ def get_frequency(start_time: str, end_time: str) -> str:
     return frequency
 
 
+def get_airqo_api_frequency(freq: str) -> str:
+
+    if freq == 'hourly':
+        return '168H'
+    elif freq == 'daily':
+        return '720H'
+    else:
+        return '5H'
+
+
 def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
     airqo_api = AirQoApi()
     airqo_sites = airqo_api.get_sites(tenant=tenant)
@@ -369,7 +378,6 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
         measurements_df = pd.DataFrame(data=measurements)
     else:
         measurements_df = pd.DataFrame([])
-    measurements_df = measurements_df.fillna('None')
 
     clean_measurements_df = remove_invalid_dates(dataframe=measurements_df, start_time=start_time, end_time=end_time)
     return clean_measurements_df.to_dict(orient='records')

@@ -8,7 +8,8 @@ from airflow.decorators import dag, task
 from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_days, date_to_str_hours, date_to_str
-from utils import get_valid_column_value, to_double, get_site_and_device_id, slack_failure_notification
+from utils import get_valid_column_value, to_double, get_site_and_device_id, slack_failure_notification, un_fill_nan, \
+    fill_nan
 
 
 def clean_kcca_device_data(group: pd.DataFrame, site_id: str, device_id: str) -> list:
@@ -130,8 +131,7 @@ def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list
         measurements.extend(range_measurements)
 
     measurements_df = pd.json_normalize(measurements)
-    dataframe = measurements_df.fillna('None')
-    return dataframe.to_dict(orient="records")
+    return measurements_df.to_dict(orient="records")
 
 
 def transform_kcca_measurements(unclean_data) -> list:
@@ -171,18 +171,17 @@ def kcca_hourly_measurements_etl():
 
         kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq=frequency)
 
-        return dict({"data": kcca_data})
+        return dict({"data": fill_nan(kcca_data)})
 
     @task(multiple_outputs=True)
     def transform(inputs: dict):
-        data = inputs.get("data")
-
+        data = un_fill_nan(inputs.get("data"))
         cleaned_data = transform_kcca_measurements(data)
-        return dict({"data": cleaned_data})
+        return dict({"data": fill_nan(cleaned_data)})
 
     @task()
     def load(inputs: dict):
-        kcca_data = inputs.get("data")
+        kcca_data = un_fill_nan(inputs.get("data"))
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=kcca_data, tenant='kcca')
@@ -202,18 +201,18 @@ def kcca_raw_measurements_etl():
 
         kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq='raw')
 
-        return dict({"data": kcca_data})
+        return dict({"data": fill_nan(data=kcca_data)})
 
     @task(multiple_outputs=True)
     def transform(inputs: dict):
-        data = inputs.get("data")
+        data = un_fill_nan(inputs.get("data"))
 
         cleaned_data = transform_kcca_measurements(data)
-        return dict({"data": cleaned_data})
+        return dict({"data": fill_nan(data=cleaned_data)})
 
     @task()
     def load(inputs: dict):
-        kcca_data = inputs.get("data")
+        kcca_data = un_fill_nan(inputs.get("data"))
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=kcca_data, tenant='kcca')
@@ -233,18 +232,18 @@ def kcca_daily_measurements_etl():
 
         daily_kcca_data = extract_kcca_measurements(start_time=start_time, end_time=end_time, freq='daily')
 
-        return dict({"data": daily_kcca_data})
+        return dict({"data": fill_nan(data=daily_kcca_data)})
 
     @task(multiple_outputs=True)
     def transform(inputs: dict):
-        data = inputs.get("data")
+        data = un_fill_nan(inputs.get("data"))
         cleaned_data = transform_kcca_measurements(data)
 
-        return dict({"data": cleaned_data})
+        return dict({"data": fill_nan(data=cleaned_data)})
 
     @task()
     def load(inputs: dict):
-        kcca_data = inputs.get("data")
+        kcca_data = un_fill_nan(inputs.get("data"))
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=kcca_data, tenant='kcca')

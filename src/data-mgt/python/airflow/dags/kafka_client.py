@@ -1,5 +1,4 @@
 import traceback
-from time import sleep
 
 import simplejson
 from confluent_avro import SchemaRegistry
@@ -45,7 +44,6 @@ class KafkaBrokerClient:
                     }
 
                     producer.send(topic=topic, value=simplejson.dumps(message).encode('utf-8'))
-                    sleep(5)
 
                     # if partition_index + 1 < partition_size:
                     #     partition_index = partition_index + 1
