@@ -6,8 +6,8 @@ def predict_str_to_date(st: str):
     Converts a predict string to utc datetime
     """
 
-    st = st.replace(' GMT', '')
-    date_time = datetime.strptime(st, '%a, %d %b %Y %H:%M:%S')
+    st = st.replace(" GMT", "")
+    date_time = datetime.strptime(st, "%a, %d %b %Y %H:%M:%S")
     date_time = date_time + timedelta(hours=3)
     return date_time
 
@@ -18,23 +18,23 @@ def str_to_date(st: str):
     """
 
     try:
-        return datetime.strptime(st, '%Y-%m-%dT%H:%M:%S.%fZ')
+        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%S.%fZ")
     except:
-        return datetime.strptime(st, '%Y-%m-%dT%H:%M:%SZ')
+        return datetime.strptime(st, "%Y-%m-%dT%H:%M:%SZ")
 
 
 def date_to_str(date: datetime):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, '%Y-%m-%dT%H:%M:%SZ')
+    return datetime.strftime(date, "%Y-%m-%dT%H:%M:%SZ")
 
 
 def date_to_str_hours(date: datetime):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, '%Y-%m-%dT%H:00:00Z')
+    return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
 
 
 def first_day_of_month(date_time: datetime):
@@ -72,4 +72,4 @@ def date_to_str_days(date: datetime):
     """
     Converts datetime to a string
     """
-    return datetime.strftime(date, '%Y-%m-%dT00:00:00Z')
+    return datetime.strftime(date, "%Y-%m-%dT00:00:00Z")

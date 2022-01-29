@@ -7,3 +7,4 @@ kafka-python
 confluent-avro
 simplejson
 sentry-sdk
+black

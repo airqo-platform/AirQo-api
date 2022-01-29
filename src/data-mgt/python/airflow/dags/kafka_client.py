@@ -8,7 +8,6 @@ from config import configuration
 
 
 class KafkaBrokerClient:
-
     def __init__(self):
         self.__partitions = configuration.TOPIC_PARTITIONS
         self.__bootstrap_servers = configuration.BOOTSTRAP_SERVERS
@@ -19,14 +18,20 @@ class KafkaBrokerClient:
             headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
         )
 
-    def send_data(self, topic, info=None, ):
+    def send_data(
+        self,
+        topic,
+        info=None,
+    ):
         data = info["data"]
 
         try:
             # avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
             # bytes_data = avro_serde.value.serialize(measurements, schema_str)
-            producer = KafkaProducer(bootstrap_servers=self.__bootstrap_servers,
-                                     api_version_auto_timeout_ms=300000)
+            producer = KafkaProducer(
+                bootstrap_servers=self.__bootstrap_servers,
+                api_version_auto_timeout_ms=300000,
+            )
 
             # partition_size = len(self.__partitions)
             # partition_index = 0
@@ -36,21 +41,20 @@ class KafkaBrokerClient:
 
                 for i in range(0, len(data), 50):
                     # partition = int(self.__partitions[partition_index])
-                    range_data = data[i:i + 50]
+                    range_data = data[i : i + 50]
 
-                    message = {
-                        "data": range_data,
-                        "action": action
-                    }
+                    message = {"data": range_data, "action": action}
 
-                    producer.send(topic=topic, value=simplejson.dumps(message).encode('utf-8'))
+                    producer.send(
+                        topic=topic, value=simplejson.dumps(message).encode("utf-8")
+                    )
 
                     # if partition_index + 1 < partition_size:
                     #     partition_index = partition_index + 1
                     # else:
                     #     partition_index = 0
             else:
-                producer.send(topic=topic, value=simplejson.dumps(info).encode('utf-8'))
+                producer.send(topic=topic, value=simplejson.dumps(info).encode("utf-8"))
 
         except Exception as ex:
             print(ex)
