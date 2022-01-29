@@ -176,8 +176,11 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     return averages
 
 
-def resample_weather_data(data, frequency: str):
+def resample_weather_data(data: list, frequency: str):
     weather_raw_data = pd.DataFrame(data)
+    if weather_raw_data.empty:
+        return weather_raw_data.to_dict(orient="records")
+
     airqo_api = AirQoApi()
     sites = airqo_api.get_sites(tenant='airqo')
     valid_sites = list(filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites))
@@ -281,16 +284,18 @@ def slack_success_notification(context):
     return success_alert.execute(context=context)
 
 
-def slack_failure_notification(context):
+def slack_dag_failure_notification(context):
     slack_webhook_token = BaseHook.get_connection('slack').password
+    icon_color = ':red_circle' if configuration.ENVIRONMENT.lower() == 'production' else ':yellow_circle'
 
     msg = """
-          :red_circle: Task Failed. 
+          {icon_color}: Task Failed. 
           *Task*: {task}  
           *Dag*: {dag}
           *Execution Time*: {exec_date}  
           *Log Url*: {log_url} 
           """.format(
+        icon_color=icon_color,
         task=context.get('task_instance').task_id,
         dag=context.get('task_instance').dag_id,
         ti=context.get('task_instance'),
@@ -332,7 +337,6 @@ def get_frequency(start_time: str, end_time: str) -> str:
 
 
 def get_airqo_api_frequency(freq: str) -> str:
-
     if freq == 'hourly':
         return '168H'
     elif freq == 'daily':
@@ -377,7 +381,8 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant='airqo'):
     if len(measurements) != 0:
         measurements_df = pd.DataFrame(data=measurements)
     else:
-        measurements_df = pd.DataFrame([])
+        measurements_df = pd.DataFrame([], columns=["value", "variable", "station", "time"])
+        return measurements_df.to_dict(orient='records')
 
     clean_measurements_df = remove_invalid_dates(dataframe=measurements_df, start_time=start_time, end_time=end_time)
     return clean_measurements_df.to_dict(orient='records')
@@ -429,23 +434,6 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
         print(ex)
         print("Site ID not found")
         return None, None
-
-
-def get_airqo_device_data(start_time, end_time, channel_ids):
-    client = bigquery.Client()
-
-    query = """
-             SELECT channel_id, created_at, pm2_5, pm10 , s2_pm2_5,
-              s2_pm10, temperature , humidity, voltage, altitude, latitude, longitude, no_sats, hdope, wind
-              FROM airqo-250220.thingspeak.clean_feeds_pms where ({0})
-              AND created_at BETWEEN '{1}' AND '{2}' ORDER BY created_at
-                """.format(channel_ids, str_to_date(start_time), str_to_date(end_time))
-
-    dataframe = (
-        client.query(query).result().to_dataframe()
-    )
-
-    return dataframe.to_dict(orient='records')
 
 
 def save_measurements_to_bigquery(measurements: list) -> None:

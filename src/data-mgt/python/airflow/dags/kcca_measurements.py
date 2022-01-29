@@ -8,7 +8,8 @@ from airflow.decorators import dag, task
 from airqoApi import AirQoApi
 from config import configuration
 from date import date_to_str_days, date_to_str_hours, date_to_str
-from utils import get_valid_column_value, to_double, get_site_and_device_id, slack_failure_notification, un_fill_nan, \
+from utils import get_valid_column_value, to_double, get_site_and_device_id, slack_dag_failure_notification, \
+    un_fill_nan, \
     fill_nan
 
 
@@ -154,7 +155,7 @@ def transform_kcca_measurements(unclean_data) -> list:
     return cleaned_measurements
 
 
-@dag('KCCA-Hourly-Measurements', schedule_interval="30 * * * *", on_failure_callback=slack_failure_notification,
+@dag('KCCA-Hourly-Measurements', schedule_interval="30 * * * *", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'hourly'])
 def kcca_hourly_measurements_etl():
     @task(multiple_outputs=True)
@@ -191,7 +192,7 @@ def kcca_hourly_measurements_etl():
     load(transformed_data)
 
 
-@dag('KCCA-Raw-Measurements', schedule_interval="10 * * * *", on_failure_callback=slack_failure_notification,
+@dag('KCCA-Raw-Measurements', schedule_interval="10 * * * *", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'raw'])
 def kcca_raw_measurements_etl():
     @task(multiple_outputs=True)
@@ -222,7 +223,7 @@ def kcca_raw_measurements_etl():
     load(transformed_data)
 
 
-@dag('KCCA-Daily-Measurements', schedule_interval="0 2 * * *", on_failure_callback=slack_failure_notification,
+@dag('KCCA-Daily-Measurements', schedule_interval="0 2 * * *", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['kcca', 'daily'])
 def kcca_daily_measurements_etl():
     @task(multiple_outputs=True)

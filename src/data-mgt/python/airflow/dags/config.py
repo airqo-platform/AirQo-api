@@ -12,6 +12,8 @@ load_dotenv(dotenv_path)
 
 
 class Config:
+    ENVIRONMENT = os.getenv("ENVIRONMENT", "DEVELOPMENT")
+
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
 

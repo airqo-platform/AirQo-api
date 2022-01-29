@@ -9,8 +9,8 @@ from airflow.decorators import dag, task
 from airqoApi import AirQoApi
 from date import date_to_str_hours, date_to_str_days, date_to_str, predict_str_to_date, str_to_date, \
     first_day_of_week, last_day_of_week, first_day_of_month, last_day_of_month
-from utils import save_insights_data, format_measurements_to_insights, slack_failure_notification, get_frequency, \
-    get_airqo_api_frequency
+from utils import save_insights_data, format_measurements_to_insights, slack_dag_failure_notification, \
+    get_airqo_api_frequency, resample_data
 
 
 def predict_time_to_string(time: str):
@@ -131,7 +131,36 @@ def time_values(**kwargs):
     return start_time, end_time
 
 
-@dag('App-Forecast-Insights', schedule_interval="@hourly", on_failure_callback=slack_failure_notification,
+def average_hourly_insights(data: list) -> list:
+    insights_df = pd.DataFrame(data)
+    site_groups = insights_df.groupby("siteId")
+    averaged_insights = []
+
+    for _, site_group in site_groups:
+
+        try:
+            site_measurements = pd.json_normalize(site_group.to_dict(orient='records'))
+            site_measurements["frequency"] = "DAILY"
+            measurement_data = site_measurements[['pm2_5', 'pm10', 'time']].copy()
+
+            del site_measurements['pm2_5']
+            del site_measurements['pm10']
+            del site_measurements['time']
+
+            averages = resample_data(measurement_data, "daily")
+
+            for _, row in averages.iterrows():
+                combined_dataset = {**row.to_dict(), **site_measurements.iloc[0].to_dict()}
+                averaged_insights.append(combined_dataset)
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+
+    return averaged_insights
+
+
+@dag('App-Forecast-Insights', schedule_interval="@hourly", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'forecast'])
 def app_forecast_insights_etl():
     @task(multiple_outputs=True)
@@ -150,10 +179,9 @@ def app_forecast_insights_etl():
     load(insights)
 
 
-@dag('App-Daily-Insights', schedule_interval="30 * * * *", on_failure_callback=slack_failure_notification,
+@dag('App-Daily-Insights', schedule_interval="0 1 * * *", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'daily'])
 def app_daily_insights_etl():
-
     @task(multiple_outputs=True)
     def extract_airqo_data(**kwargs):
         start_time, end_time = time_values(**kwargs)
@@ -171,28 +199,55 @@ def app_daily_insights_etl():
     load(insights)
 
 
-@dag('App-Hourly-Insights', schedule_interval="30 * * * *", on_failure_callback=slack_failure_notification,
+@dag('App-Hourly-Insights', schedule_interval="30 * * * *", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'hourly'])
 def app_hourly_insights_etl():
-
     @task(multiple_outputs=True)
-    def extract_airqo_data(**kwargs):
+    def create_hourly_data(**kwargs):
         start_time, end_time = time_values(**kwargs)
         measurements_data = get_airqo_data(freq='hourly', start_time=start_time, end_time=end_time)
         insights_data = create_insights_data(data=measurements_data)
 
         return dict({"data": insights_data})
 
+    @task(multiple_outputs=True)
+    def create_daily_data(**kwargs):
+        start_time, end_time = time_values(**kwargs)
+
+        if start_time and end_time:
+            return dict({"data": []})
+
+        hour_of_day = datetime.utcnow()
+        if hour_of_day.hour <= 1:
+            return dict({"data": []})
+
+        start_time = datetime.strftime(hour_of_day, '%Y-%m-%dT%00:00:00Z')
+        end_time = date_to_str_hours(hour_of_day)
+
+        measurements_data = get_airqo_data(freq='hourly', start_time=start_time, end_time=end_time)
+        insights_data = create_insights_data(data=measurements_data)
+
+        ave_insights_data = average_hourly_insights(insights_data)
+
+        return dict({"data": ave_insights_data})
+
     @task()
-    def load(data: dict):
+    def load_hourly_insights(data: dict):
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
 
-    insights = extract_airqo_data()
-    load(insights)
+    @task()
+    def update_daily_insights(data: dict):
+        insights_data = data.get("data")
+        save_insights_data(insights_data=insights_data, action="save")
+
+    hourly_data = create_hourly_data()
+    daily_data = create_hourly_data()
+    load_hourly_insights(hourly_data)
+    update_daily_insights(daily_data)
 
 
-@dag('App-Insights-cleanup', schedule_interval="@weekly", on_failure_callback=slack_failure_notification,
+@dag('App-Insights-cleanup', schedule_interval="@weekly", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['insights', 'empty'])
 def insights_cleanup_etl():
     @task()

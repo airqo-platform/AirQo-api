@@ -13,7 +13,7 @@ from config import configuration
 from date import date_to_str, date_to_str_days, date_to_str_hours, str_to_date
 from utils import get_device, get_valid_value, get_weather_data_from_tahmo, resample_weather_data, \
     resample_data, remove_invalid_dates, fill_nan, download_file_from_gcs, get_frequency, \
-    slack_failure_notification, un_fill_nan, save_measurements_to_bigquery, get_column_value
+    slack_dag_failure_notification, un_fill_nan, save_measurements_to_bigquery, get_column_value
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -466,8 +466,12 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
 
 
 def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
+    # TODO: notify in case of missing data
     airqo_data_df = pd.DataFrame(airqo_data)
     weather_data_df = pd.DataFrame(weather_data)
+
+    if weather_data_df.empty:
+        return airqo_data_df.to_dict(orient="records")
 
     airqo_data_df['frequency'] = airqo_data_df['frequency'].apply(lambda x: str(x).lower())
     weather_data_df['frequency'] = weather_data_df['frequency'].apply(lambda x: str(x).lower())
@@ -625,7 +629,7 @@ def calibrate_hourly_airqo_measurements(measurements: list, method: str = 'api')
     return calibrated_measurements
 
 
-@dag('AirQo-Historical-Hourly-Measurements', schedule_interval=None, on_failure_callback=slack_failure_notification,
+@dag('AirQo-Historical-Hourly-Measurements', schedule_interval=None, on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly', 'historical'])
 def historical_hourly_measurements_etl():
     def time_values(**kwargs):
@@ -722,7 +726,7 @@ def historical_hourly_measurements_etl():
 
 
 @dag('AirQo-Realtime-Measurements', schedule_interval="10 * * * *",
-     on_failure_callback=slack_failure_notification,
+     on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'hourly', 'realtime', 'raw'])
 def realtime_measurements_etl():
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
@@ -790,7 +794,7 @@ def realtime_measurements_etl():
     save_raw_data(extracted_airqo_data)
 
 
-@dag('AirQo-Daily-Measurements', schedule_interval="0 1 * * *", on_failure_callback=slack_failure_notification,
+@dag('AirQo-Daily-Measurements', schedule_interval="0 1 * * *", on_failure_callback=slack_dag_failure_notification,
      start_date=datetime(2021, 1, 1), catchup=False, tags=['airqo', 'daily'])
 def airqo_daily_measurements_etl():
     def time_values(**kwargs):
@@ -831,7 +835,7 @@ def airqo_daily_measurements_etl():
         data = un_fill_nan(airqo_data.get("data"))
         logs = device_logs.get("data")
 
-        airqo_restructured_data = restructure_airqo_data_for_api(data=data, devices_logs=logs)
+        airqo_restructured_data = restructure_airqo_data_for_api(data=data)
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=airqo_restructured_data, tenant='airqo')
 
