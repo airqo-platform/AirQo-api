@@ -1,11 +1,13 @@
 package airqo.services;
 
 import airqo.models.*;
-import airqo.repository.*;
+import airqo.repository.DailyMeasurementRepository;
+import airqo.repository.ForecastRepository;
+import airqo.repository.HourlyMeasurementRepository;
+import airqo.repository.InsightRepository;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.lang.NonNull;
@@ -25,20 +27,18 @@ public class MeasurementServiceImpl implements MeasurementService {
 	private final DeviceService deviceService;
 	private final InsightRepository insightRepository;
 	private final ForecastRepository forecastRepository;
-	private final WeatherRepository weatherRepository;
 
 	@Autowired
-	public MeasurementServiceImpl(HourlyMeasurementRepository hourlyMeasurementRepository, DailyMeasurementRepository dailyMeasurementRepository, DeviceService deviceService, InsightRepository insightRepository, ForecastRepository forecastRepository, WeatherRepository weatherRepository) {
+	public MeasurementServiceImpl(HourlyMeasurementRepository hourlyMeasurementRepository, DailyMeasurementRepository dailyMeasurementRepository, DeviceService deviceService, InsightRepository insightRepository, ForecastRepository forecastRepository) {
 		this.hourlyMeasurementRepository = hourlyMeasurementRepository;
 		this.dailyMeasurementRepository = dailyMeasurementRepository;
 		this.deviceService = deviceService;
 		this.insightRepository = insightRepository;
 		this.forecastRepository = forecastRepository;
-		this.weatherRepository = weatherRepository;
 	}
 
 	@Override
-	@Cacheable(value = "viewInsightsCache", cacheNames = {"viewInsightsCache"}, unless = "#result.size() <= 0")
+//	@Cacheable(value = "viewInsightsCache", cacheNames = {"viewInsightsCache"}, unless = "#result.size() <= 0")
 	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String siteId) {
 		QInsight qInsight = QInsight.insight;
 		Predicate predicate = qInsight.frequency.equalsIgnoreCase(frequency.toString())
@@ -50,43 +50,8 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Weather> getWeather(Frequency frequency, Date startTime, Date endTime, String siteId) {
-
-		QWeather qWeather = QWeather.weather;
-		Predicate predicate = qWeather.frequency.equalsIgnoreCase(frequency.toString())
-			.and(qWeather.site.id.equalsIgnoreCase(siteId))
-			.and(qWeather.time.goe(startTime))
-			.and(qWeather.time.loe(endTime));
-		log.info(predicate.toString());
-		return (List<Weather>) weatherRepository.findAll(predicate);
-
-	}
-
-	@Override
-	public void insertWeather(List<Weather> weatherList) {
-		for (Weather weather : weatherList) {
-			try {
-				weatherRepository.insert(weather);
-			} catch (Exception e) {
-				log.info(e.toString());
-			}
-		}
-
-	}
-
-	@Override
-	public void saveWeather(List<Weather> weather) {
-		weatherRepository.saveAll(weather);
-	}
-
-	@Override
-	public void insertWeather(Weather weather) {
-		weatherRepository.save(weather);
-	}
-
-	@Override
-	public List<Insight> getInsights(Date beforeTime, boolean forecast) {
-		return insightRepository.findAllByTimeBeforeAndForecast(beforeTime, forecast);
+	public List<Insight> getInsightsBefore(Date beforeTime) {
+		return insightRepository.findAllByTimeBefore(beforeTime);
 	}
 
 	@Override
@@ -108,17 +73,6 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Override
 	public List<Insight> insertAndCacheInsights(List<Insight> insights) {
 		return insightRepository.saveAll(insights);
-	}
-
-	@Override
-	public void insertInsight(Insight insight) {
-		if (insight != null) {
-			try {
-				insightRepository.save(insight);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
 	}
 
 	@Override

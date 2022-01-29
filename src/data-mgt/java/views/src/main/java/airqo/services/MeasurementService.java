@@ -14,23 +14,13 @@ public interface MeasurementService {
 
 	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, String siteId);
 
-	List<Weather> getWeather(Frequency frequency, Date startTime, Date endTime, String siteId);
-
-	void insertWeather(List<Weather> weather);
-
-	void saveWeather(List<Weather> weather);
-
-	void insertWeather(Weather weather);
-
-	List<Insight> getInsights(Date beforeTime, boolean forecast);
+	List<Insight> getInsightsBefore(Date beforeTime);
 
 	void saveInsights(List<Insight> insights);
 
 	void insertInsights(List<Insight> insights);
 
 	List<Insight> insertAndCacheInsights(List<Insight> insights);
-
-	void insertInsight(Insight insight);
 
 	void deleteInsightsBefore(Date date);
 

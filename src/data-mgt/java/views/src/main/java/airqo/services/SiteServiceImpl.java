@@ -11,6 +11,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class SiteServiceImpl implements SiteService {
@@ -22,6 +23,12 @@ public class SiteServiceImpl implements SiteService {
 	@Override
 	public Page<Site> getSites(Predicate predicate, Pageable pageable) {
 		return siteRepository.findAll(predicate, pageable);
+	}
+
+	@Override
+	public Site getSiteById(String id) {
+		Optional<Site> site = siteRepository.findById(id);
+		return site.orElse(null);
 	}
 
 	@Override
