@@ -6,6 +6,7 @@ from functools import reduce
 import numpy as np
 import pandas
 import pandas as pd
+import simplejson
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import bigquery
@@ -518,15 +519,73 @@ def save_measurements_to_bigquery(measurements: list) -> None:
 
     table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
 
-    dataframe = pandas.DataFrame(measurements)
+    dataframe = pandas.DataFrame(
+        measurements,
+        columns=[
+            "time",
+            "tenant",
+            "site_id",
+            "device_number",
+            "device",
+            "latitude",
+            "longitude",
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "pm2_5",
+            "pm10",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
+            "external_temperature",
+            "external_humidity",
+            "wind_speed",
+            "altitude",
+        ],
+    )
 
-    # columns = ["time", "tenant", "site_id", "device_number", "device", "latitude", "longitude", "s1_pm2_5",
-    #            "s2_pm2_5", "s1_pm10", "s2_pm10", "pm2_5", "pm10", "pm2_5_calibrated_value", "pm10_calibrated_value",
-    #            "external_temperature", "external_humidity", "wind_speed", "altitude"]
+    dataframe["time"] = pd.to_datetime(dataframe["time"])
+    dataframe[
+        [
+            "latitude",
+            "longitude",
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "pm2_5",
+            "pm10",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
+            "external_temperature",
+            "external_humidity",
+            "wind_speed",
+            "altitude",
+        ]
+    ] = dataframe[
+        [
+            "latitude",
+            "longitude",
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "pm2_5",
+            "pm10",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
+            "external_temperature",
+            "external_humidity",
+            "wind_speed",
+            "altitude",
+        ]
+    ].apply(
+        pd.to_numeric, errors="coerce"
+    )
 
     try:
         job_config = bigquery.LoadJobConfig(
-            write_disposition="WRITE_TRUNCATE",
+            write_disposition="WRITE_APPEND",
         )
 
         job = client.load_table_from_dataframe(
