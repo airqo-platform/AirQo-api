@@ -25,6 +25,7 @@ from utils import (
     un_fill_nan,
     save_measurements_to_bigquery,
     get_column_value,
+    get_time_values,
 )
 
 
@@ -186,7 +187,7 @@ def average_airqo_api_measurements(data: list, frequency: str) -> list:
 
 
 def extract_airqo_data_from_thingspeak(
-        start_time: str, end_time: str, all_devices: bool
+    start_time: str, end_time: str, all_devices: bool
 ) -> list:
     thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
 
@@ -411,7 +412,7 @@ def average_airqo_data(data: list, frequency="hourly") -> list:
 
 # TODO: remove invalid weather values
 def extract_airqo_weather_data_from_tahmo(
-        start_time: str, end_time: str, frequency="hourly"
+    start_time: str, end_time: str, frequency="hourly"
 ) -> list:
     raw_weather_data = get_weather_data_from_tahmo(
         start_time=start_time, end_time=end_time
@@ -709,20 +710,20 @@ def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
         return dataframe
 
     if (
-            "temperature_y" in merged_data_df.columns
-            and "temperature_x" in merged_data_df.columns
+        "temperature_y" in merged_data_df.columns
+        and "temperature_x" in merged_data_df.columns
     ):
         merged_data_df = merge_values(merged_data_df, "temperature")
 
     if (
-            "humidity_y" in merged_data_df.columns
-            and "humidity_x" in merged_data_df.columns
+        "humidity_y" in merged_data_df.columns
+        and "humidity_x" in merged_data_df.columns
     ):
         merged_data_df = merge_values(merged_data_df, "humidity")
 
     if (
-            "wind_speed_y" in merged_data_df.columns
-            and "wind_speed_x" in merged_data_df.columns
+        "wind_speed_y" in merged_data_df.columns
+        and "wind_speed_x" in merged_data_df.columns
     ):
         merged_data_df = merge_values(merged_data_df, "wind_speed")
 
@@ -790,10 +791,10 @@ def calibrate_using_pickle_file(measurements: list) -> list:
                 input_variables["s1_pm2_5"] - input_variables["s2_pm2_5"]
             )
             input_variables["pm2_5_pm10"] = (
-                    input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
+                input_variables["avg_pm2_5"] - input_variables["avg_pm10"]
             )
             input_variables["pm2_5_pm10_mod"] = (
-                    input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
+                input_variables["pm2_5_pm10"] / input_variables["avg_pm10"]
             )
             input_variables = input_variables.drop(
                 ["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10"], axis=1
@@ -877,7 +878,7 @@ def calibrate_using_api(measurements: list) -> list:
 
 
 def calibrate_hourly_airqo_measurements(
-        measurements: list, method: str = "api"
+    measurements: list, method: str = "api"
 ) -> list:
     data_df = pd.DataFrame(measurements)
 
@@ -903,7 +904,7 @@ def calibrate_hourly_airqo_measurements(
         | (data_df["s2_pm10"].isnull())
         | (data_df["temperature"].isnull())
         | (data_df["humidity"].isnull())
-        ]
+    ]
 
     data_for_calibration = data_df.dropna(
         subset=["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10", "temperature", "humidity"]
@@ -930,22 +931,10 @@ def calibrate_hourly_airqo_measurements(
     tags=["airqo", "hourly", "historical"],
 )
 def historical_hourly_measurements_etl():
-    def time_values(**kwargs):
-        try:
-            dag_run = kwargs.get("dag_run")
-            start_time = dag_run.conf["startTime"]
-            end_time = dag_run.conf["endTime"]
-        except KeyError:
-            yesterday = datetime.utcnow() - timedelta(days=1)
-            start_time = datetime.strftime(yesterday, "%Y-%m-%dT%00:00:00Z")
-            end_time = datetime.strftime(yesterday, "%Y-%m-%dT%11:59:59Z")
-
-        return start_time, end_time
-
     @task(multiple_outputs=True)
     def extract_hourly_raw_data(**kwargs):
 
-        start_time, end_time = time_values(**kwargs)
+        start_time, end_time = get_time_values(**kwargs)
         raw_airqo_data = extract_airqo_data_from_thingspeak(
             start_time=start_time, end_time=end_time, all_devices=True
         )
@@ -973,7 +962,7 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_hourly_weather_data(**kwargs):
 
-        start_time, end_time = time_values(**kwargs)
+        start_time, end_time = get_time_values(**kwargs)
         airqo_weather_data = extract_airqo_weather_data_from_tahmo(
             start_time=start_time, end_time=end_time, frequency="hourly"
         )

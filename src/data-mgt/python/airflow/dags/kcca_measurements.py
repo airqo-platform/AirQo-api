@@ -7,7 +7,7 @@ from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
-from date import date_to_str_days, date_to_str_hours, date_to_str
+from date import date_to_str_days, date_to_str_hours, date_to_str, str_to_date
 from utils import (
     get_valid_column_value,
     to_double,
@@ -15,6 +15,9 @@ from utils import (
     slack_dag_failure_notification,
     un_fill_nan,
     fill_nan,
+    get_column_value,
+    save_measurements_to_bigquery,
+    get_time_values,
 )
 
 
@@ -190,7 +193,7 @@ def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list
     return measurements_df.to_dict(orient="records")
 
 
-def transform_kcca_measurements(unclean_data) -> list:
+def transform_kcca_measurements_for_api(unclean_data) -> list:
     data = pd.DataFrame(unclean_data)
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
@@ -210,6 +213,94 @@ def transform_kcca_measurements(unclean_data) -> list:
     return cleaned_measurements
 
 
+def transform_kcca_data_for_bigquery(data: list) -> list:
+    restructured_data = []
+
+    data_df = pd.DataFrame(data)
+    columns = list(data_df.columns)
+
+    airqo_api = AirQoApi()
+    devices = airqo_api.get_devices(tenant="kcca")
+
+    for _, data_row in data_df.iterrows():
+        device_name = data_row["deviceCode"]
+        site_id, _ = get_site_and_device_id(devices, device_name=device_name)
+        if not site_id:
+            continue
+
+        location = str(data_row["location.coordinates"])
+        location = location.replace("[", "").replace("]", "")
+        location_coordinates = location.split(",")
+
+        device_data = dict(
+            {
+                "time": str_to_date(data_row["time"]),
+                "tenant": "kcca",
+                "site_id": site_id,
+                "device_number": 0,
+                "device": device_name,
+                "latitude": location_coordinates[1],
+                "longitude": location_coordinates[0],
+                "pm2_5": get_column_value(
+                    column="characteristics.pm2_5ConcMass.value",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm10": get_column_value(
+                    column="characteristics.pm10ConcMass.value",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "s1_pm2_5": get_column_value(
+                    column="characteristics.pm2_5ConcMass.raw",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "s1_pm10": get_column_value(
+                    column="characteristics.pm10ConcMass.raw",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "s2_pm2_5": None,
+                "s2_pm10": None,
+                "pm2_5_calibrated_value": get_column_value(
+                    column="characteristics.pm2_5ConcMass.calibratedValue",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm10_calibrated_value": get_column_value(
+                    column="characteristics.pm10ConcMass.calibratedValue",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "altitude": get_column_value(
+                    column="characteristics.altitude.value",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "wind_speed": get_column_value(
+                    column="characteristics.windSpeed.value",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "external_temperature": get_column_value(
+                    column="characteristics.temperature.value",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "external_humidity": get_column_value(
+                    column="characteristics.relHumid.value",
+                    columns=columns,
+                    series=data_row,
+                ),
+            }
+        )
+
+        restructured_data.append(device_data)
+
+    return restructured_data
+
+
 @dag(
     "KCCA-Hourly-Measurements",
     schedule_interval="30 * * * *",
@@ -218,7 +309,7 @@ def transform_kcca_measurements(unclean_data) -> list:
     catchup=False,
     tags=["kcca", "hourly"],
 )
-def kcca_hourly_measurements_etl():
+def hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract(**kwargs):
         try:
@@ -240,7 +331,7 @@ def kcca_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def transform(inputs: dict):
         data = un_fill_nan(inputs.get("data"))
-        cleaned_data = transform_kcca_measurements(data)
+        cleaned_data = transform_kcca_measurements_for_api(data)
         return dict({"data": fill_nan(cleaned_data)})
 
     @task()
@@ -263,7 +354,7 @@ def kcca_hourly_measurements_etl():
     catchup=False,
     tags=["kcca", "raw"],
 )
-def kcca_raw_measurements_etl():
+def raw_measurements_etl():
     @task(multiple_outputs=True)
     def extract():
         start_time = date_to_str(datetime.utcnow() - timedelta(hours=1))
@@ -279,7 +370,7 @@ def kcca_raw_measurements_etl():
     def transform(inputs: dict):
         data = un_fill_nan(inputs.get("data"))
 
-        cleaned_data = transform_kcca_measurements(data)
+        cleaned_data = transform_kcca_measurements_for_api(data)
         return dict({"data": fill_nan(data=cleaned_data)})
 
     @task()
@@ -302,7 +393,7 @@ def kcca_raw_measurements_etl():
     catchup=False,
     tags=["kcca", "daily"],
 )
-def kcca_daily_measurements_etl():
+def daily_measurements_etl():
     @task(multiple_outputs=True)
     def extract():
         start_time = date_to_str_days(datetime.utcnow() - timedelta(days=3))
@@ -317,7 +408,7 @@ def kcca_daily_measurements_etl():
     @task(multiple_outputs=True)
     def transform(inputs: dict):
         data = un_fill_nan(inputs.get("data"))
-        cleaned_data = transform_kcca_measurements(data)
+        cleaned_data = transform_kcca_measurements_for_api(data)
 
         return dict({"data": fill_nan(data=cleaned_data)})
 
@@ -333,6 +424,48 @@ def kcca_daily_measurements_etl():
     load(transformed_data)
 
 
-kcca_raw_measurements_etl_dag = kcca_raw_measurements_etl()
-kcca_hourly_measurements_etl_dag = kcca_hourly_measurements_etl()
-kcca_daily_measurements_etl_dag = kcca_daily_measurements_etl()
+@dag(
+    "Kcca-Historical-Hourly-Measurements",
+    schedule_interval=None,
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["kcca", "hourly", "historical"],
+)
+def historical_hourly_measurements_etl():
+    @task()
+    def extract(**kwargs):
+        start_time, end_time = get_time_values(**kwargs)
+        kcca_data = extract_kcca_measurements(
+            start_time=start_time, end_time=end_time, freq="hourly"
+        )
+
+        return dict({"data": fill_nan(kcca_data)})
+
+    @task()
+    def load(kcca_data: dict, **kwargs):
+        data = un_fill_nan(kcca_data.get("data"))
+
+        try:
+            dag_run = kwargs.get("dag_run")
+            destination = dag_run.conf["destination"]
+        except KeyError:
+            destination = "bigquery"
+
+        if destination == "bigquery":
+            kcca_transformed_data = transform_kcca_data_for_bigquery(data)
+            save_measurements_to_bigquery(kcca_transformed_data)
+
+        else:
+            kcca_transformed_data = transform_kcca_measurements_for_api(data)
+            airqo_api = AirQoApi()
+            airqo_api.save_events(measurements=kcca_transformed_data, tenant="kcca")
+
+    extract_data = extract()
+    load(extract_data)
+
+
+raw_measurements_etl_dag = raw_measurements_etl()
+hourly_measurements_etl_dag = hourly_measurements_etl()
+daily_measurements_etl_dag = daily_measurements_etl()
+historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()

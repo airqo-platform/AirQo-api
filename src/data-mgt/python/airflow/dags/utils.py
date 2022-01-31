@@ -6,7 +6,6 @@ from functools import reduce
 import numpy as np
 import pandas
 import pandas as pd
-import simplejson
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import bigquery
@@ -512,6 +511,19 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
         print(ex)
         print("Site ID not found")
         return None, None
+
+
+def get_time_values(**kwargs):
+    try:
+        dag_run = kwargs.get("dag_run")
+        start_time = dag_run.conf["startTime"]
+        end_time = dag_run.conf["endTime"]
+    except KeyError:
+        yesterday = datetime.utcnow() - timedelta(days=1)
+        start_time = datetime.strftime(yesterday, "%Y-%m-%dT%00:00:00Z")
+        end_time = datetime.strftime(yesterday, "%Y-%m-%dT%11:59:59Z")
+
+    return start_time, end_time
 
 
 def save_measurements_to_bigquery(measurements: list) -> None:
