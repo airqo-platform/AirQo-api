@@ -63,7 +63,7 @@ class Regression():
     def train_calibration_model(self,pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data): 
         datetime = pd.to_datetime(datetime)
         ext_data = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,datetime,reference_data]],
-                                        columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','hour', 'datetime','reference_data'],
+                                        columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','datetime','reference_data'],
                                         dtype='float',
                                         index=['input'])
         # filter outliers
