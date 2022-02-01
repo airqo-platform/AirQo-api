@@ -509,7 +509,7 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
         return result[0]["site"]["_id"], result[0]["_id"]
     except Exception as ex:
         print(ex)
-        print("Site ID not found")
+        print(f"Site ID for device => {device_name}/ channel Id => {channel_id} not found ")
         return None, None
 
 
