@@ -48,7 +48,6 @@ class Regression():
         input_variables["pm2_5_pm10_mod"]=input_variables["pm2_5_pm10"]/input_variables["avg_pm10"]
         input_variables = input_variables.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
         
-        #reorganise columns
         input_variables = input_variables[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
 
         #load model from disk
@@ -104,7 +103,8 @@ class Regression():
         ext_data["pm2_5_pm10"]=ext_data["Average_PM2.5"]-ext_data["Average_PM10"]
         ext_data["pm2_5_pm10_mod"]=ext_data["pm2_5_pm10"]/ext_data["Average_PM10"]
 
-        combined_ext_data = ext_data 
+        combined_ext_data = ext_data[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod', 'reference_data']]
+
      
         model_pm2_5 = calibrate_tool.random_forest(combined_ext_data)
         model_pm10 = calibrate_tool.lasso_reg(combined_ext_data)
