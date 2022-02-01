@@ -61,7 +61,6 @@ class Regression():
         return calibrated_pm2_5, calibrated_pm10
 
     def train_calibration_model(self,pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data): 
-        datetime = pd.to_datetime(datetime)
         ext_data = pd.DataFrame([[pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,datetime,reference_data]],
                                         columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','datetime','reference_data'],
                                         dtype='float',
@@ -76,6 +75,8 @@ class Regression():
         ext_data = ext_data[(ext_data['temperature'] >= 0)&(ext_data ['temperature'] <= 30)]
         ext_data = ext_data[(ext_data['humidity'] >= 0)&(ext_data['humidity'] <= 100)]
         
+        ext_data['datetime'] = ext_data['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        ext_data["datetime"] = pd.to_datetime(ext_data["datetime"])
         ext_data.drop_duplicates(subset="datetime", keep='first', inplace=True)
         ext_data = ext_data.set_index('datetime')
         ext_data = ext_data.drop(['datetime'], axis=1)
