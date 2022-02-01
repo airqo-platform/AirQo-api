@@ -66,9 +66,12 @@ class Regression():
                                         columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','datetime','reference_data'],
                                         dtype='float',
                                         index=['input'])
+        
+        ext_data['Average_PM2.5'] = ext_data[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
+        ext_data['Average_PM10'] = ext_data[['pm10', 's2_pm10']].mean(axis=1).round(2)
         # filter outliers
-        ext_data = ext_data[(ext_data['avg_pm2_5'] > 0)&(ext_data['avg_pm2_5'] <= 500.4)]
-        ext_data = ext_data[(ext_data['avg_pm10'] > 0)&(ext_data['avg_pm10'] <= 500.4)]
+        ext_data = ext_data[(ext_data['Average_PM2.5'] > 0)&(ext_data['Average_PM2.5'] <= 500.4)]
+        ext_data = ext_data[(ext_data['Average_PM10'] > 0)&(ext_data['Average_PM10'] <= 500.4)]
         ext_data = ext_data[(ext_data['reference_data'] > 0)&(ext_data['reference_data'] <= 500.4)]
         ext_data = ext_data[(ext_data['temperature'] >= 0)&(ext_data ['temperature'] <= 30)]
         ext_data = ext_data[(ext_data['humidity'] >= 0)&(ext_data['humidity'] <= 100)]
@@ -78,9 +81,6 @@ class Regression():
         ext_data = ext_data.drop(['datetime'], axis=1)
 
         ext_data = ext_data.resample('H').mean().round(2)
-
-        ext_data['Average_PM2.5'] = ext_data[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
-        ext_data['Average_PM10'] = ext_data[['pm10', 's2_pm10']].mean(axis=1).round(2)
         
         ext_data=ext_data[(ext_data['Average_PM2.5'].notnull())&(ext_data['Average_PM10'].notnull())&
                                                     (ext_data['reference_data'].notnull())].reset_index(drop=True)
@@ -103,7 +103,7 @@ class Regression():
         ext_data["pm2_5_pm10"]=ext_data["Average_PM2.5"]-ext_data["Average_PM10"]
         ext_data["pm2_5_pm10_mod"]=ext_data["pm2_5_pm10"]/ext_data["Average_PM10"]
 
-        combined_ext_data = ext_data[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod', 'reference_data']]
+        combined_ext_data = ext_data[['Average_PM2.5','Average_PM10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod', 'reference_data']]
      
         model_pm2_5 = calibrate_tool.random_forest(combined_ext_data)
         model_pm10 = calibrate_tool.lasso_reg(combined_ext_data)
