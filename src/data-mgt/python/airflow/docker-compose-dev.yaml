@@ -1,0 +1,52 @@
+version: "3.8"
+services:
+  db:
+    container_name: db
+    image: postgres
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  db-setup:
+    container_name: db-setup
+    build:
+      context: .
+      target: dev-db-setup
+    platform: linux/amd64
+    restart: on-failure
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - db
+
+  scheduler:
+    container_name: scheduler
+    build:
+      context: .
+      target: dev-scheduler
+    platform: linux/amd64
+    restart: on-failure
+    env_file:
+      - dags/.env
+    depends_on:
+      - db
+      - db-setup
+
+  webserver:
+    container_name: webserver
+    build:
+      context: .
+      target: dev-webserver
+    platform: linux/amd64
+    restart: on-failure
+    env_file:
+      - dags/.env
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - db-setup
+      - scheduler
