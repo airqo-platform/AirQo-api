@@ -75,9 +75,9 @@ class Regression():
         ext_data = ext_data[(ext_data['temperature'] >= 0)&(ext_data ['temperature'] <= 30)]
         ext_data = ext_data[(ext_data['humidity'] >= 0)&(ext_data['humidity'] <= 100)]
         
-        ext_data['datetime'] = ext_data['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        ext_data["datetime"] = pd.to_datetime(ext_data["datetime"])
-        ext_data.drop_duplicates(subset="datetime", keep='first', inplace=True)
+        # ext_data['datetime'] = ext_data['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        ext_data['datetime'] = pd.to_datetime(ext_data['datetime'])
+        # ext_data.drop_duplicates(subset="datetime", keep='first', inplace=True)
         ext_data = ext_data.set_index('datetime')
         ext_data = ext_data.drop(['datetime'], axis=1)
 
@@ -89,7 +89,7 @@ class Regression():
         ext_data.fillna(method='ffill',inplace = True)
  
         # extract hour feature
-        ext_data['hour'] = ext_data['Time'].dt.hour
+        ext_data['hour'] = ext_data['datetime'].dt.hour
 
         # Features from PM
         # 1)"error_pm2_5" the absolute value of the difference between the two sensor values for pm2_5.
