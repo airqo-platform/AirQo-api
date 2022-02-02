@@ -1,5 +1,5 @@
 from routes import api
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template,send_file
 from models import regression as rg
 from models import calibrate_tool as tool
 import csv
@@ -62,17 +62,22 @@ def calibrate():
             response.append({'device_id': device_id, 'calibrated_PM2.5': calibrated_pm2_5, 'calibrated_PM10': calibrated_pm10 })
         return jsonify(response), 200
 
+@calibrate_bp.route("/download-file/")
+def download():
+    return send_file(filename, attachment_filename='yourfile.csv', as_attachment=True)
 
-@calibrate_bp.route(api.route['calibrate_tool'], methods=['POST', 'GET'])
-def calibrate_tool():
-    if request.method == 'POST':
-            file = request.files['file']
-            if not file.filename:
-                return jsonify({"message": "Please select a file!"})
-            else:
-                with open(file, 'r') as csv_file:
-                    csv_reader = csv.reader(csv_file, delimiter=',')  
-    print('csv_file', csv_reader)
+
+
+# @calibrate_bp.route(api.route['calibrate_tool'], methods=['POST', 'GET'])
+# def calibrate_tool():
+#     if request.method == 'POST':
+#             file = request.files['file']
+#             if not file.filename:
+#                 return jsonify({"message": "Please select a file!"})
+#             else:
+#                 with open(file, 'r') as csv_file:
+#                     csv_reader = csv.reader(csv_file, delimiter=',')  
+#     print('csv_file', csv_reader)
 
         # rgtool = tool.Calibrate_tool()
 
