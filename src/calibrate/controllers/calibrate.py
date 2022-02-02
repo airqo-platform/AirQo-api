@@ -67,7 +67,7 @@ def calibrate_tool():
             
             model_pm2_5, model_pm10 = rgModel.train_calibration_model(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data)           
         
-            response.append({'model_PM2.5': model_pm2_5, 'model_PM10': model_pm10 })
+            response.append({'device_id': device_id,'model_PM2.5': model_pm2_5, 'model_PM10': model_pm10 })
         return jsonify(response), 200
 
 
