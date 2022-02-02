@@ -1,6 +1,7 @@
 from routes import api
 from flask import Blueprint, request, jsonify
 from models import regression as rg
+from models import calibrate_tool as tool
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 
@@ -48,7 +49,7 @@ def calibrate_tool():
         if (not sensor_data):
             return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature, humidity and reference monitor PM2.5 or reference monitor PM10 values in the body. Refer to the API documentation for details.", "success": False}), 400     
 
-        rgModel = rg.Regression()
+        rgModel = tool.Calibrate_tool()
 
         response = []
         for sensor_data in sensor_data:
