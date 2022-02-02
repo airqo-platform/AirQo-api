@@ -12,8 +12,8 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
 
-PM2_5_TOOL = os.getenv('PM2_5_TOOL', 'jobs/pmflaks2_5_tool.pkl')
-PM10_TOOL = os.getenv('PM10_TOOL', 'jobs/pm10_tool.pkl')
+RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
+LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
 
 class Calibrate_tool():
     """
