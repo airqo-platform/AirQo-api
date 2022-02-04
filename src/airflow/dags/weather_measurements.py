@@ -6,8 +6,8 @@ from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
+from message_broker import KafkaBrokerClient
 from date import date_to_str_hours
-from kafka_client import KafkaBrokerClient
 from utils import get_valid_column_value, get_site_ids_from_station, resample_data
 
 

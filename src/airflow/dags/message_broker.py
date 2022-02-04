@@ -36,7 +36,7 @@ class KafkaBrokerClient:
             # partition_size = len(self.__partitions)
             # partition_index = 0
 
-            if len(data) > 0:
+            if len(data) > 50:
                 action = info["action"]
 
                 for i in range(0, len(data), 50):

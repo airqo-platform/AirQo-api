@@ -13,8 +13,8 @@ from google.cloud import storage
 
 from airqoApi import AirQoApi
 from config import configuration
+from message_broker import KafkaBrokerClient
 from date import str_to_date, date_to_str, date_to_str_days, date_to_str_hours
-from kafka_client import KafkaBrokerClient
 from tahmo import TahmoApi
 
 
@@ -509,7 +509,9 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
         return result[0]["site"]["_id"], result[0]["_id"]
     except Exception as ex:
         print(ex)
-        print(f"Site ID for device => {device_name}/ channel Id => {channel_id} not found ")
+        print(
+            f"Site ID for device => {device_name}/ channel Id => {channel_id} not found "
+        )
         return None, None
 
 

@@ -10,6 +10,7 @@ from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
+from message_broker import KafkaBrokerClient
 from date import date_to_str, date_to_str_days, date_to_str_hours, str_to_date
 from utils import (
     get_device,
@@ -1002,6 +1003,15 @@ def historical_hourly_measurements_etl():
             airqo_restructured_data = restructure_airqo_data_for_bigquery(data)
             save_measurements_to_bigquery(airqo_restructured_data)
 
+        elif destination == "message-broker":
+            airqo_restructured_data = restructure_airqo_data_for_api(data)
+
+            info = {
+                "data": airqo_restructured_data,
+                "action": "New",
+            }
+            kafka = KafkaBrokerClient()
+            kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
         else:
             airqo_restructured_data = restructure_airqo_data_for_api(data)
             airqo_api = AirQoApi()
@@ -1090,7 +1100,7 @@ def realtime_measurements_etl():
         return dict({"data": fill_nan(data=airqo_calibrated_data)})
 
     @task()
-    def save_hourly_data(airqo_data: dict):
+    def send_hourly_measurements_to_api(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
 
         airqo_restructured_data = restructure_airqo_data_for_api(data=data)
@@ -1098,7 +1108,20 @@ def realtime_measurements_etl():
         airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
 
     @task()
-    def save_raw_data(airqo_data: dict):
+    def send_measurements_to_message_broker(airqo_data: dict):
+        data = un_fill_nan(airqo_data.get("data"))
+        airqo_restructured_data = restructure_airqo_data_for_api(data=data)
+
+        info = {
+            "data": airqo_restructured_data,
+            "action": "new",
+        }
+
+        kafka = KafkaBrokerClient()
+        kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+
+    @task()
+    def send_raw_measurements_to_api(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
 
         airqo_restructured_data = restructure_airqo_data_for_api(data=data)
@@ -1112,8 +1135,9 @@ def realtime_measurements_etl():
         averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
     )
     calibrated_data = calibrate(merged_data)
-    save_hourly_data(calibrated_data)
-    save_raw_data(extracted_airqo_data)
+    send_hourly_measurements_to_api(calibrated_data)
+    send_measurements_to_message_broker(calibrated_data)
+    send_raw_measurements_to_api(extracted_airqo_data)
 
 
 @dag(

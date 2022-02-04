@@ -100,3 +100,17 @@ spec:
   replicas: 1
   config:
     retention.ms: 3600000 # 1 day
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: hourly-measurements-topic
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 3600000 # 1 day
