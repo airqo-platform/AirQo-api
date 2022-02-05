@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  db:
+    container_name: db
+    platform: linux/amd64
+    image: mongo
+    volumes:
+      - ./data/db:/var/lib/mongo/data
+
+  cache:
+    container_name: redis
+    platform: linux/amd64
+    image: redis
+    volumes:
+      - ./data/db:/var/lib/redis/data
+
+  api:
+    container_name: api
+    platform: linux/amd64
+    build:
+      context: .
+      target: base
+    command: ./mvnw spring-boot:run -Dspring-boot.run.profiles=api
+    volumes:
+      - ./:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - cache
