@@ -594,27 +594,19 @@ def save_measurements_to_bigquery(measurements: list, table_id: str) -> None:
         pd.to_numeric, errors="coerce"
     )
 
-    try:
-        job_config = bigquery.LoadJobConfig(
-            write_disposition="WRITE_APPEND",
-        )
+    job_config = bigquery.LoadJobConfig(
+        write_disposition="WRITE_APPEND",
+    )
 
-        job = client.load_table_from_dataframe(
-            dataframe, table_id, job_config=job_config
-        )
-        job.result()
+    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
+    job.result()
 
-        table = client.get_table(table_id)
-        print(
-            "Loaded {} rows and {} columns to {}".format(
-                table.num_rows, len(table.schema), table_id
-            )
+    table = client.get_table(table_id)
+    print(
+        "Loaded {} rows and {} columns to {}".format(
+            table.num_rows, len(table.schema), table_id
         )
-    except Exception as ex:
-        print(dataframe.columns.values)
-        traceback.print_exc()
-        print(ex)
-        raise ex
+    )
 
 
 def get_device(devices=None, channel_id=None, device_id=None):

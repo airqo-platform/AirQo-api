@@ -1,4 +1,14 @@
 version: "3.8"
+
+x-common-data: &common-data
+  platform: linux/amd64
+  restart: on-failure
+  env_file:
+    - dags/.env
+  depends_on:
+    - db
+    - db-setup
+
 services:
   db:
     container_name: db
@@ -23,30 +33,17 @@ services:
       - db
 
   scheduler:
+    <<: *common-data
     container_name: scheduler
     build:
       context: .
       target: scheduler
-    platform: linux/amd64
-    restart: on-failure
-    env_file:
-      - dags/.env
-    depends_on:
-      - db
-      - db-setup
 
   webserver:
+    <<: *common-data
     container_name: webserver
     build:
       context: .
       target: webserver
-    platform: linux/amd64
-    restart: on-failure
-    env_file:
-      - dags/.env
     ports:
       - "8080:8080"
-    depends_on:
-      - db
-      - db-setup
-      - scheduler

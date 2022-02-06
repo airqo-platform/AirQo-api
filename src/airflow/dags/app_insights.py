@@ -170,7 +170,7 @@ def average_hourly_insights(data: list) -> list:
     for _, site_group in site_groups:
 
         try:
-            site_measurements = pd.json_normalize(site_group.to_dict(orient="records"))
+            site_measurements = site_group
             site_measurements["frequency"] = "DAILY"
             measurement_data = site_measurements[["pm2_5", "pm10", "time"]].copy()
 
@@ -183,7 +183,7 @@ def average_hourly_insights(data: list) -> list:
             for _, row in averages.iterrows():
                 combined_dataset = {
                     **row.to_dict(),
-                    **site_measurements.iloc[0].to_dict(),
+                    **site_measurements.iloc[0].to_dict(orient="records"),
                 }
                 averaged_insights.append(combined_dataset)
 
@@ -277,7 +277,7 @@ def app_hourly_insights_etl():
         if hour_of_day.hour <= 1:
             return dict({"data": []})
 
-        start_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%00:00:00Z")
+        start_time = datetime.strftime(hour_of_day, "%Y-%m-%dT00:00:00Z")
         end_time = date_to_str_hours(hour_of_day)
 
         measurements_data = get_airqo_data(

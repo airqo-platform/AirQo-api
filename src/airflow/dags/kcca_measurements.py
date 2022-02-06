@@ -214,7 +214,7 @@ def transform_kcca_measurements_for_api(unclean_data) -> list:
     return cleaned_measurements
 
 
-def transform_kcca_data(data: list) -> list:
+def transform_kcca_data(data: list, destination: str) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
@@ -235,7 +235,9 @@ def transform_kcca_data(data: list) -> list:
 
         device_data = dict(
             {
-                "time": str_to_date(data_row["time"]),
+                "time": str_to_date(data_row["time"])
+                if destination.lower() == "bigquery"
+                else data_row["time"],
                 "tenant": "kcca",
                 "site_id": site_id,
                 "device_number": 0,
@@ -329,15 +331,10 @@ def hourly_measurements_etl():
 
         return dict({"data": fill_nan(kcca_data)})
 
-    @task(multiple_outputs=True)
-    def transform(inputs: dict):
-        data = un_fill_nan(inputs.get("data"))
-        cleaned_data = transform_kcca_measurements_for_api(data)
-        return dict({"data": fill_nan(cleaned_data)})
-
     @task()
     def send_hourly_measurements_to_api(inputs: dict):
-        kcca_data = un_fill_nan(inputs.get("data"))
+        data = un_fill_nan(inputs.get("data"))
+        kcca_data = transform_kcca_measurements_for_api(data)
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=kcca_data, tenant="kcca")
@@ -345,7 +342,9 @@ def hourly_measurements_etl():
     @task()
     def send_hourly_measurements_to_message_broker(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
-        kcca_restructured_data = transform_kcca_data(data=data)
+        kcca_restructured_data = transform_kcca_data(
+            data=data, destination="messageBroker"
+        )
 
         info = {
             "data": kcca_restructured_data,
@@ -356,19 +355,18 @@ def hourly_measurements_etl():
         kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
 
     @task()
-    def send_hourly_measurements_to_bigquery(airqo_data: dict):
-        data = un_fill_nan(airqo_data.get("data"))
-        kcca_restructured_data = transform_kcca_data(data)
+    def send_hourly_measurements_to_bigquery(kcca_data: dict):
+        data = un_fill_nan(kcca_data.get("data"))
+        kcca_restructured_data = transform_kcca_data(data=data, destination="bigquery")
         table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         save_measurements_to_bigquery(
             measurements=kcca_restructured_data, table_id=table_id
         )
 
     extracted_data = extract()
-    transformed_data = transform(extracted_data)
-    send_hourly_measurements_to_message_broker(transformed_data)
-    send_hourly_measurements_to_api(transformed_data)
-    send_hourly_measurements_to_bigquery(transformed_data)
+    send_hourly_measurements_to_message_broker(extracted_data)
+    send_hourly_measurements_to_api(extracted_data)
+    send_hourly_measurements_to_bigquery(extracted_data)
 
 
 @dag(
@@ -478,7 +476,9 @@ def historical_hourly_measurements_etl():
             destination = "bigquery"
 
         if destination == "bigquery":
-            kcca_transformed_data = transform_kcca_data(data)
+            kcca_transformed_data = transform_kcca_data(
+                data=data, destination="bigquery"
+            )
             table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
             save_measurements_to_bigquery(
                 measurements=kcca_transformed_data, table_id=table_id

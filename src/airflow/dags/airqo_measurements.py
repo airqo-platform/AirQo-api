@@ -177,7 +177,7 @@ def average_airqo_measurements(data: list, frequency: str) -> list:
             for _, row in averages.iterrows():
                 combined_dataset = {
                     **row.to_dict(),
-                    **measurement_metadata.iloc[0].to_dict(),
+                    **measurement_metadata.iloc[0].to_dict(orient="records"),
                 }
                 averaged_measurements.append(combined_dataset)
         except Exception as ex:
@@ -596,7 +596,7 @@ def map_site_ids_to_historical_measurements(data: list, deployment_logs: list) -
     return mapped_data
 
 
-def restructure_airqo_data(data: list) -> list:
+def restructure_airqo_data(data: list, destination: str) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
@@ -622,7 +622,9 @@ def restructure_airqo_data(data: list) -> list:
     for _, data_row in data_df.iterrows():
         device_data = dict(
             {
-                "time": str_to_date(data_row["time"]),
+                "time": str_to_date(data_row["time"])
+                if destination.lower() == "bigquery"
+                else data_row["time"],
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],
@@ -1000,7 +1002,9 @@ def historical_hourly_measurements_etl():
             destination = "bigquery"
 
         if destination == "bigquery":
-            airqo_restructured_data = restructure_airqo_data(data)
+            airqo_restructured_data = restructure_airqo_data(
+                data=data, destination="bigquery"
+            )
             table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
             save_measurements_to_bigquery(
                 measurements=airqo_restructured_data, table_id=table_id
@@ -1113,7 +1117,9 @@ def realtime_measurements_etl():
     @task()
     def send_hourly_measurements_to_message_broker(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
-        airqo_restructured_data = restructure_airqo_data(data=data)
+        airqo_restructured_data = restructure_airqo_data(
+            data=data, destination="messageBroker"
+        )
 
         info = {
             "data": airqo_restructured_data,
@@ -1126,7 +1132,9 @@ def realtime_measurements_etl():
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
-        airqo_restructured_data = restructure_airqo_data(data)
+        airqo_restructured_data = restructure_airqo_data(
+            data=data, destination="bigquery"
+        )
         table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         save_measurements_to_bigquery(
             measurements=airqo_restructured_data, table_id=table_id
@@ -1135,7 +1143,9 @@ def realtime_measurements_etl():
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
-        airqo_restructured_data = restructure_airqo_data(data)
+        airqo_restructured_data = restructure_airqo_data(
+            data=data, destination="bigquery"
+        )
         table_id = configuration.BIGQUERY_RAW_EVENTS_TABLE
         save_measurements_to_bigquery(
             measurements=airqo_restructured_data, table_id=table_id
