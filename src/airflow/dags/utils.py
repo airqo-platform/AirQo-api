@@ -200,8 +200,7 @@ def get_device_ids_from_station(station: str, sites: list):
 def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     data = data.dropna(subset=["time"])
     data["time"] = pd.to_datetime(data["time"])
-    data.set_index("time")
-    data.sort_index(axis=0)
+    data = data.sort_index(axis=0)
 
     resample_value = "24H" if frequency.lower() == "daily" else "1H"
     averages = pd.DataFrame(data.resample(resample_value, on="time").mean())
@@ -528,10 +527,8 @@ def get_time_values(**kwargs):
     return start_time, end_time
 
 
-def save_measurements_to_bigquery(measurements: list) -> None:
+def save_measurements_to_bigquery(measurements: list, table_id: str) -> None:
     client = bigquery.Client()
-
-    table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
 
     dataframe = pandas.DataFrame(
         measurements,

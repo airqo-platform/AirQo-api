@@ -300,8 +300,9 @@ def app_hourly_insights_etl():
         save_insights_data(insights_data=insights_data, action="save")
 
     hourly_data = create_hourly_data()
-    daily_data = create_hourly_data()
     load_hourly_insights(hourly_data)
+
+    daily_data = create_daily_data()
     update_daily_insights(daily_data)
 
 

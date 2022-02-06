@@ -144,7 +144,7 @@ def extract_airqo_devices_deployment_history() -> list:
     return devices_history
 
 
-def average_airqo_api_measurements(data: list, frequency: str) -> list:
+def average_airqo_measurements(data: list, frequency: str) -> list:
     if len(data) == 0:
         print("events list is empty")
         return []
@@ -596,7 +596,7 @@ def map_site_ids_to_historical_measurements(data: list, deployment_logs: list) -
     return mapped_data
 
 
-def restructure_airqo_data_for_bigquery(data: list) -> list:
+def restructure_airqo_data(data: list) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
@@ -1000,8 +1000,11 @@ def historical_hourly_measurements_etl():
             destination = "bigquery"
 
         if destination == "bigquery":
-            airqo_restructured_data = restructure_airqo_data_for_bigquery(data)
-            save_measurements_to_bigquery(airqo_restructured_data)
+            airqo_restructured_data = restructure_airqo_data(data)
+            table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+            save_measurements_to_bigquery(
+                measurements=airqo_restructured_data, table_id=table_id
+            )
 
         elif destination == "message-broker":
             airqo_restructured_data = restructure_airqo_data_for_api(data)
@@ -1108,9 +1111,9 @@ def realtime_measurements_etl():
         airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
 
     @task()
-    def send_measurements_to_message_broker(airqo_data: dict):
+    def send_hourly_measurements_to_message_broker(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
-        airqo_restructured_data = restructure_airqo_data_for_api(data=data)
+        airqo_restructured_data = restructure_airqo_data(data=data)
 
         info = {
             "data": airqo_restructured_data,
@@ -1119,6 +1122,24 @@ def realtime_measurements_etl():
 
         kafka = KafkaBrokerClient()
         kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+
+    @task()
+    def send_hourly_measurements_to_bigquery(airqo_data: dict):
+        data = un_fill_nan(airqo_data.get("data"))
+        airqo_restructured_data = restructure_airqo_data(data)
+        table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        save_measurements_to_bigquery(
+            measurements=airqo_restructured_data, table_id=table_id
+        )
+
+    @task()
+    def send_raw_measurements_to_bigquery(airqo_data: dict):
+        data = un_fill_nan(airqo_data.get("data"))
+        airqo_restructured_data = restructure_airqo_data(data)
+        table_id = configuration.BIGQUERY_RAW_EVENTS_TABLE
+        save_measurements_to_bigquery(
+            measurements=airqo_restructured_data, table_id=table_id
+        )
 
     @task()
     def send_raw_measurements_to_api(airqo_data: dict):
@@ -1136,8 +1157,10 @@ def realtime_measurements_etl():
     )
     calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
-    send_measurements_to_message_broker(calibrated_data)
+    send_hourly_measurements_to_message_broker(calibrated_data)
+    send_hourly_measurements_to_bigquery(calibrated_data)
     send_raw_measurements_to_api(extracted_airqo_data)
+    # send_raw_measurements_to_bigquery(extracted_airqo_data)
 
 
 @dag(
@@ -1174,7 +1197,7 @@ def airqo_daily_measurements_etl():
     @task(multiple_outputs=True)
     def average_data(inputs: dict):
         data = un_fill_nan(inputs.get("data"))
-        averaged_data = average_airqo_api_measurements(data=data, frequency="daily")
+        averaged_data = average_airqo_measurements(data=data, frequency="daily")
 
         return dict({"data": fill_nan(data=averaged_data)})
 
@@ -1185,9 +1208,8 @@ def airqo_daily_measurements_etl():
         return dict({"data": logs})
 
     @task()
-    def load(airqo_data: dict, device_logs: dict):
+    def load(airqo_data: dict):
         data = un_fill_nan(airqo_data.get("data"))
-        logs = device_logs.get("data")
 
         airqo_restructured_data = restructure_airqo_data_for_api(data=data)
         airqo_api = AirQoApi()

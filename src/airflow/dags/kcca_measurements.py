@@ -7,6 +7,7 @@ from airflow.decorators import dag, task
 
 from airqoApi import AirQoApi
 from config import configuration
+from message_broker import KafkaBrokerClient
 from date import date_to_str_days, date_to_str_hours, date_to_str, str_to_date
 from utils import (
     get_valid_column_value,
@@ -213,7 +214,7 @@ def transform_kcca_measurements_for_api(unclean_data) -> list:
     return cleaned_measurements
 
 
-def transform_kcca_data_for_bigquery(data: list) -> list:
+def transform_kcca_data(data: list) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
@@ -335,15 +336,39 @@ def hourly_measurements_etl():
         return dict({"data": fill_nan(cleaned_data)})
 
     @task()
-    def load(inputs: dict):
+    def send_hourly_measurements_to_api(inputs: dict):
         kcca_data = un_fill_nan(inputs.get("data"))
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=kcca_data, tenant="kcca")
 
+    @task()
+    def send_hourly_measurements_to_message_broker(airqo_data: dict):
+        data = un_fill_nan(airqo_data.get("data"))
+        kcca_restructured_data = transform_kcca_data(data=data)
+
+        info = {
+            "data": kcca_restructured_data,
+            "action": "new",
+        }
+
+        kafka = KafkaBrokerClient()
+        kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+
+    @task()
+    def send_hourly_measurements_to_bigquery(airqo_data: dict):
+        data = un_fill_nan(airqo_data.get("data"))
+        kcca_restructured_data = transform_kcca_data(data)
+        table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        save_measurements_to_bigquery(
+            measurements=kcca_restructured_data, table_id=table_id
+        )
+
     extracted_data = extract()
     transformed_data = transform(extracted_data)
-    load(transformed_data)
+    send_hourly_measurements_to_message_broker(transformed_data)
+    send_hourly_measurements_to_api(transformed_data)
+    send_hourly_measurements_to_bigquery(transformed_data)
 
 
 @dag(
@@ -453,8 +478,11 @@ def historical_hourly_measurements_etl():
             destination = "bigquery"
 
         if destination == "bigquery":
-            kcca_transformed_data = transform_kcca_data_for_bigquery(data)
-            save_measurements_to_bigquery(kcca_transformed_data)
+            kcca_transformed_data = transform_kcca_data(data)
+            table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+            save_measurements_to_bigquery(
+                measurements=kcca_transformed_data, table_id=table_id
+            )
 
         else:
             kcca_transformed_data = transform_kcca_measurements_for_api(data)

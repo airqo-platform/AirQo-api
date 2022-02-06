@@ -10,13 +10,13 @@ from airqo_measurements import (
     merge_airqo_and_weather_data,
     calibrate_hourly_airqo_measurements,
     restructure_airqo_data_for_api,
-    restructure_airqo_data_for_bigquery,
+    restructure_airqo_data,
 )
 from date import date_to_str_hours
 from kcca_measurements import (
     extract_kcca_measurements,
     transform_kcca_measurements_for_api,
-    transform_kcca_data_for_bigquery,
+    transform_kcca_data,
 )
 
 
@@ -30,7 +30,7 @@ def kcca():
     cleaned_data = transform_kcca_measurements_for_api(kcca_unclean_data)
     pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
 
-    bigquery_data = transform_kcca_data_for_bigquery(kcca_unclean_data)
+    bigquery_data = transform_kcca_data(kcca_unclean_data)
     pd.DataFrame(bigquery_data).to_csv(
         path_or_buf="kcca_data_for_bigquery.csv", index=False
     )
@@ -78,7 +78,7 @@ def airqo_hourly_measurements():
     )
 
     # restructure data for bigquery
-    restructure_data = restructure_airqo_data_for_bigquery(data=calibrated_data)
+    restructure_data = restructure_airqo_data(data=calibrated_data)
     pd.DataFrame(restructure_data).to_csv(
         path_or_buf="airqo_data_for_bigquery.csv", index=False
     )
