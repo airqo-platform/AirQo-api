@@ -122,6 +122,7 @@ const join = {
     try {
       const { body, query } = request;
       const { email } = body;
+      const { purpose } = query;
       let token = "TOKEN";
       return getAuth()
         .generateSignInWithEmailLink(email, actionCodeSettings)
@@ -132,11 +133,19 @@ const join = {
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
           const token = Math.floor(Math.random() * (999999 - 100000) + 100000);
-
-          const responseFromSendEmail = await mailer.signInWithEmailLink(
-            email,
-            token
-          );
+          let responseFromSendEmail = {};
+          if (purpose === "auth") {
+            responseFromSendEmail = await mailer.authenticateEmail(
+              email,
+              token
+            );
+          }
+          if (purpose === "login") {
+            responseFromSendEmail = await mailer.signInWithEmailLink(
+              email,
+              token
+            );
+          }
 
           if (responseFromSendEmail.success === true) {
             callback({

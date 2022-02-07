@@ -469,6 +469,7 @@ const join = {
       let request = {};
       request["body"] = body;
       request["query"] = query;
+      request["query"]["purpose"] = "login";
       await joinUtil.generateSignInWithEmailLink(request, (value) => {
         if (value.success === true) {
           const status = value.status ? value.status : HTTPStatus.OK;
@@ -479,6 +480,58 @@ const join = {
             token: value.data.token,
             email: value.data.email,
             emailLinkCode: value.data.emailLinkCode,
+          });
+        }
+
+        if (value.success === false) {
+          const status = value.status
+            ? value.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          const errors = value.errors ? value.errors : "";
+          return res.status(status).json({
+            success: false,
+            message: value.message,
+            errors,
+          });
+        }
+      });
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
+
+  emailAuth: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { body, query } = req;
+      let request = {};
+      request["body"] = body;
+      request["query"] = query;
+      request["query"]["purpose"] = "auth";
+      await joinUtil.generateSignInWithEmailLink(request, (value) => {
+        if (value.success === true) {
+          const status = value.status ? value.status : HTTPStatus.OK;
+          return res.status(status).json({
+            success: true,
+            message: value.message,
+            token: value.data.token,
+            auth_link: value.data.link,
+            auth_code: value.data.emailLinkCode,
+            email: value.data.email,
           });
         }
 

@@ -8,7 +8,8 @@ COPY . /app/
 WORKDIR /app/
 
 # Install and cache requirements via pip,
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+#RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN pip install -r requirements.txt
 
 # Run the application
 CMD ["python", "main.py"]
