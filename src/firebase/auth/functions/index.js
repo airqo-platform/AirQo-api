@@ -123,7 +123,6 @@ exports.httpCheckIfUserExists = functions.https.onRequest(async (req, res) => {
 });
 
 exports.appCheckIfUserExists = functions.https.onCall(async (data, _) => {
-
   if (data.phoneNumber) {
     const phoneNumber = data.phoneNumber;
     return await checkIfUserExists(
