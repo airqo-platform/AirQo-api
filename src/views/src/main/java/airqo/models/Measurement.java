@@ -19,6 +19,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 
+import static airqo.config.Constants.dateTimeFormat;
 import static airqo.config.Constants.longDateTimeFormat;
 
 @Getter
@@ -84,14 +85,6 @@ public class Measurement implements Serializable {
 		return location;
 	}
 
-	public void setLocation(Location location) {
-		if (location.latitude == null || location.longitude == null) {
-			this.location = new Location(device.getLatitude(), device.getLongitude());
-		} else {
-			this.location = location;
-		}
-	}
-
 	@Getter
 	@Setter
 	@AllArgsConstructor
@@ -153,6 +146,23 @@ public class Measurement implements Serializable {
 		public int hashCode() {
 			return Objects.hash(time, frequency, deviceId);
 		}
+	}
+
+
+	@Getter
+	@Setter
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@ToString
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class BrokerMeasurement implements Serializable {
+
+		@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
+		private Date time;
+		private String site_id;
+		private String tenant;
+		private double pm2_5;
+		private double pm10;
 	}
 }
 

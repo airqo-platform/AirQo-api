@@ -1,6 +1,9 @@
 package airqo.controllers;
 
-import airqo.models.*;
+import airqo.models.ApiResponseBody;
+import airqo.models.Frequency;
+import airqo.models.HourlyMeasurement;
+import airqo.models.Insight;
 import airqo.services.MeasurementService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;

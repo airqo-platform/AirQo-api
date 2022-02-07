@@ -11,6 +11,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 import java.io.Serializable;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -67,4 +68,17 @@ public class HourlyMeasurement extends Measurement {
 	public static class MeasurementsList implements Serializable {
 		private List<HourlyMeasurement> measurements;
 	}
+
+	@Getter
+	@Setter
+	@AllArgsConstructor
+	@NoArgsConstructor
+	@ToString
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	public static class HourlyMeasurementMessage implements Serializable {
+
+		private List<BrokerMeasurement> data = new ArrayList<>();
+		private String action = "new";
+	}
+
 }

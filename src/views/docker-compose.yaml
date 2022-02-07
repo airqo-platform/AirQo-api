@@ -7,6 +7,8 @@ services:
     image: mongo
     volumes:
       - ./data/db:/var/lib/mongo/data
+    ports:
+      - "27017:27017"
 
   cache:
     container_name: redis
@@ -14,14 +16,15 @@ services:
     image: redis
     volumes:
       - ./data/db:/var/lib/redis/data
+    ports:
+      - "6379:6379"
 
   api:
     container_name: api
     platform: linux/amd64
     build:
       context: .
-      target: base
-    command: ./mvnw spring-boot:run -Dspring-boot.run.profiles=api
+      target: dev
     volumes:
       - ./:/app
     ports:

@@ -1,11 +1,12 @@
 package airqo.controllers;
 
-import airqo.models.Insight;
+import airqo.models.*;
 import airqo.services.DeviceService;
 import airqo.services.MeasurementService;
 import airqo.services.SiteService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.sentry.Sentry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
@@ -34,19 +35,19 @@ public class MessageBroker {
 	}
 
 	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
-//	public void sites(String content) {
-//		try {
-//
-//			ObjectMapper objectMapper = new ObjectMapper();
-//			Site.SiteList siteList = objectMapper.readValue(content, Site.SiteList.class);
-//			siteService.insertSites(siteList.getSites(), null);
-//			logger.info(siteList.toString());
-//
-//		} catch (JsonProcessingException e) {
-//			e.printStackTrace();
-//		}
-//	}
-//
+	public void sites(String content) {
+		try {
+
+			ObjectMapper objectMapper = new ObjectMapper();
+			Site.SiteList siteList = objectMapper.readValue(content, Site.SiteList.class);
+			siteService.insertSites(siteList.getSites(), null);
+			log.info(siteList.toString());
+
+		} catch (JsonProcessingException e) {
+			e.printStackTrace();
+		}
+	}
+
 
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}")
 	public void appInsights(String content) {
@@ -71,23 +72,48 @@ public class MessageBroker {
 				measurementService.insertInsights(insightsList);
 			}
 
-			log.info(insightsList.toString());
+		} catch (JsonProcessingException e) {
+			Sentry.captureException(e);
+			e.printStackTrace();
+		}
+	}
+
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.hourly-measurements}'.split(',')}")
+	public void hourlyMeasurements(String content) {
+		try {
+
+			HourlyMeasurement.HourlyMeasurementMessage dataMessage = objectMapper.readValue(content, HourlyMeasurement.HourlyMeasurementMessage.class);
+
+			List<Measurement.BrokerMeasurement> data = dataMessage.getData();
+
+			List<Insight> insightsList = new ArrayList<>();
+			for (Measurement.BrokerMeasurement measurement : data) {
+				if (measurement.getTenant().equalsIgnoreCase("airqo")) {
+					Insight hourlyInsight = new Insight("", measurement.getTime(), measurement.getPm2_5(), measurement.getPm10(), false, false, "HOURLY", measurement.getSite_id());
+					hourlyInsight.setId();
+					insightsList.add(hourlyInsight);
+				}
+			}
+			log.info(dataMessage.toString());
+			measurementService.saveInsights(insightsList);
+
+		} catch (JsonProcessingException e) {
+			Sentry.captureException(e);
+			e.printStackTrace();
+
+		}
+	}
+
+	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
+	public void devices(String content) {
+		try {
+			ObjectMapper objectMapper = new ObjectMapper();
+			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);
+			deviceService.insertDevices(deviceList.getDevices(), null);
+			log.info(deviceList.toString());
 
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();
 		}
 	}
-
-//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
-//	public void devices(String content) {
-//		try {
-//			ObjectMapper objectMapper = new ObjectMapper();
-//			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);
-//			deviceService.insertDevices(deviceList.getDevices(), null);
-//			logger.info(deviceList.toString());
-//
-//		} catch (JsonProcessingException e) {
-//			e.printStackTrace();
-//		}
-//	}
 }

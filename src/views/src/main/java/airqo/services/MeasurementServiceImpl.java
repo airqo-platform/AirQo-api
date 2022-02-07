@@ -4,6 +4,7 @@ import airqo.models.*;
 import airqo.repository.HourlyMeasurementRepository;
 import airqo.repository.InsightRepository;
 import com.querydsl.core.types.Predicate;
+import io.sentry.spring.tracing.SentrySpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
@@ -33,10 +34,20 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
+	@SentrySpan
 	@Cacheable(value = "insightsCache", cacheNames = {"insightsCache"}, unless = "#result.size() <= 0")
 	public List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, List<String> siteIds) {
-		return insightRepository.findAllByFrequencyAndSiteIdInAndTimeBetween(
-			frequency.toString().toUpperCase(), siteIds, startTime, endTime);
+
+		QInsight qInsight = QInsight.insight;
+		Predicate predicate = qInsight.frequency.equalsIgnoreCase(frequency.toString())
+			.and(qInsight.siteId.in(siteIds))
+			.and(qInsight.time.goe(startTime))
+			.and(qInsight.time.loe(endTime));
+		log.info(predicate.toString());
+		return (List<Insight>) insightRepository.findAll(predicate);
+
+//		return insightRepository.findAllByFrequencyAndSiteIdInAndTimeBetween(
+//			frequency.toString().toUpperCase(), siteIds, startTime, endTime);
 	}
 
 	@Override
