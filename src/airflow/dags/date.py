@@ -37,6 +37,39 @@ def date_to_str_hours(date: datetime):
     return datetime.strftime(date, "%Y-%m-%dT%H:00:00Z")
 
 
+def str_to_str_hours(dateStr: str) -> str:
+    """
+    Converts string to a string hours
+    """
+    date = str_to_date(dateStr)
+    return date_to_str_hours(date)
+
+
+def str_to_str_days(dateStr: str) -> str:
+    """
+    Converts string to a string days
+    """
+    date = str_to_date(dateStr)
+    return date_to_str_days(date)
+
+
+def str_to_str_default(dateStr: str) -> str:
+    """
+    Converts string to a string dafault
+    """
+    date = str_to_date(dateStr)
+    return date_to_str(date)
+
+
+def frequency_time(dateStr: str, frequency: str) -> str:
+    if frequency.lower() == "hourly":
+        return str_to_str_hours(dateStr=dateStr)
+    elif frequency.lower() == "daily":
+        return str_to_str_days(dateStr=dateStr)
+    else:
+        return str_to_str_default(dateStr=dateStr)
+
+
 def first_day_of_month(date_time: datetime):
     return datetime(year=date_time.year, month=date_time.month, day=1)
 
