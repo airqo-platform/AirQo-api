@@ -714,7 +714,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
-          cd src/data-mgt/python/cron-jobs/
+          ccd k8s/calibrate-job/
           sh 'cat prod-calibrate-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
           sh 'cat prod-airqo-daily-average-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
 

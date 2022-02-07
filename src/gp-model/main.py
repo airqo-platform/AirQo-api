@@ -180,17 +180,19 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     variances = var.numpy().flatten()
     std_dev = np.sqrt(variances)
     interval = 1.96 * std_dev
-        
+
     result = []
+    result_builder = {'airqloud':airqloud, 'airqloud_id': aq_id, 'created_at': datetime.now()}
+    values = []
     for i in range(pred_set.shape[0]):
-        result.append({'latitude':new_array[i][1],
+        values.append({'latitude':new_array[i][1],
                       'longitude':new_array[i][0],
                       'predicted_value': means[i],
                       'variance':variances[i],
-                      'interval':interval[i],
-                      'airqloud':airqloud,
-                      'airqloud_id': aq_id,
-                      'created_at': datetime.now()})
+                      'interval':interval[i]
+                      })
+    result_builder['values'] = values
+    result.append(result_builder)
 
     
     db = connect_mongo(tenant)

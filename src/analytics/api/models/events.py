@@ -181,12 +181,17 @@ class EventsModel(BasePyMongoModel):
 
     @cache.memoize()
     def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
+
+        diurnal_end_date = datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=pytz.utc)
+        now = datetime.now(pytz.utc)
+        diurnal_end_date = diurnal_end_date if diurnal_end_date < now else now
+
         time_format_mapper = {
             'raw': '%Y-%m-%dT%H:%M:%S%z',
             'hourly': '%Y-%m-%dT%H:00:00%z',
             'daily': '%Y-%m-%dT00:00:00%z',
             'monthly': '%Y-%m-01T00:00:00%z',
-            'diurnal': f'{datetime.now(pytz.utc).strftime("%Y-%m-%d")}T%H:00:00%z',
+            'diurnal': f'{diurnal_end_date.strftime("%Y-%m-%d")}T%H:00:00%z',
         }
 
         return (
