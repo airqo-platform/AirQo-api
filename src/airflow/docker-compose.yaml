@@ -1,7 +1,7 @@
 version: "3.8"
 
 x-common-data: &common-data
-  platform: linux/amd64
+#  platform: linux/amd64
   restart: on-failure
   env_file:
     - dags/.env
@@ -23,7 +23,7 @@ services:
     build:
       context: .
       target: db-setup
-    platform: linux/amd64
+#    platform: linux/amd64
     restart: on-failure
     environment:
       AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
