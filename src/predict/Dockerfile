@@ -23,13 +23,13 @@ ENV FLASK_ENV=production
 
 CMD ["flask", "run", "--host=0.0.0.0"]
 
-# production 
+# staging
 FROM base as staging 
 ENV FLASK_ENV=staging
 
 CMD ["flask", "run", "--host=0.0.0.0"]
 
-# production 
+# development
 FROM base as dev
 ENV FLASK_ENV=development
 
