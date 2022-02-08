@@ -175,16 +175,18 @@ def average_airqo_measurements(data: list, frequency: str) -> list:
             averages = resample_data(measurement_readings, frequency)
 
             for _, row in averages.iterrows():
-                combined_dataset = {
-                    **row.to_dict(),
-                    **measurement_metadata.iloc[0].to_dict(orient="records"),
-                }
+                combined_dataset = dict(
+                    {
+                        **row.to_dict(),
+                        **measurement_metadata.iloc[0].to_dict(),
+                    }
+                )
                 averaged_measurements.append(combined_dataset)
         except Exception as ex:
             print(ex)
             traceback.print_exc()
 
-    return averaged_measurements
+    return pd.DataFrame(averaged_measurements).to_dict(orient="records")
 
 
 def extract_airqo_data_from_thingspeak(

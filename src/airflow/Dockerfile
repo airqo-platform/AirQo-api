@@ -24,3 +24,9 @@ USER airflow
 
 FROM base-builder as staging
 USER airflow
+
+FROM noahnsimbe/kafka-docker as kafka-setup
+USER root
+COPY message-broker-setup.sh /usr/local/bin/message-broker-setup.sh
+RUN chmod 777 /usr/local/bin/message-broker-setup.sh
+ENTRYPOINT ["/usr/local/bin/message-broker-setup.sh"]

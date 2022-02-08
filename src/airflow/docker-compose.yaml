@@ -32,6 +32,24 @@ services:
     depends_on:
       - db
 
+  message-broker:
+    container_name: message-broker
+    image: noahnsimbe/kafka-docker
+    ports:
+      - "9093:9092"
+
+  message-broker-setup:
+    container_name: message-broker-setup
+    build:
+      context: .
+      target: kafka-setup
+    platform: linux/amd64
+    restart: on-failure
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - message-broker
+
   scheduler:
     <<: *common-data
     container_name: scheduler
@@ -42,6 +60,8 @@ services:
   webserver:
     <<: *common-data
     container_name: webserver
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
     build:
       context: .
       target: webserver

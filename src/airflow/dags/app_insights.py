@@ -181,17 +181,19 @@ def average_hourly_insights(data: list) -> list:
             averages = resample_data(measurement_data, "daily")
 
             for _, row in averages.iterrows():
-                combined_dataset = {
-                    **row.to_dict(),
-                    **site_measurements.iloc[0].to_dict(orient="records"),
-                }
+                combined_dataset = dict(
+                    {
+                        **row.to_dict(),
+                        **site_measurements.iloc[0].to_dict(),
+                    }
+                )
                 averaged_insights.append(combined_dataset)
 
         except Exception as ex:
             print(ex)
             traceback.print_exc()
 
-    return averaged_insights
+    return pd.DataFrame(averaged_insights).to_dict(orient="records")
 
 
 @dag(
@@ -221,7 +223,7 @@ def app_forecast_insights_etl():
 
 @dag(
     "App-Daily-Insights",
-    schedule_interval="0 1 * * *",
+    schedule_interval="0 * * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -231,12 +233,24 @@ def app_daily_insights_etl():
     @task(multiple_outputs=True)
     def extract_airqo_data(**kwargs):
         start_time, end_time = time_values(**kwargs)
+
+        if not start_time or not end_time:
+
+            hour_of_day = datetime.utcnow()
+            if hour_of_day.hour <= 1:
+                return dict({"data": []})
+
+            start_time = datetime.strftime(hour_of_day, "%Y-%m-%dT00:00:00Z")
+            end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT23:59:59Z")
+
         measurements_data = get_airqo_data(
-            freq="daily", start_time=start_time, end_time=end_time
+            freq="hourly", start_time=start_time, end_time=end_time
         )
         insights_data = create_insights_data(data=measurements_data)
 
-        return dict({"data": insights_data})
+        ave_insights_data = average_hourly_insights(insights_data)
+
+        return {"data": ave_insights_data}
 
     @task()
     def load(data: dict):
@@ -249,7 +263,7 @@ def app_daily_insights_etl():
 
 @dag(
     "App-Hourly-Insights",
-    schedule_interval="30 * * * *",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -257,53 +271,22 @@ def app_daily_insights_etl():
 )
 def app_hourly_insights_etl():
     @task(multiple_outputs=True)
-    def create_hourly_data(**kwargs):
+    def extract_airqo_data(**kwargs):
         start_time, end_time = time_values(**kwargs)
         measurements_data = get_airqo_data(
             freq="hourly", start_time=start_time, end_time=end_time
         )
         insights_data = create_insights_data(data=measurements_data)
 
-        return dict({"data": insights_data})
-
-    @task(multiple_outputs=True)
-    def create_daily_data(**kwargs):
-        start_time, end_time = time_values(**kwargs)
-
-        if start_time and end_time:
-            return dict({"data": []})
-
-        hour_of_day = datetime.utcnow()
-        if hour_of_day.hour <= 1:
-            return dict({"data": []})
-
-        start_time = datetime.strftime(hour_of_day, "%Y-%m-%dT00:00:00Z")
-        end_time = date_to_str_hours(hour_of_day)
-
-        measurements_data = get_airqo_data(
-            freq="hourly", start_time=start_time, end_time=end_time
-        )
-        insights_data = create_insights_data(data=measurements_data)
-
-        ave_insights_data = average_hourly_insights(insights_data)
-
-        return dict({"data": ave_insights_data})
+        return {"data": insights_data}
 
     @task()
     def load_hourly_insights(data: dict):
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
 
-    @task()
-    def update_daily_insights(data: dict):
-        insights_data = data.get("data")
-        save_insights_data(insights_data=insights_data, action="save")
-
-    hourly_data = create_hourly_data()
+    hourly_data = extract_airqo_data()
     load_hourly_insights(hourly_data)
-
-    daily_data = create_daily_data()
-    update_daily_insights(daily_data)
 
 
 @dag(
