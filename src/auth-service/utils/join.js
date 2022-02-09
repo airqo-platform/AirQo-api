@@ -123,7 +123,7 @@ const join = {
       const { body, query } = request;
       const { email } = body;
       const { purpose } = query;
-      let token = "TOKEN";
+
       return getAuth()
         .generateSignInWithEmailLink(email, actionCodeSettings)
         .then(async (link) => {
@@ -132,8 +132,11 @@ const join = {
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          const token = Math.floor(Math.random() * (999999 - 100000) + 100000);
           let responseFromSendEmail = {};
+          let token = 100000;
+          if (email !== "airqo.analytics@gmail.com") {
+            token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+          }
           if (purpose === "auth") {
             responseFromSendEmail = await mailer.authenticateEmail(
               email,
