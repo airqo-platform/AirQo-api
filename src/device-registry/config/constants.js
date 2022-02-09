@@ -180,6 +180,11 @@ const defaultConfig = {
       time: "time",
       day: "time",
       frequency: "frequency",
+      device: "device",
+      device_id: "device_id",
+      device_number: "device_number",
+      site: "site",
+      site_id: "site_id",
       tenant: "tenant",
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
@@ -188,6 +193,11 @@ const defaultConfig = {
       "pm2_5.calibratedValue": "pm2_5.calibratedValue",
       "pm2_5.uncertaintyValue": "pm2_5.uncertaintyValue",
       "pm2_5.standardDeviationValue": "pm2_5.standardDeviationValue",
+
+      "s1_pm2_5.value": "s1_pm2_5.value",
+      "s1_pm2_5.calibratedValue": "s1_pm2_5.calibratedValue",
+      "s1_pm2_5.uncertaintyValue": "s1_pm2_5.uncertaintyValue",
+      "s1_pm2_5.standardDeviationValue": "s1_pm2_5.standardDeviationValue",
 
       "s2_pm2_5.value": "s2_pm2_5.value",
       "s2_pm2_5.calibratedValue": "s2_pm2_5.calibratedValue",
@@ -199,6 +209,11 @@ const defaultConfig = {
       "pm10.uncertaintyValue": "pm10.uncertaintyValue",
       "pm10.standardDeviationValue": "pm10.standardDeviationValue",
 
+      "s1_pm10.value": "s1_pm10.value",
+      "s1_pm10.calibratedValue": "s1_pm10.calibratedValue",
+      "s1_pm10.uncertaintyValue": "s1_pm10.uncertaintyValue",
+      "s1_pm10.standardDeviationValue": "s1_pm10.standardDeviationValue",
+
       "s2_pm10.value": "s2_pm10.value",
       "s2_pm10.calibratedValue": "s2_pm10.calibratedValue",
       "s2_pm10.uncertaintyValue": "s2_pm10.uncertaintyValue",
@@ -208,6 +223,16 @@ const defaultConfig = {
       "pm1.calibratedValue": "pm1.calibratedValue",
       "pm1.uncertaintyValue": "pm1.uncertaintyValue",
       "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+
+      "s1_pm1.value": "s1_pm1.value",
+      "s1_pm1.calibratedValue": "s1_pm1.calibratedValue",
+      "s1_pm1.uncertaintyValue": "s1_pm1.uncertaintyValue",
+      "s1_pm1.standardDeviationValue": "s1_pm1.standardDeviationValue",
+
+      "s2_pm1.value": "s2_pm1.value",
+      "s2_pm1.calibratedValue": "s2_pm1.calibratedValue",
+      "s2_pm1.uncertaintyValue": "s2_pm1.uncertaintyValue",
+      "s2_pm1.standardDeviationValue": "s2_pm1.standardDeviationValue",
 
       "location.latitude.value": "location.latitude.value",
       "location.longitude.value": "location.longitude.value",
@@ -221,6 +246,16 @@ const defaultConfig = {
       "pm1.calibratedValue": "pm1.calibratedValue",
       "pm1.uncertaintyValue": "pm1.uncertaintyValue",
       "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+
+      "s1_pm1.value": "s1_pm1.value",
+      "s1_pm1.calibratedValue": "s1_pm1.calibratedValue",
+      "s1_pm1.uncertaintyValue": "s1_pm1.uncertaintyValue",
+      "s1_pm1.standardDeviationValue": "s1_pm1.standardDeviationValue",
+
+      "s2_pm1.value": "s2_pm1.value",
+      "s2_pm1.calibratedValue": "s2_pm1.calibratedValue",
+      "s2_pm1.uncertaintyValue": "s2_pm1.uncertaintyValue",
+      "s2_pm1.standardDeviationValue": "s2_pm1.standardDeviationValue",
 
       "internalTemperature.value": "internalTemperature.value",
       "externalTemperature.value": "externalTemperature.value",
@@ -256,6 +291,11 @@ const defaultConfig = {
       "pm10.uncertaintyValue": null,
       "pm10.standardDeviationValue": null,
 
+      "s1_pm10.value": null,
+      "s1_pm10.calibratedValue": null,
+      "s1_pm10.uncertaintyValue": null,
+      "s1_pm10.standardDeviationValue": null,
+
       "s2_pm10.value": null,
       "s2_pm10.calibratedValue": null,
       "s2_pm10.uncertaintyValue": null,
@@ -265,6 +305,11 @@ const defaultConfig = {
       "pm2_5.calibratedValue": null,
       "pm2_5.uncertaintyValue": null,
       "pm2_5.standardDeviationValue": null,
+
+      "s1_pm2_5.value": null,
+      "s1_pm2_5.calibratedValue": null,
+      "s1_pm2_5.uncertaintyValue": null,
+      "s1_pm2_5.standardDeviationValue": null,
 
       "s2_pm2_5.value": null,
       "s2_pm2_5.calibratedValue": null,
@@ -283,6 +328,16 @@ const defaultConfig = {
       "pm1.calibratedValue": null,
       "pm1.uncertaintyValue": null,
       "pm1.standardDeviationValue": null,
+
+      "s1_pm1.value": null,
+      "s1_pm1.calibratedValue": null,
+      "s1_pm1.uncertaintyValue": null,
+      "s1_pm1.standardDeviationValue": null,
+
+      "s2_pm1.value": null,
+      "s2_pm1.calibratedValue": null,
+      "s2_pm1.uncertaintyValue": null,
+      "s2_pm1.standardDeviationValue": null,
 
       "internalTemperature.value": null,
       "externalTemperature.value": null,
@@ -334,8 +389,35 @@ const defaultConfig = {
       item["filter"]["device"] = context.device ? context.device : null;
       item["filter"]["nValues"] = { $lt: defaultConfig.N_VALUES };
       item["filter"]["day"] = generateDateFormatWithoutHrs(context.time);
-      item["update"]["$min"] = { first: context.time };
-      item["update"]["$max"] = { last: context.time };
+      item["filter"]["$or"] = [
+        { "values.time": { $ne: context.time ? context.time : null } },
+        { "values.device": { $ne: context.device ? context.device : null } },
+        {
+          "values.frequency": {
+            $ne: context.frequency ? context.frequency : null,
+          },
+        },
+        {
+          "values.device_id": {
+            $ne: context.device_id ? context.device_id : null,
+          },
+        },
+        { "values.site_id": { $ne: context.site_id } },
+        {
+          day: {
+            $ne: context.time
+              ? generateDateFormatWithoutHrs(context.time)
+              : null,
+          },
+        },
+      ];
+      item["update"]["$min"] = {
+        first: context.time ? new Date(context.time) : null,
+      };
+      item["update"]["$push"] = { values: context };
+      item["update"]["$max"] = {
+        last: context.time ? new Date(context.time) : null,
+      };
       item["update"]["$inc"] = { nValues: 1 };
       item["options"]["upsert"] = true;
       return item;

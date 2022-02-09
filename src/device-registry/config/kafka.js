@@ -13,6 +13,7 @@ try {
     sessionTimeout: 300,
     spinDelay: 100,
     retries: 2,
+    commitOffsetsOnFirstJoin: true,
   });
 
   kafkaClient.on("error", function(error) {
@@ -22,17 +23,26 @@ try {
 
   const Producer = kafka.Producer;
   const kafkaProducer = new Producer(kafkaClient);
-
   kafkaProducer.on("ready", () => {
     logger.info(`kafka producer ready to push topic`);
   });
-
   kafkaProducer.on("event", (err) => {
     logObject("kafka producer error", err);
     logger.error(`kafka producer error -- ${err}`);
   });
 
-  module.exports = { kafkaClient, kafkaProducer };
+  const Consumer = kafka.Consumer;
+  const kafkaConsumer = new Consumer(kafkaClient);
+  kafkaConsumer.on("message", function(message) {
+    logger.info(`the incoming Kafka message`, message);
+    console.log(message);
+  });
+  kafkaConsumer.on("error", function(error) {
+    logObject("kafka consumer error", error);
+    logger.error(`kafka consumer error -- ${error}`);
+  });
+
+  module.exports = { kafka, kafkaClient, kafkaProducer, kafkaConsumer };
 } catch (error) {
   logObject("the error on Kafka connection", error.message);
   logger.error(`kafka config exception, ${error}`);
