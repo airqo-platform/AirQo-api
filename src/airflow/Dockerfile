@@ -1,6 +1,7 @@
 FROM apache/airflow as base-builder
+RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt requirements.txt
-RUN pip install -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
 
 FROM base-builder as db-setup
