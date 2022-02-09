@@ -64,7 +64,34 @@ const valueSchema = new Schema({
     uncertaintyValue: { type: Number, default: null },
     standardDeviationValue: { type: Number, default: null },
   },
+  s1_pm1: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  s2_pm1: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
   pm2_5: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  s1_pm2_5: {
     value: {
       type: Number,
       default: null,
@@ -83,6 +110,16 @@ const valueSchema = new Schema({
     standardDeviationValue: { type: Number, default: null },
   },
   pm10: {
+    value: {
+      type: Number,
+      trim: true,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  s1_pm10: {
     value: {
       type: Number,
       trim: true,
