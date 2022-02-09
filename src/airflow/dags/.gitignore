@@ -1,0 +1,10 @@
+*/data
+*.json
+.env
+*env*
+venv
+bigquery.json
+venv/
+.idea/
+__pycache__/
+*.csv
