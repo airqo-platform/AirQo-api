@@ -38,9 +38,8 @@ def calibrate_tool():
         file=request.files['file']
         try:
             df=pandas.read_csv(file)
-            print(df)
         except Exception as e:
-            return "fail"
+            return df
 
         # datetime = data.get('datetime')
         # raw_values = data.get('raw_values')       
