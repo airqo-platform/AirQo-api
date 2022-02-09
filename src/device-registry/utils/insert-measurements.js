@@ -17,7 +17,7 @@ const insert = async (tenant, transformedMeasurements) => {
   for (const measurement of transformedMeasurements) {
     try {
       // logObject("the measurement in the insertion process", measurement);
-      const eventBody = {
+      const eventsFilter = {
         day: measurement.day,
         site_id: measurement.site_id,
         device_id: measurement.device_id,
@@ -38,7 +38,7 @@ const insert = async (tenant, transformedMeasurements) => {
 
       // logObject("measurement", measurement);
 
-      const options = {
+      const eventsUpdate = {
         $push: { values: measurement },
         $min: { first: measurement.time },
         $max: { last: measurement.time },
@@ -46,8 +46,8 @@ const insert = async (tenant, transformedMeasurements) => {
       };
 
       const addedEvents = await EventModel(tenant).updateOne(
-        eventBody,
-        options,
+        eventsFilter,
+        eventsUpdate,
         {
           upsert: true,
         }
@@ -58,9 +58,9 @@ const insert = async (tenant, transformedMeasurements) => {
         eventsAdded.push(measurement);
         const payloads = [
           {
-            topic: `gcp-${constants.ENV_ACRONYM}-createEvent-events-0`,
-            messages: JSON.stringify(measurement),
-            partition: 0,
+            topic: "events",
+            messages: { action: "create", event: measurement },
+            timestamp: Date.now(),
           },
         ];
         kafkaProducer.send(payloads, (err, data) => {
