@@ -28,6 +28,7 @@ const {
   transformMeasurements,
   transformMeasurementFields,
 } = require("./transform-measurements");
+const { kafkaConsumer, kafka, kafkaClient } = require("../config/kafka");
 
 const createEvent = {
   list: async (request, callback) => {
@@ -143,36 +144,108 @@ const createEvent = {
   },
   create: async (request) => {
     try {
-      /**
-       * transform the events util just adds the day
-       * insert measurement util just creates the event body and options
-       * ..........field for the update procedure.
-       *
-       * *************
-       * afterwards, just insert the events accordingly using the Events
-       * entity
-       */
-
-      const responseFromTransformEvent = await createEvent.transformManyEvents(
-        request
+      const consumer = new kafka.Consumer(
+        kafkaClient,
+        [{ topic: "hourly-measurements-topic", partition: 1 }],
+        {
+          autoCommit: false,
+        }
       );
-      if (responseFromTransformEvent.success === "true") {
-        let transformedEvents = responseFromTransformEvent.data;
-        const responseFromRegisterEvent = await eventModel(tenant).createEvent(
-          transformedEvents
+
+      consumer.on("message", function(message) {
+        logObject("the consumer message", message);
+        const responseFromTransformEvent = await createEvent.transformManyEvents(
+          request
         );
-        if (responseFromRegisterEvent.success === true) {
+        if (responseFromTransformEvent.success === "true") {
+          let transformedEvents = responseFromTransformEvent.data;
+          let nAdded = 0;
+          let eventsAdded = [];
+          let eventsRejected = [];
+          let errors = [];
+  
+          for (const event of transformedEvents) {
+            try {
+              const addedEvents = await eventModel(tenant).updateOne(
+                event.filter,
+                event.update,
+                event.options
+              );
+              if (addedEvents) {
+                nAdded += 1;
+                eventsAdded.push(event);
+              } else if (!addedEvents) {
+                let errMsg = {
+                  msg: "unable to add the events",
+                  record: {
+                    ...(event.device ? { device: event.device } : {}),
+                    ...(event.frequency ? { frequency: event.frequency } : {}),
+                    ...(event.time ? { time: event.time } : {}),
+                    ...(event.device_id ? { device_id: event.device_id } : {}),
+                    ...(event.site_id ? { site_id: event.site_id } : {}),
+                  },
+                };
+                errors.push(errMsg);
+              } else {
+                eventsRejected.push(event);
+                let errMsg = {
+                  msg: "unable to add the events",
+                  record: {
+                    ...(event.device ? { device: event.device } : {}),
+                    ...(event.frequency ? { frequency: event.frequency } : {}),
+                    ...(event.time ? { time: event.time } : {}),
+                    ...(event.device_id ? { device_id: event.device_id } : {}),
+                    ...(event.site_id ? { site_id: event.site_id } : {}),
+                  },
+                };
+                errors.push(errMsg);
+              }
+            } catch (e) {
+              logObject("the detailed duplicate error", e);
+              eventsRejected.push(event);
+              let errMsg = {
+                msg: "duplicate record",
+                record: {
+                  ...(event.device ? { device: event.device } : {}),
+                  ...(event.frequency ? { frequency: event.frequency } : {}),
+                  ...(event.time ? { time: event.time } : {}),
+                  ...(event.device_id ? { device_id: event.device_id } : {}),
+                  ...(event.site_id ? { site_id: event.site_id } : {}),
+                },
+              };
+              errors.push(errMsg);
+            }
+          }
+  
+          if (errors.length > 0) {
+            return {
+              success: true,
+              status: HTTPStatus.CONFLICT,
+              message: "finished the operation with some conflicts",
+              errors: errors,
+            };
+          } else {
+            return {
+              success: true,
+              status: HTTPStatus.OK,
+              message: "successfully added all the events",
+            };
+          }
         }
-        if (responseFromRegisterEvent.success === false) {
+        if (responseFromTransformEvent.success === "false") {
+          return {
+            success: false,
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            message: "Internal Server Error",
+            errors: { message: "Internal Server Error" },
+          };
         }
-      }
-      if (responseFromTransformEvent.success === "false") {
-        return {
-          success: false,
-          message: "Internal Server Error",
-          errors: { message: "Internal Server Error" },
-        };
-      }
+      });
+
+      consumer.on("error", function(error) {
+        logObject("the consumer error message", error);
+      });
+
     } catch (error) {
       return {
         success: false,
@@ -562,7 +635,7 @@ const createEvent = {
     try {
       /**
        * transform the events util just adds the day
-       * insert measurement util just creates the event body and options
+       * insert event util just creates the event body and options
        * ..........field for the update procedure.
        */
       let { tenant } = request.query;
