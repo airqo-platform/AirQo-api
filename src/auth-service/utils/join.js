@@ -5,12 +5,12 @@ const mailer = require("../services/mailer");
 const generatePassword = require("./generate-password");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
-const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
 const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
+const validationsUtil = require("./validations");
 
 const UserModel = (tenant) => {
   try {
@@ -131,6 +131,21 @@ const join = {
           const indexBeforeCode = linkSegments.indexOf("26oobCode", 0);
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
+
+          await validationsUtil.checkEmailExistenceUsingKickbox(
+            email,
+            (value) => {
+              if (value.success == false) {
+                const errors = value.errors ? value.errors : "";
+                callback({
+                  success: false,
+                  message: value.message,
+                  errors,
+                  status: value.status,
+                });
+              }
+            }
+          );
 
           let responseFromSendEmail = {};
           let token = 100000;
