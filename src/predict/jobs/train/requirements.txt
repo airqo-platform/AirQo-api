@@ -1,0 +1,15 @@
+google-api-core
+google-auth
+google-cloud-bigquery
+google-cloud
+numpy
+pandas
+python-dateutil
+python-dotenv
+gcsfs
+pymongo
+pyarrow
+joblib
+lightgbm
+requests
+mlflow
