@@ -7,6 +7,7 @@ COPY . /app/
 WORKDIR /app/
 
 # Install and cache requirements for faster builds
+RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
 # Production
