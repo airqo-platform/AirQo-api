@@ -3,7 +3,7 @@ __pycache__/
 env/
 .vscode
 .vscode/
-AirQo-e37846081569.json
+airqo-250220-18d8775fe963.json
 *.csv
 mlruns/
 .DS_Store
