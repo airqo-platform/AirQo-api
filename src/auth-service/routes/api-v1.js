@@ -290,7 +290,25 @@ router.put(
           return ObjectId(value);
         }),
       body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
-      body("period").if(body("period").exists()).notEmpty().trim(),
+      body("period")
+        .if(body("period").exists())
+        .notEmpty()
+        .withMessage("period cannot be empty if provided")
+        .trim()
+        .bail()
+        .custom((value) => {
+          return typeof value === "object";
+        })
+        .bail()
+        .withMessage("the period should be an object"),
+      body("period.unitValue")
+        .if(body("period.unitValue").exists())
+        .notEmpty()
+        .withMessage("period.unitValue cannot be empty if provided")
+        .trim()
+        .bail()
+        .isFloat()
+        .withMessage("period.unitValue must be a number"),
       body("chartSubTitle")
         .if(body("chartSubTitle").exists())
         .notEmpty()
@@ -417,8 +435,9 @@ router.post(
       body("period.unitValue")
         .exists()
         .withMessage("period.unitValue is is missing in your request")
+        .bail()
         .isFloat()
-        .withMessage("height must be a number"),
+        .withMessage("period.unitValue must be a number"),
       body("period.label")
         .exists()
         .withMessage("period.label is is missing in your request"),
