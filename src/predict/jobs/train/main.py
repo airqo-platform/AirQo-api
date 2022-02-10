@@ -19,11 +19,11 @@ from joblib import Parallel, delayed
 
 import datetime as dt
 from datetime import datetime,timedelta
-from utils import upload_trained_model_to_gcs, date_to_str
+from utils import upload_trained_model_to_gcs, date_to_str, rename_blob
 import warnings
 warnings.filterwarnings("ignore")
 
-mlflow.set_tracking_uri("http://23.251.144.212:5000")
+mlflow.set_tracking_uri(f"{configuration.MLFLOW_TRACKING_URI}")
 mlflow.set_experiment(experiment_name=f"predict_{environment}")
 
 print(mlflow.get_tracking_uri())
@@ -95,8 +95,23 @@ def initialise_training_constants():
       # import sys;sys.exit()
       train = preprocess_df(train, boundary_layer_mapper, metadata, TARGET_COL, N_HRS_BACK, SEQ_LEN, is_test = False)
       clf = train_model(train)
-      
-      #upload_trained_model_to_gcs(clf,'airqo-250220','airqo_prediction_bucket', 'model.pkl')
+
+      # backup previous model
+      rename_blob(
+        configuration.GOOGLE_CLOUD_PROJECT_ID,
+        configuration.CREDENTIALS,
+        configuration.AIRQO_PREDICT_BUCKET,
+        'model.pkl',
+        f'model.pkl-{datetime.now()}'
+        )
+
+      # load new model  
+      upload_trained_model_to_gcs(
+        clf, 
+        configuration.GOOGLE_CLOUD_PROJECT_ID,
+        configuration.AIRQO_PREDICT_BUCKET, 
+        'model.pkl')
+
       print(clf)
 
 
@@ -135,7 +150,11 @@ def train_model(train):
     mlflow.log_param("random_state", random_state)
 
     # Log model
-    mlflow.sklearn.log_model(clf, "predict_model")
+    mlflow.sklearn.log_model(
+      sk_model=clf,
+      artifact_path="predict_model",
+      registered_model_name="lgbr_predict_model"
+      )
 
     # model validation
     print("Being model validation.....")
@@ -160,7 +179,23 @@ def make_train(train_forecast_data):
   ### Aggregate data every 1 hour using mean
   all_channels = train_forecast_data['device_number'].unique()
   #joblib.dump(all_channels, 'all_channels.pkl')
-  #upload_trained_model_to_gcs(all_channels,'airqo-250220','airqo_prediction_bucket', 'all_channels.pkl')
+
+  # backup previous model
+  rename_blob(
+    configuration.GOOGLE_CLOUD_PROJECT_ID,
+    configuration.CREDENTIALS,
+    configuration.AIRQO_PREDICT_BUCKET,
+    'all_channels.pkl',
+    f'all_channels.pkl-{datetime.now()}'
+    )
+
+  # update model
+    
+  upload_trained_model_to_gcs(
+    all_channels,
+    configuration.GOOGLE_CLOUD_PROJECT_ID,
+    configuration.AIRQO_PREDICT_BUCKET, 
+    'all_channels.pkl')
 
   op = Parallel(n_jobs = -1)(delayed(get_agg_channel_data_train)(chan_num,train_forecast_data, freq='1H') for chan_num in all_channels)
   train = pd.concat(op, axis=0).reset_index(drop=True)[train_forecast_data.columns.tolist()]
@@ -214,7 +249,7 @@ def get_lag_features(df_tmp,TARGET_COL,N_HRS_BACK, SEQ_LEN):
   return df_tmp
 
 def get_other_features(df_tmp,boundary_layer_mapper,metadata):
-  print(boundary_layer_mapper.head())
+  # print(boundary_layer_mapper.head())
   D_COL = 'created_at'
   for attr in ['hour', 'day', 'dayofweek', 'month', 'is_month_start', 'is_month_end', 'week', 'year']:
       df_tmp[f'{D_COL}_{attr}'] = getattr(df_tmp[D_COL].dt, attr)
@@ -238,11 +273,6 @@ def preprocess_df(df_tmp, boundary_layer_mapper, metadata, target_column,n_hrs_b
 if __name__ == '__main__':
     #upload_blob('airqo_prediction_bucket', 'E:\Work\AirQo\AirQo-api\src\predict\jobs\model.pkl', 'model.pkl')
     #download_blob('airqo_prediction_bucket','model.pkl','model_downloaded2.pkl')
-    #forecast, metadata, boundary_layer = preprocess_forecast_data()
-
-    #print(forecast)
-    #print(metadata)
-    #print(boundary_layer)
 
     initialise_training_constants()
   
