@@ -3,6 +3,7 @@ import joblib
 import pandas as pd
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
+from google.cloud import storage
 
 
 def previous_months_range(n):
@@ -45,6 +46,20 @@ def get_csv_file_from_gcs(project_name, bucket_name, source_blob_name):
 def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_blob_name):
   fs = gcsfs.GCSFileSystem(project=project_name)    
   with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-      job = joblib.dump(trained_model,handle)
+        joblib.dump(trained_model,handle)
 
+
+def rename_blob(project_name, credential, bucket_name, blob_name, new_name):
+
+    storage_client = storage.Client(
+        project=project_name,
+        credentials=credential
+    )
+
+    bucket = storage_client.bucket(bucket_name)
+    blob = bucket.blob(blob_name)
+
+    new_blob = bucket.rename_blob(blob, new_name)
+
+    print("Blob {} has been renamed to {}".format(blob.name, new_blob.name))
 
