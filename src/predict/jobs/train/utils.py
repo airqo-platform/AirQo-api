@@ -4,6 +4,7 @@ import pandas as pd
 from datetime import date, datetime
 from dateutil.relativedelta import relativedelta
 from google.cloud import storage
+from config import environment
 
 
 def previous_months_range(n):
@@ -44,17 +45,20 @@ def get_csv_file_from_gcs(project_name, bucket_name, source_blob_name):
     return df
 
 def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_blob_name):
-  fs = gcsfs.GCSFileSystem(project=project_name)
 
-  # backup previous model 
-  try:
-    fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
-    print("Bucket: previous model is backed up")
-  except:
-      print("Bucket: No file to updated")
-  
-  # store new model
-  with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-      job = joblib.dump(trained_model,handle)
+    # upload model only if environment is not development
+    if environment is not "development":
+        fs = gcsfs.GCSFileSystem(project=project_name)
+
+        # backup previous model 
+        try:
+            fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
+            print("Bucket: previous model is backed up")
+        except:
+            print("Bucket: No file to updated")
+        
+        # store new model
+        with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
+            job = joblib.dump(trained_model,handle)
 
 
