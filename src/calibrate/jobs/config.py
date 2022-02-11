@@ -19,18 +19,27 @@ class Config:
 class ProductionConfig(Config):
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
+    MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
+    MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
+    AIRQO_CALIBRATE_BUCKET = os.getenv('AIRQO_CALIBRATE_BUCKET_PROD')
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
     DB_NAME = os.getenv("DB_NAME_STAGE")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
+    MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
+    MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
+    AIRQO_CALIBRATE_BUCKET = os.getenv('AIRQO_CALIBRATE_BUCKET_STAGE')
 
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
-    DB_NAME = os.getenv("DB_NAME_DEV")
-    MONGO_URI = os.getenv('MONGO_GCE_URI_DEV')
+    MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI_DEV')
+    
+
 
 app_config = {"development": DevelopmentConfig,
               "testing": TestingConfig,
