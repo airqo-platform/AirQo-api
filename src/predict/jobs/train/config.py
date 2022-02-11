@@ -28,7 +28,7 @@ class ProductionConfig(Config):
     MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
     MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
-    AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET')
+    AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
     #DEVICE_SITE_DETAILS_URL = "https://platform.airqo.net/api/v1/devices?tenant=airqo&active=yes"
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_PROD')
 
@@ -40,7 +40,7 @@ class TestingConfig(Config):
     MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
     MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
     MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
-    AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET')
+    AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
     #DEVICE_SITE_DETAILS_URL = "https://staging-platform.airqo.net/api/v1/devices?tenant=airqo&active=yes"
     AIRQO_API_BASE_URL = os.getenv('AIRQO_API_BASE_URL_STAGE')
 
