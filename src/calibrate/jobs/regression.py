@@ -10,14 +10,14 @@ import gcsfs
 import joblib
 import os
 from pathlib import Path
-from config import configuration
-from helpers import utils
+from config import configuration, environment
+from utils import Mlflow, Util
 
 # set mlflow tracking url
-utils.Mlflow.set_uri()
+Mlflow().set_uri()
 
 # set the experiement name
-utils.Mlflow.set_experiment("calibrate")
+Mlflow.set_experiment("calibrate")
 
 CREDENTIALS = configuration.CREDENTIALS
 client = bigquery.Client.from_service_account_json(CREDENTIALS)
@@ -134,10 +134,10 @@ def random_forest(hourly_combined_dataset):
     bootstrap = True
 
     # start mlflow tracking
-    run_name = 'rf_regressor_run'
-    utils.Mlflow.start_run(run_name)
+    run_name = f'rf_regressor_run_{environment}'
+    Mlflow.start_run(run_name)
     # log parameters with mlflow
-    utils.Mlflow.log_parameters(
+    Mlflow.log_parameters(
         random_state = random_state,
         max_features = max_features,
         n_estimators = n_estimators,
@@ -158,12 +158,19 @@ def random_forest(hourly_combined_dataset):
     filename = RF_REG_MODEL
     pickle.dump(rf_regressor, open(filename, 'wb'))
 
-    utils.Mlflow.log_model(rf_regressor, "random_forest_regressor")
-    utils.Mlflow.end_run(run_name)
+    Mlflow.log_model(
+        rf_regressor,
+        "calibrate_random_forest_model",
+        "random_forest_regressor")
+    Mlflow.end_run(run_name)
 
     ##dump the model to google cloud storage.
     #save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
-
+    Util.upload_trained_model_to_gcs(
+        rf_regressor,
+        configuration.GOOGLE_CLOUD_PROJECT_ID,
+        configuration.AIRQO_CALIBRATE_BUCKET,
+        'rf_model.pkl')
     
     return rf_regressor
 
@@ -231,11 +238,11 @@ def lasso_reg(dataset):
     random_state = 0
 
      # start mlflow tracking
-    run_name = 'lasso_regressor_run'
-    utils.Mlflow.start_run(run_name)
+    run_name = f'lasso_regressor_run_{environment}'
+    Mlflow.start_run(run_name)
 
     # log parameters
-    utils.Mlflow.log_parameters(random_state = random_state)
+    Mlflow.log_parameters(random_state = random_state)
 
     # Fitting the model 
     lasso_regressor = Lasso(random_state=random_state).fit(X, y)
@@ -244,11 +251,20 @@ def lasso_reg(dataset):
     pickle.dump(lasso_regressor, open(filename, 'wb'))
 
     # log the model
-    utils.Mlflow.log_model(lasso_regressor, "lasso_regressor")
-    utils.Mlflow.end_run(run_name)
+    Mlflow.log_model(
+        lasso_regressor,
+        "cibrate_lasso_model",
+        "lasso_regressor")
+    Mlflow.end_run(run_name)
     
     ##dump the model to google cloud storage.
     #save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+    Util.upload_trained_model_to_gcs(
+        lasso_regressor,
+        configuration.GOOGLE_CLOUD_PROJECT_ID,
+        configuration.AIRQO_CALIBRATE_BUCKET,
+        'lasso_model.pkl')
+
     return lasso_regressor
 
 if __name__ == "__main__":
