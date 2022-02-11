@@ -19,14 +19,14 @@ from joblib import Parallel, delayed
 
 import datetime as dt
 from datetime import datetime,timedelta
-from utils import upload_trained_model_to_gcs, date_to_str, rename_blob
+from utils import upload_trained_model_to_gcs, date_to_str
 import warnings
 warnings.filterwarnings("ignore")
 
-mlflow.set_tracking_uri(f"{configuration.MLFLOW_TRACKING_URI}")
+mlflow.set_tracking_uri(configuration.MLFLOW_TRACKING_URI)
 mlflow.set_experiment(experiment_name=f"predict_{environment}")
 
-print(mlflow.get_tracking_uri())
+print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 def preprocess_forecast_data():
    
@@ -43,8 +43,7 @@ def preprocess_forecast_data():
 #   ### Set this as a list of chanels to be used. Can be read from a file.
 #   use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
 #   forecast_data = forecast_data[forecast_data['device_number'].isin(use_channels)]
-  #metadata.to_csv('meta_data.csv')
-  #boundary_layer_mapper.to_csv('boundary_layer.csv')
+
   return forecast_data, metadata, boundary_layer_mapper
 
 def process_metadata(metadata):
@@ -88,22 +87,8 @@ def initialise_training_constants():
       train = make_train(train_forecast_data)
       train['pm2_5'] = np.clip(train['pm2_5'], 0, 350)
 
-      # print(train.head())
-      # print(boundary_layer_mapper.head())
-      # print(metadata.head())
-
-      # import sys;sys.exit()
       train = preprocess_df(train, boundary_layer_mapper, metadata, TARGET_COL, N_HRS_BACK, SEQ_LEN, is_test = False)
       clf = train_model(train)
-
-      # backup previous model
-      rename_blob(
-        configuration.GOOGLE_CLOUD_PROJECT_ID,
-        configuration.CREDENTIALS,
-        configuration.AIRQO_PREDICT_BUCKET,
-        'model.pkl',
-        f'model.pkl-{datetime.now()}'
-        )
 
       # load new model  
       upload_trained_model_to_gcs(
@@ -136,7 +121,16 @@ def train_model(train):
     reg_lambda=1
     max_depth=-1
     random_state=1
-    clf = LGBMRegressor(n_estimators=n_estimators,learning_rate=learning_rate, colsample_bytree=colsample_bytree, reg_alpha=reg_alpha, reg_lambda=reg_lambda, max_depth=max_depth, random_state=random_state)
+
+    clf = LGBMRegressor(
+      n_estimators=n_estimators,
+      learning_rate=learning_rate, 
+      colsample_bytree=colsample_bytree, 
+      reg_alpha=reg_alpha, 
+      reg_lambda=reg_lambda, 
+      max_depth=max_depth, 
+      random_state=random_state)
+
     clf.fit(trn[features], y_trn, eval_set = [(val[features], y_val)], verbose=50, early_stopping_rounds=150, eval_metric='rmse')
     print("Model training completed.....")
 
@@ -153,7 +147,7 @@ def train_model(train):
     mlflow.sklearn.log_model(
       sk_model=clf,
       artifact_path="predict_model",
-      registered_model_name="lgbr_predict_model"
+      registered_model_name=f"lgbr_predict_model_{environment}"
       )
 
     # model validation
@@ -180,17 +174,7 @@ def make_train(train_forecast_data):
   all_channels = train_forecast_data['device_number'].unique()
   #joblib.dump(all_channels, 'all_channels.pkl')
 
-  # backup previous model
-  rename_blob(
-    configuration.GOOGLE_CLOUD_PROJECT_ID,
-    configuration.CREDENTIALS,
-    configuration.AIRQO_PREDICT_BUCKET,
-    'all_channels.pkl',
-    f'all_channels.pkl-{datetime.now()}'
-    )
-
   # update model
-    
   upload_trained_model_to_gcs(
     all_channels,
     configuration.GOOGLE_CLOUD_PROJECT_ID,
