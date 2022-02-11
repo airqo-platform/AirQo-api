@@ -44,22 +44,17 @@ def get_csv_file_from_gcs(project_name, bucket_name, source_blob_name):
     return df
 
 def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_blob_name):
-  fs = gcsfs.GCSFileSystem(project=project_name)    
+  fs = gcsfs.GCSFileSystem(project=project_name)
+
+  # backup previous model 
+  try:
+    fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
+    print("Bucket: previous model is backed up")
+  except:
+      print("Bucket: No file to updated")
+  
+  # store new model
   with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-        joblib.dump(trained_model,handle)
+      job = joblib.dump(trained_model,handle)
 
-
-def rename_blob(project_name, credential, bucket_name, blob_name, new_name):
-
-    storage_client = storage.Client(
-        project=project_name,
-        credentials=credential
-    )
-
-    bucket = storage_client.bucket(bucket_name)
-    blob = bucket.blob(blob_name)
-
-    new_blob = bucket.rename_blob(blob, new_name)
-
-    print("Blob {} has been renamed to {}".format(blob.name, new_blob.name))
 
