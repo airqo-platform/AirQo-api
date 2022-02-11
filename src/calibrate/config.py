@@ -17,21 +17,28 @@ class Config:
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
 
 class ProductionConfig(Config):
-    MLFLOW_TRACKING_URL = os.getenv('MLFLOW_TRACKING_URL')
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
+    MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
+    MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
+    AIRQO_CALIBRATE_BUCKET = os.getenv('AIRQO_CALIBRATE_BUCKET_PROD')
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-    MLFLOW_TRACKING_URL = os.getenv('MLFLOW_TRACKING_URL')
     DB_NAME = os.getenv("DB_NAME_STAGE")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI')
+    MLFLOW_TRACKING_USERNAME = os.getenv('MLFLOW_TRACKING_USERNAME')
+    MLFLOW_TRACKING_PASSWORD = os.getenv('MLFLOW_TRACKING_PASSWORD')
+    AIRQO_CALIBRATE_BUCKET = os.getenv('AIRQO_CALIBRATE_BUCKET_STAGE')
 
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
-    MLFLOW_TRACKING_URL = os.getenv('MLFLOW_TRACKING_URL_DEV')
+    MLFLOW_TRACKING_URI = os.getenv('MLFLOW_TRACKING_URI_DEV')
+    
 
 
 app_config = {"development": DevelopmentConfig,
