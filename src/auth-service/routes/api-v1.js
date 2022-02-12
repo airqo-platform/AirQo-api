@@ -294,12 +294,10 @@ router.put(
         .if(body("period").exists())
         .notEmpty()
         .withMessage("period cannot be empty if provided")
-        .trim()
         .bail()
         .custom((value) => {
           return typeof value === "object";
         })
-        .bail()
         .withMessage("the period should be an object"),
       body("period.unitValue")
         .if(body("period.unitValue").exists())
