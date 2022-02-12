@@ -11,6 +11,7 @@ const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
 const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
 const validationsUtil = require("./validations");
+const constants = require("../config/constants");
 
 const UserModel = (tenant) => {
   try {
@@ -149,7 +150,7 @@ const join = {
 
           let responseFromSendEmail = {};
           let token = 100000;
-          if (email !== "airqo.analytics@gmail.com") {
+          if (email !== constants.EMAIL) {
             token = Math.floor(Math.random() * (999999 - 100000) + 100000);
           }
           if (purpose === "auth") {
