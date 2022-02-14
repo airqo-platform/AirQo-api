@@ -15,7 +15,7 @@ const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
 const constants = require("../config/constants");
-const { kafkaProducer } = require("../config/kafka");
+const { kafkaProducer } = require("../config/kafka-node");
 
 const createAirqloud = {
   initialIsCapital: (word) => {

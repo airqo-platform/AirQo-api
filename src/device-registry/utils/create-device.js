@@ -14,7 +14,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const QRCode = require("qrcode");
-const { kafkaProducer } = require("../config/kafka");
+const { kafkaProducer } = require("../config/kafka-node");
 const cleanDeep = require("clean-deep");
 const httpStatus = require("http-status");
 let devicesModel = (tenant) => {

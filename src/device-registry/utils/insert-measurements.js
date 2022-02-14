@@ -1,7 +1,7 @@
 const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
-const { kafkaProducer } = require("../config/kafka");
+const { kafkaProducer } = require("../config/kafka-node");
 const log4js = require("log4js");
 const logger = log4js.getLogger("insert-measurements-util");
 const EventModel = require("../models/Event");

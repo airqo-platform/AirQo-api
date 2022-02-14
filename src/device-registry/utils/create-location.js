@@ -10,7 +10,7 @@ const axiosInstance = () => {
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-location-util");
-const { kafkaProducer } = require("../config/kafka");
+const { kafkaProducer } = require("../config/kafka-node");
 const constants = require("../config/constants");
 
 const createLocation = {

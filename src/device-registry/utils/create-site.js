@@ -26,7 +26,7 @@ const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
-const { kafkaProducer } = require("../config/kafka");
+const { kafkaProducer } = require("../config/kafka-node");
 
 const manageSite = {
   hasWhiteSpace: (name) => {
