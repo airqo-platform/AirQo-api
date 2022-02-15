@@ -28,7 +28,8 @@ const {
   transformMeasurements,
   transformMeasurementFields,
 } = require("./transform-measurements");
-const { kafkaConsumer, kafka, kafkaClient } = require("../config/kafka");
+
+const httpStatus = require("http-status");
 
 const createEvent = {
   list: async (request, callback) => {
@@ -144,67 +145,52 @@ const createEvent = {
   },
   create: async (request) => {
     try {
-      const consumer = new kafka.Consumer(
-        kafkaClient,
-        [{ topic: "hourly-measurements-topic", partition: 1 }],
-        {
-          autoCommit: false,
-        }
+      const responseFromTransformEvent = await createEvent.transformManyEvents(
+        request
       );
 
-      consumer.on("message", function(message) {
-        logObject("the consumer message", message);
-        const responseFromTransformEvent = await createEvent.transformManyEvents(
-          request
-        );
-        if (responseFromTransformEvent.success === "true") {
-          let transformedEvents = responseFromTransformEvent.data;
-          let nAdded = 0;
-          let eventsAdded = [];
-          let eventsRejected = [];
-          let errors = [];
-  
-          for (const event of transformedEvents) {
-            try {
-              const addedEvents = await eventModel(tenant).updateOne(
-                event.filter,
-                event.update,
-                event.options
-              );
-              if (addedEvents) {
-                nAdded += 1;
-                eventsAdded.push(event);
-              } else if (!addedEvents) {
-                let errMsg = {
-                  msg: "unable to add the events",
-                  record: {
-                    ...(event.device ? { device: event.device } : {}),
-                    ...(event.frequency ? { frequency: event.frequency } : {}),
-                    ...(event.time ? { time: event.time } : {}),
-                    ...(event.device_id ? { device_id: event.device_id } : {}),
-                    ...(event.site_id ? { site_id: event.site_id } : {}),
-                  },
-                };
-                errors.push(errMsg);
-              } else {
-                eventsRejected.push(event);
-                let errMsg = {
-                  msg: "unable to add the events",
-                  record: {
-                    ...(event.device ? { device: event.device } : {}),
-                    ...(event.frequency ? { frequency: event.frequency } : {}),
-                    ...(event.time ? { time: event.time } : {}),
-                    ...(event.device_id ? { device_id: event.device_id } : {}),
-                    ...(event.site_id ? { site_id: event.site_id } : {}),
-                  },
-                };
-                errors.push(errMsg);
-              }
-            } catch (e) {
-              logObject("the detailed duplicate error", e);
+      const data = await responseFromTransformEvent.data;
+      const { filter, update, options } = data;
+
+      logObject("responseFromTransformEvent", responseFromTransformEvent);
+      logObject("the filter", filter);
+      logObject("the update", update);
+      logObject("the options", options);
+
+      if (responseFromTransformEvent.success === "true") {
+        let transformedEvents = responseFromTransformEvent.data;
+        let nAdded = 0;
+        let eventsAdded = [];
+        let eventsRejected = [];
+        let errors = [];
+
+        for (const event of transformedEvents) {
+          try {
+            logObject("event", event);
+            const addedEvents = await eventModel(tenant).updateOne(
+              event.filter,
+              event.update,
+              event.options
+            );
+            if (addedEvents) {
+              nAdded += 1;
+              eventsAdded.push(event);
+            } else if (!addedEvents) {
+              let errMsg = {
+                msg: "unable to add the events",
+                record: {
+                  ...(event.device ? { device: event.device } : {}),
+                  ...(event.frequency ? { frequency: event.frequency } : {}),
+                  ...(event.time ? { time: event.time } : {}),
+                  ...(event.device_id ? { device_id: event.device_id } : {}),
+                  ...(event.site_id ? { site_id: event.site_id } : {}),
+                },
+              };
+              errors.push(errMsg);
+            } else {
               eventsRejected.push(event);
               let errMsg = {
-                msg: "duplicate record",
+                msg: "unable to add the events",
                 record: {
                   ...(event.device ? { device: event.device } : {}),
                   ...(event.frequency ? { frequency: event.frequency } : {}),
@@ -215,37 +201,46 @@ const createEvent = {
               };
               errors.push(errMsg);
             }
-          }
-  
-          if (errors.length > 0) {
-            return {
-              success: true,
-              status: HTTPStatus.CONFLICT,
-              message: "finished the operation with some conflicts",
-              errors: errors,
+          } catch (e) {
+            logObject("the detailed duplicate error", e);
+            eventsRejected.push(event);
+            let errMsg = {
+              msg: "duplicate record",
+              record: {
+                ...(event.device ? { device: event.device } : {}),
+                ...(event.frequency ? { frequency: event.frequency } : {}),
+                ...(event.time ? { time: event.time } : {}),
+                ...(event.device_id ? { device_id: event.device_id } : {}),
+                ...(event.site_id ? { site_id: event.site_id } : {}),
+              },
             };
-          } else {
-            return {
-              success: true,
-              status: HTTPStatus.OK,
-              message: "successfully added all the events",
-            };
+            errors.push(errMsg);
           }
         }
-        if (responseFromTransformEvent.success === "false") {
+
+        if (errors.length > 0) {
           return {
-            success: false,
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
-            message: "Internal Server Error",
-            errors: { message: "Internal Server Error" },
+            success: true,
+            status: HTTPStatus.CONFLICT,
+            message: "finished the operation with some conflicts",
+            errors: errors,
+          };
+        } else {
+          return {
+            success: true,
+            status: HTTPStatus.OK,
+            message: "successfully added all the events",
           };
         }
-      });
-
-      consumer.on("error", function(error) {
-        logObject("the consumer error message", error);
-      });
-
+      }
+      if (responseFromTransformEvent.success === "false") {
+        return {
+          success: false,
+          status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          message: "Internal Server Error",
+          errors: { message: "Internal Server Error" },
+        };
+      }
     } catch (error) {
       return {
         success: false,

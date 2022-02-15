@@ -1,10 +1,20 @@
+/***
+ * I will use this script to insert measurements from
+ * the respective Kafka topic ----using the create-event util
+ * for creating a new event
+ *
+ *
+ */
+
 const constants = require("../config/constants");
 const { getModelByTenant } = require("./multitenancy");
 const { logObject, logText, logElement } = require("./log");
-const { kafkaProducer } = require("../config/kafka-node");
 const log4js = require("log4js");
 const logger = log4js.getLogger("insert-measurements-util");
 const EventModel = require("../models/Event");
+// const { kafkaConsumer, kafka, kafkaClient, kafkaProducer } = require("../config/kafka-node");
+// const { kafkaConsumer, kafkaProducer } = require("../config/kafkajs");
+// topic: "hourly-measurements-topic",
 
 const insert = async (tenant, transformedMeasurements) => {
   let nAdded = 0;
@@ -56,19 +66,19 @@ const insert = async (tenant, transformedMeasurements) => {
       if (addedEvents) {
         nAdded += 1;
         eventsAdded.push(measurement);
-        const payloads = [
-          {
-            topic: "events",
-            messages: { action: "create", event: measurement },
-            timestamp: Date.now(),
-          },
-        ];
-        kafkaProducer.send(payloads, (err, data) => {
-          logObject("Kafka producer data", data);
-          logger.info(`Kafka producer data, ${data}`);
-          logObject("Kafka producer error", err);
-          logger.error(`Kafka producer error, ${err}`);
-        });
+        // const payloads = [
+        //   {
+        //     topic: "events",
+        //     messages: { action: "create", event: measurement },
+        //     timestamp: Date.now(),
+        //   },
+        // ];
+        // kafkaProducer.send(payloads, (err, data) => {
+        //   logObject("Kafka producer data", data);
+        //   logger.info(`Kafka producer data, ${data}`);
+        //   logObject("Kafka producer error", err);
+        //   logger.error(`Kafka producer error, ${err}`);
+        // });
       } else if (!addedEvents) {
         eventsRejected.push(measurement);
         let errMsg = {

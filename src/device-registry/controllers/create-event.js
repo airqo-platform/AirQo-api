@@ -211,12 +211,18 @@ const createEvent = {
 
   create: async (req, res) => {
     try {
+      const { query, body } = req;
       let request = {};
+      request["body"] = body;
+      request["query"] = query;
       const responseFromCreateEvents = createEventUtil.create(request);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
           : HTTPStatus.OK;
+        return res
+          .status(status)
+          .json({ success: true, message: responseFromCreateEvents.message });
       }
       if (responseFromCreateEvents.success === false) {
         const status = responseFromCreateEvents.status
@@ -226,8 +232,9 @@ const createEvent = {
           ? responseFromCreateEvents.errors
           : "";
         return res.status(status).json({
-          success: true,
+          success: false,
           message: responseFromCreateEvents.message,
+          errors,
         });
       }
     } catch (error) {
