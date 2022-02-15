@@ -26,6 +26,7 @@ spec:
         - name: prediction-api
           image: us.gcr.io/airqo-250220/airqo-stage-prediction-api:latest
           imagePullPolicy: Always
+          resources: {}
           ports:
             - containerPort: 5000
               name: prediction-api
@@ -42,6 +43,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-predict-staging
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: env-predict-staging-files
 
 ---
 kind: Service

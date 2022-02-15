@@ -1,0 +1,69 @@
+version: "3.8"
+
+x-common-data: &common-data
+#  platform: linux/amd64
+  restart: on-failure
+  env_file:
+    - .env
+  depends_on:
+    - db
+    - db-setup
+
+services:
+  db:
+    container_name: db
+    image: postgres
+    environment:
+      - POSTGRES_NAME=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+
+  db-setup:
+    container_name: db-setup
+    build:
+      context: .
+      target: db-setup
+#    platform: linux/amd64
+    restart: on-failure
+    environment:
+      AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - db
+
+  message-broker:
+    container_name: message-broker
+    image: noahnsimbe/kafka-docker
+    ports:
+      - "9093:9092"
+
+  message-broker-setup:
+    container_name: message-broker-setup
+    build:
+      context: .
+      target: kafka-setup
+    platform: linux/amd64
+    restart: on-failure
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - message-broker
+
+  scheduler:
+    <<: *common-data
+    container_name: scheduler
+    build:
+      context: .
+      target: scheduler
+
+  webserver:
+    <<: *common-data
+    container_name: webserver
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+    build:
+      context: .
+      target: webserver
+    ports:
+      - "8080:8080"

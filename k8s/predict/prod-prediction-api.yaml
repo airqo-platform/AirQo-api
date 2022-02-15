@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: prediction-api
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -42,6 +42,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-predict-production
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: env-predict-production-files
 
 ---
 kind: Service

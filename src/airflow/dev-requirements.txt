@@ -1,0 +1,4 @@
+apache-airflow
+apache-airflow-providers-slack
+google-cloud-bigquery
+google-cloud-storage
