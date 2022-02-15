@@ -4,7 +4,7 @@ x-common-data: &common-data
 #  platform: linux/amd64
   restart: on-failure
   env_file:
-    - dags/.env
+    - .env
   depends_on:
     - db
     - db-setup

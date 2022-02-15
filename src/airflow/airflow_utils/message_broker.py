@@ -2,7 +2,7 @@ import simplejson
 from confluent_avro import SchemaRegistry
 from kafka import KafkaProducer
 
-from config import configuration
+from airflow_utils.config import configuration
 
 
 class KafkaBrokerClient:

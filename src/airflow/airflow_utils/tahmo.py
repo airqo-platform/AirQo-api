@@ -1,7 +1,7 @@
 import pandas as pd
 import requests
 
-from config import configuration
+from airflow_utils.config import configuration
 
 
 class TahmoApi:
