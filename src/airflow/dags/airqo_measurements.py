@@ -96,15 +96,10 @@ def historical_hourly_measurements_etl():
     @task()
     def load(airqo_data: dict, **kwargs):
 
-        from airflow_utils.commons import (
-            un_fill_nan,
-            save_measurements_to_bigquery,
-        )
+        from airflow_utils.commons import un_fill_nan
+        from airflow_utils.bigquery_api import BigQueryApi
         from airflow_utils.airqo_api import AirQoApi
-        from airflow_utils.airqo_utils import (
-            restructure_airqo_data,
-            restructure_airqo_data_for_api,
-        )
+        from airflow_utils.airqo_utils import restructure_airqo_data
         from airflow_utils.config import configuration
         from airflow_utils.message_broker import KafkaBrokerClient
 
@@ -120,13 +115,13 @@ def historical_hourly_measurements_etl():
             airqo_restructured_data = restructure_airqo_data(
                 data=data, destination="bigquery"
             )
-            table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
-            save_measurements_to_bigquery(
-                measurements=airqo_restructured_data, table_id=table_id
-            )
+            big_query_api = BigQueryApi()
+            big_query_api.save_hourly_measurements(airqo_restructured_data)
 
         elif destination == "message-broker":
-            airqo_restructured_data = restructure_airqo_data_for_api(data)
+            airqo_restructured_data = restructure_airqo_data(
+                data=data, destination="message-broker"
+            )
 
             info = {
                 "data": airqo_restructured_data,
@@ -135,7 +130,9 @@ def historical_hourly_measurements_etl():
             kafka = KafkaBrokerClient()
             kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
         else:
-            airqo_restructured_data = restructure_airqo_data_for_api(data)
+            airqo_restructured_data = restructure_airqo_data(
+                data=data, destination="api"
+            )
             airqo_api = AirQoApi()
             airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
 
@@ -252,12 +249,11 @@ def hourly_measurements_etl():
     def send_hourly_measurements_to_api(airqo_data: dict):
         from airflow_utils.commons import un_fill_nan
         from airflow_utils.airqo_api import AirQoApi
-
-        from airflow_utils.airqo_utils import restructure_airqo_data_for_api
+        from airflow_utils.airqo_utils import restructure_airqo_data
 
         data = un_fill_nan(airqo_data.get("data"))
 
-        airqo_restructured_data = restructure_airqo_data_for_api(data=data)
+        airqo_restructured_data = restructure_airqo_data(data=data, destination="api")
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
 
@@ -285,44 +281,42 @@ def hourly_measurements_etl():
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: dict):
 
-        from airflow_utils.commons import un_fill_nan, save_measurements_to_bigquery
-        from airflow_utils.config import configuration
+        from airflow_utils.commons import un_fill_nan
         from airflow_utils.airqo_utils import restructure_airqo_data
+        from airflow_utils.bigquery_api import BigQueryApi
 
         data = un_fill_nan(airqo_data.get("data"))
         airqo_restructured_data = restructure_airqo_data(
             data=data, destination="bigquery"
         )
-        table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
-        save_measurements_to_bigquery(
-            measurements=airqo_restructured_data, table_id=table_id
-        )
+        big_query_api = BigQueryApi()
+
+        big_query_api.save_hourly_measurements(airqo_restructured_data)
 
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: dict):
 
-        from airflow_utils.commons import un_fill_nan, save_measurements_to_bigquery
-        from airflow_utils.config import configuration
+        from airflow_utils.commons import un_fill_nan
         from airflow_utils.airqo_utils import restructure_airqo_data
+        from airflow_utils.bigquery_api import BigQueryApi
 
         data = un_fill_nan(airqo_data.get("data"))
         airqo_restructured_data = restructure_airqo_data(
             data=data, destination="bigquery"
         )
-        table_id = configuration.BIGQUERY_RAW_EVENTS_TABLE
-        save_measurements_to_bigquery(
-            measurements=airqo_restructured_data, table_id=table_id
-        )
+
+        big_query_api = BigQueryApi()
+        big_query_api.save_raw_measurements(airqo_restructured_data)
 
     @task()
     def send_raw_measurements_to_api(airqo_data: dict):
         from airflow_utils.commons import un_fill_nan
-        from airflow_utils.airqo_utils import restructure_airqo_data_for_api
+        from airflow_utils.airqo_utils import restructure_airqo_data
         from airflow_utils.airqo_api import AirQoApi
 
         data = un_fill_nan(airqo_data.get("data"))
 
-        airqo_restructured_data = restructure_airqo_data_for_api(data=data)
+        airqo_restructured_data = restructure_airqo_data(data=data, destination="api")
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
 
@@ -401,11 +395,11 @@ def daily_measurements_etl():
 
         from airflow_utils.commons import un_fill_nan
         from airflow_utils.airqo_api import AirQoApi
-        from airflow_utils.airqo_utils import restructure_airqo_data_for_api
+        from airflow_utils.airqo_utils import restructure_airqo_data
 
         data = un_fill_nan(airqo_data.get("data"))
 
-        airqo_restructured_data = restructure_airqo_data_for_api(data=data)
+        airqo_restructured_data = restructure_airqo_data(data=data, destination="api")
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
 
