@@ -11,11 +11,16 @@ from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import bigquery
 from google.cloud import storage
 
-from airqoApi import AirQoApi
-from config import configuration
-from message_broker import KafkaBrokerClient
-from date import str_to_date, date_to_str, date_to_str_days, date_to_str_hours
-from tahmo import TahmoApi
+from airflow_utils.airqo_api import AirQoApi
+from airflow_utils.config import configuration
+from airflow_utils.message_broker import KafkaBrokerClient
+from airflow_utils.date import (
+    str_to_date,
+    date_to_str,
+    date_to_str_days,
+    date_to_str_hours,
+)
+from airflow_utils.tahmo import TahmoApi
 
 
 def save_insights_data(

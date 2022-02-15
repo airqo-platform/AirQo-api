@@ -1,7 +1,20 @@
+FROM python:3 as utils-package
+RUN pip install --upgrade pip setuptools wheel
+WORKDIR airflow_utils
+COPY airflow_utils/* airflow_utils/
+RUN python airflow_utils/setup.py bdist_wheel
+
 FROM apache/airflow as base-builder
+
+USER root
+RUN apt-get update -y && apt-get install python3-distutils -y && apt-get install python3-apt -y
+USER airflow
+
+COPY --from=utils-package airflow_utils/dist/airflow_utils-1.0.0-py3-none-any.whl airflow_utils-1.0.0-py3-none-any.whl
 RUN pip install --upgrade pip setuptools wheel
 COPY requirements.txt requirements.txt
-RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+RUN pip install -r requirements.txt
+RUN pip install airflow_utils-1.0.0-py3-none-any.whl
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
 
 FROM base-builder as db-setup

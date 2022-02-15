@@ -32,7 +32,7 @@ class Config:
     TAHMO_API_KEY = os.getenv("TAHMO_API_CREDENTIALS_USERNAME")
     TAHMO_API_SECRET = os.getenv("TAHMO_API_CREDENTIALS_PASSWORD")
 
-    BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS").split(",")
+    BOOTSTRAP_SERVERS = os.getenv("BOOTSTRAP_SERVERS", "localhost:9092").split(",")
     TOPIC_PARTITIONS = os.getenv("TOPIC_PARTITIONS", "1,2,3,4").split(",")
     SCHEMA_REGISTRY_URL = os.getenv("SCHEMA_REGISTRY_URL")
 
