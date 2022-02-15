@@ -5,15 +5,15 @@ metadata:
   namespace: staging
 spec:
   kafka:
-    version: 2.8.0
+    version: 3.0.0
     replicas: 3
-    resources:
-      limits:
-          cpu: "1"
-          memory: 500Mi
-      requests:
-        cpu: 200m
-        memory: 500Mi
+    resources: {}
+      # limits:
+      #     cpu: "1"
+      #     memory: 500Mi
+      # requests:
+      #   cpu: 200m
+      #   memory: 500Mi
     listeners:
       - name: plain
         port: 9092
@@ -47,12 +47,13 @@ spec:
       initialDelaySeconds: 15
       timeoutSeconds: 5
     config:
-      auto.create.topics.enable: "false"
       offsets.topic.replication.factor: 3
       transaction.state.log.replication.factor: 3
       transaction.state.log.min.isr: 2
-      log.message.format.version: "2.8"
-      inter.broker.protocol.version: "2.8"
+      default.replication.factor: 3
+      min.insync.replicas: 2
+      inter.broker.protocol.version: "3.0"
+      auto.create.topics.enable: "false"
     storage:
       type: ephemeral
     # metricsConfig:
@@ -63,13 +64,13 @@ spec:
     #       key: stage-kafka-cluster-metrics-config.yml
   zookeeper:
     replicas: 3
-    resources:
-      limits:
-          cpu: "1"
-          memory: 500Mi
-      requests:
-        cpu: 200m
-        memory: 500Mi
+    resources: {}
+      # limits:
+      #     cpu: "1"
+      #     memory: 500Mi
+      # requests:
+      #   cpu: 200m
+      #   memory: 500Mi
     storage:
       type: ephemeral
     readinessProbe:
