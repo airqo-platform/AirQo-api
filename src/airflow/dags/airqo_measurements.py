@@ -129,12 +129,16 @@ def historical_hourly_measurements_etl():
             }
             kafka = KafkaBrokerClient()
             kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
-        else:
+        elif destination == "api":
             airqo_restructured_data = restructure_airqo_data(
                 data=data, destination="api"
             )
             airqo_api = AirQoApi()
             airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
+        else:
+            raise Exception(
+                "Invalid data destination. Valid values are bigquery, message-broker and api"
+            )
 
     extracted_airqo_data = extract_hourly_raw_data()
     device_logs = extract_device_deployment_logs()
@@ -267,7 +271,7 @@ def hourly_measurements_etl():
 
         data = un_fill_nan(airqo_data.get("data"))
         airqo_restructured_data = restructure_airqo_data(
-            data=data, destination="messageBroker"
+            data=data, destination="message-broker"
         )
 
         info = {

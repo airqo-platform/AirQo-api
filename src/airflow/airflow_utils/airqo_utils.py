@@ -670,7 +670,7 @@ def restructure_airqo_data(data: list, destination: str) -> list:
 
     if destination == "api":
         return restructure_airqo_data_for_api(data_df_values)
-    elif destination == "messageBroker":
+    elif destination == "message-broker":
         return restructure_airqo_data_for_message_broker(data_df_values)
     elif destination == "bigquery":
         return restructure_airqo_data_for_bigquery(data_df_values)
