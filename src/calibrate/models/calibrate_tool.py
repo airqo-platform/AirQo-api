@@ -48,7 +48,7 @@ class Regression():
         calibrated_pm2_5 =  rf_regressor.predict(df)[0]
         calibrated_pm10 =  lasso_regressor.predict(df)[0]
         # datetime = df["datetime"]  
-        
+        print("calibrated_pm2_5", calibrated_pm2_5)
         return calibrated_pm2_5, calibrated_pm10
                
 if __name__ == "__main__":
