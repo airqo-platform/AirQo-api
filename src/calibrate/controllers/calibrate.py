@@ -38,8 +38,8 @@ def calibrate_tool():
     if request.method == 'POST': # get headers to check content type eg json or csv
         file=request.files['file']
         df=pandas.read_csv(file)
+        print("df", df)
         device_id = df['id']
-        print("df", type(device_id))
         if (not file):
             return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
         
@@ -49,13 +49,12 @@ def calibrate_tool():
         header = ['calibrated_PM2.5', 'calibrated_PM10']
         data = [calibrated_pm2_5, calibrated_pm10]
         print("data", data)
-        print("data", type(calibrated_pm2_5))
         with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
             # write the header
             writer.writerow(header)
             # write the data
-            writer.writerows(calibrated_pm2_5, calibrated_pm10)
+            writer.writerows(data)
     return "ok", 200
         
 # @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
