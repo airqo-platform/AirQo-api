@@ -75,6 +75,6 @@ Update sites to include the nearest Tahmo Station.
 
 ## Export sites/devices to csv or json
 ```bash
-    python main.py export_sites csv tenant
-    python main.py export_devices csv tenant
+    python main.py export_sites csv
+    python main.py export_devices json airqo
 ```
