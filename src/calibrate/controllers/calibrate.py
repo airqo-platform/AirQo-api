@@ -1,8 +1,9 @@
 from routes import api
 from flask import Blueprint, request, jsonify
 from models import regression as rg
-from models import train_calibrate_tool as tool
+from models import calibrate_tool as tool
 import pandas
+import csv
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 
@@ -37,23 +38,23 @@ def calibrate_tool():
     if request.method == 'POST': # get headers to check content type eg json or csv
         file=request.files['file']
         df=pandas.read_csv(file)
-        datetime = df['Time']
         device_id = 1
-        pm2_5 = df['Sensor1 PM2.5_CF_1_ug/m3']
-        s2_pm2_5 = df['Sensor2 PM2.5_CF_1_ug/m3']
-        pm10 = df['Sensor1 PM10_CF_1_ug/m3']
-        s2_pm10 = df['Sensor2 PM10_CF_1_ug/m3']
-        temperature = df['AT(C)']
-        humidity = df['RH(%)']
+        if (not file):
+            return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
+        
+        rgModel = tool.Regression()
+        calibrated_pm2_5, calibrated_pm10 = rgModel.compute_calibrated_val(df)           
+       
+        header = ['device_id', 'calibrated_PM2.5', 'calibrated_PM10']
+        data = [device_id, calibrated_pm2_5, calibrated_pm10]
 
-        rgModel = rg.Regression()
-        response = []
-
-        if (not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity):
-            return jsonify({"message": "Please specify the device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400
-        calibrated_pm2_5, calibrated_pm10 = rgModel.compute_calibrated_val(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime)           
-        response.append({'device_id': device_id, 'calibrated_PM2.5': calibrated_pm2_5, 'calibrated_PM10': calibrated_pm10 })
-    return jsonify(response), 200
+        with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
+            writer = csv.writer(f)
+            # write the header
+            writer.writerow(header)
+            # write the data
+            writer.writerow(data)
+    # return calibrated_data.csv, 200
         
 # @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 # def train_calibrate_tool(): 
