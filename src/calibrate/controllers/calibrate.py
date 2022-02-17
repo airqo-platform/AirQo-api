@@ -54,7 +54,7 @@ def calibrate_tool():
             writer.writerow(header)
             # write the data
             writer.writerow(data)
-    return calibrated_data.csv, 200
+    return "ok", 200
         
 # @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 # def train_calibrate_tool(): 
