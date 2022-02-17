@@ -48,13 +48,14 @@ def calibrate_tool():
        
         header = ['calibrated_PM2.5', 'calibrated_PM10']
         data = [calibrated_pm2_5, calibrated_pm10]
+        print("data", data)
         print("data", type(calibrated_pm2_5))
         with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
             # write the header
             writer.writerow(header)
             # write the data
-            writer.writerows(data)
+            writer.writerows(calibrated_pm2_5, calibrated_pm10)
     return "ok", 200
         
 # @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
