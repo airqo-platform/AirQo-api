@@ -26,9 +26,10 @@ class Regression():
                                      'AT(C)':'temperature', 'RH(%)':'humidity'},inplace=True)
     
         # features from datetime and PM
-        datetime = pd.to_datetime(datetime)
-        hour = datetime.hour
-
+        df["datetime"] = pd.to_datetime(df["datetime"])
+        # extract hour
+        df['hour'] =  df['Time'].dt.hour
+    
         input_variables["avg_pm2_5"] = input_variables[['pm2_5','s2_pm2_5']].mean(axis=1).round(2)
         input_variables["avg_pm10"] =  input_variables[['pm10','s2_pm10']].mean(axis=1).round(2)
         input_variables["error_pm10"]=np.abs(input_variables["pm10"]-input_variables["s2_pm10"])
