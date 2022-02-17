@@ -38,16 +38,17 @@ def calibrate_tool():
     if request.method == 'POST': # get headers to check content type eg json or csv
         file=request.files['file']
         df=pandas.read_csv(file)
-        device_id = 1
+        device_id = df['id']
+        print("df", type(device_id))
         if (not file):
             return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
         
         rgModel = tool.Regression()
         calibrated_pm2_5, calibrated_pm10 = rgModel.compute_calibrated_val(df)           
        
-        header = ['device_id', 'calibrated_PM2.5', 'calibrated_PM10']
-        data = [device_id, calibrated_pm2_5, calibrated_pm10]
-
+        header = ['calibrated_PM2.5', 'calibrated_PM10']
+        data = [calibrated_pm2_5, calibrated_pm10]
+        print("data", type(calibrated_pm2_5))
         with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
             # write the header
