@@ -46,7 +46,8 @@ class Regression():
         # # load model from GCP 
         # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
         calibrated_pm2_5 =  rf_regressor.predict(df)[0]
-        calibrated_pm10 =  lasso_regressor.predict(df)[0]  
+        calibrated_pm10 =  lasso_regressor.predict(df)[0]
+        # datetime = df["datetime"]  
         
         return calibrated_pm2_5, calibrated_pm10
                
