@@ -247,14 +247,19 @@ jobs:
           context: src/airflow
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:latest
 
+      # - name: Deploy to K8S
+      #   uses: Azure/k8s-deploy@v1.4
+      #   with:
+      #     namespace: "stage-airflow"
+      #     manifests: |
+      #       k8s/airflow/stage-airflow-app.yaml
+      #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
+      #     kubectl-version: "latest"
+      
       - name: Deploy to K8S
-        uses: Azure/k8s-deploy@v1.4
-        with:
-          namespace: "stage-airflow"
-          manifests: |
-            k8s/airflow/stage-airflow-app.yaml
-          images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
-          kubectl-version: "latest"
+        run: |
+          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n stage-airflow
+          kubectl rollout restart deployment airflow  -n stage-airflow
 
   ### predict api service ###
   predict-service:

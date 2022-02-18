@@ -129,7 +129,7 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     data = data.dropna(subset=["time"])
     data["time"] = pd.to_datetime(data["time"])
     data = data.sort_index(axis=0)
-    # original_df = data.copy()
+    original_df = data[["time", "latitude", "longitude"]]
 
     resample_value = "24H" if frequency.lower() == "daily" else "1H"
     averages = pd.DataFrame(data.resample(resample_value, on="time").mean())
@@ -138,20 +138,29 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     averages["time"] = averages["time"].apply(lambda x: date_to_str(x))
     averages = averages.reset_index(drop=True)
 
-    # if resample_value == "1H":
-    #     original_df["time"] = original_df["time"].apply(lambda x: date_to_str_hours(x))
-    # elif resample_value == "24H":
-    #     original_df["time"] = original_df["time"].apply(lambda x: date_to_str_days(x))
-    # else:
-    #     original_df["time"] = original_df["time"].apply(lambda x: date_to_str(x))
-    #
-    # def update_latitude_and_longitude(row):
-    #     date_row = pd.DataFrame(original_df.loc[original_df["time"] == row["time"]]).loc[0]
-    #     averages.loc[averages["time"] == row["time"], "latitude"] = date_row["latitude"]
-    #     averages.loc[averages["time"] == row["time"], "longitude"] = date_row["latitude"]
-    #
-    # averages = averages.apply(lambda row: update_latitude_and_longitude(row))
-    #
+    if resample_value == "1H":
+        original_df["time"] = original_df["time"].apply(lambda x: date_to_str_hours(x))
+    elif resample_value == "24H":
+        original_df["time"] = original_df["time"].apply(lambda x: date_to_str_days(x))
+    else:
+        original_df["time"] = original_df["time"].apply(lambda x: date_to_str(x))
+
+    def reset_latitude_or_longitude(time: str, field: str):
+        date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
+        if date_row.empty:
+            return time
+        return (
+            date_row.iloc[0]["latitude"]
+            if field == "latitude"
+            else date_row.iloc[0]["longitude"]
+        )
+
+    averages["latitude"] = averages.apply(
+        lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
+    )
+    averages["longitude"] = averages.apply(
+        lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
+    )
 
     return averages
 
