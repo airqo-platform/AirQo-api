@@ -1,12 +1,11 @@
 package airqo.controllers;
 
 import airqo.models.Device;
+import airqo.repository.DeviceRepository;
 import airqo.services.DeviceService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -22,23 +21,19 @@ import java.util.List;
 @RequestMapping("devices")
 public class DeviceController {
 
+	private final DeviceService deviceService;
+
 	@Autowired
-	DeviceService deviceService;
+	public DeviceController(DeviceService deviceService) {
+		this.deviceService = deviceService;
+	}
 
 	@GetMapping("")
-	public ResponseEntity<?> getDevicesList(
-		@QuerydslPredicate(root = Device.class) Predicate predicate) {
-
-		List<Device> devices = deviceService.getDevicesList(predicate);
-		return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);
-	}
-
-	@GetMapping("/paged")
 	public ResponseEntity<?> getDevices(
-		@QuerydslPredicate(root = Device.class) Predicate predicate,
-		Pageable pageable) {
+		@QuerydslPredicate(root = Device.class, bindings = DeviceRepository.class) Predicate predicate) {
 
-		Page<Device> devices = deviceService.getDevices(predicate, pageable);
+		List<Device> devices = deviceService.getDevices(predicate);
 		return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);
 	}
+
 }

@@ -6,34 +6,23 @@ import airqo.repository.SiteRepository;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
-import java.util.Optional;
 
 @Service
 public class SiteServiceImpl implements SiteService {
 
+	private final SiteRepository siteRepository;
+
 	@Autowired
-	SiteRepository siteRepository;
-
-
-	@Override
-	public Page<Site> getSites(Predicate predicate, Pageable pageable) {
-		return siteRepository.findAll(predicate, pageable);
-	}
-
-	@Override
-	public Site getSiteById(String id) {
-		Optional<Site> site = siteRepository.findById(id);
-		return site.orElse(null);
+	public SiteServiceImpl(SiteRepository siteRepository) {
+		this.siteRepository = siteRepository;
 	}
 
 	@Override
 	@Cacheable(value = "viewSitesCache")
-	public List<Site> getSitesList(Predicate predicate) {
+	public List<Site> getSites(Predicate predicate) {
 		return (List<Site>) siteRepository.findAll(predicate);
 	}
 
@@ -49,14 +38,6 @@ public class SiteServiceImpl implements SiteService {
 				e.printStackTrace();
 			}
 		}
-	}
-
-	@Override
-	public List<Site> getSites(Tenant tenant) {
-		if (tenant == null) {
-			return siteRepository.findAll();
-		}
-		return siteRepository.findAllByTenant(tenant.toString());
 	}
 
 	@Override

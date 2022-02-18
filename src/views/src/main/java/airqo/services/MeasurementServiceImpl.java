@@ -1,20 +1,17 @@
 package airqo.services;
 
-import airqo.models.*;
-import airqo.repository.HourlyMeasurementRepository;
+import airqo.models.Frequency;
+import airqo.models.Insight;
+import airqo.models.QInsight;
 import airqo.repository.InsightRepository;
+import com.google.common.collect.Lists;
 import com.querydsl.core.types.Predicate;
 import io.sentry.spring.tracing.SentrySpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -22,14 +19,10 @@ import java.util.List;
 @Service
 public class MeasurementServiceImpl implements MeasurementService {
 
-	private final HourlyMeasurementRepository hourlyMeasurementRepository;
-	private final DeviceService deviceService;
 	private final InsightRepository insightRepository;
 
 	@Autowired
-	public MeasurementServiceImpl(HourlyMeasurementRepository hourlyMeasurementRepository, DeviceService deviceService, InsightRepository insightRepository) {
-		this.hourlyMeasurementRepository = hourlyMeasurementRepository;
-		this.deviceService = deviceService;
+	public MeasurementServiceImpl(InsightRepository insightRepository) {
 		this.insightRepository = insightRepository;
 	}
 
@@ -44,10 +37,15 @@ public class MeasurementServiceImpl implements MeasurementService {
 			.and(qInsight.time.goe(startTime))
 			.and(qInsight.time.loe(endTime));
 		log.info(predicate.toString());
-		return (List<Insight>) insightRepository.findAll(predicate);
+		return Lists.newArrayList(insightRepository.findAll(predicate));
 
-//		return insightRepository.findAllByFrequencyAndSiteIdInAndTimeBetween(
-//			frequency.toString().toUpperCase(), siteIds, startTime, endTime);
+	}
+
+	@Override
+	@SentrySpan
+	@Cacheable(value = "apiInsightsCache", cacheNames = {"apiInsightsCache"}, unless = "#result.size() <= 0")
+	public List<Insight> apiGetInsights(Predicate predicate) {
+		return Lists.newArrayList(insightRepository.findAll(predicate));
 	}
 
 	@Override
@@ -72,80 +70,9 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Insight> insertAndCacheInsights(List<Insight> insights) {
-		return insightRepository.saveAll(insights);
-	}
-
-	@Override
 	public void deleteInsightsBefore(Date date) {
 		log.info(String.format("Deleting insights before %s", date));
 		insightRepository.deleteAllByTimeBefore(date);
 	}
 
-	@Override
-	public Page<HourlyMeasurement> getHourlyMeasurements(Pageable pageable, Predicate predicate) {
-		return hourlyMeasurementRepository.findAll(predicate, pageable);
-	}
-
-	@Override
-	public List<HourlyMeasurement> getHourlyMeasurements(@Nullable Device device, @NonNull Date startTime, @NonNull Tenant tenant) {
-		if (device == null) {
-
-			List<Device> devices = deviceService.getDevices(tenant);
-			List<HourlyMeasurement> measurements = new ArrayList<>();
-
-			for (Device tenantDevice : devices) {
-				QHourlyMeasurement qHourlyMeasurement = new QHourlyMeasurement("device");
-				Predicate predicate = qHourlyMeasurement.time.eq(startTime).or(qHourlyMeasurement.time.after(startTime)).and(qHourlyMeasurement.device.id.eq(tenantDevice.getId()));
-
-				List<HourlyMeasurement> deviceMeasurements = (List<HourlyMeasurement>) hourlyMeasurementRepository.findAll(predicate);
-				measurements.addAll(deviceMeasurements);
-			}
-			return measurements;
-
-		} else {
-			return hourlyMeasurementRepository.findAllByDeviceAndTimeGreaterThanEqual(device, startTime);
-		}
-	}
-
-	@Override
-	public List<HourlyMeasurement> getRecentHourlyMeasurements(Device device, Tenant tenant) {
-		List<HourlyMeasurement> measurements = new ArrayList<>();
-		if (device == null) {
-
-			List<Device> devices = deviceService.getDevices(tenant);
-			for (Device tenantDevice : devices) {
-				HourlyMeasurement measurement = hourlyMeasurementRepository.findTopByDeviceOrderByTimeDesc(tenantDevice);
-				if (measurement != null) {
-					measurements.add(measurement);
-				}
-			}
-
-		} else {
-			HourlyMeasurement measurement = hourlyMeasurementRepository.findTopByDeviceOrderByTimeDesc(device);
-			if (measurement != null) {
-				measurements.add(measurement);
-			}
-		}
-		return measurements;
-	}
-
-	@Override
-	public void insertMeasurements(List<HourlyMeasurement> hourlyMeasurements) {
-		for (HourlyMeasurement hourlyMeasurement : hourlyMeasurements) {
-			insertMeasurement(hourlyMeasurement);
-		}
-	}
-
-	@Override
-	public void insertMeasurement(HourlyMeasurement hourlyMeasurement) {
-
-		if (hourlyMeasurement != null) {
-			try {
-				hourlyMeasurementRepository.save(hourlyMeasurement);
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
-	}
 }

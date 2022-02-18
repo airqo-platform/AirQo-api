@@ -1,8 +1,7 @@
-
     ___    _      ____
    /   |  (_)____/ __ \____
   / /| | / / ___/ / / / __ \
  / ___ |/ / /  / /_/ / /_/ /
 /_/  |_/_/_/   \___\_\____/
 
-:: Built with Spring Boot :: ${spring-boot.version}
+Built with Spring Boot :: ${spring-boot.version}

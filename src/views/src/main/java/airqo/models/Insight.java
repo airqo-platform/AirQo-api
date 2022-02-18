@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
@@ -19,11 +20,8 @@ import java.util.Objects;
 
 import static airqo.config.Constants.dateTimeFormat;
 
-@Getter
-@Setter
+@Data
 @AllArgsConstructor
-@NoArgsConstructor
-@ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "insights_measurements")
 @CompoundIndexes({
@@ -37,13 +35,14 @@ public class Insight implements Serializable {
 	private String id;
 
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
-	private Date time = new Date();
-	private double pm2_5 = 0.0;
-	private double pm10 = 0.0;
-	private Boolean empty = false;
-	private Boolean forecast = false;
-	private String frequency = "";
-	private String siteId = "";
+	@DateTimeFormat(pattern = dateTimeFormat)
+	private Date time;
+	private double pm2_5;
+	private double pm10;
+	private Boolean empty;
+	private Boolean forecast;
+	private String frequency;
+	private String siteId;
 
 	public void setId() {
 		this.id = new InsightId(time, frequency, siteId).toString();

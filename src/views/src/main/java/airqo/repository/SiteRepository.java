@@ -9,7 +9,6 @@ import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
 import org.springframework.data.querydsl.binding.QuerydslBindings;
 import org.springframework.stereotype.Repository;
 
-import java.util.List;
 
 @Repository
 public interface SiteRepository extends MongoRepository<Site, String>, QuerydslPredicateExecutor<Site>, QuerydslBinderCustomizer<QSite> {
@@ -21,5 +20,4 @@ public interface SiteRepository extends MongoRepository<Site, String>, QuerydslP
 		bindings.excluding(root.recallDate);
 	}
 
-	List<Site> findAllByTenant(String tenant);
 }

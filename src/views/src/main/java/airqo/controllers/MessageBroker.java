@@ -48,7 +48,6 @@ public class MessageBroker {
 		}
 	}
 
-
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}")
 	public void appInsights(String content) {
 		try {

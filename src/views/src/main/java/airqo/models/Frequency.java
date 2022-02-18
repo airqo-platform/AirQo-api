@@ -1,12 +1,6 @@
 package airqo.models;
 
 public enum Frequency {
-	RAW {
-		@Override
-		public String toString() {
-			return "RAW";
-		}
-	},
 	HOURLY {
 		@Override
 		public String toString() {

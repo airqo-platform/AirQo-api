@@ -2,16 +2,17 @@ package airqo.controllers;
 
 import airqo.models.ApiResponseBody;
 import airqo.models.Frequency;
-import airqo.models.HourlyMeasurement;
 import airqo.models.Insight;
+import airqo.predicate.InsightPredicate;
 import airqo.services.MeasurementService;
+import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.querydsl.binding.QuerydslPredicate;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -38,20 +39,12 @@ public class MeasurementController {
 		this.measurementService = measurementService;
 	}
 
-	@GetMapping("")
-	public ResponseEntity<?> getMeasurements(
-		@RequestParam MultiValueMap<String, Object> parameters
-	) {
-
-		if (parameters.containsKey("recent")) {
-			List<HourlyMeasurement> measurements = measurementService.getRecentHourlyMeasurements(null, null);
-
-			ApiResponseBody httpResponseBody = new ApiResponseBody("Operation Successful", measurements);
-			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.OK);
-		}
-		log.info(String.valueOf(parameters));
-		List<HourlyMeasurement> measurements = measurementService.getRecentHourlyMeasurements(null, null);
-		return new ResponseEntity<>(measurements, new HttpHeaders(), HttpStatus.OK);
+	@GetMapping("/app/insights")
+	public ResponseEntity<ApiResponseBody> getInsights(
+		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
+		List<Insight> insights = measurementService.apiGetInsights(predicate);
+		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
+		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}
 
 	@GetMapping("/insights")
