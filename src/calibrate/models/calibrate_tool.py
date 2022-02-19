@@ -24,16 +24,8 @@ class Regression():
                                      'Sensor1 PM10_CF_1_ug/m3':'pm10','Sensor2 PM10_CF_1_ug/m3':'s2_pm10',
                                      'AT(C)':'temperature', 'RH(%)':'humidity'},inplace=True)
     
-        # filter outliers
-        df = df[(df['Average_PM2.5'] > 0)&(df['Average_PM2.5'] <= 500.4)]
-        df = df[(df['Average_PM10'] > 0)&(df['Average_PM10'] <= 500.4)]
-        df = df[(df['temperature'] >= 0)&(df ['temperature'] <= 30)]
-        df = df[(df['humidity'] >= 0)&(df['humidity'] <= 100)]
-        
-        # df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        df['timestamp'] = pd.to_datetime(df['datetime'])
-        df = df.set_index('timestamp')
-        df = df.resample('H').mean().round(2)
+        # features from datetime and PM
+        df["datetime"] = pd.to_datetime(df["datetime"])
         # extract hour
         df['hour'] =  df['datetime'].dt.hour
     
