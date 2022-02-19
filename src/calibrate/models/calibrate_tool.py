@@ -27,7 +27,6 @@ class Regression():
         # filter outliers
         df = df[(df['Average_PM2.5'] > 0)&(df['Average_PM2.5'] <= 500.4)]
         df = df[(df['Average_PM10'] > 0)&(df['Average_PM10'] <= 500.4)]
-        df = df[(df['ref_data'] > 0)&(df['ref'] <= 500.4)]
         df = df[(df['temperature'] >= 0)&(df ['temperature'] <= 30)]
         df = df[(df['humidity'] >= 0)&(df['humidity'] <= 100)]
         
