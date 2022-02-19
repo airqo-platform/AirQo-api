@@ -26,7 +26,6 @@ class Train_calibrate_tool():
                                         columns=['pm2_5','s2_pm2_5','pm10','s2_pm10','temperature','humidity','datetime','reference_data'],
                                         dtype='float',
                                         index=['input'])
-        print("dataframe columns", ext_data['datetime'])
         
         ext_data['Average_PM2.5'] = ext_data[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
         ext_data['Average_PM10'] = ext_data[['pm10', 's2_pm10']].mean(axis=1).round(2)
