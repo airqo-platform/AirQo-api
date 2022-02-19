@@ -53,7 +53,6 @@ class Regression():
         calibrated_data['calibrated_pm2_5'] = calibrated_pm2_5
         calibrated_data['calibrated_pm10'] = calibrated_pm10
       
-        print("calibrated_pm2_5", calibrated_data)
         return calibrated_data 
                
 if __name__ == "__main__":
