@@ -47,9 +47,13 @@ class Regression():
         # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
         calibrated_pm2_5 =  rf_regressor.predict(df)
         calibrated_pm10 =  lasso_regressor.predict(df)
-        # datetime = df["datetime"]  
-        print("calibrated_pm2_5", calibrated_pm2_5)
-        return calibrated_pm2_5, calibrated_pm10
+
+        calibrated_data = df[['avg_pm2_5','avg_pm10', 'datetime']]
+        calibrated_data['calibrated_pm2_5'] = calibrated_pm2_5
+        calibrated_data['calibrated_pm10'] = calibrated_pm10
+      
+        print("calibrated_pm2_5", calibrated_data)
+        return calibrated_data 
                
 if __name__ == "__main__":
     calibrateInstance = Regression()
