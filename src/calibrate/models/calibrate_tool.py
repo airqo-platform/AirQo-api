@@ -40,7 +40,6 @@ class Regression():
         
         df = df[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
         
-        print("df", df)
         #load model from disk
         rf_regressor = pickle.load(open(RF_REG_MODEL, 'rb'))
         lasso_regressor = pickle.load(open(LASSO_MODEL, 'rb'))
