@@ -31,8 +31,8 @@ class Regression():
         df = df[(df['humidity'] >= 0)&(df['humidity'] <= 100)]
         
         # df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
-        df['datetime'] = pd.to_datetime(df['datetime'])
-        df = df.set_index('datetime')
+        df['timestamp'] = pd.to_datetime(df['datetime'])
+        df = df.set_index('timestamp')
         df = df.resample('H').mean().round(2)
         # extract hour
         df['hour'] =  df['datetime'].dt.hour
