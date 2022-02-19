@@ -15,7 +15,7 @@ dotenv_path = os.path.join(BASE_DIR, '.env')
 load_dotenv(dotenv_path)
 
 class Regression():
-    def random_forest(combined_ext_data):
+    def random_forest(self, combined_ext_data):
         X= combined_ext_data[['Average_PM2.5','Average_PM10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']].values
         y = combined_ext_data['ref_data'].values    
 
@@ -25,7 +25,7 @@ class Regression():
        
         return rf_regressor
 
-    def lasso_reg(combined_ext_data):
+    def lasso_reg(self, combined_ext_data):
         X= combined_ext_data[['Average_PM2.5','Average_PM10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']].values
         y = combined_ext_data['ref_data'].values   
 
