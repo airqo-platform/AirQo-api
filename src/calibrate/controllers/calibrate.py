@@ -1,7 +1,8 @@
 from routes import api
 from flask import Blueprint, request, jsonify
 from models import regression as rg
-from models import calibrate_tool as tool
+from models import calibrate_tool as calibration_tool
+from models import train_calibrate_tool as training_tool
 import pandas as pd
 import csv
 
@@ -42,12 +43,12 @@ def calibrate_tool():
         if (not file):
             return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
         
-        rgModel = tool.Regression()
+        rgModel = calibration_tool.Regression()
+        
         calibrated_pm2_5, calibrated_pm10 = rgModel.compute_calibrated_val(df)           
         header = ['calibrated_PM2.5', 'calibrated_PM10']
         data = [calibrated_pm2_5, calibrated_pm10]
-        print("data", data)
-        
+
         with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
             writer = csv.writer(f)
             # write the header
@@ -56,31 +57,41 @@ def calibrate_tool():
             writer.writerows(data)
     return "ok", 200
         
-# @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
-# def train_calibrate_tool(): 
-#     if request.method == 'POST':
-#         data = request.get_json()
-#         sensor_data = data.get('sensor_data')
-#         if (not sensor_data):
-#             return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature, humidity and reference monitor PM2.5 or reference monitor PM10 values in the body. Refer to the API documentation for details.", "success": False}), 400     
-#         rgtool = tool.Train_calibrate_tool()
-#         response = []
-#         for sensor_data in sensor_data:
-#             datetime = sensor_data.get('datetime')
-#             device_id = sensor_data.get('device_id')
-#             pm2_5 = sensor_data.get('sensor1_pm2.5')
-#             s2_pm2_5 = sensor_data.get('sensor2_pm2.5')
-#             pm10 = sensor_data.get('sensor1_pm10')
-#             s2_pm10 = sensor_data.get('sensor2_pm10')
-#             temperature = sensor_data.get('temperature')
-#             humidity = sensor_data.get('humidity')
-#             reference_data = sensor_data.get('reference_data')
-
-#             if (not datetime or not device_id or not pm2_5 or not s2_pm2_5  or not pm10 or not s2_pm10 or not temperature or not humidity or not reference_data):
-#                 return jsonify({"message": "Please specify the device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity and reference monitor PM2.5 or reference monitor PM10 values in the body. Refer to the API documentation for details.", "success": False}), 400
+@calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
+def train_calibrate_tool(): 
+    if request.method == 'POST': # get headers to check content type eg json or csv
+            file=request.files['file']
+            df=pd.read_csv(file)
+            device_id = df['id']
+            if (not file):
+                return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity and reference monitor PM values. Refer to the API documentation for details.", "success": False}), 400
             
-#             model_pm2_5, model_pm10 = rgtool.train_calibration_model(pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime, reference_data)           
-#             response.append({'device_id': device_id,'model_PM2.5': model_pm2_5, 'model_PM10': model_pm10 })
-#         return jsonify(response), 200
+            rgtool = training_tool.Train_calibrate_tool()
+    
+            calibrated_pm2_5, calibrated_pm10 = rgtool.train_calibration_model(df) 
+            header = ['calibrated_PM2.5', 'calibrated_PM10']
+            data = [calibrated_pm2_5, calibrated_pm10]
 
+            with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
+                writer = csv.writer(f)
+                # write the header
+                writer.writerow(header)
+                # write the data8
+                writer.writerows(data)          
+            
+            return 'ok', 200
+
+
+
+    #   response = []
+    #         for sensor_data in sensor_data:
+    #             datetime = sensor_data.get('datetime')
+    #             device_id = sensor_data.get('device_id')
+    #             pm2_5 = sensor_data.get('sensor1_pm2.5')
+    #             s2_pm2_5 = sensor_data.get('sensor2_pm2.5')
+    #             pm10 = sensor_data.get('sensor1_pm10')
+    #             s2_pm10 = sensor_data.get('sensor2_pm10')
+    #             temperature = sensor_data.get('temperature')
+    #             humidity = sensor_data.get('humidity')
+    #             reference_data = sensor_data.get('reference_data')
 
