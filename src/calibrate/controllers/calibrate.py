@@ -54,21 +54,12 @@ def train_calibrate_tool():
     if request.method == 'POST': # get headers to check content type eg json or csv
             file=request.files['file']
             df=pd.read_csv(file)
-            device_id = df['id']
             if (not file):
-                return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity and reference monitor PM values. Refer to the API documentation for details.", "success": False}), 400
+                return jsonify({"message": "Please upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity and collocated reference monitor PM values. Refer to the API documentation for details.", "success": False}), 400
             
             rgtool = training_tool.Train_calibrate_tool()
     
-            calibrated_pm2_5, calibrated_pm10 = rgtool.train_calibration_model(df) 
-            header = ['calibrated_PM2.5', 'calibrated_PM10']
-            data = [calibrated_pm2_5, calibrated_pm10]
-
-            with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
-                writer = csv.writer(f)
-                # write the header
-                writer.writerow(header)
-                # write the data8
-                writer.writerows(data)          
+            calibrated_data_ext = rgtool.train_calibration_model(df)
+            calibrated_data_ext.to_csv('calibrated_data_ext.csv')  
             
-            return 'ok', 200
+            return "Your data is ready for download", 200
