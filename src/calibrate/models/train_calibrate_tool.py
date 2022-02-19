@@ -22,19 +22,20 @@ class Train_calibrate_tool():
                                      'Sensor1 PM10_CF_1_ug/m3':'pm10','Sensor2 PM10_CF_1_ug/m3':'s2_pm10',
                                      'AT(C)':'temperature', 'RH(%)':'humidity', 'ConcHR(ug/m3)':'ref_data'},inplace=True)
         
+        #Get average PM
+        df['Average_PM2.5'] = df[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
+        df['Average_PM10'] = df[['pm10', 's2_pm10']].mean(axis=1).round(2)
+
         # filter outliers
         df = df[(df['Average_PM2.5'] > 0)&(df['Average_PM2.5'] <= 500.4)]
         df = df[(df['Average_PM10'] > 0)&(df['Average_PM10'] <= 500.4)]
         df = df[(df['ref_data'] > 0)&(df['ref_data'] <= 500.4)]
         df = df[(df['temperature'] >= 0)&(df ['temperature'] <= 30)]
         df = df[(df['humidity'] >= 0)&(df['humidity'] <= 100)]
-
-        #Get average PM
-        df['Average_PM2.5'] = df[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
-        df['Average_PM10'] = df[['pm10', 's2_pm10']].mean(axis=1).round(2)
         
         # df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
         df['datetime'] = pd.to_datetime(df['datetime'])
+        df_copy = df
         # extract hour
         df['hour'] = df['datetime'].dt.hour
         # df.drop_duplicates(subset="datetime", keep='first', inplace=True)
@@ -46,14 +47,6 @@ class Train_calibrate_tool():
                             
         df.fillna(method='ffill',inplace = True)
         
-        df["avg_pm2_5"] = df[['pm2_5','s2_pm2_5']].mean(axis=1).round(2)
-        df["avg_pm10"] =  df[['pm10','s2_pm10']].mean(axis=1).round(2)
-        df["error_pm10"]=np.abs(df["pm10"]-df["s2_pm10"])
-        df["error_pm2_5"]=np.abs(df["pm2_5"]-df["s2_pm2_5"])
-        df["pm2_5_pm10"]=df["avg_pm2_5"]-df["avg_pm10"]
-        df["pm2_5_pm10_mod"]=df["pm2_5_pm10"]/df["avg_pm10"]
-        # df = df.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
-
         # Features from PM
         # 1)"error_pm2_5" the absolute value of the difference between the two sensor values for pm2_5.
         # 2)"error_pm10","check_symbol_pm10" same as 3 and 4 but for pm10.
@@ -76,8 +69,7 @@ class Train_calibrate_tool():
 
         calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
         calibrated_pm10 =  model_pm10_ext.predict(model_input)
-
-        calibrated_data_ext = df[['avg_pm2_5','avg_pm10', 'datetime']]
+        calibrated_data_ext = df_copy[['Average_PM2.5','Average_PM10', 'datetime']]
         calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
         calibrated_data_ext['calibrated_pm10'] = calibrated_pm10
 
