@@ -20,13 +20,21 @@ class Regression():
     """
   
     def compute_calibrated_val(self, df):  
- 
         df.rename(columns={'Time':'datetime','Sensor1 PM2.5_CF_1_ug/m3':'pm2_5','Sensor2 PM2.5_CF_1_ug/m3':'s2_pm2_5',
                                      'Sensor1 PM10_CF_1_ug/m3':'pm10','Sensor2 PM10_CF_1_ug/m3':'s2_pm10',
                                      'AT(C)':'temperature', 'RH(%)':'humidity'},inplace=True)
     
-        # features from datetime and PM
-        df["datetime"] = pd.to_datetime(df["datetime"])
+        # filter outliers
+        df = df[(df['Average_PM2.5'] > 0)&(df['Average_PM2.5'] <= 500.4)]
+        df = df[(df['Average_PM10'] > 0)&(df['Average_PM10'] <= 500.4)]
+        df = df[(df['ref_data'] > 0)&(df['ref'] <= 500.4)]
+        df = df[(df['temperature'] >= 0)&(df ['temperature'] <= 30)]
+        df = df[(df['humidity'] >= 0)&(df['humidity'] <= 100)]
+        
+        # df['datetime'] = df['datetime'].dt.strftime('%Y-%m-%d %H:%M:%S')
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df = df.set_index('datetime')
+        df = df.resample('H').mean().round(2)
         # extract hour
         df['hour'] =  df['datetime'].dt.hour
     
