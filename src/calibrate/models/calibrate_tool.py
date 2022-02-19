@@ -36,7 +36,7 @@ class Regression():
         df["error_pm2_5"]=np.abs(df["pm2_5"]-df["s2_pm2_5"])
         df["pm2_5_pm10"]=df["avg_pm2_5"]-df["avg_pm10"]
         df["pm2_5_pm10_mod"]=df["pm2_5_pm10"]/df["avg_pm10"]
-        df = df.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
+        # df = df.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
         
         df = df[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
         
@@ -48,6 +48,7 @@ class Regression():
         calibrated_pm2_5 =  rf_regressor.predict(df)
         calibrated_pm10 =  lasso_regressor.predict(df)
         # datetime = df["datetime"]  
+        print("calibrated_pm2_5", calibrated_pm2_5)
         return calibrated_pm2_5, calibrated_pm10
                
 if __name__ == "__main__":
