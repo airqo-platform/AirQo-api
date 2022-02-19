@@ -44,16 +44,9 @@ def calibrate_tool():
         
         rgModel = calibration_tool.Regression()
         
-        df = rgModel.compute_calibrated_val(df)           
-        # header = ['calibrated_PM2.5', 'calibrated_PM10']
-        # data = [calibrated_pm2_5, calibrated_pm10]
-
-        # with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
-        #     writer = csv.writer(f)
-        #     # write the header
-        #     writer.writerow(header)
-        #     # write the data
-        #     writer.writerows(data)
+        calibrated_data = rgModel.compute_calibrated_val(df)  
+        calibrated_data.to_csv('calibrated_data.csv')        
+        
     return "ok", 200
         
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
