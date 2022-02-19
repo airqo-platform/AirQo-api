@@ -39,22 +39,21 @@ def calibrate_tool():
     if request.method == 'POST': # get headers to check content type eg json or csv
         file=request.files['file']
         df=pd.read_csv(file)
-        device_id = df['id']
         if (not file):
-            return jsonify({"message": "Please upload CSV file with the following information device_id, datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
+            return jsonify({"message": "Please upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
         
         rgModel = calibration_tool.Regression()
         
-        calibrated_pm2_5, calibrated_pm10 = rgModel.compute_calibrated_val(df)           
-        header = ['calibrated_PM2.5', 'calibrated_PM10']
-        data = [calibrated_pm2_5, calibrated_pm10]
+        df = rgModel.compute_calibrated_val(df)           
+        # header = ['calibrated_PM2.5', 'calibrated_PM10']
+        # data = [calibrated_pm2_5, calibrated_pm10]
 
-        with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
-            writer = csv.writer(f)
-            # write the header
-            writer.writerow(header)
-            # write the data
-            writer.writerows(data)
+        # with open('calibrated_data.csv', 'w', encoding='UTF8', newline='') as f:
+        #     writer = csv.writer(f)
+        #     # write the header
+        #     writer.writerow(header)
+        #     # write the data
+        #     writer.writerows(data)
     return "ok", 200
         
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
@@ -80,18 +79,3 @@ def train_calibrate_tool():
                 writer.writerows(data)          
             
             return 'ok', 200
-
-
-
-    #   response = []
-    #         for sensor_data in sensor_data:
-    #             datetime = sensor_data.get('datetime')
-    #             device_id = sensor_data.get('device_id')
-    #             pm2_5 = sensor_data.get('sensor1_pm2.5')
-    #             s2_pm2_5 = sensor_data.get('sensor2_pm2.5')
-    #             pm10 = sensor_data.get('sensor1_pm10')
-    #             s2_pm10 = sensor_data.get('sensor2_pm10')
-    #             temperature = sensor_data.get('temperature')
-    #             humidity = sensor_data.get('humidity')
-    #             reference_data = sensor_data.get('reference_data')
-
