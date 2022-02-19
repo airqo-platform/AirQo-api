@@ -43,7 +43,6 @@ class Regression():
         ##dump the model to google cloud storage.
         #save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
 
-        
         return rf_regressor
 
     def lasso_reg(combined_ext_data):
