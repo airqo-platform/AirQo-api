@@ -52,8 +52,7 @@ def calibrate_tool():
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 def train_calibrate_tool(): 
     if request.method == 'POST': # get headers to check content type eg json or csv
-            data = request.get_json()
-            pollutant = data.get('Pollutant')
+            pollutant = request.get_data("Pollutant")
             file=request.files['file']
             df=pd.read_csv(file)
             if (not file):
