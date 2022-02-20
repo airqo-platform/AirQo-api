@@ -57,6 +57,8 @@ class ProductionConfig(Config):
     DEBUG = False
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_PROD")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES_PROD")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_PROD")
 
 
 class DevelopmentConfig(Config):
@@ -64,6 +66,8 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = env_var("MONGO_LOCAL_URI")
     DB_NAME = env_var("MONGO_DEV")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
 
 
 class TestingConfig(Config):
@@ -71,6 +75,8 @@ class TestingConfig(Config):
     DEBUG = True
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_STAGE")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
 
 
 config = {
@@ -79,3 +85,9 @@ config = {
     "staging": TestingConfig,
     "production": ProductionConfig
 }
+
+APP_ENV = env_var('FLASK_ENV', 'production')
+
+print(f'app running -{APP_ENV.uppercase()} M')
+
+CONFIGURATIONS = config[APP_ENV]
