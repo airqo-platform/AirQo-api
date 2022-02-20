@@ -28,7 +28,7 @@ public class SiteSerializer {
 			jGen.writeStartObject();
 			jGen.writeStringField("id", site.getId());
 			jGen.writeStringField("name", site.getName());
-			jGen.writeStringField("tenant", site.getTenant());
+			jGen.writeStringField("tenant", site.getTenant().toString());
 			jGen.writeStringField("description", site.getDescription());
 
 			jGen.writeObjectField("latitude", site.getLatitude());

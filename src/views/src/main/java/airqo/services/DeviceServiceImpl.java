@@ -1,7 +1,6 @@
 package airqo.services;
 
 import airqo.models.Device;
-import airqo.models.Tenant;
 import airqo.repository.DeviceRepository;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
@@ -28,14 +27,10 @@ public class DeviceServiceImpl implements DeviceService {
 
 
 	@Override
-	public void insertDevices(List<Device> devices, Tenant tenant) {
+	public void saveDevices(List<Device> devices) {
 		for (Device device : devices) {
-
 			try {
-				if (tenant != null) {
-					device.setTenant(tenant.toString());
-				}
-				insertDevice(device);
+				saveDevice(device);
 			} catch (Exception e) {
 				e.printStackTrace();
 				log.info(device.toString());
@@ -44,7 +39,7 @@ public class DeviceServiceImpl implements DeviceService {
 	}
 
 	@Override
-	public void insertDevice(Device device) {
+	public void saveDevice(Device device) {
 		deviceRepository.save(device);
 	}
 }

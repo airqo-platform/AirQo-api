@@ -32,7 +32,7 @@ public class PageSerializer extends JsonSerializer<PageImpl<?>> {
 		if (page.hasPrevious())
 			jGen.writeNumberField("previousPage", page.previousPageable().getPageNumber());
 
-		jGen.writeObjectField("content", page.getContent());
+		jGen.writeObjectField("data", page.getContent());
 
 		jGen.writeEndObject();
 	}

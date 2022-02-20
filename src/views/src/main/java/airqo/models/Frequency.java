@@ -12,5 +12,6 @@ public enum Frequency {
 		public String toString() {
 			return "DAILY";
 		}
+
 	}
 }

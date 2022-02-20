@@ -1,6 +1,7 @@
 package airqo.controllers;
 
 import airqo.models.Site;
+import airqo.predicate.SitePredicate;
 import airqo.services.SiteService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,7 +30,7 @@ public class SiteController {
 
 	@GetMapping("")
 	public ResponseEntity<?> getSites(
-		@QuerydslPredicate(root = Site.class) Predicate predicate) {
+		@QuerydslPredicate(root = Site.class, bindings = SitePredicate.class) Predicate predicate) {
 
 		List<Site> sites = siteService.getSites(predicate);
 		return new ResponseEntity<>(sites, new HttpHeaders(), HttpStatus.OK);

@@ -5,6 +5,7 @@ import airqo.services.DeviceService;
 import airqo.services.MeasurementService;
 import airqo.services.SiteService;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.sentry.Sentry;
 import lombok.extern.slf4j.Slf4j;
@@ -34,14 +35,13 @@ public class MessageBroker {
 		this.objectMapper = objectMapper;
 	}
 
-	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
 	public void sites(String content) {
 		try {
-
-			ObjectMapper objectMapper = new ObjectMapper();
-			Site.SiteList siteList = objectMapper.readValue(content, Site.SiteList.class);
-			siteService.insertSites(siteList.getSites(), null);
-			log.info(siteList.toString());
+			BrokerMessage<Site> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
+			});
+			List<Site> data = dataMessage.getData();
+			siteService.saveSites(data);
 
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();
@@ -52,9 +52,10 @@ public class MessageBroker {
 	public void appInsights(String content) {
 		try {
 
-			Insight.InsightMessage insightMessage = objectMapper.readValue(content, Insight.InsightMessage.class);
-
-			List<Insight> insights = insightMessage.getData();
+			BrokerMessage<Insight> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
+			});
+			log.info(dataMessage.toString());
+			List<Insight> insights = dataMessage.getData();
 
 			List<Insight> insightsList = new ArrayList<>();
 			for (Insight insight : insights) {
@@ -62,14 +63,13 @@ public class MessageBroker {
 				insightsList.add(insight);
 			}
 
-			log.info(insightMessage.toString());
-			if (insightMessage.getAction().equalsIgnoreCase("save")) {
+			if (dataMessage.getAction() == null || dataMessage.getAction().equals(BrokerMessageAction.SAVE)) {
 				measurementService.saveInsights(insightsList);
-			} else if (insightMessage.getAction().equalsIgnoreCase("delete")) {
-				measurementService.deleteInsightsBefore(insightMessage.getStartTime());
 			} else {
 				measurementService.insertInsights(insightsList);
 			}
+
+			log.info("{}", insightsList);
 
 		} catch (JsonProcessingException e) {
 			Sentry.captureException(e);
@@ -81,20 +81,10 @@ public class MessageBroker {
 	public void hourlyMeasurements(String content) {
 		try {
 
-			HourlyMeasurement.HourlyMeasurementMessage dataMessage = objectMapper.readValue(content, HourlyMeasurement.HourlyMeasurementMessage.class);
-
-			List<Measurement.BrokerMeasurement> data = dataMessage.getData();
-
-			List<Insight> insightsList = new ArrayList<>();
-			for (Measurement.BrokerMeasurement measurement : data) {
-				if (measurement.getTenant().equalsIgnoreCase("airqo")) {
-					Insight hourlyInsight = new Insight("", measurement.getTime(), measurement.getPm2_5(), measurement.getPm10(), false, false, "HOURLY", measurement.getSite_id());
-					hourlyInsight.setId();
-					insightsList.add(hourlyInsight);
-				}
-			}
-			log.info(dataMessage.toString());
-			measurementService.saveInsights(insightsList);
+			BrokerMessage<Measurement> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
+			});
+			List<Measurement> data = dataMessage.getData();
+			measurementService.saveMeasurements(data);
 
 		} catch (JsonProcessingException e) {
 			Sentry.captureException(e);
@@ -103,13 +93,13 @@ public class MessageBroker {
 		}
 	}
 
-	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
 	public void devices(String content) {
 		try {
-			ObjectMapper objectMapper = new ObjectMapper();
-			Device.DeviceList deviceList = objectMapper.readValue(content, Device.DeviceList.class);
-			deviceService.insertDevices(deviceList.getDevices(), null);
-			log.info(deviceList.toString());
+			BrokerMessage<Device> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
+			});
+			List<Device> data = dataMessage.getData();
+			deviceService.saveDevices(data);
 
 		} catch (JsonProcessingException e) {
 			e.printStackTrace();

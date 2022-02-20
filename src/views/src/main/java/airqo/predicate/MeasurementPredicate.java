@@ -1,7 +1,7 @@
 package airqo.predicate;
 
 import airqo.config.CustomException;
-import airqo.models.QInsight;
+import airqo.models.QMeasurement;
 import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
 import org.springframework.data.querydsl.binding.QuerydslBindings;
 
@@ -10,14 +10,14 @@ import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
-public class InsightPredicate implements QuerydslBinderCustomizer<QInsight> {
+public class MeasurementPredicate implements QuerydslBinderCustomizer<QMeasurement> {
 
 	@Override
-	public void customize(QuerydslBindings bindings, QInsight root) {
+	public void customize(QuerydslBindings bindings, QMeasurement root) {
 
 		bindings.bind(root.frequency).first((path, value) -> root.frequency.eq(value));
 
-		bindings.bind(root.siteId).first((path, value) -> root.siteId.in(value.split(",")));
+		bindings.bind(root.device.site.id).as("deviceId").first((path, value) -> root.device.site.id.in(value.split(",")));
 
 		bindings.bind(root.time)
 			.all((path, value) -> {
@@ -38,6 +38,6 @@ public class InsightPredicate implements QuerydslBinderCustomizer<QInsight> {
 				return Optional.empty();
 			});
 
-		bindings.excluding(root.id, root.pm2_5, root.pm10);
+		bindings.excluding(root.device, root.pm10, root.pm10, root.pm1, root.externalHumidity);
 	}
 }

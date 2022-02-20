@@ -23,15 +23,6 @@
       <properties>
         <defaultProperties>api</defaultProperties>
       </properties>
-      <activation>
-        <activeByDefault>true</activeByDefault>
-      </activation>
-    </profile>
-    <profile>
-      <id>testing</id>
-      <properties>
-        <defaultProperties>test</defaultProperties>
-      </properties>
     </profile>
     <profile>
       <id>messageBroker</id>
@@ -40,15 +31,9 @@
       </properties>
     </profile>
     <profile>
-      <id>staging</id>
+      <id>testing</id>
       <properties>
-        <defaultProperties>stage</defaultProperties>
-      </properties>
-    </profile>
-    <profile>
-      <id>production</id>
-      <properties>
-        <defaultProperties>prod</defaultProperties>
+        <defaultProperties>test</defaultProperties>
       </properties>
     </profile>
   </profiles>
@@ -83,7 +68,6 @@
       <artifactId>guava</artifactId>
       <version>31.0.1-jre</version>
     </dependency>
-
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-redis</artifactId>

@@ -34,9 +34,9 @@ public class MeasurementSerializer {
 				.readValue(mapper.writeValueAsString(measurement.getDevice()), Device.DeviceView.class);
 
 			jGen.writeStartObject();
-			jGen.writeStringField("tenant", measurement.getDevice().getTenant());
+			jGen.writeStringField("tenant", measurement.getDevice().getTenant().toString());
 
-			jGen.writeStringField("frequency", measurement.getFrequency());
+			jGen.writeStringField("frequency", measurement.getFrequency().toString());
 			jGen.writeStringField("time", simpleDateFormat.format(measurement.getTime()));
 
 			jGen.writeObjectField("pm2_5", getAllValues(measurement.getPm2_5()));
@@ -47,11 +47,8 @@ public class MeasurementSerializer {
 
 			jGen.writeObjectField("location", measurement.getLocation());
 
-			if (measurement.getDevice().getTenant().equalsIgnoreCase("kcca")) {
-				jGen.writeObjectField("pm1", getAllValues(measurement.getPm1()));
-				jGen.writeObjectField("no2", getAllValues(measurement.getNo2()));
-			}
-
+			jGen.writeObjectField("pm1", getAllValues(measurement.getPm1()));
+			jGen.writeObjectField("no2", getAllValues(measurement.getNo2()));
 			if (measurement.getExternalPressure().getValue() != null) {
 				jGen.writeObjectField("externalPressure", getValue(measurement.getExternalPressure()));
 			}

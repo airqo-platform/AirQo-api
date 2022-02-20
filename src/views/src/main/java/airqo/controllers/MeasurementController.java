@@ -3,13 +3,20 @@ package airqo.controllers;
 import airqo.models.ApiResponseBody;
 import airqo.models.Frequency;
 import airqo.models.Insight;
+import airqo.models.Measurement;
 import airqo.predicate.InsightPredicate;
+import airqo.predicate.MeasurementPredicate;
 import airqo.services.MeasurementService;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.querydsl.binding.QuerydslPredicate;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.web.SortDefault;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -39,14 +46,27 @@ public class MeasurementController {
 		this.measurementService = measurementService;
 	}
 
+	@GetMapping("")
+	public ResponseEntity<Page<Measurement>> apiGetMeasurements(
+		@QuerydslPredicate(root = Insight.class, bindings = MeasurementPredicate.class) Predicate predicate,
+		@PageableDefault(size = 100)
+		@SortDefault.SortDefaults({@SortDefault(sort = "time", direction = Sort.Direction.DESC),}) Pageable pageable) {
+
+		Page<Measurement> measurements = measurementService.apiGetMeasurements(predicate, pageable);
+		return ResponseEntity.ok(measurements);
+	}
+
 	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsights(
 		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
+		log.info("{}", predicate);
 		List<Insight> insights = measurementService.apiGetInsights(predicate);
+
 		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
 		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
 	}
 
+	@Deprecated
 	@GetMapping("/insights")
 	public ResponseEntity<ApiResponseBody> getAppInsights(
 		@RequestParam(defaultValue = "hourly", required = false) String frequency,

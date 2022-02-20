@@ -10,12 +10,8 @@ import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
 import java.util.Date;
-import java.util.List;
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
+@Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "devices")
 public class Device implements Serializable {
@@ -26,79 +22,51 @@ public class Device implements Serializable {
 	private String id;
 
 	@JsonAlias("long_name")
-	private String longName = "";
+	private String longName;
 
 	@JsonAlias("deployment_date")
-	private Date deploymentDate = new Date();
+	private Date deploymentDate;
 
 	@JsonAlias("maintenance_date")
-	private Date maintenanceDate = new Date();
+	private Date maintenanceDate;
 
 	@JsonAlias("recall_date")
-	private Date recallDate = new Date();
+	private Date recallDate;
 
 	@DBRef
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	@Indexed
-	private Site site = new Site();
+	private Site site;
 
 	@Indexed
-	private String name = "";
+	private String name;
 
 	@Indexed
-	private String tenant = "";
-	private String mountType = "";
-	private Double height;
+	private Tenant tenant;
 
 	@Indexed
-	private boolean primaryInLocation = false;
+	private boolean primaryInLocation;
 
 	@JsonIgnore
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'hh:mm:ss.SSS'Z'")
-	private Date nextMaintenance = new Date();
+	private Date nextMaintenance;
 
 	@Indexed
-	private boolean isActive = false;
+	private boolean isActive;
 
 	@JsonAlias("device_number")
 	@Indexed
-	private Integer deviceNumber = 0;
-	private String description = "";
+	private Integer deviceNumber;
 
-	private Date createdAt = new Date();
-	private boolean visibility = false;
-	private String writeKey = "";
-	private String readKey = "";
+	private String description;
+	private String mountType;
+	private Double height;
+	private Date createdAt;
+	private boolean visibility;
+	private String writeKey;
+	private String readKey;
 	private Double latitude;
 	private Double longitude;
-
-	@Override
-	public String toString() {
-		return "Device{" +
-			"id='" + id + '\'' +
-			", longName='" + longName + '\'' +
-			", name='" + name + '\'' +
-			", tenant='" + tenant + '\'' +
-			", primaryInLocation=" + primaryInLocation +
-			", nextMaintenance=" + nextMaintenance +
-			", isActive=" + isActive +
-			", deviceNumber=" + deviceNumber +
-			", description='" + description + '\'' +
-			", createdAt=" + createdAt +
-			", latitude=" + latitude +
-			", longitude=" + longitude +
-			'}';
-	}
-
-	@Getter
-	@Setter
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@ToString
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class DeviceList implements Serializable {
-		private List<Device> devices;
-	}
 
 	@Getter
 	@Setter

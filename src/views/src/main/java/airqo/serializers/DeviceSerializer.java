@@ -26,7 +26,7 @@ public class DeviceSerializer {
 			jGen.writeStringField("id", device.getId());
 			jGen.writeNumberField("deviceNumber", device.getDeviceNumber());
 			jGen.writeStringField("name", device.getName());
-			jGen.writeStringField("tenant", device.getTenant());
+			jGen.writeStringField("tenant", device.getTenant().toString());
 			jGen.writeStringField("description", device.getDescription());
 			jGen.writeNumberField("latitude", device.getLatitude());
 			jGen.writeNumberField("longitude", device.getLongitude());

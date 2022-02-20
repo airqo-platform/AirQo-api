@@ -1,7 +1,7 @@
 package airqo.controllers;
 
 import airqo.models.Device;
-import airqo.repository.DeviceRepository;
+import airqo.predicate.DevicePredicate;
 import airqo.services.DeviceService;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,7 +30,7 @@ public class DeviceController {
 
 	@GetMapping("")
 	public ResponseEntity<?> getDevices(
-		@QuerydslPredicate(root = Device.class, bindings = DeviceRepository.class) Predicate predicate) {
+		@QuerydslPredicate(root = Device.class, bindings = DevicePredicate.class) Predicate predicate) {
 
 		List<Device> devices = deviceService.getDevices(predicate);
 		return new ResponseEntity<>(devices, new HttpHeaders(), HttpStatus.OK);

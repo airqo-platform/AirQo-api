@@ -1,4 +1,4 @@
-package airqo.utils;
+package airqo.tasks;
 
 import airqo.models.Insight;
 import airqo.services.MeasurementService;
@@ -17,12 +17,12 @@ import java.util.List;
 @Slf4j
 @Profile({"messageBroker"})
 @Component
-public class ScheduledTasks {
+public class InsightsTasks {
 
 	private final MeasurementService measurementService;
 
 	@Autowired
-	public ScheduledTasks(MeasurementService measurementService) {
+	public InsightsTasks(MeasurementService measurementService) {
 		this.measurementService = measurementService;
 	}
 
@@ -40,7 +40,7 @@ public class ScheduledTasks {
 
 		List<Insight> oldInsights = measurementService.getInsightsBefore(new Date());
 		List<Insight> insights = new ArrayList<>();
-		log.info("Running Delete forecast insights");
+		log.info("Running Delete forecast InsightsTasks");
 		for (Insight insight : oldInsights) {
 			insight.setForecast(false);
 			insights.add(insight);
@@ -49,7 +49,7 @@ public class ScheduledTasks {
 	}
 
 	public void removeOldInsights() {
-		log.info("Running Delete old insights");
+		log.info("Running Delete old InsightsTasks");
 		Calendar cal = Calendar.getInstance();
 		cal.setTime(new Date());
 		cal.add(Calendar.DAY_OF_MONTH, -50);

@@ -13,9 +13,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 
 import static airqo.config.Constants.dateTimeFormat;
@@ -41,19 +39,11 @@ public class Insight implements Serializable {
 	private double pm10;
 	private Boolean empty;
 	private Boolean forecast;
-	private String frequency;
+	private Frequency frequency;
 	private String siteId;
 
 	public void setId() {
 		this.id = new InsightId(time, frequency, siteId).toString();
-	}
-
-	public String getFrequency() {
-		return frequency.toUpperCase();
-	}
-
-	public void setFrequency(String frequency) {
-		this.frequency = frequency.toUpperCase();
 	}
 
 	@Override
@@ -77,7 +67,7 @@ public class Insight implements Serializable {
 		private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
 
 		private Date time;
-		private String frequency;
+		private Frequency frequency;
 		private String siteId;
 
 		@Override
@@ -97,23 +87,8 @@ public class Insight implements Serializable {
 		@Override
 		public String toString() {
 			String dateTime = simpleDateFormat.format(time).trim();
-			String frequencyValue = frequency.trim().toLowerCase();
-			return (siteId + ":" + frequencyValue + ":" + dateTime).toUpperCase();
+			return (siteId + ":" + frequency.toString() + ":" + dateTime).toUpperCase();
 		}
-	}
-
-	@Getter
-	@Setter
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@ToString
-	public static class InsightMessage implements Serializable {
-
-		private List<Insight> data = new ArrayList<>();
-		private String action = "insert";
-		private Date startTime = null;
-		private Date endTime = null;
-
 	}
 
 }

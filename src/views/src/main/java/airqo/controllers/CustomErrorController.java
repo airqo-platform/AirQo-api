@@ -15,7 +15,7 @@ public class CustomErrorController implements ErrorController {
 
 	@RequestMapping("/error")
 	public ResponseEntity<ApiResponseBody> handleError() {
-		return new ResponseEntity<>(new ApiResponseBody("Not Found", null),
-			new HttpHeaders(), HttpStatus.NOT_FOUND);
+		return new ResponseEntity<>(new ApiResponseBody("Error", null),
+			new HttpHeaders(), HttpStatus.INTERNAL_SERVER_ERROR);
 	}
 }

@@ -16,11 +16,7 @@ import java.util.Date;
 import java.util.List;
 
 
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@ToString
+@Data
 @Document(collection = "sites")
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class Site implements Serializable {
@@ -29,35 +25,50 @@ public class Site implements Serializable {
 	@Id
 	@JsonAlias("_id")
 	public String id;
+
 	@Indexed
 	@JsonAlias("lat_long")
 	private String latLong;
+
 	@JsonAlias("formatted_name")
 	private String formattedName = "";
+
 	@JsonAlias("search_name")
 	private String searchName = "";
+
 	@JsonAlias("generated_name")
 	private String generatedName = "";
+
 	@JsonAlias("landform_90")
 	private Double landform90;
+
 	@JsonAlias("landform270")
 	private Double landform_270;
+
 	@JsonAlias("distance_to_nearest_road")
 	private Double nearestRoad;
+
 	@JsonAlias("distance_to_nearest_primary_road")
 	private Double nearestPrimaryRoad;
+
 	@JsonAlias("distance_to_nearest_tertiary_road")
 	private Double nearestTertiaryRoad;
+
 	@JsonAlias("distance_to_nearest_unclassified_road")
 	private Double nearestUnclassifiedRoad;
+
 	@JsonAlias("distance_to_nearest_residential_road")
 	private Double nearestResidentialRoad;
+
 	@JsonAlias("bearing_to_kampala_center")
 	private Double bearingToKampalaCenter;
+
 	@JsonAlias("distance_to_kampala_center")
 	private Double distanceToKampalaCenter;
+
 	@JsonAlias("site_tags")
 	private Collection<String> tags;
+
 	@JsonAlias("devices")
 	@DBRef
 	private Collection<Device> devices = new ArrayList<>();
@@ -66,10 +77,14 @@ public class Site implements Serializable {
 	private Tahmo tahmo;
 
 	@Indexed
-	private String tenant = "";
+	private Tenant tenant;
 
 	@Indexed
 	private String name = "";
+
+	@JsonAlias({"geometry"})
+	private Geometry geometry;
+
 	private String description = "";
 	private Double latitude;
 	private Double longitude;
@@ -84,16 +99,6 @@ public class Site implements Serializable {
 	private String county = "";
 	private Double altitude;
 	private Double greenness;
-	@JsonAlias({"geometry"})
-	private Geometry geometry;
-
-	public Site(String id) {
-		this.id = id;
-	}
-
-	public String getLocation() {
-		return this.getDistrict() + " " + this.getCountry();
-	}
 
 	@Getter
 	@Setter

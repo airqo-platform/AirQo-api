@@ -2,7 +2,10 @@ package airqo;
 
 import airqo.models.Frequency;
 import airqo.models.Insight;
+import airqo.models.QInsight;
 import airqo.services.MeasurementService;
+import com.querydsl.core.types.Predicate;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.restdocs.AutoConfigureRestDocs;
 import org.springframework.boot.test.autoconfigure.restdocs.RestDocsMockMvcConfigurationCustomizer;
@@ -28,7 +31,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultHandlers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 
-//@Profile({"api"})
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @AutoConfigureRestDocs(uriHost = "api.airqo.net/v1/views", uriScheme = "https", uriPort = 443)
@@ -41,18 +43,47 @@ public class MeasurementControllerTests {
 	MeasurementService measurementService;
 
 	List<Insight> insights = new ArrayList<>();
-	Date startTime = new Date();
-	Date endTime = new Date();
-	List<String> siteIds = new ArrayList<>();
+	private Date startTime = new Date();
+	private Date endTime = new Date();
+	private List<String> siteIds = new ArrayList<>();
+	private boolean empty;
+	private boolean forecast;
+	private String frequency;
 
-	//	@Test
+	@BeforeEach
+	public void initialize(){
+		startTime = new Date();
+		endTime = new Date();
+		siteIds = new ArrayList<>();
+		frequency = "";
+	}
+
+	public void shouldReturnHourlyInsights() throws Exception {
+
+		QInsight qInsight = QInsight.insight;
+		Predicate predicate = qInsight.frequency.eq(Frequency.HOURLY);
+
+		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+
+		this.mockMvc.perform(get("/measurements/app/insights")
+				.param("frequency", "HOURLY")
+				.contentType(MediaType.APPLICATION_JSON))
+			.andExpect(status().isOk());
+	}
+
 	public void shouldReturnInsights() throws Exception {
 
-		when(measurementService.getInsights(Frequency.HOURLY, startTime, endTime, siteIds)).thenReturn(insights);
+		QInsight qInsight = QInsight.insight;
+		Predicate predicate = qInsight.frequency.eq(Frequency.DAILY)
+			.and(qInsight.siteId.in(siteIds))
+			.and(qInsight.time.goe(startTime))
+			.and(qInsight.time.loe(endTime));
 
-		this.mockMvc.perform(get("/measurements/insights")
-				.param("startTime", simpleDateFormat.format(startTime))
-				.param("endTime", simpleDateFormat.format(endTime))
+		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+
+		this.mockMvc.perform(get("/measurements/app/insights")
+				.param("time", simpleDateFormat.format(startTime))
+				.param("time", simpleDateFormat.format(endTime))
 				.param("siteId", "site1,site2")
 				.param("frequency", "hourly")
 				.contentType(MediaType.APPLICATION_JSON))

@@ -4,13 +4,13 @@ public enum Tenant {
 	AIRQO {
 		@Override
 		public String toString() {
-			return "airqo";
+			return "AIRQO";
 		}
 	},
 	KCCA {
 		@Override
 		public String toString() {
-			return "kcca";
+			return "KCCA";
 		}
 	}
 }

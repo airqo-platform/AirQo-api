@@ -6,35 +6,40 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.index.IndexDirection;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
+import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.io.Serializable;
+import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 
 import static airqo.config.Constants.dateTimeFormat;
 import static airqo.config.Constants.longDateTimeFormat;
 
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString
+@Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 @JsonSerialize(using = MeasurementSerializer.Serializer.class)
+@Document(collection = "measurements")
+@CompoundIndexes({
+	@CompoundIndex(name = "Measurements Composite Key", def = "{'device.tenant': 1, 'device.id': 1, 'time' : 1, 'frequency': 1}", unique = true)
+})
 public class Measurement implements Serializable {
 
 	@Id
 	@Field("_id")
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
-	private Measurement.MeasurementId id;
+	private String id;
 
 	@Transient
 	@JsonAlias("device_id")
@@ -52,7 +57,10 @@ public class Measurement implements Serializable {
 	@JsonAlias("hdop")
 	private MeasurementValue hDop = new MeasurementValue();
 
-	private String frequency = "";
+	@Indexed
+	private Tenant tenant;
+
+	private Frequency frequency;
 	private Location location = new Location();
 	private MeasurementValue internalTemperature = new MeasurementValue();
 	private MeasurementValue internalHumidity = new MeasurementValue();
@@ -66,16 +74,25 @@ public class Measurement implements Serializable {
 	private MeasurementValue pm2_5 = new MeasurementValue();
 	private MeasurementValue no2 = new MeasurementValue();
 
+	public String getId() {
+		MeasurementId id = new MeasurementId();
+		id.deviceId = deviceId;
+		id.tenant = device.getTenant();
+		id.time = time;
+		id.frequency = frequency;
+		return id.toString();
+	}
+
 	@Override
 	public boolean equals(Object obj) {
 		if (obj == null || getClass() != obj.getClass()) return false;
-		Measurement objInsight = (Measurement) obj;
-		return id.equals(objInsight.id);
+		Measurement objMeasurement = (Measurement) obj;
+		return id.equals(objMeasurement.id);
 	}
 
 	@Override
 	public int hashCode() {
-		return Objects.hash(time, frequency, device.getId());
+		return Objects.hash(id);
 	}
 
 	public Location getLocation() {
@@ -85,84 +102,62 @@ public class Measurement implements Serializable {
 		return location;
 	}
 
-	@Getter
-	@Setter
+	@Data
 	@AllArgsConstructor
 	@NoArgsConstructor
-	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class MeasurementValue implements Serializable {
-		Double value, calibratedValue, uncertaintyValue, standardDeviationValue;
+
+		@Transient
+		Double value;
+
+		Double rawValue, calibratedValue;
 
 		public Double getValue() {
 			if (calibratedValue == null) {
-				return value;
+				return rawValue;
 			}
 			return calibratedValue;
 		}
 	}
 
-	@Getter
-	@Setter
+	@Data
 	@AllArgsConstructor
 	@NoArgsConstructor
-	@ToString
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	public static class Location implements Serializable {
 		Double latitude, longitude;
 	}
 
-	@Getter
-	@Setter
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@ToString
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class MeasurementsList implements Serializable {
-		private List<Measurement> measurements;
-	}
-
-	@Getter
-	@Setter
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@ToString
 	public static class MeasurementId implements Serializable {
 
-		private Date time;
-		private String frequency;
+		private Tenant tenant;
 		private String deviceId;
+		private Date time;
+		private Frequency frequency;
 
 		@Override
 		public boolean equals(Object obj) {
 			if (obj == null || getClass() != obj.getClass()) return false;
-			MeasurementId objInsight = (MeasurementId) obj;
-			return time.compareTo(objInsight.time) == 0 &&
-				Objects.equals(frequency, objInsight.frequency) &&
-				Objects.equals(deviceId, objInsight.deviceId);
+			MeasurementId objMeasurementId = (MeasurementId) obj;
+			return time.compareTo(objMeasurementId.time) == 0 &&
+				Objects.equals(frequency, objMeasurementId.frequency) &&
+				Objects.equals(deviceId, objMeasurementId.deviceId) &&
+				Objects.equals(tenant, objMeasurementId.tenant);
+		}
+
+		@Override
+		public String toString() {
+			SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
+			String str = tenant.toString() + ":" + deviceId + ':' + simpleDateFormat.format(time) + ":" + frequency.toString();
+			return str.trim().toUpperCase();
 		}
 
 		@Override
 		public int hashCode() {
-			return Objects.hash(time, frequency, deviceId);
+			return Objects.hash(time, frequency, deviceId, tenant);
 		}
 	}
 
-
-	@Getter
-	@Setter
-	@AllArgsConstructor
-	@NoArgsConstructor
-	@ToString
-	@JsonIgnoreProperties(ignoreUnknown = true)
-	public static class BrokerMeasurement implements Serializable {
-
-		@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
-		private Date time;
-		private String site_id;
-		private String tenant;
-		private double pm2_5;
-		private double pm10;
-	}
 }
 

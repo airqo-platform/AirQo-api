@@ -1,7 +1,6 @@
 package airqo.services;
 
 import airqo.models.Site;
-import airqo.models.Tenant;
 import airqo.repository.SiteRepository;
 import com.querydsl.core.types.Predicate;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,13 +26,10 @@ public class SiteServiceImpl implements SiteService {
 	}
 
 	@Override
-	public void insertSites(List<Site> sites, Tenant tenant) {
+	public void saveSites(List<Site> sites) {
 		for (Site site : sites) {
 			try {
-				if (tenant != null) {
-					site.setTenant(tenant.toString());
-				}
-				insertSite(site);
+				saveSite(site);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -41,7 +37,7 @@ public class SiteServiceImpl implements SiteService {
 	}
 
 	@Override
-	public void insertSite(Site site) {
+	public void saveSite(Site site) {
 		siteRepository.save(site);
 	}
 }
