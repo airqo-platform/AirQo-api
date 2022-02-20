@@ -64,14 +64,14 @@ class Train_calibrate_tool():
         model_input = df[['Average_PM2.5','Average_PM10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
      
         rgtool = train_calibrate_tool.Regression()
-        model_pm2_5_ext = rgtool.random_forest(combined_ext_data)
-        model_pm10_ext = rgtool.lasso_reg(combined_ext_data)
 
         calibrated_data_ext = df_copy[['Average_PM2.5','Average_PM10', 'datetime']]
         if pollutant == "PM2.5":
+            model_pm2_5_ext = rgtool.random_forest(combined_ext_data)
             calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
             calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
         elif pollutant == "PM10":
+            model_pm10_ext = rgtool.lasso_reg(combined_ext_data)
             calibrated_pm10 =  model_pm10_ext.predict(model_input)
             calibrated_data_ext['calibrated_pm10'] = calibrated_pm10
         else:
