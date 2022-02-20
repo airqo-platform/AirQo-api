@@ -52,6 +52,8 @@ def calibrate_tool():
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 def train_calibrate_tool(): 
     if request.method == 'POST': # get headers to check content type eg json or csv
+            data = request.get_json()
+            pollutant = data.get('Pollutant')
             file=request.files['file']
             df=pd.read_csv(file)
             if (not file):
@@ -59,7 +61,7 @@ def train_calibrate_tool():
             
             rgtool = training_tool.Train_calibrate_tool()
     
-            calibrated_data_ext = rgtool.train_calibration_model(df)
+            calibrated_data_ext = rgtool.train_calibration_model(pollutant, df)
             calibrated_data_ext.to_csv('calibrated_data_ext.csv')  
             
             return "Your data is ready for download", 200
