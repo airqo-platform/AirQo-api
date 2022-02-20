@@ -17,7 +17,7 @@ class Train_calibrate_tool():
         The class contains functionality for computing device calibrated values .
     """
 
-    def train_calibration_model(self,df):
+    def train_calibration_model(self, pollutant, df):
         df.rename(columns={'Time':'datetime','Sensor1 PM2.5_CF_1_ug/m3':'pm2_5','Sensor2 PM2.5_CF_1_ug/m3':'s2_pm2_5',
                                      'Sensor1 PM10_CF_1_ug/m3':'pm10','Sensor2 PM10_CF_1_ug/m3':'s2_pm10',
                                      'AT(C)':'temperature', 'RH(%)':'humidity', 'ConcHR(ug/m3)':'ref_data'},inplace=True)
@@ -67,12 +67,15 @@ class Train_calibrate_tool():
         model_pm2_5_ext = rgtool.random_forest(combined_ext_data)
         model_pm10_ext = rgtool.lasso_reg(combined_ext_data)
 
-        calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
-        calibrated_pm10 =  model_pm10_ext.predict(model_input)
         calibrated_data_ext = df_copy[['Average_PM2.5','Average_PM10', 'datetime']]
-        calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
-        calibrated_data_ext['calibrated_pm10'] = calibrated_pm10
-
+        if pollutant == "PM2.5":
+            calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
+            calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
+        elif pollutant == "PM10":
+            calibrated_pm10 =  model_pm10_ext.predict(model_input)
+            calibrated_data_ext['calibrated_pm10'] = calibrated_pm10
+        else:
+            print("Calibration fuction available for PM2.5 and PM10 ")
         return calibrated_data_ext
                
 if __name__ == "__main__":
