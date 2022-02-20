@@ -70,13 +70,12 @@ class Train_calibrate_tool():
             model_pm2_5_ext = rgtool.random_forest(combined_ext_data)
             calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
             calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
-        elif pollutant == "PM10":
+            return calibrated_data_ext
+        else:
             model_pm10_ext = rgtool.lasso_reg(combined_ext_data)
             calibrated_pm10 =  model_pm10_ext.predict(model_input)
             calibrated_data_ext['calibrated_pm10'] = calibrated_pm10
-        else:
-            print("Calibration fuction available for PM2.5 and PM10 ")
-        return calibrated_data_ext
+            return calibrated_data_ext
                
 if __name__ == "__main__":
     calibrateInstance = Train_calibrate_tool()
