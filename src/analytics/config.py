@@ -11,6 +11,8 @@ TWO_HOURS = 7200 # seconds
 
 BASE_URL = "/api/v1/analytics"
 
+APP_ENV = env_var('FLASK_ENV', 'production')
+
 
 class Config:
     DEBUG = False
@@ -20,7 +22,7 @@ class Config:
 
     CACHE_TYPE = 'RedisCache'
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
-    CACHE_KEY_PREFIX = 'Analytics'
+    CACHE_KEY_PREFIX = f'Analytics-{APP_ENV}'
     CACHE_REDIS_HOST = env_var('REDIS_SERVER')
     CACHE_REDIS_PORT = env_var('REDIS_PORT')
     CACHE_REDIS_URL = f"redis://{env_var('REDIS_SERVER')}:{env_var('REDIS_PORT')}"
@@ -86,8 +88,6 @@ config = {
     "production": ProductionConfig
 }
 
-APP_ENV = env_var('FLASK_ENV', 'production')
-
-print(f'app running -{APP_ENV.uppercase()} M')
+print(f'app running - {APP_ENV.upper()} mode')
 
 CONFIGURATIONS = config[APP_ENV]
