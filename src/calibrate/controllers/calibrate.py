@@ -38,7 +38,6 @@ def calibrate():
 def calibrate_tool():    
     if request.method == 'POST': # get headers to check content type eg json or csv
         map_columns = request.form
-        print("dict", map_columns)
         file=request.files['file']
         df=pd.read_csv(file)
         if (not file):
@@ -46,7 +45,7 @@ def calibrate_tool():
         
         rgModel = calibration_tool.Regression()
         
-        calibrated_data = rgModel.compute_calibrated_val(df)  
+        calibrated_data = rgModel.compute_calibrated_val(map_columns, df)  
         calibrated_data.to_csv('calibrated_data.csv')        
         
     return #"Your data is ready for download", 200
