@@ -53,7 +53,6 @@ def calibrate_tool():
 def train_calibrate_tool(): 
     if request.method == 'POST': # get headers to check content type eg json or csv
             pollutant = input("Select reference pollutant:")
-            print("pppppppppp", pollutant)
             file=request.files['file']
             df=pd.read_csv(file)
             if (not file):
