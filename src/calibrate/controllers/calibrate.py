@@ -48,7 +48,7 @@ def calibrate_tool():
         calibrated_data = rgModel.compute_calibrated_val(map_columns, df)  
         calibrated_data.to_csv('calibrated_data.csv')        
         
-    return #"Your data is ready for download", 200
+    return "Your data is ready for download", 200
         
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 def train_calibrate_tool(): 
