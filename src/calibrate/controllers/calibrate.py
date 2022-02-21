@@ -1,10 +1,9 @@
 from routes import api
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from models import regression as rg
 from models import calibrate_tool as calibration_tool
 from models import train_calibrate_tool as training_tool
 import pandas as pd
-import csv
 
 calibrate_bp = Blueprint('calibrate_bp', __name__)
 
@@ -45,10 +44,12 @@ def calibrate_tool():
         
         rgModel = calibration_tool.Regression()
         
-        calibrated_data = rgModel.compute_calibrated_val(map_columns, df)  
-        calibrated_data.to_csv('calibrated_data.csv')        
-        
-    return "Your data is ready for download", 200
+        calibrated_data = rgModel.compute_calibrated_val(map_columns, df) 
+        # calibrated_data.to_csv('calibrated_data.csv')
+        resp = make_response(calibrated_data.to_csv())
+        resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
+        resp.headers["Content-Type"] = "text/csv"
+    return resp
         
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 def train_calibrate_tool(): 
@@ -62,7 +63,9 @@ def train_calibrate_tool():
             
             rgtool = training_tool.Train_calibrate_tool()
     
-            calibrated_data_ext = rgtool.train_calibration_model(pollutant, map_columns, df)
-            calibrated_data_ext.to_csv('calibrated_data_ext.csv')  
+            calibrated_data_ext = rgtool.train_calibration_model(pollutant, map_columns, df) 
+            resp = make_response(calibrated_data_ext.to_csv())
+            resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data_ext.csv"
+            resp.headers["Content-Type"] = "text/csv"
+    return resp
             
-            return "Your data is ready for download", 200
