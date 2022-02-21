@@ -37,6 +37,8 @@ def calibrate():
 @calibrate_bp.route(api.route['calibrate_tool'], methods=['POST', 'GET'])
 def calibrate_tool():    
     if request.method == 'POST': # get headers to check content type eg json or csv
+        map_columns = request.form
+        print("dict", map_columns)
         file=request.files['file']
         df=pd.read_csv(file)
         if (not file):
@@ -47,12 +49,14 @@ def calibrate_tool():
         calibrated_data = rgModel.compute_calibrated_val(df)  
         calibrated_data.to_csv('calibrated_data.csv')        
         
-    return "Your data is ready for download", 200
+    return #"Your data is ready for download", 200
         
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST', 'GET'])
 def train_calibrate_tool(): 
     if request.method == 'POST': # get headers to check content type eg json or csv
-            pollutant = input("Select reference pollutant:")
+            # pollutant = input("Select reference pollutant:")
+            pollutant = request.form['pollutant']
+            # print("pppppppppppppp", request.form )
             file=request.files['file']
             df=pd.read_csv(file)
             if (not file):
