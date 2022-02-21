@@ -19,11 +19,16 @@ class Regression():
         The class contains functionality for computing device calibrated values .
     """
     # map_columns = {"created_at":"datetime"}
-    def compute_calibrated_val(self, df):  
+    def compute_calibrated_val(self, map_columns, df):  
+        # df.rename(columns={'Time':'datetime','Sensor1 PM2.5_CF_1_ug/m3':'pm2_5','Sensor2 PM2.5_CF_1_ug/m3':'s2_pm2_5',
+        #                              'Sensor1 PM10_CF_1_ug/m3':'pm10','Sensor2 PM10_CF_1_ug/m3':'s2_pm10',
+        #                              'AT(C)':'temperature', 'RH(%)':'humidity'},inplace=True)
+    
+        # Map columns from uploaded csv
         df.rename(columns={'Time':'datetime','Sensor1 PM2.5_CF_1_ug/m3':'pm2_5','Sensor2 PM2.5_CF_1_ug/m3':'s2_pm2_5',
                                      'Sensor1 PM10_CF_1_ug/m3':'pm10','Sensor2 PM10_CF_1_ug/m3':'s2_pm10',
                                      'AT(C)':'temperature', 'RH(%)':'humidity'},inplace=True)
-    
+
         # features from datetime and PM
         df["datetime"] = pd.to_datetime(df["datetime"])
         # extract hour
