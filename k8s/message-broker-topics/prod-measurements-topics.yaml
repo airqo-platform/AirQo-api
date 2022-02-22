@@ -1,7 +1,7 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: app-insights-measurements-topic
+  name: app-insights-topic
   namespace: production
   labels:
     strimzi.io/cluster: prod-kafka-cluster
@@ -9,7 +9,7 @@ spec:
   partitions: 3
   replicas: 1
   config:
-    retention.ms: 3600000 # 1 day
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
@@ -23,4 +23,32 @@ spec:
   partitions: 3
   replicas: 1
   config:
-    retention.ms: 3600000 # 1 day
+    retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: sites-topic
+  namespace: production
+  labels:
+    strimzi.io/cluster: prod-kafka-cluster
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: devices-topic
+  namespace: production
+  labels:
+    strimzi.io/cluster: prod-kafka-cluster
+spec:
+  partitions: 3
+  replicas: 1
+  config:
+    retention.ms: 86400000
