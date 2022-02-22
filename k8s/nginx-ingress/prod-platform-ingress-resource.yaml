@@ -182,3 +182,7 @@ spec:
             backend:
               serviceName: airqo-notification-api-svc
               servicePort: 8080
+          - path: /api/v1/view
+            backend:
+              serviceName: airqo-view-api-svc
+              servicePort: 8080
