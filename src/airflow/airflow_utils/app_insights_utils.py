@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 
 from airflow_utils.airqo_api import AirQoApi
+from airflow_utils.config import configuration
+from airflow_utils.message_broker import KafkaBrokerClient
 from airflow_utils.date import (
     date_to_str_hours,
     date_to_str_days,
@@ -13,10 +15,83 @@ from airflow_utils.date import (
     str_to_date,
 )
 from airflow_utils.commons import (
-    format_measurements_to_insights,
     get_airqo_api_frequency,
     resample_data,
 )
+
+
+def format_measurements_to_insights(data: list):
+    measurements_df = pd.json_normalize(data)
+    if "pm2_5.calibratedValue" not in measurements_df.columns:
+        measurements_df["pm2_5.calibratedValue"] = ["pm2_5.value"]
+    else:
+        measurements_df["pm2_5.calibratedValue"].fillna(
+            measurements_df["pm2_5.value"], inplace=True
+        )
+
+    if "pm10.calibratedValue" not in measurements_df.columns:
+        measurements_df["pm10.calibratedValue"] = measurements_df["pm10.value"]
+    else:
+        measurements_df["pm10.calibratedValue"].fillna(
+            measurements_df["pm10.value"], inplace=True
+        )
+
+    measurements_df = measurements_df[
+        [
+            "time",
+            "frequency",
+            "site_id",
+            "pm2_5.calibratedValue",
+            "pm10.calibratedValue",
+        ]
+    ]
+
+    measurements_df.columns = ["time", "frequency", "siteId", "pm2_5", "pm10"]
+    measurements_df = measurements_df.dropna()
+
+    measurements_df["frequency"] = measurements_df["frequency"].apply(
+        lambda x: str(x).upper()
+    )
+
+    hourly_measurements_df = measurements_df.loc[
+        measurements_df["frequency"] == "HOURLY"
+    ]
+    hourly_measurements_df["time"] = hourly_measurements_df["time"].apply(
+        lambda x: measurement_time_to_string(x, daily=False)
+    )
+
+    daily_measurements_df = measurements_df.loc[measurements_df["frequency"] == "DAILY"]
+    daily_measurements_df["time"] = daily_measurements_df["time"].apply(
+        lambda x: measurement_time_to_string(x, daily=True)
+    )
+
+    data = pd.concat([hourly_measurements_df, daily_measurements_df], ignore_index=True)
+    data["empty"] = False
+    data["forecast"] = False
+
+    return data.to_dict(orient="records")
+
+
+def save_insights_data(
+    insights_data: list = None,
+    action: str = "insert",
+    start_time=datetime(year=2020, month=1, day=1),
+    end_time=datetime(year=2020, month=1, day=1),
+):
+    if insights_data is None:
+        insights_data = []
+
+    print("saving insights .... ")
+
+    data = {
+        "data": insights_data,
+        "action": action,
+        "startTime": date_to_str(start_time),
+        "endTime": date_to_str(end_time),
+    }
+
+    kafka = KafkaBrokerClient()
+    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
 
 
 def predict_time_to_string(time: str):

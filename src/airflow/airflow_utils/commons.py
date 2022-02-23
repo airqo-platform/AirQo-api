@@ -4,16 +4,13 @@ from datetime import timedelta, datetime
 from functools import reduce
 
 import numpy as np
-import pandas
 import pandas as pd
 from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
-from google.cloud import bigquery
 from google.cloud import storage
 
 from airflow_utils.airqo_api import AirQoApi
 from airflow_utils.config import configuration
-from airflow_utils.message_broker import KafkaBrokerClient
 from airflow_utils.date import (
     str_to_date,
     date_to_str,
@@ -23,86 +20,12 @@ from airflow_utils.date import (
 from airflow_utils.tahmo import TahmoApi
 
 
-def save_insights_data(
-    insights_data: list = None,
-    action: str = "insert",
-    start_time=datetime(year=2020, month=1, day=1),
-    end_time=datetime(year=2020, month=1, day=1),
-):
-    if insights_data is None:
-        insights_data = []
-
-    print("saving insights .... ")
-
-    data = {
-        "data": insights_data,
-        "action": action,
-        "startTime": date_to_str(start_time),
-        "endTime": date_to_str(end_time),
-    }
-
-    kafka = KafkaBrokerClient()
-    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
-
-
 def measurement_time_to_string(time: str, daily=False):
     date_time = str_to_date(time)
     if daily:
         return date_to_str_days(date_time)
     else:
         return date_to_str_hours(date_time)
-
-
-def format_measurements_to_insights(data: list):
-    measurements_df = pd.json_normalize(data)
-    if "pm2_5.calibratedValue" not in measurements_df.columns:
-        measurements_df["pm2_5.calibratedValue"] = ["pm2_5.value"]
-    else:
-        measurements_df["pm2_5.calibratedValue"].fillna(
-            measurements_df["pm2_5.value"], inplace=True
-        )
-
-    if "pm10.calibratedValue" not in measurements_df.columns:
-        measurements_df["pm10.calibratedValue"] = measurements_df["pm10.value"]
-    else:
-        measurements_df["pm10.calibratedValue"].fillna(
-            measurements_df["pm10.value"], inplace=True
-        )
-
-    measurements_df = measurements_df[
-        [
-            "time",
-            "frequency",
-            "site_id",
-            "pm2_5.calibratedValue",
-            "pm10.calibratedValue",
-        ]
-    ]
-
-    measurements_df.columns = ["time", "frequency", "siteId", "pm2_5", "pm10"]
-    measurements_df = measurements_df.dropna()
-
-    measurements_df["frequency"] = measurements_df["frequency"].apply(
-        lambda x: str(x).upper()
-    )
-
-    hourly_measurements_df = measurements_df.loc[
-        measurements_df["frequency"] == "HOURLY"
-    ]
-    hourly_measurements_df["time"] = hourly_measurements_df["time"].apply(
-        lambda x: measurement_time_to_string(x, daily=False)
-    )
-
-    daily_measurements_df = measurements_df.loc[measurements_df["frequency"] == "DAILY"]
-    daily_measurements_df["time"] = daily_measurements_df["time"].apply(
-        lambda x: measurement_time_to_string(x, daily=True)
-    )
-
-    data = pd.concat([hourly_measurements_df, daily_measurements_df], ignore_index=True)
-    data["empty"] = False
-    data["forecast"] = False
-
-    return data.to_dict(orient="records")
 
 
 def to_double(x):
@@ -206,6 +129,7 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     data = data.dropna(subset=["time"])
     data["time"] = pd.to_datetime(data["time"])
     data = data.sort_index(axis=0)
+    original_df = data[["time", "latitude", "longitude"]]
 
     resample_value = "24H" if frequency.lower() == "daily" else "1H"
     averages = pd.DataFrame(data.resample(resample_value, on="time").mean())
@@ -213,6 +137,30 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     averages["time"] = averages.index
     averages["time"] = averages["time"].apply(lambda x: date_to_str(x))
     averages = averages.reset_index(drop=True)
+
+    if resample_value == "1H":
+        original_df["time"] = original_df["time"].apply(lambda x: date_to_str_hours(x))
+    elif resample_value == "24H":
+        original_df["time"] = original_df["time"].apply(lambda x: date_to_str_days(x))
+    else:
+        original_df["time"] = original_df["time"].apply(lambda x: date_to_str(x))
+
+    def reset_latitude_or_longitude(time: str, field: str):
+        date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
+        if date_row.empty:
+            return time
+        return (
+            date_row.iloc[0]["latitude"]
+            if field == "latitude"
+            else date_row.iloc[0]["longitude"]
+        )
+
+    averages["latitude"] = averages.apply(
+        lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
+    )
+    averages["longitude"] = averages.apply(
+        lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
+    )
 
     return averages
 
@@ -526,92 +474,10 @@ def get_time_values(**kwargs):
         end_time = dag_run.conf["endTime"]
     except KeyError:
         yesterday = datetime.utcnow() - timedelta(days=1)
-        start_time = datetime.strftime(yesterday, "%Y-%m-%dT%00:00:00Z")
-        end_time = datetime.strftime(yesterday, "%Y-%m-%dT%11:59:59Z")
+        start_time = datetime.strftime(yesterday, "%Y-%m-%dT00:00:00Z")
+        end_time = datetime.strftime(yesterday, "%Y-%m-%dT11:59:59Z")
 
     return start_time, end_time
-
-
-def save_measurements_to_bigquery(measurements: list, table_id: str) -> None:
-    client = bigquery.Client()
-
-    dataframe = pandas.DataFrame(
-        measurements,
-        columns=[
-            "time",
-            "tenant",
-            "site_id",
-            "device_number",
-            "device",
-            "latitude",
-            "longitude",
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "pm2_5",
-            "pm10",
-            "pm2_5_calibrated_value",
-            "pm10_calibrated_value",
-            "external_temperature",
-            "external_humidity",
-            "wind_speed",
-            "altitude",
-        ],
-    )
-
-    dataframe["time"] = pd.to_datetime(dataframe["time"])
-    dataframe[
-        [
-            "latitude",
-            "longitude",
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "pm2_5",
-            "pm10",
-            "pm2_5_calibrated_value",
-            "pm10_calibrated_value",
-            "external_temperature",
-            "external_humidity",
-            "wind_speed",
-            "altitude",
-        ]
-    ] = dataframe[
-        [
-            "latitude",
-            "longitude",
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "s1_pm10",
-            "s2_pm10",
-            "pm2_5",
-            "pm10",
-            "pm2_5_calibrated_value",
-            "pm10_calibrated_value",
-            "external_temperature",
-            "external_humidity",
-            "wind_speed",
-            "altitude",
-        ]
-    ].apply(
-        pd.to_numeric, errors="coerce"
-    )
-
-    job_config = bigquery.LoadJobConfig(
-        write_disposition="WRITE_APPEND",
-    )
-
-    job = client.load_table_from_dataframe(dataframe, table_id, job_config=job_config)
-    job.result()
-
-    table = client.get_table(table_id)
-    print(
-        "Loaded {} rows and {} columns to {}".format(
-            table.num_rows, len(table.schema), table_id
-        )
-    )
 
 
 def get_device(devices=None, channel_id=None, device_id=None):

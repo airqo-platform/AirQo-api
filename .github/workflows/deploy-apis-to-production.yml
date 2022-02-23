@@ -246,14 +246,19 @@ jobs:
           context: src/airflow
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:latest
 
+      # - name: Deploy to K8S
+      #   uses: Azure/k8s-deploy@v1.4
+      #   with:
+      #     namespace: "airflow"
+      #     manifests: |
+      #       k8s/airflow/airflow-app.yaml
+      #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
+      #     kubectl-version: "latest"
+
       - name: Deploy to K8S
-        uses: Azure/k8s-deploy@v1.4
-        with:
-          namespace: "airflow"
-          manifests: |
-            k8s/airflow/airflow-app.yaml
-          images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
-          kubectl-version: "latest"
+        run: |
+          kubectl apply -f k8s/airflow/airflow-app.yaml -n airflow
+          kubectl rollout restart deployment airflow  -n airflow
 
   #### Device Registry ######
   device-registry:

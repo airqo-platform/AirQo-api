@@ -1,5 +1,4 @@
 import simplejson
-from confluent_avro import SchemaRegistry
 from kafka import KafkaProducer
 
 from airflow_utils.config import configuration
@@ -9,12 +8,11 @@ class KafkaBrokerClient:
     def __init__(self):
         self.__partitions = configuration.TOPIC_PARTITIONS
         self.__bootstrap_servers = configuration.BOOTSTRAP_SERVERS
-        self.__schema_registry_url = configuration.SCHEMA_REGISTRY_URL
-
-        self.__registry_client = SchemaRegistry(
-            self.__schema_registry_url,
-            headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
-        )
+        # self.__schema_registry_url = configuration.SCHEMA_REGISTRY_URL
+        # self.__registry_client = SchemaRegistry(
+        #     self.__schema_registry_url,
+        #     headers={"Content-Type": "application/vnd.schemaregistry.v1+json"},
+        # )
 
     def send_data(
         self,
