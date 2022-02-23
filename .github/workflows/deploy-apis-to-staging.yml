@@ -509,7 +509,7 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-status/
-          kubectl apply -f stage-device-status-job.yaml
+          kubectl apply -f stage-airqo-device-status-job.yaml
           kubectl rollout restart deployment/airqo-stage-device-status-job -n staging
 
   ### locate ###
