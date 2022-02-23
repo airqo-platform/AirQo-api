@@ -5,9 +5,8 @@ metadata:
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster
-spec:
-  topicName: airqo-app-notifications-topic  
-  partitions: 3
+spec:  
+  partitions: 1
   replicas: 1
   config:
-    retention.ms: 3600000 # 1 hour
+    retention.ms: 86400000
