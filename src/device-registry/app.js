@@ -2,6 +2,8 @@ var log4js = require("log4js");
 var express = require("express");
 var path = require("path");
 var log = log4js.getLogger("app");
+const health = require('@cloudnative/health-connect');
+let healthcheck = new health.HealthChecker();
 
 const dotenv = require("dotenv");
 var bodyParser = require("body-parser");
@@ -15,6 +17,10 @@ const { mongodb } = require("./config/database");
 mongodb;
 
 var app = express();
+
+let pingCheck = new health.PingCheck('example.com')
+
+app.use('/live', health.LivenessEndpoint(healthcheck))
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json());
