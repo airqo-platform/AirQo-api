@@ -43,6 +43,7 @@ def calibrate_tool():
             return jsonify({"message": "Please upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
         
         rgModel = calibration_tool.Regression()
+        #ggg
         
         calibrated_data = rgModel.compute_calibrated_val(map_columns, df) 
         # calibrated_data.to_csv('calibrated_data.csv')
