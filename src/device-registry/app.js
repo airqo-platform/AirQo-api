@@ -18,9 +18,11 @@ mongodb;
 
 var app = express();
 
-let pingCheck = new health.PingCheck('example.com')
+let pingcheck = new health.PingCheck("example.com")
+healthcheck.registerReadinessCheck(pingcheck)
 
 app.use('/live', health.LivenessEndpoint(healthcheck))
+app.use('/ready', health.ReadinessEndpoint(healthcheck))
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json());
