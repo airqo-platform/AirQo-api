@@ -12,7 +12,7 @@
         "prod-pc": "SET NODE_ENV=production&&nodemon ./bin/www",
         "stage-pc": "SET NODE_ENV=staging&&nodemon ./bin/www",
         "prettier": "prettier --single-quote --print-width 80 --trailing-comma all --write 'src/**/*.js'",
-        "test": "mocha ./**/test/ut_*.js --exit"
+        "test": "mocha ./controllers/test/ut_*.js -r dotenv/config --exit"
     },
     "dependencies": {
         "@cloudnative/health-connect": "^2.1.0",
