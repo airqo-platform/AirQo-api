@@ -4,6 +4,8 @@ var path = require("path");
 var log = log4js.getLogger("app");
 const health = require('@cloudnative/health-connect');
 let healthcheck = new health.HealthChecker();
+const promClient = require('prom-client')
+const register = new promClient.Registry()
 
 const dotenv = require("dotenv");
 var bodyParser = require("body-parser");
@@ -23,6 +25,15 @@ healthcheck.registerReadinessCheck(pingcheck)
 
 app.use('/live', health.LivenessEndpoint(healthcheck))
 app.use('/ready', health.ReadinessEndpoint(healthcheck))
+
+// Setting default label and enabling collection of default metrics
+register.setDefaultLabels({ app: 'device-registry-api'  })
+promClient.collectDefaultMetrics({ register })
+
+app.get('/metrics', async (req, res) => {
+    res.setHeader('Content-Type', register.contentType);
+    res.send(await register.metrics());
+});
 
 app.use(log4js.connectLogger(log4js.getLogger("http"), { level: "auto" }));
 app.use(bodyParser.json());
