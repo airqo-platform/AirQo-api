@@ -45,7 +45,6 @@ def calibrate_tool():
         rgModel = calibration_tool.Regression()
         
         calibrated_data = rgModel.compute_calibrated_val(map_columns, df) 
-        # calibrated_data.to_csv('calibrated_data.csv')
         resp = make_response(calibrated_data.to_csv())
         resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
         resp.headers["Content-Type"] = "text/csv"
