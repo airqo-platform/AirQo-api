@@ -29,13 +29,18 @@ spec:
           ports:
             - containerPort: 3000
               name: device-reg-api
-          # readinessProbe:
-          #   httpGet:
-          #     path: /health
-          #     port: 3000
-          #   initialDelaySecond: 5
-          #   periodSeconds: 3
-          #   successThreshold: 1
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+            initialDelaySecond: 5
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 3000
+            initialDelaySecond: 20
+            periodSeconds: 60
           envFrom:
             - configMapRef:
                 name: env-device-registry-production
