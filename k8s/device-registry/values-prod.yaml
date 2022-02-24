@@ -11,6 +11,18 @@ image:
   repository: us.gcr.io/airqo-250220/airqo-device-registry-api
   tag: latest
   pullPolicy: Always
+  readinessProbe:
+    httpGet:
+      path: /ready
+      port: 3000
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  livenessProbe:
+    httpGet:
+      path: /live
+      port: 3000
+    initialDelaySeconds: 20
+    periodSeconds: 60
 
 imagePullSecrets: []
 nameOverride: ""
