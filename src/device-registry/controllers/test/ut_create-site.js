@@ -12,6 +12,7 @@ const assert = require("assert");
 const SiteModel = require("../../models/Site");
 const siteController = require("../create-site");
 const siteUtil = require("../../utils/create-site");
+const userUtil = require("../../utils/");
 
 const stubValue = {
   _id: faker.datatype.uuid(),
@@ -41,7 +42,7 @@ const stubValue = {
 
 describe("site controller", function() {
   describe("create", function() {
-    let status, json, res, siteController, siteUtil;
+    let status, json, res, siteController, siteUtil;z
     beforeEach(async () => {
       status = sinon.stub();
       json = sinon.spy();
