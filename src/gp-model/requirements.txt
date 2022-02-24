@@ -6,3 +6,6 @@ gpflow
 tensorflow
 requests
 shapely
+mlflow
+joblib
+gcsfs
