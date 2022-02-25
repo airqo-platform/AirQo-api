@@ -37,7 +37,7 @@ const request = {
         tenant,
       } = request;
 
-      await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
+      await validationsUtil.checkEmailExistance(email, (value) => {
         if (value.success == false) {
           const errors = value.errors ? value.errors : "";
           callback({
