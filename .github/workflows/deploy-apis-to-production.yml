@@ -626,6 +626,10 @@ jobs:
 
       - name: Deploy to K8S
         run: |
+
+          cd k8s/data-warehouse/
+          kubectl apply -f prod-data-warehouse-api.yaml
+
           kubectl set image deployment/airqo-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl set image deployment/airqo-datawarehouse-msg-broker msg-broker=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} -n production
           
