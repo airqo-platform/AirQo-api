@@ -41,8 +41,10 @@ jobs:
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
       run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
+      run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
+      run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
 
     runs-on: ubuntu-latest
     steps:
@@ -74,8 +76,10 @@ jobs:
           echo "::set-output name=run_exceedances::false"
           echo "::set-output name=run_datawarehouse::false"
           echo "::set-output name=run_calibrate::false" 
+          echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
+          echo "::set-output name=run_airflow::false"
 
           while IFS= read -r file
           do
@@ -132,12 +136,40 @@ jobs:
               echo "::set-output name=run_calibrate::true"
             fi
             
+            if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
+              echo "::set-output name=run_average_jobs::true"
+            fi
+
             if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
               echo "::set-output name=run_events_check::true"
             fi
 
             if [[ $file == src/notifications/* ]]; then
               echo "::set-output name=run_notifications::true"
+            fi
+
+            if [[ $file == src/airflow/* ]]; then
+              echo "::set-output name=run_airflow::true"
+            fi
+
+            if [[ $file == workflow-versions ]]; then
+              echo "::set-output name=run_notifications::true"
+              echo "::set-output name=run_events_check::true"
+              echo "::set-output name=run_calibrate::true"
+              echo "::set-output name=run_average_jobs::true"
+              echo "::set-output name=run_datawarehouse::true"
+              echo "::set-output name=run_exceedances::true"
+              echo "::set-output name=run_gp_model::true"
+              echo "::set-output name=run_predict::true"
+              echo "::set-output name=run_locate::true"
+              echo "::set-output name=run_device_status::true"
+              echo "::set-output name=run_device_uptime::true"
+              echo "::set-output name=run_analytics::true"
+              echo "::set-output name=run_data_mgt::true"
+              echo "::set-output name=run_device_monitoring::true"
+              echo "::set-output name=run_device_registry::true"
+              echo "::set-output name=run_auth_service::true"
+              echo "::set-output name=run_airflow::true"
             fi
 
           done < files.txt
@@ -177,6 +209,93 @@ jobs:
         run: |
           kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+
+  ### airflow ###
+  airflow:
+    name: build-push-deploy-airflow
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_airflow == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/airflow
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:latest
+
+      # - name: Deploy to K8S
+      #   uses: Azure/k8s-deploy@v1.4
+      #   with:
+      #     namespace: "stage-airflow"
+      #     manifests: |
+      #       k8s/airflow/stage-airflow-app.yaml
+      #     images: "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }}"
+      #     kubectl-version: "latest"
+      
+      - name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n stage-airflow
+          kubectl rollout restart deployment airflow  -n stage-airflow
+
+  ### predict api service ###
+  predict-service:
+    name: build-push-deploy-predict-api
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_predict == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/predict/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:latest
+      - name: Deploy to K8S
+        run: |
+          cd k8s/predict/
+          kubectl apply -f stage-prediction-api.yaml -n staging
+          kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
 
   #### Device Registry ######
   device-registry:
@@ -390,8 +509,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-status/
-          kubectl apply -f stage-device-status-job.yaml
-          kubectl rollout restart deployment/airqo-stage-device-status-job -n staging
+          kubectl apply -f stage-airqo-device-status-job.yaml
+          kubectl rollout restart deployment/stage-device-status-job -n staging
 
   ### locate ###
   locate:
@@ -458,12 +577,12 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/gp-model/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest -f Dockerfile.stage .
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-gp-model-job:latest
       - name: Deploy to K8S
         run: |
           cd k8s/gp-model/
-          kubectl apply -f stage-gp-model-api.yaml
+          kubectl apply -f stage-airqo-gp-model-job.yaml
           kubectl rollout restart deployment/airqo-stage-gp-model-job -n staging
   
   ### exceddences ###
@@ -594,7 +713,48 @@ jobs:
         run: |
           cd k8s/calibrate/
           kubectl apply -f stage-calibrate-api.yaml
+          kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+  ### averages and calibration jobs ###
+  averages:
+    name: build-push-deploy-average-and-calibration-jobs
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_average_jobs == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      
+      ### run unit tests ###
+      
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      
+      - name: Build and Push Docker Image
+        run: |
+          cd src/data-mgt/python/cron-jobs/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-average-jobs:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-average-jobs:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-average-jobs:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-average-jobs:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-average-jobs:latest
+
+      - name: Deploy to K8S
+        run: |
+          cd k8s/calibrate-job/
+          sh 'cat stage-calibrate-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
+          sh 'cat stage-airqo-daily-average-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
 
   ### events check ###
   events-check:
@@ -667,5 +827,6 @@ jobs:
         run: |
           cd k8s/notification-service/
           kubectl apply -f stage-notification-api.yaml
+          kubectl set image deployment/airqo-stage-notification-api sta-notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 

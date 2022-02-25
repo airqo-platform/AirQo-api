@@ -1,6 +1,5 @@
 import os
 from pathlib import Path
-
 import numpy as np
 import pandas as pd
 import pickle
@@ -32,7 +31,7 @@ class Regression():
     #         job = joblib.load(handle)
     #     return job
   
-    def compute_calibrated_val(self,pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity, datetime):  
+    def compute_calibrated_val(self,pm2_5,s2_pm2_5,pm10,s2_pm10,temperature,humidity,datetime):  
         # features from datetime and PM
         datetime = pd.to_datetime(datetime)
         hour = datetime.hour
@@ -48,7 +47,6 @@ class Regression():
         input_variables["pm2_5_pm10_mod"]=input_variables["pm2_5_pm10"]/input_variables["avg_pm10"]
         input_variables = input_variables.drop(['pm2_5','s2_pm2_5','pm10','s2_pm10'], axis=1)
         
-        #reorganise columns
         input_variables = input_variables[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
 
         #load model from disk
@@ -61,6 +59,5 @@ class Regression():
         
         return calibrated_pm2_5, calibrated_pm10
                
-    
 if __name__ == "__main__":
     calibrateInstance = Regression()

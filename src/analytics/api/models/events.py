@@ -1,9 +1,15 @@
+import pytz
+from datetime import datetime
+from google.cloud import bigquery
 from api.models.base.base_model import BasePyMongoModel
 
-from main import cache
+from main import cache, CONFIGURATIONS
 
 
 class EventsModel(BasePyMongoModel):
+    BIGQUERY_SITES = CONFIGURATIONS.BIGQUERY_SITES
+    BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
+
     def __init__(self, tenant):
         self.limit_mapper = {
             'pm2_5': 500.5,
@@ -11,6 +17,31 @@ class EventsModel(BasePyMongoModel):
             'no2': 2049
         }
         super().__init__(tenant, collection_name="events")
+
+    @classmethod
+    @cache.memoize()
+    def from_bigquery(cls, tenant, sites, start_date, end_date, frequency, pollutants):
+        decimal_places = 2
+        formatted_pollutants = [f'ROUND({pollutant}, {decimal_places}) AS {pollutant}' for pollutant in pollutants]
+
+        client = bigquery.Client()
+
+
+        QUERY = f"SELECT FORMAT_DATETIME('%FT%T%Ez', time) AS datetime, name, site_id, {cls.BIGQUERY_SITES}.latitude, " \
+                f"{cls.BIGQUERY_SITES}.longitude, {', '.join(formatted_pollutants)} " \
+                f"FROM {cls.BIGQUERY_EVENTS} " \
+                f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id " \
+                f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.time >= '{start_date}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.time <= '{end_date}' " \
+                f"AND site_id IN UNNEST({sites})"
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        query = client.query(QUERY, job_config)
+
+        return [dict(row) for row in query.result()]
 
     def remove_outliers(self, pollutant):
         return self.add_stages(
@@ -163,7 +194,7 @@ class EventsModel(BasePyMongoModel):
                     _id="$_id.site_id",
                     values={"$push": {
                         "time": "$time",
-                        "value": "$value"
+                        "value": {"$round": ["$value", 2]},
                     }},
                 )
                 .project(site_id={"$toObjectId": "$_id"}, values=1)
@@ -174,6 +205,64 @@ class EventsModel(BasePyMongoModel):
                     values=1, site={"name": 1, "description": 1, "generated_name": 1}
                 )
                 .unwind("site")
+                .exec()
+        )
+
+    @cache.memoize()
+    def get_d3_chart_events(self, sites, start_date, end_date, pollutant, frequency):
+
+        diurnal_end_date = datetime.strptime(end_date, '%Y-%m-%dT%H:%M:%S.%fZ').replace(tzinfo=pytz.utc)
+        now = datetime.now(pytz.utc)
+        diurnal_end_date = diurnal_end_date if diurnal_end_date < now else now
+
+        time_format_mapper = {
+            'raw': '%Y-%m-%dT%H:%M:%S%z',
+            'hourly': '%Y-%m-%dT%H:00:00%z',
+            'daily': '%Y-%m-%dT00:00:00%z',
+            'monthly': '%Y-%m-01T00:00:00%z',
+            'diurnal': f'{diurnal_end_date.strftime("%Y-%m-%d")}T%H:00:00%z',
+        }
+
+        return (
+            self
+                .project(**{"values.time": 1, "values.site_id": 1, f"values.{pollutant}": 1})
+                .date_range("values.time", start_date=start_date, end_date=end_date)
+                .match_in(**{"values.site_id": self.to_object_ids(sites)})
+                .filter_by(**{"values.frequency": "raw"})
+                .unwind("values")
+                .replace_root("values")
+                .project(
+                    _id=0,
+                    time={
+                        "$dateToString": {
+                            'format': time_format_mapper.get(frequency) or time_format_mapper.get('hourly'),
+                            'date': '$time',
+                            'timezone': 'Africa/Kampala'
+                        }
+                    },
+                    **{f"{pollutant}.value": 1},
+                    site_id={"$toString": "$site_id"},
+                )
+                .remove_outliers(pollutant)
+                .group(
+                    _id={"site_id": "$site_id", "time": "$time"},
+                    time={"$first": "$time"},
+                    site_id={"$first": "$site_id"},
+                    value={"$avg": f"${pollutant}.value"},
+                )
+                .sort(time=self.ASCENDING)
+                .project(_id=0, site_id={"$toObjectId": "$site_id"}, time=1,value=1)
+                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
+                .project(
+                    _id=0,
+                    time=1,
+                    value={"$round": ["$value", 2]},
+                    site_id={"$toString": "$site_id"},
+                    name="$site.name",
+                    generated_name="$site.generated_name",
+                )
+                .unwind("name")
+                .unwind("generated_name")
                 .exec()
         )
 

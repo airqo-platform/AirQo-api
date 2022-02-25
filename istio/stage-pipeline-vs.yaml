@@ -7,16 +7,16 @@ spec:
   hosts:
   - "*"
   gateways:
-  - staging/pipeline-gateway
+  - istio-system/pipeline-gateway
   http:
-  - name: schema-registry
+  - name: stage-apache-airflow
     match:
     - uri:
-        prefix: /schema-registry/
+        prefix: /stage-airflow
     rewrite:
-      uri: /
+      uri: /stage-airflow
     route:
     - destination:
         port:
-          number: 8081
-        host: stage-schema-registry-svc.staging.svc.cluster.local  
+          number: 8080
+        host: airflow-svc.stage-airflow.svc.cluster.local  
