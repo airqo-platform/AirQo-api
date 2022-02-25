@@ -34,7 +34,7 @@ class DownloadCustomisedDataResource(Resource):
         'frequency|required:str', 'pollutants|required:list'
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "").lower()
         download_type = request.args.get('downloadType')
         json_data = request.get_json()
         sites = json_data["sites"]
@@ -42,6 +42,15 @@ class DownloadCustomisedDataResource(Resource):
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
+        from_bigquery = json_data.get("fromBigQuery")
+
+        if from_bigquery:
+            data = EventsModel.from_bigquery(tenant, sites, start_date, end_date, frequency, pollutants)
+
+            if download_type == 'csv':
+                return excel.make_response_from_records(data, 'csv', file_name=f'airquality-{frequency}-data')
+
+            return create_response("air-quality data download successful", data=data), Status.HTTP_200_OK
 
         events_model = EventsModel(tenant)
         data = approximate_coordinates(events_model.get_downloadable_events(sites, start_date, end_date, frequency, pollutants))
