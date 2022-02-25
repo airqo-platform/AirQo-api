@@ -356,7 +356,7 @@ jobs:
       - name: Build and Push Docker Image
         run: |
           cd src/data-mgt/node/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-data-mgt-api:latest -f .
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-data-mgt-api:latest .
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-data-mgt-api:latest
       - name: Deploy to K8S
         run: |
@@ -470,8 +470,8 @@ jobs:
       - name: Deploy to K8S
         run: |
           cd k8s/device-status/
-          kubectl apply -f prod-device-status-job.yaml
-          kubectl rollout restart deployment/airqo-device-status-job -n production
+          kubectl apply -f prod-airqo-device-status-job.yaml
+          kubectl rollout restart deployment/prod-device-status-job -n production
 
   ### locate ###
   locate:
@@ -545,7 +545,7 @@ jobs:
         run: |
           cd k8s/gp-model/
           kubectl apply -f prod-airqo-gp-model-job.yaml
-          kubectl rollout restart deployment/airqo-gp-model-job -n production
+          kubectl rollout restart deployment/prod-gpmodel -n production
   
   ### exceddences ###
   exceedance:
@@ -814,7 +814,7 @@ jobs:
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
       
       - name: Build and Push Docker Image
         run: |
