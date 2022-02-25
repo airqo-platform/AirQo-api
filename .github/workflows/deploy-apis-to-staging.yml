@@ -510,7 +510,7 @@ jobs:
         run: |
           cd k8s/device-status/
           kubectl apply -f stage-airqo-device-status-job.yaml
-          kubectl rollout restart deployment/stage-device-status-job -n staging
+          # kubectl rollout restart cronjob/stage-device-status-job -n staging
 
   ### locate ###
   locate:
@@ -583,7 +583,7 @@ jobs:
         run: |
           cd k8s/gp-model/
           kubectl apply -f stage-airqo-gp-model-job.yaml
-          kubectl rollout restart deployment/airqo-stage-gp-model-job -n staging
+          # kubectl rollout restart deployment/stage-gpmodel -n staging
   
   ### exceddences ###
   exceedance:
@@ -664,6 +664,9 @@ jobs:
 
       - name: Deploy to K8S
         run: |
+          cd k8s/data-warehouse/
+          kubectl apply -f stage-data-warehouse-api.yaml
+
           kubectl set image deployment/airqo-stage-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl set image deployment/airqo-stage-datawarehouse-msg-broker msg-broker=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} -n staging
           
