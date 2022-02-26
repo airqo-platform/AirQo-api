@@ -172,27 +172,29 @@ const validation = {
    */
   checkEmailExistance: async (email, callback) => {
     try {
-      return await emailExistence.check(email, (response, error) => {
-        logObject("response from email existence--code", response.code);
-        if (response.code === "ENODATA") {
-          callback({
-            success: false,
-            message: "email address does not exist",
-            errors: { message: "email address does not exist" },
-            status: httpStatus.BAD_REQUEST,
-          });
-        } else {
+      await emailExistence.check(email, (error, response) => {
+        logObject("response", response);
+        if (response) {
           callback({
             success: true,
             message: "email exists",
             status: httpStatus.OK,
           });
+        } else {
+          callback({
+            success: false,
+            message: "email address does not existo",
+            errors: { message: "email address does not exist" },
+            status: httpStatus.BAD_REQUEST,
+          });
         }
+
         if (error) {
+          logObject("error", error);
           callback({
             success: false,
             message: "email address does not exist",
-            errors: { message: error },
+            errors: { message: "email address does not exist" },
             status: httpStatus.BAD_GATEWAY,
           });
         }
