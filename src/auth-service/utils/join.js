@@ -253,6 +253,41 @@ const join = {
     }
   },
 
+  verify: async (req) => {
+    try {
+      /**
+       * first find the user
+       * Using userId and category, check for the token
+       * then update the user
+       */
+      const responseFromListUser = await join.list(tenant, filter, limit, skip);
+
+      if (responseFromListUser.success === true) {
+        if (responseFromListUser.data.length === 1) {
+          
+          const responseFromListToken = await 
+
+        }
+        if (responseFromListUser.data.length > 1) {
+        }
+        if (responseFromListUser.data.length === 0) {
+        }
+      }
+
+      if (responseFromListUser.success === false) {
+        return responseFromListUser;
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
   create: async (request) => {
     try {
       let {

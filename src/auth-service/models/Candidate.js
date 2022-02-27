@@ -42,6 +42,10 @@ const CandidateSchema = new mongoose.Schema({
     type: String,
     default: "pending",
   },
+  verified: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 CandidateSchema.statics = {

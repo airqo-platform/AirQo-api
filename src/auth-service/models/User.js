@@ -100,6 +100,10 @@ const UserSchema = new Schema({
   profilePicture: {
     type: String,
   },
+  verified: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 UserSchema.pre("save", function (next) {

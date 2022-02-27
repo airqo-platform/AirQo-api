@@ -200,6 +200,24 @@ const request = {
     }
   },
 
+  verify: async (req) => {
+    try {
+      /**
+       * first find the candidate
+       * check for the token
+       * then update the candidate
+       */
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
+    }
+  },
+
   confirm: async (req) => {
     let {
       tenant,
