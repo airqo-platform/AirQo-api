@@ -53,7 +53,36 @@ spec:
             preStop:
               exec:
                 command: [ "sh", "-c", "sleep 10" ]
-
+        - name: views-api
+          image: us.gcr.io/airqo-250220/airqo-view-api:latest
+          imagePullPolicy: Always
+          resources: {}
+            # requests:
+            #   memory: 200Mi
+            #   cpu: "100m"
+            # limits:
+            #   memory: 700Mi
+            #   cpu: "1000m"
+          ports:
+            - containerPort: 8081
+              name: views-api
+          envFrom:
+            - configMapRef:
+                name: prod-views-api-config
+          readinessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              port: 8081
+              path: api/v1/views/actuator/health/readiness
+          livenessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              port: 8081
+              path: api/v1/views/actuator/health/liveness
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sh", "-c", "sleep 10" ]
 ---
 kind: Service
 apiVersion: v1
@@ -65,5 +94,10 @@ spec:
     app: view-api
   ports:
     - protocol: TCP
+      name: view-api
       port: 8080
       targetPort: 8080
+    - protocol: TCP
+      name: views-api
+      port: 8081
+      targetPort: 8081
