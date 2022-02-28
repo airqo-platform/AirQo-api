@@ -84,12 +84,12 @@ public class MeasurementController {
 			endDateTime = simpleDateFormat.parse(endTime);
 		} catch (ParseException e) {
 			e.printStackTrace();
-			ApiResponseBody httpResponseBody = new ApiResponseBody(null, "Invalid DateTime");
+			ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Datetime values", "Invalid DateTime");
 			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
 		}
 
 		if (startDateTime.after(endDateTime)) {
-			ApiResponseBody httpResponseBody = new ApiResponseBody(null, "Start Time must be a date before the end time");
+			ApiResponseBody httpResponseBody = new ApiResponseBody("Invalid Datetime values", "Start Time must be a date before the end time");
 			return new ResponseEntity<>(httpResponseBody, new HttpHeaders(), HttpStatus.BAD_REQUEST);
 		}
 

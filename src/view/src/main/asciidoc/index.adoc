@@ -4,16 +4,32 @@
 :toc: left
 :toclevels: 5
 
+[[App-Insights]]
+== App Insights
+
+=== Query Parameters
+
+include::{snippets}/app-insights/request-parameters.adoc[]
+
+=== Sample Response Body
+
+include::{snippets}/app-insights/response-body.adoc[]
+
+=== Examples
+
+.http request
+include::{snippets}/app-insights/http-request.adoc[]
+.curl request
+include::{snippets}/app-insights/curl-request.adoc[]
+.httpie request
+include::{snippets}/app-insights/httpie-request.adoc[]
+
 [[Insights]]
 == Insights
 
 === Query Parameters
 
 include::{snippets}/insights/request-parameters.adoc[]
-
-=== Sample Response Body
-
-include::{snippets}/insights/response-body.adoc[]
 
 === Examples
 

@@ -15,7 +15,7 @@ FROM base as dev
 CMD ["./mvnw", "spring-boot:run", "-Dspring-boot.run.profiles=api,messageBroker", "-Dspring-boot.run.jvmArguments='-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:8000'"]
 
 FROM base as build
-RUN ./mvnw package -Dmaven.test.skip=true
+RUN ./mvnw package # set -Dmaven.test.skip=true to disable testing
 
 FROM openjdk:11-jre-slim as api
 COPY --from=build /app/target/view-0.0.1-SNAPSHOT.jar /view.jar
