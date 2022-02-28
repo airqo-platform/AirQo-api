@@ -37,7 +37,7 @@ public class MessageBroker {
 		this.objectMapper = objectMapper;
 	}
 
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
+//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
 	public void sites(String content) {
 		try {
 			Message<Site> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
@@ -79,8 +79,8 @@ public class MessageBroker {
 		}
 	}
 
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.hourly-measurements}'.split(',')}")
-	public void hourlyMeasurements(String content) {
+//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.hourly-measurements}'.split(',')}")
+	public void measurements(String content) {
 		try {
 
 			Message<Measurement> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
@@ -95,7 +95,7 @@ public class MessageBroker {
 		}
 	}
 
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
+//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
 	public void devices(String content) {
 		try {
 			Message<Device> dataMessage = objectMapper.readValue(content, new TypeReference<>() {

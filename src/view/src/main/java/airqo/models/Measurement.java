@@ -18,6 +18,7 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.DBRef;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.io.Serializable;
 import java.text.SimpleDateFormat;
@@ -25,7 +26,6 @@ import java.util.Date;
 import java.util.Objects;
 
 import static airqo.config.Constants.dateTimeFormat;
-import static airqo.config.Constants.longDateTimeFormat;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -51,7 +51,8 @@ public class Measurement implements Serializable {
 	private Device device = new Device();
 
 	@Indexed(direction = IndexDirection.DESCENDING, name = "Descending order")
-	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = longDateTimeFormat, timezone = "UTC")
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
+	@DateTimeFormat(pattern = dateTimeFormat)
 	private Date time = new Date();
 
 	@JsonAlias("hdop")
