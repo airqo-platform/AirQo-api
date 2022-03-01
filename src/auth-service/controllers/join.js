@@ -7,6 +7,7 @@ const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
+const httpStatus = require("http-status");
 
 const join = {
   list: async (req, res) => {
@@ -314,17 +315,16 @@ const join = {
         return res.status(HTTPStatus.BAD_REQUEST).json(errors);
       }
       if (req.auth.success === true) {
-        res.status(HTTPStatus.OK).json(req.user.toAuthJSON());
+        const status = req.auth.status ? req.auth.status : httpStatus.OK;
+        res.status(status).json(req.user.toAuthJSON());
       } else {
-        if (req.auth.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: req.auth.success,
-            error: req.auth.error,
-            message: req.auth.message,
-          });
-        }
-        res.status(HTTPStatus.BAD_GATEWAY).json({
+        const status = req.auth.status
+          ? req.auth.status
+          : INTERNAL_SERVER_ERROR;
+        const errors = req.auth.error ? req.auth.error : "";
+        res.status(status).json({
           success: req.auth.success,
+          errors,
           message: req.auth.message,
         });
       }

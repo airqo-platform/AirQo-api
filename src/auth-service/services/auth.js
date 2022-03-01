@@ -106,22 +106,32 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           .findOne({ email })
           .exec();
         req.auth = {};
-        if (!user) {
+        if (!user._doc.verified) {
+          logText("the user verified is not verified");
+          req.auth.success = false;
+          req.auth.message = "account inactive or incorrect credentials";
+          req.auth.status = HTTPStatus.UNAUTHORIZED;
+          next();
+        } else if (!user) {
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          req.auth.status = HTTPStatus.NOT_FOUND;
           next();
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
+          req.auth.status = HTTPStatus.BAD_REQUEST;
           next();
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        req.auth.status = HTTPStatus.OK;
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
+        req.auth.status = HTTPStatus.INTERNAL_SERVER_ERROR;
         next();
       }
     }
@@ -139,19 +149,28 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         if (!user) {
           req.auth.success = false;
           req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          req.auth.status = HTTPStatus.NOT_FOUND;
           next();
         } else if (!user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
+          req.auth.status = HTTPStatus.BAD_REQUEST;
+          next();
+        } else if (!user._doc.verified) {
+          req.auth.success = false;
+          req.auth.message = "account inactive or incorrect credentials";
+          req.auth.status = HTTPStatus.UNAUTHORIZED;
           next();
         }
         req.auth.success = true;
         req.auth.message = "successful login";
+        req.auth.status = HTTPStatus.OK;
         return done(null, user);
       } catch (e) {
         req.auth.success = false;
         req.auth.message = "Server Error";
         req.auth.error = e.message;
+        req.auth.status = HTTPStatus.INTERNAL_SERVER_ERROR;
         next();
       }
     }
