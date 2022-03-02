@@ -59,7 +59,8 @@ const request = {
           firstName,
           lastName,
           email,
-          tenant
+          tenant,
+          "verify"
         );
         if (responseFromSendEmail.success === true) {
           const status = responseFromSendEmail.status
@@ -203,10 +204,50 @@ const request = {
   verify: async (req) => {
     try {
       /**
-       * first find the candidate
-       * check for the token
-       * then update the candidate
+       * check for the token/candidate in the records
+       * then update/verify the candidate accordingly
+       * for this case, there is no need for password generation
        */
+      const { token, id, tenant } = req;
+      let requestBodyForListToken = {};
+      requestBodyForListToken["category"] = "candidate";
+      requestBodyForListToken["userId"] = id;
+      requestBodyForListToken["token"] = token;
+
+      const responseFromListToken = await createTokenUtil.list(
+        requestBodyForListToken
+      );
+
+      if (responseFromListToken.success === true) {
+        let update = {};
+        update["verified"] = true;
+        const filter = {
+          _id: id,
+        };
+        const responseFromUpdateCandidate = await request.update(
+          tenant,
+          filter,
+          update
+        );
+        if (responseFromUpdateCandidate.success === true) {
+          const responseFromDeleteToken = await createTokenUtil.delete({
+            _id: id,
+          });
+          if (responseFromDeleteToken.success === true) {
+            return {
+              success: true,
+              message: "successfully verified the candidate",
+              status: httpStatus.OK,
+            };
+          } else if (responseFromDeleteToken.success === false) {
+            return responseFromDeleteToken;
+          }
+        } else if (responseFromUpdateCandidate.success === false) {
+          return responseFromUpdateCandidate;
+        }
+      } else if (responseFromListToken.success === false) {
+        return responseFromListToken;
+      }
     } catch (error) {
       return {
         success: false,
@@ -264,6 +305,11 @@ const request = {
             userName: email,
           };
           logObject("requestBody during confirmation", requestBody);
+
+          /**
+           * what if we take this process to the join util?
+           *
+           */
 
           let responseFromCreateUser = await UserModel(tenant).register(
             requestBody

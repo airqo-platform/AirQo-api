@@ -12,6 +12,9 @@ const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
 const validationsUtil = require("./validations");
 const constants = require("../config/constants");
+const createTokenUtil = require("../utils/create-token");
+const log4js = require("log4js");
+const logger = log4js.getLogger("join-util");
 
 const UserModel = (tenant) => {
   try {
@@ -60,7 +63,7 @@ const join = {
       };
     }
   },
-  update: async (tenant, filter, update) => {
+  update: async (tenant, filter, update, type) => {
     try {
       let responseFromModifyUser = await UserModel(tenant.toLowerCase()).modify(
         {
@@ -73,7 +76,8 @@ const join = {
         let responseFromSendEmail = await mailer.update(
           user.email,
           user.firstName,
-          user.lastName
+          user.lastName,
+          type
         );
 
         if (responseFromSendEmail.success == true) {
@@ -252,25 +256,74 @@ const join = {
       };
     }
   },
-
   verify: async (req) => {
     try {
       /**
        * first find the user
        * Using userId and category, check for the token
        * then update the user
+       * send the general welcome or request access email after the
+       *
+       * I think the password generation for user creation
+       * should happen at the verification stage
        */
-      const responseFromListUser = await join.list(tenant, filter, limit, skip);
+      const { query } = req;
+      const { tenant, token, id } = query;
+      const responseFromListUser = await join.list(tenant, { _id: id });
 
       if (responseFromListUser.success === true) {
         if (responseFromListUser.data.length === 1) {
-          
-          const responseFromListToken = await 
+          let request = {};
+          request["userId"] = id;
+          request["token"] = token;
+          request["category"] = "user";
 
+          const responseFromListToken = await createTokenUtil.list(request);
+
+          if (responseFromListToken.success === true) {
+            const filter = {
+              _id: responseFromListUser.data._id,
+            };
+            const password = "";
+            const update = {
+              verified: true,
+              password,
+            };
+            const responseFromUpdateUser = await join.update(
+              tenant,
+              filter,
+              update,
+              "verified"
+            );
+            if (responseFromUpdateUser.success === true) {
+              return {
+                success: true,
+                message: "successfully verified the user",
+                status: httpStatus.OK,
+              };
+            }
+
+            if (responseFromUpdateUser.success === false) {
+              return responseFromUpdateUser;
+            }
+          }
+          if (responseFromListToken.success === false) {
+            return responseFromListToken;
+          }
         }
         if (responseFromListUser.data.length > 1) {
+          return {
+            success: false,
+            message: "more than one user exists for this operation ",
+            status: httpStatus.NOT_FOUND,
+          };
         }
         if (responseFromListUser.data.length === 0) {
+          return {
+            success: false,
+            message: "no user found for this operation ",
+            status: httpStatus.NOT_FOUND,
+          };
         }
       }
 
@@ -287,9 +340,14 @@ const join = {
       };
     }
   },
-
   create: async (request) => {
     try {
+      /***
+       * create new user
+       * create new token
+       * send email with verification link
+       *
+       */
       let {
         tenant,
         firstName,
@@ -301,11 +359,15 @@ const join = {
       } = request;
       let response = {};
       logText("...........create user util...................");
+      /**
+       * we shall take this generate password to the
+       * verify logic and remove it from here
+       */
       let responseFromGeneratePassword = generatePassword(10);
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
       if (responseFromGeneratePassword.success === true) {
-        let password = responseFromGeneratePassword.data;
-        let requestBody = {
+        const password = responseFromGeneratePassword.data;
+        let createUserRequestBody = {
           firstName,
           lastName,
           email,
@@ -316,43 +378,65 @@ const join = {
           password,
         };
 
-        let responseFromCreateUser = await UserModel(tenant).register(
-          requestBody
+        const responseFromCreateUser = await UserModel(tenant).register(
+          createUserRequestBody
         );
 
         if (responseFromCreateUser.success === true) {
           let createdUser = await responseFromCreateUser.data;
           logObject("created user in util", createdUser._doc);
-          let responseFromSendEmail = await mailer.user(
-            firstName,
-            lastName,
-            email,
-            password,
-            tenant,
-            "user"
+          const id = createdUser._doc._id;
+          const token = crypto.randomBytes(32).toString("hex");
+
+          let createTokenRequestBody = {
+            category: "user",
+            userId: id,
+            token,
+          };
+
+          const responseFromCreateToken = await createTokenUtil.create(
+            createTokenRequestBody
           );
-          logObject("responseFromSendEmail", responseFromSendEmail);
-          if (responseFromSendEmail.success === true) {
-            return {
-              success: true,
-              message: "user successfully created",
-              data: createdUser._doc,
-            };
+
+          if (responseFromCreateToken.success === true) {
+            let responseFromSendEmail = await mailer.user(
+              firstName,
+              lastName,
+              email,
+              password,
+              tenant,
+              "verify",
+              id,
+              token
+            );
+
+            logObject("responseFromSendEmail", responseFromSendEmail);
+            if (responseFromSendEmail.success === true) {
+              return {
+                success: true,
+                message: "user successfully created",
+                data: createdUser._doc,
+              };
+            }
+
+            if (responseFromSendEmail.success === false) {
+              let status = responseFromSendEmail.status
+                ? responseFromSendEmail.status
+                : "";
+              let error = responseFromSendEmail.error
+                ? responseFromSendEmail.error
+                : "";
+              return {
+                success: false,
+                message: responseFromSendEmail.message,
+                error,
+                status,
+              };
+            }
           }
 
-          if (responseFromSendEmail.success === false) {
-            let status = responseFromSendEmail.status
-              ? responseFromSendEmail.status
-              : "";
-            let error = responseFromSendEmail.error
-              ? responseFromSendEmail.error
-              : "";
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error,
-              status,
-            };
+          if (responseFromCreateToken.success === false) {
+            return responseFromCreateToken;
           }
         }
 
@@ -363,7 +447,6 @@ const join = {
           let status = responseFromCreateUser.status
             ? responseFromCreateUser.status
             : "";
-          logObject("the error from the model", error);
           return {
             success: false,
             message: responseFromCreateUser.message,
@@ -389,17 +472,14 @@ const join = {
         };
       }
     } catch (e) {
-      logElement("create users util", e.message);
-      logObject("create user util error", e);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        error: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
-
   confirmEmail: (tenant, filter) => {
     try {
       let responseFromListUser = join.list({ filter });
@@ -448,7 +528,6 @@ const join = {
       };
     }
   },
-
   forgotPassword: async (tenant, filter) => {
     try {
       let responseFromGenerateResetToken = join.generateResetToken();
@@ -538,7 +617,6 @@ const join = {
       };
     }
   },
-
   updateForgottenPassword: async (tenant, filter, update) => {
     try {
       let responseFromCheckTokenValidity = await join.isPasswordTokenValid(
@@ -607,7 +685,6 @@ const join = {
       };
     }
   },
-
   updateKnownPassword: async (tenant, new_pwd, old_pwd, filter) => {
     try {
       logElement("the tenant", tenant);
@@ -722,7 +799,6 @@ const join = {
       };
     }
   },
-
   isPasswordTokenValid: async (tenant, filter) => {
     try {
       let responseFromListUser = await UserModel(tenant.toLowerCase()).list({

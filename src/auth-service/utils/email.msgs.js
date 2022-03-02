@@ -58,6 +58,14 @@ module.exports = {
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
     );
   },
+
+  verify: (firstName, lastName, id, token) => {
+    return `Hello  ${firstName} + " " + ${lastName} \n\n" +
+  Thank you for your interest in the AirQo platform. You need to verify that 
+  this is your email address by clicking here: ${constants.BASE_URL}/verify/${id}/${token};
+
+  Kind Regards, AirQo platform team`;
+  },
   user_updated: (firstName, lastName) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
