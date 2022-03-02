@@ -245,6 +245,7 @@ jobs:
         with:
           push: true
           context: src/airflow
+          target: deployment
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-apache-airflow:latest
 
       # - name: Deploy to K8S
