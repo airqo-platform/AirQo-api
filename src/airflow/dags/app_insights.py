@@ -6,7 +6,7 @@ from airflow_utils.commons import slack_dag_failure_notification
 
 @dag(
     "App-Forecast-Insights",
-    schedule_interval="@hourly",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -89,7 +89,7 @@ def app_daily_insights_etl():
 
 @dag(
     "App-Hourly-Insights",
-    schedule_interval=None,
+    schedule_interval="@hourly",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,

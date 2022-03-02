@@ -33,10 +33,7 @@ FROM base-builder as webserver
 USER airflow
 CMD ["airflow", "webserver"]
 
-FROM base-builder as production
-USER airflow
-
-FROM base-builder as staging
+FROM base-builder as deployment
 USER airflow
 
 FROM noahnsimbe/kafka-docker as kafka-setup
