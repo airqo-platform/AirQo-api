@@ -4,6 +4,7 @@ const devConfig = {
   PWD_RESET: "http://localhost:5000/reset",
   LOGIN_PAGE: "http://localhost:5000/login",
   FORGOT_PAGE: "http://localhost:5000/forgot",
+  BASE_URL: "http://localhost:3000/api/v1/users",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -12,6 +13,7 @@ const prodConfig = {
   PWD_RESET: "https://platform.airqo.net/reset",
   LOGIN_PAGE: "https://platform.airqo.net/login",
   FORGOT_PAGE: "https://platform.airqo.net/forgot",
+  BASE_URL: "https://platform.airqo.net/api/v1/users",
 };
 
 const stageConfig = {
@@ -20,6 +22,7 @@ const stageConfig = {
   PWD_RESET: "https://staging-platform.airqo.net/reset",
   LOGIN_PAGE: "https://staging-platform.airqo.net/login",
   FORGOT_PAGE: "https://staging-platform.airqo.net/forgot",
+  BASE_URL: "https://staging-platform.airqo.net/api/v1/users",
 };
 
 const defaultConfig = {

@@ -6,19 +6,23 @@ const msgs = require("../utils/email.msgs");
 const httpStatus = require("http-status");
 
 const mailer = {
-  candidate: async (firstName, lastName, email, tenant) => {
+  candidate: async (firstName, lastName, email, tenant, type, id, token) => {
     try {
-      let bcc = "";
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+      let text = msgs.joinRequest(firstName, lastName);
+      let subject = "AirQo Platform JOIN request";
 
-      if (tenant.toLowerCase() === "airqo") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+      if (type === "verify") {
+        bcc = "";
+        text = `${msgs.verify(firstName, lastName, id, token)}`;
+        subject = "Verify Email";
       }
 
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
-        subject: "AirQo Platform JOIN request",
-        text: msgs.joinRequest(firstName, lastName),
+        subject,
+        text,
         bcc,
       };
 
@@ -48,34 +52,41 @@ const mailer = {
     }
   },
 
-  user: async (firstName, lastName, email, password, tenant, type) => {
+  user: async (
+    firstName,
+    lastName,
+    email,
+    password,
+    tenant,
+    type,
+    id,
+    token
+  ) => {
     try {
-      let bcc = "";
-      if (type === "confirm") {
-        bcc = constants.REQUEST_ACCESS_EMAILS;
+      let bcc = constants.REQUEST_ACCESS_EMAILS;
+      let text = `${msgs.welcome_general(
+        firstName,
+        lastName,
+        password,
+        email
+      )}`;
+      let subject = "Welcome to the AirQo Platform";
+
+      if (type === "verify") {
+        bcc = "";
+        text = `${msgs.verify(firstName, lastName, id, token)}`;
+        subject = "Verify Email";
       }
 
-      let mailOptions = {};
-      if (tenant.toLowerCase() == "kcca") {
-        mailOptions = {
-          from: constants.EMAIL,
-          to: `${email}`,
-          subject: "Welcome to the AirQo KCCA Platform",
-          text: `${msgs.welcome_kcca(firstName, lastName, password, email)}`,
-          bcc,
-        };
-      } else {
-        mailOptions = {
-          from: constants.EMAIL,
-          to: `${email}`,
-          subject: "Welcome to the AirQo Platform",
-          text: `${msgs.welcome_general(firstName, lastName, password, email)}`,
-          bcc,
-        };
-      }
+      let mailOptions = {
+        from: constants.EMAIL,
+        to: `${email}`,
+        subject,
+        text,
+        bcc,
+      };
 
-      let response = transporter.sendMail(mailOptions);
-      let data = await response;
+      const data = await transporter.sendMail(mailOptions);
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {
           success: true,
@@ -196,13 +207,22 @@ const mailer = {
       };
     }
   },
-  update: async (email, firstName, lastName) => {
+  update: async (email, firstName, lastName, type, password) => {
     try {
+      let bcc = "";
+      let subject = "AirQo Platform account updated";
+      let text = `${msgs.user_updated(firstName, lastName)}`;
+
+      if (type === "verified") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+        text = `${msgs.welcome_general(firstName, lastName, password, email)}`;
+      }
       const mailOptions = {
         from: constants.EMAIL,
         to: `${email}`,
-        subject: "AirQo Platform account updated",
-        text: `${msgs.user_updated(firstName, lastName)}`,
+        subject,
+        text,
+        bcc,
       };
       let response = transporter.sendMail(mailOptions);
       let data = await response;
