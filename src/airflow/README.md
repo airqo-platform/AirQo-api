@@ -5,16 +5,16 @@
 - Docker 
 - Docker compose
 
-Add [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing) to the `airflow_utils` folder
-and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) files to this directory and the `airflow_utils` folder. 
+Add [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing) to the `dags` folder
+and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) file to this directory. 
 
 ## Starting all containers.
 
 ```bash
 sh run.sh  
 ```
-Wait for the webserver to be available by checking its status at ```http://localhost:8080/health```.
-Visit the admin web ui at ```http://localhost:8080/home```. Use `airflow` for username and password
+Wait for the webserver to be available by checking its status at http://localhost:8080/health.
+Visit the admin web ui at http://localhost:8080/home. Use `airflow` for username and password
 
 ## Interacting with kafka
 

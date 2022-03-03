@@ -170,11 +170,21 @@ class Transformation:
 
         self.__print(data=sites_without_primary_devices)
 
-    def metadata_to_csv(self, component=''):
+    def metadata_to_csv(self, component='', tenant=None):
 
-        metadata = self.airqo_api.get_sites(tenant=self.tenant)\
-            if component.strip().lower() == 'sites' \
-            else self.airqo_api.get_devices(tenant=self.tenant, all_devices=True)
+        if tenant is None:
+            metadata = []
+            for tenant in ['airqo', 'kcca']:
+                tenant_metadata = self.airqo_api.get_sites(tenant=tenant) \
+                    if component.strip().lower() == 'sites' \
+                    else self.airqo_api.get_devices(tenant=tenant, all_devices=True)
+                tenant_metadata_df = pd.DataFrame(tenant_metadata)
+                tenant_metadata_df['tenant'] = tenant
+                metadata.extend(tenant_metadata_df.to_dict(orient='records'))
+        else:
+            metadata = self.airqo_api.get_sites(tenant=tenant)\
+                if component.strip().lower() == 'sites' \
+                else self.airqo_api.get_devices(tenant=tenant, all_devices=True)
 
         metadata_df = pd.DataFrame(metadata)
         data = pd.json_normalize(metadata_df.to_dict(orient='records'))

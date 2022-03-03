@@ -52,14 +52,14 @@ def hourly_measurements_etl():
     @task()
     def send_hourly_measurements_to_message_broker(airqo_data: dict):
 
-        from airflow_utils.kcca_utils import transform_kcca_data
+        from airflow_utils.kcca_utils import transform_kcca_data_for_message_broker
         from airflow_utils.commons import un_fill_nan
         from airflow_utils.config import configuration
         from airflow_utils.message_broker import KafkaBrokerClient
 
         data = un_fill_nan(airqo_data.get("data"))
-        kcca_restructured_data = transform_kcca_data(
-            data=data, destination="messageBroker", frequency="hourly"
+        kcca_restructured_data = transform_kcca_data_for_message_broker(
+            data=data, frequency="hourly"
         )
 
         info = {
@@ -73,18 +73,15 @@ def hourly_measurements_etl():
     @task()
     def send_hourly_measurements_to_bigquery(kcca_data: dict):
 
-        from airflow_utils.kcca_utils import transform_kcca_data
-        from airflow_utils.commons import un_fill_nan, save_measurements_to_bigquery
-        from airflow_utils.config import configuration
+        from airflow_utils.kcca_utils import transform_kcca_hourly_data_for_bigquery
+        from airflow_utils.commons import un_fill_nan
+        from airflow_utils.bigquery_api import BigQueryApi
 
         data = un_fill_nan(kcca_data.get("data"))
-        kcca_restructured_data = transform_kcca_data(
-            data=data, destination="bigquery", frequency="hourly"
-        )
-        table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
-        save_measurements_to_bigquery(
-            measurements=kcca_restructured_data, table_id=table_id
-        )
+        kcca_restructured_data = transform_kcca_hourly_data_for_bigquery(data)
+
+        big_query_api = BigQueryApi()
+        big_query_api.save_hourly_measurements(measurements=kcca_restructured_data)
 
     extracted_data = extract()
     send_hourly_measurements_to_message_broker(extracted_data)
@@ -225,10 +222,13 @@ def historical_hourly_measurements_etl():
 
         from airflow_utils.kcca_utils import (
             transform_kcca_measurements_for_api,
-            transform_kcca_data,
+            transform_kcca_hourly_data_for_bigquery,
+            transform_kcca_data_for_message_broker,
         )
-        from airflow_utils.commons import un_fill_nan, save_measurements_to_bigquery
+        from airflow_utils.commons import un_fill_nan
         from airflow_utils.airqo_api import AirQoApi
+        from airflow_utils.message_broker import KafkaBrokerClient
+        from airflow_utils.bigquery_api import BigQueryApi
         from airflow_utils.config import configuration
 
         data = un_fill_nan(kcca_data.get("data"))
@@ -240,18 +240,35 @@ def historical_hourly_measurements_etl():
             destination = "bigquery"
 
         if destination == "bigquery":
-            kcca_transformed_data = transform_kcca_data(
-                data=data, destination="bigquery", frequency="hourly"
-            )
-            table_id = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
-            save_measurements_to_bigquery(
-                measurements=kcca_transformed_data, table_id=table_id
+
+            kcca_transformed_data = transform_kcca_hourly_data_for_bigquery(data)
+
+            big_query_api = BigQueryApi()
+            big_query_api.save_hourly_measurements(measurements=kcca_transformed_data)
+
+        elif destination == "message-broker":
+
+            kcca_transformed_data = transform_kcca_data_for_message_broker(
+                data=data, frequency="hourly"
             )
 
-        else:
+            info = {
+                "data": kcca_transformed_data,
+                "action": "new",
+            }
+
+            kafka = KafkaBrokerClient()
+            kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+
+        elif destination == "api":
             kcca_transformed_data = transform_kcca_measurements_for_api(data)
             airqo_api = AirQoApi()
             airqo_api.save_events(measurements=kcca_transformed_data, tenant="kcca")
+
+        else:
+            raise Exception(
+                "Invalid data destination. Valid values are bigquery, message-broker and api"
+            )
 
     extract_data = extract()
     load(extract_data)

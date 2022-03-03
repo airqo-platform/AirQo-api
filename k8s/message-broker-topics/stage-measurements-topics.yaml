@@ -1,43 +1,54 @@
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: stage-devices-topic 
+  name: app-insights-topic
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster
 spec:
-  topicName: stage-devices-topic 
-  partitions: 3
+  partitions: 1
   replicas: 1
   config:
-    retention.ms: 3600000 # 1 hour
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: stage-sites-topic 
+  name: hourly-measurements-topic
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster
 spec:
-  topicName: stage-sites-topic 
-  partitions: 3
+  partitions: 1
   replicas: 1
   config:
-    retention.ms: 3600000 # 1 hour
+    retention.ms: 86400000
 
 ---
 apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
-  name: stage-measurements-topic 
+  name: sites-topic
   namespace: staging
   labels:
     strimzi.io/cluster: stage-kafka-cluster
 spec:
-  topicName: stage-measurements-topic 
-  partitions: 3
+  partitions: 1
   replicas: 1
   config:
-    retention.ms: 3600000 # 1 hour 
+    retention.ms: 86400000
+
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaTopic
+metadata:
+  name: devices-topic
+  namespace: staging
+  labels:
+    strimzi.io/cluster: stage-kafka-cluster
+spec:
+  partitions: 1
+  replicas: 1
+  config:
+    retention.ms: 86400000 

@@ -6,7 +6,7 @@ from airflow_utils.commons import slack_dag_failure_notification
 
 @dag(
     "App-Forecast-Insights",
-    schedule_interval="@hourly",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -28,7 +28,7 @@ def app_forecast_insights_etl():
 
     @task()
     def load(data: dict):
-        from airflow_utils.commons import save_insights_data
+        from airflow_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
@@ -78,7 +78,7 @@ def app_daily_insights_etl():
 
     @task()
     def load(data: dict):
-        from airflow_utils.commons import save_insights_data
+        from airflow_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
@@ -89,7 +89,7 @@ def app_daily_insights_etl():
 
 @dag(
     "App-Hourly-Insights",
-    schedule_interval=None,
+    schedule_interval="@hourly",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -114,7 +114,7 @@ def app_hourly_insights_etl():
 
     @task()
     def load_hourly_insights(data: dict):
-        from airflow_utils.commons import save_insights_data
+        from airflow_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
@@ -144,7 +144,7 @@ def insights_cleanup_etl():
             first_day_of_month,
             last_day_of_month,
         )
-        from airflow_utils.commons import save_insights_data
+        from airflow_utils.app_insights_utils import save_insights_data
         import random
         import pandas as pd
 
@@ -205,7 +205,7 @@ def insights_cleanup_etl():
             first_day_of_month,
             last_day_of_month,
         )
-        from airflow_utils.commons import save_insights_data
+        from airflow_utils.app_insights_utils import save_insights_data
         from datetime import datetime, timedelta
 
         start_time = first_day_of_week(

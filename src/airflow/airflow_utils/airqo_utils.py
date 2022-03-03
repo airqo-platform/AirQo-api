@@ -8,6 +8,7 @@ import pandas as pd
 import requests
 
 from airflow_utils.airqo_api import AirQoApi
+from airflow_utils.bigquery_api import BigQueryApi
 from airflow_utils.config import configuration
 from airflow_utils.date import date_to_str, str_to_date
 from airflow_utils.commons import (
@@ -425,19 +426,6 @@ def restructure_airqo_data_for_api(data: list) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
-    data_df["raw_pm2_5"] = data_df[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-    data_df["raw_pm10"] = data_df[["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-    data_df["pm2_5"] = (
-        data_df["calibrated_pm2_5"] if "calibrated_pm2_5" in data_df.columns else None
-    )
-    data_df["pm10"] = (
-        data_df["calibrated_pm10"] if "calibrated_pm10" in data_df.columns else None
-    )
-
-    data_df["pm2_5"] = data_df["pm2_5"].fillna(data_df["raw_pm2_5"])
-    data_df["pm10"] = data_df["pm10"].fillna(data_df["raw_pm10"])
-
     columns = list(data_df.columns)
 
     for _, data_row in data_df.iterrows():
@@ -592,35 +580,16 @@ def map_site_ids_to_historical_measurements(data: list, deployment_logs: list) -
     return mapped_data
 
 
-def restructure_airqo_data(data: list, destination: str) -> list:
+def restructure_airqo_data_for_message_broker(data: list) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
-    data_df["raw_pm2_5"] = data_df[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
-    data_df["raw_pm10"] = data_df[["s1_pm10", "s2_pm10"]].mean(axis=1)
-
-    if "calibrated_pm2_5" in data_df.columns:
-        data_df["pm2_5"] = data_df["calibrated_pm2_5"]
-    else:
-        data_df["calibrated_pm2_5"] = None
-        data_df["pm2_5"] = None
-
-    if "calibrated_pm10" in data_df.columns:
-        data_df["pm10"] = data_df["calibrated_pm10"]
-    else:
-        data_df["calibrated_pm10"] = None
-        data_df["pm10"] = None
-
-    data_df["pm2_5"] = data_df["pm2_5"].fillna(data_df["raw_pm2_5"])
-    data_df["pm10"] = data_df["pm10"].fillna(data_df["raw_pm10"])
     columns = list(data_df.columns)
 
     for _, data_row in data_df.iterrows():
         device_data = dict(
             {
-                "time": str_to_date(data_row["time"])
-                if destination.lower() == "bigquery"
-                else data_row["time"],
+                "time": data_row["time"],
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],
@@ -673,6 +642,108 @@ def restructure_airqo_data(data: list, destination: str) -> list:
         restructured_data.append(device_data)
 
     return restructured_data
+
+
+def restructure_airqo_data(data: list, destination: str) -> list:
+
+    data_df = pd.DataFrame(data)
+    data_df["raw_pm2_5"] = data_df[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
+    data_df["raw_pm10"] = data_df[["s1_pm10", "s2_pm10"]].mean(axis=1)
+
+    if "calibrated_pm2_5" in data_df.columns:
+        data_df["pm2_5"] = data_df["calibrated_pm2_5"]
+    else:
+        data_df["calibrated_pm2_5"] = None
+        data_df["pm2_5"] = None
+
+    if "calibrated_pm10" in data_df.columns:
+        data_df["pm10"] = data_df["calibrated_pm10"]
+    else:
+        data_df["calibrated_pm10"] = None
+        data_df["pm10"] = None
+
+    data_df["pm2_5"] = data_df["pm2_5"].fillna(data_df["raw_pm2_5"])
+    data_df["pm10"] = data_df["pm10"].fillna(data_df["raw_pm10"])
+
+    destination = destination.lower()
+    data_df_values = data_df.to_dict(orient="records")
+
+    if destination == "api":
+        return restructure_airqo_data_for_api(data_df_values)
+    elif destination == "message-broker":
+        return restructure_airqo_data_for_message_broker(data_df_values)
+    elif destination == "bigquery":
+        return restructure_airqo_data_for_bigquery(data_df_values)
+    else:
+        raise Exception("Invalid Destination")
+
+
+def restructure_airqo_data_for_bigquery(data: list) -> list:
+    restructured_data = []
+
+    data_df = pd.DataFrame(data)
+    columns = list(data_df.columns)
+
+    for _, data_row in data_df.iterrows():
+        device_data = dict(
+            {
+                "time": str_to_date(data_row["time"]),
+                "tenant": "airqo",
+                "site_id": data_row["site_id"],
+                "device_number": data_row["device_number"],
+                "device": data_row["device"],
+                "latitude": get_column_value(
+                    column="latitude", columns=columns, series=data_row
+                ),
+                "longitude": get_column_value(
+                    column="longitude", columns=columns, series=data_row
+                ),
+                "pm2_5": get_column_value(
+                    column="pm2_5", columns=columns, series=data_row
+                ),
+                "pm2_5_raw_value": get_column_value(
+                    column="raw_pm2_5", columns=columns, series=data_row
+                ),
+                "pm2_5_calibrated_value": get_column_value(
+                    column="calibrated_pm2_5",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm10": get_column_value(
+                    column="pm10",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm10_raw_value": get_column_value(
+                    column="raw_pm10",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm10_calibrated_value": get_column_value(
+                    column="calibrated_pm10",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "altitude": get_column_value(
+                    column="altitude", columns=columns, series=data_row
+                ),
+                "wind_speed": get_column_value(
+                    column="wind_speed", columns=columns, series=data_row
+                ),
+                "external_temperature": get_column_value(
+                    column="temperature", columns=columns, series=data_row
+                ),
+                "external_humidity": get_column_value(
+                    column="humidity", columns=columns, series=data_row
+                ),
+            }
+        )
+
+        restructured_data.append(device_data)
+
+    return pd.DataFrame(
+        columns=BigQueryApi().hourly_measurements_columns, data=restructured_data
+    ).to_dict(orient="records")
 
 
 def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
