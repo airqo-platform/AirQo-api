@@ -12,25 +12,23 @@ class Config:
     TESTING = False
     CSRF_ENABLED = True
     CREDENTIALS = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
-
-
+    GOOGLE_CLOUD_PROJECT_ID = os.getenv('GOOGLE_CLOUD_PROJECT')
 class ProductionConfig(Config):
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
-
-
-class DevelopmentConfig(Config):
-    DEVELOPMENT = True
-    DEBUG = True
-    MONGO_URI = os.getenv("MONGO_DEV_URI")
-    DB_NAME = os.getenv("DB_NAME_DEV")
-
+    AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_PROD')
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
+    AIRQO_PREDICT_BUCKET = os.getenv('AIRQO_PREDICT_BUCKET_STAGE')
+class DevelopmentConfig(Config):
+    DEVELOPMENT = True
+    DEBUG = True
+    MONGO_URI = os.getenv("MONGO_DEV_URI")
+    DB_NAME = os.getenv("DB_NAME_DEV")
 
 
 app_config = {
