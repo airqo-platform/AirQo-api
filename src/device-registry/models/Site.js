@@ -380,6 +380,7 @@ siteSchema.statics = {
           description: 1,
           site_tags: 1,
           search_name: 1,
+          location_name: 1,
           lat_long: 1,
           country: 1,
           district: 1,
