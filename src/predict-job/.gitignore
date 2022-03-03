@@ -3,5 +3,5 @@ __pycache__/
 env/
 .vscode
 .vscode/
-AirQo-e37846081569.json
+*.json
 *.csv
