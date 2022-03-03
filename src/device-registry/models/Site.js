@@ -18,6 +18,10 @@ const siteSchema = new Schema(
       type: String,
       trim: true,
     },
+    location_name: {
+      type: String,
+      trim: true,
+    },
     generated_name: {
       type: String,
       trim: true,
@@ -259,6 +263,7 @@ siteSchema.methods = {
       name: this.name,
       generated_name: this.generated_name,
       search_name: this.search_name,
+      location_name: this.location_name,
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
       latitude: this.latitude,
