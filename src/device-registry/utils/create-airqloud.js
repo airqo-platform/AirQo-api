@@ -329,6 +329,63 @@ const createAirqloud = {
       };
     }
   },
+
+  calculateGeographicalCenter: async (request) => {
+    try {
+      const { body, query } = request;
+      const { coordinates } = body;
+      const { id } = query;
+      let coordinatesForCalculatingCenter = [];
+
+      if (!isEmpty(id)) {
+        const responseFromListAirQloud = await createAirqloud.list(request);
+        if (responseFromListAirQloud.success === true) {
+          logObject("responseFromListAirQloud", responseFromListAirQloud);
+          if (responseFromListAirQloud.data.length === 1) {
+            coordinatesForCalculatingCenter =
+              responseFromListAirQloud.data[0].location.coordinates[0];
+          } else {
+            return {
+              success: false,
+              message: "unable to retrieve one respective airqloud",
+              status: httpStatus.NOT_FOUND,
+            };
+          }
+        } else if (responseFromListAirQloud.success === false) {
+          return responseFromListAirQloud;
+        }
+      }
+      if (!isEmpty(coordinates)) {
+        coordinatesForCalculatingCenter = coordinates;
+      }
+
+      logObject(
+        "coordinatesForCalculatingCenter",
+        coordinatesForCalculatingCenter
+      );
+
+      const centerPoint = geolib.getCenter(coordinatesForCalculatingCenter);
+      logObject("centerPoint", centerPoint);
+      if (!isEmpty(centerPoint)) {
+        return {
+          success: true,
+          message: "Successfully calculated the AirQloud's center point",
+          data: centerPoint,
+        };
+      } else {
+        return {
+          success: false,
+          message: "unable to calculate the geographical center",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   findSites: async (request) => {
     try {
       const { query, body } = request;
@@ -480,7 +537,7 @@ const createAirqloud = {
         let status = responseFromListAirQloud.status
           ? responseFromListAirQloud.status
           : "";
-        data = responseFromListAirQloud.data;
+        let data = responseFromListAirQloud.data;
         return {
           success: true,
           message: responseFromListAirQloud.message,

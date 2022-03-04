@@ -63,6 +63,72 @@ const createAirqloud = {
     }
   },
 
+  calculateGeographicalCenter: async (req, res) => {
+    try {
+      const { body, query } = req;
+      const { coordinates } = body;
+      const { id, tenant } = query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = {};
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["coordinates"] = coordinates;
+      request["query"]["id"] = id;
+      request["query"]["tenant"] = tenant;
+      /**
+       * need to get these coordinates from the AirQloud ID perhaps?
+       * **/
+
+      const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
+        request
+      );
+
+      if (responseFromCalculateGeographicalCenter.success === true) {
+        const status = responseFromCalculateGeographicalCenter.status
+          ? responseFromCalculateGeographicalCenter.status
+          : httpStatus.OK;
+        logObject(
+          "responseFromCalculateGeographicalCenter",
+          responseFromCalculateGeographicalCenter
+        );
+        return res.status(status).json({
+          success: true,
+          message: responseFromCalculateGeographicalCenter.message,
+          center_point: responseFromCalculateGeographicalCenter.data,
+        });
+      } else if (responseFromCalculateGeographicalCenter.success === false) {
+        const status = responseFromCalculateGeographicalCenter.status
+          ? responseFromCalculateGeographicalCenter.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        const errors = responseFromCalculateGeographicalCenter.errors
+          ? responseFromCalculateGeographicalCenter.errors
+          : "";
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCalculateGeographicalCenter.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   delete: async (req, res) => {
     try {
       const { query } = req;
