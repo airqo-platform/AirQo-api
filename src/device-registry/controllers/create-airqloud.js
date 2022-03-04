@@ -221,6 +221,10 @@ const createAirqloud = {
 
   findSites: async (req, res) => {
     try {
+      return res.status(httpStatus.NOT_IMPLEMENTED).json({
+        message: "Coming Soon",
+      });
+
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
