@@ -85,9 +85,6 @@ const createAirqloud = {
       request["body"]["coordinates"] = coordinates;
       request["query"]["id"] = id;
       request["query"]["tenant"] = tenant;
-      /**
-       * need to get these coordinates from the AirQloud ID perhaps?
-       * **/
 
       const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
         request

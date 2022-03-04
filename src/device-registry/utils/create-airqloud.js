@@ -91,9 +91,9 @@ const createAirqloud = {
   },
   create: async (request) => {
     try {
-      const { body } = request;
-      const { tenant } = request.query;
-      const { location_id } = request.body;
+      const { body, query } = request;
+      const { tenant } = query;
+      const { location_id } = body;
       logObject("body", body);
       let modifiedBody = body;
       if (!isEmpty(location_id)) {
@@ -118,6 +118,26 @@ const createAirqloud = {
         }
       }
 
+      let requestForCalucaltionAirQloudCenter = {};
+      requestForCalucaltionAirQloudCenter["body"] = {};
+      requestForCalucaltionAirQloudCenter["query"] = {};
+      requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
+        modifiedBody.location.coordinates[0];
+
+      const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
+        requestForCalucaltionAirQloudCenter
+      );
+      logObject(
+        "responseFromCalculateGeographicalCenter",
+        responseFromCalculateGeographicalCenter
+      );
+      if (responseFromCalculateGeographicalCenter.success === true) {
+        modifiedBody["center_point"] =
+          responseFromCalculateGeographicalCenter.data;
+      } else if (responseFromCalculateGeographicalCenter.success === false) {
+        return responseFromCalculateGeographicalCenter;
+      }
+
       const responseFromRegisterAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
         "airqloud",
@@ -136,9 +156,7 @@ const createAirqloud = {
           data: responseFromRegisterAirQloud.data,
           status,
         };
-      }
-
-      if (responseFromRegisterAirQloud.success === false) {
+      } else if (responseFromRegisterAirQloud.success === false) {
         let errors = responseFromRegisterAirQloud.errors
           ? responseFromRegisterAirQloud.errors
           : "";
@@ -274,6 +292,7 @@ const createAirqloud = {
     try {
       const { query } = request;
       const { tenant, id, name, admin_level } = query;
+
       const responseFromFindSites = await createAirqloud.findSites(request);
       if (responseFromFindSites.success === true) {
         const sites = responseFromFindSites.data;
@@ -289,8 +308,7 @@ const createAirqloud = {
             status: httpStatus.OK,
             data: responseFromUpdateAirQloud.data,
           };
-        }
-        if (responseFromUpdateAirQloud.success === false) {
+        } else if (responseFromUpdateAirQloud.success === false) {
           const status = responseFromUpdateAirQloud.status
             ? responseFromUpdateAirQloud.status
             : "";
@@ -304,8 +322,7 @@ const createAirqloud = {
             errors,
           };
         }
-      }
-      if (responseFromFindSites.success === false) {
+      } else if (responseFromFindSites.success === false) {
         const status = responseFromFindSites.status
           ? responseFromFindSites.status
           : "";

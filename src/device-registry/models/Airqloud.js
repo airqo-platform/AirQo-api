@@ -50,9 +50,20 @@ const metadataSchema = new Schema(
   { _id: false }
 );
 
+const pointSchema = new Schema(
+  {
+    longitude: { type: Number },
+    latitude: { type: Number },
+  },
+  {
+    _id: false,
+  }
+);
+
 const airqloudSchema = new Schema(
   {
     location: { type: polygonSchema },
+    center_point: { type: pointSchema },
     name: {
       type: String,
       trim: true,
@@ -124,6 +135,7 @@ airqloudSchema.methods = {
       location: this.location,
       metadata: this.metadata,
       sites: this.sites,
+      center_point: this.center_point,
     };
   },
 };
@@ -171,7 +183,7 @@ airqloudSchema.statics = {
     } catch (err) {
       let e = jsonify(err);
       let response = {};
-      logObject("the err in the model", err);
+      // logObject("the err in the model", err);
       message = "validation errors for some of the provided fields";
       const status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
@@ -208,6 +220,7 @@ airqloudSchema.statics = {
           admin_level: 1,
           isCustom: 1,
           metadata: 1,
+          center_point: 1,
           sites: "$sites",
         })
         .project({
