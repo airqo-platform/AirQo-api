@@ -14,7 +14,7 @@ const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const QRCode = require("qrcode");
-const { kafkaProducer } = require("../config/kafka-node");
+const { kafkaProducer } = require("../config/kafkajs");
 const cleanDeep = require("clean-deep");
 const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
@@ -658,19 +658,22 @@ const createDevice = {
       );
 
       if (responseFromRegisterDevice.success === true) {
-        const payloads = [
-          {
-            topic: `gcp-${constants.ENV_ACRONYM}-createDevice-devices-0`,
-            messages: JSON.stringify(responseFromRegisterDevice.data),
-            partition: 0,
-          },
-        ];
-        kafkaProducer.send(payloads, (err, data) => {
-          logObject("Kafka producer data", data);
-          logger.info(`Kafka producer data, ${data}`);
-          logObject("Kafka producer error", err);
-          logger.error(`Kafka producer error, ${err}`);
-        });
+        try {
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: "devices-topic",
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterDevice.data),
+              },
+            ],
+          });
+
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logObject("error on kafka", error);
+        }
 
         return {
           success: true,

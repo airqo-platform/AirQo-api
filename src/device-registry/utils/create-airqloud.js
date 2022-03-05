@@ -15,7 +15,7 @@ const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
 const constants = require("../config/constants");
-const { kafkaProducer } = require("../config/kafka-node");
+const { kafkaProducer } = require("../config/kafkajs");
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -126,19 +126,23 @@ const createAirqloud = {
       logObject("responseFromRegisterAirQloud", responseFromRegisterAirQloud);
 
       if (responseFromRegisterAirQloud.success === true) {
-        const payloads = [
-          {
-            topic: `gcp-${constants.ENV_ACRONYM}-createAirQloud-airqlouds-0`,
-            messages: JSON.stringify(responseFromRegisterAirQloud.data),
-            partition: 0,
-          },
-        ];
-        kafkaProducer.send(payloads, (err, data) => {
-          logObject("Kafka producer data", data);
-          logger.info(`Kafka producer data, ${data}`);
-          logObject("Kafka producer error", err);
-          logger.error(`Kafka producer error, ${err}`);
-        });
+        try {
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: "airqlouds-topic",
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterAirQloud.data),
+              },
+            ],
+          });
+
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logObject("error on kafka", error);
+        }
+
         let status = responseFromRegisterAirQloud.status
           ? responseFromRegisterAirQloud.status
           : "";

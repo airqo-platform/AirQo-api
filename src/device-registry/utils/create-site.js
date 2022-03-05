@@ -26,7 +26,7 @@ const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
-const { kafkaProducer } = require("../config/kafka-node");
+const { kafkaProducer, kafkaClient } = require("../config/kafkajs");
 
 const manageSite = {
   hasWhiteSpace: (name) => {
@@ -391,9 +391,7 @@ const manageSite = {
       if (responseFromGenerateName.success === true) {
         generated_name = responseFromGenerateName.data;
         request["body"]["generated_name"] = generated_name;
-      }
-
-      if (responseFromGenerateName.success === false) {
+      } else if (responseFromGenerateName.success === false) {
         let errors = responseFromGenerateName.errors
           ? responseFromGenerateName.errors
           : "";
@@ -414,9 +412,7 @@ const manageSite = {
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
       if (responseFromGenerateMetadata.success === true) {
         requestBodyForCreatingSite = responseFromGenerateMetadata.data;
-      }
-
-      if (responseFromGenerateMetadata.success === false) {
+      } else if (responseFromGenerateMetadata.success === false) {
         let errors = responseFromGenerateMetadata.errors
           ? responseFromGenerateMetadata.errors
           : "";
@@ -439,19 +435,22 @@ const manageSite = {
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
-        const payloads = [
-          {
-            topic: `gcp-${constants.ENV_ACRONYM}-createSite-sites-0`,
-            messages: JSON.stringify(createdSite),
-            partition: 0,
-          },
-        ];
-        kafkaProducer.send(payloads, (err, data) => {
-          logObject("Kafka producer data", data);
-          logger.info(`Kafka producer data, ${data}`);
-          logObject("Kafka producer error", err);
-          logger.error(`Kafka producer error, ${err}`);
-        });
+        try {
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: "sites-topic",
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(createdSite),
+              },
+            ],
+          });
+
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logObject("error on kafka", error);
+        }
 
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status

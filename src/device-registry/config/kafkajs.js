@@ -3,7 +3,7 @@ const constants = require("../config/constants");
 
 const kafka = new Kafka({
   clientId: "device-registry-kafkajs",
-  brokers: [constants.KAFKA_BOOTSTRAP_SERVERS],
+  brokers: constants.KAFKA_BOOTSTRAP_SERVERS,
 });
 
 const kafkaConsumer = kafka.consumer({
