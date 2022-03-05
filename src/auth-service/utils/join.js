@@ -5,12 +5,13 @@ const mailer = require("../services/mailer");
 const generatePassword = require("./generate-password");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
-const constants = require("../config/constants");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const { getAuth, sendSignInLinkToEmail } = require("firebase-admin/auth");
 const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
+const validationsUtil = require("./validations");
+const constants = require("../config/constants");
 
 const UserModel = (tenant) => {
   try {
@@ -123,7 +124,7 @@ const join = {
       const { body, query } = request;
       const { email } = body;
       const { purpose } = query;
-      let token = "TOKEN";
+
       return getAuth()
         .generateSignInWithEmailLink(email, actionCodeSettings)
         .then(async (link) => {
@@ -132,8 +133,26 @@ const join = {
           const indexOfCode = indexBeforeCode + 1;
           let emailLinkCode = linkSegments[indexOfCode].substring(2);
 
-          const token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+          await validationsUtil.checkEmailExistenceUsingKickbox(
+            email,
+            (value) => {
+              if (value.success == false) {
+                const errors = value.errors ? value.errors : "";
+                callback({
+                  success: false,
+                  message: value.message,
+                  errors,
+                  status: value.status,
+                });
+              }
+            }
+          );
+
           let responseFromSendEmail = {};
+          let token = 100000;
+          if (email !== constants.EMAIL) {
+            token = Math.floor(Math.random() * (999999 - 100000) + 100000);
+          }
           if (purpose === "auth") {
             responseFromSendEmail = await mailer.authenticateEmail(
               email,

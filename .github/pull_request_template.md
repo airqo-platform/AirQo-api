@@ -1,10 +1,8 @@
-# <Feature/Chore/Hotfix/Topic/Bug Title>
+# <Replace with the tile for the Feature/Chore/Hotfix/Topic/Bug you are working on>
 
 **_WHAT DOES THIS PR DO?_**
 
 **_WHAT JIRA STORY/TASK IS RELATED TO THIS PR?_**
-
-**_WHAT IS THE LINK TO THE PR BRANCH_**
 
 **_HOW DO I TEST OUT THIS PR?_**
 
@@ -12,6 +10,10 @@
 
 **_IS THERE ANY JENKINS CONSOLE LINK FOR CODE COVERAGE AND BUILD INFO?_**
 
+N/A
+
 **_ARE THERE ANY RELATED PRs?_**
+
+N/A
 
 

@@ -1,11 +1,15 @@
 import pytz
 from datetime import datetime
+from google.cloud import bigquery
 from api.models.base.base_model import BasePyMongoModel
 
-from main import cache
+from main import cache, CONFIGURATIONS
 
 
 class EventsModel(BasePyMongoModel):
+    BIGQUERY_SITES = CONFIGURATIONS.BIGQUERY_SITES
+    BIGQUERY_EVENTS = CONFIGURATIONS.BIGQUERY_EVENTS
+
     def __init__(self, tenant):
         self.limit_mapper = {
             'pm2_5': 500.5,
@@ -13,6 +17,31 @@ class EventsModel(BasePyMongoModel):
             'no2': 2049
         }
         super().__init__(tenant, collection_name="events")
+
+    @classmethod
+    @cache.memoize()
+    def from_bigquery(cls, tenant, sites, start_date, end_date, frequency, pollutants):
+        decimal_places = 2
+        formatted_pollutants = [f'ROUND({pollutant}, {decimal_places}) AS {pollutant}' for pollutant in pollutants]
+
+        client = bigquery.Client()
+
+
+        QUERY = f"SELECT FORMAT_DATETIME('%FT%T%Ez', time) AS datetime, name, site_id, {cls.BIGQUERY_SITES}.latitude, " \
+                f"{cls.BIGQUERY_SITES}.longitude, {', '.join(formatted_pollutants)} " \
+                f"FROM {cls.BIGQUERY_EVENTS} " \
+                f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id " \
+                f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.time >= '{start_date}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.time <= '{end_date}' " \
+                f"AND site_id IN UNNEST({sites})"
+
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        query = client.query(QUERY, job_config)
+
+        return [dict(row) for row in query.result()]
 
     def remove_outliers(self, pollutant):
         return self.add_stages(

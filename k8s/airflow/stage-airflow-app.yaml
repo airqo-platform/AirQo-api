@@ -1,0 +1,135 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: airflow
+  namespace: stage-airflow
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      serviceAccountName: stage-airflow-sa
+      containers:
+        - name: airflow-scheduler
+          image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          command: ["airflow"]
+          args: ["scheduler"]
+          resources: {}
+            # requests:
+            #   memory: 2Mi
+            #   cpu: 50m
+            # limits:
+            #   memory: 100Mi
+            #   cpu: 100m
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+        - name: airflow-webserver
+          image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          command: ["airflow"]
+          args: ["webserver"]
+          resources: {}
+            # requests:
+            #   memory: 10Mi
+            #   cpu: 100m
+            # limits:
+            #   memory: 500Mi
+            #   cpu: 500m
+          readinessProbe: 
+            initialDelaySeconds: 120
+            timeoutSeconds: 120
+            httpGet:
+              path: /stage-airflow/health
+              port: 8080
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: airflow-config-files
+      restartPolicy: Always
+
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: stage-airflow-sa
+  namespace: stage-airflow
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: stage-airflow-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/exec", "pods/log"]
+  verbs: ["*"]
+- apiGroups: ["extensions"]
+  resources: ["ingresses"]
+  verbs: ["get","watch","list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: stage-airflow-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: stage-airflow-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: stage-airflow-sa
+  namespace: stage-airflow
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: stage-airflow-workers
+  
+---
+kind: Service
+apiVersion: v1
+metadata:
+ name: airflow-svc
+ namespace: stage-airflow
+spec:
+ ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+ selector:
+  app: airflow
+
