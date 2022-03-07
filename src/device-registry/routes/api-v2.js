@@ -1141,11 +1141,7 @@ router.post(
 router.get("/activities", siteController.getActivities);
 router.put("/activities", siteController.updateActivity);
 router.delete("/activities", siteController.deleteActivity);
-router.post(
-  "/upload-images",
-  imageUpload.array("image"),
-  photoController.uploadManyPhotosOnCloudinary
-);
+
 router.get(
   "/sites",
   oneOf([
