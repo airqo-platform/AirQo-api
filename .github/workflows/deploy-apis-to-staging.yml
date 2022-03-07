@@ -136,6 +136,7 @@ jobs:
 
             if [[ $file == src/view/* ]]; then
               echo "::set-output name=run_view::true"
+            fi
             
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
