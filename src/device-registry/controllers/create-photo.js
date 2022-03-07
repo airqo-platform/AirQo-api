@@ -1,12 +1,6 @@
-const uploadImages = require("../utils/upload-images");
-const fs = require("fs");
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
-const {
-  tryCatchErrors,
-  missingQueryParams,
-  badRequest,
-} = require("../utils/errors");
+const { badRequest } = require("../utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-photo-controller");
 const { validationResult } = require("express-validator");
@@ -557,40 +551,6 @@ const processImage = {
           message: error.message,
         },
       });
-    }
-  },
-
-  /**
-   ******************** legacy ***************************************
-   */
-  uploadManyPhotosOnCloudinary: async (req, res) => {
-    try {
-      const { tenant } = req.query;
-
-      if (tenant) {
-        const uploader = async (path) => {
-          await uploadImages.uploads(path, "Images");
-        };
-        const urls = [];
-        const files = req.files;
-
-        for (const file of files) {
-          const { path } = file;
-          const newPath = await uploader(path);
-          urls.push(newPath);
-          fs.unlinkSync(path);
-        }
-
-        res.status(HTTPStatus.OK).json({
-          success: true,
-          message: "images uploaded successfully",
-          data: urls,
-        });
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(e, req, res);
     }
   },
 };
