@@ -1,4 +1,4 @@
-const eventModel = require("../models/Event");
+const EventModel = require("../models/Event");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
@@ -6,7 +6,6 @@ const { utillErrors } = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
-const { generateDateFormatWithoutHrs } = require("./date");
 const { transform } = require("node-json-transform");
 const Dot = require("dot-object");
 const cleanDeep = require("clean-deep");
@@ -28,6 +27,7 @@ const {
   transformMeasurements,
   transformMeasurementFields,
 } = require("./transform-measurements");
+const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
 const httpStatus = require("http-status");
 
@@ -83,7 +83,7 @@ const createEvent = {
                   }
                 }
               }
-              const responseFromListEvents = await eventModel(tenant).list({
+              const responseFromListEvents = await EventModel(tenant).list({
                 skip,
                 limit,
                 filter,
@@ -167,7 +167,7 @@ const createEvent = {
         for (const event of transformedEvents) {
           try {
             logObject("event", event);
-            const addedEvents = await eventModel(tenant).updateOne(
+            const addedEvents = await EventModel(tenant).updateOne(
               event.filter,
               event.update,
               event.options
@@ -819,7 +819,7 @@ const createEvent = {
 
           logger.info(`the options -- ${JSON.stringify(options)}`);
 
-          const addedEvents = await eventModel(tenant).updateOne(
+          const addedEvents = await EventModel(tenant).updateOne(
             modifiedFilter,
             update,
             options
@@ -911,7 +911,7 @@ const createEvent = {
     }
     let _limit = limit ? limit : 100;
     let _skip = skip ? skip : 0;
-    let responseFromListEvents = await eventModel(tenant).view({
+    let responseFromListEvents = await EventModel(tenant).view({
       _skip,
       _limit,
       filter,
@@ -1132,6 +1132,246 @@ const createEvent = {
     } catch (e) {
       logger.error(`server error, clearEventsOnPlatform -- ${e.message}`);
       utillErrors.tryCatchErrors("clearEventsOnPlatform util", e.message);
+    }
+  },
+  insert: async (tenant, measurements) => {
+    let nAdded = 0;
+    let eventsAdded = [];
+    let eventsRejected = [];
+    let errors = [];
+
+    const responseFromTransformMeasurements = await createEvent.transformMeasurements_v2(
+      measurements
+    );
+
+    if (!responseFromTransformMeasurements.success) {
+      logger.error(
+        `unable to transform measurements -- ${responseFromTransformMeasurements.message}`
+      );
+    }
+
+    for (const measurement of responseFromTransformMeasurements.data) {
+      try {
+        // logObject("the measurement in the insertion process", measurement);
+        const eventsFilter = {
+          day: measurement.day,
+          site_id: measurement.site_id,
+          device_id: measurement.device_id,
+          nValues: { $lt: parseInt(constants.N_VALUES) },
+          $or: [
+            { "values.time": { $ne: measurement.time } },
+            { "values.device": { $ne: measurement.device } },
+            { "values.frequency": { $ne: measurement.frequency } },
+            { "values.device_id": { $ne: measurement.device_id } },
+            { "values.site_id": { $ne: measurement.site_id } },
+            { day: { $ne: measurement.day } },
+          ],
+        };
+        let someDeviceDetails = {};
+        someDeviceDetails["device_id"] = measurement.device_id;
+        someDeviceDetails["site_id"] = measurement.site_id;
+        logObject("someDeviceDetails", someDeviceDetails);
+
+        const eventsUpdate = {
+          $push: { values: measurement },
+          $min: { first: measurement.time },
+          $max: { last: measurement.time },
+          $inc: { nValues: 1 },
+        };
+
+        const addedEvents = await EventModel(tenant).updateOne(
+          eventsFilter,
+          eventsUpdate,
+          {
+            upsert: true,
+          }
+        );
+        logObject("addedEvents", addedEvents);
+        if (addedEvents) {
+          nAdded += 1;
+          eventsAdded.push(measurement);
+        } else if (!addedEvents) {
+          eventsRejected.push(measurement);
+          let errMsg = {
+            msg: "unable to add the events",
+            record: {
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+            },
+          };
+          errors.push(errMsg);
+        } else {
+          eventsRejected.push(measurement);
+          let errMsg = {
+            msg: "unable to add the events",
+            record: {
+              ...(measurement.device ? { device: measurement.device } : {}),
+              ...(measurement.frequency
+                ? { frequency: measurement.frequency }
+                : {}),
+              ...(measurement.time ? { time: measurement.time } : {}),
+              ...(measurement.device_id
+                ? { device_id: measurement.device_id }
+                : {}),
+              ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+            },
+          };
+          errors.push(errMsg);
+        }
+      } catch (e) {
+        logObject("the detailed duplicate error", e);
+        logger.error(`internal server serror ${e.message}`);
+        eventsRejected.push(measurement);
+        let errMsg = {
+          msg: "duplicate record",
+          record: {
+            ...(measurement.device ? { device: measurement.device } : {}),
+            ...(measurement.frequency
+              ? { frequency: measurement.frequency }
+              : {}),
+            ...(measurement.time ? { time: measurement.time } : {}),
+            ...(measurement.device_id
+              ? { device_id: measurement.device_id }
+              : {}),
+            ...(measurement.site_id ? { site_id: measurement.site_id } : {}),
+          },
+        };
+        errors.push(errMsg);
+      }
+    }
+
+    if (errors.length > 0) {
+      return {
+        success: false,
+        message: "finished the operation with some errors",
+        errors: errors,
+      };
+    } else {
+      return {
+        success: true,
+        message: "successfully added all the events",
+      };
+    }
+  },
+  transformMeasurements: (device, measurements) => {
+    let promises = measurements.map(async (measurement) => {
+      try {
+        let time = measurement.time;
+        const day = generateDateFormatWithoutHrs(time);
+        return {
+          device: device,
+          day: day,
+          ...measurement,
+          success: true,
+        };
+      } catch (e) {
+        console.log("the error: ", e.message);
+        return {
+          device: device,
+          success: false,
+          message: e.message,
+        };
+      }
+    });
+    return Promise.all(promises).then((results) => {
+      if (results.every((res) => res.success)) {
+        return results;
+      } else {
+        console.log("the results for no success", results);
+      }
+    });
+  },
+  transformMeasurements_v2: async (measurements) => {
+    try {
+      logText("we are transforming version 2....");
+      let promises = measurements.map(async (measurement) => {
+        try {
+          let time = measurement.time;
+          const day = generateDateFormatWithoutHrs(time);
+          let data = {
+            day: day,
+            ...measurement,
+          };
+          return data;
+        } catch (e) {
+          console.log("the error: ", e.message);
+          return {
+            success: false,
+            message: "server side error",
+            error: e.message,
+          };
+        }
+      });
+      return Promise.all(promises).then((results) => {
+        if (results.every((res) => res.success)) {
+          return {
+            success: true,
+            data: results,
+          };
+        } else {
+          return {
+            success: true,
+            data: results,
+          };
+        }
+      });
+    } catch (error) {
+      return {
+        success: false,
+        message: "unable to transform measurement",
+        error: error.message,
+      };
+    }
+  },
+  transformField: (field) => {
+    try {
+      switch (field) {
+        case "pm2_5":
+          return "field1";
+        case "pm10":
+          return "field2";
+        case "s2_pm2_5":
+          return "field3";
+        case "s2_pm10":
+          return "field4";
+        case "latitude":
+          return "field5";
+        case "longitude":
+          return "field6";
+        case "battery":
+          return "field7";
+        case "others":
+          return "field8";
+        case "time":
+          return "created_at";
+        case "elevation":
+          return "elevation";
+        case "status":
+          return "status";
+        default:
+          return field;
+      }
+    } catch (e) {
+      console.log(e.message);
+    }
+  },
+  transformMeasurementFields: async (measurements) => {
+    try {
+      logObject("the measurements", measurements);
+      let transform = [];
+      measurements.forEach((field, value) => {
+        transform[transformField(field)] = value;
+      });
+      return transform;
+    } catch (e) {
+      console.log(e.message);
     }
   },
 };

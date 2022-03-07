@@ -31,9 +31,6 @@ const {
   doesComponentTypeExist,
 } = require("../utils/does-component-exist");
 
-const transformMeasurements = require("../utils/transform-measurements");
-const insertMeasurements = require("../utils/insert-measurements");
-
 const Component = {
   listAll: async (req, res) => {
     try {

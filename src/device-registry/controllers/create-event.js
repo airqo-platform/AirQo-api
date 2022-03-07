@@ -12,8 +12,6 @@ const { validationResult } = require("express-validator");
 const getDetail = require("../utils/get-device-details");
 const isEmpty = require("is-empty");
 
-const { transformMeasurements_v2 } = require("../utils/transform-measurements");
-const insertMeasurements = require("../utils/insert-measurements");
 const {
   transmitOneSensorValue,
   transmitMultipleSensorValues,
@@ -38,34 +36,7 @@ const createEvent = {
         );
       }
 
-      const responseFromTransformMeasurements = await transformMeasurements_v2(
-        measurements
-      );
-      // logObject(
-      //   "responseFromTransformMeasurements",
-      //   responseFromTransformMeasurements
-      // );
-
-      if (!responseFromTransformMeasurements.success) {
-        let error = responseFromTransformMeasurements.error
-          ? responseFromTransformMeasurements.error
-          : "";
-        res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: responseFromTransformMeasurements.message,
-          error,
-        });
-      }
-
-      // logObject(
-      //   "responseFromTransformMeasurements.data",
-      //   responseFromTransformMeasurements.data
-      // );
-
-      let response = await insertMeasurements(
-        tenant,
-        responseFromTransformMeasurements.data
-      );
+      let response = await createEventUtil.insert(tenant, measurements);
 
       if (!response.success) {
         return res.status(HTTPStatus.BAD_REQUEST).json({
