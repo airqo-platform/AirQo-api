@@ -1,7 +1,0 @@
-topics:
-  - name: recent-device-measurements-topic 
-    namespace: staging
-    cluster: stage-kafka-cluster
-    partitions: 3
-    replicas: 2
-    retention: 3600000

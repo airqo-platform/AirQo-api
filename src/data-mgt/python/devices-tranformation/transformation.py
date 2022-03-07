@@ -37,6 +37,30 @@ class Transformation:
             if name and deployed.strip().lower() == "deployed":
                 self.airqo_api.update_primary_device(tenant=tenant, name=name, primary=is_primary)
 
+    def update_site_search_names(self):
+
+        updated_site_names = []
+        sites = pd.read_csv("sites.csv")
+        for _, site in sites.iterrows():
+
+            site_dict = dict(site.to_dict())
+
+            update = dict({
+                "search_name": site_dict.get("search_name"),
+                "location_name": site_dict.get("location_name"),
+                "tenant": self.tenant,
+            })
+
+            if "lat_long" in site_dict.keys():
+                update["lat_long"] = site_dict.get("lat_long")
+            elif "id" in site_dict.keys():
+                update["id"] = site_dict.get("id")
+            else:
+                raise Exception("Missing unique key")
+            updated_site_names.append(update)
+
+        self.airqo_api.update_sites(updated_site_names)
+
     def map_devices_to_tahmo_station(self):
 
         devices = self.airqo_api.get_devices(self.tenant)
@@ -111,9 +135,7 @@ class Transformation:
                     update = dict({
                         "nearest_tahmo_station": station_data,
                         "_id": site_dict.get("_id"),
-                        "name": site_dict.get("name"),
-                        "latitude": latitude,
-                        "longitude": longitude,
+                        "tenant": self.tenant,
                     })
 
                     updated_sites.append(update)
@@ -154,6 +176,27 @@ class Transformation:
                 sites_without_primary_devices.append(site_dict)
 
         self.__print(data=sites_without_primary_devices)
+
+    def metadata_to_csv(self, component='', tenant=None):
+
+        if tenant is None:
+            metadata = []
+            for tenant in ['airqo', 'kcca']:
+                tenant_metadata = self.airqo_api.get_sites(tenant=tenant) \
+                    if component.strip().lower() == 'sites' \
+                    else self.airqo_api.get_devices(tenant=tenant, all_devices=True)
+                tenant_metadata_df = pd.DataFrame(tenant_metadata)
+                tenant_metadata_df['tenant'] = tenant
+                metadata.extend(tenant_metadata_df.to_dict(orient='records'))
+        else:
+            metadata = self.airqo_api.get_sites(tenant=tenant)\
+                if component.strip().lower() == 'sites' \
+                else self.airqo_api.get_devices(tenant=tenant, all_devices=True)
+
+        metadata_df = pd.DataFrame(metadata)
+        data = pd.json_normalize(metadata_df.to_dict(orient='records'))
+
+        self.__print(data=data)
 
     def get_devices_without_forecast(self):
 

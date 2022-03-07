@@ -1,0 +1,22 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: prod-vs
+  namespace: production
+spec:
+  hosts:
+  - "*"
+  gateways:
+  - istio-system/pipeline-gateway
+  http:
+  - name: prod-apache-airflow
+    match:
+    - uri:
+        prefix: /airflow
+    rewrite:
+      uri: /airflow
+    route:
+    - destination:
+        port:
+          number: 8080
+        host: airflow-svc.airflow.svc.cluster.local  

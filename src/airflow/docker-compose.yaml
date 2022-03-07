@@ -1,0 +1,85 @@
+version: "3.8"
+
+x-db-common-data: &db-common-data
+  environment:
+    POSTGRES_NAME: postgres
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: postgres
+    AIRFLOW_UI_USER: airflow
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+
+x-common-data: &common-data
+#  platform: linux/amd64
+  restart: on-failure
+  env_file:
+    - .env
+  environment:
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+    AIRFLOW__WEBSERVER__SECRET_KEY: dev
+    AIRFLOW__WEBSERVER__SECRET_KEY_CMD: dev
+    AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
+    AIRFLOW__WEBSERVER__INSTANCE_NAME: AirQo
+    AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 240
+    AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME: 604800
+    AIRFLOW_UID: 50000
+    BOOTSTRAP_SERVERS: message-broker:9092
+    GOOGLE_APPLICATION_CREDENTIALS: /opt/airflow/dags/google_application_credentials.json
+  depends_on:
+    - db
+    - db-setup
+
+services:
+  db:
+    <<: *db-common-data
+    container_name: db
+    image: postgres
+
+  db-setup:
+    <<: *db-common-data
+    container_name: db-setup
+    build:
+      context: .
+      target: db-setup
+#    platform: linux/amd64
+    restart: on-failure
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - db
+
+  message-broker:
+    container_name: message-broker
+    image: noahnsimbe/kafka-docker
+    ports:
+      - "9093:9092"
+
+  message-broker-setup:
+    container_name: message-broker-setup
+    build:
+      context: .
+      target: kafka-setup
+    platform: linux/amd64
+    restart: on-failure
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - message-broker
+
+  scheduler:
+    <<: *common-data
+    container_name: scheduler
+    build:
+      context: .
+      target: scheduler
+
+  webserver:
+    <<: *common-data
+    container_name: webserver
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+    build:
+      context: .
+      target: webserver
+    ports:
+      - "8080:8080"

@@ -1,0 +1,134 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: airflow
+  namespace: airflow
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      serviceAccountName: airflow-sa
+      containers:
+        - name: airflow-scheduler
+          image: us.gcr.io/airqo-250220/airqo-apache-airflow:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          command: ["airflow"]
+          args: ["scheduler"]
+          resources: {}
+            # requests:
+            #   memory: 2Mi
+            #   cpu: 50m
+            # limits:
+            #   memory: 100Mi
+            #   cpu: 100m
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+        - name: airflow-webserver
+          image: us.gcr.io/airqo-250220/airqo-apache-airflow:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          command: ["airflow"]
+          args: ["webserver"]
+          resources: {}
+            # requests:
+            #   memory: 10Mi
+            #   cpu: 100m
+            # limits:
+            #   memory: 500Mi
+            #   cpu: 500m
+          readinessProbe: 
+            initialDelaySeconds: 120
+            timeoutSeconds: 120
+            httpGet:
+              path: /airflow/health
+              port: 8080
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+      volumes:
+        - name: config-volume
+          configMap:
+            name: airflow-config-files
+      restartPolicy: Always
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+ name: airflow-sa
+ namespace: airflow
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: airflow-cluster-role
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/exec", "pods/log"]
+  verbs: ["get", "list", "watch", "create", "update", "delete", "patch"]
+- apiGroups: ["extensions"]
+  resources: ["ingresses"]
+  verbs: ["get","watch","list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: airflow-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: airflow-cluster-role
+subjects:
+- kind: ServiceAccount
+  name: airflow-sa
+  namespace: airflow
+
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: airflow-workers
+  
+---
+kind: Service
+apiVersion: v1
+metadata:
+ name: airflow-svc
+ namespace: airflow
+spec:
+ ports:
+  - port: 8080
+    protocol: TCP
+    targetPort: 8080
+ selector:
+  app: airflow
+
