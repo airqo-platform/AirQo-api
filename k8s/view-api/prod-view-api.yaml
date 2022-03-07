@@ -1,0 +1,103 @@
+###########################################################
+# Start deployment of view api - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-view-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: view-api
+  replicas: 2
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app: view-api
+    spec:
+      containers:
+        - name: view-api
+          image: us.gcr.io/airqo-250220/airqo-view-api:latest
+          imagePullPolicy: Always
+          resources: {}
+            # requests:
+            #   memory: 200Mi
+            #   cpu: "100m"
+            # limits:
+            #   memory: 700Mi
+            #   cpu: "1000m"
+          ports:
+            - containerPort: 8080
+              name: view-api
+          envFrom:
+            - configMapRef:
+                name: prod-view-api-config
+          readinessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              port: 8080
+              path: api/v1/view/actuator/health/readiness
+          livenessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              port: 8080
+              path: api/v1/view/actuator/health/liveness
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sh", "-c", "sleep 10" ]
+        - name: views-api
+          image: us.gcr.io/airqo-250220/airqo-view-api:latest
+          imagePullPolicy: Always
+          resources: {}
+            # requests:
+            #   memory: 200Mi
+            #   cpu: "100m"
+            # limits:
+            #   memory: 700Mi
+            #   cpu: "1000m"
+          ports:
+            - containerPort: 8081
+              name: views-api
+          envFrom:
+            - configMapRef:
+                name: prod-views-api-config
+          readinessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              port: 8081
+              path: api/v1/views/actuator/health/readiness
+          livenessProbe:
+            initialDelaySeconds: 30
+            httpGet:
+              port: 8081
+              path: api/v1/views/actuator/health/liveness
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "sh", "-c", "sleep 10" ]
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-view-api-svc
+  namespace: production
+spec:
+  selector:
+    app: view-api
+  ports:
+    - protocol: TCP
+      name: view-api
+      port: 8080
+      targetPort: 8080
+    - protocol: TCP
+      name: views-api
+      port: 8081
+      targetPort: 8081

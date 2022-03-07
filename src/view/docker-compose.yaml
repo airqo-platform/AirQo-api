@@ -1,0 +1,64 @@
+version: "3.9"
+
+x-common-data: &common-data
+  environment:
+    spring.data.mongodb.uri: mongodb://view-mongo-db:27017/
+    spring.redis.host: view-redis-cache
+
+services:
+  view-mongo-db:
+    container_name: view-mongo-db
+#    platform: linux/amd64
+    image: mongo
+
+  view-redis-cache:
+    container_name: view-redis-cache
+#    platform: linux/amd64
+    image: redis
+
+  view-message-broker:
+    container_name: message-broker
+    image: noahnsimbe/kafka-docker
+    ports:
+      - "9093:9092"
+
+  view-message-broker-setup:
+    container_name: view-message-broker-setup
+    build:
+      context: .
+      target: kafka-setup
+#    platform: linux/amd64
+    restart: on-failure
+    healthcheck:
+      test: "exit 0"
+    depends_on:
+      - view-message-broker
+
+  view-api:
+    <<: *common-data
+    container_name: view-api
+#    platform: linux/amd64
+    build:
+      context: .
+      target: dev
+    volumes:
+      - ./:/app
+    ports:
+      - "8080:8080"
+    depends_on:
+      - view-mongo-db
+      - view-redis-cache
+
+  view-message-broker-connector:
+    <<: *common-data
+    container_name: view-message-broker-connector
+#    platform: linux/amd64
+    build:
+      context: .
+      target: message-broker
+    volumes:
+      - ./:/app
+    depends_on:
+      - view-mongo-db
+      - view-message-broker-setup
+      - view-message-broker
