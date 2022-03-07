@@ -12,7 +12,6 @@ const {
   logger_v2,
   errorCodes,
 } = require("../utils/errors");
-const getDetail = require("../utils/get-device-details");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-controller");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
@@ -471,7 +470,7 @@ const device = {
         logElement("latitude ", latitude);
         logElement("longitude ", longitude);
 
-        const devices = await getDetail(tenant);
+        const devices = await createDeviceUtil.getDetail(tenant);
 
         const nearest_devices = nearestDevices.findNearestDevices(
           devices,

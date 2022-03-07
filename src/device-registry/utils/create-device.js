@@ -1092,6 +1092,42 @@ const createDevice = {
       };
     }
   },
+
+  getDetail: async (
+    tenant,
+    name,
+    chid,
+    loc,
+    site,
+    map,
+    primary,
+    active,
+    limitValue,
+    skipValue
+  ) => {
+    try {
+      const limit = parseInt(limitValue, 0);
+      const skip = parseInt(skipValue, 0);
+      const filter = generateFilter.devices_v0(
+        name,
+        chid,
+        loc,
+        site,
+        map,
+        primary,
+        active
+      );
+      logObject("the filter object", filter);
+      const devices = await getModelByTenant(
+        tenant.toLowerCase(),
+        "device",
+        DeviceSchema
+      ).list({ skip, limit, filter });
+      return devices.data;
+    } catch (error) {
+      logElement("error", error);
+    }
+  },
 };
 
 module.exports = createDevice;

@@ -1,6 +1,5 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
-const { getMeasurements } = require("../utils/get-measurements");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-controller");
 const {
@@ -9,16 +8,10 @@ const {
   badRequest,
 } = require("../utils/errors");
 const { validationResult } = require("express-validator");
-const getDetail = require("../utils/get-device-details");
 const isEmpty = require("is-empty");
-
-const {
-  transmitOneSensorValue,
-  transmitMultipleSensorValues,
-  bulkTransmitMultipleSensorValues,
-} = require("../utils/transmit-values");
 const createEventUtil = require("../utils/create-event");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
+createDeviceUtil = require("../utils/create-device");
 
 const createEvent = {
   addValues: async (req, res) => {
@@ -51,7 +44,7 @@ const createEvent = {
         });
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server side error , create events - controller",
         error: e.message,
@@ -216,77 +209,15 @@ const createEvent = {
     }
   },
 
-  getValues: (req, res) => {
-    try {
-      const {
-        device,
-        tenant,
-        limit,
-        skip,
-        key,
-        recent,
-        frequency,
-        startTime,
-        endTime,
-        device_id,
-        site,
-        site_id,
-        device_number,
-        metadata,
-        external,
-      } = req.query;
-
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-      const limitInt = parseInt(limit, 0);
-      const skipInt = parseInt(skip, 0);
-      logText(".......getting values.......");
-      if (tenant) {
-        getMeasurements(
-          res,
-          recent,
-          device,
-          device_number,
-          device_id,
-          site,
-          site_id,
-          skipInt,
-          limitInt,
-          frequency,
-          tenant,
-          startTime,
-          endTime,
-          metadata,
-          external
-        );
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
   transmitValues: async (req, res) => {
     try {
-      const { type, tenant } = req.query;
-      if (type == "one" && tenant) {
-        await transmitOneSensorValue(req, res);
-      } else if (type == "many" && tenant) {
-        await transmitMultipleSensorValues(req, res);
-      } else if (type == "bulk" && tenant) {
-        await bulkTransmitMultipleSensorValues(req, res, tenant);
-      } else {
-        missingQueryParams(req, res);
-      }
+      return createEventUtil.transmitValues(req, res);
     } catch (error) {
-      tryCatchErrors(res, error);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   deleteValues: async () => {},
@@ -333,63 +264,6 @@ const createEvent = {
     } catch (e) {
       logger.error(`responseFromClearValuesOnPlatform -- ${e.message}`);
       tryCatchErrors(res, e.message, "responseFromClearValuesOnPlatform");
-    }
-  },
-  deleteValuesOnThingspeak: async (req, res) => {
-    try {
-      const { device, tenant } = req.query;
-
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      const deviceDetails = await getDetail(tenant, device);
-      const doesDeviceExist = !isEmpty(deviceDetails);
-      logElement("isDevicePresent ?", doesDeviceExist);
-      if (doesDeviceExist) {
-        const channelID = await getChannelID(
-          req,
-          res,
-          device,
-          tenant.toLowerCase()
-        );
-        logText("...................................");
-        logText("clearing the Thing....");
-        logElement("url", constants.CLEAR_THING_URL(channelID));
-        await axios
-          .delete(constants.CLEAR_THING_URL(channelID))
-          .then(async (response) => {
-            logText("successfully cleared the device in TS");
-            logObject("response from TS", response.data);
-            res.status(HTTPStatus.OK).json({
-              message: `successfully cleared the data for device ${device}`,
-              success: true,
-              updatedDevice,
-            });
-          })
-          .catch(function(error) {
-            console.log(error);
-            res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: `unable to clear the device data, device ${device} does not exist`,
-              success: false,
-            });
-          });
-      } else {
-        logText(`device ${device} does not exist in the system`);
-        res.status(HTTPStatus.OK).json({
-          message: `device ${device} does not exist in the system`,
-          success: false,
-        });
-      }
-    } catch (e) {
-      logText(`unable to clear device ${device}`);
-      tryCatchErrors(res, e);
     }
   },
 

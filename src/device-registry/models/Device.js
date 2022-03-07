@@ -1,7 +1,6 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const tranformDeviceName = require("../utils/transform-device-name");
 const { logObject, logElement, logText } = require("../utils/log");
 const { monthsInfront } = require("../utils/date");
 const constants = require("../config/constants");

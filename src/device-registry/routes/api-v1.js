@@ -5,9 +5,7 @@ const siteController = require("../controllers/create-site");
 const locationController = require("../controllers/create-location");
 const airqloudController = require("../controllers/create-airqloud");
 const middlewareConfig = require("../config/router.middleware");
-const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
-const imageUpload = require("../utils/multer");
 const photoController = require("../controllers/create-photo");
 const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("../config/constants");
@@ -2781,14 +2779,6 @@ router.get(
   ]),
   siteController.findNearestSite
 );
-
-/******************* create-component use-case **************************/
-router.get("/list/components/", componentController.listAll);
-router.post("/add/components/", componentController.addComponent);
-router.delete("/delete/components/", componentController.deleteComponent);
-router.put("/update/components/", componentController.updateComponent);
-router.post("/add/components/types", componentController.createType);
-router.get("/list/components/types", componentController.getTypes);
 
 /******************* create-event use-case *******************************/
 router.post(

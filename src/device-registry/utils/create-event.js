@@ -21,12 +21,7 @@ const {
   missingQueryParams,
   callbackErrors,
 } = require("./errors");
-const createRequestBody = require("./create-request-body");
-const getDetail = require("./get-device-details");
-const {
-  transformMeasurements,
-  transformMeasurementFields,
-} = require("./transform-measurements");
+
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
 const httpStatus = require("http-status");
@@ -273,12 +268,11 @@ const createEvent = {
       };
     }
   },
-
   transmitOneSensorValue: async (req, res) => {
     try {
       const { quantity_kind, value } = req.body;
       const { tenant } = req.query;
-      const deviceDetail = await getDetail(req, res);
+      const deviceDetail = await createDeviceUtil.getDetail(req, res);
       const api_key = deviceDetail[0]._doc.writeKey;
 
       if (tenant && quantity_kind && value) {
@@ -322,13 +316,12 @@ const createEvent = {
       };
     }
   },
-
   transmitMultipleSensorValues: async (req, res) => {
     try {
       logText("write to thing json.......");
       let { tenant } = req.query;
       const requestBody = createRequestBody(req);
-      const deviceDetail = await getDetail(req, res);
+      const deviceDetail = await createDeviceUtil.getDetail(req, res);
       const api_key = deviceDetail[0]._doc.writeKey;
       requestBody.api_key = api_key;
 
@@ -363,11 +356,13 @@ const createEvent = {
       logText("bulk write to thing.......");
       let { tenant, type } = req.query;
       let { updates } = req.body;
-      const deviceDetail = await getDetail(req, res);
+      const deviceDetail = await createDeviceUtil.getDetail(req, res);
       const channel = deviceDetail[0]._doc.channelID;
       const api_key = deviceDetail[0]._doc.writeKey;
       if (updates && tenant && type) {
-        let transformedUpdates = await transformMeasurementFields(updates);
+        let transformedUpdates = await createEvent.transformMeasurementFields(
+          updates
+        );
         let requestObject = {};
         requestObject.write_api_key = api_key;
         requestObject.updates = transformedUpdates;
@@ -938,151 +933,6 @@ const createEvent = {
       };
     }
   },
-  getValues: (req, res) => {
-    try {
-      const {
-        device,
-        tenant,
-        limit,
-        skip,
-        key,
-        recent,
-        frequency,
-        startTime,
-        endTime,
-      } = req.query;
-      if (Array.isArray(req.query.device)) {
-        return badRequest(
-          res,
-          "multiple Device query params not supported, please use one comma separated one",
-          []
-        );
-      }
-      const limitInt = parseInt(limit, 0);
-      const skipInt = parseInt(skip, 0);
-      logText(".......getting values.......");
-      if (tenant) {
-        getMeasurements(
-          res,
-          recent,
-          device,
-          skipInt,
-          limitInt,
-          frequency,
-          tenant,
-          startTime,
-          endTime
-        );
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-  getMeasurements: async (
-    res,
-    recent,
-    device,
-    skip,
-    limit,
-    frequency,
-    tenant,
-    startTime,
-    endTime
-  ) => {
-    try {
-      const currentTime = new Date().toISOString();
-      const day = generateDateFormatWithoutHrs(currentTime);
-      let cacheID = generateCacheID(
-        device,
-        day,
-        tenant,
-        skip,
-        limit,
-        frequency,
-        recent,
-        startTime,
-        endTime
-      );
-
-      redis.get(cacheID, async (err, result) => {
-        try {
-          if (result) {
-            const resultJSON = JSON.parse(result);
-            return res.status(HTTPStatus.OK).json(resultJSON);
-          } else if (err) {
-            callbackErrors(err, req, res);
-          } else {
-            const filter = generateFilter.events(
-              device,
-              frequency,
-              startTime,
-              endTime
-            );
-
-            let request = {};
-            request["query"] = {};
-            request["query"]["tenant"] = tenant;
-            let devicesCount = 1000;
-            await createDeviceUtil.getDevicesCount(request, (result) => {
-              if (result.success === true) {
-                devicesCount = result.data;
-              }
-              if (result.success === false) {
-                logText(result.message);
-              }
-            });
-
-            let _skip = skip ? skip : 0;
-            let _limit = limit
-              ? limit
-              : parseInt(constants.DEFAULT_EVENTS_LIMIT);
-            let options = {
-              skipInt: _skip,
-              limitInt: _limit,
-            };
-
-            if (!device) {
-              options["skipInt"] = 0;
-              options["limitInt"] = devicesCount;
-            }
-
-            let recentFlag = isRecentTrue(recent);
-
-            let events = await getEvents(
-              tenant,
-              recentFlag,
-              options.skipInt,
-              options.limitInt,
-              filter
-            );
-
-            redis.set(
-              cacheID,
-              JSON.stringify({
-                isCache: true,
-                success: true,
-                message: `successfully listed the Events`,
-                events: events,
-              })
-            );
-            redis.expire(cacheID, parseInt(constants.EVENTS_CACHE_LIMIT));
-            return res.status(HTTPStatus.OK).json({
-              success: true,
-              isCache: false,
-              message: `successfully listed the Events`,
-              events: events,
-            });
-          }
-        } catch (e) {
-          tryCatchErrors(res, e);
-        }
-      });
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
   clearEventsOnClarity: (request) => {
     return {
       success: false,
@@ -1372,6 +1222,57 @@ const createEvent = {
       return transform;
     } catch (e) {
       console.log(e.message);
+    }
+  },
+
+  deleteValuesOnThingspeak: async (req, res) => {
+    try {
+      const { device, tenant } = req.query;
+
+      const deviceDetails = await getDetail(tenant, device);
+      const doesDeviceExist = !isEmpty(deviceDetails);
+      logElement("isDevicePresent ?", doesDeviceExist);
+      if (doesDeviceExist) {
+        const channelID = await getChannelID(
+          req,
+          res,
+          device,
+          tenant.toLowerCase()
+        );
+        logText("...................................");
+        logText("clearing the Thing....");
+        logElement("url", constants.CLEAR_THING_URL(channelID));
+        await axios
+          .delete(constants.CLEAR_THING_URL(channelID))
+          .then(async (response) => {
+            logText("successfully cleared the device in TS");
+            logObject("response from TS", response.data);
+            return {
+              message: `successfully cleared the data for device ${device}`,
+              success: true,
+              updatedDevice,
+            };
+          })
+          .catch(function(error) {
+            console.log(error);
+            return {
+              message: `unable to clear the device data, device ${device} does not exist`,
+              success: false,
+            };
+          });
+      } else {
+        logText(`device ${device} does not exist in the system`);
+        return {
+          message: `device ${device} does not exist in the system`,
+          success: false,
+        };
+      }
+    } catch (e) {
+      logText(`unable to clear device ${device}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+      };
     }
   },
 };

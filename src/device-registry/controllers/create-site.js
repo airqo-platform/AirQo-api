@@ -5,15 +5,6 @@ const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 
 const {
-  carryOutActivity,
-  isDeviceDeployed,
-  isDeviceRecalled,
-  siteActivityRequestBodies,
-  queryFilterOptions,
-  bodyFilterOptions,
-} = require("../utils/site-activities");
-
-const {
   tryCatchErrors,
   missingQueryParams,
   callbackErrors,
@@ -567,19 +558,21 @@ const manageSite = {
         manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
       );
     }
-    const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
+    const isRecalled = await createSiteUtil.isDeviceRecalled(
+      deviceName,
+      tenant.toLowerCase()
+    );
     if (isRecalled) {
       return res.status(HTTPStatus.CONFLICT).json({
         success: false,
         message: `Device ${deviceName} already recalled`,
       });
     }
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-      req,
-      res,
-      "recall"
-    );
-    return await carryOutActivity(
+    const {
+      siteActivityBody,
+      deviceBody,
+    } = createSiteUtil.siteActivityRequestBodies(req, res, "recall");
+    return await createSiteUtil.carryOutActivity(
       res,
       tenant,
       deviceName,
@@ -615,7 +608,10 @@ const manageSite = {
       );
     }
 
-    const isDeployed = await isDeviceDeployed(deviceName, tenant.toLowerCase());
+    const isDeployed = await createSiteUtil.isDeviceDeployed(
+      deviceName,
+      tenant.toLowerCase()
+    );
 
     if (isDeployed) {
       return res.status(HTTPStatus.CONFLICT).json({
@@ -624,12 +620,11 @@ const manageSite = {
       });
     }
 
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-      req,
-      res,
-      "deploy"
-    );
-    return await carryOutActivity(
+    const {
+      siteActivityBody,
+      deviceBody,
+    } = createSiteUtil.siteActivityRequestBodies(req, res, "deploy");
+    return await createSiteUtil.carryOutActivity(
       res,
       tenant,
       deviceName,
@@ -654,12 +649,11 @@ const manageSite = {
       );
     }
 
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-      req,
-      res,
-      "maintain"
-    );
-    return await carryOutActivity(
+    const {
+      siteActivityBody,
+      deviceBody,
+    } = createSiteUtil.siteActivityRequestBodies(req, res, "maintain");
+    return await createSiteUtil.carryOutActivity(
       res,
       tenant,
       deviceName,
@@ -723,7 +717,10 @@ const manageSite = {
       logElement("tenant", tenant);
       logElement("id", id);
       if (tenant && id) {
-        const { activityBody } = await bodyFilterOptions(req, res);
+        const { activityBody } = await createSiteUtil.bodyFilterOptions(
+          req,
+          res
+        );
         let filter = { _id: id };
 
         logObject("activity body", activityBody);

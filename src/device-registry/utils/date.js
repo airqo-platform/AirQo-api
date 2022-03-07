@@ -136,8 +136,19 @@ const getDifferenceInMonths = (d1, d2) => {
   return months <= 0 ? 0 : months;
 };
 
+function threeMonthsFromNow(date) {
+  d = new Date(date);
+  var targetMonth = d.getMonth() + 3;
+  d.setMonth(targetMonth);
+  if (d.getMonth() !== targetMonth % 12) {
+    d.setDate(0); // last day of previous month
+  }
+  return d;
+}
+
 module.exports = {
   generateDateFormat,
+  threeMonthsFromNow,
   generateDateFormatWithoutHrs,
   addMonthsToProvideDateTime,
   monthsInfront,

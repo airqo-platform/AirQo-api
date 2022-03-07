@@ -4,9 +4,7 @@ const deviceController = require("../controllers/create-device");
 const siteController = require("../controllers/create-site");
 const airqloudController = require("../controllers/create-airqloud");
 const middlewareConfig = require("../config/router.middleware");
-const componentController = require("../controllers/create-component");
 const eventController = require("../controllers/create-event");
-const imageUpload = require("../utils/multer");
 const photoController = require("../controllers/create-photo");
 const { checkTenancy } = require("../utils/validators/auth");
 const { validateRequestQuery } = require("../utils/validators/requestQuery");
@@ -15,7 +13,6 @@ const { check, oneOf, query, body, param } = require("express-validator");
 const constants = require("../config/constants");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-const sanitize = require("../utils/sanitize");
 var numeral = require("numeral");
 const createSiteUtil = require("../utils/create-site");
 
@@ -1612,14 +1609,6 @@ router.get(
   ]),
   siteController.findNearestSite
 );
-
-/******************* create-component use-case **************************/
-router.get("/list/components/", componentController.listAll);
-router.post("/add/components/", componentController.addComponent);
-router.delete("/delete/components/", componentController.deleteComponent);
-router.put("/update/components/", componentController.updateComponent);
-router.post("/add/components/types", componentController.createType);
-router.get("/list/components/types", componentController.getTypes);
 
 /******************* create-event use-case *******************************/
 router.post(

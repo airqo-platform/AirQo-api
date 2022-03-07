@@ -114,8 +114,6 @@ const defaultConfig = {
   MQTT_BRIDGE_PORT: 8883,
   NUM_MESSAGES: 5,
   TOKEN_EXP_MINS: 360,
-  ALGORITHM: "RS256",
-  HTTP_BRIDGE_ADDRESS: "cloudiotdevice.googleapis.com",
   MESSAGE_TYPE: "events",
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
