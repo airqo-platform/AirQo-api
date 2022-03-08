@@ -8,7 +8,6 @@ const errors = require("../utils/errors");
 const { validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
 const createEventUtil = require("../utils/create-event");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 createDeviceUtil = require("../utils/create-device");
 
 const { Kafka } = require("kafkajs");
@@ -63,7 +62,7 @@ const createEvent = {
         return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
@@ -97,7 +96,7 @@ const createEvent = {
         return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query } = req;
@@ -321,7 +320,7 @@ const createEvent = {
         return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       logger.info(`adding values...`);
@@ -380,7 +379,7 @@ const createEvent = {
         return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
