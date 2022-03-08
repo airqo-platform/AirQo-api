@@ -1545,11 +1545,8 @@ const manageSite = {
 
       let request = {};
       request["query"] = {};
-      request["query"]["name"] = device;
       request["query"]["name"] = name;
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(request);
 
@@ -1581,11 +1578,8 @@ const manageSite = {
 
       let request = {};
       request["query"] = {};
-      request["query"]["name"] = device;
       request["query"]["name"] = name;
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(request);
 
