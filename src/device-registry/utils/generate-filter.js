@@ -508,7 +508,7 @@ const generateFilter = {
       } else {
       }
     }
-
+    logObject("the filter we are sending", filter);
     return filter;
   },
   devices: (req) => {

@@ -4,21 +4,11 @@ const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 
-const {
-  tryCatchErrors,
-  missingQueryParams,
-  callbackErrors,
-  missingOrInvalidValues,
-  badRequest,
-  logger_v2,
-  errorCodes,
-} = require("../utils/errors");
+const errors = require("../utils/errors");
 
 const generateFilter = require("../utils/generate-filter");
 
 const createSiteUtil = require("../utils/create-site");
-
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const { getModelByTenant } = require("../utils/multitenancy");
 
@@ -33,10 +23,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -81,10 +71,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
@@ -128,10 +118,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query, body } = req;
@@ -216,10 +206,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query, body } = req;
@@ -273,10 +263,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let filter = generateFilter.sites(req);
@@ -321,10 +311,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -375,10 +365,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -427,10 +417,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant, latitude, longitude, radius } = req.query;
@@ -494,10 +484,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let filter = generateFilter.sites(req);
@@ -552,10 +542,10 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
     const isRecalled = await createSiteUtil.isDeviceRecalled(
@@ -601,10 +591,10 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
 
@@ -642,10 +632,10 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
 
@@ -700,7 +690,7 @@ const manageSite = {
             });
           });
       } else {
-        missingQueryParams(res);
+        errors.missingQueryParams(res);
       }
     } catch (e) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
@@ -746,7 +736,7 @@ const manageSite = {
           });
         }
       } else {
-        missingQueryParams(res);
+        errors.missingQueryParams(res);
       }
     } catch (e) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
@@ -765,7 +755,7 @@ const manageSite = {
       const { tenant } = req.query;
 
       if (!tenant) {
-        missingQueryParams(res);
+        errors.missingQueryParams(res);
       }
 
       const filter = generateFilter.activities_v0(req);

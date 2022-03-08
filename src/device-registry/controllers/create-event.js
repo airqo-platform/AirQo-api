@@ -2,18 +2,56 @@ const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-controller");
-const {
-  tryCatchErrors,
-  missingQueryParams,
-  badRequest,
-} = require("../utils/errors");
+
+const errors = require("../utils/errors");
+
 const { validationResult } = require("express-validator");
 const isEmpty = require("is-empty");
 const createEventUtil = require("../utils/create-event");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 createDeviceUtil = require("../utils/create-device");
 
+const { Kafka } = require("kafkajs");
+const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");
+const constants = require("../config/constants");
+const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
+const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
+const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
+const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
+const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
+
+const kafka = new Kafka({
+  clientId: KAFKA_CLIENT_ID,
+  brokers: [BOOTSTRAP_SERVERS],
+});
+const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY });
+const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP });
+
 const createEvent = {
+  rawMeasurementsConsumer: async () => {
+    await consumer.connect();
+
+    const topics = RAW_MEASUREMENTS_TOPICS.split(",");
+
+    for (const topic of topics) {
+      await consumer.subscribe({
+        topic: topic.trim().toLowerCase(),
+        fromBeginning: true,
+      });
+    }
+
+    await consumer.run({
+      eachMessage: async ({ topic, partition, message }) => {
+        try {
+          const decodedValue = await registry.decode(message.value);
+          const measurements = decodedValue.measurements;
+          // insertMeasurtements.addValuesArray(measurements);
+        } catch (e) {
+          logObject("Kafka Raw Measurements consumer", e);
+        }
+      },
+    });
+  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
@@ -22,7 +60,7 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
@@ -56,7 +94,7 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
@@ -228,7 +266,7 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return errors.badRequest(res, "bad request errors", nestedErrors);
       }
       const { body } = req;
       let request = {};
@@ -263,7 +301,11 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`responseFromClearValuesOnPlatform -- ${e.message}`);
-      tryCatchErrors(res, e.message, "responseFromClearValuesOnPlatform");
+      errors.tryCatchErrors(
+        res,
+        e.message,
+        "responseFromClearValuesOnPlatform"
+      );
     }
   },
 
@@ -276,7 +318,7 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
@@ -335,7 +377,7 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
           manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)

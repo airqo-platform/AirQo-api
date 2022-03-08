@@ -2,7 +2,7 @@ const EventModel = require("../models/Event");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
-const { utillErrors } = require("./errors");
+const errors = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-util");
@@ -13,14 +13,6 @@ const createDeviceUtil = require("./create-device");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
-const writeToThingMappings = require("./writeToThingMappings");
-const {
-  tryCatchErrors,
-  axiosError,
-  badRequest,
-  missingQueryParams,
-  callbackErrors,
-} = require("./errors");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -248,38 +240,65 @@ const createEvent = {
     try {
       const { type, tenant } = req.query;
       if (type == "one" && tenant) {
-        await createEvent.transmitOneSensorValue(req, res);
+        return await createEvent.transmitOneSensorValue(req, res);
       } else if (type == "many" && tenant) {
-        await createEvent.transmitMultipleSensorValues(req, res);
+        return await createEvent.transmitMultipleSensorValues(req, res);
       } else if (type == "bulk" && tenant) {
-        await createEvent.bulkTransmitMultipleSensorValues(req, res, tenant);
+        return await createEvent.bulkTransmitMultipleSensorValues(
+          req,
+          res,
+          tenant
+        );
       } else {
-        return {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
           success: false,
           status: HTTPStatus.BAD_REQUEST,
           message: "misssing request parameters, please check documentation",
-        };
+        });
       }
     } catch (error) {
-      return {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "Internal Server Error",
         errors: { message: error.message },
-      };
+      });
     }
   },
   transmitOneSensorValue: async (req, res) => {
     try {
       const { quantity_kind, value } = req.body;
-      const { tenant } = req.query;
-      const deviceDetail = await createDeviceUtil.getDetail(req, res);
-      const api_key = deviceDetail[0]._doc.writeKey;
+      const { tenant, name, chid, device_number, device } = req.query;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = device;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid;
+      request["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let deviceDetail = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          deviceDetail = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
+
+      const api_key = deviceDetail.writeKey;
 
       if (tenant && quantity_kind && value) {
         await axios
           .get(
             constants.ADD_VALUE(
-              writeToThingMappings(quantity_kind),
+              createEvent.getTSField(quantity_kind),
               value,
               api_key
             )
@@ -316,14 +335,108 @@ const createEvent = {
       };
     }
   },
+  createRequestBody: (req) => {
+    let {
+      api_key,
+      created_at,
+      pm2_5,
+      pm10,
+      s2_pm2_5,
+      s2_pm10,
+      latitude,
+      longitude,
+      battery,
+      other_data,
+      status,
+    } = req.body;
+
+    let requestBody = {
+      api_key: api_key,
+      created_at: created_at,
+      field1: pm2_5,
+      field2: pm10,
+      field3: s2_pm2_5,
+      field4: s2_pm10,
+      field5: latitude,
+      field6: longitude,
+      field7: battery,
+      field8: other_data,
+      latitude: latitude,
+      longitude: longitude,
+      status: status,
+    };
+    return requestBody;
+  },
+  getTSField: (measurement, res) => {
+    let requestBody = {
+      api_key: "api_key",
+      created_at: "created_at",
+      pm2_5: "field1",
+      pm10: "field2",
+      s2_pm2_5: "field3",
+      s2_pm10: "field4",
+      latitude: "field5",
+      longitude: " field6",
+      battery: "field7",
+      other_data: "field8",
+      latitude: "latitude",
+      longitude: " longitude",
+    };
+
+    if (requestBody.hasOwnProperty(measurement)) {
+      return requestBody[measurement];
+    } else {
+      return res.status(HTTPStatus.BAD_REQUEST).json({
+        success: false,
+        message: `the provided quantity kind (${measurement}) does not exist for this organization`,
+      });
+    }
+  },
   transmitMultipleSensorValues: async (req, res) => {
     try {
       logText("write to thing json.......");
-      let { tenant } = req.query;
-      const requestBody = createRequestBody(req);
-      const deviceDetail = await createDeviceUtil.getDetail(req, res);
-      const api_key = deviceDetail[0]._doc.writeKey;
+      let { tenant, chid, name, device_number } = req.query;
+      logElement("the tenant", tenant);
+      const requestBody = createEvent.createRequestBody(req);
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid;
+      request["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let deviceDetail = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          deviceDetail = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        const status = responseFromListDevice.status
+          ? responseFromListDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromListDevice.errors
+          ? responseFromListDevice.errors
+          : "";
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+        return res.status(status).json({
+          success: false,
+          message: responseFromListDevice.message,
+          errors,
+        });
+      }
+
+      logObject("the device details", deviceDetail);
+      const api_key = deviceDetail.writeKey;
       requestBody.api_key = api_key;
+      logObject("the requestBody", requestBody);
+      logElement("the writeKey", api_key);
 
       if (tenant) {
         await axios
@@ -341,24 +454,45 @@ const createEvent = {
           })
           .catch(function(error) {
             logElement("the error", error.message);
-            axiosError(error, req, res);
+            errors.axiosError(error, req, res);
           });
       } else {
-        missingQueryParams(req, res);
+        errors.missingQueryParams(req, res);
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      errors.tryCatchErrors(res, e);
     }
   },
 
   bulkTransmitMultipleSensorValues: async (req, res) => {
     try {
       logText("bulk write to thing.......");
-      let { tenant, type } = req.query;
+      let { tenant, type, name, chid, device_number } = req.query;
       let { updates } = req.body;
-      const deviceDetail = await createDeviceUtil.getDetail(req, res);
-      const channel = deviceDetail[0]._doc.channelID;
-      const api_key = deviceDetail[0]._doc.writeKey;
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid;
+      request["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let deviceDetail = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          deviceDetail = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
+
+      const channel = deviceDetail.channelID;
+      const api_key = deviceDetail.writeKey;
       if (updates && tenant && type) {
         let transformedUpdates = await createEvent.transformMeasurementFields(
           updates
@@ -378,13 +512,13 @@ const createEvent = {
             });
           })
           .catch(function(error) {
-            axiosError(error, req, res);
+            errors.axiosError(error, req, res);
           });
       } else {
-        missingQueryParams(req, res);
+        errors.missingQueryParams(req, res);
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      errors.tryCatchErrors(res, e);
     }
   },
 
@@ -981,7 +1115,10 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`server error, clearEventsOnPlatform -- ${e.message}`);
-      utillErrors.tryCatchErrors("clearEventsOnPlatform util", e.message);
+      errors.utillErrors.errors.tryCatchErrors(
+        "clearEventsOnPlatform util",
+        e.message
+      );
     }
   },
   insert: async (tenant, measurements) => {
@@ -1227,10 +1364,32 @@ const createEvent = {
 
   deleteValuesOnThingspeak: async (req, res) => {
     try {
-      const { device, tenant } = req.query;
+      const { device, tenant, chid, name, device_number } = req.query;
 
-      const deviceDetails = await getDetail(tenant, device);
-      const doesDeviceExist = !isEmpty(deviceDetails);
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = device;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid;
+      request["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let deviceDetail = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          deviceDetail = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
+
+      const doesDeviceExist = !isEmpty(deviceDetail);
       logElement("isDevicePresent ?", doesDeviceExist);
       if (doesDeviceExist) {
         const channelID = await getChannelID(

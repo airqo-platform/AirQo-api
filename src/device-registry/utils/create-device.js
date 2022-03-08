@@ -8,15 +8,13 @@ const { transform } = require("node-json-transform");
 const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
-const { utillErrors } = require("./errors");
+const errors = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const QRCode = require("qrcode");
 const { kafkaProducer } = require("../config/kafkajs");
-const cleanDeep = require("clean-deep");
-const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
@@ -40,7 +38,7 @@ const createDevice = {
           callback({
             success: true,
             message: "retrieved the number of devices",
-            status: httpStatus.OK,
+            status: HTTPStatus.OK,
             data: count,
           });
         }
@@ -49,7 +47,7 @@ const createDevice = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
@@ -570,9 +568,7 @@ const createDevice = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListDevice.success === true) {
+      } else if (responseFromListDevice.success === true) {
         let data = responseFromListDevice.data;
         let status = responseFromListDevice.status
           ? responseFromListDevice.status
@@ -592,37 +588,6 @@ const createDevice = {
         message: "list devices util - server error",
         errors: e.message,
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
-      };
-    }
-  },
-  getDetail: (request) => {
-    try {
-      let responseFromListDevices = createDevice.list(request);
-      if (responseFromListDevices.success === true) {
-        let data = responseFromListDevices.data;
-        if (data.length === 1) {
-          return {
-            success: true,
-            message: responseFromListDevices.message,
-            data,
-          };
-        } else {
-          return {
-            success: false,
-            message: "unable to retrieve the device details",
-          };
-        }
-      }
-      if (responseFromListDevices.success === false) {
-        return responseFromListDevices;
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: "Internal Server Error",
-        },
       };
     }
   },
@@ -951,7 +916,10 @@ const createDevice = {
       }
     } catch (error) {
       logger.error(`deleteOnThingspeak -- ${error.message}`);
-      utillErrors.tryCatchErrors(error, "server error - updateOnPlatform util");
+      errors.utillErrors.tryCatchErrors(
+        error,
+        "server error - updateOnPlatform util"
+      );
     }
   },
   deleteOnPlatform: async (request) => {
@@ -1090,42 +1058,6 @@ const createDevice = {
         message: "server error - trasform util",
         errors: { message: error.message },
       };
-    }
-  },
-
-  getDetail: async (
-    tenant,
-    name,
-    chid,
-    loc,
-    site,
-    map,
-    primary,
-    active,
-    limitValue,
-    skipValue
-  ) => {
-    try {
-      const limit = parseInt(limitValue, 0);
-      const skip = parseInt(skipValue, 0);
-      const filter = generateFilter.devices_v0(
-        name,
-        chid,
-        loc,
-        site,
-        map,
-        primary,
-        active
-      );
-      logObject("the filter object", filter);
-      const devices = await getModelByTenant(
-        tenant.toLowerCase(),
-        "device",
-        DeviceSchema
-      ).list({ skip, limit, filter });
-      return devices.data;
-    } catch (error) {
-      logElement("error", error);
     }
   },
 };

@@ -1,30 +1,23 @@
 const HTTPStatus = require("http-status");
 const iot = require("@google-cloud/iot");
-const isEmpty = require("is-empty");
 const client = new iot.v1.DeviceManagerClient();
 const { logObject, logElement, logText } = require("../utils/log");
 const createDeviceUtil = require("../utils/create-device");
-const nearestDevices = require("../utils/nearest-device");
+const distance = require("../utils/distance");
 const { validationResult } = require("express-validator");
-const {
-  tryCatchErrors,
-  badRequest,
-  logger_v2,
-  errorCodes,
-} = require("../utils/errors");
+const errors = require("../utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-controller");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const device = {
   decryptKey: async (req, res) => {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
 
@@ -63,10 +56,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query, body } = req;
@@ -109,10 +102,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
@@ -161,10 +154,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let { body } = req;
@@ -222,10 +215,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { device, name, id, device_number, tenant } = req.query;
@@ -272,7 +265,7 @@ const device = {
       }
     } catch (e) {
       logger.error(`server error - delete device --- ${e.message}`);
-      logger_v2.tryCatchErrors("server error", e.message);
+      errors.logger_v2.errors.tryCatchErrors("server error", e.message);
     }
   },
 
@@ -282,10 +275,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant, device_number, id, name, device } = req.query;
@@ -342,10 +335,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant, device, device_number, name, id } = req.query;
@@ -409,10 +402,10 @@ const device = {
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         logObject(" nestedErrors", nestedErrors);
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let responseFromListDeviceDetails = await createDeviceUtil.list(req);
@@ -457,7 +450,15 @@ const device = {
 
   listAllByNearestCoordinates: async (req, res) => {
     try {
-      const { tenant, latitude, longitude, radius } = req.query;
+      const {
+        tenant,
+        latitude,
+        longitude,
+        radius,
+        name,
+        chid,
+        device_number,
+      } = req.query;
       logText("list all devices by coordinates...");
       try {
         if (!(tenant && latitude && longitude && radius)) {
@@ -470,9 +471,28 @@ const device = {
         logElement("latitude ", latitude);
         logElement("longitude ", longitude);
 
-        const devices = await createDeviceUtil.getDetail(tenant);
+        let request = {};
+        request["query"] = {};
+        request["query"]["name"] = device;
+        request["query"]["name"] = name;
+        request["query"]["tenant"] = tenant;
+        request["query"]["device_number"] = chid;
+        request["query"]["device_number"] = device_number;
 
-        const nearest_devices = nearestDevices.findNearestDevices(
+        const responseFromListDevice = await createDeviceUtil.list(request);
+
+        let devices = [];
+
+        if (responseFromListDevice.success === true) {
+          devices = responseFromListDevice.data;
+        } else if (responseFromListDevice.success === false) {
+          logObject(
+            "responseFromListDevice has an error",
+            responseFromListDevice
+          );
+        }
+        logObject("devices", devices);
+        const nearest_devices = distance.findNearestDevices(
           devices,
           radius,
           latitude,
@@ -481,10 +501,12 @@ const device = {
 
         return res.status(HTTPStatus.OK).json(nearest_devices);
       } catch (e) {
+        logObject("error", e);
         return res.status(HTTPStatus.BAD_REQUEST).json(e);
       }
     } catch (e) {
-      tryCatchErrors(res, e);
+      logObject("error", e);
+      errors.tryCatchErrors(res, e);
     }
   },
 
@@ -495,10 +517,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant, device, device_number, name, id } = req.query;
@@ -562,10 +584,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { device, name, id, device_number, tenant } = req.query;
@@ -617,7 +639,7 @@ const device = {
       }
     } catch (e) {
       logger.error(`server error --- ${e.message}`);
-      logger_v2.tryCatchErrors("server error", e.message);
+      errors.logger_v2.errors.tryCatchErrors("server error", e.message);
     }
   },
 
@@ -626,10 +648,10 @@ const device = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;

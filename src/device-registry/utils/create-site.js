@@ -16,7 +16,7 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
-const { distanceBtnTwoPoints } = require("./distance");
+const distance = require("./distance");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -1276,7 +1276,7 @@ const manageSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            let distance = distanceBtnTwoPoints(
+            let distance = distance.distanceBtnTwoPoints(
               latitude,
               longitude,
               site["latitude"],
@@ -1542,10 +1542,32 @@ const manageSite = {
     try {
       logText("....................");
       logText("checking isDeviceRecalled....");
-      let device = await createDeviceUtil.getDetail(tenant, name);
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = device;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid;
+      request["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let device = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          device = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
       logObject("device", device);
-      const isRecalled = !device[0].isActive;
-      logElement("locationName", device[0].locationName);
+      const isRecalled = !device.isActive;
+      logElement("locationName", device.locationName);
       logElement("isRecalled", isRecalled);
       return isRecalled;
     } catch (e) {
@@ -1556,10 +1578,31 @@ const manageSite = {
     try {
       logText("....................");
       logText("checking isDeviceNotDeployed....");
-      let device = await createDeviceUtil.getDetail(tenant, name);
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = device;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid;
+      request["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let device = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          device = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
       logObject("device", device);
-      const isDeployed = device[0].isActive;
-      logElement("locationName", device[0].locationName);
+      const isDeployed = device.isActive;
       logElement("isDeployed", isDeployed);
       return isDeployed;
     } catch (e) {
