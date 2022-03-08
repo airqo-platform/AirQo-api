@@ -348,7 +348,7 @@ router.post(
     [
       body("pollutant")
         .exists()
-        .withMessage("pollutant is is missing in your request")
+        .withMessage("pollutant is missing in your request")
         .bail()
         .trim()
         .isIn(["no2", "pm2_5", "pm10", "pm1"])
@@ -357,7 +357,7 @@ router.post(
         ),
       body("frequency")
         .exists()
-        .withMessage("frequency is is missing in your request")
+        .withMessage("frequency is missing in your request")
         .bail()
         .trim()
         .toLowerCase()
@@ -367,7 +367,7 @@ router.post(
         ),
       body("chartType")
         .exists()
-        .withMessage("chartType is is missing in your request")
+        .withMessage("chartType is missing in your request")
         .bail()
         .trim()
         .toLowerCase()
@@ -377,7 +377,7 @@ router.post(
         ),
       body("startDate")
         .exists()
-        .withMessage("startDate is is missing in your request")
+        .withMessage("startDate is missing in your request")
         .bail()
         .trim()
         .toDate()
@@ -385,7 +385,7 @@ router.post(
         .withMessage("startDate must be a valid datetime."),
       body("endDate")
         .exists()
-        .withMessage("endDate is is missing in your request")
+        .withMessage("endDate is missing in your request")
         .bail()
         .trim()
         .toDate()
@@ -393,7 +393,7 @@ router.post(
         .withMessage("endDate must be a valid datetime."),
       body("user")
         .exists()
-        .withMessage("user is is missing in your request")
+        .withMessage("user is missing in your request")
         .bail()
         .trim()
         .isMongoId()
@@ -404,7 +404,7 @@ router.post(
         }),
       body("airqloud")
         .exists()
-        .withMessage("airqloud is is missing in your request")
+        .withMessage("airqloud is missing in your request")
         .bail()
         .trim()
         .isMongoId()
@@ -415,12 +415,12 @@ router.post(
         }),
       body("chartTitle")
         .exists()
-        .withMessage("chartTitle is is missing in your request")
+        .withMessage("chartTitle is missing in your request")
         .bail()
         .trim(),
       body("period")
         .exists()
-        .withMessage("period is is missing in your request")
+        .withMessage("period is missing in your request")
         .bail()
         .custom((value) => {
           return typeof value === "object";
@@ -429,27 +429,27 @@ router.post(
         .withMessage("the period should be an object"),
       body("period.unit")
         .exists()
-        .withMessage("period.unit is is missing in your request"),
+        .withMessage("period.unit is missing in your request"),
       body("period.unitValue")
         .exists()
-        .withMessage("period.unitValue is is missing in your request")
+        .withMessage("period.unitValue is missing in your request")
         .bail()
         .isFloat()
         .withMessage("period.unitValue must be a number"),
       body("period.label")
         .exists()
-        .withMessage("period.label is is missing in your request"),
+        .withMessage("period.label is missing in your request"),
       body("period.value")
         .exists()
-        .withMessage("period.value is is missing in your request"),
+        .withMessage("period.value is missing in your request"),
       body("chartSubTitle")
         .exists()
-        .withMessage("chartSubTitle is is missing in your request")
+        .withMessage("chartSubTitle is missing in your request")
         .bail()
         .trim(),
       body("sites")
         .exists()
-        .withMessage("sites is is missing in your request")
+        .withMessage("sites is missing in your request")
         .bail()
         .custom((value) => {
           return Array.isArray(value);
