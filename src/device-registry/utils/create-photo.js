@@ -701,9 +701,7 @@ const createPhoto = {
           status,
           data,
         };
-      }
-
-      if (responseFromModifyPhoto.success === false) {
+      } else if (responseFromModifyPhoto.success === false) {
         const status = responseFromModifyPhoto.status
           ? responseFromModifyPhoto.status
           : "";
@@ -733,11 +731,12 @@ const createPhoto = {
     try {
       let { body, query } = request;
       let { tenant } = query;
-      let { image_url, device_name } = body;
+      let { image_url, device_name, device_id } = body;
       let requestForImageIdExtraction = {};
       requestForImageIdExtraction["body"] = {};
       requestForImageIdExtraction["query"] = {};
       requestForImageIdExtraction["query"]["device_name"] = device_name;
+      requestForImageIdExtraction["query"]["device_id"] = device_id;
       requestForImageIdExtraction["body"]["image_urls"] = [];
       requestForImageIdExtraction["body"]["image_urls"].push(image_url);
       const responseFromExtractImage = await createPhoto.extractImageIds(
@@ -752,9 +751,7 @@ const createPhoto = {
         modifiedRequestBody["metadata"] = {};
         modifiedRequestBody["metadata"]["public_id"] = photoId[0];
         modifiedRequestBody["metadata"]["url"] = image_url;
-      }
-
-      if (responseFromExtractImage.success === false) {
+      } else if (responseFromExtractImage.success === false) {
         logObject("responseFromExtractImage", responseFromExtractImage);
         return {
           success: false,
@@ -774,19 +771,26 @@ const createPhoto = {
 
       if (responseFromRegisterPhoto.success === true) {
         let data = responseFromRegisterPhoto.data;
-        const payloads = [
-          {
-            topic: `gcp-${constants.ENV_ACRONYM}-createPhoto-photos-0`,
-            messages: JSON.stringify(data),
-            partition: 0,
-          },
-        ];
-        kafkaProducer.send(payloads, (err, data) => {
-          logObject("Kafka producer data", data);
-          logger.info(`Kafka producer data, ${data}`);
-          logObject("Kafka producer error", err);
-          logger.error(`Kafka producer error, ${err}`);
-        });
+
+        try {
+          const payloads = [
+            {
+              topic: `gcp-${constants.ENV_ACRONYM}-createPhoto-photos-0`,
+              messages: JSON.stringify(data),
+              partition: 0,
+            },
+          ];
+          kafkaProducer.send(payloads, (err, data) => {
+            logObject("Kafka producer data", data);
+            logger.info(`Kafka producer data, ${data}`);
+            logObject("Kafka producer error", err);
+            logger.error(`Kafka producer error, ${err}`);
+          });
+        } catch (error) {
+          logObject("kafka connection error", error);
+          logger.error(`kafka connection error --- ${error.message}`);
+        }
+
         let status = responseFromRegisterPhoto.status
           ? responseFromRegisterPhoto.status
           : "";
@@ -797,9 +801,7 @@ const createPhoto = {
           status,
           data,
         };
-      }
-
-      if (responseFromRegisterPhoto.success === false) {
+      } else if (responseFromRegisterPhoto.success === false) {
         let status = responseFromRegisterPhoto.status
           ? responseFromRegisterPhoto.status
           : "";

@@ -221,6 +221,7 @@ const processImage = {
   createPhotoOnPlatform: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
+      logElement("hasErrors", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return errors.badRequest(
@@ -230,9 +231,17 @@ const processImage = {
         );
       }
       const { body, query } = req;
+      const { tenant } = query;
+      const { image_url, device_name, device_id } = body;
+
       let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["image_url"] = image_url;
+      request["body"]["device_name"] = device_name;
+      request["body"]["device_id"] = device_id;
+      request["query"]["tenant"] = tenant;
+
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
         request
       );
@@ -244,14 +253,13 @@ const processImage = {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
           : HTTPStatus.OK;
+        const data = responseFromCreatePhotoOnPlatform.data;
         res.status(status).json({
           success: true,
           message: responseFromCreatePhotoOnPlatform.message,
-          created_photo: responseFromCreatePhotoOnPlatform.data,
+          created_photo: data,
         });
-      }
-
-      if (responseFromCreatePhotoOnPlatform.success === false) {
+      } else if (responseFromCreatePhotoOnPlatform.success === false) {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
