@@ -242,9 +242,9 @@ router.put(
         .notEmpty()
         .trim()
         .toLowerCase()
-        .isIn(["daily", "hourly", "monthly"])
+        .isIn(["daily", "hourly", "monthly", "diurnal"])
         .withMessage(
-          "the frequency value is not among the expected ones which include: daily, hourly and monthly"
+          "the frequency value is not among the expected ones which include: daily, hourly, diurnal and monthly"
         ),
       body("chartType")
         .if(body("chartType").exists())
