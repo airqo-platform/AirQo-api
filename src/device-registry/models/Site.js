@@ -474,47 +474,48 @@ siteSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true, useFindAndModify: false, upsert: true };
+      let options = { new: true, useFindAndModify: false, upsert: false };
       let modifiedUpdateBody = update;
       modifiedUpdateBody["$addToSet"] = {};
-      if (update._id) {
+      if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-      if (update.latitude) {
+      if (modifiedUpdateBody.latitude) {
         delete modifiedUpdateBody.latitude;
       }
-      if (update.longitude) {
+      if (modifiedUpdateBody.longitude) {
         delete modifiedUpdateBody.longitude;
       }
-      if (update.generated_name) {
+      if (modifiedUpdateBody.generated_name) {
         delete modifiedUpdateBody.generated_name;
       }
-      if (update.lat_long) {
+      if (modifiedUpdateBody.lat_long) {
+        logText("yes, the lat_long does exist here");
         delete modifiedUpdateBody.lat_long;
       }
 
-      if (update.site_tags) {
+      if (modifiedUpdateBody.site_tags) {
         modifiedUpdateBody["$addToSet"]["site_tags"] = {};
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
           update.site_tags;
         delete modifiedUpdateBody["site_tags"];
       }
 
-      if (update.airqlouds) {
+      if (modifiedUpdateBody.airqlouds) {
         modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
         modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
           update.airqlouds;
         delete modifiedUpdateBody["airqlouds"];
       }
-
+      logObject("modifiedUpdateBody", modifiedUpdateBody);
       let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
 
-      logObject("updatedSite", updatedSite._doc);
       if (!isEmpty(updatedSite)) {
+        logObject("updatedSite", updatedSite._doc);
         let data = updatedSite._doc;
 
         return {
@@ -534,7 +535,7 @@ siteSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "Site model server error - modify",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
