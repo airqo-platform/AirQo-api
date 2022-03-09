@@ -1372,7 +1372,6 @@ const manageSite = {
           });
         }
         if (updatedDevice) {
-          //then log the operation
           let createdActivity = {};
           await getModelByTenant(
             tenant.toLowerCase(),
@@ -1381,19 +1380,6 @@ const manageSite = {
           )
             .createLocationActivity(activityBody)
             .then((log) => (createdActivity = log));
-          const payloads = [
-            {
-              topic: `gcp-${constants.ENV_ACRONYM}-createActivity-activities-0`,
-              messages: JSON.stringify(createdActivity),
-              partition: 0,
-            },
-          ];
-          kafkaProducer.send(payloads, (err, data) => {
-            logObject("Kafka producer data", data);
-            logger.info(`Kafka producer data, ${data}`);
-            logObject("Kafka producer error", err);
-            logger.error(`Kafka producer error, ${err}`);
-          });
 
           return res.status(HTTPStatus.OK).json({
             message:
