@@ -489,16 +489,37 @@ const createEvent = {
           "responseFromListDevice has an error",
           responseFromListDevice
         );
+        const status = responseFromListDevice.status
+          ? responseFromListDevice.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        delete responseFromListDevice.status;
+        return res.status(status).json(responseFromListDevice);
       }
 
-      const channel = deviceDetail.channelID;
+      const channel = deviceDetail.device_number;
+
       const api_key = deviceDetail.writeKey;
+      let decryptedKey = "";
+
+      const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
+      if (responseFromDecryptKey.success === true) {
+        decryptedKey = responseFromDecryptKey.data;
+      } else if (responseFromDecryptKey.success === false) {
+        const status = responseFromDecryptKey.status
+          ? responseFromDecryptKey.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        delete responseFromDecryptKey.status;
+        return res.status(status).json(responseFromDecryptKey);
+      }
+
       if (updates && tenant && type) {
         let transformedUpdates = await createEvent.transformMeasurementFields(
           updates
         );
+        logObject("updates", updates);
+        logObject("transformedUpdates", transformedUpdates);
         let requestObject = {};
-        requestObject.write_api_key = api_key;
+        requestObject.write_api_key = decryptedKey;
         requestObject.updates = transformedUpdates;
         await axios
           .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
@@ -1354,8 +1375,9 @@ const createEvent = {
       logObject("the measurements", measurements);
       let transform = [];
       measurements.forEach((field, value) => {
-        transform[transformField(field)] = value;
+        transform[createEvent.transformField(field)] = value;
       });
+      logObject("the transform", transform);
       return transform;
     } catch (e) {
       console.log(e.message);
@@ -1392,7 +1414,7 @@ const createEvent = {
       const doesDeviceExist = !isEmpty(deviceDetail);
       logElement("isDevicePresent ?", doesDeviceExist);
       if (doesDeviceExist) {
-        const channelID = await getChannelID(
+        const device_number = await getChannelID(
           req,
           res,
           device,
@@ -1400,9 +1422,9 @@ const createEvent = {
         );
         logText("...................................");
         logText("clearing the Thing....");
-        logElement("url", constants.CLEAR_THING_URL(channelID));
+        logElement("url", constants.CLEAR_THING_URL(device_number));
         await axios
-          .delete(constants.CLEAR_THING_URL(channelID))
+          .delete(constants.CLEAR_THING_URL(device_number))
           .then(async (response) => {
             logText("successfully cleared the device in TS");
             logObject("response from TS", response.data);

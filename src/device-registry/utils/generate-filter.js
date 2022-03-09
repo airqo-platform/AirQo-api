@@ -474,7 +474,7 @@ const generateFilter = {
     }
 
     if (channel) {
-      filter["channelID"] = channel;
+      filter["device_number"] = channel;
     }
 
     if (location) {
@@ -548,7 +548,7 @@ const generateFilter = {
       }
 
       if (channel) {
-        filter["channelID"] = channel;
+        filter["device_number"] = channel;
       }
 
       if (device_number) {
@@ -564,7 +564,7 @@ const generateFilter = {
       }
 
       if (chid) {
-        filter["channelID"] = chid;
+        filter["device_number"] = chid;
       }
 
       if (location) {
