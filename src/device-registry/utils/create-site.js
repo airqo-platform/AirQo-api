@@ -1276,14 +1276,14 @@ const manageSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            let distance = distance.distanceBtnTwoPoints(
+            let distanceBetweenTwoPoints = distance.distanceBtnTwoPoints(
               latitude,
               longitude,
               site["latitude"],
               site["longitude"]
             );
 
-            if (distance < radius) {
+            if (distanceBetweenTwoPoints < radius) {
               site["distance"] = distance;
               nearest_sites.push(site);
             }
