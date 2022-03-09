@@ -67,7 +67,7 @@ const device = {
       const request = {};
       request["query"] = {};
       request["query"]["tenant"] = tenant;
-      await registerDeviceUtil.getDevicesCount(request, (result) => {
+      await createDeviceUtil.getDevicesCount(request, (result) => {
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;
           return res.status(status).json({
