@@ -388,9 +388,10 @@ router.put(
           "undeployed",
           "decommissioned",
           "assembly",
+          "testing"
         ])
         .withMessage(
-          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly "
+          "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly testing "
         ),
       body("mountType")
         .if(body("mountType").exists())

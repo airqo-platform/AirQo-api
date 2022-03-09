@@ -41,6 +41,7 @@ jobs:
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
       run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
@@ -76,6 +77,7 @@ jobs:
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
           echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false"
           echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
@@ -133,6 +135,10 @@ jobs:
               echo "::set-output name=run_datawarehouse::true"
             fi
 
+            if [[ $file == src/view/* ]]; then
+              echo "::set-output name=run_view::true"
+            fi
+            
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
@@ -624,6 +630,62 @@ jobs:
           kubectl apply -f k8s/data-warehouse/prod-data-warehouse-api.yaml
           kubectl set image deployment/airqo-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n production    
           kubectl annotate deployment/airqo-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+
+  ### view ###
+  view:
+    name: build-push-deploy-view
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_view == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+      -
+        name: Build and push API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-api:latest
+          target: api
+          context: src/view
+      -
+        name: Build and push Message Broker
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-message-broker:latest
+          target: message-broker
+          context: src/view
+
+      - name: Deploy API to K8S
+        run: |
+          kubectl apply -f k8s/view-api/prod-view-api.yaml -n production
+          kubectl rollout restart deployment airqo-view-api  -n production
+
+      - name: Deploy Message Broker to K8S
+        run: |
+          kubectl apply -f k8s/view-api/prod-view-message-broker.yaml -n production
+          kubectl rollout restart deployment airqo-view-message-broker  -n production
 
   #### Calibrate ######
   calibrate:
