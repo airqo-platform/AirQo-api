@@ -42,7 +42,9 @@ const CandidateSchema = new mongoose.Schema({
     type: String,
     default: "pending",
   },
-});
+},
+    { timestamps: true },
+);
 
 CandidateSchema.statics = {
   register(args) {
@@ -169,6 +171,8 @@ CandidateSchema.methods = {
       jobTitle: this.jobTitle,
       website: this.website,
       status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
     };
   },
 };
