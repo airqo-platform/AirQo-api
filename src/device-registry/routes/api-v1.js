@@ -675,7 +675,7 @@ router.put(
           "undeployed",
           "decommissioned",
           "assembly",
-          "testing"
+          "testing",
         ])
         .withMessage(
           "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly, testing "
@@ -3923,7 +3923,7 @@ router.delete(
   airqloudController.delete
 );
 
-router.post(
+router.get(
   "/airqlouds/center",
   oneOf([
     query("tenant")
