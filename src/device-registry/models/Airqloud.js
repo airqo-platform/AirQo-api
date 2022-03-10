@@ -351,8 +351,9 @@ airqloudSchema.statics = {
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
-      let data = removedAirqloud._doc;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedAirqloud)) {
+        let data = removedAirqloud._doc;
         return {
           success: true,
           message: "successfully removed the airqloud",
@@ -361,7 +362,7 @@ airqloudSchema.statics = {
         };
       }
 
-      if (isEmpty(data)) {
+      if (isEmpty(removedAirqloud)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",
