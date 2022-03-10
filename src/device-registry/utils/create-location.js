@@ -10,7 +10,7 @@ const axiosInstance = () => {
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-location-util");
-const { kafkaProducer } = require("../config/kafka-node");
+const { kafkaProducer } = require("../config/kafkajs");
 const constants = require("../config/constants");
 
 const createLocation = {
@@ -45,19 +45,24 @@ const createLocation = {
         let status = responseFromRegisterLocation.status
           ? responseFromRegisterLocation.status
           : "";
-        const payloads = [
-          {
-            topic: `gcp-${constants.ENV_ACRONYM}-createLocation-locations-0`,
-            messages: JSON.stringify(responseFromRegisterLocation.data),
-            partition: 0,
-          },
-        ];
-        kafkaProducer.send(payloads, (err, data) => {
-          logObject("Kafka producer data", data);
-          logger.info(`Kafka producer data, ${data}`);
-          logObject("Kafka producer error", err);
-          logger.error(`Kafka producer error, ${err}`);
-        });
+
+        try {
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: "locations-topic",
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterLocation.data),
+              },
+            ],
+          });
+
+          await kafkaProducer.disconnect();
+        } catch (error) {
+          logObject("error on kafka", error);
+        }
+
         return {
           success: true,
           message: responseFromRegisterLocation.message,

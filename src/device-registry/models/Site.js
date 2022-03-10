@@ -497,14 +497,14 @@ siteSchema.statics = {
       if (modifiedUpdateBody.site_tags) {
         modifiedUpdateBody["$addToSet"]["site_tags"] = {};
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
-          update.site_tags;
+          modifiedUpdateBody.site_tags;
         delete modifiedUpdateBody["site_tags"];
       }
 
       if (modifiedUpdateBody.airqlouds) {
         modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
         modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
-          update.airqlouds;
+          modifiedUpdateBody.airqlouds;
         delete modifiedUpdateBody["airqlouds"];
       }
       logObject("modifiedUpdateBody", modifiedUpdateBody);

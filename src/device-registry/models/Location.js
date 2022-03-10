@@ -128,8 +128,9 @@ locationSchema.statics = {
       let createdAirQloud = await this.create({
         ...body,
       });
-      let data = createdAirQloud._doc;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(createdAirQloud)) {
+        let data = createdAirQloud._doc;
         return {
           success: true,
           data,
@@ -137,7 +138,7 @@ locationSchema.statics = {
           status: HTTPStatus.OK,
         };
       }
-      if (isEmpty(data)) {
+      if (isEmpty(createdAirQloud)) {
         return {
           success: true,
           message: "location not created despite successful operation",
@@ -223,19 +224,28 @@ locationSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdateBody = update;
+      modifiedUpdateBody["$addToSet"] = {};
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
       if (modifiedUpdateBody.isCustom) {
         modifiedUpdateBody.isCustom = false;
       }
+
+      if (modifiedUpdateBody.location_tags) {
+        modifiedUpdateBody["$addToSet"]["location_tags"] = {};
+        modifiedUpdateBody["$addToSet"]["location_tags"]["$each"] =
+          modifiedUpdateBody.location_tags;
+        delete modifiedUpdateBody["location_tags"];
+      }
       let updatedLocation = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = updatedLocation._doc;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedLocation)) {
+        let data = updatedLocation._doc;
         return {
           success: true,
           message: "successfully modified the location",
@@ -277,8 +287,9 @@ locationSchema.statics = {
         },
       };
       let removedLocation = await this.findOneAndRemove(filter, options).exec();
-      let data = removedLocation._doc;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedLocation)) {
+        let data = removedLocation._doc;
         return {
           success: true,
           message: "successfully removed the location",
@@ -287,7 +298,7 @@ locationSchema.statics = {
         };
       }
 
-      if (isEmpty(data)) {
+      if (isEmpty(removedLocation)) {
         return {
           success: false,
           message: "location does not exist, please crosscheck",

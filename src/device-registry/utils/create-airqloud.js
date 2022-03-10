@@ -14,7 +14,6 @@ const logger = log4js.getLogger("create-airqloud-util");
 const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
-const constants = require("../config/constants");
 const { kafkaProducer } = require("../config/kafkajs");
 
 const createAirqloud = {
