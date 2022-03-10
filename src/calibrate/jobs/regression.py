@@ -192,7 +192,7 @@ def get_clean_data_PM10():
     return  dataset
 
 def lasso_reg(dataset):
-    X = dataset[['AQ_G501_PM2_5','AQ_G501_PM10','MUK_BAM_Y24516__AT_C', 'MUK_BAM_Y24516__RH','hour',  'error_pm10', 'error_pm2_5', 'pm2.5-pm10', 'pm2 5-pm10_%']].values
+    X = dataset[['AQ_G501_PM2_5','AQ_G501_PM10','MUK_BAM_Y24516__AT_C', 'MUK_BAM_Y24516__RH','hour','error_pm10', 'error_pm2_5', 'pm2.5-pm10', 'pm2 5-pm10_%']].values
     y = dataset['MUK_BAM_Y24516__PM10'].values  
 
    # Fitting the model 

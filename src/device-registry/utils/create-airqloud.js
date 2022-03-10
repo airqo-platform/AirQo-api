@@ -32,16 +32,20 @@ const createAirqloud = {
       );
     }
   },
-  retrieveLocationCoordinates: async (request) => {
-    try {
-      const responseFromListLocation = await createLocationUtil.list(request);
-      logObject(
-        "responseFromListLocation in AirQloud util",
-        responseFromListLocation
-      );
 
-      if (responseFromListLocation.success === true) {
-        if (isEmpty(responseFromListLocation.data)) {
+  retrieveCoordinates: async (request, entity) => {
+    try {
+      let entityInstance = {};
+      if (entity === "location") {
+        entityInstance = createLocationUtil;
+      } else if (entity === "airqloud") {
+        entityInstance = createAirqloud;
+      }
+
+      const responseFromListAirQloud = await entityInstance.list(request);
+
+      if (responseFromListAirQloud.success === true) {
+        if (isEmpty(responseFromListAirQloud.data)) {
           return {
             success: false,
             message: "unable to retrieve location details",
@@ -51,8 +55,8 @@ const createAirqloud = {
             },
           };
         }
-        if (responseFromListLocation.data.length === 1) {
-          const data = responseFromListLocation.data[0];
+        if (responseFromListAirQloud.data.length === 1) {
+          const data = responseFromListAirQloud.data[0];
           return {
             data: data.location,
             success: true,
@@ -60,7 +64,7 @@ const createAirqloud = {
             status: HTTPStatus.OK,
           };
         }
-        if (responseFromListLocation.data.length > 1) {
+        if (responseFromListAirQloud.data.length > 1) {
           return {
             success: false,
             message: "unable to retrieve location details",
@@ -72,11 +76,11 @@ const createAirqloud = {
         }
       }
 
-      if (responseFromListLocation.success === false) {
+      if (responseFromListAirQloud.success === false) {
         return {
           success: false,
           message: "unable to retrieve details from the provided location_id",
-          errors: responseFromListLocation.errors,
+          errors: responseFromListAirQloud.errors,
           status: HTTPStatus.INTERNAL_SERVER_ERROR,
         };
       }
@@ -91,31 +95,48 @@ const createAirqloud = {
   },
   create: async (request) => {
     try {
-      const { body } = request;
-      const { tenant } = request.query;
-      const { location_id } = request.body;
+      const { body, query } = request;
+      const { tenant } = query;
+      const { location_id } = body;
       logObject("body", body);
       let modifiedBody = body;
       if (!isEmpty(location_id)) {
-        let locationRequest = {};
-        locationRequest["query"] = {};
-        locationRequest["query"]["id"] = body.location_id;
-        locationRequest["query"]["tenant"] = tenant;
-        logObject("locationRequest", locationRequest);
-        let responseFromRetrieveLocationCoordinates = await createAirqloud.retrieveLocationCoordinates(
-          locationRequest
+        let requestForCoordinateRetrieval = {};
+        requestForCoordinateRetrieval["query"] = {};
+        requestForCoordinateRetrieval["query"]["id"] = body.location_id;
+        requestForCoordinateRetrieval["query"]["tenant"] = tenant;
+
+        let responseFromRetrieveCoordinates = await createAirqloud.retrieveCoordinates(
+          requestForCoordinateRetrieval,
+          "location"
         );
-        logObject(
-          "responseFromRetrieveLocationCoordinates",
-          responseFromRetrieveLocationCoordinates
-        );
-        if (responseFromRetrieveLocationCoordinates.success === true) {
-          modifiedBody["location"] =
-            responseFromRetrieveLocationCoordinates.data;
+
+        if (responseFromRetrieveCoordinates.success === true) {
+          modifiedBody["location"] = responseFromRetrieveCoordinates.data;
         }
-        if (responseFromRetrieveLocationCoordinates.success === false) {
-          return responseFromRetrieveLocationCoordinates;
+        if (responseFromRetrieveCoordinates.success === false) {
+          return responseFromRetrieveCoordinates;
         }
+      }
+
+      let requestForCalucaltionAirQloudCenter = {};
+      requestForCalucaltionAirQloudCenter["body"] = {};
+      requestForCalucaltionAirQloudCenter["query"] = {};
+      requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
+        modifiedBody.location.coordinates[0];
+
+      const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
+        requestForCalucaltionAirQloudCenter
+      );
+      logObject(
+        "responseFromCalculateGeographicalCenter",
+        responseFromCalculateGeographicalCenter
+      );
+      if (responseFromCalculateGeographicalCenter.success === true) {
+        modifiedBody["center_point"] =
+          responseFromCalculateGeographicalCenter.data;
+      } else if (responseFromCalculateGeographicalCenter.success === false) {
+        return responseFromCalculateGeographicalCenter;
       }
 
       const responseFromRegisterAirQloud = await getModelByTenant(
@@ -136,9 +157,7 @@ const createAirqloud = {
           data: responseFromRegisterAirQloud.data,
           status,
         };
-      }
-
-      if (responseFromRegisterAirQloud.success === false) {
+      } else if (responseFromRegisterAirQloud.success === false) {
         let errors = responseFromRegisterAirQloud.errors
           ? responseFromRegisterAirQloud.errors
           : "";
@@ -272,49 +291,88 @@ const createAirqloud = {
   },
   refresh: async (request) => {
     try {
-      const { query } = request;
+      const { query, body } = request;
       const { tenant, id, name, admin_level } = query;
-      const responseFromFindSites = await createAirqloud.findSites(request);
-      if (responseFromFindSites.success === true) {
-        const sites = responseFromFindSites.data;
-        let requestForUpdateAirQloud = request;
-        requestForUpdateAirQloud["body"] = {};
-        requestForUpdateAirQloud["body"]["sites"] = sites;
 
-        const responseFromUpdateAirQloud = await createAirqloud.update(request);
-        if (responseFromUpdateAirQloud.success === true) {
-          return {
-            success: true,
-            message: responseFromUpdateAirQloud.message,
-            status: httpStatus.OK,
-            data: responseFromUpdateAirQloud.data,
-          };
-        }
-        if (responseFromUpdateAirQloud.success === false) {
-          const status = responseFromUpdateAirQloud.status
-            ? responseFromUpdateAirQloud.status
-            : "";
-          const errors = responseFromUpdateAirQloud.errors
-            ? responseFromUpdateAirQloud.errors
-            : "";
-          return {
-            success: false,
-            message: responseFromUpdateAirQloud.message,
-            status,
-            errors,
-          };
-        }
+      let requestForUpdateAirQloud = request;
+      requestForUpdateAirQloud["body"] = {};
+      requestForUpdateAirQloud["body"]["location"] = {};
+
+      let requestForCoordinateRetrieval = {};
+      requestForCoordinateRetrieval["query"] = {};
+      requestForCoordinateRetrieval["query"]["id"] = id;
+      requestForCoordinateRetrieval["query"]["tenant"] = tenant;
+
+      let responseFromRetrieveCoordinates = await createAirqloud.retrieveCoordinates(
+        requestForCoordinateRetrieval,
+        "airqloud"
+      );
+
+      if (responseFromRetrieveCoordinates.success === true) {
+        requestForUpdateAirQloud["body"]["location"]["coordinates"] =
+          responseFromRetrieveCoordinates.data.coordinates[0];
       }
-      if (responseFromFindSites.success === false) {
-        const status = responseFromFindSites.status
-          ? responseFromFindSites.status
+      if (responseFromRetrieveCoordinates.success === false) {
+        return responseFromRetrieveCoordinates;
+      }
+
+      // const responseFromFindSites = await createAirqloud.findSites(request);
+      // logObject("responseFromFindSites ", responseFromFindSites);
+      // if (responseFromFindSites.success === true) {
+      //   const sites = responseFromFindSites.data;
+      //   requestForUpdateAirQloud["body"]["sites"] = sites;
+      // } else if (responseFromFindSites.success === false) {
+      //   const status = responseFromFindSites.status
+      //     ? responseFromFindSites.status
+      //     : "";
+      //   const errors = responseFromFindSites.errors
+      //     ? responseFromFindSites.errors
+      //     : "";
+      //   return {
+      //     success: false,
+      //     message: responseFromFindSites.message,
+      //     status,
+      //     errors,
+      //   };
+      // }
+
+      let requestForCalucaltionAirQloudCenter = {};
+      requestForCalucaltionAirQloudCenter["body"] = {};
+      requestForCalucaltionAirQloudCenter["query"] = {};
+      requestForCalucaltionAirQloudCenter["body"]["coordinates"] =
+        requestForUpdateAirQloud.body.location.coordinates;
+
+      const responseFromCalculateGeographicalCenter = await createAirqloud.calculateGeographicalCenter(
+        requestForCalucaltionAirQloudCenter
+      );
+
+      if (responseFromCalculateGeographicalCenter.success === true) {
+        requestForUpdateAirQloud["body"]["center_point"] =
+          responseFromCalculateGeographicalCenter.data;
+      } else if (responseFromCalculateGeographicalCenter.success === false) {
+        return responseFromCalculateGeographicalCenter;
+      }
+
+      const responseFromUpdateAirQloud = await createAirqloud.update(
+        requestForUpdateAirQloud
+      );
+      if (responseFromUpdateAirQloud.success === true) {
+        return {
+          success: true,
+          message: responseFromUpdateAirQloud.message,
+          status: httpStatus.OK,
+          data: responseFromUpdateAirQloud.data,
+        };
+      } else if (responseFromUpdateAirQloud.success === false) {
+        const status = responseFromUpdateAirQloud.status
+          ? responseFromUpdateAirQloud.status
           : "";
-        const errors = responseFromFindSites.errors
-          ? responseFromFindSites.errors
+        const errors = responseFromUpdateAirQloud.errors
+          ? responseFromUpdateAirQloud.errors
           : "";
         return {
           success: false,
-          message: responseFromFindSites.message,
+          message: responseFromUpdateAirQloud.message,
           status,
           errors,
         };
@@ -329,11 +387,63 @@ const createAirqloud = {
       };
     }
   },
+
+  calculateGeographicalCenter: async (request) => {
+    try {
+      const { body, query } = request;
+      const { coordinates } = body;
+      const { id } = query;
+      let coordinatesForCalculatingCenter = [];
+
+      if (!isEmpty(id)) {
+        const responseFromListAirQloud = await createAirqloud.list(request);
+        if (responseFromListAirQloud.success === true) {
+          if (responseFromListAirQloud.data.length === 1) {
+            coordinatesForCalculatingCenter =
+              responseFromListAirQloud.data[0].location.coordinates[0];
+          } else {
+            return {
+              success: false,
+              message: "unable to retrieve one respective airqloud",
+              status: httpStatus.NOT_FOUND,
+            };
+          }
+        } else if (responseFromListAirQloud.success === false) {
+          return responseFromListAirQloud;
+        }
+      }
+      if (!isEmpty(coordinates)) {
+        coordinatesForCalculatingCenter = coordinates;
+      }
+
+      const centerPoint = geolib.getCenter(coordinatesForCalculatingCenter);
+
+      if (!isEmpty(centerPoint)) {
+        return {
+          success: true,
+          message: "Successfully calculated the AirQloud's center point",
+          data: centerPoint,
+        };
+      } else {
+        return {
+          success: false,
+          message: "unable to calculate the geographical center",
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   findSites: async (request) => {
     try {
       const { query, body } = request;
       const { id, tenant, name, admin_level } = query;
       let filter = {};
+      let site_ids = [];
       filter["_id"] = id;
       let requestForAirQlouds = {};
       requestForAirQlouds["query"] = {};
@@ -351,7 +461,7 @@ const createAirqloud = {
         if (data.length > 1 || data.length === 0) {
           return {
             success: false,
-            message: "unable to find one match for this site",
+            message: "unable to find one match for this airqloud id",
             status: HTTPStatus.NOT_FOUND,
           };
         }
@@ -362,13 +472,14 @@ const createAirqloud = {
         }
 
         let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
+
         let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
           return {
             longitude: x[0],
             latitude: x[1],
           };
         });
-        const filter = {};
+
         let responseFromListSites = await getModelByTenant(
           tenant.toLowerCase(),
           "site",
@@ -378,19 +489,23 @@ const createAirqloud = {
         });
 
         if (responseFromListSites.success === true) {
-          let site_ids = [];
           const sites = responseFromListSites.data;
+          logObject("sites", sites);
           for (const site of sites) {
             const { latitude, longitude } = site;
+
             const isSiteInAirQloud = geolib.isPointInPolygon(
               { latitude, longitude },
-              airqloudPolygon
+              airqloudArrayOfCoordinates
             );
 
             if (isSiteInAirQloud === true) {
               site_ids.push(site._id);
             }
+            if (isSiteInAirQloud === false) {
+            }
           }
+
           if (!isEmpty(site_ids)) {
             return {
               success: true,
@@ -398,8 +513,7 @@ const createAirqloud = {
               data: site_ids,
               status: HTTPStatus.OK,
             };
-          }
-          if (isEmpty(site_ids)) {
+          } else if (isEmpty(site_ids)) {
             return {
               success: true,
               message: "no associated Sites found",
@@ -407,17 +521,14 @@ const createAirqloud = {
               status: HTTPStatus.OK,
             };
           }
-        }
-
-        if (responseFromListSites.success === false) {
+        } else if (responseFromListSites.success === false) {
           return {
             success: false,
             message: responseFromListSites.message,
             status: responseFromListSites.status,
           };
         }
-      }
-      if (responseFromListAirQlouds.success === false) {
+      } else if (responseFromListAirQlouds.success === false) {
         const status = responseFromListAirQlouds.status
           ? responseFromListAirQlouds.status
           : "";
@@ -448,7 +559,6 @@ const createAirqloud = {
       const limit = 1000;
       const skip = parseInt(query.skip) || 0;
       let filter = generateFilter.airqlouds(request);
-      logObject("AirQloud filter", filter);
 
       let responseFromListAirQloud = await getModelByTenant(
         tenant.toLowerCase(),
@@ -480,7 +590,7 @@ const createAirqloud = {
         let status = responseFromListAirQloud.status
           ? responseFromListAirQloud.status
           : "";
-        data = responseFromListAirQloud.data;
+        let data = responseFromListAirQloud.data;
         return {
           success: true,
           message: responseFromListAirQloud.message,

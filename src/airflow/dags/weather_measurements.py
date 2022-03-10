@@ -4,11 +4,15 @@ import numpy as np
 import pandas as pd
 from airflow.decorators import dag, task
 
-from airqoApi import AirQoApi
-from config import configuration
-from message_broker import KafkaBrokerClient
-from date import date_to_str_hours
-from utils import get_valid_column_value, get_site_ids_from_station, resample_data
+from airflow_utils.airqo_api import AirQoApi
+from airflow_utils.config import configuration
+from airflow_utils.message_broker import KafkaBrokerClient
+from airflow_utils.date import date_to_str_hours
+from airflow_utils.commons import (
+    get_valid_column_value,
+    get_site_ids_from_station,
+    resample_data,
+)
 
 
 def dag_resample_weather_data(data, frequency="hourly"):

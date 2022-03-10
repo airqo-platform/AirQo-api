@@ -1,21 +1,20 @@
-# Run locally
+# Running locally
 
 ## Prerequisites
 
-- Docker and Docker compose
+- Docker 
+- Docker compose
 
-Add [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing)
-and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) files to the `dags` folder. Run the command below to start all containers.
+Add [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing) to the `dags` folder
+and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) file to this directory. 
+
+## Starting all containers.
 
 ```bash
 sh run.sh  
 ```
-
-Visit the admin web ui. Use `airflow` for username and password
-
-```http request
-http://localhost:8080/home 
-```
+Wait for the webserver to be available by checking its status at http://localhost:8080/health.
+Visit the admin web ui at http://localhost:8080/home. Use `airflow` for username and password
 
 ## Interacting with kafka
 
@@ -30,7 +29,7 @@ docker exec -it message-broker bash
 ```bash
 kafka/bin/kafka-console-consumer.sh --topic <topic> --from-beginning --bootstrap-server localhost:9092
 ```
-
+Replace ```<topic>``` with the topic you want to listen to. For example ```hourly-measurements-topic```
 ### Stop viewing messages
 
 ```bash

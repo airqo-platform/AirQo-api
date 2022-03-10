@@ -39,6 +39,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-analytics-production
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          resources: {}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: prod-analytics-config-files
 
 ---
 kind: Service

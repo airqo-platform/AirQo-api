@@ -3,20 +3,20 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from airqo_measurements import (
+from airflow_utils.airqo_utils import (
     extract_airqo_data_from_thingspeak,
     average_airqo_data,
     extract_airqo_weather_data_from_tahmo,
     merge_airqo_and_weather_data,
     calibrate_hourly_airqo_measurements,
-    restructure_airqo_data_for_api,
     restructure_airqo_data,
 )
-from date import date_to_str_hours
-from kcca_measurements import (
+from airflow_utils.date import date_to_str_hours
+from airflow_utils.kcca_utils import (
     extract_kcca_measurements,
     transform_kcca_measurements_for_api,
-    transform_kcca_data,
+    transform_kcca_data_for_message_broker,
+    transform_kcca_hourly_data_for_bigquery,
 )
 
 
@@ -30,10 +30,22 @@ def kcca():
     cleaned_data = transform_kcca_measurements_for_api(kcca_unclean_data)
     pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
 
-    bigquery_data = transform_kcca_data(kcca_unclean_data)
+    bigquery_data = transform_kcca_data_for_message_broker(kcca_unclean_data)
     pd.DataFrame(bigquery_data).to_csv(
         path_or_buf="kcca_data_for_bigquery.csv", index=False
     )
+
+
+def kcca_historical_hourly_data():
+    kcca_unclean_data = extract_kcca_measurements(
+        "2021-01-01T08:00:00Z", "2021-01-01T12:00:00Z", "hourly"
+    )
+    pd.DataFrame(kcca_unclean_data).to_csv(
+        path_or_buf="kcca_unclean_data.csv", index=False
+    )
+
+    cleaned_data = transform_kcca_hourly_data_for_bigquery(kcca_unclean_data)
+    pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
 
 
 def airqo_hourly_measurements():
@@ -72,7 +84,7 @@ def airqo_hourly_measurements():
     pd.DataFrame(calibrated_data).to_csv(path_or_buf="calibrated_data.csv", index=False)
 
     # restructure data
-    restructure_data = restructure_airqo_data_for_api(data=calibrated_data)
+    restructure_data = restructure_airqo_data(data=calibrated_data, destination="api")
     pd.DataFrame(restructure_data).to_csv(
         path_or_buf="airqo_data_for_api.csv", index=False
     )
@@ -106,6 +118,8 @@ if __name__ == "__main__":
         airqo_hourly_measurements()
     elif action == "kcca_hourly_data":
         kcca()
+    elif action == "kcca_historical_hourly_data":
+        kcca_historical_hourly_data()
     elif action == "insights_data":
         insights_data()
 
