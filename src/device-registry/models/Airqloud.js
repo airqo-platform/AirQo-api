@@ -307,8 +307,9 @@ airqloudSchema.statics = {
         modifiedUpdateBody,
         options
       ).exec();
-      let data = updatedAirQloud._doc;
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedAirQloud)) {
+        let data = updatedAirQloud._doc;
         return {
           success: true,
           message: "successfully modified the airqloud",
