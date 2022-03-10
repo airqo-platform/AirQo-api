@@ -163,8 +163,8 @@ airqloudSchema.statics = {
       let createdAirQloud = await this.create({
         ...body,
       });
-      let data = createdAirQloud._doc;
-      if (!isEmpty(data)) {
+      if (!isEmpty(createdAirQloud)) {
+        let data = createdAirQloud._doc;
         return {
           success: true,
           data,
@@ -172,7 +172,7 @@ airqloudSchema.statics = {
           status: HTTPStatus.OK,
         };
       }
-      if (isEmpty(data)) {
+      if (isEmpty(createdAirQloud)) {
         return {
           success: true,
           message: "airqloud not created despite successful operation",
