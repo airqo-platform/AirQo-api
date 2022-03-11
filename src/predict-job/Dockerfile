@@ -12,13 +12,14 @@ RUN pip install -r requirements.txt
 # Production
 FROM base as production
 ENV ENV=production
+CMD ["python", "main.py"]
 
 # Staging
 FROM base as staging
 ENV ENV=staging
+CMD ["python", "main.py"]
 
 # Development
 FROM base as development
 ENV ENV=development
-
 CMD ["python", "main.py"]
