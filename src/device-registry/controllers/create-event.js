@@ -248,7 +248,18 @@ const createEvent = {
 
   transmitValues: async (req, res) => {
     try {
-      return createEventUtil.transmitValues(req, res);
+      const hasErrors = !validationResult(req).isEmpty();
+      logElement("hasErrors ", hasErrors);
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      } else {
+        return createEventUtil.transmitValues(req, res);
+      }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,

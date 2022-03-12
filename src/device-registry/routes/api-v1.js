@@ -85,17 +85,17 @@ router.put(
   oneOf([
     [
       body("visibility")
-        .if(body("visibility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("long_name")
-        .if(body("long_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("mountType")
-        .if(body("mountType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -104,7 +104,7 @@ router.put(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("powerType")
-        .if(body("powerType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -113,44 +113,44 @@ router.put(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
       body("isActive")
-        .if(body("isActive").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
-        .if(body("isRetired").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
-        .if(body("mobility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
-        .if(body("nextMaintenance").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
-        .if(body("isPrimaryInLocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
-        .if(body("isUsedForCollocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
-        .if(body("owner").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -160,7 +160,7 @@ router.put(
           return ObjectId(value);
         }),
       body("host_id")
-        .if(body("host_id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -170,7 +170,7 @@ router.put(
           return ObjectId(value);
         }),
       body("phoneNumber")
-        .if(body("phoneNumber").exists())
+        .optional()
         .notEmpty()
         .trim()
         .custom((value) => {
@@ -181,7 +181,7 @@ router.put(
         .withMessage("phoneNumber must be a valid one")
         .bail(),
       body("height")
-        .if(body("height").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat({ gt: 0, lt: 10 })
@@ -189,7 +189,7 @@ router.put(
         .bail()
         .toFloat(),
       body("elevation")
-        .if(body("elevation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -197,17 +197,17 @@ router.put(
         .bail()
         .toFloat(),
       body("writeKey")
-        .if(body("writeKey").exists())
+        .optional()
         .notEmpty()
         .withMessage("writeKey should not be empty")
         .trim(),
       body("readKey")
-        .if(body("readKey").exists())
+        .optional()
         .notEmpty()
         .withMessage("readKey should not be empty")
         .trim(),
       body("latitude")
-        .if(body("latitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
@@ -229,7 +229,7 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
-        .if(body("longitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
@@ -251,15 +251,15 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("product_name")
-        .if(body("product_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("device_manufacturer")
-        .if(body("device_manufacturer").exists())
+        .optional()
         .notEmpty()
         .trim(),
     ],
@@ -297,7 +297,7 @@ router.get(
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
       query("device_number")
-        .if(query("device_number").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isInt()
@@ -305,7 +305,7 @@ router.get(
         .bail()
         .toInt(),
       query("id")
-        .if(query("id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -315,7 +315,7 @@ router.get(
           return ObjectId(value);
         }),
       query("site_id")
-        .if(query("site_id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -325,7 +325,7 @@ router.get(
           return ObjectId(value);
         }),
       query("name")
-        .if(query("name").exists())
+        .optional()
         .notEmpty()
         .trim(),
     ],
@@ -346,7 +346,7 @@ router.post(
         .isIn(["kcca", "airqo"])
         .withMessage("the tenant value is not among the expected ones"),
       body("device_number")
-        .if(body("device_number").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isInt()
@@ -372,7 +372,7 @@ router.post(
         .withMessage("the generation should be an integer")
         .toInt(),
       body("mountType")
-        .if(body("mountType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -381,7 +381,7 @@ router.post(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("powerType")
-        .if(body("powerType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -390,7 +390,7 @@ router.post(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
       body("latitude")
-        .if(body("latitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
@@ -412,7 +412,7 @@ router.post(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
-        .if(body("longitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
@@ -434,56 +434,56 @@ router.post(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("product_name")
-        .if(body("product_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("device_manufacturer")
-        .if(body("device_manufacturer").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("isActive")
-        .if(body("isActive").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
-        .if(body("isRetired").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
-        .if(body("mobility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
-        .if(body("nextMaintenance").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
-        .if(body("isPrimaryInLocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
-        .if(body("isUsedForCollocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
-        .if(body("owner").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -493,7 +493,7 @@ router.post(
           return ObjectId(value);
         }),
       body("host_id")
-        .if(body("host_id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -503,7 +503,7 @@ router.post(
           return ObjectId(value);
         }),
       body("phoneNumber")
-        .if(body("phoneNumber").exists())
+        .optional()
         .notEmpty()
         .trim()
         .custom((value) => {
@@ -514,7 +514,7 @@ router.post(
         .withMessage("phoneNumber must be a valid one")
         .bail(),
       body("height")
-        .if(body("height").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
@@ -522,7 +522,7 @@ router.post(
         .bail()
         .toFloat(),
       body("elevation")
-        .if(body("elevation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -530,11 +530,11 @@ router.post(
         .bail()
         .toFloat(),
       body("writeKey")
-        .if(body("writeKey").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("readKey")
-        .if(body("readKey").exists())
+        .optional()
         .notEmpty()
         .trim(),
     ],
@@ -645,17 +645,17 @@ router.put(
   oneOf([
     [
       body("visibility")
-        .if(body("visibility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("long_name")
-        .if(body("long_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("mountType")
-        .if(body("mountType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -664,7 +664,7 @@ router.put(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("status")
-        .if(body("status").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -681,7 +681,7 @@ router.put(
           "the status value is not among the expected ones which include: recalled, ready, deployed, undeployed, decommissioned, assembly, testing "
         ),
       body("powerType")
-        .if(body("powerType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -690,25 +690,25 @@ router.put(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
       body("isActive")
-        .if(body("isActive").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
-        .if(body("isRetired").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
-        .if(body("mobility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
-        .if(body("nextMaintenance").exists())
+        .optional()
         .notEmpty()
         .withMessage("nextMaintenance date cannot be empty")
         .bail()
@@ -717,19 +717,19 @@ router.put(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("nextMaintenance date must be a valid datetime."),
       body("isPrimaryInLocation")
-        .if(body("isPrimaryInLocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
-        .if(body("isUsedForCollocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
-        .if(body("owner").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -739,7 +739,7 @@ router.put(
           return ObjectId(value);
         }),
       body("host_id")
-        .if(body("host_id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -749,7 +749,7 @@ router.put(
           return ObjectId(value);
         }),
       body("phoneNumber")
-        .if(body("phoneNumber").exists())
+        .optional()
         .notEmpty()
         .trim()
         .custom((value) => {
@@ -760,7 +760,7 @@ router.put(
         .withMessage("phoneNumber must be a valid one")
         .bail(),
       body("height")
-        .if(body("height").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
@@ -768,7 +768,7 @@ router.put(
         .bail()
         .toFloat(),
       body("elevation")
-        .if(body("elevation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -776,15 +776,15 @@ router.put(
         .bail()
         .toFloat(),
       body("writeKey")
-        .if(body("writeKey").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("readKey")
-        .if(body("readKey").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("latitude")
-        .if(body("latitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
@@ -806,7 +806,7 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
-        .if(body("longitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
@@ -828,14 +828,14 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .trim(),
       body("product_name")
-        .if(body("product_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("device_manufacturer")
-        .if(body("device_manufacturer").exists())
+        .optional()
         .notEmpty()
         .trim(),
     ],
@@ -868,7 +868,7 @@ router.post(
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("device_number")
-        .if(body("device_number").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isInt()
@@ -894,7 +894,7 @@ router.post(
         .withMessage("the generation should be an integer")
         .toInt(),
       body("mountType")
-        .if(body("mountType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -903,7 +903,7 @@ router.post(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("powerType")
-        .if(body("powerType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -1019,17 +1019,17 @@ router.put(
   oneOf([
     [
       body("visibility")
-        .if(body("visibility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("visibility must be Boolean"),
       body("long_name")
-        .if(body("long_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("mountType")
-        .if(body("mountType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -1038,7 +1038,7 @@ router.put(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
       body("powerType")
-        .if(body("powerType").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -1047,25 +1047,25 @@ router.put(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
       body("isActive")
-        .if(body("isActive").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isActive must be Boolean"),
       body("isRetired")
-        .if(body("isRetired").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isRetired must be Boolean"),
       body("mobility")
-        .if(body("mobility").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("mobility must be Boolean"),
       body("nextMaintenance")
-        .if(body("nextMaintenance").exists())
+        .optional()
         .notEmpty()
         .withMessage("nextMaintenance cannot be empty")
         .trim()
@@ -1073,19 +1073,19 @@ router.put(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("nextMaintenance must be a valid datetime."),
       body("isPrimaryInLocation")
-        .if(body("isPrimaryInLocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isPrimaryInLocation must be Boolean"),
       body("isUsedForCollocation")
-        .if(body("isUsedForCollocation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("isUsedForCollocation must be Boolean"),
       body("owner")
-        .if(body("owner").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -1095,7 +1095,7 @@ router.put(
           return ObjectId(value);
         }),
       body("host_id")
-        .if(body("host_id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -1105,7 +1105,7 @@ router.put(
           return ObjectId(value);
         }),
       body("phoneNumber")
-        .if(body("phoneNumber").exists())
+        .optional()
         .notEmpty()
         .trim()
         .custom((value) => {
@@ -1116,7 +1116,7 @@ router.put(
         .withMessage("phoneNumber must be a valid one")
         .bail(),
       body("height")
-        .if(body("height").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat({ gt: 0, lt: 100 })
@@ -1124,7 +1124,7 @@ router.put(
         .bail()
         .toFloat(),
       body("elevation")
-        .if(body("elevation").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -1132,15 +1132,15 @@ router.put(
         .bail()
         .toFloat(),
       body("writeKey")
-        .if(body("writeKey").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("readKey")
-        .if(body("readKey").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("latitude")
-        .if(body("latitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
@@ -1162,7 +1162,7 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
-        .if(body("longitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
@@ -1184,15 +1184,15 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("product_name")
-        .if(body("product_name").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("device_manufacturer")
-        .if(body("device_manufacturer").exists())
+        .optional()
         .notEmpty()
         .trim(),
     ],
@@ -1251,7 +1251,7 @@ router.get(
   ]),
   oneOf([
     query("include_site")
-      .if(query("include_site").exists())
+      .optional()
       .notEmpty()
       .trim()
       .toLowerCase()
@@ -1294,7 +1294,7 @@ router.delete(
           return ObjectId(value);
         }),
       body("device_number")
-        .if(body("device_number").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device number cannot be empty")
         .bail()
@@ -1302,7 +1302,7 @@ router.delete(
         .isInt()
         .withMessage("the device_number should be an integer value"),
       body("device_id")
-        .if(body("device_id").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device ID cannot be empty")
         .bail()
@@ -1314,7 +1314,7 @@ router.delete(
           return ObjectId(value);
         }),
       body("device_name")
-        .if(body("device_name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device name cannot be empty")
         .bail()
@@ -1434,7 +1434,7 @@ router.put(
   oneOf([
     [
       body("device_number")
-        .if(body("device_number").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device number is missing in the request")
         .bail()
@@ -1442,7 +1442,7 @@ router.put(
         .isInt()
         .withMessage("the device_number should be an integer value"),
       body("device_id")
-        .if(body("device_id").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device ID is missing in request")
         .bail()
@@ -1454,7 +1454,7 @@ router.put(
           return ObjectId(value);
         }),
       body("device_name")
-        .if(body("device_name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device name is missing in request")
         .bail()
@@ -1465,7 +1465,7 @@ router.put(
         .matches(constants.WHITE_SPACES_REGEX, "i")
         .withMessage("the device names do not have spaces in them"),
       body("photos")
-        .if(body("photos").exists())
+        .optional()
         .notEmpty()
         .withMessage("the photos are missing in your request")
         .bail()
@@ -1494,7 +1494,7 @@ router.get(
   oneOf([
     [
       query("device_number")
-        .if(query("device_number").exists())
+        .optional()
         .notEmpty()
         .withMessage("this device identifier cannot be empty")
         .bail()
@@ -1502,7 +1502,7 @@ router.get(
         .isInt()
         .withMessage("the device_number should be an integer value"),
       query("device_name")
-        .if(query("device_name").exists())
+        .optional()
         .notEmpty()
         .withMessage("this device identifier cannot be empty")
         .bail()
@@ -1513,7 +1513,7 @@ router.get(
         .matches(constants.WHITE_SPACES_REGEX, "i")
         .withMessage("the device names do not have spaces in them"),
       query("device_id")
-        .if(query("device_id").exists())
+        .optional()
         .notEmpty()
         .withMessage("this device identifier cannot be empty")
         .bail()
@@ -1525,7 +1525,7 @@ router.get(
           return ObjectId(value);
         }),
       query("id")
-        .if(query("id").exists())
+        .optional()
         .notEmpty()
         .withMessage("this device identifier cannot be empty")
         .bail()
@@ -1558,7 +1558,7 @@ router.post(
   oneOf([
     [
       body("device_number")
-        .if(body("device_number").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device number cannot be empty")
         .bail()
@@ -1598,7 +1598,7 @@ router.post(
         .withMessage("the image_url is not a valid URL")
         .trim(),
       body("tags")
-        .if(body("tags").exists())
+        .optional()
         .notEmpty()
         .withMessage("the tags cannot be empty")
         .bail()
@@ -1607,7 +1607,7 @@ router.post(
         })
         .withMessage("the tags should be an array"),
       body("metadata")
-        .if(body("metadata").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -1618,7 +1618,7 @@ router.post(
         })
         .withMessage("metadata cannot be empty if provided"),
       body("metadata.url")
-        .if(body("metadata.url").exists())
+        .optional()
         .notEmpty()
         .withMessage("the metadata.url cannot be empty when provided")
         .bail()
@@ -1632,7 +1632,7 @@ router.post(
         .withMessage("the metadata.url is not a valid URL")
         .trim(),
       body("metadata.public_id")
-        .if(body("metadata.public_id").exists())
+        .optional()
         .notEmpty()
         .withMessage("the metadata.public_id cannot be empty when provided")
         .bail()
@@ -1684,7 +1684,7 @@ router.put(
   oneOf([
     [
       body("device_number")
-        .if(body("device_number").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device number is missing in the request")
         .bail()
@@ -1692,7 +1692,7 @@ router.put(
         .isInt()
         .withMessage("the device_number should be an integer value"),
       body("device_id")
-        .if(body("device_id").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device ID is missing in request")
         .bail()
@@ -1704,7 +1704,7 @@ router.put(
           return ObjectId(value);
         }),
       body("device_name")
-        .if(body("device_name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the device name is missing in request")
         .bail()
@@ -1712,20 +1712,20 @@ router.put(
         .matches(constants.WHITE_SPACES_REGEX, "i")
         .withMessage("device_name should not have spaces in it"),
       body("image_url")
-        .if(body("image_url").exists())
+        .optional()
         .notEmpty()
         .withMessage("the image_url cannot be empty")
         .bail()
         .isURL()
         .withMessage("the image_url is not a valid URL"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .trim(),
       body("image_code")
-        .if(body("image_code").exists())
+        .optional()
         .trim(),
       body("tags")
-        .if(body("tags").exists())
+        .optional()
         .notEmpty()
         .withMessage("the tags cannot be empty")
         .bail()
@@ -1734,7 +1734,7 @@ router.put(
         })
         .withMessage("the tags should be an array"),
       body("metadata")
-        .if(body("metadata").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -1747,7 +1747,7 @@ router.put(
           "metadata cannot be empty when provided in this operation"
         ),
       body("metadata.url")
-        .if(body("metadata.url").exists())
+        .optional()
         .notEmpty()
         .withMessage("metadata should not be empty")
         .bail()
@@ -1756,13 +1756,13 @@ router.put(
         .bail()
         .trim(),
       body("metadata.public_id")
-        .if(body("metadata.public_id").exists())
+        .optional()
         .notEmpty()
         .withMessage("public_id should not be empty")
         .bail()
         .trim(),
       body("metadata.version")
-        .if(body("metadata.version").exists())
+        .optional()
         .notEmpty()
         .withMessage("version should not be empty")
         .bail()
@@ -1771,12 +1771,12 @@ router.put(
         .bail()
         .trim(),
       body("metadata.signature")
-        .if(body("metadata.signature").exists())
+        .optional()
         .notEmpty()
         .withMessage("signature should not be empty")
         .trim(),
       body("metadata.width")
-        .if(body("metadata.width").exists())
+        .optional()
         .notEmpty()
         .withMessage("width should not be empty")
         .isFloat()
@@ -1784,7 +1784,7 @@ router.put(
         .bail()
         .trim(),
       body("metadata.height")
-        .if(body("metadata.height").exists())
+        .optional()
         .notEmpty()
         .withMessage("height should not be empty")
         .isFloat()
@@ -1792,16 +1792,16 @@ router.put(
         .bail()
         .trim(),
       body("metadata.format")
-        .if(body("metadata.format").exists())
+        .optional()
         .trim(),
       body("metadata.resource_type")
-        .if(body("metadata.resource_type").exists())
+        .optional()
         .trim(),
       body("metadata.created_at")
-        .if(body("metadata.created_at").exists())
+        .optional()
         .trim(),
       body("metadata.bytes")
-        .if(body("metadata.bytes").exists())
+        .optional()
         .notEmpty()
         .withMessage("bytes should not be empty")
         .isFloat()
@@ -1809,10 +1809,10 @@ router.put(
         .bail()
         .trim(),
       body("metadata.type")
-        .if(body("metadata.type").exists())
+        .optional()
         .trim(),
       body("metadata.secure_url")
-        .if(body("metadata.secure_url").exists())
+        .optional()
         .notEmpty()
         .withMessage("secure_url should not be empty")
         .bail()
@@ -2284,7 +2284,7 @@ router.post(
           "The name should be greater than 5 and less than 50 in length"
         ),
       body("airqlouds")
-        .if(body("airqlouds").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -2293,7 +2293,7 @@ router.post(
         .notEmpty()
         .withMessage("the airqlouds should not be empty"),
       body("airqlouds.*")
-        .if(body("airqlouds.*").exists())
+        .optional()
         .isMongoId()
         .withMessage("each airqloud should be a mongo ID"),
     ],
@@ -2398,7 +2398,7 @@ router.put(
   oneOf([
     [
       body("status")
-        .if(body("status").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -2407,7 +2407,7 @@ router.put(
           "the status value is not among the expected ones which include: decommissioned, active"
         ),
       body("nearest_tahmo_station")
-        .if(body("nearest_tahmo_station").exists())
+        .optional()
         .notEmpty()
         .custom((value) => {
           return typeof value === "object";
@@ -2415,7 +2415,7 @@ router.put(
         .bail()
         .withMessage("the nearest_tahmo_station should be an object"),
       body("createdAt")
-        .if(body("createdAt").exists())
+        .optional()
         .notEmpty()
         .withMessage("createdAt cannot be empty when provided")
         .bail()
@@ -2424,7 +2424,7 @@ router.put(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("createdAt date must be a valid datetime."),
       body("location_id")
-        .if(body("location_id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -2434,7 +2434,7 @@ router.put(
           return ObjectId(value);
         }),
       body("distance_to_nearest_road")
-        .if(body("distance_to_nearest_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2442,7 +2442,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_primary_road")
-        .if(body("distance_to_nearest_primary_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2450,7 +2450,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_secondary_road")
-        .if(body("distance_to_nearest_secondary_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2458,7 +2458,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_tertiary_road")
-        .if(body("distance_to_nearest_tertiary_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2466,7 +2466,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_unclassified_road")
-        .if(body("distance_to_nearest_unclassified_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2474,7 +2474,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_residential_road")
-        .if(body("distance_to_nearest_residential_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2482,7 +2482,7 @@ router.put(
         .bail()
         .toFloat(),
       body("bearing_to_kampala_center")
-        .if(body("bearing_to_kampala_center").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2490,7 +2490,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_kampala_center")
-        .if(body("distance_to_kampala_center").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2498,7 +2498,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_residential_road")
-        .if(body("distance_to_nearest_residential_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2506,7 +2506,7 @@ router.put(
         .bail()
         .toFloat(),
       body(" distance_to_nearest_city")
-        .if(body(" distance_to_nearest_city").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2514,7 +2514,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_motorway")
-        .if(body("distance_to_nearest_motorway").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2522,7 +2522,7 @@ router.put(
         .bail()
         .toFloat(),
       body("distance_to_nearest_road")
-        .if(body("distance_to_nearest_road").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2530,7 +2530,7 @@ router.put(
         .bail()
         .toFloat(),
       body("landform_270")
-        .if(body("landform_270").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2538,7 +2538,7 @@ router.put(
         .bail()
         .toFloat(),
       body("landform_90")
-        .if(body("landform_90").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2546,7 +2546,7 @@ router.put(
         .bail()
         .toFloat(),
       body("greenness")
-        .if(body("greenness").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2554,7 +2554,7 @@ router.put(
         .bail()
         .toFloat(),
       body("altitude")
-        .if(body("altitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isFloat()
@@ -2562,15 +2562,15 @@ router.put(
         .bail()
         .toFloat(),
       body("city")
-        .if(body("city").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("street")
-        .if(body("street").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("latitude")
-        .if(body("latitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LATITUDE_REGEX, "i")
@@ -2592,7 +2592,7 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
-        .if(body("longitude").exists())
+        .optional()
         .notEmpty()
         .trim()
         .matches(constants.LONGITUDE_REGEX, "i")
@@ -2614,11 +2614,11 @@ router.put(
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("airqlouds")
-        .if(body("airqlouds").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -2627,7 +2627,7 @@ router.put(
         .notEmpty()
         .withMessage("the airqlouds should not be empty"),
       body("airqlouds.*")
-        .if(body("airqlouds.*").exists())
+        .optional()
         .isMongoId()
         .withMessage("each airqloud should be a mongo ID"),
     ],
@@ -2815,7 +2815,7 @@ router.post(
           return ObjectId(value);
         }),
       body("*.is_device_primary")
-        .if(body("*.is_device_primary").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
@@ -2850,21 +2850,21 @@ router.post(
           "the frequency value is not among the expected ones which include: raw, hourly and daily"
         ),
       body("*.is_test_data")
-        .if(body("*.is_test_data").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("is_test_data should be boolean"),
       body("*.device")
-        .if(body("*.device").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("*.site")
-        .if(body("*.site").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("*.device_number")
-        .if(body("*.device_number").exists())
+        .optional()
         .notEmpty()
         .isInt()
         .withMessage("the device_number should be an integer value")
@@ -2908,7 +2908,7 @@ router.post(
           return ObjectId(value);
         }),
       body("*.is_device_primary")
-        .if(body("*.is_device_primary").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
@@ -2943,21 +2943,21 @@ router.post(
           "the frequency value is not among the expected ones which include: raw, hourly and daily"
         ),
       body("*.is_test_data")
-        .if(body("*.is_test_data").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isBoolean()
         .withMessage("is_test_data should be boolean"),
       body("*.device")
-        .if(body("*.device").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("*.site")
-        .if(body("*.site").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("*.device_number")
-        .if(body("*.device_number").exists())
+        .optional()
         .notEmpty()
         .isInt()
         .withMessage("the device_number should be an integer value")
@@ -2982,21 +2982,21 @@ router.get(
   oneOf([
     [
       query("startTime")
-        .if(query("startTime").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("startTime must be a valid datetime."),
       query("endTime")
-        .if(query("endTime").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("endTime must be a valid datetime."),
       query("frequency")
-        .if(query("frequency").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -3005,7 +3005,7 @@ router.get(
           "the frequency value is not among the expected ones which include: hourly, daily, minute and raw"
         ),
       query("external")
-        .if(query("external").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -3014,7 +3014,7 @@ router.get(
           "the external value is not among the expected ones which include: no and yes"
         ),
       query("recent")
-        .if(query("recent").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -3023,34 +3023,34 @@ router.get(
           "the recent value is not among the expected ones which include: no and yes"
         ),
       query("device")
-        .if(query("device").exists())
+        .optional()
         .notEmpty()
         .trim(),
       query("device_id")
-        .if(query("device_id").exists())
+        .optional()
         .notEmpty()
         .trim(),
       query("device_number")
-        .if(query("device_number").exists())
+        .optional()
         .notEmpty()
         .trim(),
       query("site")
-        .if(query("site").exists())
+        .optional()
         .notEmpty()
         .trim(),
       query("site_id")
-        .if(query("site_id").exists())
+        .optional()
         .notEmpty()
         .trim(),
       query("primary")
-        .if(query("primary").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
         .isIn(["yes", "no"])
         .withMessage("valid values include: YES and NO"),
       query("metadata")
-        .if(query("metadata").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -3059,7 +3059,7 @@ router.get(
           "valid values include: site, site_id, device and device_id"
         ),
       query("test")
-        .if(query("test").exists())
+        .optional()
         .notEmpty()
         .trim()
         .toLowerCase()
@@ -3069,7 +3069,151 @@ router.get(
   ]),
   eventController.list
 );
-router.post("/events/transmit", eventController.transmitValues);
+router.post(
+  "/events/transmit",
+  oneOf([
+    [
+      query("tenant")
+        .exists()
+        .withMessage("tenant query parameter should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["kcca", "airqo"])
+        .withMessage(
+          "the tenant query parameter value is not among the expected ones"
+        ),
+      query("type")
+        .exists()
+        .withMessage("type query parameter should be provided")
+        .trim()
+        .toLowerCase()
+        .isIn(["one", "many", "bulk"])
+        .withMessage(
+          "the type query parameter value is not among the expected ones which are: one, many, bulk"
+        ),
+      query("name")
+        .exists()
+        .withMessage("type name parameter should be provided")
+        .trim(),
+    ],
+  ]),
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
+  oneOf([
+    [
+      body("*.time")
+        .exists()
+        .trim()
+        .withMessage("time is missing")
+        .bail()
+        .toDate()
+        .isISO8601({ strict: true, strictSeparator: true })
+        .withMessage("time must be a valid datetime."),
+      body("*.pm10")
+        .optional()
+        .notEmpty()
+        .withMessage("pm10 should not be empty if/when provided")
+        .bail()
+        .isNumeric()
+        .withMessage("pm_10 should be an integer value")
+        .trim(),
+      body("*.pm2_5")
+        .optional()
+        .notEmpty()
+        .withMessage("pm2_5 should not be empty if/when provided")
+        .bail()
+        .isNumeric()
+        .withMessage("pm2_5 should be an integer value")
+        .trim(),
+      body("*.s2_pm2_5")
+        .optional()
+        .notEmpty()
+        .withMessage("s2_pm2_5 should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("s2_pm2_5 should be an integer value")
+        .trim(),
+      body("*.s2_pm10")
+        .optional()
+        .notEmpty()
+        .withMessage("s2_pm10 should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("s2_pm10 should be an integer value")
+        .bail()
+        .trim(),
+      body("*.latitude")
+        .optional()
+        .notEmpty()
+        .withMessage("provided latitude cannot be empty")
+        .bail()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+      body("*.longitude")
+        .optional()
+        .notEmpty()
+        .withMessage("provided longitude cannot be empty")
+        .bail()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("*.battery")
+        .optional()
+        .notEmpty()
+        .withMessage("battery should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("battery should be an integer value")
+        .trim(),
+      body("*.others")
+        .optional()
+        .notEmpty()
+        .withMessage("others cannot be empty if provided"),
+      body("*.status")
+        .optional()
+        .notEmpty()
+        .withMessage("status cannot be empty if provided"),
+    ],
+  ]),
+  eventController.transmitValues
+);
 /*clear events*/
 router.delete(
   "/events",
@@ -3170,7 +3314,7 @@ router.post(
         .withMessage("the name should not have whitespace in it")
         .trim(),
       body("metadata")
-        .if(body("metadata").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -3181,7 +3325,7 @@ router.post(
         })
         .withMessage("the metadata should not be empty if provided"),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("location")
@@ -3230,7 +3374,7 @@ router.post(
           "admin_level values include: village, county, subcounty, village, parish, country, division and district"
         ),
       body("location_tags")
-        .if(body("location_tags").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -3239,7 +3383,7 @@ router.post(
         .notEmpty()
         .withMessage("the tags should not be empty"),
       body("isCustom")
-        .if(body("isCustom").exists())
+        .optional()
         .notEmpty()
         .withMessage("isCustom cannot be empty")
         .isBoolean()
@@ -3265,7 +3409,7 @@ router.get(
   oneOf([
     [
       query("id")
-        .if(query("id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -3275,12 +3419,12 @@ router.get(
           return ObjectId(value);
         }),
       query("name")
-        .if(query("name").exists())
+        .optional()
         .notEmpty()
         .withMessage("name cannot be empty")
         .trim(),
       query("admin_level")
-        .if(query("admin_level").exists())
+        .optional()
         .notEmpty()
         .withMessage(
           "admin_level is empty, should not be if provided in request"
@@ -3334,7 +3478,7 @@ router.put(
   oneOf([
     [
       body("name")
-        .if(body("name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the name should not be empty")
         .bail()
@@ -3349,7 +3493,7 @@ router.put(
         .withMessage("the name should not have whitespace in it")
         .trim(),
       body("admin_level")
-        .if(body("admin_level").exists())
+        .optional()
         .notEmpty()
         .withMessage(
           "admin_level is empty, should not be if provided in request"
@@ -3369,10 +3513,10 @@ router.put(
           "admin_level values include: village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .trim(),
       body("metadata")
-        .if(body("metadata").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -3383,17 +3527,17 @@ router.put(
         })
         .withMessage("the metadata should not be empty if provided"),
       body("long_name")
-        .if(body("long_name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the long_name should not be empty")
         .trim(),
       body("isCustom")
-        .if(body("isCustom").exists())
+        .optional()
         .isBoolean()
         .withMessage("isCustom must be a boolean value")
         .trim(),
       body("location")
-        .if(body("location").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -3404,7 +3548,7 @@ router.put(
         })
         .withMessage("the location should not be empty when provided"),
       body("location.coordinates")
-        .if(body("location.coordinates").exists())
+        .optional()
         .notEmpty()
         .withMessage("the location.coordinates should not be empty")
         .bail()
@@ -3413,7 +3557,7 @@ router.put(
         })
         .withMessage("the location.coordinates should be an array"),
       body("location.type")
-        .if(body("location.type").exists())
+        .optional()
         .notEmpty()
         .withMessage("the location.type should not be empty")
         .bail()
@@ -3422,7 +3566,7 @@ router.put(
           "the location.type value is not among the expected ones which include: Polygon and Point"
         ),
       body("location_tags")
-        .if(body("location_tags").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -3534,7 +3678,7 @@ router.post(
         .withMessage("the long_name should not be empty")
         .trim(),
       body("metadata")
-        .if(body("metadata").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -3545,14 +3689,14 @@ router.post(
         })
         .withMessage("the metadata should not be empty if provided"),
       body("isCustom")
-        .if(body("isCustom").exists())
+        .optional()
         .notEmpty()
         .withMessage("isCustom cannot be empty")
         .isBoolean()
         .withMessage("isCustom must be Boolean")
         .trim(),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .notEmpty()
         .trim(),
       body("admin_level")
@@ -3573,7 +3717,7 @@ router.post(
           "admin_level values include: village, county, subcounty, village, parish, country, division and district"
         ),
       body("airqloud_tags")
-        .if(body("airqloud_tags").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -3582,7 +3726,7 @@ router.post(
         .notEmpty()
         .withMessage("the tags should not be empty"),
       body("sites")
-        .if(body("sites").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -3591,7 +3735,7 @@ router.post(
         .notEmpty()
         .withMessage("the sites should not be empty"),
       body("sites.*")
-        .if(body("sites.*").exists())
+        .optional()
         .isMongoId()
         .withMessage("each site should be a mongo ID"),
     ],
@@ -3651,7 +3795,7 @@ router.get(
   oneOf([
     [
       query("id")
-        .if(query("id").exists())
+        .optional()
         .notEmpty()
         .trim()
         .isMongoId()
@@ -3661,12 +3805,12 @@ router.get(
           return ObjectId(value);
         }),
       query("name")
-        .if(query("name").exists())
+        .optional()
         .notEmpty()
         .withMessage("name cannot be empty")
         .trim(),
       query("admin_level")
-        .if(query("admin_level").exists())
+        .optional()
         .notEmpty()
         .withMessage(
           "admin_level is empty, should not be if provided in request"
@@ -3782,7 +3926,7 @@ router.put(
   oneOf([
     [
       body("name")
-        .if(body("name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the name should not be empty")
         .bail()
@@ -3797,7 +3941,7 @@ router.put(
         .withMessage("the name should not have whitespace in it")
         .trim(),
       body("admin_level")
-        .if(body("admin_level").exists())
+        .optional()
         .notEmpty()
         .withMessage(
           "admin_level is empty, should not be if provided in request"
@@ -3817,10 +3961,10 @@ router.put(
           "admin_level values include: village, county, subcounty, village, parish, country, division and district"
         ),
       body("description")
-        .if(body("description").exists())
+        .optional()
         .trim(),
       body("sites")
-        .if(body("sites").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })
@@ -3829,11 +3973,11 @@ router.put(
         .notEmpty()
         .withMessage("the sites should not be empty"),
       body("sites.*")
-        .if(body("sites.*").exists())
+        .optional()
         .isMongoId()
         .withMessage("each site should be a mongo ID"),
       body("metadata")
-        .if(body("metadata").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -3844,17 +3988,17 @@ router.put(
         })
         .withMessage("the metadata should not be empty if provided"),
       body("long_name")
-        .if(body("long_name").exists())
+        .optional()
         .notEmpty()
         .withMessage("the long_name should not be empty")
         .trim(),
       body("isCustom")
-        .if(body("isCustom").exists())
+        .optional()
         .isBoolean()
         .withMessage("isCustom must be a boolean value")
         .trim(),
       body("location")
-        .if(body("location").exists())
+        .optional()
         .custom((value) => {
           return typeof value === "object";
         })
@@ -3865,7 +4009,7 @@ router.put(
         })
         .withMessage("the location should not be empty when provided"),
       body("location.coordinates")
-        .if(body("location.coordinates").exists())
+        .optional()
         .notEmpty()
         .withMessage("the location.coordinates should not be empty")
         .bail()
@@ -3874,7 +4018,7 @@ router.put(
         })
         .withMessage("the location.coordinates should be an array"),
       body("location.type")
-        .if(body("location.type").exists())
+        .optional()
         .notEmpty()
         .withMessage("the location.type should not be empty")
         .bail()
@@ -3883,7 +4027,7 @@ router.put(
           "the location.type value is not among the expected ones which include: Polygon and Point"
         ),
       body("airqloud_tags")
-        .if(body("airqloud_tags").exists())
+        .optional()
         .custom((value) => {
           return Array.isArray(value);
         })

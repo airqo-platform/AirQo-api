@@ -464,11 +464,11 @@ const createEvent = {
     }
   },
 
-  bulkTransmitMultipleSensorValues: async (req, res) => {
+  bulkTransmitMultipleSensorValues: async (req, res, tenant) => {
     try {
       logText("bulk write to thing.......");
-      let { tenant, type, name, chid, device_number } = req.query;
-      let { updates } = req.body;
+      let { name, chid, device_number } = req.query;
+      let { body } = req;
       let request = {};
       request["query"] = {};
       request["query"]["name"] = name;
@@ -511,34 +511,27 @@ const createEvent = {
         delete responseFromDecryptKey.status;
         return res.status(status).json(responseFromDecryptKey);
       }
-
-      if (updates && tenant && type) {
-        let transformedUpdates = await createEvent.transformMeasurementFields(
-          updates
-        );
-        logObject("updates", updates);
-        logObject("transformedUpdates", transformedUpdates);
-        let requestObject = {};
-        requestObject.write_api_key = decryptedKey;
-        requestObject.updates = transformedUpdates;
-        await axios
-          .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
-          .then(function(response) {
-            console.log(response.data);
-            let output = response.data;
-            res.status(HTTPStatus.OK).json({
-              message: "successfully transmitted the data",
-              success: true,
-              data: output,
-            });
-          })
-          .catch(function(error) {
-            errors.axiosError(error, req, res);
+      let transformedUpdates = await createEvent.transformMeasurementFields(
+        body
+      );
+      let requestObject = {};
+      requestObject.write_api_key = decryptedKey;
+      requestObject.updates = transformedUpdates;
+      await axios
+        .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
+        .then(function(response) {
+          let output = JSON.parse(response.config.data).updates;
+          res.status(HTTPStatus.OK).json({
+            message: "successfully transmitted the data",
+            success: true,
+            data: output,
           });
-      } else {
-        errors.missingQueryParams(req, res);
-      }
+        })
+        .catch(function(error) {
+          errors.axiosError(error, req, res);
+        });
     } catch (e) {
+      logObject("error for bulk transmit", e);
       errors.tryCatchErrors(res, e);
     }
   },
@@ -1372,13 +1365,15 @@ const createEvent = {
   },
   transformMeasurementFields: async (measurements) => {
     try {
-      logObject("the measurements", measurements);
-      let transform = [];
-      measurements.forEach((field, value) => {
-        transform[createEvent.transformField(field)] = value;
+      let transformed = [];
+      measurements.forEach((event) => {
+        let obj = {};
+        Object.entries(event).forEach(([key, value]) => {
+          obj[createEvent.transformField(key)] = value;
+        });
+        transformed.push(obj);
       });
-      logObject("the transform", transform);
-      return transform;
+      return transformed;
     } catch (e) {
       console.log(e.message);
     }
