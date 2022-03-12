@@ -9,7 +9,7 @@ const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-photo-util");
-const { kafkaProducer } = require("../config/kafka-node");
+const { kafkaProducer } = require("../config/kafkajs");
 
 const createPhoto = {
   /*************** general ****************************** */
@@ -773,22 +773,20 @@ const createPhoto = {
         let data = responseFromRegisterPhoto.data;
 
         try {
-          const payloads = [
-            {
-              topic: `gcp-${constants.ENV_ACRONYM}-createPhoto-photos-0`,
-              messages: JSON.stringify(data),
-              partition: 0,
-            },
-          ];
-          kafkaProducer.send(payloads, (err, data) => {
-            logObject("Kafka producer data", data);
-            logger.info(`Kafka producer data, ${data}`);
-            logObject("Kafka producer error", err);
-            logger.error(`Kafka producer error, ${err}`);
+          await kafkaProducer.connect();
+          await kafkaProducer.send({
+            topic: "photos-topic",
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterPhoto.data),
+              },
+            ],
           });
+
+          await kafkaProducer.disconnect();
         } catch (error) {
-          logObject("kafka connection error", error);
-          logger.error(`kafka connection error --- ${error.message}`);
+          logObject("error on kafka", error);
         }
 
         let status = responseFromRegisterPhoto.status
