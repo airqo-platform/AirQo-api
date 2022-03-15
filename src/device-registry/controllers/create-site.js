@@ -715,24 +715,30 @@ const manageSite = {
 
         logObject("activity body", activityBody);
 
-        const updated_activity = await getModelByTenant(
+        const update = activityBody;
+
+        const responseFromUpdateActivity = await getModelByTenant(
           tenant.toLowerCase(),
           "activity",
           SiteActivitySchema
-        ).findOneAndUpdate(filter, activityBody, {
-          new: true,
-        });
+        ).modify({ filter, update });
 
-        if (!isEmpty(updated_activity)) {
-          return res.status(HTTPStatus.OK).json({
+        if (responseFromUpdateActivity.success === true) {
+          const status = responseFromUpdateActivity.status
+            ? responseFromUpdateActivity.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
             message: "activity updated successfully",
-            updated_activity,
+            updated_activity: responseFromUpdateActivity.data,
           });
-        } else if (isEmpty(updated_activity)) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
+        } else if (responseFromUpdateActivity.success === false) {
+          const status = responseFromUpdateActivity.status
+            ? responseFromUpdateActivity.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
             success: false,
-            message: `An activity log by this ID (${id}) could be missing, please crosscheck`,
+            message: responseFromUpdateActivity.message,
           });
         }
       } else {
@@ -761,23 +767,29 @@ const manageSite = {
       const filter = generateFilter.activities_v0(req);
       logObject("activity filter", filter);
 
-      const site_activities = await getModelByTenant(
+      const responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "activity",
         SiteActivitySchema
       ).list({ filter, limit, skip });
 
-      if (!isEmpty(site_activities)) {
+      if (responseFromListSite.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: "activities fetched successfully",
-          site_activities,
+          site_activities: responseFromListSite.data,
         });
-      } else if (isEmpty(site_activities)) {
-        return res.status(HTTPStatus.OK).json({
+      } else if (responseFromListSite.success === false) {
+        const errors = responseFromListSite.errors
+          ? responseFromListSite.errors
+          : "";
+        const status = responseFromListSite.status
+          ? responseFromListSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
-          message: `no site site_activities for this organisation (${tenant.toLowerCase()})`,
-          site_activities,
+          message: responseFromListSite.message,
+          errors,
         });
       }
     } catch (e) {

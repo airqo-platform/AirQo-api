@@ -447,9 +447,8 @@ siteSchema.statics = {
         .limit(_limit)
         .allowDiskUse(true);
 
-      let data = response;
-
       if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
           message: "successfully retrieved the site details",

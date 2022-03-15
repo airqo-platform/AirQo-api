@@ -1378,14 +1378,16 @@ const manageSite = {
             "activity",
             SiteActivitySchema
           )
-            .createLocationActivity(activityBody)
+            .register(activityBody)
             .then((log) => (createdActivity = log));
+
+          const data = createdActivity.data;
 
           return res.status(HTTPStatus.OK).json({
             message:
               (options && options.successMsg) ||
               "Operation successfully carried out",
-            createdActivity,
+            createdActivity: data,
             updatedDevice,
             success: true,
           });

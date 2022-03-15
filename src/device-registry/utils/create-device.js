@@ -15,11 +15,43 @@ const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
 const QRCode = require("qrcode");
 const { kafkaProducer } = require("../config/kafkajs");
+const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
 
 const createDevice = {
+  doesDeviceSearchExist: async (request) => {
+    try {
+      const { filter, tenant } = request;
+      logObject("the filter for search exist", filter);
+      let doesSearchExist = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).exists(filter);
+      logElement(" doesSearchExist", doesSearchExist);
+      if (doesSearchExist) {
+        return {
+          success: true,
+          message: "search exists",
+          data: doesSearchExist,
+        };
+      } else {
+        return {
+          success: false,
+          message: "search does not exist",
+          data: doesSearchExist,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   doesDeviceExist: async (request) => {
     logText("checking device existence...");
     const responseFromList = await createDevice.list(request);
@@ -117,6 +149,7 @@ const createDevice = {
         return {
           success: false,
           message: "creation is not yet possible for this organisation",
+          status: httpStatus.NOT_IMPLEMENTED,
         };
       }
       let responseFromCreateOnThingspeak = await createDevice.createOnThingSpeak(
@@ -796,7 +829,7 @@ const createDevice = {
   },
   updateOnPlatform: async (request) => {
     try {
-      const { id, device_number, name, tenant } = request.query;
+      const { tenant } = request.query;
       const { body } = request;
       logObject("The request", request);
       let update = body;

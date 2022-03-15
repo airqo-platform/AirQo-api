@@ -248,7 +248,7 @@ const createAirqloud = {
       return {
         success: false,
         message: "unable to update airqloud",
-        errors: err.message,
+        errors: { message: err.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

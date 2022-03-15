@@ -13,6 +13,7 @@ const createDeviceUtil = require("./create-device");
 const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
+const { kafkaConsumer } = require("../config/kafkajs");
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -1133,6 +1134,45 @@ const createEvent = {
         "clearEventsOnPlatform util",
         e.message
       );
+    }
+  },
+  consume: async (request) => {
+    try {
+      /**
+       * get the Kafka consumer client
+       * retrieve the measurements from Kafka
+       * and insert them into the Events collection
+       */
+      const { query } = request;
+      const { tenant } = query;
+      let measurements = [];
+
+      try {
+        await kafkaConsumer.connect();
+        measurements = await kafkaConsumer.subscribe({
+          topic: "events-topic",
+        });
+        await kafkaConsumer.run({
+          eachMessage: ({ message }) => {
+            logElement("received message", message.value);
+          },
+        });
+      } catch (error) {
+        logObject("error on kafka", error.message);
+      }
+
+      const responseFromInsertMeasurements = await createEvent.insert(
+        tenant,
+        measurements
+      );
+      return responseFromInsertMeasurements;
+    } catch (error) {
+      return {
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
     }
   },
   insert: async (tenant, measurements) => {
