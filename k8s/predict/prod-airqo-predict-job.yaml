@@ -1,0 +1,25 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: airqo-predict-job
+  namespace: production
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 * * * *"
+  jobTemplate:
+    metadata:
+      name: airqo-predict-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          containers:
+          - name: airqo-predict-job
+            image: us.gcr.io/airqo-250220/airqo-predict-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: env-predict-job-production
+
