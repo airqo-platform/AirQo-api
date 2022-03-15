@@ -22,4 +22,3 @@ spec:
             envFrom:
               - configMapRef:
                   name: env-predict-job-production
-
