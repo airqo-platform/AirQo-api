@@ -15,15 +15,21 @@ load_dotenv(dotenv_path)
 sys.path.append("/")
 
 
-def kcca():
+def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     from airflow_utils.kcca_utils import (
         extract_kcca_measurements,
         transform_kcca_measurements_for_api,
         transform_kcca_data_for_message_broker,
     )
+    from airflow_utils.date import date_to_str_hours
+
+    if start_date_time == "" or end_date_time == "":
+        hour_of_day = datetime.utcnow() - timedelta(hours=3)
+        start_date_time = date_to_str_hours(hour_of_day)
+        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     kcca_unclean_data = extract_kcca_measurements(
-        "2021-01-01T08:00:00Z", "2021-01-01T12:00:00Z", "hourly"
+        start_time=start_date_time, end_time=end_date_time, freq="hourly"
     )
     pd.DataFrame(kcca_unclean_data).to_csv(
         path_or_buf="kcca_unclean_data.csv", index=False
@@ -39,7 +45,7 @@ def kcca():
     )
 
 
-def kcca_historical_hourly_data(start_date_time: str, end_date_time: str):
+def kcca_historical_hourly_measurements(start_date_time: str, end_date_time: str):
     from airflow_utils.kcca_utils import (
         extract_kcca_measurements,
         transform_kcca_hourly_data_for_bigquery,
@@ -47,7 +53,7 @@ def kcca_historical_hourly_data(start_date_time: str, end_date_time: str):
     from airflow_utils.date import date_to_str_hours
 
     if start_date_time == "" or end_date_time == "":
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+        hour_of_day = datetime.utcnow() - timedelta(hours=5)
         start_date_time = date_to_str_hours(hour_of_day)
         end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
@@ -136,9 +142,6 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
 
 
 def insights_data():
-    # extract airqo data
-    # start_time = '2020-01-01T16:00:00Z'
-    # end_time = '2020-01-01T17:00:00Z'
     airqo_data = extract_airqo_data(tenant="airqo")
     pd.DataFrame(airqo_data).to_csv(path_or_buf="insights_airqo_data.csv", index=False)
 
@@ -170,9 +173,11 @@ if __name__ == "__main__":
     if action == "airqo_hourly_data":
         airqo_hourly_measurements(start_date_time=start_time, end_date_time=end_time)
     elif action == "kcca_hourly_data":
-        kcca()
-    elif action == "kcca_historical_hourly_data":
-        kcca_historical_hourly_data(start_date_time=start_time, end_date_time=end_time)
+        kcca_hourly_measurements(start_date_time=start_time, end_date_time=end_time)
+    elif kcca_hourly_measurements == "kcca_historical_hourly_data":
+        kcca_historical_hourly_measurements(
+            start_date_time=start_time, end_date_time=end_time
+        )
     elif action == "insights_data":
         insights_data()
 
