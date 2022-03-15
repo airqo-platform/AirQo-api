@@ -22,3 +22,10 @@ spec:
             envFrom:
               - configMapRef:
                   name: env-predict-job-staging
+            volumeMounts:
+              - name: config-volume
+                mountPath: /etc/config
+          volumes:
+            - name: config-volume
+              configMap:
+                name: predict-job-config-files
