@@ -378,12 +378,12 @@ deviceSchema.statics = {
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
-      logObject("modifiedUpdate", modifiedUpdate);
+
       let updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
-      ).exec();
+      );
 
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;

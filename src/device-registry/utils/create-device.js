@@ -24,7 +24,6 @@ const createDevice = {
   doesDeviceSearchExist: async (request) => {
     try {
       const { filter, tenant } = request;
-      logObject("the filter for search exist", filter);
       let doesSearchExist = await getModelByTenant(
         tenant,
         "device",
@@ -55,7 +54,6 @@ const createDevice = {
   doesDeviceExist: async (request) => {
     logText("checking device existence...");
     const responseFromList = await createDevice.list(request);
-    logObject("responseFromList", responseFromList);
     if (responseFromList.success === true && responseFromList.data) {
       return true;
     }
@@ -299,7 +297,7 @@ const createDevice = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UnmodifiedRequest ", request);
+
       let responseFromUpdateDeviceOnThingspeak = await createDevice.updateOnThingspeak(
         modifiedRequest
       );
@@ -368,7 +366,6 @@ const createDevice = {
     try {
       const { id, device_number, name, tenant } = request.query;
       const { body } = request;
-      logObject("The request", request);
       let update = body;
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
@@ -378,7 +375,6 @@ const createDevice = {
       );
       logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
-        logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
@@ -398,8 +394,6 @@ const createDevice = {
         "device",
         DeviceSchema
       ).encryptKeys({ filter, update });
-
-      logObject("responseFromEncryptKeys ", responseFromEncryptKeys);
 
       if (responseFromEncryptKeys.success === true) {
         let status = responseFromEncryptKeys.status
@@ -470,7 +464,6 @@ const createDevice = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UnModifiedRequest ", request);
 
       let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
         modifiedRequest
@@ -554,7 +547,6 @@ const createDevice = {
       logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
       if (responseFromFilter.success === true) {
-        logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
         logger.info(`the filter in list -- ${filter}`);
       }
@@ -649,8 +641,6 @@ const createDevice = {
         "device",
         DeviceSchema
       ).register(body);
-
-      logObject("responseFromRegisterDevice", responseFromRegisterDevice);
       logger.info(
         `the responseFromRegisterDevice --${responseFromRegisterDevice} `
       );
@@ -831,7 +821,6 @@ const createDevice = {
     try {
       const { tenant } = request.query;
       const { body } = request;
-      logObject("The request", request);
       let update = body;
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
@@ -841,7 +830,6 @@ const createDevice = {
       );
       logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
-        logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
@@ -866,8 +854,6 @@ const createDevice = {
         "device",
         DeviceSchema
       ).modify({ filter, update, opts });
-
-      logObject("responseFromModifyDevice ", responseFromModifyDevice);
 
       if (responseFromModifyDevice.success === true) {
         let status = responseFromModifyDevice.status

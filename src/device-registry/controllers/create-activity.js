@@ -225,7 +225,7 @@ const activity = {
         return res.status(status).json({
           success: true,
           message: responseFromUpdateActivity.message,
-          location: responseFromUpdateActivity.data,
+          updated_activity: responseFromUpdateActivity.data,
         });
       }
 

@@ -287,7 +287,6 @@ const createActivity = {
             const responseFromUpdateDevice = await createDeviceUtil.updateOnPlatform(
               deviceBody
             );
-            logObject("responseFromUpdateDevice", responseFromUpdateDevice);
             if (responseFromUpdateDevice.success === true) {
               const updatedDevice = responseFromUpdateDevice.data;
               const data = { createdActivity, updatedDevice };

@@ -130,6 +130,7 @@ activitySchema.statics = {
 
   async modify({ filter = {}, update = {} } = {}) {
     try {
+      let options = { new: true, useFindAndModify: false, upsert: false };
       let modifiedUpdateBody = update;
       modifiedUpdateBody["$addToSet"] = {};
       if (modifiedUpdateBody._id) {
@@ -145,9 +146,10 @@ activitySchema.statics = {
       logObject("modifiedUpdateBody", modifiedUpdateBody);
       let updatedActivity = await this.findOneAndUpdate(
         filter,
-        modifiedUpdateBody
-      ).exec();
-
+        modifiedUpdateBody,
+        options
+      );
+      logObject("updatedActivity", updatedActivity);
       if (!isEmpty(updatedActivity)) {
         let data = updatedActivity._doc;
         return {
