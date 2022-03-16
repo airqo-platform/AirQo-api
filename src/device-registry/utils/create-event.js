@@ -1136,36 +1136,33 @@ const createEvent = {
       );
     }
   },
-  consume: async (request) => {
+  consume: async () => {
     try {
-      /**
-       * get the Kafka consumer client
-       * retrieve the measurements from Kafka
-       * and insert them into the Events collection
-       */
-      const { query } = request;
-      const { tenant } = query;
-      let measurements = [];
-
       try {
+        let measurements = [];
         await kafkaConsumer.connect();
         measurements = await kafkaConsumer.subscribe({
-          topic: "events-topic",
+          topic: "hourly-measurements-topic",
+          fromBeginning: true,
         });
         await kafkaConsumer.run({
-          eachMessage: ({ message }) => {
-            logElement("received message", message.value);
+          eachMessage: async ({ message }) => {
+            logElement("received message", message.value.toString());
+            let measurements = message.value;
+            const responseFromInsertMeasurements = await createEvent.insert(
+              "airqo",
+              measurements
+            );
+            logObject(
+              "responseFromInsertMeasurements",
+              responseFromInsertMeasurements
+            );
+            return responseFromInsertMeasurements;
           },
         });
       } catch (error) {
         logObject("error on kafka", error.message);
       }
-
-      const responseFromInsertMeasurements = await createEvent.insert(
-        tenant,
-        measurements
-      );
-      return responseFromInsertMeasurements;
     } catch (error) {
       return {
         message: "Internal Server Error",
