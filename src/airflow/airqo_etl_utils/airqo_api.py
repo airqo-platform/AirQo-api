@@ -3,7 +3,7 @@ import traceback
 import requests
 import simplejson
 
-from airflow_utils.config import configuration
+from airqo_etl_utils.config import configuration
 
 
 class AirQoApi:

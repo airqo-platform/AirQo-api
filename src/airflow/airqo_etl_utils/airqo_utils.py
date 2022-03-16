@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 import requests
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.bigquery_api import BigQueryApi
-from airflow_utils.config import configuration
-from airflow_utils.date import date_to_str, str_to_date
-from airflow_utils.commons import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import date_to_str, str_to_date
+from airqo_etl_utils.commons import (
     get_device,
     get_valid_value,
     get_weather_data_from_tahmo,
@@ -813,11 +813,14 @@ def calibrate_using_pickle_file(measurements: list) -> list:
         destination_file="pm10_model.pkl",
     )
 
-    with open(pm_2_5_model_file, "rb") as f:
-        rf_regressor = pickle.load(f)
+    rf_regressor = pickle.load(open(pm_2_5_model_file, 'rb'))
+    lasso_regressor = pickle.load(open(pm_10_model_file, 'rb'))
 
-    with open(pm_10_model_file, "rb") as f:
-        lasso_regressor = pickle.load(f)
+    # with open(pm_2_5_model_file, "rb") as f:
+    #     rf_regressor = pickle.load(f)
+    #
+    # with open(pm_10_model_file, "rb") as f:
+    #     lasso_regressor = pickle.load(f)
 
     calibrated_measurements = []
     data_df = pd.DataFrame(measurements)

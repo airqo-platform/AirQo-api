@@ -6,10 +6,10 @@ LONG_DESCRIPTION = "This package contains functions shared by the DAG files"
 
 
 setup(
-    name="airflow_utils",
+    name="airqo_etl_utils",
     version=VERSION,
-    author="AirQo Devs",
-    author_email="<airqo.analytics@gmail.com>",
+    author="AirQo",
+    author_email="<data@airqo.net>",
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     packages=find_packages(),

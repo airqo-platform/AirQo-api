@@ -9,15 +9,15 @@ from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import storage
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.config import configuration
-from airflow_utils.date import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import (
     str_to_date,
     date_to_str,
     date_to_str_days,
     date_to_str_hours,
 )
-from airflow_utils.tahmo import TahmoApi
+from airqo_etl_utils.tahmo import TahmoApi
 
 
 def measurement_time_to_string(time: str, daily=False):

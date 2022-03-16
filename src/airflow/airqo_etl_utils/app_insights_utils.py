@@ -4,17 +4,17 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.config import configuration
-from airflow_utils.message_broker import KafkaBrokerClient
-from airflow_utils.date import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.message_broker import KafkaBrokerClient
+from airqo_etl_utils.date import (
     date_to_str_hours,
     date_to_str_days,
     date_to_str,
     predict_str_to_date,
     str_to_date,
 )
-from airflow_utils.commons import (
+from airqo_etl_utils.commons import (
     get_airqo_api_frequency,
     resample_data,
 )

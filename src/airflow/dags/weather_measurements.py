@@ -4,11 +4,11 @@ import numpy as np
 import pandas as pd
 from airflow.decorators import dag, task
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.config import configuration
-from airflow_utils.message_broker import KafkaBrokerClient
-from airflow_utils.date import date_to_str_hours
-from airflow_utils.commons import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.message_broker import KafkaBrokerClient
+from airqo_etl_utils.date import date_to_str_hours
+from airqo_etl_utils.commons import (
     get_valid_column_value,
     get_site_ids_from_station,
     resample_data,

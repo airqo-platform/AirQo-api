@@ -1,7 +1,7 @@
 from datetime import datetime
 from airflow.decorators import dag, task
 
-from airflow_utils.commons import slack_dag_failure_notification
+from airqo_etl_utils.commons import slack_dag_failure_notification
 
 
 @dag(
@@ -16,8 +16,8 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_hourly_raw_data(**kwargs):
 
-        from airflow_utils.commons import get_time_values, fill_nan
-        from airflow_utils.airqo_utils import (
+        from airqo_etl_utils.commons import get_time_values, fill_nan
+        from airqo_etl_utils.airqo_utils import (
             extract_airqo_data_from_thingspeak,
             average_airqo_data,
         )
@@ -33,7 +33,7 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_device_deployment_logs():
 
-        from airflow_utils.airqo_utils import extract_airqo_devices_deployment_history
+        from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
 
         logs = extract_airqo_devices_deployment_history()
 
@@ -42,8 +42,8 @@ def historical_hourly_measurements_etl():
     @task()
     def map_site_ids(airqo_data: dict, deployment_logs: dict):
 
-        from airflow_utils.commons import un_fill_nan, fill_nan
-        from airflow_utils.airqo_utils import map_site_ids_to_historical_measurements
+        from airqo_etl_utils.commons import un_fill_nan, fill_nan
+        from airqo_etl_utils.airqo_utils import map_site_ids_to_historical_measurements
 
         data = un_fill_nan(airqo_data.get("data"))
         logs = deployment_logs.get("data")
@@ -57,8 +57,8 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_hourly_weather_data(**kwargs):
 
-        from airflow_utils.commons import get_time_values, fill_nan
-        from airflow_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
+        from airqo_etl_utils.commons import get_time_values, fill_nan
+        from airqo_etl_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
 
         start_time, end_time = get_time_values(**kwargs)
         airqo_weather_data = extract_airqo_weather_data_from_tahmo(
@@ -69,8 +69,8 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def merge_data(averaged_airqo_data: dict, weather_data: dict):
 
-        from airflow_utils.commons import un_fill_nan, fill_nan
-        from airflow_utils.airqo_utils import merge_airqo_and_weather_data
+        from airqo_etl_utils.commons import un_fill_nan, fill_nan
+        from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
 
         hourly_airqo_data = un_fill_nan(averaged_airqo_data.get("data"))
         hourly_weather_data = un_fill_nan(weather_data.get("data"))
@@ -84,8 +84,8 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def calibrate(inputs: dict):
 
-        from airflow_utils.commons import un_fill_nan, fill_nan
-        from airflow_utils.airqo_utils import calibrate_hourly_airqo_measurements
+        from airqo_etl_utils.commons import un_fill_nan, fill_nan
+        from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
 
         data = un_fill_nan(inputs.get("data"))
 
@@ -96,12 +96,12 @@ def historical_hourly_measurements_etl():
     @task()
     def load(airqo_data: dict, **kwargs):
 
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.bigquery_api import BigQueryApi
-        from airflow_utils.airqo_api import AirQoApi
-        from airflow_utils.airqo_utils import restructure_airqo_data
-        from airflow_utils.config import configuration
-        from airflow_utils.message_broker import KafkaBrokerClient
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.config import configuration
+        from airqo_etl_utils.message_broker import KafkaBrokerClient
 
         data = un_fill_nan(airqo_data.get("data"))
 
@@ -164,7 +164,7 @@ def historical_hourly_measurements_etl():
     tags=["airqo", "hourly", "realtime", "raw"],
 )
 def hourly_measurements_etl():
-    from airflow_utils.date import date_to_str_hours
+    from airqo_etl_utils.date import date_to_str_hours
     from datetime import datetime, timedelta
 
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
@@ -174,8 +174,8 @@ def hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_raw_data():
 
-        from airflow_utils.airqo_utils import extract_airqo_data_from_thingspeak
-        from airflow_utils.commons import fill_nan
+        from airqo_etl_utils.airqo_utils import extract_airqo_data_from_thingspeak
+        from airqo_etl_utils.commons import fill_nan
 
         raw_airqo_data = extract_airqo_data_from_thingspeak(
             start_time=start_time, end_time=end_time, all_devices=False
@@ -185,8 +185,8 @@ def hourly_measurements_etl():
     @task(multiple_outputs=True)
     def average_data_by_hour(raw_data: dict):
 
-        from airflow_utils.airqo_utils import average_airqo_data
-        from airflow_utils.commons import fill_nan, un_fill_nan
+        from airqo_etl_utils.airqo_utils import average_airqo_data
+        from airqo_etl_utils.commons import fill_nan, un_fill_nan
 
         raw_airqo_data = un_fill_nan(raw_data.get("data"))
         average_data = average_airqo_data(data=raw_airqo_data, frequency="hourly")
@@ -195,8 +195,8 @@ def hourly_measurements_etl():
 
     @task(multiple_outputs=True)
     def extract_hourly_weather_data():
-        from airflow_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
-        from airflow_utils.commons import fill_nan
+        from airqo_etl_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
+        from airqo_etl_utils.commons import fill_nan
 
         airqo_weather_data = extract_airqo_weather_data_from_tahmo(
             start_time=start_time, end_time=end_time, frequency="hourly"
@@ -206,8 +206,8 @@ def hourly_measurements_etl():
     @task(multiple_outputs=True)
     def merge_data(averaged_hourly_data: dict, weather_data: dict):
 
-        from airflow_utils.airqo_utils import merge_airqo_and_weather_data
-        from airflow_utils.commons import fill_nan, un_fill_nan
+        from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
+        from airqo_etl_utils.commons import fill_nan, un_fill_nan
 
         hourly_airqo_data = un_fill_nan(averaged_hourly_data.get("data"))
         hourly_weather_data = un_fill_nan(weather_data.get("data"))
@@ -227,7 +227,8 @@ def hourly_measurements_etl():
     #         "pyarrow==3.0.0",
     #         "google-cloud-storage==1.41.1",
     #         "scikit_learn==0.24.1",
-    #         "airflow_utils",
+    #         "apache-airflow",
+    #         "airqo_etl_utils",
     #         "pyarrow==3.0.0"
     #     ],
     #     system_site_packages=True,
@@ -236,24 +237,24 @@ def hourly_measurements_etl():
     # )
     @task(multiple_outputs=True)
     def calibrate(inputs: dict):
-        from airflow_utils.commons import (
+        from airqo_etl_utils.commons import (
             fill_nan,
             un_fill_nan,
         )
 
-        from airflow_utils.airqo_utils import calibrate_hourly_airqo_measurements
+        from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
 
         data = un_fill_nan(inputs.get("data"))
 
-        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
+        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data, method="pickle")
 
         return dict({"data": fill_nan(data=airqo_calibrated_data)})
 
     @task()
     def send_hourly_measurements_to_api(airqo_data: dict):
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.airqo_api import AirQoApi
-        from airflow_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
 
         data = un_fill_nan(airqo_data.get("data"))
 
@@ -264,10 +265,10 @@ def hourly_measurements_etl():
     @task()
     def send_hourly_measurements_to_message_broker(airqo_data: dict):
 
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.config import configuration
-        from airflow_utils.message_broker import KafkaBrokerClient
-        from airflow_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.config import configuration
+        from airqo_etl_utils.message_broker import KafkaBrokerClient
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
 
         data = un_fill_nan(airqo_data.get("data"))
         airqo_restructured_data = restructure_airqo_data(
@@ -285,9 +286,9 @@ def hourly_measurements_etl():
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: dict):
 
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.airqo_utils import restructure_airqo_data
-        from airflow_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = un_fill_nan(airqo_data.get("data"))
         airqo_restructured_data = restructure_airqo_data(
@@ -300,9 +301,9 @@ def hourly_measurements_etl():
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: dict):
 
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.airqo_utils import restructure_airqo_data
-        from airflow_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.bigquery_api import BigQueryApi
 
         data = un_fill_nan(airqo_data.get("data"))
         airqo_restructured_data = restructure_airqo_data(
@@ -314,9 +315,9 @@ def hourly_measurements_etl():
 
     @task()
     def send_raw_measurements_to_api(airqo_data: dict):
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.airqo_utils import restructure_airqo_data
-        from airflow_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.airqo_api import AirQoApi
 
         data = un_fill_nan(airqo_data.get("data"))
 
@@ -348,7 +349,7 @@ def hourly_measurements_etl():
 )
 def daily_measurements_etl():
     def time_values(**kwargs):
-        from airflow_utils.date import date_to_str_days
+        from airqo_etl_utils.date import date_to_str_days
         from datetime import datetime, timedelta
 
         try:
@@ -365,8 +366,8 @@ def daily_measurements_etl():
     @task(multiple_outputs=True)
     def extract_airqo_data(**kwargs):
 
-        from airflow_utils.commons import fill_nan
-        from airflow_utils.airqo_utils import extract_airqo_hourly_data_from_api
+        from airqo_etl_utils.commons import fill_nan
+        from airqo_etl_utils.airqo_utils import extract_airqo_hourly_data_from_api
 
         start_time, end_time = time_values(**kwargs)
         data = extract_airqo_hourly_data_from_api(
@@ -378,8 +379,8 @@ def daily_measurements_etl():
     @task(multiple_outputs=True)
     def average_data(inputs: dict):
 
-        from airflow_utils.commons import un_fill_nan, fill_nan
-        from airflow_utils.airqo_utils import average_airqo_measurements
+        from airqo_etl_utils.commons import un_fill_nan, fill_nan
+        from airqo_etl_utils.airqo_utils import average_airqo_measurements
 
         data = un_fill_nan(inputs.get("data"))
         averaged_data = average_airqo_measurements(data=data, frequency="daily")
@@ -388,7 +389,7 @@ def daily_measurements_etl():
 
     @task(multiple_outputs=True)
     def extract_devices_logs():
-        from airflow_utils.airqo_utils import extract_airqo_devices_deployment_history
+        from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
 
         logs = extract_airqo_devices_deployment_history()
 
@@ -397,9 +398,9 @@ def daily_measurements_etl():
     @task()
     def load(airqo_data: dict):
 
-        from airflow_utils.commons import un_fill_nan
-        from airflow_utils.airqo_api import AirQoApi
-        from airflow_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
 
         data = un_fill_nan(airqo_data.get("data"))
 

@@ -1,6 +1,6 @@
 import pandas as pd
 from google.cloud import bigquery
-from airflow_utils.config import configuration
+from airqo_etl_utils.config import configuration
 
 
 class BigQueryApi:

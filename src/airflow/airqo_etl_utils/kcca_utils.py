@@ -4,20 +4,21 @@ import numpy as np
 import pandas as pd
 import requests
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.bigquery_api import BigQueryApi
-from airflow_utils.config import configuration
-from airflow_utils.date import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import (
     date_to_str,
     str_to_date,
     frequency_time,
 )
-from airflow_utils.commons import (
+from airqo_etl_utils.commons import (
     get_valid_column_value,
     to_double,
     get_site_and_device_id,
     get_column_value,
 )
+
 
 
 def query_kcca_measurements(frequency: str, start_time: str, end_time: str):

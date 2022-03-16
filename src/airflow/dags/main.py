@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
-from airflow_utils.airqo_utils import (
+from airqo_etl_utils.airqo_utils import (
     extract_airqo_data_from_thingspeak,
     average_airqo_data,
     extract_airqo_weather_data_from_tahmo,
@@ -11,8 +11,8 @@ from airflow_utils.airqo_utils import (
     calibrate_hourly_airqo_measurements,
     restructure_airqo_data,
 )
-from airflow_utils.date import date_to_str_hours
-from airflow_utils.kcca_utils import (
+from airqo_etl_utils.date import date_to_str_hours
+from airqo_etl_utils.kcca_utils import (
     extract_kcca_measurements,
     transform_kcca_measurements_for_api,
     transform_kcca_data_for_message_broker,

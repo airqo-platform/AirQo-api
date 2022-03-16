@@ -1,7 +1,7 @@
 from datetime import datetime
 from airflow.decorators import dag, task
 
-from airflow_utils.commons import slack_dag_failure_notification
+from airqo_etl_utils.commons import slack_dag_failure_notification
 
 
 @dag(
@@ -16,7 +16,7 @@ def app_forecast_insights_etl():
     @task(multiple_outputs=True)
     def extract_forecast_data():
 
-        from airflow_utils.app_insights_utils import (
+        from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_forecast_data,
         )
@@ -28,7 +28,7 @@ def app_forecast_insights_etl():
 
     @task()
     def load(data: dict):
-        from airflow_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
@@ -49,7 +49,7 @@ def app_daily_insights_etl():
     @task(multiple_outputs=True)
     def extract_airqo_data(**kwargs):
 
-        from airflow_utils.app_insights_utils import (
+        from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_airqo_data,
             time_values,
@@ -78,7 +78,7 @@ def app_daily_insights_etl():
 
     @task()
     def load(data: dict):
-        from airflow_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
@@ -98,7 +98,7 @@ def app_daily_insights_etl():
 def app_hourly_insights_etl():
     @task(multiple_outputs=True)
     def extract_airqo_data(**kwargs):
-        from airflow_utils.app_insights_utils import (
+        from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_airqo_data,
             time_values,
@@ -114,7 +114,7 @@ def app_hourly_insights_etl():
 
     @task()
     def load_hourly_insights(data: dict):
-        from airflow_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
         save_insights_data(insights_data=insights_data, action="save")
@@ -135,8 +135,8 @@ def insights_cleanup_etl():
     @task()
     def load_place_holders():
 
-        from airflow_utils.airqo_api import AirQoApi
-        from airflow_utils.date import (
+        from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.date import (
             date_to_str_hours,
             date_to_str_days,
             first_day_of_week,
@@ -144,7 +144,7 @@ def insights_cleanup_etl():
             first_day_of_month,
             last_day_of_month,
         )
-        from airflow_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.app_insights_utils import save_insights_data
         import random
         import pandas as pd
 
@@ -199,13 +199,13 @@ def insights_cleanup_etl():
     @task()
     def delete_old_insights():
 
-        from airflow_utils.date import (
+        from airqo_etl_utils.date import (
             first_day_of_week,
             last_day_of_week,
             first_day_of_month,
             last_day_of_month,
         )
-        from airflow_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.app_insights_utils import save_insights_data
         from datetime import datetime, timedelta
 
         start_time = first_day_of_week(
