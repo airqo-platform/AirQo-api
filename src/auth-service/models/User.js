@@ -100,7 +100,9 @@ const UserSchema = new Schema({
   profilePicture: {
     type: String,
   },
-});
+},
+   { timestamps: true },
+);
 
 UserSchema.pre("save", function (next) {
   if (this.isModified("password")) {
@@ -321,6 +323,8 @@ UserSchema.methods = {
       profilePicture: this.profilePicture,
       phoneNumber: this.phoneNumber,
       description: this.description,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
     };
   },
 };

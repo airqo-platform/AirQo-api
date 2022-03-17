@@ -47,9 +47,16 @@ class Transformation:
 
             update = dict({
                 "search_name": site_dict.get("search_name"),
-                "lat_long": site_dict.get("lat_long"),
+                "location_name": site_dict.get("location_name"),
                 "tenant": self.tenant,
             })
+
+            if "lat_long" in site_dict.keys():
+                update["lat_long"] = site_dict.get("lat_long")
+            elif "id" in site_dict.keys():
+                update["id"] = site_dict.get("id")
+            else:
+                raise Exception("Missing unique key")
             updated_site_names.append(update)
 
         self.airqo_api.update_sites(updated_site_names)

@@ -139,3 +139,11 @@ spec:
             backend:
               serviceName: airqo-datawarehouse-api-svc
               servicePort: 4001
+          - path: /api/v1/view
+            backend:
+              serviceName: airqo-view-api-svc
+              servicePort: 8080
+          - path: /api/v1/views
+            backend:
+              serviceName: airqo-view-api-svc
+              servicePort: 8081

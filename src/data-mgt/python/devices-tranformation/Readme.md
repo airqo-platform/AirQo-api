@@ -68,6 +68,14 @@ Update sites to include the nearest Tahmo Station.
 ```
 
 ## Update sites search names based on csv file
+Updates the `search_name` and `location_name` of sites. You must add to this directory a `sites.csv` file containing `search_name`, `location_name` and either `lat_long` or `id` of the sites to  be updated.
+
+Sample `sites.csv` file
+
+| id         | search_name   | location_name   |
+|------------|---------------|-----------------|
+| site_01_id | Masaka        | Central, Uganda |
+| site_02_id | AirQo Offices | Kampala, Uganda |
 
 ```bash
     python main.py update_site_search_names
