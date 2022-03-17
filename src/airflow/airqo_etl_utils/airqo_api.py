@@ -177,13 +177,18 @@ class AirQoApi:
         )
         return response
 
-    def get_sites(self, tenant) -> list:
-        response = self.__request("devices/sites", {"tenant": tenant})
-
-        if "sites" in response:
-            return response["sites"]
-
-        return []
+    def get_sites(self, tenant=None) -> list:
+        if tenant:
+            response = self.__request("devices/sites", {"tenant": tenant})
+            if "sites" in response:
+                return response["sites"]
+        else:
+            sites = []
+            for x in ["airqo", "kcca"]:
+                response = self.__request("devices/sites", {"tenant": x})
+                if "sites" in response:
+                    sites.extend(response["sites"])
+            return sites
 
     def __request(self, endpoint, params=None, body=None, method=None, version="v1"):
 

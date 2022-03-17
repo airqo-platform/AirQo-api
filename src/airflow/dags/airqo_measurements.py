@@ -246,7 +246,7 @@ def hourly_measurements_etl():
 
         data = un_fill_nan(inputs.get("data"))
 
-        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data, method="pickle")
+        airqo_calibrated_data = calibrate_hourly_airqo_measurements(measurements=data)
 
         return dict({"data": fill_nan(data=airqo_calibrated_data)})
 

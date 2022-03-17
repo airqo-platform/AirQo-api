@@ -813,8 +813,8 @@ def calibrate_using_pickle_file(measurements: list) -> list:
         destination_file="pm10_model.pkl",
     )
 
-    rf_regressor = pickle.load(open(pm_2_5_model_file, 'rb'))
-    lasso_regressor = pickle.load(open(pm_10_model_file, 'rb'))
+    rf_regressor = pickle.load(open(pm_2_5_model_file, "rb"))
+    lasso_regressor = pickle.load(open(pm_10_model_file, "rb"))
 
     # with open(pm_2_5_model_file, "rb") as f:
     #     rf_regressor = pickle.load(f)

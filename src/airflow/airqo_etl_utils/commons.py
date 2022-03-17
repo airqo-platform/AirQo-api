@@ -129,7 +129,10 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     data = data.dropna(subset=["time"])
     data["time"] = pd.to_datetime(data["time"])
     data = data.sort_index(axis=0)
-    original_df = data[["time", "latitude", "longitude"]]
+    if "latitude" in data.columns and "longitude" in data.columns:
+        original_df = data[["time", "latitude", "longitude"]]
+    else:
+        original_df = data[["time"]]
 
     resample_value = "24H" if frequency.lower() == "daily" else "1H"
     averages = pd.DataFrame(data.resample(resample_value, on="time").mean())
@@ -145,22 +148,24 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     else:
         original_df["time"] = original_df["time"].apply(lambda x: date_to_str(x))
 
-    def reset_latitude_or_longitude(time: str, field: str):
-        date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
-        if date_row.empty:
-            return time
-        return (
-            date_row.iloc[0]["latitude"]
-            if field == "latitude"
-            else date_row.iloc[0]["longitude"]
-        )
+    if "latitude" in original_df.columns and "longitude" in original_df.columns:
 
-    averages["latitude"] = averages.apply(
-        lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
-    )
-    averages["longitude"] = averages.apply(
-        lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
-    )
+        def reset_latitude_or_longitude(time: str, field: str):
+            date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
+            if date_row.empty:
+                return time
+            return (
+                date_row.iloc[0]["latitude"]
+                if field == "latitude"
+                else date_row.iloc[0]["longitude"]
+            )
+
+        averages["latitude"] = averages.apply(
+            lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
+        )
+        averages["longitude"] = averages.apply(
+            lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
+        )
 
     return averages
 

@@ -20,7 +20,6 @@ from airqo_etl_utils.commons import (
 )
 
 
-
 def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
     api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?startTime={start_time}&endTime={end_time}"
 
