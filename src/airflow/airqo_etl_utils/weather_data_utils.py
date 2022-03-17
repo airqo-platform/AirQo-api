@@ -92,7 +92,7 @@ def resample_weather_data(data: list, frequency: str):
                 lambda left, right: pd.merge(left, right, on=["time"], how="outer"),
                 data_frames,
             )
-            station_df["frequency"] = frequency
+
             station_df["station_code"] = station
             station_df["humidity"] = station_df["humidity"].apply(lambda x: x * 100)
 
@@ -121,7 +121,7 @@ def add_site_info_to_weather_data(data: list) -> list:
                     weather_data["station_code"]
                     == site["nearest_tahmo_station"]["code"]
                 ]
-                site_weather_data["site"] = site["_id"]
+                site_weather_data["site_id"] = site["_id"]
                 site_weather_data["tenant"] = sites_tenant
                 del site_weather_data["station_code"]
                 sites_weather_data.extend(site_weather_data.to_dict(orient="records"))
@@ -156,12 +156,12 @@ def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -
     for date in dates:
 
         start = date_to_str(date)
-        end_date_time = date + timedelta(hours=dates.freq.n)
+        new_end_date_time = date + timedelta(hours=dates.freq.n)
 
-        if np.datetime64(end_date_time) > last_date_time:
+        if np.datetime64(new_end_date_time) > last_date_time:
             end = end_date_time
         else:
-            end = date_to_str(end_date_time)
+            end = date_to_str(new_end_date_time)
 
         print(f"{start} + ' : ' + {end}")
 
@@ -185,13 +185,14 @@ def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -
 
 
 def extract_weather_data_from_tahmo(
-    start_date_time: str, end_date_time: str, frequency="hourly"
+    start_date_time: str, end_date_time: str, frequency="hourly", tenant=None
 ) -> list:
     raw_weather_data = query_weather_data_from_tahmo(
-        start_date_time=start_date_time, end_date_time=end_date_time
+        start_date_time=start_date_time, end_date_time=end_date_time, tenant=tenant
     )
     resampled_weather_data = resample_weather_data(
-        data=raw_weather_data, frequency=frequency
+        data=raw_weather_data,
+        frequency=frequency,
     )
     sites_weather_data = add_site_info_to_weather_data(data=resampled_weather_data)
 

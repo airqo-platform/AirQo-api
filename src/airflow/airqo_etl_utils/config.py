@@ -1,14 +1,8 @@
 import os
-from pathlib import Path
 
 import urllib3
-from dotenv import load_dotenv
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-BASE_DIR = Path(__file__).resolve().parent
-dotenv_path = os.path.join(BASE_DIR, ".env")
-load_dotenv(dotenv_path)
 
 
 class Config:
@@ -21,6 +15,7 @@ class Config:
     THINGSPEAK_CHANNEL_URL = os.getenv("THINGSPEAK_CHANNEL_URL")
 
     BIGQUERY_HOURLY_EVENTS_TABLE = os.getenv("BIGQUERY_HOURLY_EVENTS_TABLE")
+    BIGQUERY_HOURLY_WEATHER_TABLE = os.getenv("BIGQUERY_HOURLY_WEATHER_TABLE")
     BIGQUERY_RAW_EVENTS_TABLE = os.getenv("BIGQUERY_RAW_EVENTS_TABLE")
 
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)

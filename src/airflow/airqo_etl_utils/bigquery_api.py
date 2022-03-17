@@ -7,6 +7,7 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.hourly_measurements_numeric_columns = [
             "device_number",
             "latitude",
@@ -29,6 +30,17 @@ class BigQueryApi:
             "wind_speed",
             "altitude",
         ]
+        self.hourly_weather_numeric_columns = [
+            "temperature",
+            "humidity",
+            "wind_speed",
+            "atmospheric_pressure",
+            "radiation",
+            "vapor_pressure",
+            "wind_gusts",
+            "precipitation",
+            "wind_direction",
+        ]
         self.hourly_measurements_columns = [
             "time",
             "tenant",
@@ -36,11 +48,17 @@ class BigQueryApi:
             "device",
         ] + self.hourly_measurements_numeric_columns
 
+        self.hourly_weather_columns = [
+            "time",
+            "tenant",
+            "site_id",
+        ] + self.hourly_weather_numeric_columns
+
     def save_hourly_measurements(self, measurements: list) -> None:
 
         dataframe = pd.DataFrame(measurements)
 
-        if list(dataframe.columns) != self.hourly_measurements_columns:
+        if sorted(list(dataframe.columns)) != sorted(self.hourly_measurements_columns):
             print(f"Required columns {self.hourly_measurements_columns}")
             print(f"Dataframe columns {list(dataframe.columns)}")
             raise Exception("Invalid columns")
@@ -60,6 +78,38 @@ class BigQueryApi:
         job.result()
 
         table = self.client.get_table(self.hourly_measurements_table)
+        print(
+            "Loaded {} rows and {} columns to {}".format(
+                table.num_rows, len(table.schema), table.friendly_name
+            )
+        )
+
+    def save_hourly_weather_measurements(self, measurements: list) -> None:
+
+        dataframe = pd.DataFrame(measurements)
+
+        if sorted(list(dataframe.columns)) != sorted(self.hourly_weather_columns):
+            print(f"Required columns {self.hourly_weather_columns}")
+            print(f"Dataframe columns {list(dataframe.columns)}")
+            raise Exception("Invalid columns")
+
+        dataframe = pd.DataFrame(measurements, columns=self.hourly_weather_columns)
+
+        dataframe["time"] = pd.to_datetime(dataframe["time"])
+        dataframe[self.hourly_weather_numeric_columns] = dataframe[
+            self.hourly_weather_numeric_columns
+        ].apply(pd.to_numeric, errors="coerce")
+
+        job_config = bigquery.LoadJobConfig(
+            write_disposition="WRITE_APPEND",
+        )
+
+        job = self.client.load_table_from_dataframe(
+            dataframe, self.hourly_weather_table, job_config=job_config
+        )
+        job.result()
+
+        table = self.client.get_table(self.hourly_weather_table)
         print(
             "Loaded {} rows and {} columns to {}".format(
                 table.num_rows, len(table.schema), table.friendly_name
