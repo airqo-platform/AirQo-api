@@ -656,7 +656,7 @@ const createDevice = {
         try {
           await kafkaProducer.connect();
           await kafkaProducer.send({
-            topic: "devices-topic",
+            topic: constants.DEVICES_TOPIC,
             messages: [
               {
                 action: "create",

@@ -1,7 +1,3 @@
-const { logElement } = require("../utils/log");
-const isEmpty = require("is-empty");
-const { Schema, model } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
 const {
   generateDateFormatWithoutHrs,
   monthsInfront,
@@ -50,6 +46,13 @@ const stageConfig = {
 };
 
 const defaultConfig = {
+  SITES_TOPIC: process.env.SITES_TOPIC,
+  DEVICES_TOPIC: process.env.DEVICES_TOPIC,
+  LOCATIONS_TOPIC: process.env.LOCATIONS_TOPIC,
+  SENSORS_TOPIC: process.env.SENSORS_TOPIC,
+  AIRQLOUDS_TOPIC: process.env.AIRQLOUDS_TOPIC,
+  ACTIVITIES_TOPIC: process.env.ACTIVITIES_TOPIC,
+  PHOTOS_TOPIC: process.env.PHOTOS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
   TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,
@@ -78,35 +81,35 @@ const defaultConfig = {
     const endDate = generateDateFormatWithoutHrs(today);
     const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
     if (path === "greenness") {
-      return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+      return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
-    return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
+    return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
   },
   GET_ADDRESS_URL: (lat, long) => {
-    return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
+    return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
   GET_ELEVATION_URL: (lat, long) => {
-    return `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
+    return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
-  CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  CREATE_THING_URL: `${process.env.THINGSPEAK_BASE_URL}/channels.json?api_key=${process.env.TS_API_KEY}`,
   DELETE_THING_URL: (device) => {
-    return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   CLEAR_THING_URL: (device) => {
-    return `https://api.thingspeak.com/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
   },
   UPDATE_THING: (device) => {
-    return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   ADD_VALUE: (field, value, apiKey) => {
-    return `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/update.json?api_key=${apiKey}&${field}=${value}`;
   },
-  ADD_VALUE_JSON: `https://api.thingspeak.com/update.json`,
+  ADD_VALUE_JSON: `${process.env.THINGSPEAK_BASE_URL}/update.json`,
   BULK_ADD_VALUES_JSON: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel}/bulk_update.json`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${channel}/bulk_update.json`;
   },
   ADD_VALUES: (device) => {
-    return `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}/bulk_update.json`;
   },
   JWT_SECRET: process.env.JWT_SECRET,
   REGION: "europe-west1",

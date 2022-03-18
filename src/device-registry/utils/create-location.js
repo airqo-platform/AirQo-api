@@ -49,7 +49,7 @@ const createLocation = {
         try {
           await kafkaProducer.connect();
           await kafkaProducer.send({
-            topic: "locations-topic",
+            topic: constants.LOCATIONS_TOPIC,
             messages: [
               {
                 action: "create",

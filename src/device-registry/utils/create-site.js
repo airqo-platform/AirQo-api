@@ -444,7 +444,7 @@ const manageSite = {
         try {
           await kafkaProducer.connect();
           await kafkaProducer.send({
-            topic: "sites-topic",
+            topic: constants.SITES_TOPIC,
             messages: [
               {
                 action: "create",

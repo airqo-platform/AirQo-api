@@ -15,6 +15,7 @@ const createLocationUtil = require("./create-location");
 const geolib = require("geolib");
 const httpStatus = require("http-status");
 const { kafkaProducer } = require("../config/kafkajs");
+const constants = require("../config/constants");
 
 const createAirqloud = {
   initialIsCapital: (word) => {
@@ -149,7 +150,7 @@ const createAirqloud = {
         try {
           await kafkaProducer.connect();
           await kafkaProducer.send({
-            topic: "airqlouds-topic",
+            topic: constants.AIRQLOUDS_TOPIC,
             messages: [
               {
                 action: "create",

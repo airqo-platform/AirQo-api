@@ -10,6 +10,7 @@ const httpStatus = require("http-status");
 const { addMonthsToProvideDateTime } = require("./date");
 const { kafkaProducer } = require("../config/kafkajs");
 const generateFilter = require("./generate-filter");
+const constants = require("../config/constants");
 
 const createActivity = {
   create: async (request) => {
@@ -293,7 +294,7 @@ const createActivity = {
               try {
                 await kafkaProducer.connect();
                 await kafkaProducer.send({
-                  topic: "activities-topic",
+                  topic: constants.ACTIVITIES_TOPIC,
                   messages: [
                     {
                       action: "create",
