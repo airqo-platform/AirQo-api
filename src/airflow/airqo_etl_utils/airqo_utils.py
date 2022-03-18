@@ -63,7 +63,6 @@ def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
             print(ex)
 
     device_measurements = pd.json_normalize(hourly_events)
-    columns = device_measurements.columns
     column_mappings = {
         "internalTemperature.value": "internalTemperature",
         "internalHumidity.value": "internalHumidity",
@@ -81,11 +80,9 @@ def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
         "average_pm2_5.calibratedValue": "calibrated_pm2_5",
     }
 
-    for col in columns:
-        device_measurements[column_mappings[col]] = device_measurements[col]
-        device_measurements = device_measurements.drop(columns[col])
+    device_measurements.rename(columns=column_mappings, inplace=True)
 
-    return hourly_events
+    return device_measurements.to_dict(orient="records")
 
 
 def extract_airqo_devices_deployment_history() -> list:

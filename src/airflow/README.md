@@ -1,11 +1,11 @@
 # Apache Airflow
 
-This folder contains functionality for running apache airlfow, an open-source workflow management platform for data engineering pipelines.
+This folder contains functionality for running apache airflow, an open-source workflow management platform for data engineering pipelines.
 
 ## Environment Setup
 
-Add [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing) to the `dags` folder
-and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) file to this directory.
+Add your [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing)
+and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) files to this directory.
 
 ## Running the utility functions
 
@@ -62,9 +62,7 @@ python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
 
 - Docker
 - Docker compose
-
-Add [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing) to the `dags` folder
-and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) file to this directory.
+- You have setup your environment using the [Environment Setup](#environment-setup)  instructions.
 
 ### Starting all containers
 

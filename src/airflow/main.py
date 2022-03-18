@@ -39,30 +39,38 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
 
 
 def data_warehouse(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.bigquery_api import (
-        BigQueryApi,
+    from airqo_etl_utils.data_warehouse_utils import (
+        query_hourly_measurements,
+        query_hourly_weather_data,
+        extract_sites_meta_data,
+        merge_measurements_weather_sites,
     )
 
-    big_query_api = BigQueryApi()
-    hourly_device_measurements = big_query_api.get_data(
+    hourly_device_measurements = query_hourly_measurements(
         start_date_time=start_date_time,
-        source="measurements",
         end_date_time=end_date_time,
-        columns=["time", "tenant", "site_id"],
     )
-
     pd.DataFrame(hourly_device_measurements).to_csv(
         path_or_buf="hourly_device_measurements.csv", index=False
     )
-    hourly_weather_measurements = big_query_api.get_data(
+
+    hourly_weather_measurements = query_hourly_weather_data(
         start_date_time=start_date_time,
-        source="weather",
         end_date_time=end_date_time,
-        columns=["time", "tenant", "site_id"],
     )
     pd.DataFrame(hourly_weather_measurements).to_csv(
         path_or_buf="hourly_weather_measurements.csv", index=False
     )
+
+    sites_meta_data = extract_sites_meta_data()
+    pd.DataFrame(sites_meta_data).to_csv(path_or_buf="sites_meta_data.csv", index=False)
+
+    data = merge_measurements_weather_sites(
+        measurements_data=hourly_device_measurements,
+        weather_data=hourly_weather_measurements,
+        sites=sites_meta_data,
+    )
+    pd.DataFrame(data).to_csv(path_or_buf="data.csv", index=False)
 
 
 def kcca_historical_hourly_measurements(start_date_time: str, end_date_time: str):
@@ -222,6 +230,7 @@ if __name__ == "__main__":
         weather_data(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
+
     elif action == "data_warehouse":
         data_warehouse(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
