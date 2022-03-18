@@ -11,7 +11,6 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
-
 sys.path.append("/")
 
 
@@ -21,12 +20,6 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         transform_kcca_measurements_for_api,
         transform_kcca_data_for_message_broker,
     )
-    from airqo_etl_utils.date import date_to_str_hours
-
-    if start_date_time == "" or end_date_time == "":
-        hour_of_day = datetime.utcnow() - timedelta(hours=3)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     kcca_unclean_data = extract_kcca_measurements(
         start_time=start_date_time, end_time=end_date_time, freq="hourly"
@@ -45,17 +38,38 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     )
 
 
+def data_warehouse(start_date_time: str, end_date_time: str):
+    from airqo_etl_utils.bigquery_api import (
+        BigQueryApi,
+    )
+
+    big_query_api = BigQueryApi()
+    hourly_device_measurements = big_query_api.get_data(
+        start_date_time=start_date_time,
+        source="measurements",
+        end_date_time=end_date_time,
+        columns=["time", "tenant", "site_id"],
+    )
+
+    pd.DataFrame(hourly_device_measurements).to_csv(
+        path_or_buf="hourly_device_measurements.csv", index=False
+    )
+    hourly_weather_measurements = big_query_api.get_data(
+        start_date_time=start_date_time,
+        source="weather",
+        end_date_time=end_date_time,
+        columns=["time", "tenant", "site_id"],
+    )
+    pd.DataFrame(hourly_weather_measurements).to_csv(
+        path_or_buf="hourly_weather_measurements.csv", index=False
+    )
+
+
 def kcca_historical_hourly_measurements(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.kcca_utils import (
         extract_kcca_measurements,
         transform_kcca_hourly_data_for_bigquery,
     )
-    from airqo_etl_utils.date import date_to_str_hours
-
-    if start_date_time == "" or end_date_time == "":
-        hour_of_day = datetime.utcnow() - timedelta(hours=5)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     kcca_unclean_data = extract_kcca_measurements(
         start_time=start_date_time, end_time=end_date_time, freq="hourly"
@@ -68,66 +82,6 @@ def kcca_historical_hourly_measurements(start_date_time: str, end_date_time: str
     pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
 
 
-def data_warehouse(start_date_time: str, end_date_time: str, tenant: str):
-    from airqo_etl_utils.airqo_utils import (
-        extract_airqo_data_from_thingspeak,
-        average_airqo_data,
-        extract_airqo_weather_data_from_tahmo,
-        merge_airqo_and_weather_data,
-        calibrate_hourly_airqo_measurements,
-        restructure_airqo_data,
-    )
-
-    from airqo_etl_utils.date import date_to_str_hours
-
-    if start_date_time == "" or end_date_time == "":
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
-
-    # extract_airqo_data
-    raw_airqo_data = extract_airqo_data_from_thingspeak(
-        start_time=start_date_time, end_time=end_date_time, all_devices=False
-    )
-    pd.DataFrame(raw_airqo_data).to_csv(path_or_buf="raw_airqo_data.csv", index=False)
-    average_data = average_airqo_data(data=raw_airqo_data, frequency="hourly")
-    pd.DataFrame(average_data).to_csv(
-        path_or_buf="averaged_airqo_data.csv", index=False
-    )
-
-    # extract_weather_data
-    airqo_weather_data = extract_airqo_weather_data_from_tahmo(
-        start_time=start_date_time, end_time=end_date_time
-    )
-    pd.DataFrame(airqo_weather_data).to_csv(
-        path_or_buf="tahmo_weather_data.csv", index=False
-    )
-
-    # merge_data
-    merged_measurements = merge_airqo_and_weather_data(
-        airqo_data=average_data, weather_data=airqo_weather_data
-    )
-    pd.DataFrame(merged_measurements).to_csv(
-        path_or_buf="merged_airqo_data.csv", index=False
-    )
-
-    # calibrate data
-    calibrated_data = calibrate_hourly_airqo_measurements(
-        measurements=merged_measurements
-    )
-    pd.DataFrame(calibrated_data).to_csv(
-        path_or_buf="calibrated_airqo_data.csv", index=False
-    )
-
-    # restructure data for bigquery
-    restructure_data = restructure_airqo_data(
-        data=calibrated_data, destination="bigquery"
-    )
-    pd.DataFrame(restructure_data).to_csv(
-        path_or_buf="airqo_data_for_bigquery.csv", index=False
-    )
-
-
 def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.airqo_utils import (
         extract_airqo_data_from_thingspeak,
@@ -137,12 +91,6 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
         calibrate_hourly_airqo_measurements,
         restructure_airqo_data,
     )
-    from airqo_etl_utils.date import date_to_str_hours
-
-    if start_date_time == "" or end_date_time == "":
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
-        start_date_time = date_to_str_hours(hour_of_day)
-        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     # extract_airqo_data
     raw_airqo_data = extract_airqo_data_from_thingspeak(
@@ -219,10 +167,6 @@ def weather_data(start_date_time: str, end_date_time: str):
         add_site_info_to_weather_data,
     )
 
-    if not start_date_time or not end_date_time:
-        start_date_time = "2020-01-01T16:00:00Z"
-        end_date_time = "2020-01-01T17:00:00Z"
-
     raw_weather_data = query_weather_data_from_tahmo(
         start_date_time=start_date_time, end_date_time=end_date_time
     )
@@ -256,24 +200,39 @@ if __name__ == "__main__":
         )
 
     action = args[0]
-    start_time = ""
-    end_time = ""
+    arg_start_date_time = ""
+    arg_end_date_time = ""
 
     if len(args) >= 3:
-        start_time = args[1]
-        end_time = args[2]
+        arg_start_date_time = args[1]
+        arg_end_date_time = args[2]
+
+    if arg_start_date_time == "" or arg_end_date_time == "":
+        from airqo_etl_utils.date import date_to_str_hours
+
+        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+        arg_start_date_time = date_to_str_hours(hour_of_day)
+        arg_end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
     if action == "airqo_hourly_data":
-        airqo_hourly_measurements(start_date_time=start_time, end_date_time=end_time)
+        airqo_hourly_measurements(
+            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
+        )
     elif action == "weather_data":
-        weather_data(start_date_time=start_time, end_date_time=end_time)
+        weather_data(
+            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
+        )
     elif action == "data_warehouse":
-        kcca_hourly_measurements(start_date_time=start_time, end_date_time=end_time)
+        data_warehouse(
+            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
+        )
     elif action == "kcca_hourly_data":
-        kcca_hourly_measurements(start_date_time=start_time, end_date_time=end_time)
-    elif kcca_hourly_measurements == "kcca_historical_hourly_data":
+        kcca_hourly_measurements(
+            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
+        )
+    elif action == "kcca_historical_hourly_data":
         kcca_historical_hourly_measurements(
-            start_date_time=start_time, end_date_time=end_time
+            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
     elif action == "insights_data":
         insights_data()

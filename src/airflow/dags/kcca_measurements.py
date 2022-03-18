@@ -208,9 +208,9 @@ def historical_hourly_measurements_etl():
     def extract(**kwargs):
 
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
-        from airqo_etl_utils.commons import fill_nan, get_time_values
+        from airqo_etl_utils.commons import fill_nan, get_date_time_values
 
-        start_time, end_time = get_time_values(**kwargs)
+        start_time, end_time = get_date_time_values(**kwargs)
         kcca_data = extract_kcca_measurements(
             start_time=start_time, end_time=end_time, freq="hourly"
         )

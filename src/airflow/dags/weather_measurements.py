@@ -16,9 +16,9 @@ def historical_hourly_weather_measurements_etl():
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,
         )
-        from airqo_etl_utils.commons import fill_nan, get_time_values
+        from airqo_etl_utils.commons import fill_nan, get_date_time_values
 
-        start_date_time, end_date_time = get_time_values(**kwargs)
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
         weather_data = extract_weather_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time
         )

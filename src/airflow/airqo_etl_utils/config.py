@@ -6,8 +6,6 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class Config:
-    ENVIRONMENT = os.getenv("ENVIRONMENT", "DEVELOPMENT")
-
     CLARITY_API_KEY = os.getenv("CLARITY_API_KEY")
     CLARITY_API_BASE_URL = os.getenv("CLARITY_API_BASE_URL")
 
@@ -35,31 +33,10 @@ class Config:
     INSIGHTS_MEASUREMENTS_TOPIC = os.getenv("INSIGHTS_MEASUREMENTS_TOPIC")
     HOURLY_MEASUREMENTS_TOPIC = os.getenv("HOURLY_MEASUREMENTS_TOPIC")
 
-
-class ProductionConfig(Config):
-    AIRQO_BASE_URL = os.getenv("PROD_AIRQO_BASE_URL")
-    AIRQO_BASE_URL_V2 = os.getenv("PROD_AIRQO_BASE_URL_V2")
-    AIRQO_API_KEY = os.getenv("PROD_AIRQO_API_KEY")
-
-
-class StagingConfig(Config):
-    AIRQO_BASE_URL = os.getenv("STAGE_AIRQO_BASE_URL")
-    AIRQO_BASE_URL_V2 = os.getenv("STAGE_AIRQO_BASE_URL_V2")
-    AIRQO_API_KEY = os.getenv("STAGE_AIRQO_API_KEY")
+    AIRQO_BASE_URL = os.getenv("AIRQO_BASE_URL")
+    CALIBRATION_BASE_URL = os.getenv("CALIBRATION_BASE_URL")
+    AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
+    AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
 
 
-class DevelopmentConfig(Config):
-    AIRQO_BASE_URL = "https://localhost:3000/api/v1/"
-    AIRQO_API_KEY = ""
-
-
-app_config = {
-    "development": DevelopmentConfig(),
-    "production": ProductionConfig(),
-    "staging": StagingConfig(),
-}
-
-environment = os.getenv("ENVIRONMENT")
-print("ENVIRONMENT", environment or "development", sep=" : ")
-
-configuration = app_config.get(environment, DevelopmentConfig())
+configuration = Config()

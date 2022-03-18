@@ -16,13 +16,13 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_hourly_raw_data(**kwargs):
 
-        from airqo_etl_utils.commons import get_time_values, fill_nan
+        from airqo_etl_utils.commons import get_date_time_values, fill_nan
         from airqo_etl_utils.airqo_utils import (
             extract_airqo_data_from_thingspeak,
             average_airqo_data,
         )
 
-        start_time, end_time = get_time_values(**kwargs)
+        start_time, end_time = get_date_time_values(**kwargs)
         raw_airqo_data = extract_airqo_data_from_thingspeak(
             start_time=start_time, end_time=end_time, all_devices=True
         )
@@ -57,10 +57,10 @@ def historical_hourly_measurements_etl():
     @task(multiple_outputs=True)
     def extract_hourly_weather_data(**kwargs):
 
-        from airqo_etl_utils.commons import get_time_values, fill_nan
+        from airqo_etl_utils.commons import get_date_time_values, fill_nan
         from airqo_etl_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
 
-        start_time, end_time = get_time_values(**kwargs)
+        start_time, end_time = get_date_time_values(**kwargs)
         airqo_weather_data = extract_airqo_weather_data_from_tahmo(
             start_time=start_time, end_time=end_time, frequency="hourly"
         )

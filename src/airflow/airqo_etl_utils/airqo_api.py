@@ -9,6 +9,7 @@ from airqo_etl_utils.config import configuration
 class AirQoApi:
     def __init__(self):
         self.AIRQO_BASE_URL = configuration.AIRQO_BASE_URL
+        self.CALIBRATION_BASE_URL = configuration.CALIBRATION_BASE_URL
         self.AIRQO_BASE_URL_V2 = configuration.AIRQO_BASE_URL_V2
         self.AIRQO_API_KEY = f"JWT {configuration.AIRQO_API_KEY}"
 
@@ -42,6 +43,11 @@ class AirQoApi:
 
     def get_calibrated_values(self, time: str, calibrate_body: list) -> list:
         calibrated_data = []
+        base_url = (
+            self.CALIBRATION_BASE_URL
+            if self.CALIBRATION_BASE_URL
+            else self.AIRQO_BASE_URL
+        )
         for i in range(
             0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
         ):
@@ -81,8 +87,9 @@ class AirQoApi:
                     print(ex)
 
             endpoint = "calibrate"
+
             response = self.__request(
-                endpoint=endpoint, method="post", body=request_body
+                endpoint=endpoint, method="post", body=request_body, base_url=base_url
             )
 
             if response is not None:
@@ -190,11 +197,16 @@ class AirQoApi:
                     sites.extend(response["sites"])
             return sites
 
-    def __request(self, endpoint, params=None, body=None, method=None, version="v1"):
+    def __request(
+        self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
+    ):
 
-        base_url = (
-            self.AIRQO_BASE_URL_V2 if version.lower() == "v2" else self.AIRQO_BASE_URL
-        )
+        if base_url is None:
+            base_url = (
+                self.AIRQO_BASE_URL_V2
+                if version.lower() == "v2"
+                else self.AIRQO_BASE_URL
+            )
 
         headers = {"Authorization": self.AIRQO_API_KEY}
         if method is None or method == "get":
