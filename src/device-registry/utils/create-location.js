@@ -47,7 +47,6 @@ const createLocation = {
           : "";
 
         try {
-          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.LOCATIONS_TOPIC,
             messages: [
@@ -57,8 +56,6 @@ const createLocation = {
               },
             ],
           });
-
-          await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error);
         }

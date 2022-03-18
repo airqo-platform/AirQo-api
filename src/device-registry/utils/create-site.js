@@ -442,7 +442,6 @@ const manageSite = {
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
         try {
-          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.SITES_TOPIC,
             messages: [
@@ -452,10 +451,8 @@ const manageSite = {
               },
             ],
           });
-
-          await kafkaProducer.disconnect();
         } catch (error) {
-          logObject("error on kafka", error);
+          logObject("error on kafka", error.message);
         }
 
         let status = responseFromCreateSite.status

@@ -654,7 +654,6 @@ const createDevice = {
 
       if (responseFromRegisterDevice.success === true) {
         try {
-          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.DEVICES_TOPIC,
             messages: [
@@ -664,8 +663,6 @@ const createDevice = {
               },
             ],
           });
-
-          await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error);
         }

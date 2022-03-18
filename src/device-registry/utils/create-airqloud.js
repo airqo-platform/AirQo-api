@@ -148,7 +148,6 @@ const createAirqloud = {
 
       if (responseFromRegisterAirQloud.success === true) {
         try {
-          await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.AIRQLOUDS_TOPIC,
             messages: [
@@ -158,8 +157,6 @@ const createAirqloud = {
               },
             ],
           });
-
-          await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error);
         }

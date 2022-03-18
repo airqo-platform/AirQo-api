@@ -292,7 +292,6 @@ const createActivity = {
               const updatedDevice = responseFromUpdateDevice.data;
               const data = { createdActivity, updatedDevice };
               try {
-                await kafkaProducer.connect();
                 await kafkaProducer.send({
                   topic: constants.ACTIVITIES_TOPIC,
                   messages: [
@@ -302,8 +301,6 @@ const createActivity = {
                     },
                   ],
                 });
-
-                await kafkaProducer.disconnect();
               } catch (error) {
                 logObject("error on kafka", error);
               }

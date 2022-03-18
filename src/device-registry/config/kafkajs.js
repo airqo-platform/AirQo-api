@@ -1,5 +1,6 @@
 const { Kafka } = require("kafkajs");
 const constants = require("../config/constants");
+const { logText, logObject, logElement } = require("../utils/log");
 
 const kafka = new Kafka({
   clientId: "device-registry-kafkajs",
@@ -14,4 +15,19 @@ const kafkaProducer = kafka.producer({
   groupId: constants.UNIQUE_PRODUCER_GROUP,
 });
 
-module.exports = { kafkaConsumer, kafkaProducer };
+const runKafkaProducer = async () => {
+  logText("connecting to kafka consumer");
+  await kafkaProducer.connect();
+};
+
+const runKafkaConsumer = async () => {
+  logText("connecting to kafka consumer");
+  await kafkaConsumer.connect();
+};
+
+module.exports = {
+  kafkaConsumer,
+  kafkaProducer,
+  runKafkaProducer,
+  runKafkaConsumer,
+};

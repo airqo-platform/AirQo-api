@@ -774,7 +774,7 @@ const createPhoto = {
 
         try {
           logElement("constants.PHOTOS_TOPIC", constants.PHOTOS_TOPIC);
-          await kafkaProducer.connect();
+          // await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.PHOTOS_TOPIC,
             messages: [
@@ -785,9 +785,9 @@ const createPhoto = {
             ],
           });
 
-          await kafkaProducer.disconnect();
+          // await kafkaProducer.disconnect();
         } catch (error) {
-          logObject("error on kafka", error);
+          logObject("error on kafka", error.message);
         }
 
         let status = responseFromRegisterPhoto.status

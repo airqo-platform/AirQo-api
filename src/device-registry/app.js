@@ -11,8 +11,12 @@ var cookieParser = require("cookie-parser");
 var apiV1 = require("./routes/api-v1");
 var apiV2 = require("./routes/api-v2");
 const { mongodb } = require("./config/database");
+const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
+
+runKafkaProducer();
+runKafkaConsumer();
 
 var app = express();
 
