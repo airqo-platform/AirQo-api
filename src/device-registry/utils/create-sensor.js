@@ -1,3 +1,8 @@
-/**
- * the utils for the create sensor use case
- */
+const createSensor = {
+  create: () => {},
+  update: () => {},
+  delete: () => {},
+  list: () => {},
+};
+
+module.exports = createSensor;

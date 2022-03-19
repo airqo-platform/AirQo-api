@@ -773,8 +773,6 @@ const createPhoto = {
         let data = responseFromRegisterPhoto.data;
 
         try {
-          logElement("constants.PHOTOS_TOPIC", constants.PHOTOS_TOPIC);
-          // await kafkaProducer.connect();
           await kafkaProducer.send({
             topic: constants.PHOTOS_TOPIC,
             messages: [
@@ -784,8 +782,6 @@ const createPhoto = {
               },
             ],
           });
-
-          // await kafkaProducer.disconnect();
         } catch (error) {
           logObject("error on kafka", error.message);
         }
