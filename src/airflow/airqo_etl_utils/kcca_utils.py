@@ -334,6 +334,12 @@ def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
                     columns=columns,
                     series=data_row,
                 ),
+                "s1_pm2_5": get_column_value(
+                    column="s1_pm2_5", columns=columns, series=data_row
+                ),
+                "s2_pm2_5": get_column_value(
+                    column="s2_pm2_5", columns=columns, series=data_row
+                ),
                 "pm2_5_raw_value": get_column_value(
                     column="characteristics.pm2_5ConcMass.raw",
                     columns=columns,
@@ -348,6 +354,12 @@ def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
                     column="characteristics.pm10ConcMass.value",
                     columns=columns,
                     series=data_row,
+                ),
+                "s1_pm10": get_column_value(
+                    column="s1_pm10", columns=columns, series=data_row
+                ),
+                "s2_pm10": get_column_value(
+                    column="s2_pm10", columns=columns, series=data_row
                 ),
                 "pm10_raw_value": get_column_value(
                     column="characteristics.pm10ConcMass.raw",

@@ -698,6 +698,12 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
                 "pm2_5": get_column_value(
                     column="pm2_5", columns=columns, series=data_row
                 ),
+                "s1_pm2_5": get_column_value(
+                    column="s1_pm2_5", columns=columns, series=data_row
+                ),
+                "s2_pm2_5": get_column_value(
+                    column="s2_pm2_5", columns=columns, series=data_row
+                ),
                 "pm2_5_raw_value": get_column_value(
                     column="raw_pm2_5", columns=columns, series=data_row
                 ),
@@ -710,6 +716,12 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
                     column="pm10",
                     columns=columns,
                     series=data_row,
+                ),
+                "s1_pm10": get_column_value(
+                    column="s1_pm10", columns=columns, series=data_row
+                ),
+                "s2_pm10": get_column_value(
+                    column="s2_pm10", columns=columns, series=data_row
                 ),
                 "pm10_raw_value": get_column_value(
                     column="raw_pm10",
