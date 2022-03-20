@@ -34,7 +34,7 @@ def historical_hourly_weather_measurements_etl():
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=weather_data, destination_table="weather_measurements"
+            data=weather_data, table=big_query_api.hourly_weather_table
         )
 
     extracted_data = extract()
@@ -76,7 +76,7 @@ def hourly_weather_measurements_etl():
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=weather_data, destination_table="weather_measurements"
+            data=weather_data, table=big_query_api.hourly_measurements_table
         )
 
     extracted_data = extract()

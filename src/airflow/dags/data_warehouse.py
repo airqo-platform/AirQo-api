@@ -87,7 +87,7 @@ def data_warehouse_etl():
         data = un_fill_nan(inputs.get("data"))
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(data=data, destination_table="analytics")
+        big_query_api.save_data(data=data, table=big_query_api.analytics_table)
 
     hourly_measurements = extract_hourly_measurements()
     hourly_weather_data = extract_hourly_weather_data()

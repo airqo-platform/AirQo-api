@@ -1,6 +1,9 @@
+import os
+
 import pandas as pd
 from google.cloud import bigquery
 from airqo_etl_utils.config import configuration
+import json
 
 
 class BigQueryApi:
@@ -9,113 +12,21 @@ class BigQueryApi:
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
+        self.package_directory, _ = os.path.split(__file__)
 
-        self.analytics_numeric_columns = [
-            "device_number",
-            "device_latitude",
-            "device_longitude",
-            "site_latitude",
-            "site_longitude",
-            "pm2_5",
-            "pm2_5_raw_value",
-            "pm2_5_calibrated_value",
-            "pm10",
-            "pm10_raw_value",
-            "pm10_calibrated_value",
-            "no2",
-            "no2_raw_value",
-            "no2_calibrated_value",
-            "pm1",
-            "pm1_raw_value",
-            "pm1_calibrated_value",
-            "site_altitude",
-            "temperature",
-            "humidity",
-            "wind_speed",
-            "atmospheric_pressure",
-            "radiation",
-            "vapor_pressure",
-            "wind_gusts",
-            "precipitation",
-            "wind_direction",
-            "distance_to_nearest_primary_road",
-            "distance_to_nearest_road",
-            "distance_to_nearest_residential_road",
-            "distance_to_nearest_secondary_road",
-            "distance_to_nearest_unclassified_road",
-            "distance_to_nearest_tertiary_road",
-            "distance_to_kampala_center",
-            "landform_270",
-            "aspect",
-            "bearing_to_kampala_center",
-            "landform_90",
-        ]
-        self.hourly_measurements_numeric_columns = [
-            "device_number",
-            "latitude",
-            "longitude",
-            "pm2_5",
-            "s1_pm2_5",
-            "s2_pm2_5",
-            "pm2_5_raw_value",
-            "pm2_5_calibrated_value",
-            "pm10",
-            "s1_pm10",
-            "s2_pm10",
-            "pm10_raw_value",
-            "pm10_calibrated_value",
-            "no2",
-            "no2_raw_value",
-            "no2_calibrated_value",
-            "pm1",
-            "pm1_raw_value",
-            "pm1_calibrated_value",
-            "external_temperature",
-            "external_pressure",
-            "external_humidity",
-            "wind_speed",
-            "altitude",
-        ]
-        self.hourly_weather_numeric_columns = [
-            "temperature",
-            "humidity",
-            "wind_speed",
-            "atmospheric_pressure",
-            "radiation",
-            "vapor_pressure",
-            "wind_gusts",
-            "precipitation",
-            "wind_direction",
-        ]
+        self.analytics_numeric_columns = self.get_columns(
+            table=self.analytics_table, data_type="FLOAT"
+        )
+        self.hourly_measurements_numeric_columns = self.get_columns(
+            table=self.hourly_measurements_table, data_type="FLOAT"
+        )
+        self.hourly_weather_numeric_columns = self.get_columns(
+            table=self.hourly_weather_table, data_type="FLOAT"
+        )
 
-        self.hourly_measurements_columns = [
-            "time",
-            "tenant",
-            "site_id",
-            "device",
-        ] + self.hourly_measurements_numeric_columns
-        self.hourly_weather_columns = [
-            "time",
-            "tenant",
-            "site_id",
-        ] + self.hourly_weather_numeric_columns
-        self.analytics_columns = [
-            "time",
-            "tenant",
-            "site_id",
-            "site_name",
-            "device_name",
-            "site_description",
-            "country",
-            "region",
-            "parish",
-            "sub_county",
-            "county",
-            "region",
-            "country",
-            "district",
-            "city",
-        ] + self.analytics_numeric_columns
+        self.hourly_measurements_columns = self.get_columns(table="hourly_measurements")
+        self.hourly_weather_columns = self.get_columns(table="weather_measurements")
+        self.analytics_columns = self.get_columns(table="analytics")
 
     @staticmethod
     def validate_data(
@@ -134,19 +45,37 @@ class BigQueryApi:
 
         return dataframe
 
-    def save_data(self, data: list, destination_table: str) -> None:
-        if destination_table == "hourly_measurements":
+    def get_columns(self, table: str, data_type="") -> list:
+        if table == self.hourly_measurements_table:
+            schema_path = "schema/measurements.json"
+        elif table == self.hourly_weather_table:
+            schema_path = "schema/weather_data.json"
+        elif table == self.analytics_table:
+            schema_path = "schema/data_warehouse.json"
+        else:
+            raise Exception("Invalid table")
+
+        schema_file = open(os.path.join(self.package_directory, schema_path))
+        schema = json.load(schema_file)
+        columns = []
+        if data_type:
+            for column in schema:
+                if column["type"] == data_type:
+                    columns.append(column["name"])
+        else:
+            columns = [column["name"] for column in schema]
+        return columns
+
+    def save_data(self, data: list, table: str) -> None:
+        if table == self.hourly_measurements_table:
             columns = self.hourly_measurements_columns
             numeric_columns = self.hourly_measurements_numeric_columns
-            table = self.hourly_measurements_table
-        elif destination_table == "weather_measurements":
+        elif table == self.hourly_weather_table:
             columns = self.hourly_weather_columns
             numeric_columns = self.hourly_weather_numeric_columns
-            table = self.hourly_weather_table
-        elif destination_table == "analytics":
+        elif table == self.analytics_table:
             columns = self.analytics_columns
             numeric_columns = self.analytics_numeric_columns
-            table = self.analytics_table
         else:
             raise Exception("Invalid destination table")
 
