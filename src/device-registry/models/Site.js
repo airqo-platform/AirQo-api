@@ -344,7 +344,7 @@ siteSchema.statics = {
       });
 
       return {
-        errors: response,
+        errors: { message: response },
         message,
         success: false,
         status,
@@ -352,8 +352,8 @@ siteSchema.statics = {
     }
   },
   async list({
-    _skip = 0,
-    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
+    skip = 0,
+    limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
@@ -421,9 +421,16 @@ siteSchema.statics = {
         })
         .project({
           "devices.height": 0,
+          "devices.__v": 0,
+          "devices.phoneNumber": 0,
+          "devices.mountType": 0,
+          "devices.powerType": 0,
+          "devices.generation_version": 0,
+          "devices.generation_count": 0,
+          "devices.pictures": 0,
+          "devices.tags": 0,
           "devices.description": 0,
           "devices.isUsedForCollocation": 0,
-          "devices.isPrimaryInLocation": 0,
           "devices.createdAt": 0,
           "devices.updatedAt": 0,
           "devices.locationName": 0,
@@ -437,14 +444,15 @@ siteSchema.statics = {
           "devices.deployment_date": 0,
           "devices.recall_date": 0,
           "devices.maintenance_date": 0,
-          "devices.isActive": 0,
           "devices.product_name": 0,
           "devices.owner": 0,
           "devices.device_manufacturer": 0,
           "devices.channelID": 0,
         })
-        .skip(_skip)
-        .limit(_limit)
+        .skip(skip ? skip : 0)
+        .limit(
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
+        )
         .allowDiskUse(true);
 
       if (!isEmpty(response)) {
@@ -465,8 +473,8 @@ siteSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "Site model server error - list",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
