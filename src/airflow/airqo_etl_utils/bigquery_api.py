@@ -25,12 +25,12 @@ class BigQueryApi:
         )
 
         self.hourly_measurements_columns = self.get_column_names(
-            table="hourly_measurements"
+            table=self.hourly_measurements_table
         )
         self.hourly_weather_columns = self.get_column_names(
-            table="weather_measurements"
+            table=self.hourly_weather_table
         )
-        self.analytics_columns = self.get_column_names(table="analytics")
+        self.analytics_columns = self.get_column_names(table=self.analytics_table)
 
     @staticmethod
     def validate_data(
@@ -52,19 +52,27 @@ class BigQueryApi:
     def get_column_names(self, table: str, data_type="") -> list:
         if table == self.hourly_measurements_table:
             schema_path = "schema/measurements.json"
+            schema = "measurements.json"
         elif table == self.hourly_weather_table:
             schema_path = "schema/weather_data.json"
+            schema = "weather_data.json"
         elif table == self.analytics_table:
             schema_path = "schema/data_warehouse.json"
+            schema = "data_warehouse.json"
         else:
             raise Exception("Invalid table")
 
-        schema_file = open(os.path.join(self.package_directory, schema_path))
+        try:
+            schema_file = open(os.path.join(self.package_directory, schema_path))
+        except FileNotFoundError:
+            schema_file = open(os.path.join(self.package_directory, schema))
+
         schema = json.load(schema_file)
         columns = []
         if data_type:
             for column in schema:
                 if column["type"] == data_type:
+
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]

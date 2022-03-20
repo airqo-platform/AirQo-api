@@ -13,6 +13,7 @@ setup(
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     packages=find_packages(),
+    package_data={"": ["*.json"]},
     install_requires=[
         "pandas",
         "requests",

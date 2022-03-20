@@ -123,7 +123,6 @@ def add_site_info_to_weather_data(data: list) -> list:
                 ]
                 site_weather_data["site_id"] = site["_id"]
                 site_weather_data["tenant"] = sites_tenant
-                del site_weather_data["station_code"]
                 sites_weather_data.extend(site_weather_data.to_dict(orient="records"))
             except KeyError:
                 continue
