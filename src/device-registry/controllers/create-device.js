@@ -427,7 +427,7 @@ const device = {
 
       if (responseFromListDeviceDetails.success === false) {
         let errors = responseFromListDeviceDetails.errors
-          ? responseFromListDeviceDetails
+          ? responseFromListDeviceDetails.errors
           : "";
         let status = responseFromListDeviceDetails.status
           ? responseFromListDeviceDetails.status

@@ -16,13 +16,21 @@ const kafkaProducer = kafka.producer({
 });
 
 const runKafkaProducer = async () => {
-  logText("connecting to kafka consumer");
-  await kafkaProducer.connect();
+  logText("connecting to kafka producer...");
+  try {
+    await kafkaProducer.connect();
+  } catch (error) {
+    logElement("KAFKA PRODUCER CONNECTION ERROR", error.message);
+  }
 };
 
 const runKafkaConsumer = async () => {
-  logText("connecting to kafka consumer");
-  await kafkaConsumer.connect();
+  logText("connecting to kafka consumer...");
+  try {
+    await kafkaConsumer.connect();
+  } catch (error) {
+    logElement("KAFKA CONSUMER CONNECTION ERROR", error.message);
+  }
 };
 
 module.exports = {

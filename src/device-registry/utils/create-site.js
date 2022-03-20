@@ -115,26 +115,22 @@ const manageSite = {
               data: airqloud_ids,
               status: HTTPStatus.OK,
             };
-          }
-          if (isEmpty(airqloud_ids)) {
+          } else if (isEmpty(airqloud_ids)) {
             return {
               success: true,
               message: "no associated AirQlouds found",
               data: airqloud_ids,
-              status: HTTPStatus.OK,
+              status: HTTPStatus.NOT_FOUND,
             };
           }
-        }
-
-        if (responseFromListAirQlouds.success === false) {
+        } else if (responseFromListAirQlouds.success === false) {
           return {
             success: false,
             message: responseFromListAirQlouds.message,
             status: responseFromListAirQlouds.status,
           };
         }
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         const status = responseFromListSites.status
           ? responseFromListSites.status
           : "";
@@ -972,7 +968,7 @@ const manageSite = {
       };
     }
   },
-  list: async ({ tenant, filter, _skip, _limit }) => {
+  list: async ({ tenant, filter, skip, limit }) => {
     try {
       logObject("the filter", filter);
       logElement("the tenant", tenant);
@@ -982,42 +978,22 @@ const manageSite = {
         SiteSchema
       ).list({
         filter,
-        _limit,
-        _skip,
+        limit,
+        skip,
       });
 
       if (responseFromListSite.success === false) {
-        let errors = responseFromListSite.errors
-          ? responseFromListSite.errors
-          : "";
-
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
-          : "";
-        return {
-          success: false,
-          message: responseFromListSite.message,
-          errors,
-          status,
-        };
-      }
-
-      if (responseFromListSite.success === true) {
-        data = responseFromListSite.data.filter(function(obj) {
-          return obj.lat_long !== "4_4";
-        });
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
-          : "";
-        return {
-          success: true,
-          message: "successfully listed the site(s)",
-          data,
-          status,
-        };
+        return responseFromListSite;
+      } else if (responseFromListSite.success === true) {
+        let modifiedResponseFromListSite = responseFromListSite;
+        modifiedResponseFromListSite.data = responseFromListSite.data.filter(
+          function(obj) {
+            return obj.lat_long !== "4_4";
+          }
+        );
+        return modifiedResponseFromListSite;
       }
     } catch (e) {
-      logElement("list Sites util", { message: e.message });
       return {
         success: false,
         message: "Internal Server Error",

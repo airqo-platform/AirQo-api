@@ -476,8 +476,6 @@ const manageSite = {
 
   list: async (req, res) => {
     try {
-      logText(".....................................");
-      logText("list all sites by query params provided");
       const { tenant } = req.query;
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
@@ -491,17 +489,13 @@ const manageSite = {
         );
       }
       let filter = generateFilter.sites(req);
-      logObject("filter in the controller", filter);
       let responseFromListSites = await createSiteUtil.list({
         tenant,
         filter,
         limit,
         skip,
       });
-      logElement(
-        "has the response for listing sites been successful?",
-        responseFromListSites.success
-      );
+
       if (responseFromListSites.success === true) {
         let status = responseFromListSites.status
           ? responseFromListSites.status
@@ -511,21 +505,19 @@ const manageSite = {
           message: responseFromListSites.message,
           sites: responseFromListSites.data,
         });
-      }
-
-      if (responseFromListSites.success === false) {
-        let error = responseFromListSites.errors
+      } else if (responseFromListSites.success === false) {
+        let errors = responseFromListSites.errors
           ? responseFromListSites.errors
-          : "";
+          : { message: "" };
 
         let status = responseFromListSites.status
           ? responseFromListSites.status
-          : HTTPStatus.BAD_GATEWAY;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,
           message: responseFromListSites.message,
-          error,
+          errors,
         });
       }
     } catch (error) {
