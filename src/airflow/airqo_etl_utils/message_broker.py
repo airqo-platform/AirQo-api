@@ -17,10 +17,10 @@ class KafkaBrokerClient:
     def send_data(
         self,
         topic,
-        info=None,
+        info: dict,
     ):
         data = info["data"]
-
+        tenant = info["tenant"] if "tenant" in info.keys() else ""
         # avro_serde = AvroKeyValueSerde(self.__registry_client, self.__output_topic)
         # bytes_data = avro_serde.value.serialize(measurements, schema_str)
         producer = KafkaProducer(
@@ -38,7 +38,7 @@ class KafkaBrokerClient:
                 # partition = int(self.__partitions[partition_index])
                 range_data = data[i : i + 50]
 
-                message = {"data": range_data, "action": action}
+                message = {"data": range_data, "action": action, "tenant": tenant}
 
                 producer.send(
                     topic=topic, value=simplejson.dumps(message).encode("utf-8")

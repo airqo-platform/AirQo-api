@@ -14,19 +14,23 @@ class BigQueryApi:
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.package_directory, _ = os.path.split(__file__)
 
-        self.analytics_numeric_columns = self.get_columns(
+        self.analytics_numeric_columns = self.get_column_names(
             table=self.analytics_table, data_type="FLOAT"
         )
-        self.hourly_measurements_numeric_columns = self.get_columns(
+        self.hourly_measurements_numeric_columns = self.get_column_names(
             table=self.hourly_measurements_table, data_type="FLOAT"
         )
-        self.hourly_weather_numeric_columns = self.get_columns(
+        self.hourly_weather_numeric_columns = self.get_column_names(
             table=self.hourly_weather_table, data_type="FLOAT"
         )
 
-        self.hourly_measurements_columns = self.get_columns(table="hourly_measurements")
-        self.hourly_weather_columns = self.get_columns(table="weather_measurements")
-        self.analytics_columns = self.get_columns(table="analytics")
+        self.hourly_measurements_columns = self.get_column_names(
+            table="hourly_measurements"
+        )
+        self.hourly_weather_columns = self.get_column_names(
+            table="weather_measurements"
+        )
+        self.analytics_columns = self.get_column_names(table="analytics")
 
     @staticmethod
     def validate_data(
@@ -45,7 +49,7 @@ class BigQueryApi:
 
         return dataframe
 
-    def get_columns(self, table: str, data_type="") -> list:
+    def get_column_names(self, table: str, data_type="") -> list:
         if table == self.hourly_measurements_table:
             schema_path = "schema/measurements.json"
         elif table == self.hourly_weather_table:

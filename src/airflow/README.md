@@ -112,3 +112,8 @@ Ctrl + c
 ```bash
 sh clean.sh  
 ```
+
+## Working with dags
+
+ETL dags for historical data require you to specify `startDateTime` and `endDateTime` in the dag config using the 
+format `YYYY-MM-ddTHH:mm:ssZ`

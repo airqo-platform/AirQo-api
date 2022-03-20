@@ -62,10 +62,7 @@ def hourly_measurements_etl():
             data=data, frequency="hourly"
         )
 
-        info = {
-            "data": kcca_restructured_data,
-            "action": "new",
-        }
+        info = {"data": kcca_restructured_data, "action": "insert", "tenant": "kcca"}
 
         kafka = KafkaBrokerClient()
         kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
@@ -252,10 +249,7 @@ def historical_hourly_measurements_etl():
                 data=data, frequency="hourly"
             )
 
-            info = {
-                "data": kcca_transformed_data,
-                "action": "new",
-            }
+            info = {"data": kcca_transformed_data, "action": "insert", "tenant": "kcca"}
 
             kafka = KafkaBrokerClient()
             kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)

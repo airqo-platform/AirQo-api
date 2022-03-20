@@ -17,11 +17,11 @@ setup(
         "pandas",
         "requests",
         "simplejson",
-        "python-dotenv",
         "kafka-python",
         "numpy",
+        "google-cloud-bigquery",
     ],
-    keywords=["python", "airflow", "airqo"],
+    keywords=["python", "airflow", "AirQo"],
     license="MIT",
     classifiers=[
         "Development Status :: 3 - Alpha",

@@ -125,7 +125,8 @@ def historical_hourly_measurements_etl():
 
             info = {
                 "data": airqo_restructured_data,
-                "action": "New",
+                "action": "insert",
+                "tenant": "airqo",
             }
             kafka = KafkaBrokerClient()
             kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
@@ -275,10 +276,7 @@ def hourly_measurements_etl():
             data=data, destination="message-broker"
         )
 
-        info = {
-            "data": airqo_restructured_data,
-            "action": "new",
-        }
+        info = {"data": airqo_restructured_data, "action": "insert", "tenant": "airqo"}
 
         kafka = KafkaBrokerClient()
         kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
