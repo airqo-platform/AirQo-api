@@ -84,7 +84,7 @@ const createEvent = {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server side error , create events - controller",
-        error: e.message,
+        errors: { message: e.message },
       });
     }
   },
@@ -136,6 +136,7 @@ const createEvent = {
       request["query"]["page"] = parseInt(page);
 
       await createEventUtil.list(request, (result) => {
+        logObject("the result for listing events", result);
         if (result.success === true) {
           const status = result.status ? result.status : HTTPStatus.OK;
           res.status(status).json({
@@ -145,13 +146,11 @@ const createEvent = {
             meta: result.data[0].meta,
             measurements: result.data[0].data,
           });
-        }
-
-        if (result.success === false) {
+        } else if (result.success === false) {
           const status = result.status
             ? result.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
-          const errors = result.errors ? result.errors : "";
+          const errors = result.errors ? result.errors : { message: "" };
           res.status(status).json({
             success: false,
             errors,
@@ -189,20 +188,20 @@ const createEvent = {
           message: responseFromTransformEvents.message,
           transformedEvents: responseFromTransformEvents.data,
         });
-      }
-      if (responseFromTransformEvents.success === false) {
+      } else if (responseFromTransformEvents.success === false) {
         const status = responseFromTransformEvents.status
           ? responseFromTransformEvents.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromTransformEvents.errors
           ? responseFromTransformEvents.errors
-          : "";
+          : { message: "" };
         return res.status(status).json({
           message: responseFromTransformEvents.message,
           errors,
         });
       }
     } catch (error) {
+      logObject("the error", error);
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -216,7 +215,8 @@ const createEvent = {
       let request = {};
       request["body"] = body;
       request["query"] = query;
-      const responseFromCreateEvents = createEventUtil.create(request);
+      const responseFromCreateEvents = await createEventUtil.create(request);
+      logObject("responseFromCreateEvents", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
@@ -224,14 +224,13 @@ const createEvent = {
         return res
           .status(status)
           .json({ success: true, message: responseFromCreateEvents.message });
-      }
-      if (responseFromCreateEvents.success === false) {
+      } else if (responseFromCreateEvents.success === false) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromCreateEvents.errors
           ? responseFromCreateEvents.errors
-          : "";
+          : { message: "" };
         return res.status(status).json({
           success: false,
           message: responseFromCreateEvents.message,
@@ -294,7 +293,7 @@ const createEvent = {
       if (responseFromClearValuesOnPlatform.success == false) {
         let error = responseFromClearValuesOnPlatform.error
           ? responseFromClearValuesOnPlatform.error
-          : "";
+          : { message: "" };
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromClearValuesOnPlatform.message,
@@ -357,7 +356,7 @@ const createEvent = {
       if (!responseFromAddEventsUtil.success) {
         let errors = responseFromAddEventsUtil.error
           ? responseFromAddEventsUtil.error
-          : "";
+          : { message: "" };
         return res.status(HTTPStatus.FORBIDDEN).json({
           success: false,
           message: "finished the operation with some errors",
@@ -410,7 +409,7 @@ const createEvent = {
       if (responseFromEventsUtil.success === false) {
         let error = responseFromEventsUtil.error
           ? responseFromEventsUtil.error
-          : "";
+          : { message: "" };
         res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromEventsUtil.message,

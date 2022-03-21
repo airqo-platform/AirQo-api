@@ -2749,7 +2749,7 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["kcca", "airqo"])
+        .isIn(["kcca", "airqo", "view"])
         .withMessage("the tenant value is not among the expected ones"),
     ],
   ]),
@@ -2797,10 +2797,9 @@ router.post(
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
       body("*.frequency")
-        .exists()
+        .optional()
+        .notEmpty()
         .trim()
-        .toLowerCase()
-        .withMessage("frequency is missing")
         .bail()
         .isIn(["raw", "hourly", "daily"])
         .withMessage(
@@ -2829,7 +2828,7 @@ router.post(
         .trim(),
     ],
   ]),
-  eventController.addValues
+  eventController.create
 );
 
 router.post(
@@ -2933,7 +2932,7 @@ router.get(
       .bail()
       .trim()
       .toLowerCase()
-      .isIn(["kcca", "airqo"])
+      .isIn(["kcca", "airqo", "view"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
   oneOf([
