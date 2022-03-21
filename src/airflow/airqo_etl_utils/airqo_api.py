@@ -166,6 +166,30 @@ class AirQoApi:
 
         return []
 
+    def get_app_insights(
+        self,
+        start_time: str,
+        end_time: str,
+        frequency: str,
+        site_id=None,
+    ) -> list:
+        params = {
+            "time": [start_time, end_time],
+            "frequency": frequency,
+            "empty": False,
+            "forecast": False,
+        }
+        if site_id:
+            params["siteId"] = site_id
+
+        endpoint = "view/measurements/app/insights"
+        response = self.__request(endpoint=endpoint, params=params, method="get")
+
+        if "data" in response:
+            return response["data"]
+
+        return []
+
     def get_forecast(self, timestamp, channel_id) -> list:
 
         endpoint = f"predict/{channel_id}/{timestamp}"

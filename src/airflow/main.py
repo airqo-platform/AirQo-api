@@ -157,14 +157,22 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
     )
 
 
-def insights_data():
-    airqo_data = extract_airqo_data(tenant="airqo")
-    pd.DataFrame(airqo_data).to_csv(path_or_buf="insights_airqo_data.csv", index=False)
+def insights_daily_insights(start_date_time: str, end_date_time: str):
+    from airqo_etl_utils.app_insights_utils import (
+        get_insights_data,
+        average_insights_data,
+    )
 
-    # extract forecast data
-    forecast_data = extract_insights_forecast(tenant="airqo")
-    pd.DataFrame(forecast_data).to_csv(
-        path_or_buf="insights_forecast_data.csv", index=False
+    hourly_insights_data = get_insights_data(
+        freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    pd.DataFrame(hourly_insights_data).to_csv(
+        path_or_buf="hourly_insights_airqo_data.csv", index=False
+    )
+
+    airqo_data = average_insights_data(frequency="daily", data=hourly_insights_data)
+    pd.DataFrame(airqo_data).to_csv(
+        path_or_buf="daily_insights_airqo_data.csv", index=False
     )
 
 
@@ -243,8 +251,10 @@ if __name__ == "__main__":
         kcca_historical_hourly_measurements(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
-    elif action == "insights_data":
-        insights_data()
+    elif action == "daily_insights_data":
+        insights_daily_insights(
+            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
+        )
 
     else:
         raise Exception("Invalid arguments")

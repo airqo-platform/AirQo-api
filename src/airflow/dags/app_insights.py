@@ -39,7 +39,7 @@ def app_forecast_insights_etl():
 
 @dag(
     "App-Daily-Insights",
-    schedule_interval="0 * * * *",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -47,49 +47,42 @@ def app_forecast_insights_etl():
 )
 def app_daily_insights_etl():
     @task(multiple_outputs=True)
-    def extract_airqo_data(**kwargs):
+    def average_insights_data(**kwargs):
 
         from airqo_etl_utils.app_insights_utils import (
-            create_insights_data,
-            get_airqo_data,
-            time_values,
-            average_hourly_insights,
+            get_insights_data,
+            average_insights_data,
         )
 
-        start_time, end_time = time_values(**kwargs)
+        from airqo_etl_utils.commons import get_date_time_values, fill_nan
 
-        if not start_time or not end_time:
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-            hour_of_day = datetime.utcnow()
-            if hour_of_day.hour <= 1:
-                return dict({"data": []})
-
-            start_time = datetime.strftime(hour_of_day, "%Y-%m-%dT00:00:00Z")
-            end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT23:59:59Z")
-
-        measurements_data = get_airqo_data(
-            freq="hourly", start_time=start_time, end_time=end_time
+        hourly_insights_data = get_insights_data(
+            freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
         )
-        insights_data = create_insights_data(data=measurements_data)
 
-        ave_insights_data = average_hourly_insights(insights_data)
+        ave_insights_data = average_insights_data(
+            frequency="daily", data=hourly_insights_data
+        )
 
-        return {"data": ave_insights_data}
+        return dict({"data": fill_nan(data=ave_insights_data)})
 
     @task()
     def load(data: dict):
         from airqo_etl_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.commons import un_fill_nan
 
-        insights_data = data.get("data")
+        insights_data = un_fill_nan(data.get("data"))
         save_insights_data(insights_data=insights_data, action="save")
 
-    insights = extract_airqo_data()
+    insights = average_insights_data()
     load(insights)
 
 
 @dag(
     "App-Hourly-Insights",
-    schedule_interval="@hourly",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -101,10 +94,11 @@ def app_hourly_insights_etl():
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_airqo_data,
-            time_values,
         )
 
-        start_time, end_time = time_values(**kwargs)
+        from airqo_etl_utils.commons import get_date_time_values
+
+        start_time, end_time = get_date_time_values(**kwargs)
         measurements_data = get_airqo_data(
             freq="hourly", start_time=start_time, end_time=end_time
         )
@@ -196,31 +190,7 @@ def insights_cleanup_etl():
                     print(ex)
         save_insights_data(insights_data=empty_insights, action="insert")
 
-    @task()
-    def delete_old_insights():
-
-        from airqo_etl_utils.date import (
-            first_day_of_week,
-            last_day_of_week,
-            first_day_of_month,
-            last_day_of_month,
-        )
-        from airqo_etl_utils.app_insights_utils import save_insights_data
-        from datetime import datetime, timedelta
-
-        start_time = first_day_of_week(
-            first_day_of_month(date_time=datetime.now())
-        ) - timedelta(days=7)
-        end_time = last_day_of_week(
-            last_day_of_month(date_time=datetime.now())
-        ) + timedelta(days=7)
-
-        save_insights_data(
-            insights_data=[], action="delete", start_time=start_time, end_time=end_time
-        )
-
     load_place_holders()
-    # delete_old_insights()
 
 
 app_forecast_insights_etl_dag = app_forecast_insights_etl()
