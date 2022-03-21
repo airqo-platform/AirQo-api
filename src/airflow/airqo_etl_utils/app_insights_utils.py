@@ -229,12 +229,15 @@ def get_airqo_data(freq: str, start_time: str = None, end_time: str = None) -> l
 def average_insights_data(data: list, frequency="daily") -> list:
     data_df = pd.DataFrame(data)
 
-    device_groups = data_df.groupby("siteId")
+    if data_df.empty:
+        return pd.DataFrame(data=[], columns=insights_columns).to_dict(orient="records")
+
+    site_groups = data_df.groupby("siteId")
     sampled_data = []
 
-    for _, device_group in device_groups:
-        site_id = device_group.iloc[0]["siteId"]
-        insights = device_group[["time", "pm2_5", "pm10"]]
+    for _, site_group in site_groups:
+        site_id = site_group.iloc[0]["siteId"]
+        insights = site_group[["time", "pm2_5", "pm10"]]
 
         averages = resample_data(insights, frequency)
 
@@ -248,7 +251,7 @@ def average_insights_data(data: list, frequency="daily") -> list:
     return sampled_data
 
 
-def get_insights_data(freq: str, start_date_time: str, end_date_time: str) -> list:
+def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> list:
     airqo_api = AirQoApi()
     insights = []
 

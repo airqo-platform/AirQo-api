@@ -38,19 +38,19 @@ def app_forecast_insights_etl():
 
 
 @dag(
-    "App-Daily-Insights",
-    schedule_interval="0 2 * * *",
+    "App-Historical-Daily-Insights",
+    schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["insights", "daily"],
 )
-def app_daily_insights_etl():
+def app_historical_daily_insights_etl():
     @task(multiple_outputs=True)
     def average_insights_data(**kwargs):
 
         from airqo_etl_utils.app_insights_utils import (
-            get_insights_data,
+            query_insights_data,
             average_insights_data,
         )
 
@@ -58,7 +58,7 @@ def app_daily_insights_etl():
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
-        hourly_insights_data = get_insights_data(
+        hourly_insights_data = query_insights_data(
             freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
         )
 
@@ -70,10 +70,64 @@ def app_daily_insights_etl():
 
     @task()
     def load(data: dict):
-        from airqo_etl_utils.app_insights_utils import save_insights_data
+        from airqo_etl_utils.app_insights_utils import (
+            save_insights_data,
+            create_insights_data,
+        )
         from airqo_etl_utils.commons import un_fill_nan
 
-        insights_data = un_fill_nan(data.get("data"))
+        insights_list = un_fill_nan(data.get("data"))
+        insights_data = create_insights_data(data=insights_list)
+        save_insights_data(insights_data=insights_data, action="save")
+
+    insights = average_insights_data()
+    load(insights)
+
+
+@dag(
+    "App-Daily-Insights",
+    schedule_interval="30 * * * *",
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["insights", "daily", "realtime"],
+)
+def app_daily_insights_etl():
+    @task(multiple_outputs=True)
+    def average_insights_data():
+
+        from airqo_etl_utils.app_insights_utils import (
+            query_insights_data,
+            average_insights_data,
+        )
+
+        from airqo_etl_utils.commons import fill_nan
+        from datetime import datetime
+
+        now = datetime.utcnow()
+        start_date_time = datetime.strftime(now, "%Y-%m-%dT00:00:00Z")
+        end_date_time = datetime.strftime(now, "%Y-%m-%dT23:59:59Z")
+
+        hourly_insights_data = query_insights_data(
+            freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+        ave_insights_data = average_insights_data(
+            frequency="daily", data=hourly_insights_data
+        )
+
+        return dict({"data": fill_nan(data=ave_insights_data)})
+
+    @task()
+    def load(data: dict):
+        from airqo_etl_utils.app_insights_utils import (
+            save_insights_data,
+            create_insights_data,
+        )
+        from airqo_etl_utils.commons import un_fill_nan
+
+        insights_list = un_fill_nan(data.get("data"))
+        insights_data = create_insights_data(data=insights_list)
         save_insights_data(insights_data=insights_data, action="save")
 
     insights = average_insights_data()
@@ -195,5 +249,6 @@ def insights_cleanup_etl():
 
 app_forecast_insights_etl_dag = app_forecast_insights_etl()
 app_hourly_insights_etl_dag = app_hourly_insights_etl()
+app_historical_daily_insights_etl_dag = app_historical_daily_insights_etl()
 app_daily_insights_etl_dag = app_daily_insights_etl()
 insights_cleanup_etl_dag = insights_cleanup_etl()

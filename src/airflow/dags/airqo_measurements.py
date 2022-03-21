@@ -297,7 +297,7 @@ def hourly_measurements_etl():
         big_query_api.save_hourly_measurements(airqo_restructured_data)
 
     @task()
-    def save_app_insights(airqo_data: dict):
+    def update_app_insights(airqo_data: dict):
 
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_utils import restructure_airqo_data
@@ -348,7 +348,7 @@ def hourly_measurements_etl():
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
-    save_app_insights(calibrated_data)
+    update_app_insights(calibrated_data)
     send_raw_measurements_to_api(extracted_airqo_data)
     # send_raw_measurements_to_bigquery(extracted_airqo_data)
 

@@ -159,11 +159,11 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
 
 def insights_daily_insights(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.app_insights_utils import (
-        get_insights_data,
+        query_insights_data,
         average_insights_data,
     )
 
-    hourly_insights_data = get_insights_data(
+    hourly_insights_data = query_insights_data(
         freq="hourly", start_date_time=start_date_time, end_date_time=end_date_time
     )
     pd.DataFrame(hourly_insights_data).to_csv(
