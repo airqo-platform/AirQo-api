@@ -134,6 +134,7 @@ const defaultConfig = {
   DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS:
     process.env.DEFAULT_LIMIT_FOR_QUERYING_AIRQLOUDS,
   DEFAULT_EVENTS_LIMIT: process.env.DEFAULT_EVENTS_LIMIT,
+  DEFAULT_EVENTS_SKIP: process.env.DEFAULT_EVENTS_SKIP,
   EVENTS_CACHE_LIMIT: process.env.EVENTS_CACHE_LIMIT,
   WHITE_SPACES_REGEX: /^\S*$/,
   DEVICE_THINGSPEAK_MAPPINGS: {
@@ -336,6 +337,73 @@ const defaultConfig = {
       item["options"]["upsert"] = true;
       return item;
     },
+  },
+  EVENTS_METADATA_PROJECTION: (entity, as) => {
+    if (entity === "device") {
+      let projection = {};
+      projection[as] = {};
+      projection[as]["ISP"] = 0;
+      projection[as]["height"] = 0;
+      projection[as]["device_number"] = 0;
+      projection[as]["description"] = 0;
+      projection[as]["isUsedForCollocation"] = 0;
+      projection[as]["powerType"] = 0;
+      projection[as]["mountType"] = 0;
+      projection[as]["createdAt"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["isActive"] = 0;
+      projection[as]["site_id"] = 0;
+      projection[as]["long_name"] = 0;
+      projection[as]["readKey"] = 0;
+      projection[as]["writeKey"] = 0;
+      projection[as]["phoneNumber"] = 0;
+      projection[as]["deployment_date"] = 0;
+      projection[as]["nextMaintenance"] = 0;
+      projection[as]["recall_date"] = 0;
+      projection[as]["maintenance_date"] = 0;
+      projection[as]["siteName"] = 0;
+      projection[as]["locationName"] = 0;
+      projection[as]["device_manufacturer"] = 0;
+      projection[as]["product_name"] = 0;
+      projection[as]["visibility"] = 0;
+      projection[as]["owner"] = 0;
+      return projection;
+    } else if (entity === "site") {
+      let projection = {};
+      projection[as] = {};
+      projection[as]["nearest_tahmo_station"] = 0;
+      projection[as]["site_tags"] = 0;
+      projection[as]["formatted_name"] = 0;
+      projection[as]["geometry"] = 0;
+      projection[as]["google_place_id"] = 0;
+      projection[as]["town"] = 0;
+      projection[as]["city"] = 0;
+      projection[as]["county"] = 0;
+      projection[as]["lat_long"] = 0;
+      projection[as]["altitude"] = 0;
+      projection[as]["updatedAt"] = 0;
+      projection[as]["airqloud_id"] = 0;
+      projection[as]["airqlouds"] = 0;
+      projection[as]["sub_county"] = 0;
+      projection[as]["parish"] = 0;
+      projection[as]["greenness"] = 0;
+      projection[as]["landform_90"] = 0;
+      projection[as]["landform_270"] = 0;
+      projection[as]["aspect"] = 0;
+      projection[as]["distance_to_nearest_road"] = 0;
+      projection[as]["distance_to_nearest_primary_road"] = 0;
+      projection[as]["distance_to_nearest_tertiary_road"] = 0;
+      projection[as]["distance_to_nearest_unclassified_road"] = 0;
+      projection[as]["distance_to_nearest_residential_road"] = 0;
+      projection[as]["bearing_to_kampala_center"] = 0;
+      projection[as]["street"] = 0;
+      projection[as]["village"] = 0;
+      projection[as]["distance_to_nearest_secondary_road"] = 0;
+      projection[as]["distance_to_kampala_center"] = 0;
+      return projection;
+    } else {
+      return {};
+    }
   },
 };
 

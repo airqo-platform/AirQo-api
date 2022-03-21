@@ -13,6 +13,9 @@ def main():
     if configuration.JOB_TYPE == JobType.CALIBRATE:
         calibrate.main()
 
+    if configuration.JOB_TYPE == JobType.CALIBRATE_HISTORICAL:
+        calibrate.main_historical_data(configuration.START_TIME, configuration.END_TIME)
+
     if configuration.JOB_TYPE == JobType.DAILY_AVERAGES:
         averages.main()
 

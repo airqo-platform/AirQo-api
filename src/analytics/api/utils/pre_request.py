@@ -1,6 +1,7 @@
 from itertools import chain
 import re
 from flask import request, jsonify, make_response
+from config import BASE_URL
 from .messages import TENANT_REQUIRED_MSG
 
 
@@ -9,7 +10,7 @@ class PreRequest:
     This is the class that will host all static pre-request functions such as checking for tenant and authentication
     """
     TENANT_KEY = "tenant"
-    DOCS_ENDPOINTS = ['/apidocs', '/flasgger', '/apispec']
+    DOCS_ENDPOINTS = [f'{BASE_URL}/apidocs', f'{BASE_URL}/flasgger', f'{BASE_URL}/apispec']
     IGNORE_TENANT_HEADER = ['/health']
     COMBINED_IGNORE_TENANT_HEADER = f"({')|('.join(chain(DOCS_ENDPOINTS, IGNORE_TENANT_HEADER))})"
 

@@ -59,6 +59,52 @@ const device = {
       });
     }
   },
+  getDevicesCount: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query, body } = req;
+      const { tenant } = query;
+      const request = {};
+      request["query"] = {};
+      request["query"]["tenant"] = tenant;
+      await registerDeviceUtil.getDevicesCount(request, (result) => {
+        if (result.success === true) {
+          const status = result.status ? result.status : HTTPStatus.OK;
+          return res.status(status).json({
+            success: true,
+            message: result.message,
+            devices: result.data,
+          });
+        }
+        if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : "";
+          return res.status(status).json({
+            success: false,
+            message: result.message,
+            errors,
+          });
+        }
+      });
+    } catch (error) {
+      logObject("error", error);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   create: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

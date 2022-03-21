@@ -18,6 +18,10 @@ const qs = require("qs");
 const { logger_v2 } = require("../utils/errors");
 const QRCode = require("qrcode");
 const cleanDeep = require("clean-deep");
+const httpStatus = require("http-status");
+let devicesModel = (tenant) => {
+  return getModelByTenant(tenant, "device", DeviceSchema);
+};
 
 const registerDeviceUtil = {
   doesDeviceExist: async (request) => {
@@ -29,6 +33,36 @@ const registerDeviceUtil = {
     }
     return false;
   },
+  getDevicesCount: async (request, callback) => {
+    try {
+      const { query } = request;
+      const { tenant } = query;
+      await devicesModel(tenant).countDocuments({}, (err, count) => {
+        if (count) {
+          callback({
+            success: true,
+            message: "retrieved the number of devices",
+            status: httpStatus.OK,
+            data: count,
+          });
+        }
+        if (err) {
+          callback({
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: err },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          });
+        }
+      });
+    } catch (error) {
+      callback({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   generateQR: async (request) => {
     try {
       let { include_site } = request.query;
@@ -37,10 +71,13 @@ const registerDeviceUtil = {
         let deviceBody = responseFromListDevice.data;
         if (!isEmpty(include_site) && include_site === "no") {
           logger.info(`the site details have been removed from the data`);
-          delete deviceBody.site;
+          delete deviceBody[0].site;
         }
         logger.info(`deviceBody -- ${deviceBody}`);
-        let responseFromQRCode = await QRCode.toDataURL(deviceBody);
+        const stringifiedJSON = JSON.stringify(deviceBody[0]);
+        let responseFromQRCode = await QRCode.toDataURL(stringifiedJSON, {
+          type: String,
+        });
         logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
         if (!isEmpty(responseFromQRCode)) {
           return {
@@ -50,11 +87,15 @@ const registerDeviceUtil = {
             status: HTTPStatus.OK,
           };
         }
-        return {
-          success: false,
-          message: "unable to generate the QR code",
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        };
+
+        if (isEmpty(responseFromQRCode)) {
+          logObject("responseFromQRCode", responseFromQRCode);
+          return {
+            success: false,
+            message: "unable to generate the QR code",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
       }
 
       if (responseFromListDevice.success === false) {

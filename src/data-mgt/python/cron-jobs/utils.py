@@ -145,7 +145,6 @@ def average_values(values, frequency):
     for _, device_group in devices_groups:
 
         try:
-            del device_group['deviceDetails']
             device_measurements = pd.json_normalize(device_group.to_dict(orient='records'))
 
             measurement_metadata = device_measurements[['site_id', 'device_id', 'device', 'device_number']].copy()
@@ -158,12 +157,12 @@ def average_values(values, frequency):
             del measurement_readings['device']
             del measurement_readings['device_number']
 
+            measurement_readings.dropna(subset=['time'], inplace=True)
             measurement_readings['time'] = pd.to_datetime(measurement_readings['time'])
             measurement_readings.set_index('time')
             measurement_readings.sort_index(axis=0)
-            measurement_readings = measurement_readings.ffill().bfill()
 
-            averages = pd.DataFrame(measurement_readings.resample(frequency, on='time').mean().round(2))
+            averages = pd.DataFrame(measurement_readings.resample(frequency, on='time').mean())
 
             averages["time"] = averages.index
             averages["time"] = averages["time"].apply(lambda x: datetime.strftime(x, '%Y-%m-%dT%H:%M:%SZ'))

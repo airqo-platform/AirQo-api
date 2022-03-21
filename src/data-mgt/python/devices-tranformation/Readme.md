@@ -10,7 +10,7 @@ Contains Utils for manipulating devices' data
     pip install -r requirements.txt
 ```
 
-Obtain and add the `.env` to this directory.
+Add the `.env` to this directory. [link to env file](https://docs.google.com/document/d/12SFbaC9aECzQJDtGp4ECkLpMqVAnmQQ22QyqE2d9L94/edit?usp=sharing)
 
 In scenarios where the output is  **csv** or **json**, a file named `output.json` or `output.csv` is generated with the
 data.
@@ -65,4 +65,24 @@ Update sites to include the nearest Tahmo Station.
 
 ```bash
     python main.py devices_without_forecast csv
+```
+
+## Update sites search names based on csv file
+Updates the `search_name` and `location_name` of sites. You must add to this directory a `sites.csv` file containing `search_name`, `location_name` and either `lat_long` or `id` of the sites to  be updated.
+
+Sample `sites.csv` file
+
+| id         | search_name   | location_name   |
+|------------|---------------|-----------------|
+| site_01_id | Masaka        | Central, Uganda |
+| site_02_id | AirQo Offices | Kampala, Uganda |
+
+```bash
+    python main.py update_site_search_names
+```
+
+## Export sites/devices to csv or json
+```bash
+    python main.py export_sites csv
+    python main.py export_devices json airqo
 ```

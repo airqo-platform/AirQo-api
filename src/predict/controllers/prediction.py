@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models.predict import make_prediction, make_prediction_using_averages
-from helpers.utils import checkKey, get_closest_channel, get_gp_predictions
+from helpers.utils import checkKey, get_closest_channel, get_gp_predictions, get_gp_predictions_id
 from models.predict import make_prediction, make_prediction_using_averages, get_next_24hr_predictions_for_channel
 from helpers.validation import validate_inputs, validate_inputs_for_next_24hour_predictions
 import logging
@@ -229,12 +229,19 @@ def predictions_for_heatmap():
         try:
             airqloud = request.args.get('airqloud').lower()
             data = get_gp_predictions(airqloud)
+        except:
+            try:
+                aq_id = request.args.get('id')
+                data = get_gp_predictions_id(aq_id)
+            except:
+                return {'message': 'Please specify an airqloud', 'success': False}, 400
+        if len(data)>0:
             return {'success': True, 'data': data}, 200
-        except Exception as e:
-            return {'message': 'An error occured. Please try again.', 'success': False}, 400
+        else:
+            return {'message': 'No data for specified AirQloud', 'success': False}, 400
     else:
         return {'message': 'Wrong request method. This is a GET endpoint.', 'success': False}, 400
-
+        
 if __name__=='__main__':
     print(predictions_for_heatmap())
 

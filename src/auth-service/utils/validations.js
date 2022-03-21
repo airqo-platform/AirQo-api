@@ -2,7 +2,7 @@ const Validator = require("validator");
 const isEmpty = require("is-empty");
 const joi = require("joi");
 const httpStatus = require("http-status");
-const { logObject } = require("./log");
+const { logObject, logElement } = require("./log");
 constants = require("../config/constants");
 const kickbox = require("kickbox")
   .client(`${constants.KICKBOX_API_KEY}`)
@@ -172,20 +172,20 @@ const validation = {
    */
   checkEmailExistance: async (email, callback) => {
     try {
-      await emailExistence.check(email, (response, error) => {
-        if (response === true) {
+      return await emailExistence.check(email, (response, error) => {
+        logObject("response from email existence--code", response.code);
+        if (response.code === "ENODATA") {
+          callback({
+            success: false,
+            message: "email address does not exist",
+            errors: { message: "email address does not exist" },
+            status: httpStatus.BAD_REQUEST,
+          });
+        } else {
           callback({
             success: true,
             message: "email exists",
             status: httpStatus.OK,
-          });
-        }
-        if (response !== true) {
-          callback({
-            success: false,
-            message: "email address does not exist",
-            errors: { message: response.code },
-            status: httpStatus.BAD_REQUEST,
           });
         }
         if (error) {

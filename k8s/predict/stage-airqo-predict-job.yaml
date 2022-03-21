@@ -1,0 +1,31 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: stage-airqo-predict-job
+  namespace: staging
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 * * * *"
+  jobTemplate:
+    metadata:
+      name: stage-airqo-predict-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          containers:
+          - name: stage-airqo-predict-job
+            image: us.gcr.io/airqo-250220/airqo-stage-predict-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: env-predict-job-staging
+            volumeMounts:
+              - name: config-volume
+                mountPath: /etc/config
+          volumes:
+            - name: config-volume
+              configMap:
+                name: predict-job-config-files

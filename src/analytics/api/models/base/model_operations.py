@@ -75,7 +75,7 @@ class ChainableMongoOperations(BaseMongoOperations):
 
     @staticmethod
     def to_object_ids(ids):
-        return [ObjectId(ID) for ID in ids]
+        return tuple(ObjectId(ID) for ID in ids)
 
     def _update_match_stage(self, expression, raise_exc=True, **new_filters):
         """

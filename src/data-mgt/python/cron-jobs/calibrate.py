@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from config import configuration
 from airqoApi import AirQoApi
+from date import date_to_str2, date_to_str_hours
 from utils import to_double
 
 load_dotenv()
@@ -23,16 +24,16 @@ class CalibrationJob:
         self.airqo_api = AirQoApi()
         self.hours = 1
 
-    def calibrate(self):
-        self.get_events()
+    def calibrate(self, start_time=None, end_time=None):
+        self.get_measurements(start_time, end_time)
         self.average_measurements()
         self.calibrate_measurements()
         self.save_calibrated_measurements()
 
-    def get_events(self):
+    def get_measurements(self, start_time=None, end_time=None):
 
         # ####
-        # Getting devices
+        # Getting measurements
         # ####
 
         devices = self.airqo_api.get_devices(tenant='airqo')
@@ -46,13 +47,16 @@ class CalibrationJob:
         # Getting events
         # ####
 
-        time = datetime.utcnow()
-        start_time = (time - timedelta(hours=self.hours)).strftime('%Y-%m-%dT%H:00:00Z')
-        end_time = (datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') + timedelta(hours=self.hours)) \
-            .strftime('%Y-%m-%dT%H:00:00Z')
+        if start_time is None or end_time is None:
+            time = datetime.utcnow()
+            start_time = date_to_str_hours(time - timedelta(hours=self.hours))
+            end_time = date_to_str_hours(datetime.strptime(start_time, '%Y-%m-%dT%H:00:00Z') +
+                                         timedelta(hours=self.hours))
 
+        interval = f"{self.hours}H"
         print(f'UTC start time : {start_time}')
         print(f'UTC end time : {end_time}')
+        dates = pd.date_range(start_time, end_time, freq=interval)
 
         for device in devices_list:
 
@@ -61,15 +65,20 @@ class CalibrationJob:
                     print(f'name missing in device keys : {device}')
                     continue
 
-                device_name = device['name']
-                events = self.airqo_api.get_events(tenant='airqo', start_time=start_time, frequency="raw",
-                                                   end_time=end_time, device=device_name)
+                for date in dates:
+                    start_datetime = date_to_str2(date)
+                    end_datetime = date_to_str2(date + timedelta(hours=int(self.hours)))
 
-                if not events:
-                    print(f"No measurements for {device_name} : startTime {start_time} : endTime : {end_time}")
-                    continue
+                    device_name = device['name']
+                    events = self.airqo_api.get_events(tenant='airqo', start_time=start_datetime, frequency="raw",
+                                                       end_time=end_datetime, device=device_name)
 
-                self.raw_events.extend(events)
+                    if not events:
+                        print(f"No measurements for {device_name} : "
+                              f"startTime {start_datetime} : endTime : {end_datetime}")
+                        continue
+
+                    self.raw_events.extend(events)
             except:
                 traceback.print_exc()
 
@@ -88,8 +97,6 @@ class CalibrationJob:
         for _, device_group in devices_groups:
 
             try:
-
-                del device_group['deviceDetails']
                 device_measurements = pd.json_normalize(device_group.to_dict(orient='records'))
 
                 measurement_metadata = device_measurements[['site_id', 'device_id', 'device', 'device_number']].copy()
@@ -102,12 +109,21 @@ class CalibrationJob:
                 del measurement_readings['device']
                 del measurement_readings['device_number']
 
+                measurement_readings.dropna(subset=['time'], inplace=True)
                 measurement_readings['time'] = pd.to_datetime(measurement_readings['time'])
                 measurement_readings.set_index('time')
                 measurement_readings.sort_index(axis=0)
-                measurement_readings = measurement_readings.ffill().bfill()
 
                 averages = pd.DataFrame(measurement_readings.resample('1H', on='time').mean())
+
+                if 'pm2_5.value' not in averages.columns and 's1_pm2_5.value' in averages.columns:
+                    averages['pm2_5.value'] = averages['s1_pm2_5.value']
+                if 'pm10.value' not in averages.columns and 's1_pm10.value' in averages.columns:
+                    averages['pm10.value'] = averages['s1_pm10.value']
+
+                if "pm2_5.value" not in averages.columns or "s2_pm2_5.value" not in averages.columns or\
+                        "pm10.value" not in averages.columns or "s2_pm10.value" not in averages.columns:
+                    continue
 
                 averages['average_pm2_5.value'] = averages[['pm2_5.value', 's2_pm2_5.value']].mean(axis=1)
                 averages['average_pm10.value'] = averages[['pm10.value', 's2_pm10.value']].mean(axis=1)
@@ -137,16 +153,23 @@ class CalibrationJob:
 
         for _, time_group in hourly_measurements_groups:
 
-            try:
-                date_time = time_group.iloc[0]["time"]
-                time_group["pm2_5"] = time_group["pm2_5.value"]
-                time_group["s2_pm2_5"] = time_group["s2_pm2_5.value"]
-                time_group["pm10"] = time_group["pm10.value"]
-                time_group["s2_pm10"] = time_group["s2_pm10.value"]
-                time_group["temperature"] = time_group["externalTemperature.value"]
-                time_group["humidity"] = time_group["externalHumidity.value"]
+            data = time_group[time_group["pm2_5.value"].notna()]
+            data = data[data["s2_pm2_5.value"].notna()]
+            data = data[data["pm10.value"].notna()]
+            data = data[data["s2_pm10.value"].notna()]
+            data = data[data["externalTemperature.value"].notna()]
+            data = data[data["externalHumidity.value"].notna()]
 
-                calibrate_body = time_group.to_dict(orient="records")
+            try:
+                date_time = data.iloc[0]["time"]
+                data["pm2_5"] = data["pm2_5.value"]
+                data["s2_pm2_5"] = data["s2_pm2_5.value"]
+                data["pm10"] = data["pm10.value"]
+                data["s2_pm10"] = data["s2_pm10.value"]
+                data["temperature"] = data["externalTemperature.value"]
+                data["humidity"] = data["externalHumidity.value"]
+
+                calibrate_body = data.to_dict(orient="records")
 
                 for i in range(0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)):
                     values = calibrate_body[i:i + int(configuration.CALIBRATE_REQUEST_BODY_SIZE)]
@@ -155,15 +178,15 @@ class CalibrationJob:
 
                     for value in calibrated_values:
                         try:
-                            time_group.loc[time_group['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
-                                = round(value["calibrated_PM2.5"], 2)
-                            time_group.loc[time_group['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
-                                = round(value["calibrated_PM10"], 2)
+                            data.loc[data['device'] == value["device_id"], 'average_pm2_5.calibratedValue'] \
+                                = value["calibrated_PM2.5"]
+                            data.loc[data['device'] == value["device_id"], 'average_pm10.calibratedValue'] \
+                                = value["calibrated_PM10"]
                         except:
                             traceback.print_exc()
                             pass
 
-                    self.hourly_calibrated_measurements.extend(time_group.to_dict(orient='records'))
+                    self.hourly_calibrated_measurements.extend(data.to_dict(orient='records'))
 
             except:
                 traceback.print_exc()
@@ -180,7 +203,11 @@ class CalibrationJob:
         calibrated_measurements = []
         hourly_calibrated_measurements_df = pd.DataFrame(self.hourly_calibrated_measurements)
 
-        for _, row in hourly_calibrated_measurements_df.iterrows():
+        cleaned_df = hourly_calibrated_measurements_df[
+            hourly_calibrated_measurements_df['average_pm2_5.calibratedValue'].notna()
+        ]
+
+        for _, row in cleaned_df.iterrows():
             try:
                 columns = hourly_calibrated_measurements_df.columns
 
@@ -193,97 +220,74 @@ class CalibrationJob:
                     "device_id": row['device_id'],
                     "site_id": row['site_id'],
                     "internalTemperature": {
-                        "value": to_double(row[
-                                               "internalTemperature.value"]) if "internalTemperature.value" in columns else None
+                        "value": get_value("internalTemperature.value", row, columns),
                     },
                     "internalHumidity": {
-                        "value": to_double(
-                            row["internalHumidity.value"]) if "internalHumidity.value" in columns else None
+                        "value": get_value("internalHumidity.value", row, columns),
                     },
                     "externalTemperature": {
-                        "value": to_double(row[
-                                               "externalTemperature.value"]) if "externalTemperature.value" in columns else None
+                        "value": get_value("externalTemperature.value", row, columns),
                     },
                     "externalHumidity": {
-                        "value": to_double(
-                            row["externalHumidity.value"]) if "externalHumidity.value" in columns else None
+                        "value": get_value("externalHumidity.value", row, columns),
                     },
                     "externalPressure": {
-                        "value": to_double(
-                            row["externalPressure.value"]) if "externalPressure.value" in columns else None
+                        "value": get_value("externalPressure.value", row, columns),
                     },
                     "speed": {
-                        "value": to_double(row["speed.value"]) if "speed.value" in columns else None
+                        "value": get_value("speed.value", row, columns),
                     },
                     "altitude": {
-                        "value": to_double(row["altitude.value"]) if "altitude.value" in columns else None
+                        "value": get_value("altitude.value", row, columns),
                     },
                     "battery": {
-                        "value": to_double(row["battery.value"]) if "battery.value" in columns else None
+                        "value": get_value("battery.value", row, columns),
                     },
                     "satellites": {
-                        "value": to_double(row["satellites.value"]) if "satellites.value" in columns else None
+                        "value": get_value("satellites.value", row, columns),
                     },
                     "hdop": {
-                        "value": to_double(row["hdop.value"]) if "hdop.value" in columns else None
+                        "value": get_value("hdop.value", row, columns),
                     },
                     "pm10": {
-                        "value": to_double(row["pm10.value"]) if "pm10.value" in columns else None,
-                        "uncertaintyValue": to_double(row["pm10.uncertaintyValue"])
-                        if "pm10.uncertaintyValue" in columns else None,
-                        "standardDeviationValue": to_double(row["pm10.standardDeviationValue"])
-                        if "pm10.standardDeviationValue" in columns else None
+                        "value": get_value("pm10.value", row, columns),
+                        "uncertaintyValue": get_value("pm10.uncertaintyValue", row, columns),
+                        "standardDeviationValue": get_value("pm10.standardDeviationValue", row, columns),
                     },
                     "pm2_5": {
-                        "value": to_double(row["pm2_5.value"]) if "pm2_5.value" in columns else None,
-                        "uncertaintyValue": to_double(row["pm2_5.uncertaintyValue"])
-                        if "pm2_5.uncertaintyValue" in columns else None,
-                        "standardDeviationValue": to_double(row["pm2_5.standardDeviationValue"])
-                        if "pm2_5.standardDeviationValue" in columns else None
+                        "value": get_value("pm2_5.value", row, columns),
+                        "uncertaintyValue": get_value("pm2_5.uncertaintyValue", row, columns),
+                        "standardDeviationValue": get_value("pm2_5.standardDeviationValue", row, columns),
                     },
                     "no2": {
-                        "value": to_double(row["no2.value"]) if "no2.value" in columns else None,
-                        "calibratedValue": to_double(row[
-                                                         "no2.calibratedValue"]) if "no2.calibratedValue" in columns else None,
-                        "uncertaintyValue": to_double(row[
-                                                          "no2.uncertaintyValue"]) if "no2.uncertaintyValue" in columns else None,
-                        "standardDeviationValue": to_double(row["no2.standardDeviationValue"])
-                        if "no2.standardDeviationValue" in columns else None
+                        "value": get_value("no2.value", row, columns),
+                        "calibratedValue": get_value("no2.calibratedValue", row, columns),
+                        "uncertaintyValue": get_value("no2.uncertaintyValue", row, columns),
+                        "standardDeviationValue": get_value("no2.standardDeviationValue", row, columns),
                     },
                     "pm1": {
-                        "value": to_double(row["pm1.value"]) if "pm1.value" in columns else None,
-                        "calibratedValue": to_double(row[
-                                                         "pm1.calibratedValue"]) if "pm1.calibratedValue" in columns else None,
-                        "uncertaintyValue": to_double(row[
-                                                          "pm1.uncertaintyValue"]) if "pm1.uncertaintyValue" in columns else None,
-                        "standardDeviationValue": to_double(row["pm1.standardDeviationValue"])
-                        if "pm1.standardDeviationValue" in columns else None
+                        "value": get_value("pm1.value", row, columns),
+                        "calibratedValue": get_value("pm1.calibratedValue", row, columns),
+                        "uncertaintyValue": get_value("pm1.uncertaintyValue", row, columns),
+                        "standardDeviationValue": get_value("pm1.standardDeviationValue", row, columns),
                     },
                     "s2_pm10": {
-                        "value": to_double(row["s2_pm10.value"]) if "s2_pm10.value" in columns else None,
-                        "uncertaintyValue": to_double(row["s2_pm10.uncertaintyValue"])
-                        if "s2_pm10.uncertaintyValue" in columns else None,
-                        "standardDeviationValue": to_double(row["s2_pm10.standardDeviationValue"])
-                        if "s2_pm10.standardDeviationValue" in columns else None
+                        "value": get_value("s2_pm10.value", row, columns),
+                        "uncertaintyValue": get_value("s2_pm10.uncertaintyValue", row, columns),
+                        "standardDeviationValue": get_value("s2_pm10.standardDeviationValue", row, columns),
                     },
                     "s2_pm2_5": {
-                        "value": to_double(row["s2_pm2_5.value"]) if "s2_pm2_5.value" in columns else None,
-                        "uncertaintyValue": to_double(row["s2_pm2_5.uncertaintyValue"])
-                        if "s2_pm2_5.uncertaintyValue" in columns else None,
-                        "standardDeviationValue": to_double(row["s2_pm2_5.standardDeviationValue"])
-                        if "s2_pm2_5.standardDeviationValue" in columns else None
+                        "value": get_value("s2_pm2_5.value", row, columns),
+                        "uncertaintyValue": get_value("s2_pm2_5.uncertaintyValue", row, columns),
+                        "standardDeviationValue": get_value("s2_pm2_5.standardDeviationValue", row, columns),
                     },
                     "average_pm2_5": {
-                        "value": to_double(row["average_pm2_5.value"]) if "average_pm2_5.value" in columns else None,
-                        "calibratedValue": to_double(
-                            row["average_pm2_5.calibratedValue"]) if "average_pm2_5.calibratedValue"
-                                                                     in columns else None,
+                        "value": get_value("average_pm2_5.value", row, columns),
+                        "calibratedValue": get_value("average_pm2_5.calibratedValue", row, columns),
                     },
                     "average_pm10": {
-                        "value": to_double(row["average_pm10.value"]) if "average_pm10.value" in columns else None,
-                        "calibratedValue": to_double(
-                            row["average_pm10.calibratedValue"]) if "average_pm10.calibratedValue"
-                                                                    in columns else None,
+                        "value": get_value("average_pm10.value", row, columns),
+                        "calibratedValue": get_value("average_pm10.calibratedValue", row, columns),
                     }
                 })
                 calibrated_measurements.append(calibrated_measurement)
@@ -294,6 +298,17 @@ class CalibrationJob:
         self.airqo_api.post_events(calibrated_measurements, 'airqo')
 
 
+def get_value(column_name, series, columns_names):
+    if column_name in columns_names:
+        return to_double(series[column_name])
+    return None
+
+
 def main():
     calibration_job = CalibrationJob()
     calibration_job.calibrate()
+
+
+def main_historical_data(start_time, end_time):
+    calibration_job = CalibrationJob()
+    calibration_job.calibrate(start_time, end_time)
