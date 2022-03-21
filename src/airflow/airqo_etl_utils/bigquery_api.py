@@ -140,15 +140,8 @@ class BigQueryApi:
         )
 
     def get_hourly_data(
-        self, start_date_time: str, end_date_time: str, columns: list, source: str
+        self, start_date_time: str, end_date_time: str, columns: list, table: str
     ) -> pd.DataFrame:
-
-        if source == "weather_measurements":
-            table = self.hourly_weather_table
-        elif source == "hourly_measurements":
-            table = self.hourly_measurements_table
-        else:
-            raise Exception("Invalid source table")
 
         query = f"""
             SELECT {', '.join(map(str, columns))}

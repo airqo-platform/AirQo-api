@@ -36,7 +36,7 @@ def query_hourly_measurements(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
         columns=columns,
-        source="hourly_measurements",
+        table=biq_query_api.hourly_measurements_table,
     )
 
     hourly_measurements.rename(
@@ -69,13 +69,13 @@ def query_hourly_weather_data(
         "precipitation",
         "wind_direction",
     ]
-    hourly_measurements = biq_query_api.get_hourly_data(
+    hourly_weather_measurements = biq_query_api.get_hourly_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
         columns=columns,
-        source="weather_measurements",
+        table=biq_query_api.hourly_weather_table,
     )
-    return hourly_measurements.to_dict(orient="records")
+    return hourly_weather_measurements.to_dict(orient="records")
 
 
 def extract_sites_meta_data(tenant=None) -> list:
