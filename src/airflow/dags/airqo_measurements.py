@@ -297,6 +297,21 @@ def hourly_measurements_etl():
         big_query_api.save_hourly_measurements(airqo_restructured_data)
 
     @task()
+    def save_app_insights(airqo_data: dict):
+
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.message_broker import KafkaBrokerClient
+        from airqo_etl_utils.config import configuration
+
+        data = un_fill_nan(airqo_data.get("data"))
+        insights_data = restructure_airqo_data(data=data, destination="app-insights")
+        info = {"data": insights_data, "action": "save"}
+
+        kafka = KafkaBrokerClient()
+        kafka.send_data(info=info, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+
+    @task()
     def send_raw_measurements_to_bigquery(airqo_data: dict):
 
         from airqo_etl_utils.commons import un_fill_nan
@@ -333,6 +348,7 @@ def hourly_measurements_etl():
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
+    save_app_insights(calibrated_data)
     send_raw_measurements_to_api(extracted_airqo_data)
     # send_raw_measurements_to_bigquery(extracted_airqo_data)
 

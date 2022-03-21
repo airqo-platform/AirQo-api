@@ -18,6 +18,7 @@ from airqo_etl_utils.commons import (
     get_airqo_api_frequency,
     resample_data,
     get_frequency,
+    get_column_value,
 )
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
@@ -73,6 +74,34 @@ def format_measurements_to_insights(data: list):
     data["forecast"] = False
 
     return data.to_dict(orient="records")
+
+
+def format_airqo_data_to_insights(data: list):
+    restructured_data = []
+
+    data_df = pd.DataFrame(data)
+    columns = list(data_df.columns)
+
+    for _, data_row in data_df.iterrows():
+        device_data = dict(
+            {
+                "time": data_row["time"],
+                "siteId": data_row["site_id"],
+                "frequency": data_row["frequency"],
+                "pm2_5": get_column_value(
+                    column="pm2_5", columns=columns, series=data_row
+                ),
+                "pm10": get_column_value(
+                    column="pm10", columns=columns, series=data_row
+                ),
+                "empty": False,
+                "forecast": False,
+            }
+        )
+
+        restructured_data.append(device_data)
+
+    return create_insights_data(data=restructured_data)
 
 
 def save_insights_data(insights_data: list = None, action: str = "insert"):

@@ -39,7 +39,7 @@ def app_forecast_insights_etl():
 
 @dag(
     "App-Daily-Insights",
-    schedule_interval=None,
+    schedule_interval="0 2 * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,

@@ -590,6 +590,7 @@ def restructure_airqo_data_for_message_broker(data: list) -> list:
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],
+                "frequency": data_row["frequency"],
                 "device": data_row["device"],
                 "latitude": get_column_value(
                     column="latitude", columns=columns, series=data_row
@@ -669,6 +670,10 @@ def restructure_airqo_data(data: list, destination: str) -> list:
         return restructure_airqo_data_for_api(data_df_values)
     elif destination == "message-broker":
         return restructure_airqo_data_for_message_broker(data_df_values)
+    elif destination == "app-insights":
+        from airqo_etl_utils.app_insights_utils import format_airqo_data_to_insights
+
+        return format_airqo_data_to_insights(data_df_values)
     elif destination == "bigquery":
         return restructure_airqo_data_for_bigquery(data_df_values)
     else:
