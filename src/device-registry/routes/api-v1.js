@@ -2878,18 +2878,6 @@ router.post(
 router.post(
   "/events/transform",
   oneOf([
-    [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
     body()
       .isArray()
       .withMessage("the request body should be an array"),

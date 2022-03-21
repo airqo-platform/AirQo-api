@@ -339,6 +339,7 @@ deviceSchema.statics = {
           "site.street": 0,
           "site.town": 0,
           "site.nearest_tahmo_station": 0,
+          "site.__v": 0,
         })
         .skip(_skip)
         .limit(_limit)

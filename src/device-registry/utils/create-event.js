@@ -35,7 +35,7 @@ const createEvent = {
       if (responseFromFilter.success === false) {
         const errors = responseFromFilter.errors
           ? responseFromFilter.errors
-          : "";
+          : { message: "" };
         logObject("responseFromFilter", errors);
       }
 
@@ -107,7 +107,7 @@ const createEvent = {
                   : "";
                 const errors = responseFromListEvents.errors
                   ? responseFromListEvents.errors
-                  : "";
+                  : { message: "" };
                 callback({
                   success: false,
                   message: responseFromListEvents.message,
@@ -137,15 +137,9 @@ const createEvent = {
         request
       );
 
-      const data = await responseFromTransformEvent.data;
-      const { filter, update, options } = data;
-
       logObject("responseFromTransformEvent", responseFromTransformEvent);
-      logObject("the filter", filter);
-      logObject("the update", update);
-      logObject("the options", options);
 
-      if (responseFromTransformEvent.success === "true") {
+      if (responseFromTransformEvent.success === true) {
         let transformedEvents = responseFromTransformEvent.data;
         let nAdded = 0;
         let eventsAdded = [];
@@ -155,10 +149,25 @@ const createEvent = {
         for (const event of transformedEvents) {
           try {
             logObject("event", event);
-            const addedEvents = await EventModel(tenant).updateOne(
-              event.filter,
-              event.update,
-              event.options
+            let value = event;
+            let dot = new Dot(".");
+            let options = event.options;
+            let filter = cleanDeep(event.filter);
+            let update = event.update;
+            logObject("the filter", filter);
+            logObject("the options", options);
+
+            dot.delete(["filter", "update", "options"], value);
+
+            logObject("the value", value);
+            update["$push"] = { values: value };
+
+            logObject("the update", update);
+
+            const addedEvents = await EventModel("view").updateOne(
+              filter,
+              update,
+              options
             );
             if (addedEvents) {
               nAdded += 1;
@@ -190,10 +199,11 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
-            logObject("the detailed duplicate error", e);
+            logObject("the detailed db conflict error", e.message);
             eventsRejected.push(event);
             let errMsg = {
-              msg: "duplicate record",
+              msg: "system conflict detected, most likely a duplicate record",
+              more: e.message,
               record: {
                 ...(event.device ? { device: event.device } : {}),
                 ...(event.frequency ? { frequency: event.frequency } : {}),
@@ -208,7 +218,7 @@ const createEvent = {
 
         if (errors.length > 0) {
           return {
-            success: true,
+            success: false,
             status: HTTPStatus.CONFLICT,
             message: "finished the operation with some conflicts",
             errors: errors,
@@ -220,14 +230,8 @@ const createEvent = {
             message: "successfully added all the events",
           };
         }
-      }
-      if (responseFromTransformEvent.success === "false") {
-        return {
-          success: false,
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
-          message: "Internal Server Error",
-          errors: { message: "Internal Server Error" },
-        };
+      } else if (responseFromTransformEvent.success === false) {
+        return responseFromTransformEvent;
       }
     } catch (error) {
       return {
@@ -421,7 +425,7 @@ const createEvent = {
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromListDevice.errors
           ? responseFromListDevice.errors
-          : "";
+          : { message: "" };
         logObject(
           "responseFromListDevice has an error",
           responseFromListDevice
@@ -644,43 +648,19 @@ const createEvent = {
       );
       if (responseFromEnrichOneEvent.success === true) {
         result = responseFromEnrichOneEvent.data;
-        result["update"]["is_device_primary"] = result["is_device_primary"];
-        dot.delete("is_device_primary", result);
-      }
-
-      if (responseFromEnrichOneEvent.success === false) {
-        logObject("responseFromEnrichOneEvent", responseFromEnrichOneEvent);
+      } else if (responseFromEnrichOneEvent.success === false) {
         return {
           success: false,
-          message: "unable to enrich event",
+          message: "unable to enrich event using device details",
           errors: { message: responseFromEnrichOneEvent.message },
         };
       }
-      logObject("the event", result);
       if (!isEmpty(result)) {
         dot.object(result);
         let cleanedResult = cleanDeep(result);
-        logObject("cleanedResult", cleanedResult);
-        let filter = cleanedResult.filter;
-
-        modifiedFilter["$or"] = [
-          { "values.time": { $ne: filter["values.time"] } },
-          { "values.device": { $ne: filter.device } },
-          { "values.frequency": { $ne: filter["values.frequency"] } },
-          { "values.device_id": { $ne: filter.device_id } },
-          { "values.site_id": { $ne: filter.site_id } },
-          { day: { $ne: filter.day } },
-        ];
-        modifiedFilter["day"] = filter.day;
-        modifiedFilter["nValues"] = filter.nValues;
-        modifiedFilter["device_id"] = filter.device_id;
-        modifiedFilter["site_id"] = filter.site_id;
-
-        cleanedResult["modifiedFilter"] = modifiedFilter;
-
         return {
           success: true,
-          message: "successfully transformed the json request",
+          message: "successfully transformed the provided event",
           data: cleanedResult,
         };
       } else {
@@ -698,7 +678,7 @@ const createEvent = {
       return {
         success: false,
         message: "server error - trasform util",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -715,12 +695,6 @@ const createEvent = {
       request["query"]["device_id"] = transformedEvent.filter.device_id;
       request["query"]["tenant"] = transformedEvent.tenant;
 
-      logger.info(
-        `the request being sent to list device details -- ${JSON.stringify(
-          request
-        )}`
-      );
-
       const responseFromGetDeviceDetails = await createDeviceUtil.list(request);
       logger.info(
         `responseFromGetDeviceDetails ${JSON.stringify(
@@ -728,30 +702,21 @@ const createEvent = {
         )}`
       );
       if (responseFromGetDeviceDetails.success === true) {
-        logger.info(
-          `responseFromGetDeviceDetails ${responseFromGetDeviceDetails}`
-        );
         let deviceDetails = responseFromGetDeviceDetails.data[0];
-        logger.info(
-          `the retrieved device details -- ${JSON.stringify(deviceDetails)}`
-        );
-        enrichedEvent["is_test_data"] = deviceDetails.isActive
-          ? !deviceDetails.isActive
-          : false;
-        enrichedEvent["is_device_primary"] = deviceDetails.isPrimaryInLocation
-          ? deviceDetails.isPrimaryInLocation
-          : true;
-        logger.info(`enriched event -- ${JSON.stringify(enrichedEvent)}`);
+        logObject("the device details baby", deviceDetails);
+        enrichedEvent["is_test_data"] = !deviceDetails.isActive;
+        enrichedEvent["is_device_primary"] = deviceDetails.isPrimaryInLocation;
+
+        logObject("enrichedEvent", enrichedEvent);
         return {
           success: true,
           message: "successfully enriched",
           data: enrichedEvent,
         };
-      }
-      if (responseFromGetDeviceDetails.success === false) {
+      } else if (responseFromGetDeviceDetails.success === false) {
         let errors = responseFromGetDeviceDetails.errors
           ? responseFromGetDeviceDetails.errors
-          : "";
+          : { message: "" };
         logger.error(
           `responseFromGetDeviceDetails was not a success -- ${responseFromGetDeviceDetails.message} -- ${errors}`
         );
@@ -766,7 +731,7 @@ const createEvent = {
       return {
         success: false,
         message: "server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -777,19 +742,16 @@ const createEvent = {
        * insert event util just creates the event body and options
        * ..........field for the update procedure.
        */
-      let { tenant } = request.query;
-      logger.info(`the tenant being sent for transformation -- ${tenant}`);
       let { body } = request;
+
       logger.info(
         `the body received for transformation -- ${JSON.stringify(body)}`
       );
-      logger.info(`the tenant received for transformation -- ${tenant}`);
       let promises = body.map(async (event) => {
         let data = event;
-        data["tenant"] = tenant;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
-        context["tenant"] = tenant;
+
         let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
           map,
@@ -809,12 +771,10 @@ const createEvent = {
             data: responseFromTransformEvent.data,
             message: responseFromTransformEvent.message,
           };
-        }
-
-        if (responseFromTransformEvent.success === false) {
+        } else if (responseFromTransformEvent.success === false) {
           let errors = responseFromTransformEvent.errors
             ? responseFromTransformEvent.errors
-            : "";
+            : { message: "" };
           logger.error(
             `responseFromTransformEvent is not a success -- unable to transform -- ${errors}`
           );
@@ -838,11 +798,9 @@ const createEvent = {
             data: transforms,
             message: "successful transformations",
           };
-        }
-
-        if (results.every((res) => !res.success)) {
+        } else if (results.every((res) => !res.success)) {
           for (const result of results) {
-            let error = result.errors ? result.errors : "";
+            let error = result.errors ? result.errors : { message: "" };
             errors.push(error);
           }
           logger.error(
@@ -860,7 +818,7 @@ const createEvent = {
       return {
         success: false,
         message: "server side error - transformEvents ",
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -883,15 +841,13 @@ const createEvent = {
         logElement("responseFromTransformEvents was false?", true);
         let errors = responseFromTransformEvents.errors
           ? responseFromTransformEvents.errors
-          : "";
+          : { message: "" };
         return {
           success: false,
           message: responseFromTransformEvents.message,
           errors,
         };
-      }
-
-      if (responseFromTransformEvents.success === true) {
+      } else if (responseFromTransformEvents.success === true) {
         let transformedMeasurements = responseFromTransformEvents.data;
         let responseFromInsertEvents = await createEvent.insertTransformedEvents(
           tenant,
@@ -906,16 +862,14 @@ const createEvent = {
             message: responseFromInsertEvents.message,
             data: responseFromInsertEvents.data,
           };
-        }
-
-        if (!responseFromInsertEvents.success) {
-          let error = responseFromInsertEvents.error
-            ? responseFromInsertEvents.error
+        } else if (!responseFromInsertEvents.success) {
+          let errors = responseFromInsertEvents.errors
+            ? responseFromInsertEvents.errors
             : "";
           return {
             success: false,
             message: responseFromInsertEvents.message,
-            error,
+            errors,
           };
         }
       }
@@ -924,7 +878,7 @@ const createEvent = {
       return {
         success: false,
         message: "server side error",
-        errors: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -1015,7 +969,7 @@ const createEvent = {
         return {
           success: false,
           message: "finished the operation with some errors",
-          error: errors,
+          errors: errors,
         };
       } else {
         return {
@@ -1029,7 +983,7 @@ const createEvent = {
       return {
         success: false,
         message: "server side error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -1043,14 +997,14 @@ const createEvent = {
     let filter = {};
     if (responseFromFilter.success === true) {
       filter = responseFromFilter.data;
-    }
-
-    if (responseFromFilter.success === false) {
-      let error = responseFromFilter.error ? responseFromFilter.error : "";
+    } else if (responseFromFilter.success === false) {
+      let errors = responseFromFilter.errors
+        ? responseFromFilter.errors
+        : { message: "" };
       return {
         success: false,
         message: responseFromFilter.message,
-        error,
+        errors,
       };
     }
     let _limit = limit ? limit : 100;
@@ -1072,13 +1026,13 @@ const createEvent = {
     }
 
     if (responseFromListEvents.success === false) {
-      let error = responseFromListEvents.error
-        ? responseFromListEvents.error
-        : "";
+      let errors = responseFromListEvents.errors
+        ? responseFromListEvents.errors
+        : { message: "" };
       return {
         success: false,
         message: responseFromListEvents.message,
-        error,
+        errors,
       };
     }
   },
@@ -1101,11 +1055,13 @@ const createEvent = {
       }
 
       if (responseFromFilter.success == false) {
-        let error = responseFromFilter.error ? responseFromFilter.error : "";
+        let errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
         return {
           success: false,
           message: responseFromFilter.message,
-          error,
+          errors,
         };
       }
 
@@ -1120,12 +1076,12 @@ const createEvent = {
       } else if (responseFromClearEvents.success == false) {
         let error = responseFromClearEvents.error
           ? responseFromClearEvents.error
-          : "";
+          : { message: "" };
 
         return {
           success: false,
           message: responseFromClearEvents.message,
-          error: responseFromClearEvents.error,
+          errors: responseFromClearEvents.error,
         };
       }
     } catch (e) {
@@ -1138,37 +1094,106 @@ const createEvent = {
   },
   consume: async () => {
     try {
-      try {
-        let measurements = [];
-        await kafkaConsumer.connect();
-        measurements = await kafkaConsumer.subscribe({
-          topic: "hourly-measurements-topic",
-          fromBeginning: true,
-        });
-        await kafkaConsumer.run({
-          eachMessage: async ({ message }) => {
-            logElement("received message", message.value.toString());
-            let measurements = message.value;
-            const responseFromInsertMeasurements = await createEvent.insert(
-              "airqo",
-              measurements
-            );
-            logObject(
-              "responseFromInsertMeasurements",
-              responseFromInsertMeasurements
-            );
-            return responseFromInsertMeasurements;
-          },
-        });
-      } catch (error) {
-        logObject("error on kafka", error.message);
-      }
+      const kafkaMessage = [
+        {
+          time: "2022-03-18T13:00:00Z",
+          tenant: "kcca",
+          site_id: "60d2b7e27e9018a1a8d38c28",
+          device_id: "603d6ce732e038860ae41918",
+          device_number: 0,
+          device: "A0WN66FH",
+          latitude: " 0.2857506",
+          longitude: "32.5783253",
+          pm2_5: 45.11,
+          pm10: 39.16,
+          s1_pm2_5: 26.4,
+          s1_pm10: 39.16,
+          s2_pm2_5: null,
+          s2_pm10: null,
+          pm2_5_calibrated_value: 45.11,
+          pm10_calibrated_value: null,
+          altitude: null,
+          wind_speed: null,
+          external_temperature: 27.82,
+          external_humidity: 56.76,
+        },
+        {
+          time: "2022-03-19T13:00:00Z",
+          tenant: "airqo",
+          frequency: "minute",
+          site_id: "60d2b7e27e9018a1a8d38c28",
+          device_id: "603d6ce732e038860ae41918",
+          device_number: 0,
+          device: "aq_613_97",
+          latitude: " 0.2857506",
+          longitude: "32.5783253",
+          pm2_5: 45.11,
+          pm10: 39.16,
+          s1_pm2_5: 26.4,
+          s1_pm10: 39.16,
+          s2_pm2_5: null,
+          s2_pm10: null,
+          pm2_5_calibrated_value: 45.11,
+          pm10_calibrated_value: null,
+          altitude: null,
+          wind_speed: null,
+          external_temperature: 27.82,
+          external_humidity: 56.76,
+        },
+      ];
+      /**
+       * during insertion, we need to deal with situations where
+       * there is no frequency. We need to validate the inoput from here?
+       *
+       * we also need to properly handle the server errors, not everything
+       * is duplicate errors! :)
+       */
+      const responseFromInsertMeasurements = await createEvent.insert(
+        "airqo",
+        kafkaMessage
+      );
+      logObject(
+        "responseFromInsertMeasurements",
+        responseFromInsertMeasurements
+      );
+      return responseFromInsertMeasurements;
+
+      // measurements = await kafkaConsumer.subscribe({
+      //   topic: constants.HOURLY_MEASUREMENTS_TOPIC,
+      //   fromBeginning: true,
+      // });
+      // await kafkaConsumer.run({
+      //   eachMessage: async ({ message }) => {
+      //     // logElement("received message", message.value.toString());
+
+      //     let measurements = message.value.toString().data;
+      //     logElement("received message", measurements);
+
+      //     const responseFromInsertMeasurements = await createEvent.insert(
+      //       "airqo",
+      //       measurements
+      //     );
+      //     logObject(
+      //       "responseFromInsertMeasurements",
+      //       responseFromInsertMeasurements
+      //     );
+      //     return responseFromInsertMeasurements;
+
+      //     // return {
+      //     //   success: true,
+      //     //   message: "received the topic data",
+      //     //   data: message.value.toString(),
+      //     // };
+      //   },
+      // });
     } catch (error) {
       return {
+        success: false,
         message: "Internal Server Error",
         errors: {
           message: error.message,
         },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -1190,7 +1215,7 @@ const createEvent = {
 
     for (const measurement of responseFromTransformMeasurements.data) {
       try {
-        // logObject("the measurement in the insertion process", measurement);
+        logObject("the measurement in the insertion process", measurement);
         const eventsFilter = {
           day: measurement.day,
           site_id: measurement.site_id,
@@ -1210,13 +1235,15 @@ const createEvent = {
         someDeviceDetails["site_id"] = measurement.site_id;
         logObject("someDeviceDetails", someDeviceDetails);
 
+        logObject("the measurement", measurement);
+
         const eventsUpdate = {
           $push: { values: measurement },
           $min: { first: measurement.time },
           $max: { last: measurement.time },
           $inc: { nValues: 1 },
         };
-
+        logObject("eventsUpdate", eventsUpdate);
         const addedEvents = await EventModel(tenant).updateOne(
           eventsFilter,
           eventsUpdate,
@@ -1264,11 +1291,12 @@ const createEvent = {
           errors.push(errMsg);
         }
       } catch (e) {
-        logObject("the detailed duplicate error", e);
+        logObject("the detailed db conflict error", e);
         logger.error(`internal server serror ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
-          msg: "duplicate record",
+          msg: "there is a system conflict, most likely a duplicate record",
+          more: e.message,
           record: {
             ...(measurement.device ? { device: measurement.device } : {}),
             ...(measurement.frequency
@@ -1290,11 +1318,13 @@ const createEvent = {
         success: false,
         message: "finished the operation with some errors",
         errors: errors,
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     } else {
       return {
         success: true,
         message: "successfully added all the events",
+        status: HTTPStatus.OK,
       };
     }
   },
@@ -1310,7 +1340,7 @@ const createEvent = {
           success: true,
         };
       } catch (e) {
-        console.log("the error: ", e.message);
+        console.log("the errors: ", e.message);
         return {
           device: device,
           success: false,
@@ -1339,11 +1369,11 @@ const createEvent = {
           };
           return data;
         } catch (e) {
-          console.log("the error: ", e.message);
+          console.log("the errors: ", e.message);
           return {
             success: false,
             message: "server side error",
-            error: e.message,
+            errors: { message: e.message },
           };
         }
       });
@@ -1364,7 +1394,7 @@ const createEvent = {
       return {
         success: false,
         message: "unable to transform measurement",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -1397,7 +1427,7 @@ const createEvent = {
           return field;
       }
     } catch (e) {
-      console.log(e.message);
+      logElement("Internal Server Error", e.message);
     }
   },
   transformMeasurementFields: async (measurements) => {
@@ -1412,7 +1442,7 @@ const createEvent = {
       });
       return transformed;
     } catch (e) {
-      console.log(e.message);
+      logElement("Internal Server Error", e.message);
     }
   },
 

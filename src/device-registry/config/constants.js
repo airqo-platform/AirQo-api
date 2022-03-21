@@ -193,88 +193,88 @@ const defaultConfig = {
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
 
-      "pm2_5.value": "pm2_5.value",
-      "pm2_5.calibratedValue": "pm2_5.calibratedValue",
-      "pm2_5.uncertaintyValue": "pm2_5.uncertaintyValue",
-      "pm2_5.standardDeviationValue": "pm2_5.standardDeviationValue",
+      "pm2_5.value": "pm2_5",
+      "pm2_5.calibratedValue": "pm2_5_calibrated_value",
+      "pm2_5.uncertaintyValue": "pm2_5_uncertainty_value",
+      "pm2_5.standardDeviationValue": "pm2_5_standard_deviation_value",
 
-      "s1_pm2_5.value": "s1_pm2_5.value",
-      "s1_pm2_5.calibratedValue": "s1_pm2_5.calibratedValue",
-      "s1_pm2_5.uncertaintyValue": "s1_pm2_5.uncertaintyValue",
-      "s1_pm2_5.standardDeviationValue": "s1_pm2_5.standardDeviationValue",
+      "s1_pm2_5.value": "s1_pm2_5",
+      "s1_pm2_5.calibratedValue": "s1_pm2_5_calibrated_value",
+      "s1_pm2_5.uncertaintyValue": "s1_pm2_5_uncertainty_value",
+      "s1_pm2_5.standardDeviationValue": "s1_pm2_5_standard_deviation_value",
 
-      "s2_pm2_5.value": "s2_pm2_5.value",
-      "s2_pm2_5.calibratedValue": "s2_pm2_5.calibratedValue",
-      "s2_pm2_5.uncertaintyValue": "s2_pm2_5.uncertaintyValue",
-      "s2_pm2_5.standardDeviationValue": "s2_pm2_5.standardDeviationValue",
+      "s2_pm2_5.value": "s2_pm2_5",
+      "s2_pm2_5.calibratedValue": "s2_pm2_5_calibrated_value",
+      "s2_pm2_5.uncertaintyValue": "s2_pm2_5_uncertainty_value",
+      "s2_pm2_5.standardDeviationValue": "s2_pm2_5_standard_deviation_value",
 
-      "pm10.value": "pm10.value",
-      "pm10.calibratedValue": "pm10.calibratedValue",
-      "pm10.uncertaintyValue": "pm10.uncertaintyValue",
-      "pm10.standardDeviationValue": "pm10.standardDeviationValue",
+      "pm10.value": "pm10",
+      "pm10.calibratedValue": "pm10._calibrated_value",
+      "pm10.uncertaintyValue": "pm10_uncertainty_value",
+      "pm10.standardDeviationValue": "pm10_standard_deviation_value",
 
-      "s1_pm10.value": "s1_pm10.value",
-      "s1_pm10.calibratedValue": "s1_pm10.calibratedValue",
-      "s1_pm10.uncertaintyValue": "s1_pm10.uncertaintyValue",
-      "s1_pm10.standardDeviationValue": "s1_pm10.standardDeviationValue",
+      "s1_pm10.value": "s1_pm10",
+      "s1_pm10.calibratedValue": "s1_pm10_calibrated_value",
+      "s1_pm10.uncertaintyValue": "s1_pm10_uncertainty_value",
+      "s1_pm10.standardDeviationValue": "s1_pm10_standard_deviation_value",
 
-      "s2_pm10.value": "s2_pm10.value",
-      "s2_pm10.calibratedValue": "s2_pm10.calibratedValue",
-      "s2_pm10.uncertaintyValue": "s2_pm10.uncertaintyValue",
-      "s2_pm10.standardDeviationValue": "s2_pm10.standardDeviationValue",
+      "s2_pm10.value": "s2_pm10",
+      "s2_pm10.calibratedValue": "s2_pm10_calibrated_value",
+      "s2_pm10.uncertaintyValue": "s2_pm10_uncertainty_value",
+      "s2_pm10.standardDeviationValue": "s2_pm10_standard_deviation_value",
 
-      "pm1.value": "pm1.value",
-      "pm1.calibratedValue": "pm1.calibratedValue",
-      "pm1.uncertaintyValue": "pm1.uncertaintyValue",
-      "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+      "pm1.value": "pm1",
+      "pm1.calibratedValue": "pm1_calibrated_value",
+      "pm1.uncertaintyValue": "pm1_uncertainty_value",
+      "pm1.standardDeviationValue": "pm1_standard_deviation_value",
 
-      "s1_pm1.value": "s1_pm1.value",
-      "s1_pm1.calibratedValue": "s1_pm1.calibratedValue",
-      "s1_pm1.uncertaintyValue": "s1_pm1.uncertaintyValue",
-      "s1_pm1.standardDeviationValue": "s1_pm1.standardDeviationValue",
+      "s1_pm1.value": "s1_pm1",
+      "s1_pm1.calibratedValue": "s1_pm1_calibrated_value",
+      "s1_pm1.uncertaintyValue": "s1_pm1_uncertainty_value",
+      "s1_pm1.standardDeviationValue": "s1_pm1_standard_deviation_value",
 
-      "s2_pm1.value": "s2_pm1.value",
-      "s2_pm1.calibratedValue": "s2_pm1.calibratedValue",
-      "s2_pm1.uncertaintyValue": "s2_pm1.uncertaintyValue",
-      "s2_pm1.standardDeviationValue": "s2_pm1.standardDeviationValue",
+      "s2_pm1.value": "s2_pm1",
+      "s2_pm1.calibratedValue": "s2_pm1_calibrated_value",
+      "s2_pm1.uncertaintyValue": "s2_pm1_uncertainty_value",
+      "s2_pm1.standardDeviationValue": "s2_pm1_standard_deviation_value",
 
-      "location.latitude.value": "location.latitude.value",
-      "location.longitude.value": "location.longitude.value",
+      "location.latitude.value": "latitude",
+      "location.longitude.value": "longitude",
 
-      "no2.value": "no2.value",
-      "no2.calibratedValue": "no2.calibratedValue",
-      "no2.uncertaintyValue": "no2.uncertaintyValue",
-      "no2.standardDeviationValue": "no2.standardDeviationValue",
+      "no2.value": "no2",
+      "no2.calibratedValue": "no2_calibrated_value",
+      "no2.uncertaintyValue": "no2_uncertainty_value",
+      "no2.standardDeviationValue": "no2_standard_deviation_value",
 
-      "pm1.value": "pm1.value",
-      "pm1.calibratedValue": "pm1.calibratedValue",
-      "pm1.uncertaintyValue": "pm1.uncertaintyValue",
-      "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+      "pm1.value": "pm1",
+      "pm1.calibratedValue": "pm1_calibrated_value",
+      "pm1.uncertaintyValue": "pm1_uncertainty_value",
+      "pm1.standardDeviationValue": "pm1_standard_deviation_value",
 
-      "s1_pm1.value": "s1_pm1.value",
-      "s1_pm1.calibratedValue": "s1_pm1.calibratedValue",
-      "s1_pm1.uncertaintyValue": "s1_pm1.uncertaintyValue",
-      "s1_pm1.standardDeviationValue": "s1_pm1.standardDeviationValue",
+      "s1_pm1.value": "s1_pm1",
+      "s1_pm1.calibratedValue": "s1_pm1_calibrated_value",
+      "s1_pm1.uncertaintyValue": "s1_pm1_uncertainty_value",
+      "s1_pm1.standardDeviationValue": "s1_pm1_standard_deviation_value",
 
-      "s2_pm1.value": "s2_pm1.value",
-      "s2_pm1.calibratedValue": "s2_pm1.calibratedValue",
-      "s2_pm1.uncertaintyValue": "s2_pm1.uncertaintyValue",
-      "s2_pm1.standardDeviationValue": "s2_pm1.standardDeviationValue",
+      "s2_pm1.value": "s2_pm1",
+      "s2_pm1.calibratedValue": "s2_pm1_calibrated_value",
+      "s2_pm1.uncertaintyValue": "s2_pm1_uncertainty_value",
+      "s2_pm1.standardDeviationValue": "s2_pm1_standard_deviation_value",
 
-      "internalTemperature.value": "internalTemperature.value",
-      "externalTemperature.value": "externalTemperature.value",
+      "internalTemperature.value": "internal_temperature",
+      "externalTemperature.value": "external_temperature",
 
-      "internalHumidity.value": "internalHumidity.value",
-      "externalHumidity.value": "externalHumidity.value",
+      "internalHumidity.value": "internal_humidity",
+      "externalHumidity.value": "external_humidity",
 
-      "externalPressure.value": "externalPressure.value",
-      "internalPressure.value": "internalPressure.value",
+      "externalPressure.value": "external_pressure",
+      "internalPressure.value": "internal_pressure",
 
-      "speed.value": "speed.value",
-      "altitude.value": "altitude.value",
-      "battery.value": "battery.value",
-      "satellites.value": "satellites.value",
-      "hdop.value": "hdop.value",
+      "speed.value": "wind_speed",
+      "altitude.value": "altitude",
+      "battery.value": "battery",
+      "satellites.value": "satellites",
+      "hdop.value": "hdop",
     },
     remove: [],
     defaults: {
@@ -391,7 +391,7 @@ const defaultConfig = {
       item["filter"]["site_id"] = context.site_id ? context.site_id : null;
       item["filter"]["values.time"] = context.time ? context.time : null;
       item["filter"]["device"] = context.device ? context.device : null;
-      item["filter"]["nValues"] = { $lt: defaultConfig.N_VALUES };
+      item["filter"]["nValues"] = { $lt: parseInt(defaultConfig.N_VALUES) };
       item["filter"]["day"] = generateDateFormatWithoutHrs(context.time);
       item["filter"]["$or"] = [
         { "values.time": { $ne: context.time ? context.time : null } },
@@ -418,7 +418,6 @@ const defaultConfig = {
       item["update"]["$min"] = {
         first: context.time ? new Date(context.time) : null,
       };
-      item["update"]["$push"] = { values: context };
       item["update"]["$max"] = {
         last: context.time ? new Date(context.time) : null,
       };

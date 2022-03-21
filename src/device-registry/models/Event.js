@@ -35,6 +35,10 @@ const valueSchema = new Schema({
     trim: true,
     default: null,
   },
+  tenant: {
+    type: String,
+    trim: true,
+  },
   is_device_primary: {
     type: Boolean,
     trim: true,
@@ -286,8 +290,9 @@ const eventSchema = new Schema(
     },
     nValues: {
       type: Number,
+      required: [true, "the nValues is required"],
     },
-    values: [valueSchema],
+    values: { type: Array, default: [] },
   },
   {
     timestamps: true,
@@ -855,7 +860,7 @@ eventSchema.statics = {
       return {
         success: false,
         message: "model server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },

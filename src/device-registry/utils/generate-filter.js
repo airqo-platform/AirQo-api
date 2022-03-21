@@ -449,7 +449,7 @@ const generateFilter = {
       return {
         success: false,
         message: "unable to generate the filter",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
