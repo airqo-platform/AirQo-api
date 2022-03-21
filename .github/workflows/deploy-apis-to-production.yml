@@ -163,7 +163,7 @@ jobs:
               echo "::set-output name=run_airflow::true"
             fi
 
-            if [[ $file == workflow-versions ]]; then
+            if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
