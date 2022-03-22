@@ -221,7 +221,7 @@ const createEvent = {
             success: false,
             status: HTTPStatus.CONFLICT,
             message: "finished the operation with some conflicts",
-            errors: errors,
+            errors,
           };
         } else {
           return {
@@ -241,46 +241,18 @@ const createEvent = {
       };
     }
   },
-  transmitValues: async (req, res) => {
+
+  transmitOneSensorValue: async (request) => {
     try {
-      const { type, tenant } = req.query;
-      if (type == "one" && tenant) {
-        return await createEvent.transmitOneSensorValue(req, res);
-      } else if (type == "many" && tenant) {
-        return await createEvent.transmitMultipleSensorValues(req, res);
-      } else if (type == "bulk" && tenant) {
-        return await createEvent.bulkTransmitMultipleSensorValues(
-          req,
-          res,
-          tenant
-        );
-      } else {
-        return res.status(HTTPStatus.BAD_REQUEST).json({
-          success: false,
-          status: HTTPStatus.BAD_REQUEST,
-          message: "misssing request parameters, please check documentation",
-        });
-      }
-    } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-  transmitOneSensorValue: async (req, res) => {
-    try {
-      const { quantity_kind, value } = req.body;
-      const { tenant, name, chid, device_number, device } = req.query;
+      const { quantity_kind, value } = request.body;
+      const { tenant, name, chid, device_number, device, id } = request.query;
 
       let request = {};
       request["query"] = {};
-      request["query"]["name"] = device;
-      request["query"]["name"] = name;
+      request["query"]["name"] = device || name;
+      request["query"]["id"] = id;
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
+      request["query"]["device_number"] = chid || device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(request);
 
@@ -289,49 +261,58 @@ const createEvent = {
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+        } else {
+          return {
+            success: false,
+            message: "unable to find one device",
+            status: HTTPStatus.NOT_FOUND,
+          };
         }
       } else if (responseFromListDevice.success === false) {
         logObject(
           "responseFromListDevice has an error",
           responseFromListDevice
         );
+        return responseFromListDevice;
       }
 
-      const api_key = deviceDetail.writeKey;
+      let api_key = deviceDetail.writeKey;
 
-      if (tenant && quantity_kind && value) {
-        await axios
-          .get(
-            constants.ADD_VALUE(
-              createEvent.getTSField(quantity_kind),
-              value,
-              api_key
-            )
-          )
-          .then(function(response) {
-            let resp = {};
-            resp.channel_id = response.data.channel_id;
-            resp.created_at = response.data.created_at;
-            resp.entry_id = response.data.entry_id;
-            return {
-              message: "successfully transmitted the data",
-              success: true,
-              data: resp,
-            };
-          })
-          .catch(function(error) {
-            return {
-              success: false,
-              errors: { message: error.response.data },
-            };
-          });
+      let responseFromDecryptKey = createDeviceUtil.decryptKey(api_key);
+
+      if (responseFromDecryptKey.success === true) {
+        api_key = responseFromDecryptKey.data;
       } else {
-        return {
-          success: false,
-          status: HTTPStatus.BAD_REQUEST,
-          message: "misssing request parameters, please check documentation",
-        };
+        return responseFromDecryptKey;
       }
+
+      await axios
+        .get(
+          constants.ADD_VALUE(
+            createEvent.getTSField(quantity_kind),
+            value,
+            api_key
+          )
+        )
+        .then(function(response) {
+          let resp = {};
+          resp.channel_id = response.data.channel_id;
+          resp.created_at = response.data.created_at;
+          resp.entry_id = response.data.entry_id;
+          return {
+            message: "successfully transmitted the data",
+            success: true,
+            data: resp,
+          };
+        })
+        .catch(function(error) {
+          return {
+            success: false,
+            errors: { message: error.response.data },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+            message: "Internal Server Error",
+          };
+        });
     } catch (e) {
       return {
         success: false,
@@ -344,8 +325,8 @@ const createEvent = {
     let {
       api_key,
       created_at,
-      pm2_5,
-      pm10,
+      s1_pm2_5,
+      s1_pm10,
       s2_pm2_5,
       s2_pm10,
       latitude,
@@ -358,8 +339,8 @@ const createEvent = {
     let requestBody = {
       api_key: api_key,
       created_at: created_at,
-      field1: pm2_5,
-      field2: pm10,
+      field1: s1_pm2_5,
+      field2: s1_pm10,
       field3: s2_pm2_5,
       field4: s2_pm10,
       field5: latitude,
@@ -397,19 +378,17 @@ const createEvent = {
       });
     }
   },
-  transmitMultipleSensorValues: async (req, res) => {
+  transmitMultipleSensorValues: async (request) => {
     try {
       logText("write to thing json.......");
-      let { tenant, chid, name, device_number } = req.query;
-      logElement("the tenant", tenant);
-      const requestBody = createEvent.createRequestBody(req);
+      let { tenant, chid, name, id, device_number } = request.query;
 
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
+      logElement("the tenant", tenant);
+      logElement("the device_number", device_number);
+      logElement("the id", id);
+      logElement("the name", name);
+
+      const requestBody = createEvent.createRequestBody(request);
 
       const responseFromListDevice = await createDeviceUtil.list(request);
 
@@ -418,6 +397,12 @@ const createEvent = {
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+        } else {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "no matching devices",
+          };
         }
       } else if (responseFromListDevice.success === false) {
         const status = responseFromListDevice.status
@@ -436,44 +421,54 @@ const createEvent = {
           errors,
         });
       }
-
       logObject("the device details", deviceDetail);
-      const api_key = deviceDetail.writeKey;
+
+      let api_key = deviceDetail.writeKey;
+      const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
+      if (responseFromDecryptKey.success === true) {
+        api_key = responseFromDecryptKey.data;
+      } else if (responseFromDecryptKey.success === false) {
+        return responseFromDecryptKey;
+      }
+
       requestBody.api_key = api_key;
       logObject("the requestBody", requestBody);
       logElement("the writeKey", api_key);
 
-      if (tenant) {
-        await axios
-          .post(constants.ADD_VALUE_JSON, requestBody)
-          .then(function(response) {
-            let resp = {};
-            resp.channel_id = response.data.channel_id;
-            resp.created_at = response.data.created_at;
-            resp.entry_id = response.data.entry_id;
-            res.status(HTTPStatus.OK).json({
-              message: "successfully transmitted the data",
-              success: true,
-              update: resp,
-            });
-          })
-          .catch(function(error) {
-            logElement("the error", error.message);
-            errors.axiosError(error, req, res);
+      await axios
+        .post(constants.ADD_VALUE_JSON, requestBody)
+        .then(function(response) {
+          let resp = {};
+          resp.channel_id = response.data.channel_id;
+          resp.created_at = response.data.created_at;
+          resp.entry_id = response.data.entry_id;
+          res.status(HTTPStatus.OK).json({
+            message: "successfully transmitted the data",
+            success: true,
+            data: resp,
           });
-      } else {
-        errors.missingQueryParams(req, res);
-      }
-    } catch (e) {
-      errors.tryCatchErrors(res, e);
+        })
+        .catch(function(error) {
+          return {
+            message: "Intenal Server Error",
+            errors: { message: error.response.data },
+            status: httpStatus.INTERNAL_SERVER_ERROR,
+          };
+        });
+    } catch (error) {
+      return {
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
-  bulkTransmitMultipleSensorValues: async (req, res, tenant) => {
+  bulkTransmitMultipleSensorValues: async (request) => {
     try {
       logText("bulk write to thing.......");
-      let { name, chid, device_number } = req.query;
-      let { body } = req;
+      let { name, chid, device_number, tenant } = request.query;
+      let { body } = request;
       let request = {};
       request["query"] = {};
       request["query"]["name"] = name;
@@ -503,12 +498,11 @@ const createEvent = {
 
       const channel = deviceDetail.device_number;
 
-      const api_key = deviceDetail.writeKey;
-      let decryptedKey = "";
+      let api_key = deviceDetail.writeKey;
 
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
-        decryptedKey = responseFromDecryptKey.data;
+        api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
         const status = responseFromDecryptKey.status
           ? responseFromDecryptKey.status
@@ -520,24 +514,32 @@ const createEvent = {
         body
       );
       let requestObject = {};
-      requestObject.write_api_key = decryptedKey;
+      requestObject.write_api_key = api_key;
       requestObject.updates = transformedUpdates;
       await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
           let output = JSON.parse(response.config.data).updates;
-          res.status(HTTPStatus.OK).json({
+          return {
             message: "successfully transmitted the data",
             success: true,
             data: output,
-          });
+          };
         })
         .catch(function(error) {
-          errors.axiosError(error, req, res);
+          return {
+            success: false,
+            message: "Internal Server Error",
+            errors: { message: error.response.data },
+          };
         });
-    } catch (e) {
-      logObject("error for bulk transmit", e);
-      errors.tryCatchErrors(res, e);
+    } catch (error) {
+      logObject("error for bulk transmit", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
     }
   },
 

@@ -245,10 +245,9 @@ const createEvent = {
     }
   },
 
-  transmitValues: async (req, res) => {
+  transmitOneSensorValue: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
-      logElement("hasErrors ", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
         return errors.badRequest(
@@ -256,8 +255,198 @@ const createEvent = {
           "bad request errors",
           errors.convertErrorArrayToObject(nestedErrors)
         );
+      }
+
+      const { body, query } = req;
+      const { name, device_number, chid, tenant } = query;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid || device_number;
+
+      request["body"] = body;
+
+      const responseFromTransmitOneSensorValue = await createEventUtil.transmitOneSensorValue(
+        request
+      );
+
+      if (responseFromTransmitOneSensorValue.success === true) {
+        const status = responseFromTransmitOneSensorValue.status
+          ? responseFromTransmitOneSensorValue.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromTransmitOneSensorValue.message,
+          response: responseFromTransmitOneSensorValue.data,
+        });
       } else {
-        return createEventUtil.transmitValues(req, res);
+        const status = responseFromTransmitOneSensorValue.status
+          ? responseFromTransmitOneSensorValue.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransmitOneSensorValue.errors
+          ? responseFromTransmitOneSensorValue.errors
+          : { message: "" };
+        res.status(status).json({
+          message: responseFromTransmitOneSensorValue.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  transmitMultipleSensorValues: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const { body, query } = req;
+      const { name, device_number, chid, tenant } = query;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid || device_number;
+
+      request["body"] = body;
+
+      const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
+        request
+      );
+
+      if (responseFromTransmitMultipleSensorValues.success === true) {
+        const status = responseFromTransmitMultipleSensorValues.status
+          ? responseFromTransmitMultipleSensorValues.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromTransmitMultipleSensorValues.message,
+          response: responseFromTransmitMultipleSensorValues.data,
+        });
+      } else {
+        const status = responseFromTransmitMultipleSensorValues.status
+          ? responseFromTransmitMultipleSensorValues.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransmitMultipleSensorValues.errors
+          ? responseFromTransmitMultipleSensorValues.errors
+          : { message: "" };
+        res.status(status).json({
+          message: responseFromTransmitMultipleSensorValues.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  bulkTransmitMultipleSensorValues: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const { body, query } = req;
+      const { name, device_number, chid, tenant } = query;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid || device_number;
+
+      request["body"] = body;
+
+      const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
+        request
+      );
+
+      if (responseFromBulkTransmitMultipleSensorValues.success === true) {
+        const status = responseFromBulkTransmitMultipleSensorValues.status
+          ? responseFromBulkTransmitMultipleSensorValues.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromBulkTransmitMultipleSensorValues.message,
+          response: responseFromBulkTransmitMultipleSensorValues.data,
+        });
+      } else {
+        const status = responseFromBulkTransmitMultipleSensorValues.status
+          ? responseFromBulkTransmitMultipleSensorValues.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromBulkTransmitMultipleSensorValues.errors
+          ? responseFromBulkTransmitMultipleSensorValues.errors
+          : { message: "" };
+        res.status(status).json({
+          message: responseFromBulkTransmitMultipleSensorValues.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  transmitValues: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = {};
+      request["query"] = {};
+      request["body"] = {};
+
+      const responseFromTransmitValues = await createEventUtil.transmitValues(
+        request
+      );
+
+      if (responseFromTransmitValues.success === true) {
+        const status = responseFromTransmitValues.status
+          ? responseFromTransmitValues.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromTransmitValues.message,
+          response: responseFromTransmitValues.data,
+        });
+      } else {
+        const status = responseFromTransmitValues.status
+          ? responseFromTransmitValues.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransmitValues.errors
+          ? responseFromTransmitValues.errors
+          : { message: "" };
+        res
+          .status(status)
+          .json({ message: responseFromTransmitValues.message, errors });
       }
     } catch (error) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({

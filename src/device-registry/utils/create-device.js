@@ -556,9 +556,7 @@ const createDevice = {
       if (responseFromFilter.success === true) {
         filter = responseFromFilter.data;
         logger.info(`the filter in list -- ${filter}`);
-      }
-
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status ? responseFromFilter.status : "";
         logger.error(`the error from filter in list -- ${errors}`);
@@ -1030,19 +1028,20 @@ const createDevice = {
         constants.KEY_ENCRYPTION_KEY
       );
       let originalText = bytes.toString(cryptoJS.enc.Utf8);
-      let status = HTTPStatus.OK;
-      let message = "successfully decrypted the text";
       let isKeyUnknown = isEmpty(originalText);
       logElement("isKeyUnknown", isKeyUnknown);
       if (isKeyUnknown) {
-        status = HTTPStatus.NOT_FOUND;
-        message = "the provided encrypted key is not recognizable";
+        return {
+          success: false,
+          status: HTTPStatus.NOT_FOUND,
+          message: "the provided encrypted key is not recognizable",
+        };
       }
       return {
         success: true,
-        message,
+        message: "successfully decrypted the text",
         data: originalText,
-        status,
+        status: HTTPStatus.OK,
       };
     } catch (err) {
       logObject("the err", err);
