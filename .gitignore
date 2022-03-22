@@ -19,3 +19,6 @@ __pycache__/
 venv/
 .idea/
 *.pyc
+
+# GitGaurdian pre-commit cache
+.cache_ggshield
