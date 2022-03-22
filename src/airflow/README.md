@@ -41,8 +41,12 @@ The `main.py` accepts atleast one argument which specifies the utilty functions 
 
 | Argument         | Purpose|
 |---------------------------|------------------|
-| airqo_hourly_data | Runs AirQo ETL functions |
-| kcca_hourly_data | Runs KCCA ETL functions   |
+| airqo_hourly_data | AirQo ETL functions |
+| kcca_hourly_data | KCCA ETL functions   |
+| weather_data | Weather data ETL functions   |
+| data_warehouse | Data warehouse ETL functions   |
+| daily_insights_data | App Daily Insights ETL functions   |
+| forecast_insights_data | App Forecast Insights ETL functions   |
 
 For example
 
@@ -62,7 +66,7 @@ python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
 
 - Docker
 - Docker compose
-- You have setup your environment using the [Environment Setup](#environment-setup)  instructions.
+- You have set up your environment following the [Environment Setup](#environment-setup)  instructions.
 
 ### Starting all containers
 

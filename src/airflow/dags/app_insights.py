@@ -6,7 +6,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 
 @dag(
     "App-Forecast-Insights",
-    schedule_interval=None,
+    schedule_interval="30 * * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,

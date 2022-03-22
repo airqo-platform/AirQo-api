@@ -157,6 +157,21 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
     )
 
 
+def insights_forecast():
+    from airqo_etl_utils.app_insights_utils import (
+        create_insights_data,
+        get_forecast_data,
+    )
+
+    forecast_data = get_forecast_data("airqo")
+    pd.DataFrame(forecast_data).to_csv(path_or_buf="forecast_data.csv", index=False)
+
+    insights_data = create_insights_data(data=forecast_data)
+    pd.DataFrame(insights_data).to_csv(
+        path_or_buf="insights_forecast_data.csv", index=False
+    )
+
+
 def insights_daily_insights(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.app_insights_utils import (
         query_insights_data,
@@ -255,6 +270,8 @@ if __name__ == "__main__":
         insights_daily_insights(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
+    elif action == "forecast_insights_data":
+        insights_forecast()
 
     else:
         raise Exception("Invalid arguments")
