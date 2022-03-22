@@ -284,6 +284,26 @@ def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> 
     return insights
 
 
+def create_insights_data_from_bigquery(
+    start_date_time: str, end_date_time: str
+) -> list:
+    from airqo_etl_utils.bigquery_api import BigQueryApi
+
+    bigquery_api = BigQueryApi()
+
+    hourly_data = bigquery_api.get_hourly_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        columns=["pm2_5", "pm10", "site_id", "time"],
+        table=bigquery_api.hourly_measurements_table,
+    )
+    hourly_data["forecast"] = False
+    hourly_data["empty"] = False
+    hourly_data["frequency"] = "hourly"
+    hourly_data.rename(columns={"site_id": "siteId"}, inplace=True)
+    return hourly_data.to_dict(orient="records")
+
+
 def create_insights_data(data: list) -> list:
     print("creating insights .... ")
 

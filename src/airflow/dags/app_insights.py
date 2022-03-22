@@ -15,7 +15,6 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def app_forecast_insights_etl():
     @task(multiple_outputs=True)
     def extract_forecast_data():
-
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_forecast_data,
@@ -48,7 +47,6 @@ def app_forecast_insights_etl():
 def app_historical_daily_insights_etl():
     @task(multiple_outputs=True)
     def average_insights_data(**kwargs):
-
         from airqo_etl_utils.app_insights_utils import (
             query_insights_data,
             average_insights_data,
@@ -95,7 +93,6 @@ def app_historical_daily_insights_etl():
 def app_daily_insights_etl():
     @task(multiple_outputs=True)
     def average_insights_data():
-
         from airqo_etl_utils.app_insights_utils import (
             query_insights_data,
             average_insights_data,
@@ -132,6 +129,47 @@ def app_daily_insights_etl():
 
     insights = average_insights_data()
     load(insights)
+
+
+@dag(
+    "App-Historical-Hourly-Insights",
+    schedule_interval=None,
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["insights", "hourly", "historical"],
+)
+def app_historical_hourly_insights_etl():
+    @task(multiple_outputs=True)
+    def extract_airqo_data(**kwargs):
+        from airqo_etl_utils.app_insights_utils import (
+            create_insights_data_from_bigquery,
+        )
+
+        from airqo_etl_utils.commons import get_date_time_values, fill_nan
+
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
+
+        hourly_insights_data = create_insights_data_from_bigquery(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+
+        return dict({"data": fill_nan(data=hourly_insights_data)})
+
+    @task()
+    def load_hourly_insights(data: dict):
+        from airqo_etl_utils.app_insights_utils import (
+            save_insights_data,
+            create_insights_data,
+        )
+        from airqo_etl_utils.commons import un_fill_nan
+
+        insights_list = un_fill_nan(data.get("data"))
+        insights_data = create_insights_data(data=insights_list)
+        save_insights_data(insights_data=insights_data, action="save")
+
+    insights = extract_airqo_data()
+    load_hourly_insights(insights)
 
 
 @dag(
