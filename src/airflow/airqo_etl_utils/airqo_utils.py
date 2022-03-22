@@ -7,11 +7,11 @@ import numpy as np
 import pandas as pd
 import requests
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.bigquery_api import BigQueryApi
-from airflow_utils.config import configuration
-from airflow_utils.date import date_to_str, str_to_date
-from airflow_utils.commons import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.bigquery_api import BigQueryApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import date_to_str, str_to_date
+from airqo_etl_utils.commons import (
     get_device,
     get_valid_value,
     get_weather_data_from_tahmo,
@@ -63,7 +63,6 @@ def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
             print(ex)
 
     device_measurements = pd.json_normalize(hourly_events)
-    columns = device_measurements.columns
     column_mappings = {
         "internalTemperature.value": "internalTemperature",
         "internalHumidity.value": "internalHumidity",
@@ -81,11 +80,9 @@ def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
         "average_pm2_5.calibratedValue": "calibrated_pm2_5",
     }
 
-    for col in columns:
-        device_measurements[column_mappings[col]] = device_measurements[col]
-        device_measurements = device_measurements.drop(columns[col])
+    device_measurements.rename(columns=column_mappings, inplace=True)
 
-    return hourly_events
+    return device_measurements.to_dict(orient="records")
 
 
 def extract_airqo_devices_deployment_history() -> list:
@@ -593,6 +590,7 @@ def restructure_airqo_data_for_message_broker(data: list) -> list:
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],
+                "frequency": data_row["frequency"],
                 "device": data_row["device"],
                 "latitude": get_column_value(
                     column="latitude", columns=columns, series=data_row
@@ -672,6 +670,10 @@ def restructure_airqo_data(data: list, destination: str) -> list:
         return restructure_airqo_data_for_api(data_df_values)
     elif destination == "message-broker":
         return restructure_airqo_data_for_message_broker(data_df_values)
+    elif destination == "app-insights":
+        from airqo_etl_utils.app_insights_utils import format_airqo_data_to_insights
+
+        return format_airqo_data_to_insights(data_df_values)
     elif destination == "bigquery":
         return restructure_airqo_data_for_bigquery(data_df_values)
     else:
@@ -701,6 +703,12 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
                 "pm2_5": get_column_value(
                     column="pm2_5", columns=columns, series=data_row
                 ),
+                "s1_pm2_5": get_column_value(
+                    column="s1_pm2_5", columns=columns, series=data_row
+                ),
+                "s2_pm2_5": get_column_value(
+                    column="s2_pm2_5", columns=columns, series=data_row
+                ),
                 "pm2_5_raw_value": get_column_value(
                     column="raw_pm2_5", columns=columns, series=data_row
                 ),
@@ -713,6 +721,12 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
                     column="pm10",
                     columns=columns,
                     series=data_row,
+                ),
+                "s1_pm10": get_column_value(
+                    column="s1_pm10", columns=columns, series=data_row
+                ),
+                "s2_pm10": get_column_value(
+                    column="s2_pm10", columns=columns, series=data_row
                 ),
                 "pm10_raw_value": get_column_value(
                     column="raw_pm10",
@@ -813,11 +827,8 @@ def calibrate_using_pickle_file(measurements: list) -> list:
         destination_file="pm10_model.pkl",
     )
 
-    with open(pm_2_5_model_file, "rb") as f:
-        rf_regressor = pickle.load(f)
-
-    with open(pm_10_model_file, "rb") as f:
-        lasso_regressor = pickle.load(f)
+    rf_regressor = pickle.load(open(pm_2_5_model_file, "rb"))
+    lasso_regressor = pickle.load(open(pm_10_model_file, "rb"))
 
     calibrated_measurements = []
     data_df = pd.DataFrame(measurements)

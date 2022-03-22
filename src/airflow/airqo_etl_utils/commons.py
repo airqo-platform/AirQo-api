@@ -9,15 +9,15 @@ from airflow.hooks.base import BaseHook
 from airflow.providers.slack.operators.slack_webhook import SlackWebhookOperator
 from google.cloud import storage
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.config import configuration
-from airflow_utils.date import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import (
     str_to_date,
     date_to_str,
     date_to_str_days,
     date_to_str_hours,
 )
-from airflow_utils.tahmo import TahmoApi
+from airqo_etl_utils.tahmo import TahmoApi
 
 
 def measurement_time_to_string(time: str, daily=False):
@@ -129,7 +129,10 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     data = data.dropna(subset=["time"])
     data["time"] = pd.to_datetime(data["time"])
     data = data.sort_index(axis=0)
-    original_df = data[["time", "latitude", "longitude"]]
+    if "latitude" in data.columns and "longitude" in data.columns:
+        original_df = data[["time", "latitude", "longitude"]]
+    else:
+        original_df = data[["time"]]
 
     resample_value = "24H" if frequency.lower() == "daily" else "1H"
     averages = pd.DataFrame(data.resample(resample_value, on="time").mean())
@@ -145,22 +148,24 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     else:
         original_df["time"] = original_df["time"].apply(lambda x: date_to_str(x))
 
-    def reset_latitude_or_longitude(time: str, field: str):
-        date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
-        if date_row.empty:
-            return time
-        return (
-            date_row.iloc[0]["latitude"]
-            if field == "latitude"
-            else date_row.iloc[0]["longitude"]
-        )
+    if "latitude" in original_df.columns and "longitude" in original_df.columns:
 
-    averages["latitude"] = averages.apply(
-        lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
-    )
-    averages["longitude"] = averages.apply(
-        lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
-    )
+        def reset_latitude_or_longitude(time: str, field: str):
+            date_row = pd.DataFrame(original_df.loc[original_df["time"] == time])
+            if date_row.empty:
+                return time
+            return (
+                date_row.iloc[0]["latitude"]
+                if field == "latitude"
+                else date_row.iloc[0]["longitude"]
+            )
+
+        averages["latitude"] = averages.apply(
+            lambda row: reset_latitude_or_longitude(row["time"], "latitude"), axis=1
+        )
+        averages["longitude"] = averages.apply(
+            lambda row: reset_latitude_or_longitude(row["time"], "longitude"), axis=1
+        )
 
     return averages
 
@@ -467,17 +472,17 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
         return None, None
 
 
-def get_time_values(**kwargs):
+def get_date_time_values(**kwargs):
     try:
         dag_run = kwargs.get("dag_run")
-        start_time = dag_run.conf["startTime"]
-        end_time = dag_run.conf["endTime"]
+        start_date_time = dag_run.conf["startDateTime"]
+        end_date_time = dag_run.conf["endDateTime"]
     except KeyError:
         yesterday = datetime.utcnow() - timedelta(days=1)
-        start_time = datetime.strftime(yesterday, "%Y-%m-%dT00:00:00Z")
-        end_time = datetime.strftime(yesterday, "%Y-%m-%dT11:59:59Z")
+        start_date_time = datetime.strftime(yesterday, "%Y-%m-%dT00:00:00Z")
+        end_date_time = datetime.strftime(yesterday, "%Y-%m-%dT11:59:59Z")
 
-    return start_time, end_time
+    return start_date_time, end_date_time
 
 
 def get_device(devices=None, channel_id=None, device_id=None):
