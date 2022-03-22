@@ -4,20 +4,24 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from airflow_utils.airqo_api import AirQoApi
-from airflow_utils.config import configuration
-from airflow_utils.message_broker import KafkaBrokerClient
-from airflow_utils.date import (
+from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.message_broker import KafkaBrokerClient
+from airqo_etl_utils.date import (
     date_to_str_hours,
     date_to_str_days,
     date_to_str,
     predict_str_to_date,
     str_to_date,
 )
-from airflow_utils.commons import (
+from airqo_etl_utils.commons import (
     get_airqo_api_frequency,
     resample_data,
+    get_frequency,
+    get_column_value,
 )
+
+insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
 
 
 def format_measurements_to_insights(data: list):
@@ -72,12 +76,35 @@ def format_measurements_to_insights(data: list):
     return data.to_dict(orient="records")
 
 
-def save_insights_data(
-    insights_data: list = None,
-    action: str = "insert",
-    start_time=datetime(year=2020, month=1, day=1),
-    end_time=datetime(year=2020, month=1, day=1),
-):
+def format_airqo_data_to_insights(data: list):
+    restructured_data = []
+
+    data_df = pd.DataFrame(data)
+    columns = list(data_df.columns)
+
+    for _, data_row in data_df.iterrows():
+        device_data = dict(
+            {
+                "time": data_row["time"],
+                "siteId": data_row["site_id"],
+                "frequency": data_row["frequency"],
+                "pm2_5": get_column_value(
+                    column="pm2_5", columns=columns, series=data_row
+                ),
+                "pm10": get_column_value(
+                    column="pm10", columns=columns, series=data_row
+                ),
+                "empty": False,
+                "forecast": False,
+            }
+        )
+
+        restructured_data.append(device_data)
+
+    return create_insights_data(data=restructured_data)
+
+
+def save_insights_data(insights_data: list = None, action: str = "insert"):
     if insights_data is None:
         insights_data = []
 
@@ -86,8 +113,6 @@ def save_insights_data(
     data = {
         "data": insights_data,
         "action": action,
-        "startTime": date_to_str(start_time),
-        "endTime": date_to_str(end_time),
     }
 
     kafka = KafkaBrokerClient()
@@ -109,10 +134,9 @@ def measurement_time_to_string(time: str, daily=False):
 
 def get_forecast_data(tenant: str) -> list:
     airqo_api = AirQoApi()
-    columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
     devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
 
-    forecast_measurements = pd.DataFrame(data=[], columns=columns)
+    forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
     time = int(datetime.utcnow().timestamp())
 
     for device in devices:
@@ -130,7 +154,7 @@ def get_forecast_data(tenant: str) -> list:
             if forecast:
                 forecast_df = pd.DataFrame(forecast)
 
-                forecast_cleaned_df = pd.DataFrame(columns=columns)
+                forecast_cleaned_df = pd.DataFrame(columns=insights_columns)
                 forecast_cleaned_df["time"] = forecast_df["prediction_time"]
                 forecast_cleaned_df["pm2_5"] = forecast_df["prediction_value"]
                 forecast_cleaned_df["pm10"] = forecast_df["prediction_value"]
@@ -202,6 +226,84 @@ def get_airqo_data(freq: str, start_time: str = None, end_time: str = None) -> l
     return insights
 
 
+def average_insights_data(data: list, frequency="daily") -> list:
+    data_df = pd.DataFrame(data)
+
+    if data_df.empty:
+        return pd.DataFrame(data=[], columns=insights_columns).to_dict(orient="records")
+
+    site_groups = data_df.groupby("siteId")
+    sampled_data = []
+
+    for _, site_group in site_groups:
+        site_id = site_group.iloc[0]["siteId"]
+        insights = site_group[["time", "pm2_5", "pm10"]]
+
+        averages = resample_data(insights, frequency)
+
+        averages["frequency"] = frequency.upper()
+        averages["siteId"] = site_id
+        averages["forecast"] = False
+        averages["empty"] = False
+
+        sampled_data.extend(averages.to_dict(orient="records"))
+
+    return sampled_data
+
+
+def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> list:
+    airqo_api = AirQoApi()
+    insights = []
+
+    frequency = get_frequency(start_time=start_date_time, end_time=end_date_time)
+    dates = pd.date_range(start_date_time, end_date_time, freq=frequency)
+    last_date_time = dates.values[len(dates.values) - 1]
+
+    for date in dates:
+
+        start = date_to_str(date)
+        query_end_date_time = date + timedelta(hours=dates.freq.n)
+
+        if np.datetime64(query_end_date_time) > last_date_time:
+            end = end_date_time
+        else:
+            end = date_to_str(query_end_date_time)
+
+        try:
+            api_results = airqo_api.get_app_insights(
+                start_time=start,
+                frequency=freq,
+                end_time=end,
+            )
+            insights.extend(api_results)
+
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
+
+    return insights
+
+
+def create_insights_data_from_bigquery(
+    start_date_time: str, end_date_time: str
+) -> list:
+    from airqo_etl_utils.bigquery_api import BigQueryApi
+
+    bigquery_api = BigQueryApi()
+
+    hourly_data = bigquery_api.get_hourly_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        columns=["pm2_5", "pm10", "site_id", "time"],
+        table=bigquery_api.hourly_measurements_table,
+    )
+    hourly_data["forecast"] = False
+    hourly_data["empty"] = False
+    hourly_data["frequency"] = "hourly"
+    hourly_data.rename(columns={"site_id": "siteId"}, inplace=True)
+    return hourly_data.to_dict(orient="records")
+
+
 def create_insights_data(data: list) -> list:
     print("creating insights .... ")
 
@@ -212,52 +314,12 @@ def create_insights_data(data: list) -> list:
     )
     insights_data["forecast"] = insights_data["forecast"].fillna(False)
     insights_data["empty"] = False
+
+    if sorted(list(insights_data.columns)) != sorted(insights_columns):
+        print(f"Required columns {insights_columns}")
+        print(f"Dataframe columns {list(insights_data.columns)}")
+        raise Exception("Invalid columns")
+
     insights_data = insights_data.dropna()
 
     return insights_data.to_dict(orient="records")
-
-
-def time_values(**kwargs):
-    try:
-        dag_run = kwargs.get("dag_run")
-        start_time = dag_run.conf["startTime"]
-        end_time = dag_run.conf["endTime"]
-    except KeyError:
-        start_time = None
-        end_time = None
-
-    return start_time, end_time
-
-
-def average_hourly_insights(data: list) -> list:
-    insights_df = pd.DataFrame(data)
-    site_groups = insights_df.groupby("siteId")
-    averaged_insights = []
-
-    for _, site_group in site_groups:
-
-        try:
-            site_measurements = site_group
-            site_measurements["frequency"] = "DAILY"
-            measurement_data = site_measurements[["pm2_5", "pm10", "time"]].copy()
-
-            del site_measurements["pm2_5"]
-            del site_measurements["pm10"]
-            del site_measurements["time"]
-
-            averages = resample_data(measurement_data, "daily")
-
-            for _, row in averages.iterrows():
-                combined_dataset = dict(
-                    {
-                        **row.to_dict(),
-                        **site_measurements.iloc[0].to_dict(),
-                    }
-                )
-                averaged_insights.append(combined_dataset)
-
-        except Exception as ex:
-            print(ex)
-            traceback.print_exc()
-
-    return pd.DataFrame(averaged_insights).to_dict(orient="records")
