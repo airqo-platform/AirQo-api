@@ -19,7 +19,7 @@ from joblib import Parallel, delayed
 
 import datetime as dt
 from datetime import datetime,timedelta
-from utils import upload_trained_model_to_gcs, date_to_str
+from utils import upload_trained_model_to_gcs, date_to_str, upload_csv_file_to_gcs
 import warnings
 warnings.filterwarnings("ignore")
 
@@ -29,7 +29,7 @@ mlflow.set_experiment(experiment_name=f"predict_{environment}")
 print(f'mlflow server uri: {mlflow.get_tracking_uri()}')
 
 def preprocess_forecast_data():
-   
+
   forecast_data = get_forecast_data()
   metadata = process_metadata(get_metadata())
   boundary_layer = get_boundary_layer_data()
@@ -43,6 +43,25 @@ def preprocess_forecast_data():
 #   ### Set this as a list of chanels to be used. Can be read from a file.
 #   use_channels = channel_max_dates[channel_max_dates > pd.to_datetime('2020-07-12')].index.tolist()
 #   forecast_data = forecast_data[forecast_data['device_number'].isin(use_channels)]
+  
+  # upload metadata and boundray layer to gcs
+  metadata.to_csv('meta.csv')
+  boundary_layer_mapper.to_csv('boundary_layer.csv')
+  
+  # upload  metadata
+  upload_csv_file_to_gcs(
+    configuration.GOOGLE_CLOUD_PROJECT_ID,
+    configuration.CREDENTIALS,
+    configuration.AIRQO_PREDICT_BUCKET,
+    "meta.csv", "meta.csv")
+
+  # upload boundary layer data
+  upload_csv_file_to_gcs(
+    configuration.GOOGLE_CLOUD_PROJECT_ID,
+    configuration.CREDENTIALS,
+    configuration.AIRQO_PREDICT_BUCKET,
+    "boundary_layer.csv", "boundary_layer.csv")
+
 
   return forecast_data, metadata, boundary_layer_mapper
 
