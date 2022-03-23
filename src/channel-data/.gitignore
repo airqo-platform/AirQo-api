@@ -4,4 +4,5 @@ env/
 .gitkeep
 .vscode
 .DS_Store
-AirQo-e37846081569.json
+*.json
+*.csv
