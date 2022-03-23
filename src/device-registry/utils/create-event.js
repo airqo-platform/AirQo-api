@@ -380,20 +380,10 @@ const createEvent = {
   },
   transmitMultipleSensorValues: async (request) => {
     try {
-      logText("write to thing json.......");
       let { tenant, chid, name, id, device_number } = request.query;
-
-      logElement("the tenant", tenant);
-      logElement("the device_number", device_number);
-      logElement("the id", id);
-      logElement("the name", name);
-
       const requestBody = createEvent.createRequestBody(request);
-
       const responseFromListDevice = await createDeviceUtil.list(request);
-
       let deviceDetail = {};
-
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
@@ -411,18 +401,14 @@ const createEvent = {
         const errors = responseFromListDevice.errors
           ? responseFromListDevice.errors
           : { message: "" };
-        logObject(
-          "responseFromListDevice has an error",
-          responseFromListDevice
-        );
-        return res.status(status).json({
+
+        return {
           success: false,
           message: responseFromListDevice.message,
           errors,
-        });
+          status,
+        };
       }
-      logObject("the device details", deviceDetail);
-
       let api_key = deviceDetail.writeKey;
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
@@ -430,29 +416,26 @@ const createEvent = {
       } else if (responseFromDecryptKey.success === false) {
         return responseFromDecryptKey;
       }
-
       requestBody.api_key = api_key;
-      logObject("the requestBody", requestBody);
-      logElement("the writeKey", api_key);
-
-      await axios
+      return await axios
         .post(constants.ADD_VALUE_JSON, requestBody)
         .then(function(response) {
           let resp = {};
           resp.channel_id = response.data.channel_id;
           resp.created_at = response.data.created_at;
           resp.entry_id = response.data.entry_id;
-          res.status(HTTPStatus.OK).json({
+          return {
             message: "successfully transmitted the data",
             success: true,
             data: resp,
-          });
+          };
         })
         .catch(function(error) {
           return {
             message: "Intenal Server Error",
             errors: { message: error.response.data },
             status: httpStatus.INTERNAL_SERVER_ERROR,
+            success: false,
           };
         });
     } catch (error) {
@@ -460,6 +443,7 @@ const createEvent = {
         message: "Internal Server Error",
         errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
+        success: false,
       };
     }
   },

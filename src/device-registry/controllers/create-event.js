@@ -320,7 +320,6 @@ const createEvent = {
       request["query"]["name"] = name;
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = chid || device_number;
-
       request["body"] = body;
 
       const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(

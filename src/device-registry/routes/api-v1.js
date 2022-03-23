@@ -3087,13 +3087,8 @@ router.post(
       ),
   ]),
   oneOf([
-    body()
-      .isArray()
-      .withMessage("the request body should be an array"),
-  ]),
-  oneOf([
     [
-      body("*.time")
+      body("time")
         .exists()
         .trim()
         .withMessage("time is missing")
@@ -3101,7 +3096,7 @@ router.post(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
-      body("*.pm10")
+      body("pm10")
         .optional()
         .notEmpty()
         .withMessage("pm10 should not be empty if/when provided")
@@ -3109,7 +3104,7 @@ router.post(
         .isNumeric()
         .withMessage("pm_10 should be an integer value")
         .trim(),
-      body("*.pm2_5")
+      body("pm2_5")
         .optional()
         .notEmpty()
         .withMessage("pm2_5 should not be empty if/when provided")
@@ -3117,7 +3112,7 @@ router.post(
         .isNumeric()
         .withMessage("pm2_5 should be an integer value")
         .trim(),
-      body("*.s2_pm2_5")
+      body("s2_pm2_5")
         .optional()
         .notEmpty()
         .withMessage("s2_pm2_5 should not be empty if/when provided")
@@ -3125,7 +3120,7 @@ router.post(
         .isInt()
         .withMessage("s2_pm2_5 should be an integer value")
         .trim(),
-      body("*.s2_pm10")
+      body("s2_pm10")
         .optional()
         .notEmpty()
         .withMessage("s2_pm10 should not be empty if/when provided")
@@ -3134,7 +3129,7 @@ router.post(
         .withMessage("s2_pm10 should be an integer value")
         .bail()
         .trim(),
-      body("*.latitude")
+      body("latitude")
         .optional()
         .notEmpty()
         .withMessage("provided latitude cannot be empty")
@@ -3158,7 +3153,7 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
-      body("*.longitude")
+      body("longitude")
         .optional()
         .notEmpty()
         .withMessage("provided longitude cannot be empty")
@@ -3182,7 +3177,7 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("*.battery")
+      body("battery")
         .optional()
         .notEmpty()
         .withMessage("battery should not be empty if/when provided")
@@ -3190,11 +3185,11 @@ router.post(
         .isInt()
         .withMessage("battery should be an integer value")
         .trim(),
-      body("*.others")
+      body("others")
         .optional()
         .notEmpty()
         .withMessage("others cannot be empty if provided"),
-      body("*.status")
+      body("status")
         .optional()
         .notEmpty()
         .withMessage("status cannot be empty if provided"),
