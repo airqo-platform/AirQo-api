@@ -116,7 +116,10 @@ def historical_hourly_measurements_etl():
                 data=data, destination="bigquery"
             )
             big_query_api = BigQueryApi()
-            big_query_api.save_hourly_measurements(airqo_restructured_data)
+            big_query_api.save_data(
+                data=airqo_restructured_data,
+                table=big_query_api.hourly_measurements_table,
+            )
 
         elif destination == "message-broker":
             airqo_restructured_data = restructure_airqo_data(
@@ -293,8 +296,9 @@ def hourly_measurements_etl():
             data=data, destination="bigquery"
         )
         big_query_api = BigQueryApi()
-
-        big_query_api.save_hourly_measurements(airqo_restructured_data)
+        big_query_api.save_data(
+            data=airqo_restructured_data, table=big_query_api.hourly_measurements_table
+        )
 
     @task()
     def update_app_insights(airqo_data: dict):

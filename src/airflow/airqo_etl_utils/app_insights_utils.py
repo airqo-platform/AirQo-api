@@ -294,7 +294,7 @@ def create_insights_data_from_bigquery(
     hourly_data = bigquery_api.get_hourly_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
-        columns=["pm2_5", "pm10", "site_id", "time"],
+        columns=["pm2_5", "pm10", "site_id", "timestamp"],
         table=bigquery_api.hourly_measurements_table,
     )
     hourly_data["forecast"] = False

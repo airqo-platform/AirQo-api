@@ -32,9 +32,8 @@ class BigQueryApi:
         )
         self.analytics_columns = self.get_column_names(table=self.analytics_table)
 
-    @staticmethod
     def validate_data(
-        dataframe: pd.DataFrame, columns: list, numeric_columns: list
+        self, dataframe: pd.DataFrame, columns: list, numeric_columns: list, table: str
     ) -> pd.DataFrame:
 
         if sorted(list(dataframe.columns)) != sorted(columns):
@@ -42,7 +41,12 @@ class BigQueryApi:
             print(f"Dataframe columns {list(dataframe.columns)}")
             raise Exception("Invalid columns")
 
-        dataframe["time"] = pd.to_datetime(dataframe["time"])
+        dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+
+        # time id depreciated. It will be replaced with timestamp
+        if table == self.hourly_measurements_table:
+            dataframe["time"] = dataframe["timestamp"]
+
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
@@ -94,7 +98,10 @@ class BigQueryApi:
         dataframe = pd.DataFrame(data)
 
         dataframe = self.validate_data(
-            dataframe=dataframe, columns=columns, numeric_columns=numeric_columns
+            dataframe=dataframe,
+            columns=columns,
+            numeric_columns=numeric_columns,
+            table=table,
         )
 
         job_config = bigquery.LoadJobConfig(
@@ -107,32 +114,6 @@ class BigQueryApi:
         job.result()
 
         table = self.client.get_table(table)
-        print(
-            "Loaded {} rows and {} columns to {}".format(
-                table.num_rows, len(table.schema), table.friendly_name
-            )
-        )
-
-    def save_hourly_measurements(self, measurements: list) -> None:
-
-        dataframe = pd.DataFrame(measurements)
-
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            columns=self.hourly_measurements_columns,
-            numeric_columns=self.hourly_measurements_numeric_columns,
-        )
-
-        job_config = bigquery.LoadJobConfig(
-            write_disposition="WRITE_APPEND",
-        )
-
-        job = self.client.load_table_from_dataframe(
-            dataframe, self.hourly_measurements_table, job_config=job_config
-        )
-        job.result()
-
-        table = self.client.get_table(self.hourly_measurements_table)
         print(
             "Loaded {} rows and {} columns to {}".format(
                 table.num_rows, len(table.schema), table.friendly_name

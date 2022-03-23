@@ -9,7 +9,7 @@ def query_hourly_measurements(
 ) -> list:
     biq_query_api = BigQueryApi()
     columns = [
-        "time",
+        "timestamp",
         "site_id",
         "device",
         "device_number",
@@ -56,7 +56,7 @@ def query_hourly_weather_data(
 ) -> list:
     biq_query_api = BigQueryApi()
     columns = [
-        "time",
+        "timestamp",
         "tenant",
         "site_id",
         "temperature",
@@ -147,14 +147,8 @@ def merge_measurements_weather_sites(
     measurements_df = pd.merge(
         left=measurements_data_df,
         right=weather_data_df,
-        on=["site_id", "time"],
+        on=["site_id", "timestamp"],
         how="left",
     )
     data_df = pd.merge(measurements_df, sites_df, on=["site_id"], how="left")
-    data_df.rename(
-        columns={
-            "time": "timestamp",
-        },
-        inplace=True,
-    )
     return data_df.to_dict(orient="records")

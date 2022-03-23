@@ -78,7 +78,9 @@ def hourly_measurements_etl():
         kcca_restructured_data = transform_kcca_hourly_data_for_bigquery(data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_hourly_measurements(measurements=kcca_restructured_data)
+        big_query_api.save_data(
+            data=kcca_restructured_data, table=big_query_api.hourly_measurements_table
+        )
 
     extracted_data = extract()
     send_hourly_measurements_to_message_broker(extracted_data)
@@ -241,7 +243,10 @@ def historical_hourly_measurements_etl():
             kcca_transformed_data = transform_kcca_hourly_data_for_bigquery(data)
 
             big_query_api = BigQueryApi()
-            big_query_api.save_hourly_measurements(measurements=kcca_transformed_data)
+            big_query_api.save_data(
+                data=kcca_transformed_data,
+                table=big_query_api.hourly_measurements_table,
+            )
 
         elif destination == "message-broker":
 
