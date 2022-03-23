@@ -44,21 +44,45 @@ def get_csv_file_from_gcs(project_name, bucket_name, source_blob_name):
         df = pd.read_csv(file_handle)
     return df
 
-def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_blob_name):
-
-    # upload model only if environment is not development
-    if environment is not "development":
-        fs = gcsfs.GCSFileSystem(project=project_name)
-
-        # backup previous model 
-        try:
-            fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
-            print("Bucket: previous model is backed up")
-        except:
-            print("Bucket: No file to updated")
+def upload_csv_file_to_gcs(project_name, credential, bucket_name, source_blob_name, source_file_name):
+    
+    storage_client = storage.Client.from_service_account_json(json_credentials_path=credential)
+    
+    try:
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(source_blob_name)
         
-        # store new model
-        with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
-            job = joblib.dump(trained_model,handle)
+        new_blob = bucket.rename_blob(blob, f'{datetime.now()}-{source_blob_name}')
+        print("Blob {} has been renamed to {}".format(blob.name, new_blob.name))
+    except:
+        print("Upload csv: No file to updated")
+    
+    # upload csv
+    blob = bucket.blob(source_blob_name)
+
+    blob.upload_from_filename(source_file_name)
+
+    print(
+        "File {} uploaded to {}.".format(
+            source_file_name, source_blob_name
+        )
+    )
+
+
+
+def upload_trained_model_to_gcs(trained_model,project_name,bucket_name,source_blob_name):
+    
+    fs = gcsfs.GCSFileSystem(project=project_name)
+
+    # backup previous model 
+    try:
+        fs.rename(f'{bucket_name}/{source_blob_name}', f'{bucket_name}/{datetime.now()}-{source_blob_name}')
+        print("Bucket: previous model is backed up")
+    except:
+        print("Bucket: No file to updated")
+    
+    # store new model
+    with fs.open(bucket_name + '/' + source_blob_name, 'wb') as handle:
+        job = joblib.dump(trained_model,handle)
 
 
