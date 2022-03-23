@@ -14,24 +14,18 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 )
 def hourly_measurements_etl():
     @task(multiple_outputs=True)
-    def extract(**kwargs):
+    def extract():
         from airqo_etl_utils.date import date_to_str_hours
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
         from airqo_etl_utils.commons import fill_nan
         from datetime import datetime, timedelta
 
-        try:
-            dag_run = kwargs.get("dag_run")
-            frequency = dag_run.conf["frequency"]
-            start_time = dag_run.conf["startTime"]
-            end_time = dag_run.conf["endTime"]
-        except KeyError:
-            frequency = "hourly"
-            start_time = date_to_str_hours(datetime.utcnow() - timedelta(hours=4))
-            end_time = date_to_str_hours(datetime.utcnow())
+        hour_of_day = datetime.utcnow() - timedelta(hours=1)
+        start_date_time = date_to_str_hours(hour_of_day)
+        end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
         kcca_data = extract_kcca_measurements(
-            start_time=start_time, end_time=end_time, freq=frequency
+            start_time=start_date_time, end_time=end_date_time, freq="hourly"
         )
 
         return dict({"data": fill_nan(kcca_data)})

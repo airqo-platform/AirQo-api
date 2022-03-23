@@ -31,6 +31,8 @@ def query_hourly_measurements(
         "pm1",
         "pm1_raw_value",
         "pm1_calibrated_value",
+        "external_temperature",
+        "external_humidity",
     ]
     hourly_measurements = biq_query_api.get_hourly_data(
         start_date_time=start_date_time,
@@ -150,5 +152,19 @@ def merge_measurements_weather_sites(
         on=["site_id", "timestamp"],
         how="left",
     )
+
+    measurements_df["external_temperature"] = measurements_df[
+        "external_temperature"
+    ].fillna(measurements_df["temperature"])
+    measurements_df["external_humidity"] = measurements_df["external_humidity"].fillna(
+        measurements_df["humidity"]
+    )
+
+    measurements_df["humidity"] = measurements_df["external_humidity"]
+    measurements_df["temperature"] = measurements_df["external_temperature"]
+
+    del measurements_df["external_humidity"]
+    del measurements_df["external_temperature"]
+
     data_df = pd.merge(measurements_df, sites_df, on=["site_id"], how="left")
     return data_df.to_dict(orient="records")

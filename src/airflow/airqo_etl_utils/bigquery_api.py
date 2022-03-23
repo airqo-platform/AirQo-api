@@ -113,10 +113,13 @@ class BigQueryApi:
         )
         job.result()
 
-        table = self.client.get_table(table)
+        destination_table = self.client.get_table(table)
+        print("Table for loading {} ".format(table))
         print(
             "Loaded {} rows and {} columns to {}".format(
-                table.num_rows, len(table.schema), table.friendly_name
+                destination_table.num_rows,
+                len(destination_table.schema),
+                destination_table.friendly_name,
             )
         )
 
@@ -124,15 +127,26 @@ class BigQueryApi:
         self, start_date_time: str, end_date_time: str, columns: list, table: str
     ) -> pd.DataFrame:
 
-        query = f"""
-            SELECT {', '.join(map(str, columns))}
-            FROM `{table}`
-            WHERE time >= '{start_date_time}' and time <= '{end_date_time}'
-        """
+        try:
+            query = f"""
+                SELECT {', '.join(map(str, columns))}
+                FROM `{table}`
+                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
+            """
+            dataframe = self.client.query(query=query).result().to_dataframe()
 
-        dataframe = self.client.query(query=query).result().to_dataframe()
+            return dataframe
+        except Exception as ex:
+            print(ex)
+            query = f"""
+                SELECT {', '.join(map(str, columns))}
+                FROM `{table}`
+                WHERE time >= '{start_date_time}' and time <= '{end_date_time}'
+            """
 
-        return dataframe
+            dataframe = self.client.query(query=query).result().to_dataframe()
+
+            return dataframe
 
     def save_raw_measurements(self, measurements: list) -> None:
         pass
