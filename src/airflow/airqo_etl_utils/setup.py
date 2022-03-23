@@ -6,22 +6,23 @@ LONG_DESCRIPTION = "This package contains functions shared by the DAG files"
 
 
 setup(
-    name="airflow_utils",
+    name="airqo_etl_utils",
     version=VERSION,
-    author="AirQo Devs",
-    author_email="<airqo.analytics@gmail.com>",
+    author="AirQo",
+    author_email="<data@airqo.net>",
     description=DESCRIPTION,
     long_description=LONG_DESCRIPTION,
     packages=find_packages(),
+    package_data={"": ["*.json"]},
     install_requires=[
         "pandas",
         "requests",
         "simplejson",
-        "python-dotenv",
         "kafka-python",
         "numpy",
+        "google-cloud-bigquery",
     ],
-    keywords=["python", "airflow", "airqo"],
+    keywords=["python", "airflow", "AirQo"],
     license="MIT",
     classifiers=[
         "Development Status :: 3 - Alpha",
