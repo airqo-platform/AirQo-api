@@ -5,8 +5,8 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 
 
 @dag(
-    "Data-warehouse-etl",
-    schedule_interval=None,
+    "Data-Warehouse-ETL",
+    schedule_interval="@weekly",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -38,7 +38,9 @@ def data_warehouse_etl():
         )
         from airqo_etl_utils.commons import get_date_time_values, fill_nan
 
-        start_date_time, end_date_time = get_date_time_values(**kwargs)
+        start_date_time, end_date_time = get_date_time_values(
+            **kwargs, interval_in_days=7
+        )
         hourly_weather_measurements = query_hourly_weather_data(
             start_date_time=start_date_time,
             end_date_time=end_date_time,
