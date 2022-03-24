@@ -1,13 +1,13 @@
 import requests
 import pandas as pd
-from config import connect_mongo, configuration
+from config import connect_mongo_device_registry, configuration
 from utils import previous_months_range, date_to_str, str_to_date, is_key_exist
 from datetime import timedelta
 
 
 class BaseModel:
     def __init__(self):
-        self.db = connect_mongo()
+        self.db = connect_mongo_device_registry()
 
 class Events(BaseModel):
     def __init__(self):
