@@ -3185,10 +3185,100 @@ router.post(
         .isInt()
         .withMessage("battery should be an integer value")
         .trim(),
-      body("others")
+      body("altitude")
         .optional()
         .notEmpty()
-        .withMessage("others cannot be empty if provided"),
+        .withMessage("altitude should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("altitude should be an integer value")
+        .trim(),
+      body("wind_speed")
+        .optional()
+        .notEmpty()
+        .withMessage("wind_speed should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("wind_speed should be an integer value")
+        .trim(),
+      body("satellites")
+        .optional()
+        .notEmpty()
+        .withMessage("satellites should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("satellites should be an integer value")
+        .trim(),
+      body("hdop")
+        .optional()
+        .notEmpty()
+        .withMessage("hdop should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("hdop should be an integer value")
+        .trim(),
+      body("internal_temperature")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "internal_temperature should not be empty if/when provided"
+        )
+        .bail()
+        .isInt()
+        .withMessage("internal_temperature should be an integer value")
+        .trim(),
+      body("internal_humidity")
+        .optional()
+        .notEmpty()
+        .withMessage("internal_humidity should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("internal_humidity should be an integer value")
+        .trim(),
+      body("external_temperature")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "external_temperature should not be empty if/when provided"
+        )
+        .bail()
+        .isInt()
+        .withMessage("external_temperature should be an integer value")
+        .trim(),
+      body("external_humidity")
+        .optional()
+        .notEmpty()
+        .withMessage("external_humidity should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("external_humidity should be an integer value")
+        .trim(),
+      body("external_pressure")
+        .optional()
+        .notEmpty()
+        .withMessage("external_pressure should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("external_pressure should be an integer value")
+        .trim(),
+      body("external_altitude")
+        .optional()
+        .notEmpty()
+        .withMessage("external_altitude should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("external_altitude should be an integer value")
+        .trim(),
+      body("type")
+        .optional()
+        .notEmpty()
+        .withMessage("type cannot be empty if provided")
+        .bail()
+        .trim()
+        .isIn(["BAM", "LOWCOST"])
+        .withMessage(
+          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
+        ),
       body("status")
         .optional()
         .notEmpty()
