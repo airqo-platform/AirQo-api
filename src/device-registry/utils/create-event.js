@@ -348,37 +348,26 @@ const createEvent = {
       } = req.body;
 
       let stringPositionsAndValues = {};
-      stringPositionsAndValues[0] = latitude;
-      stringPositionsAndValues[1] = longitude;
-      stringPositionsAndValues[2] = altitude;
-      stringPositionsAndValues[3] = wind_speed;
-      stringPositionsAndValues[4] = satellites;
-      stringPositionsAndValues[5] = hdop;
-      stringPositionsAndValues[6] = internal_temperature;
-      stringPositionsAndValues[7] = internal_humidity;
-      stringPositionsAndValues[8] = external_temperature;
-      stringPositionsAndValues[9] = external_humidity;
-      stringPositionsAndValues[10] = external_pressure;
-      stringPositionsAndValues[11] = external_altitude;
-      stringPositionsAndValues[12] = type;
+      stringPositionsAndValues[0] = latitude || null;
+      stringPositionsAndValues[1] = longitude || null;
+      stringPositionsAndValues[2] = altitude || null;
+      stringPositionsAndValues[3] = wind_speed || null;
+      stringPositionsAndValues[4] = satellites || null;
+      stringPositionsAndValues[5] = hdop || null;
+      stringPositionsAndValues[6] = internal_temperature || null;
+      stringPositionsAndValues[7] = internal_humidity || null;
+      stringPositionsAndValues[8] = external_temperature || null;
+      stringPositionsAndValues[9] = external_humidity || null;
+      stringPositionsAndValues[10] = external_pressure || null;
+      stringPositionsAndValues[11] = external_altitude || null;
+      stringPositionsAndValues[12] = type || null;
 
       logObject("inputObject", stringPositionsAndValues);
 
       const generateOtherDataString = (inputObject) => {
         try {
-          let otherDataString = Object.entries(inputObject).reduce(
-            (otherDataString, [position, value]) => {
-              if (value) {
-                return [
-                  otherDataString.slice(0, position),
-                  position,
-                  otherDataString.slice(position),
-                ].join(",");
-              }
-            },
-            ""
-          );
-          return otherDataString;
+          const str = Object.values(inputObject).join(",");
+          return str;
         } catch (error) {
           logElement("the error for getting data string", error.message);
         }
@@ -448,8 +437,7 @@ const createEvent = {
       );
 
       if (responseFromCreateRequestBody.success === true) {
-        // requestBody = responseFromCreateRequestBody.data;
-        return responseFromCreateRequestBody;
+        requestBody = responseFromCreateRequestBody.data;
       } else {
         return {
           success: false,
