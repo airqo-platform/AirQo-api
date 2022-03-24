@@ -321,37 +321,99 @@ const createEvent = {
       };
     }
   },
-  createRequestBody: (req) => {
-    let {
-      api_key,
-      created_at,
-      s1_pm2_5,
-      s1_pm10,
-      s2_pm2_5,
-      s2_pm10,
-      latitude,
-      longitude,
-      battery,
-      other_data,
-      status,
-    } = req.body;
+  createThingSpeakRequestBody: (req) => {
+    try {
+      const {
+        api_key,
+        created_at,
+        s1_pm2_5,
+        s1_pm10,
+        s2_pm2_5,
+        s2_pm10,
+        latitude,
+        longitude,
+        battery,
+        status,
+        altitude,
+        wind_speed,
+        satellites,
+        hdop,
+        internal_temperature,
+        internal_humidity,
+        external_temperature,
+        external_humidity,
+        external_pressure,
+        external_altitude,
+        type,
+      } = req.body;
 
-    let requestBody = {
-      api_key: api_key,
-      created_at: created_at,
-      field1: s1_pm2_5,
-      field2: s1_pm10,
-      field3: s2_pm2_5,
-      field4: s2_pm10,
-      field5: latitude,
-      field6: longitude,
-      field7: battery,
-      field8: other_data,
-      latitude: latitude,
-      longitude: longitude,
-      status: status,
-    };
-    return requestBody;
+      let stringPositionsAndValues = {};
+      stringPositionsAndValues[0] = latitude;
+      stringPositionsAndValues[1] = longitude;
+      stringPositionsAndValues[2] = altitude;
+      stringPositionsAndValues[3] = wind_speed;
+      stringPositionsAndValues[4] = satellites;
+      stringPositionsAndValues[5] = hdop;
+      stringPositionsAndValues[6] = internal_temperature;
+      stringPositionsAndValues[7] = internal_humidity;
+      stringPositionsAndValues[8] = external_temperature;
+      stringPositionsAndValues[9] = external_humidity;
+      stringPositionsAndValues[10] = external_pressure;
+      stringPositionsAndValues[11] = external_altitude;
+      stringPositionsAndValues[12] = type;
+
+      logObject("inputObject", stringPositionsAndValues);
+
+      const generateOtherDataString = (inputObject) => {
+        try {
+          let otherDataString = Object.entries(inputObject).reduce(
+            (otherDataString, [position, value]) => {
+              if (value) {
+                return [
+                  otherDataString.slice(0, position),
+                  position,
+                  otherDataString.slice(position),
+                ].join(",");
+              }
+            },
+            ""
+          );
+          return otherDataString;
+        } catch (error) {
+          logElement("the error for getting data string", error.message);
+        }
+      };
+
+      const otherDataString = generateOtherDataString(stringPositionsAndValues);
+      logElement("otherDataString", otherDataString);
+
+      let requestBody = {
+        api_key: api_key,
+        created_at: created_at,
+        field1: s1_pm2_5,
+        field2: s1_pm10,
+        field3: s2_pm2_5,
+        field4: s2_pm10,
+        field5: latitude,
+        field6: longitude,
+        field7: battery,
+        field8: otherDataString,
+        latitude: latitude,
+        longitude: longitude,
+        status: status,
+      };
+      return {
+        success: true,
+        message: "successfully created ThingSpeak body",
+        data: requestBody,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
   },
   getTSField: (measurement, res) => {
     let requestBody = {
@@ -380,8 +442,23 @@ const createEvent = {
   },
   transmitMultipleSensorValues: async (request) => {
     try {
-      let { tenant, chid, name, id, device_number } = request.query;
-      const requestBody = createEvent.createRequestBody(request);
+      let requestBody = {};
+      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
+        request
+      );
+
+      if (responseFromCreateRequestBody.success === true) {
+        // requestBody = responseFromCreateRequestBody.data;
+        return responseFromCreateRequestBody;
+      } else {
+        return {
+          success: false,
+          message: responseFromCreateRequestBody.message,
+          status: responseFromCreateRequestBody.status,
+        };
+      }
+
+      logObject("requestBody", requestBody);
       const responseFromListDevice = await createDeviceUtil.list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
@@ -391,7 +468,7 @@ const createEvent = {
           return {
             success: false,
             status: httpStatus.NOT_FOUND,
-            message: "no matching devices",
+            message: "no matching devices found",
           };
         }
       } else if (responseFromListDevice.success === false) {
@@ -424,6 +501,8 @@ const createEvent = {
           resp.channel_id = response.data.channel_id;
           resp.created_at = response.data.created_at;
           resp.entry_id = response.data.entry_id;
+          logObject("the sent data", response.data);
+
           return {
             message: "successfully transmitted the data",
             success: true,
