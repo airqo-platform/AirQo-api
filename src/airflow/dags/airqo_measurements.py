@@ -150,12 +150,14 @@ def historical_hourly_measurements_etl():
         airqo_data=extracted_airqo_data, deployment_logs=device_logs
     )
 
-    extracted_weather_data = extract_hourly_weather_data()
-    merged_data = merge_data(
-        averaged_airqo_data=data_with_site_ids, weather_data=extracted_weather_data
-    )
-    calibrated_data = calibrate(merged_data)
+    # Temporarily disabling weather data
+    # extracted_weather_data = extract_hourly_weather_data()
+    # merged_data = merge_data(
+    #     averaged_airqo_data=data_with_site_ids, weather_data=extracted_weather_data
+    # )
+    # calibrated_data = calibrate(merged_data)
 
+    calibrated_data = calibrate(data_with_site_ids)
     load(calibrated_data)
 
 
@@ -344,16 +346,22 @@ def hourly_measurements_etl():
 
     extracted_airqo_data = extract_raw_data()
     averaged_airqo_data = average_data_by_hour(extracted_airqo_data)
-    extracted_weather_data = extract_hourly_weather_data()
-    merged_data = merge_data(
-        averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
-    )
-    calibrated_data = calibrate(merged_data)
+
+    # Temporarily disabling weather data
+    # extracted_weather_data = extract_hourly_weather_data()
+    # merged_data = merge_data(
+    #     averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
+    # )
+    # calibrated_data = calibrate(merged_data)
+
+    calibrated_data = calibrate(averaged_airqo_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
     update_app_insights(calibrated_data)
-    send_raw_measurements_to_api(extracted_airqo_data)
+
+    # Temporarily disabling sanding raw data device registry API
+    # send_raw_measurements_to_api(extracted_airqo_data)
     # send_raw_measurements_to_bigquery(extracted_airqo_data)
 
 

@@ -212,14 +212,22 @@ class AirQoApi:
         if tenant:
             response = self.__request("devices/sites", {"tenant": tenant})
             if "sites" in response:
-                return response["sites"]
+                sites = response["sites"]
+                sites_with_tenant = []
+                for site in sites:
+                    site["tenant"] = tenant
+                    sites_with_tenant.append(site)
+                return sites_with_tenant
         else:
-            sites = []
+            sites_with_tenant = []
             for x in ["airqo", "kcca"]:
                 response = self.__request("devices/sites", {"tenant": x})
                 if "sites" in response:
-                    sites.extend(response["sites"])
-            return sites
+                    sites = response["sites"]
+                    for site in sites:
+                        site["tenant"] = x
+                        sites_with_tenant.append(site)
+            return sites_with_tenant
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None

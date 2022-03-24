@@ -5,6 +5,8 @@ from google.cloud import bigquery
 from airqo_etl_utils.config import configuration
 import json
 
+from airqo_etl_utils.date import date_to_str
+
 
 class BigQueryApi:
     def __init__(self):
@@ -36,17 +38,19 @@ class BigQueryApi:
         self, dataframe: pd.DataFrame, columns: list, numeric_columns: list, table: str
     ) -> pd.DataFrame:
 
-        if sorted(list(dataframe.columns)) != sorted(columns):
-            print(f"Required columns {columns}")
-            print(f"Dataframe columns {list(dataframe.columns)}")
-            raise Exception("Invalid columns")
-
-        dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
-
         # time id depreciated. It will be replaced with timestamp
         if table == self.hourly_measurements_table:
             dataframe["time"] = dataframe["timestamp"]
 
+        if sorted(list(dataframe.columns)) != sorted(columns):
+            print(f"Required columns {columns}")
+            print(f"Dataframe columns {list(dataframe.columns)}")
+            print(
+                f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
+            )
+            raise Exception("Invalid columns")
+
+        dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
@@ -134,8 +138,6 @@ class BigQueryApi:
                 WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
             """
             dataframe = self.client.query(query=query).result().to_dataframe()
-
-            return dataframe
         except Exception as ex:
             print(ex)
             query = f"""
@@ -146,7 +148,11 @@ class BigQueryApi:
 
             dataframe = self.client.query(query=query).result().to_dataframe()
 
-            return dataframe
+        dataframe["timestamp"] = dataframe["timestamp"].apply(lambda x: date_to_str(x))
+        if "time" in list(dataframe.columns):
+            dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
+
+        return dataframe
 
     def save_raw_measurements(self, measurements: list) -> None:
         pass

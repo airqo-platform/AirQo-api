@@ -45,6 +45,7 @@ def data_warehouse(start_date_time: str, end_date_time: str):
         extract_sites_meta_data,
         merge_measurements_weather_sites,
     )
+    from airqo_etl_utils.bigquery_api import BigQueryApi
 
     hourly_device_measurements = query_hourly_measurements(
         start_date_time=start_date_time,
@@ -70,7 +71,17 @@ def data_warehouse(start_date_time: str, end_date_time: str):
         weather_data=hourly_weather_measurements,
         sites=sites_meta_data,
     )
-    pd.DataFrame(data).to_csv(path_or_buf="data.csv", index=False)
+    data_df = pd.DataFrame(data)
+
+    bigquery_api = BigQueryApi()
+    
+    data_df = bigquery_api.validate_data(
+        dataframe=data_df,
+        columns=bigquery_api.analytics_columns,
+        numeric_columns=bigquery_api.analytics_numeric_columns,
+        table=bigquery_api.analytics_table,
+    )
+    data_df.to_csv(path_or_buf="data_warehouse.csv", index=False)
 
 
 def kcca_historical_hourly_measurements(start_date_time: str, end_date_time: str):
