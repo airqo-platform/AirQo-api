@@ -197,8 +197,7 @@ const manageSite = {
           message: responseFromListTahmoStations.message,
           stations: responseFromListTahmoStations.data,
         });
-      }
-      if (responseFromListTahmoStations.success === false) {
+      } else if (responseFromListTahmoStations.success === false) {
         const status = responseFromListTahmoStations.status
           ? responseFromListTahmoStations.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -392,7 +391,6 @@ const manageSite = {
       }
       const { tenant } = req.query;
       let filter = generateFilter.sites(req);
-      logObject("responseFromFilter", filter);
       let update = req.body;
       let responseFromRefreshSite = await createSiteUtil.refresh(tenant, req);
       logObject("responseFromRefreshSite", responseFromRefreshSite);
