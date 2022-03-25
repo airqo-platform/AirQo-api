@@ -1,4 +1,5 @@
 const EventModel = require("../models/Event");
+const MeasurementModel = require("../models/Measurement");
 const { logObject, logElement, logText } = require("./log");
 const constants = require("../config/constants");
 const generateFilter = require("./generate-filter");
@@ -14,6 +15,8 @@ const HTTPStatus = require("http-status");
 const redis = require("../config/redis");
 const axios = require("axios");
 const { kafkaConsumer } = require("../config/kafkajs");
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
 
 const { generateDateFormat, generateDateFormatWithoutHrs } = require("./date");
 
@@ -137,8 +140,6 @@ const createEvent = {
         request
       );
 
-      logObject("responseFromTransformEvent", responseFromTransformEvent);
-
       if (responseFromTransformEvent.success === true) {
         let transformedEvents = responseFromTransformEvent.data;
         let nAdded = 0;
@@ -148,23 +149,15 @@ const createEvent = {
 
         for (const event of transformedEvents) {
           try {
-            logObject("event", event);
             let value = event;
             let dot = new Dot(".");
             let options = event.options;
             let filter = cleanDeep(event.filter);
             let update = event.update;
-            logObject("the filter", filter);
-            logObject("the options", options);
-
             dot.delete(["filter", "update", "options"], value);
-
-            logObject("the value", value);
             update["$push"] = { values: value };
 
-            logObject("the update", update);
-
-            const addedEvents = await EventModel("view").updateOne(
+            const addedEvents = await MeasurementModel("view").updateOne(
               filter,
               update,
               options
@@ -174,7 +167,7 @@ const createEvent = {
               eventsAdded.push(event);
             } else if (!addedEvents) {
               let errMsg = {
-                msg: "unable to add the events",
+                message: "unable to add the events",
                 record: {
                   ...(event.device ? { device: event.device } : {}),
                   ...(event.frequency ? { frequency: event.frequency } : {}),
@@ -187,7 +180,7 @@ const createEvent = {
             } else {
               eventsRejected.push(event);
               let errMsg = {
-                msg: "unable to add the events",
+                message: "unable to add the events",
                 record: {
                   ...(event.device ? { device: event.device } : {}),
                   ...(event.frequency ? { frequency: event.frequency } : {}),
@@ -202,7 +195,8 @@ const createEvent = {
             logObject("the detailed db conflict error", e.message);
             eventsRejected.push(event);
             let errMsg = {
-              msg: "system conflict detected, most likely a duplicate record",
+              message:
+                "system conflict detected, most likely a duplicate record",
               more: e.message,
               record: {
                 ...(event.device ? { device: event.device } : {}),
@@ -216,14 +210,21 @@ const createEvent = {
           }
         }
 
-        if (errors.length > 0) {
+        if (errors.length > 0 && nAdded === 0) {
           return {
             success: false,
             status: HTTPStatus.CONFLICT,
+            message: "all operations failed with conflicts",
+            errors,
+          };
+        } else if (errors.length > 0 && nAdded > 0) {
+          return {
+            success: false,
+            status: HTTPStatus.OK,
             message: "finished the operation with some conflicts",
             errors,
           };
-        } else {
+        } else if (errors.length === 0 && nAdded > 0) {
           return {
             success: true,
             status: HTTPStatus.OK,
@@ -430,13 +431,23 @@ const createEvent = {
           resp.channel_id = response.data.channel_id;
           resp.created_at = response.data.created_at;
           resp.entry_id = response.data.entry_id;
-          logObject("the sent data", response.data);
-
-          return {
-            message: "successfully transmitted the data",
-            success: true,
-            data: resp,
-          };
+          if (isEmpty(response.data)) {
+            return {
+              success: false,
+              message: "successful operation but no data sent",
+              status: HTTPStatus.CONFLICT,
+              data: resp,
+              errors: {
+                message: "likely a duplicate value or system conflict",
+              },
+            };
+          } else {
+            return {
+              message: "successfully transmitted the data",
+              success: true,
+              data: resp,
+            };
+          }
         })
         .catch(function(error) {
           const errorMessage = error.response
@@ -523,8 +534,6 @@ const createEvent = {
       let requestObject = {};
       requestObject.write_api_key = api_key;
       requestObject.updates = transformedUpdates;
-      logElement("url", constants.BULK_ADD_VALUES_JSON(channel));
-      logObject("requestObject", requestObject);
       return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
@@ -540,7 +549,6 @@ const createEvent = {
             ? error.response.data
             : "No active internet connection";
 
-          logObject("errorMessage", errorMessage);
           return {
             success: false,
             message: "Internal Server Error",
@@ -755,7 +763,8 @@ const createEvent = {
   },
   transformManyEvents: async (request) => {
     try {
-      let { body } = request;
+      const { body, query } = request;
+      const { tenant } = query;
 
       logger.info(
         `the body received for transformation -- ${JSON.stringify(body)}`
@@ -764,6 +773,8 @@ const createEvent = {
         let data = event;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
+        context["device_id"] = ObjectId(event.device_id);
+        context["site_id"] = ObjectId(event.site_id);
 
         let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
@@ -930,7 +941,11 @@ const createEvent = {
 
           logger.info(`the options -- ${JSON.stringify(options)}`);
 
-          const addedEvents = await EventModel(tenant).updateOne(
+          logObject("update", update);
+          logObject("options", options);
+          logObject("modifiedFilter", modifiedFilter);
+
+          const addedEvents = await Model(tenant).updateOne(
             modifiedFilter,
             update,
             options
@@ -1257,6 +1272,8 @@ const createEvent = {
           $inc: { nValues: 1 },
         };
         logObject("eventsUpdate", eventsUpdate);
+        logObject("eventsFilter", eventsFilter);
+
         const addedEvents = await EventModel(tenant).updateOne(
           eventsFilter,
           eventsUpdate,

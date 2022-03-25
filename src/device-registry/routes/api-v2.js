@@ -2742,18 +2742,6 @@ router.get(
 router.post(
   "/events",
   oneOf([
-    [
-      query("tenant")
-        .exists()
-        .withMessage("tenant should be provided")
-        .bail()
-        .trim()
-        .toLowerCase()
-        .isIn(["kcca", "airqo", "view"])
-        .withMessage("the tenant value is not among the expected ones"),
-    ],
-  ]),
-  oneOf([
     body()
       .isArray()
       .withMessage("the request body should be an array"),
@@ -2774,6 +2762,9 @@ router.post(
       body("*.is_device_primary")
         .optional()
         .notEmpty()
+        .withMessage(
+          "the is_device_primary should not be empty if/when provided"
+        )
         .trim()
         .isBoolean()
         .withMessage("is_device_primary should be Boolean"),
@@ -2799,6 +2790,7 @@ router.post(
       body("*.frequency")
         .optional()
         .notEmpty()
+        .withMessage("the frequency should not be empty if/when provided")
         .trim()
         .bail()
         .isIn(["raw", "hourly", "daily"])
@@ -2808,22 +2800,157 @@ router.post(
       body("*.is_test_data")
         .optional()
         .notEmpty()
+        .withMessage("the is_test_data should not be empty if/when provided")
         .trim()
         .isBoolean()
         .withMessage("is_test_data should be boolean"),
       body("*.device")
         .optional()
         .notEmpty()
+        .withMessage("the device should not be empty if/when provided")
         .trim(),
       body("*.site")
         .optional()
         .notEmpty()
+        .withMessage("the site should not be empty if/when provided")
         .trim(),
       body("*.device_number")
         .optional()
         .notEmpty()
         .isInt()
         .withMessage("the device_number should be an integer value")
+        .bail()
+        .trim(),
+      body("*.latitude")
+        .optional()
+        .notEmpty()
+        .withMessage("the latitude should not be empty if/when provided")
+        .bail()
+        .trim()
+        .matches(constants.LATITUDE_REGEX, "i")
+        .withMessage("please provide valid latitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the latitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("latitude validation test has passed");
+        })
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the latitude must have atleast 5 decimal places in it"),
+      body("*.longitude")
+        .optional()
+        .notEmpty()
+        .withMessage("the longitude should not be empty if/when provided")
+        .bail()
+        .trim()
+        .matches(constants.LONGITUDE_REGEX, "i")
+        .withMessage("please provide valid longitude value")
+        .bail()
+        .custom((value) => {
+          let dp = decimalPlaces(value);
+          if (dp < 5) {
+            return Promise.reject(
+              "the longitude must have 5 or more characters"
+            );
+          }
+          return Promise.resolve("longitude validation test has passed");
+        })
+        .bail()
+        .customSanitizer((value) => {
+          return numeral(value).format("0.00000");
+        })
+        .isDecimal({ decimal_digits: 5 })
+        .withMessage("the longitude must have atleast 5 decimal places in it"),
+      body("*.pm2_5")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the pm2_5 should be a number")
+        .bail()
+        .trim(),
+      body("*.pm10")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the pm10 should be a number")
+        .bail()
+        .trim(),
+      body("*.s1_pm2_5")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the s1_pm2_5 should be a number")
+        .bail()
+        .trim(),
+      body("*.s1_pm10")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the s1_pm10 should be a number")
+        .bail()
+        .trim(),
+      body("*.s2_pm2_5")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the s2_pm2_5 should be a number")
+        .bail()
+        .trim(),
+      body("*.s2_pm10")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the s2_pm10 should be a number")
+        .bail()
+        .trim(),
+      body("*.pm2_5_calibrated_value")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the pm2_5_calibrated_value should be a number")
+        .bail()
+        .trim(),
+      body("*.pm10_calibrated_value")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the pm10_calibrated_value should be a number")
+        .bail()
+        .trim(),
+      body("*.altitude")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the altitude should be a number")
+        .bail()
+        .trim(),
+      body("*.wind_speed")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the wind_speed should be a number")
+        .bail()
+        .trim(),
+      body("*.external_temperature")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the external_temperature should be a number")
+        .bail()
+        .trim(),
+      body("*.external_humidity")
+        .optional()
+        .notEmpty()
+        .isFloat()
+        .withMessage("the external_humidity should be a number")
         .bail()
         .trim(),
     ],

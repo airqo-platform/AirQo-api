@@ -3059,16 +3059,18 @@ router.get(
 );
 router.post(
   "/events/transmit/single",
-  query("tenant")
-    .exists()
-    .withMessage("tenant query parameter should be provided")
-    .bail()
-    .trim()
-    .toLowerCase()
-    .isIn(["kcca", "airqo"])
-    .withMessage(
-      "the tenant query parameter value is not among the expected ones"
-    ),
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant query parameter should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant query parameter value is not among the expected ones"
+      ),
+  ]),
   oneOf([
     query("id")
       .exists()
@@ -3290,16 +3292,18 @@ router.post(
 
 router.post(
   "/events/transmit/bulk",
-  query("tenant")
-    .exists()
-    .withMessage("tenant query parameter should be provided")
-    .bail()
-    .trim()
-    .toLowerCase()
-    .isIn(["kcca", "airqo"])
-    .withMessage(
-      "the tenant query parameter value is not among the expected ones"
-    ),
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant query parameter should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage(
+        "the tenant query parameter value is not among the expected ones"
+      ),
+  ]),
   oneOf([
     query("id")
       .exists()

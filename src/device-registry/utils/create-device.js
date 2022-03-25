@@ -1022,14 +1022,12 @@ const createDevice = {
 
   decryptKey: (encryptedKey) => {
     try {
-      logText("we are inside the decrypt key");
       let bytes = cryptoJS.AES.decrypt(
         encryptedKey,
         constants.KEY_ENCRYPTION_KEY
       );
       let originalText = bytes.toString(cryptoJS.enc.Utf8);
       let isKeyUnknown = isEmpty(originalText);
-      logElement("isKeyUnknown", isKeyUnknown);
       if (isKeyUnknown) {
         return {
           success: false,
