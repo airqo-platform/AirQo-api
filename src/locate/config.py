@@ -14,15 +14,13 @@ class Config:
 class ProductionConfig(Config):
     DB_NAME = os.getenv("DB_NAME_PROD")
     MONGO_URI = os.getenv('MONGO_GCE_URI')
-
-class DevelopmentConfig(Config):
-    MONGO_URI = os.getenv("MONGO_DEV_URI")
-    DB_NAME = os.getenv("DB_NAME_DEV")
-
 class TestingConfig(Config):
     MONGO_URI = os.getenv('MONGO_GCE_URI')
     DB_NAME = os.getenv("DB_NAME_STAGE")
 
+class DevelopmentConfig(Config):
+    MONGO_URI = os.getenv("MONGO_DEV_URI")
+    DB_NAME = os.getenv("DB_NAME_DEV")
 
 app_config = {
     "development": DevelopmentConfig,
