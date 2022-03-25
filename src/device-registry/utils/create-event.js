@@ -254,7 +254,7 @@ const createEvent = {
     try {
       const {
         api_key,
-        created_at,
+        time,
         s1_pm2_5,
         s1_pm10,
         s2_pm2_5,
@@ -297,7 +297,7 @@ const createEvent = {
 
       let requestBody = {
         api_key: api_key,
-        created_at: created_at,
+        created_at: time,
         field1: s1_pm2_5,
         field2: s1_pm10,
         field3: s2_pm2_5,
@@ -523,6 +523,8 @@ const createEvent = {
       let requestObject = {};
       requestObject.write_api_key = api_key;
       requestObject.updates = transformedUpdates;
+      logElement("url", constants.BULK_ADD_VALUES_JSON(channel));
+      logObject("requestObject", requestObject);
       return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
@@ -537,6 +539,8 @@ const createEvent = {
           const errorMessage = error.response
             ? error.response.data
             : "No active internet connection";
+
+          logObject("errorMessage", errorMessage);
           return {
             success: false,
             message: "Internal Server Error",
