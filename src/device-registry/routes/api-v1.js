@@ -3058,7 +3058,7 @@ router.get(
   eventController.list
 );
 router.post(
-  "/events/transmit/many",
+  "/events/transmit/single",
   query("tenant")
     .exists()
     .withMessage("tenant query parameter should be provided")
@@ -3290,7 +3290,6 @@ router.post(
 
 router.post(
   "/events/transmit/bulk",
-
   query("tenant")
     .exists()
     .withMessage("tenant query parameter should be provided")
@@ -3318,10 +3317,14 @@ router.post(
         "the device_number identifier is missing in request, consider using device_number"
       ),
   ]),
-
+  oneOf([
+    body()
+      .isArray()
+      .withMessage("the request body should be an array"),
+  ]),
   oneOf([
     [
-      body("time")
+      body("*.time")
         .exists()
         .trim()
         .withMessage("time is missing")
@@ -3329,7 +3332,7 @@ router.post(
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("time must be a valid datetime."),
-      body("s1_pm10")
+      body("*.s1_pm10")
         .optional()
         .notEmpty()
         .withMessage("s1_pm10 should not be empty if/when provided")
@@ -3337,7 +3340,7 @@ router.post(
         .isNumeric()
         .withMessage("s1_pm_10 should be an integer value")
         .trim(),
-      body("s1_pm2_5")
+      body("*.s1_pm2_5")
         .optional()
         .notEmpty()
         .withMessage("s1_pm2_5 should not be empty if/when provided")
@@ -3345,7 +3348,7 @@ router.post(
         .isNumeric()
         .withMessage("s1_pm2_5 should be an integer value")
         .trim(),
-      body("s2_pm2_5")
+      body("*.s2_pm2_5")
         .optional()
         .notEmpty()
         .withMessage("s2_pm2_5 should not be empty if/when provided")
@@ -3353,7 +3356,7 @@ router.post(
         .isInt()
         .withMessage("s2_pm2_5 should be an integer value")
         .trim(),
-      body("s2_pm10")
+      body("*.s2_pm10")
         .optional()
         .notEmpty()
         .withMessage("s2_pm10 should not be empty if/when provided")
@@ -3362,7 +3365,7 @@ router.post(
         .withMessage("s2_pm10 should be an integer value")
         .bail()
         .trim(),
-      body("latitude")
+      body("*.latitude")
         .optional()
         .notEmpty()
         .withMessage("provided latitude cannot be empty")
@@ -3386,7 +3389,7 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
-      body("longitude")
+      body("*.longitude")
         .optional()
         .notEmpty()
         .withMessage("provided longitude cannot be empty")
@@ -3410,7 +3413,7 @@ router.post(
         })
         .isDecimal({ decimal_digits: 5 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("battery")
+      body("*.battery")
         .optional()
         .notEmpty()
         .withMessage("battery should not be empty if/when provided")
@@ -3418,158 +3421,107 @@ router.post(
         .isInt()
         .withMessage("battery should be an integer value")
         .trim(),
-      body("others")
+      body("*.altitude")
         .optional()
         .notEmpty()
-        .withMessage("others cannot be empty if provided"),
-      body("status")
+        .withMessage("altitude should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("altitude should be an integer value")
+        .trim(),
+      body("*.wind_speed")
+        .optional()
+        .notEmpty()
+        .withMessage("wind_speed should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("wind_speed should be an integer value")
+        .trim(),
+      body("*.satellites")
+        .optional()
+        .notEmpty()
+        .withMessage("satellites should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("satellites should be an integer value")
+        .trim(),
+      body("*.hdop")
+        .optional()
+        .notEmpty()
+        .withMessage("hdop should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("hdop should be an integer value")
+        .trim(),
+      body("*.internal_temperature")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "internal_temperature should not be empty if/when provided"
+        )
+        .bail()
+        .isInt()
+        .withMessage("internal_temperature should be an integer value")
+        .trim(),
+      body("*.internal_humidity")
+        .optional()
+        .notEmpty()
+        .withMessage("internal_humidity should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("internal_humidity should be an integer value")
+        .trim(),
+      body("*.external_temperature")
+        .optional()
+        .notEmpty()
+        .withMessage(
+          "external_temperature should not be empty if/when provided"
+        )
+        .bail()
+        .isInt()
+        .withMessage("external_temperature should be an integer value")
+        .trim(),
+      body("*.external_humidity")
+        .optional()
+        .notEmpty()
+        .withMessage("external_humidity should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("external_humidity should be an integer value")
+        .trim(),
+      body("*.external_pressure")
+        .optional()
+        .notEmpty()
+        .withMessage("external_pressure should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("external_pressure should be an integer value")
+        .trim(),
+      body("*.external_altitude")
+        .optional()
+        .notEmpty()
+        .withMessage("external_altitude should not be empty if/when provided")
+        .bail()
+        .isInt()
+        .withMessage("external_altitude should be an integer value")
+        .trim(),
+      body("*.type")
+        .optional()
+        .notEmpty()
+        .withMessage("type cannot be empty if provided")
+        .bail()
+        .trim()
+        .isIn(["BAM", "LOWCOST"])
+        .withMessage(
+          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
+        ),
+      body("*.status")
         .optional()
         .notEmpty()
         .withMessage("status cannot be empty if provided"),
     ],
   ]),
   eventController.bulkTransmitMultipleSensorValues
-);
-
-router.post(
-  "/events/transmit/one",
-  query("tenant")
-    .exists()
-    .withMessage("tenant query parameter should be provided")
-    .bail()
-    .trim()
-    .toLowerCase()
-    .isIn(["kcca", "airqo"])
-    .withMessage(
-      "the tenant query parameter value is not among the expected ones"
-    ),
-  oneOf([
-    query("id")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using id"
-      ),
-    query("name")
-      .exists()
-      .withMessage(
-        "the device identifier is missing in request, consider using name"
-      ),
-    query("device_number")
-      .exists()
-      .withMessage(
-        "the device_number identifier is missing in request, consider using device_number"
-      ),
-  ]),
-  oneOf([
-    [
-      body("time")
-        .exists()
-        .trim()
-        .withMessage("time is missing")
-        .bail()
-        .toDate()
-        .isISO8601({ strict: true, strictSeparator: true })
-        .withMessage("time must be a valid datetime."),
-      body("s1_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm10 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm_10 should be an integer value")
-        .trim(),
-      body("s1_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s1_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isNumeric()
-        .withMessage("s1_pm2_5 should be an integer value")
-        .trim(),
-      body("s2_pm2_5")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm2_5 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm2_5 should be an integer value")
-        .trim(),
-      body("s2_pm10")
-        .optional()
-        .notEmpty()
-        .withMessage("s2_pm10 should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("s2_pm10 should be an integer value")
-        .bail()
-        .trim(),
-      body("latitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided latitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("please provide valid latitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the latitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
-      body("longitude")
-        .optional()
-        .notEmpty()
-        .withMessage("provided longitude cannot be empty")
-        .bail()
-        .trim()
-        .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("please provide valid longitude value")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the longitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
-      body("battery")
-        .optional()
-        .notEmpty()
-        .withMessage("battery should not be empty if/when provided")
-        .bail()
-        .isInt()
-        .withMessage("battery should be an integer value")
-        .trim(),
-      body("others")
-        .optional()
-        .notEmpty()
-        .withMessage("others cannot be empty if provided"),
-      body("status")
-        .optional()
-        .notEmpty()
-        .withMessage("status cannot be empty if provided"),
-    ],
-  ]),
-  eventController.transmitOneSensorValue
 );
 
 /*clear events*/

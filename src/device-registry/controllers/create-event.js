@@ -244,62 +244,6 @@ const createEvent = {
       });
     }
   },
-
-  transmitOneSensorValue: async (req, res) => {
-    try {
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return errors.badRequest(
-          res,
-          "bad request errors",
-          errors.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      const { body, query } = req;
-      const { name, device_number, chid, tenant } = query;
-
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid || device_number;
-
-      request["body"] = body;
-
-      const responseFromTransmitOneSensorValue = await createEventUtil.transmitOneSensorValue(
-        request
-      );
-
-      if (responseFromTransmitOneSensorValue.success === true) {
-        const status = responseFromTransmitOneSensorValue.status
-          ? responseFromTransmitOneSensorValue.status
-          : HTTPStatus.OK;
-        res.status(status).json({
-          message: responseFromTransmitOneSensorValue.message,
-          response: responseFromTransmitOneSensorValue.data,
-        });
-      } else {
-        const status = responseFromTransmitOneSensorValue.status
-          ? responseFromTransmitOneSensorValue.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromTransmitOneSensorValue.errors
-          ? responseFromTransmitOneSensorValue.errors
-          : { message: "" };
-        res.status(status).json({
-          message: responseFromTransmitOneSensorValue.message,
-          errors,
-        });
-      }
-    } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
-    }
-  },
-
   transmitMultipleSensorValues: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
@@ -374,7 +318,6 @@ const createEvent = {
       request["query"]["name"] = name;
       request["query"]["tenant"] = tenant;
       request["query"]["device_number"] = chid || device_number;
-
       request["body"] = body;
 
       const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(

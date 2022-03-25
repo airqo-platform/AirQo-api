@@ -241,86 +241,15 @@ const createEvent = {
       };
     }
   },
-
-  transmitOneSensorValue: async (request) => {
+  generateOtherDataString: (inputObject) => {
     try {
-      const { quantity_kind, value } = request.body;
-      const { tenant, name, chid, device_number, device, id } = request.query;
-
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = device || name;
-      request["query"]["id"] = id;
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid || device_number;
-
-      const responseFromListDevice = await createDeviceUtil.list(request);
-
-      let deviceDetail = {};
-
-      if (responseFromListDevice.success === true) {
-        if (responseFromListDevice.data.length === 1) {
-          deviceDetail = responseFromListDevice.data[0];
-        } else {
-          return {
-            success: false,
-            message: "unable to find one device",
-            status: HTTPStatus.NOT_FOUND,
-          };
-        }
-      } else if (responseFromListDevice.success === false) {
-        logObject(
-          "responseFromListDevice has an error",
-          responseFromListDevice
-        );
-        return responseFromListDevice;
-      }
-
-      let api_key = deviceDetail.writeKey;
-
-      let responseFromDecryptKey = createDeviceUtil.decryptKey(api_key);
-
-      if (responseFromDecryptKey.success === true) {
-        api_key = responseFromDecryptKey.data;
-      } else {
-        return responseFromDecryptKey;
-      }
-
-      await axios
-        .get(
-          constants.ADD_VALUE(
-            createEvent.getTSField(quantity_kind),
-            value,
-            api_key
-          )
-        )
-        .then(function(response) {
-          let resp = {};
-          resp.channel_id = response.data.channel_id;
-          resp.created_at = response.data.created_at;
-          resp.entry_id = response.data.entry_id;
-          return {
-            message: "successfully transmitted the data",
-            success: true,
-            data: resp,
-          };
-        })
-        .catch(function(error) {
-          return {
-            success: false,
-            errors: { message: error.response.data },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
-            message: "Internal Server Error",
-          };
-        });
-    } catch (e) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: e.message },
-      };
+      const str = Object.values(inputObject).join(",");
+      return str;
+    } catch (error) {
+      logElement("the error for getting data string", error.message);
     }
   },
+
   createThingSpeakRequestBody: (req) => {
     try {
       const {
@@ -362,19 +291,9 @@ const createEvent = {
       stringPositionsAndValues[11] = external_altitude || null;
       stringPositionsAndValues[12] = type || null;
 
-      logObject("inputObject", stringPositionsAndValues);
-
-      const generateOtherDataString = (inputObject) => {
-        try {
-          const str = Object.values(inputObject).join(",");
-          return str;
-        } catch (error) {
-          logElement("the error for getting data string", error.message);
-        }
-      };
-
-      const otherDataString = generateOtherDataString(stringPositionsAndValues);
-      logElement("otherDataString", otherDataString);
+      const otherDataString = createEvent.generateOtherDataString(
+        stringPositionsAndValues
+      );
 
       let requestBody = {
         api_key: api_key,
@@ -405,28 +324,52 @@ const createEvent = {
     }
   },
   getTSField: (measurement, res) => {
-    let requestBody = {
-      api_key: "api_key",
-      created_at: "created_at",
-      pm2_5: "field1",
-      pm10: "field2",
-      s2_pm2_5: "field3",
-      s2_pm10: "field4",
-      latitude: "field5",
-      longitude: " field6",
-      battery: "field7",
-      other_data: "field8",
-      latitude: "latitude",
-      longitude: " longitude",
-    };
+    try {
+      let requestBody = {
+        api_key: "api_key",
+        created_at: "created_at",
+        s1_pm2_5: "field1",
+        s1_pm10: "field2",
+        s2_pm2_5: "field3",
+        s2_pm10: "field4",
+        latitude: "field5",
+        longitude: "field6",
+        battery: "field7",
+        latitude: "latitude",
+        longitude: "longitude",
+        status: "field8",
+        altitude: "field8",
+        wind_speed: "field8",
+        satellites: "field8",
+        hdop: "field8",
+        internal_temperature: "field8",
+        internal_humidity: "field8",
+        external_temperature: "field8",
+        external_humidity: "field8",
+        external_pressure: "field8",
+        external_altitude: "field8",
+        type: "field8",
+      };
 
-    if (requestBody.hasOwnProperty(measurement)) {
-      return requestBody[measurement];
-    } else {
-      return res.status(HTTPStatus.BAD_REQUEST).json({
+      if (requestBody.hasOwnProperty(measurement)) {
+        return {
+          success: true,
+          data: requestBody[measurement],
+          status: HTTPStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: `the provided quantity kind (${measurement}) does not exist for this organization`,
+          status: HTTPStatus.BAD_REQUEST,
+        };
+      }
+    } catch (error) {
+      return {
         success: false,
-        message: `the provided quantity kind (${measurement}) does not exist for this organization`,
-      });
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
     }
   },
   transmitMultipleSensorValues: async (request) => {
@@ -445,8 +388,6 @@ const createEvent = {
           status: responseFromCreateRequestBody.status,
         };
       }
-
-      logObject("requestBody", requestBody);
       const responseFromListDevice = await createDeviceUtil.list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
@@ -498,9 +439,13 @@ const createEvent = {
           };
         })
         .catch(function(error) {
+          const errorMessage = error.response
+            ? error.response.data
+            : "No active internet connection";
+
           return {
             message: "Intenal Server Error",
-            errors: { message: error.response.data },
+            errors: { message: errorMessage },
             status: httpStatus.INTERNAL_SERVER_ERROR,
             success: false,
           };
@@ -518,16 +463,19 @@ const createEvent = {
   bulkTransmitMultipleSensorValues: async (request) => {
     try {
       logText("bulk write to thing.......");
-      let { name, chid, device_number, tenant } = request.query;
-      let { body } = request;
-      let request = {};
-      request["query"] = {};
-      request["query"]["name"] = name;
-      request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
+      const { name, chid, device_number, tenant } = request.query;
+      const { body } = request;
 
-      const responseFromListDevice = await createDeviceUtil.list(request);
+      let requestDeviceList = {};
+      requestDeviceList["query"] = {};
+      requestDeviceList["query"]["name"] = name;
+      requestDeviceList["query"]["tenant"] = tenant;
+      requestDeviceList["query"]["device_number"] = chid;
+      requestDeviceList["query"]["device_number"] = device_number;
+
+      const responseFromListDevice = await createDeviceUtil.list(
+        requestDeviceList
+      );
 
       let deviceDetail = {};
 
@@ -561,13 +509,21 @@ const createEvent = {
         delete responseFromDecryptKey.status;
         return res.status(status).json(responseFromDecryptKey);
       }
-      let transformedUpdates = await createEvent.transformMeasurementFields(
+
+      let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
         body
       );
+      let transformedUpdates = {};
+      if (responseFromTransformMeasurements.success === true) {
+        transformedUpdates = responseFromTransformMeasurements.data;
+      } else {
+        return responseFromTransformMeasurements;
+      }
+
       let requestObject = {};
       requestObject.write_api_key = api_key;
       requestObject.updates = transformedUpdates;
-      await axios
+      return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
           let output = JSON.parse(response.config.data).updates;
@@ -578,14 +534,19 @@ const createEvent = {
           };
         })
         .catch(function(error) {
+          const errorMessage = error.response
+            ? error.response.data
+            : "No active internet connection";
           return {
             success: false,
             message: "Internal Server Error",
-            errors: { message: error.response.data },
+            errors: {
+              message: errorMessage,
+            },
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
-      logObject("error for bulk transmit", error);
       return {
         success: false,
         message: "Internal Server Error",
@@ -790,11 +751,6 @@ const createEvent = {
   },
   transformManyEvents: async (request) => {
     try {
-      /**
-       * transform the events util just adds the day
-       * insert event util just creates the event body and options
-       * ..........field for the update procedure.
-       */
       let { body } = request;
 
       logger.info(
@@ -1454,9 +1410,9 @@ const createEvent = {
   transformField: (field) => {
     try {
       switch (field) {
-        case "pm2_5":
+        case "s1_pm2_5":
           return "field1";
-        case "pm10":
+        case "s1_pm10":
           return "field2";
         case "s2_pm2_5":
           return "field3";
@@ -1486,16 +1442,34 @@ const createEvent = {
   transformMeasurementFields: async (measurements) => {
     try {
       let transformed = [];
-      measurements.forEach((event) => {
-        let obj = {};
-        Object.entries(event).forEach(([key, value]) => {
-          obj[createEvent.transformField(key)] = value;
-        });
-        transformed.push(obj);
-      });
-      return transformed;
-    } catch (e) {
-      logElement("Internal Server Error", e.message);
+      let request = {};
+      for (const measurement of measurements) {
+        request["body"] = measurement;
+        let responseFromCreateThingSpeakBody = createEvent.createThingSpeakRequestBody(
+          request
+        );
+
+        if (responseFromCreateThingSpeakBody.success === true) {
+          transformed.push(responseFromCreateThingSpeakBody.data);
+        } else {
+          logObject(
+            "responseFromCreateThingSpeakBody",
+            responseFromCreateThingSpeakBody
+          );
+        }
+      }
+      return {
+        message: "successfully transformed the measurements",
+        data: transformed,
+        success: true,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
+      };
     }
   },
 
