@@ -47,11 +47,19 @@ if __name__ == '__main__':
     elif action.lower().strip() == "devices_without_forecast":
         transformation.get_devices_without_forecast()
 
-    elif action.lower().strip() == "sites_to_csv":
-        transformation.metadata_to_csv(component='sites')
+    elif action.lower().strip() == "export_sites":
+        try:
+            tenant = f"{strings_list[3]}"
+        except IndexError:
+            tenant = None
+        transformation.metadata_to_csv(component='sites', tenant=tenant)
 
-    elif action.lower().strip() == "devices_to_csv":
-        transformation.metadata_to_csv(component='devices')
+    elif action.lower().strip() == "export_devices":
+        try:
+            tenant = f"{strings_list[3]}"
+        except IndexError:
+            tenant = None
+        transformation.metadata_to_csv(component='devices', tenant=tenant)
 
     else:
         print("Invalid Arguments. Check the Readme.md for valid arguments")

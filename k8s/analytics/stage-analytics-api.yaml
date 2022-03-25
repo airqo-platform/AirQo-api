@@ -39,7 +39,14 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-analytics-staging
-
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          resources: {}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: stage-analytics-config-files
 ---
 kind: Service
 apiVersion: v1

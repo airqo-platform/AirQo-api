@@ -9,3 +9,6 @@ helpers/cloud_function_update_daily_measurements.py
 helpers/cloud_function_update_hourly_measurements.py
 helpers/cloud_function_update_raw_measurements.py
 .DS_Store
+
+AirQo-e37846081569.json
+

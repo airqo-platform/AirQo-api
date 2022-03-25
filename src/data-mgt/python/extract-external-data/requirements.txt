@@ -11,3 +11,4 @@ requests==2.25.1
 #google-cloud-bigquery==2.16.0
 marshmallow==3.13.0
 kafka-python
+itsdangerous==2.0.1
