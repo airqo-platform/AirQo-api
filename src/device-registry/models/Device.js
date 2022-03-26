@@ -1,13 +1,11 @@
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
-const tranformDeviceName = require("../utils/transform-device-name");
 const { logObject, logElement, logText } = require("../utils/log");
 const { monthsInfront } = require("../utils/date");
 const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const isEmpty = require("is-empty");
-const jsonify = require("../utils/jsonify");
 const log4js = require("log4js");
 const logger = log4js.getLogger("device-model");
 const HTTPStatus = require("http-status");
@@ -234,7 +232,7 @@ deviceSchema.statics = {
         return {
           success: true,
           message: "successfully created the device",
-          data: createdDevice,
+          data: createdDevice._doc,
           status: HTTPStatus.CREATED,
         };
       }
@@ -242,7 +240,7 @@ deviceSchema.statics = {
       return {
         success: true,
         message: "operation successful but device not created",
-        data: createdDevice,
+        data: createdDevice._doc,
         status: HTTPStatus.OK,
       };
     } catch (err) {
@@ -341,6 +339,7 @@ deviceSchema.statics = {
           "site.street": 0,
           "site.town": 0,
           "site.nearest_tahmo_station": 0,
+          "site.__v": 0,
         })
         .skip(_skip)
         .limit(_limit)
@@ -380,12 +379,12 @@ deviceSchema.statics = {
       delete modifiedUpdate._id;
       delete modifiedUpdate.generation_count;
       delete modifiedUpdate.generation_version;
-      logObject("modifiedUpdate", modifiedUpdate);
+
       let updatedDevice = await this.findOneAndUpdate(
         filter,
         modifiedUpdate,
         options
-      ).exec();
+      );
 
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;
