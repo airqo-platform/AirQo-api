@@ -3362,6 +3362,8 @@ router.delete(
   eventController.deleteValuesOnPlatform
 );
 
+router.post("/events/consume", eventController.consume);
+
 /************************** locations usecase  *******************/
 router.post(
   "/locations",

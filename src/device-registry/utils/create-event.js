@@ -139,7 +139,6 @@ const createEvent = {
       const responseFromTransformEvent = await createEvent.transformManyEvents(
         request
       );
-
       if (responseFromTransformEvent.success === true) {
         let transformedEvents = responseFromTransformEvent.data;
         let nAdded = 0;
@@ -192,7 +191,6 @@ const createEvent = {
               errors.push(errMsg);
             }
           } catch (e) {
-            logObject("the detailed db conflict error", e.message);
             eventsRejected.push(event);
             let errMsg = {
               message:
@@ -668,13 +666,15 @@ const createEvent = {
 
       let result = {};
       let transformedEvent = transform(data, map, context);
-      logObject("transformedEvent in constants", transformedEvent);
       let responseFromEnrichOneEvent = await createEvent.enrichOneEvent(
         transformedEvent
       );
       if (responseFromEnrichOneEvent.success === true) {
         result = responseFromEnrichOneEvent.data;
       } else if (responseFromEnrichOneEvent.success === false) {
+        logger.error(
+          `responseFromEnrichOneEvent , not a success -- ${responseFromEnrichOneEvent.message}`
+        );
         return {
           success: false,
           message: "unable to enrich event using device details",
@@ -728,17 +728,26 @@ const createEvent = {
         )}`
       );
       if (responseFromGetDeviceDetails.success === true) {
-        let deviceDetails = responseFromGetDeviceDetails.data[0];
-        logObject("the device details baby", deviceDetails);
-        enrichedEvent["is_test_data"] = !deviceDetails.isActive;
-        enrichedEvent["is_device_primary"] = deviceDetails.isPrimaryInLocation;
+        if (responseFromGetDeviceDetails.data.length === 1) {
+          let deviceDetails = responseFromGetDeviceDetails.data[0];
+          logObject("the device details baby", deviceDetails);
+          enrichedEvent["is_test_data"] = !deviceDetails.isActive;
+          enrichedEvent["is_device_primary"] =
+            deviceDetails.isPrimaryInLocation;
 
-        logObject("enrichedEvent", enrichedEvent);
-        return {
-          success: true,
-          message: "successfully enriched",
-          data: enrichedEvent,
-        };
+          logObject("enrichedEvent", enrichedEvent);
+          return {
+            success: true,
+            message: "successfully enriched",
+            data: enrichedEvent,
+          };
+        } else {
+          return {
+            success: false,
+            message: "unable to find one device matching provided details",
+            status: HTTPStatus.NOT_FOUND,
+          };
+        }
       } else if (responseFromGetDeviceDetails.success === false) {
         let errors = responseFromGetDeviceDetails.errors
           ? responseFromGetDeviceDetails.errors
@@ -764,23 +773,27 @@ const createEvent = {
   transformManyEvents: async (request) => {
     try {
       const { body, query } = request;
-      const { tenant } = query;
 
       logger.info(
         `the body received for transformation -- ${JSON.stringify(body)}`
       );
       let promises = body.map(async (event) => {
+        logObject("the event", event);
         let data = event;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
         context["device_id"] = ObjectId(event.device_id);
         context["site_id"] = ObjectId(event.site_id);
 
+        logObject("context", context);
+
         let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
           map,
           context,
         });
+
+        logObject("responseFromTransformEvent", responseFromTransformEvent);
         logger.info(
           `responseFromTransformEvent -- ${JSON.stringify(
             responseFromTransformEvent
@@ -812,7 +825,7 @@ const createEvent = {
       return Promise.all(promises).then((results) => {
         let transforms = [];
         let errors = [];
-        if (results.every((res) => res.success)) {
+        if (results.every((res) => res.success === true)) {
           logger.info(`success tranformEvents -- ${JSON.stringify(results)}`);
           for (const result of results) {
             transforms.push(result.data);
@@ -822,7 +835,7 @@ const createEvent = {
             data: transforms,
             message: "successful transformations",
           };
-        } else if (results.every((res) => !res.success)) {
+        } else if (results.every((res) => res.success === false)) {
           for (const result of results) {
             let error = result.errors ? result.errors : { message: "" };
             errors.push(error);
@@ -1127,7 +1140,7 @@ const createEvent = {
           time: "2022-03-18T13:00:00Z",
           tenant: "kcca",
           site_id: "60d2b7e27e9018a1a8d38c28",
-          device_id: "603d6ce732e038860ae41918",
+          device_id: "6228c43567c2db20bffaa0cb",
           device_number: 0,
           device: "A0WN66FH",
           latitude: " 0.2857506",
@@ -1150,7 +1163,7 @@ const createEvent = {
           tenant: "airqo",
           frequency: "minute",
           site_id: "60d2b7e27e9018a1a8d38c28",
-          device_id: "603d6ce732e038860ae41918",
+          device_id: "6228c43567c2db20bffaa0cb",
           device_number: 0,
           device: "aq_613_97",
           latitude: " 0.2857506",
@@ -1176,15 +1189,12 @@ const createEvent = {
        * we also need to properly handle the server errors, not everything
        * is duplicate errors! :)
        */
-      const responseFromInsertMeasurements = await createEvent.insert(
-        "airqo",
-        kafkaMessage
-      );
-      logObject(
-        "responseFromInsertMeasurements",
-        responseFromInsertMeasurements
-      );
-      return responseFromInsertMeasurements;
+      let request = {};
+      request["body"] = kafkaMessage;
+
+      const responseFromCreateMeasurements = await createEvent.create(request);
+
+      return responseFromCreateMeasurements;
 
       // measurements = await kafkaConsumer.subscribe({
       //   topic: constants.HOURLY_MEASUREMENTS_TOPIC,
@@ -1215,6 +1225,7 @@ const createEvent = {
       //   },
       // });
     } catch (error) {
+      logObject("the error", error);
       return {
         success: false,
         message: "Internal Server Error",

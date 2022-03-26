@@ -51,6 +51,28 @@ const createEvent = {
       },
     });
   },
+  consume: async (req, res) => {
+    try {
+      const responseFromConsumeMeasurements = await createEventUtil.consume();
+      if (responseFromConsumeMeasurements.success === true) {
+        return res.status(HTTPStatus.OK).json({
+          message: responseFromConsumeMeasurements.message,
+          response: responseFromConsumeMeasurements.data,
+        });
+      } else {
+        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          message: responseFromConsumeMeasurements.message,
+          errors: responseFromConsumeMeasurements.errors,
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
@@ -226,7 +248,6 @@ const createEvent = {
       request["body"] = body;
       request["query"] = query;
       const responseFromCreateEvents = await createEventUtil.create(request);
-      logObject("responseFromCreateEvents", responseFromCreateEvents);
       if (responseFromCreateEvents.success === true) {
         const status = responseFromCreateEvents.status
           ? responseFromCreateEvents.status
