@@ -18,6 +18,7 @@ const { logElement, logText } = require("../utils/log");
 const { isBoolean, isEmpty } = require("underscore");
 const phoneUtil = require("google-libphonenumber").PhoneNumberUtil.getInstance();
 const decimalPlaces = require("decimal-places");
+const activityController = require("../controllers/create-activity");
 
 middlewareConfig(router);
 
@@ -1931,7 +1932,7 @@ router.post(
         .trim(),
     ],
   ]),
-  siteController.recallDevice
+  activityController.recall
 );
 router.post(
   "/activities/deploy",
@@ -1958,50 +1959,6 @@ router.post(
   ]),
   oneOf([
     [
-      body("latitude")
-        .exists()
-        .withMessage("the latitude is is missing in your request")
-        .bail()
-        .matches(constants.LATITUDE_REGEX, "i")
-        .withMessage("the latitude provided is not valid")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the latitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("latitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the latitude must have atleast 5 decimal places in it"),
-      body("longitude")
-        .exists()
-        .withMessage("the longitude is is missing in your request")
-        .bail()
-        .matches(constants.LONGITUDE_REGEX, "i")
-        .withMessage("the longitude provided is not valid")
-        .bail()
-        .custom((value) => {
-          let dp = decimalPlaces(value);
-          if (dp < 5) {
-            return Promise.reject(
-              "the longitude must have 5 or more characters"
-            );
-          }
-          return Promise.resolve("longitude validation test has passed");
-        })
-        .bail()
-        .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
-        })
-        .isDecimal({ decimal_digits: 5 })
-        .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("powerType")
         .exists()
         .withMessage("the powerType is is missing in your request")
@@ -2057,8 +2014,9 @@ router.post(
         .withMessage("date must be a valid datetime."),
     ],
   ]),
-  siteController.deployDevice
+  activityController.deploy
 );
+
 router.post(
   "/activities/maintain",
   oneOf([
@@ -2106,11 +2064,11 @@ router.post(
         .withMessage("date must be a valid datetime."),
     ],
   ]),
-  siteController.maintainDevice
+  activityController.maintain
 );
-router.get("/activities", siteController.getActivities);
-router.put("/activities", siteController.updateActivity);
-router.delete("/activities", siteController.deleteActivity);
+router.get("/activities", activityController.list);
+router.put("/activities", activityController.update);
+router.delete("/activities", activityController.delete);
 
 /****************************** create sites usecase *************** */
 router.get(
