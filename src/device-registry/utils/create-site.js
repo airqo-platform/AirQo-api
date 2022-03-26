@@ -90,7 +90,6 @@ const manageSite = {
           let airqloud_ids = [];
           for (const airqloud of airqlouds) {
             delete airqlouds.sites;
-            logObject("airqloud", airqloud);
             let airqloudArrayOfCoordinates = airqloud.location.coordinates[0];
             let airqloudPolygon = airqloudArrayOfCoordinates.map(function(x) {
               return {
@@ -98,7 +97,6 @@ const manageSite = {
                 latitude: x[1],
               };
             });
-            logObject("airqloudPolygon", airqloudPolygon);
             const isSiteInAirQloud = geolib.isPointInPolygon(
               { latitude, longitude },
               airqloudPolygon
@@ -175,7 +173,6 @@ const manageSite = {
             { latitude, longitude },
             responseFromListWeatherStations.data
           );
-          logObject("nearestWeatherStation", nearestWeatherStation);
           return {
             success: true,
             message: "successfully returned the nearest weather station",
@@ -190,8 +187,7 @@ const manageSite = {
             status: responseFromListWeatherStations.status,
           };
         }
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         const status = responseFromListSites.status
           ? responseFromListSites.status
           : "";
@@ -260,8 +256,8 @@ const manageSite = {
           return {
             success: false,
             errors: { message: error },
-            message: "Internal Server Error",
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+            message: "Bad Gateway Error",
+            status: httpStatus.BAD_GATEWAY,
           };
         });
     } catch (error) {
@@ -740,15 +736,12 @@ const manageSite = {
       ).list({
         filter,
       });
-
       if (responseFromListSite.success === true) {
         let siteDetails = { ...responseFromListSite.data[0] };
         request["body"] = siteDetails;
         delete request.body._id;
         delete request.body.devices;
-      }
-
-      if (responseFromListSite.success === false) {
+      } else if (responseFromListSite.success === false) {
         let errors = responseFromListSite.errors
           ? responseFromListSite.errors
           : "";
@@ -759,6 +752,7 @@ const manageSite = {
           message: responseFromListSite.message,
           status,
           errors,
+          success: false,
         };
       }
 
@@ -793,8 +787,7 @@ const manageSite = {
         if (responseFromGenerateName.success === true) {
           generated_name = responseFromGenerateName.data;
           request["body"]["generated_name"] = generated_name;
-        }
-        if (responseFromGenerateName.success === false) {
+        } else if (responseFromGenerateName.success === false) {
           let errors = responseFromGenerateName.errors
             ? responseFromGenerateName.errors
             : "";
@@ -814,49 +807,44 @@ const manageSite = {
         requestForAirQloudsAndWeatherStations
       );
 
+      logObject("responseFromFindAirQlouds", responseFromFindAirQlouds);
       if (responseFromFindAirQlouds.success === true) {
         request["body"]["airqlouds"] = responseFromFindAirQlouds.data;
-      }
-
-      if (responseFromFindAirQlouds.success === false) {
+      } else if (responseFromFindAirQlouds.success === false) {
         logObject(
           "responseFromFindAirQlouds was unsuccessful",
           responseFromFindAirQlouds
         );
       }
 
-      const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
-        requestForAirQloudsAndWeatherStations
-      );
+      // const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
+      //   requestForAirQloudsAndWeatherStations
+      // );
 
-      logObject(
-        "responseFromNearestWeatherStation",
-        responseFromNearestWeatherStation
-      );
+      // logObject(
+      //   "responseFromNearestWeatherStation",
+      //   responseFromNearestWeatherStation
+      // );
 
-      if (responseFromNearestWeatherStation.success === true) {
-        let nearest_tahmo_station = responseFromNearestWeatherStation.data;
-        delete nearest_tahmo_station.elevation;
-        delete nearest_tahmo_station.countrycode;
-        delete nearest_tahmo_station.timezoneoffset;
-        delete nearest_tahmo_station.name;
-        delete nearest_tahmo_station.type;
-        request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
-      }
-
-      if (responseFromNearestWeatherStation.success === false) {
-        logObject(
-          "unable to find the nearest weather station",
-          responseFromNearestWeatherStation
-        );
-      }
+      // if (responseFromNearestWeatherStation.success === true) {
+      //   let nearest_tahmo_station = responseFromNearestWeatherStation.data;
+      //   delete nearest_tahmo_station.elevation;
+      //   delete nearest_tahmo_station.countrycode;
+      //   delete nearest_tahmo_station.timezoneoffset;
+      //   delete nearest_tahmo_station.name;
+      //   delete nearest_tahmo_station.type;
+      //   request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
+      // } else if (responseFromNearestWeatherStation.success === false) {
+      //   logObject(
+      //     "unable to find the nearest weather station",
+      //     responseFromNearestWeatherStation
+      //   );
+      // }
 
       request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
         request
       );
-
-      logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
 
       logger.info(
         `refresh -- responseFromGenerateMetadata-- ${responseFromGenerateMetadata}`
@@ -864,9 +852,7 @@ const manageSite = {
 
       if (responseFromGenerateMetadata.success === true) {
         update = responseFromGenerateMetadata.data;
-      }
-
-      if (responseFromGenerateMetadata.success === false) {
+      } else if (responseFromGenerateMetadata.success === false) {
         let errors = responseFromGenerateMetadata.errors
           ? responseFromGenerateMetadata.errors
           : "";
@@ -876,8 +862,6 @@ const manageSite = {
           errors,
         };
       }
-
-      logObject("the update", update);
 
       logger.info(`refresh -- update -- ${update}`);
 
@@ -897,9 +881,7 @@ const manageSite = {
           message: "Site details successfully refreshed",
           data: responseFromModifySite.data,
         };
-      }
-
-      if (responseFromModifySite.success === false) {
+      } else if (responseFromModifySite.success === false) {
         let errors = responseFromModifySite.errors
           ? responseFromModifySite.errors
           : "";
@@ -970,8 +952,6 @@ const manageSite = {
   },
   list: async ({ tenant, filter, skip, limit }) => {
     try {
-      logObject("the filter", filter);
-      logElement("the tenant", tenant);
       let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "site",
