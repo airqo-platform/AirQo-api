@@ -11,7 +11,7 @@ class Map():
     def __init__(self, tenant):
         self.db = connect_mongo(tenant) 
 
-    def save_locate_map(self, user_id, space_name, plan):
+    def create_locate_map(self, user_id, space_name, plan):
         '''
         Saves current planning space
         '''
@@ -23,26 +23,31 @@ class Map():
         })
 
 
-    def get_locate_map(self, user_id):
+    def get_locate_map(self, user_id, space_name=None):
         '''
         Retrieves previously saved planning space
         '''
-        documents = self.db.locate_map.find({"user_id": str(user_id)})
+        if space_name is None:
+            documents = self.db.locate_map.find({"user_id": user_id})
+        else:
+            documents = self.db.locate_map.find({"$and": [{"user_id": user_id}, {"space_name":space_name}]})
         return documents
 
     def plan_space_exist(self, user_id, space_name):
         '''
-        check if planning space name already exits for a given user. Avoid duplicates
+        check if planning space name already exits for a given user.
         '''
-        documents = self.db.locate_map.find({"$and": [{"user_id":str(user_id)}, {"space_name":space_name}]})
+        documents = self.db.locate_map.find({"$and": [{"user_id": user_id}, {"space_name":space_name}]})
         return len(list(documents))
 
     def update_locate_map(self, user_id, space_name, updated_plan):
         '''
         Updates previously saved planning space
         '''
+        
         response = self.db.locate_map.update_one(
-            {"$and": [{'user_id': user_id}, {'space_name': space_name}]}, {'$set': {'plan': updated_plan}})
+                {"$and": [{'user_id': user_id}, {'space_name': space_name}]}, {'$set': {'plan': updated_plan}})
+
         return response
 
 
