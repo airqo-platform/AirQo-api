@@ -28,16 +28,6 @@ public class InsightsTasks {
 
 	@Scheduled(cron = "@hourly")
 	public void forecastInsightsTasks() {
-		removeForecastInsights();
-	}
-
-	@Scheduled(cron = "@monthly")
-	public void oldInsightsTasks() {
-		removeOldInsights();
-	}
-
-	public void removeForecastInsights() {
-
 		List<Insight> oldInsights = measurementService.getInsightsBefore(new Date());
 		List<Insight> insights = new ArrayList<>();
 		log.info("Deleting forecast Insights");
@@ -48,13 +38,14 @@ public class InsightsTasks {
 		measurementService.saveInsights(insights);
 	}
 
-	public void removeOldInsights() {
+	@Scheduled(cron = "@monthly")
+	public void oldInsightsTasks() {
 		log.info("Running old Insights");
 		Calendar cal = Calendar.getInstance();
 		cal.setTime(new Date());
 		cal.add(Calendar.DAY_OF_MONTH, -50);
 		Date dateTime = cal.getTime();
 		measurementService.deleteInsightsBefore(dateTime);
-
 	}
+
 }

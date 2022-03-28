@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
@@ -42,6 +43,18 @@ public class Insight implements Serializable {
 	private Boolean forecast;
 	private Frequency frequency;
 	private String siteId;
+
+	@Transient
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
+	@Getter(value = AccessLevel.PRIVATE)
+	@DateTimeFormat(pattern = dateTimeFormat)
+	private Date startDateTime;
+
+	@Transient
+	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
+	@Getter(value = AccessLevel.PRIVATE)
+	@DateTimeFormat(pattern = dateTimeFormat)
+	private Date endDateTime;
 
 	public void setId() {
 		this.id = new InsightId(time, frequency, siteId).toString();
