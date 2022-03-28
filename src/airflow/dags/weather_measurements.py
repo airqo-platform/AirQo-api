@@ -26,19 +26,24 @@ def historical_hourly_weather_measurements_etl():
         return dict({"data": fill_nan(data=weather_data)})
 
     @task()
-    def load(inputs: dict):
+    def save_to_bigquery(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.commons import un_fill_nan
 
+        from airqo_etl_utils.weather_data_utils import (
+            transform_weather_data_for_bigquery,
+        )
+
         weather_data = un_fill_nan(inputs.get("data"))
+        bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=weather_data, table=big_query_api.hourly_weather_table
+            data=bigquery_data, table=big_query_api.hourly_weather_table
         )
 
     extracted_data = extract()
-    load(extracted_data)
+    save_to_bigquery(extracted_data)
 
 
 @dag(
@@ -68,19 +73,23 @@ def hourly_weather_measurements_etl():
         return dict({"data": fill_nan(data=weather_data)})
 
     @task()
-    def load(inputs: dict):
+    def save_to_bigquery(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.weather_data_utils import (
+            transform_weather_data_for_bigquery,
+        )
 
         weather_data = un_fill_nan(inputs.get("data"))
+        bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=weather_data, table=big_query_api.hourly_weather_table
+            data=bigquery_data, table=big_query_api.hourly_weather_table
         )
 
     extracted_data = extract()
-    load(extracted_data)
+    save_to_bigquery(extracted_data)
 
 
 historical_weather_measurements_etl_dag = historical_hourly_weather_measurements_etl()

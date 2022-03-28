@@ -322,7 +322,7 @@ def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
 
         device_data = dict(
             {
-                "time": str_to_date(data_row["time"]),
+                "timestamp": str_to_date(data_row["time"]),
                 "tenant": "kcca",
                 "site_id": site_id,
                 "device_number": 0,

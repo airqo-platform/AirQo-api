@@ -472,15 +472,16 @@ def get_site_and_device_id(devices, channel_id=None, device_name=None):
         return None, None
 
 
-def get_date_time_values(**kwargs):
+def get_date_time_values(interval_in_days: int = 1, **kwargs):
     try:
         dag_run = kwargs.get("dag_run")
         start_date_time = dag_run.conf["startDateTime"]
         end_date_time = dag_run.conf["endDateTime"]
     except KeyError:
-        yesterday = datetime.utcnow() - timedelta(days=1)
-        start_date_time = datetime.strftime(yesterday, "%Y-%m-%dT00:00:00Z")
-        end_date_time = datetime.strftime(yesterday, "%Y-%m-%dT11:59:59Z")
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=interval_in_days)
+        start_date_time = datetime.strftime(start_date, "%Y-%m-%dT00:00:00Z")
+        end_date_time = datetime.strftime(end_date, "%Y-%m-%dT11:59:59Z")
 
     return start_date_time, end_date_time
 

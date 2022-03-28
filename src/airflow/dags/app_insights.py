@@ -286,7 +286,6 @@ def insights_cleanup_etl():
 
 
 app_forecast_insights_etl_dag = app_forecast_insights_etl()
-app_hourly_insights_etl_dag = app_hourly_insights_etl()
 app_historical_daily_insights_etl_dag = app_historical_daily_insights_etl()
 app_daily_insights_etl_dag = app_daily_insights_etl()
 insights_cleanup_etl_dag = insights_cleanup_etl()
