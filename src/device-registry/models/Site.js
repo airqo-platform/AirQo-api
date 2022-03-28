@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const HTTPStatus = require("http-status");
@@ -317,9 +316,10 @@ siteSchema.statics = {
 
       logObject("modifiedArgs", modifiedArgs);
 
-      let data = await this.create({
+      let createdSite = await this.create({
         ...modifiedArgs,
       });
+      let data = createdSite._doc;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -344,7 +344,7 @@ siteSchema.statics = {
       });
 
       return {
-        errors: response,
+        errors: { message: response },
         message,
         success: false,
         status,
@@ -352,8 +352,8 @@ siteSchema.statics = {
     }
   },
   async list({
-    _skip = 0,
-    _limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
+    skip = 0,
+    limit = parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES),
     filter = {},
   } = {}) {
     try {
@@ -421,9 +421,16 @@ siteSchema.statics = {
         })
         .project({
           "devices.height": 0,
+          "devices.__v": 0,
+          "devices.phoneNumber": 0,
+          "devices.mountType": 0,
+          "devices.powerType": 0,
+          "devices.generation_version": 0,
+          "devices.generation_count": 0,
+          "devices.pictures": 0,
+          "devices.tags": 0,
           "devices.description": 0,
           "devices.isUsedForCollocation": 0,
-          "devices.isPrimaryInLocation": 0,
           "devices.createdAt": 0,
           "devices.updatedAt": 0,
           "devices.locationName": 0,
@@ -437,19 +444,19 @@ siteSchema.statics = {
           "devices.deployment_date": 0,
           "devices.recall_date": 0,
           "devices.maintenance_date": 0,
-          "devices.isActive": 0,
           "devices.product_name": 0,
           "devices.owner": 0,
           "devices.device_manufacturer": 0,
           "devices.channelID": 0,
         })
-        .skip(_skip)
-        .limit(_limit)
+        .skip(skip ? skip : 0)
+        .limit(
+          limit ? limit : parseInt(constants.DEFAULT_LIMIT_FOR_QUERYING_SITES)
+        )
         .allowDiskUse(true);
 
-      let data = response;
-
       if (!isEmpty(response)) {
+        let data = response;
         return {
           success: true,
           message: "successfully retrieved the site details",
@@ -466,55 +473,56 @@ siteSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "Site model server error - list",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true, useFindAndModify: false, upsert: true };
+      let options = { new: true, useFindAndModify: false, upsert: false };
       let modifiedUpdateBody = update;
       modifiedUpdateBody["$addToSet"] = {};
-      if (update._id) {
+      if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
-      if (update.latitude) {
+      if (modifiedUpdateBody.latitude) {
         delete modifiedUpdateBody.latitude;
       }
-      if (update.longitude) {
+      if (modifiedUpdateBody.longitude) {
         delete modifiedUpdateBody.longitude;
       }
-      if (update.generated_name) {
+      if (modifiedUpdateBody.generated_name) {
         delete modifiedUpdateBody.generated_name;
       }
-      if (update.lat_long) {
+      if (modifiedUpdateBody.lat_long) {
+        logText("yes, the lat_long does exist here");
         delete modifiedUpdateBody.lat_long;
       }
 
-      if (update.site_tags) {
+      if (modifiedUpdateBody.site_tags) {
         modifiedUpdateBody["$addToSet"]["site_tags"] = {};
         modifiedUpdateBody["$addToSet"]["site_tags"]["$each"] =
-          update.site_tags;
+          modifiedUpdateBody.site_tags;
         delete modifiedUpdateBody["site_tags"];
       }
 
-      if (update.airqlouds) {
+      if (modifiedUpdateBody.airqlouds) {
         modifiedUpdateBody["$addToSet"]["airqlouds"] = {};
         modifiedUpdateBody["$addToSet"]["airqlouds"]["$each"] =
-          update.airqlouds;
+          modifiedUpdateBody.airqlouds;
         delete modifiedUpdateBody["airqlouds"];
       }
-
+      logObject("modifiedUpdateBody", modifiedUpdateBody);
       let updatedSite = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
 
-      logObject("updatedSite", updatedSite._doc);
       if (!isEmpty(updatedSite)) {
+        logObject("updatedSite", updatedSite._doc);
         let data = updatedSite._doc;
 
         return {
@@ -534,7 +542,7 @@ siteSchema.statics = {
     } catch (error) {
       return {
         success: false,
-        message: "Site model server error - modify",
+        message: "Internal Server Error",
         errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
@@ -553,7 +561,7 @@ siteSchema.statics = {
         },
       };
       let removedSite = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedSite);
+      let data = removedSite._doc;
       if (!isEmpty(data)) {
         return {
           success: true,

@@ -1,9 +1,7 @@
 const LocationSchema = require("../models/Location");
-const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("./log");
 const { getModelByTenant } = require("./multitenancy");
 const isEmpty = require("is-empty");
-const jsonify = require("./jsonify");
 const axios = require("axios");
 const HTTPStatus = require("http-status");
 const axiosInstance = () => {
@@ -11,8 +9,9 @@ const axiosInstance = () => {
 };
 const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
-const { request } = require("express");
 const logger = log4js.getLogger("create-location-util");
+const { kafkaProducer } = require("../config/kafkajs");
+const constants = require("../config/constants");
 
 const createLocation = {
   initialIsCapital: (word) => {
@@ -46,6 +45,21 @@ const createLocation = {
         let status = responseFromRegisterLocation.status
           ? responseFromRegisterLocation.status
           : "";
+
+        try {
+          await kafkaProducer.send({
+            topic: constants.LOCATIONS_TOPIC,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterLocation.data),
+              },
+            ],
+          });
+        } catch (error) {
+          logObject("error on kafka", error);
+        }
+
         return {
           success: true,
           message: responseFromRegisterLocation.message,

@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 
@@ -129,8 +128,9 @@ locationSchema.statics = {
       let createdAirQloud = await this.create({
         ...body,
       });
-      let data = jsonify(createdAirQloud);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(createdAirQloud)) {
+        let data = createdAirQloud._doc;
         return {
           success: true,
           data,
@@ -138,7 +138,7 @@ locationSchema.statics = {
           status: HTTPStatus.OK,
         };
       }
-      if (isEmpty(data)) {
+      if (isEmpty(createdAirQloud)) {
         return {
           success: true,
           message: "location not created despite successful operation",
@@ -146,7 +146,7 @@ locationSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
+      let e = err;
       let response = {};
       logObject("the err", e);
       message = "validation errors for some of the provided fields";
@@ -224,19 +224,28 @@ locationSchema.statics = {
     try {
       let options = { new: true };
       let modifiedUpdateBody = update;
+      modifiedUpdateBody["$addToSet"] = {};
       if (modifiedUpdateBody._id) {
         delete modifiedUpdateBody._id;
       }
       if (modifiedUpdateBody.isCustom) {
         modifiedUpdateBody.isCustom = false;
       }
-      let udpatedUser = await this.findOneAndUpdate(
+
+      if (modifiedUpdateBody.location_tags) {
+        modifiedUpdateBody["$addToSet"]["location_tags"] = {};
+        modifiedUpdateBody["$addToSet"]["location_tags"]["$each"] =
+          modifiedUpdateBody.location_tags;
+        delete modifiedUpdateBody["location_tags"];
+      }
+      let updatedLocation = await this.findOneAndUpdate(
         filter,
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(udpatedUser);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedLocation)) {
+        let data = updatedLocation._doc;
         return {
           success: true,
           message: "successfully modified the location",
@@ -277,9 +286,10 @@ locationSchema.statics = {
           metadata: 1,
         },
       };
-      let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedAirqloud);
-      if (!isEmpty(data)) {
+      let removedLocation = await this.findOneAndRemove(filter, options).exec();
+
+      if (!isEmpty(removedLocation)) {
+        let data = removedLocation._doc;
         return {
           success: true,
           message: "successfully removed the location",
@@ -288,7 +298,7 @@ locationSchema.statics = {
         };
       }
 
-      if (isEmpty(data)) {
+      if (isEmpty(removedLocation)) {
         return {
           success: false,
           message: "location does not exist, please crosscheck",
