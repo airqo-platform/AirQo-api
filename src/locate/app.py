@@ -4,7 +4,7 @@ import config
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from controllers.locate import locate_blueprint, cache
-from controllers.helpers import monitor_bp
+from controllers.check_health import check_health_blueprint
 
 
 _logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ def create_app(environment):
 
     # register blueprints
     app.register_blueprint(locate_blueprint)
-    app.register_blueprint(monitor_bp)
+    app.register_blueprint(check_health_blueprint)
     
 
     return app
