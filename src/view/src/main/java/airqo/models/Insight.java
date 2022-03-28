@@ -1,6 +1,7 @@
 package airqo.models;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
@@ -48,12 +49,14 @@ public class Insight implements Serializable {
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	@Getter(value = AccessLevel.PRIVATE)
 	@DateTimeFormat(pattern = dateTimeFormat)
+	@JsonIgnore
 	private Date startDateTime;
 
 	@Transient
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	@Getter(value = AccessLevel.PRIVATE)
 	@DateTimeFormat(pattern = dateTimeFormat)
+	@JsonIgnore
 	private Date endDateTime;
 
 	public void setId() {
