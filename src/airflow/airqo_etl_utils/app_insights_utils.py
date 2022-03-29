@@ -300,7 +300,7 @@ def create_insights_data_from_bigquery(
     hourly_data["forecast"] = False
     hourly_data["empty"] = False
     hourly_data["frequency"] = "hourly"
-    hourly_data.rename(columns={"site_id": "siteId"}, inplace=True)
+    hourly_data.rename(columns={"site_id": "siteId", "timestamp": "time"}, inplace=True)
     return hourly_data.to_dict(orient="records")
 
 

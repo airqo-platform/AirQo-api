@@ -48,6 +48,7 @@ class AirQoApi:
             if self.CALIBRATION_BASE_URL
             else self.AIRQO_BASE_URL
         )
+        endpoint = "calibrate"
         for i in range(
             0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
         ):
@@ -86,14 +87,19 @@ class AirQoApi:
                     traceback.print_exc()
                     print(ex)
 
-            endpoint = "calibrate"
+            try:
+                response = self.__request(
+                    endpoint=endpoint,
+                    method="post",
+                    body=request_body,
+                    base_url=base_url,
+                )
 
-            response = self.__request(
-                endpoint=endpoint, method="post", body=request_body, base_url=base_url
-            )
-
-            if response is not None:
-                calibrated_data.extend(response)
+                if response is not None:
+                    calibrated_data.extend(response)
+            except Exception as ex:
+                traceback.print_exc()
+                print(ex)
 
         return calibrated_data
 
@@ -174,7 +180,8 @@ class AirQoApi:
         site_id=None,
     ) -> list:
         params = {
-            "time": [start_time, end_time],
+            "startDateTime": start_time,
+            "endDateTime": end_time,
             "frequency": frequency,
             "empty": False,
             "forecast": False,
