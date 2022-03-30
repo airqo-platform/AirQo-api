@@ -1,4 +1,4 @@
-Flask==2.0.3
+Flask==2.1.0
 flask_cors==3.0.10
 flask_pymongo==2.3.0
 numpy == 1.21.2
