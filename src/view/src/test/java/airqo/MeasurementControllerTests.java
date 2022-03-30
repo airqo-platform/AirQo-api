@@ -192,9 +192,12 @@ public class MeasurementControllerTests {
 	public void shouldGenerateAppInsightsAPIDocs() throws Exception {
 
 		insights.clear();
+		Date startDateTime = simpleDateFormat.parse("2022-01-01T10:00:00Z");
+		Date endDateTime = simpleDateFormat.parse("2022-01-01T17:00:00Z");
+		String siteIds = "site-01,site-02";
 
 		Insight insight = new Insight();
-		insight.setTime(simpleDateFormat.parse("2022-01-01T00:00:00Z"));
+		insight.setTime(startDateTime);
 		insight.setFrequency(Frequency.HOURLY);
 		insight.setEmpty(false);
 		insight.setForecast(false);
@@ -204,18 +207,20 @@ public class MeasurementControllerTests {
 		insights.add(insight);
 
 		insight = new Insight();
-		insight.setTime(simpleDateFormat.parse("2022-01-01T01:00:00Z"));
+		insight.setTime(endDateTime);
 		insight.setFrequency(Frequency.HOURLY);
 		insight.setEmpty(false);
 		insight.setForecast(true);
 		insight.setPm2_5(45.2323);
 		insight.setPm10(52.3444);
-		insight.setSiteId("site-01");
+		insight.setSiteId("site-02");
 		insights.add(insight);
 
 		QInsight qInsight = QInsight.insight;
 		Predicate predicate = qInsight.siteId
-			.in("site-01,site-02".split(","))
+			.in(siteIds.split(","))
+			.and(qInsight.time.goe(startDateTime))
+			.and(qInsight.time.loe(endDateTime))
 			.and(qInsight.frequency.eq(Frequency.HOURLY));
 
 		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
@@ -223,14 +228,17 @@ public class MeasurementControllerTests {
 		this.mockMvc.perform(get("/api/v1/view/measurements/app/insights")
 				.contextPath("/api/v1/view")
 				.header("Authorization", "Token my-jwt-token")
-				.param("siteId", "site-01,site-02")
+				.param("siteId", siteIds)
+				.param("startDateTime", simpleDateFormat.format(startDateTime))
+				.param("endDateTime", simpleDateFormat.format(endDateTime))
 				.param("frequency", "hourly"))
 			.andDo(print())
 			.andExpect(status().isOk())
 			.andDo(document("app-insights",
 				requestParameters(
 					parameterWithName("siteId").description("Site id(s). Separate multiple site ids using commas").optional(),
-					parameterWithName("time").description("Start time. If another query parameter is specified. One is considered the start time and the other the end time depending on logical order").optional(),
+					parameterWithName("startDateTime").description("Start date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional(),
+					parameterWithName("endDateTime").description("End date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional(),
 					parameterWithName("frequency").description("Either *hourly* or *daily*").optional(),
 					parameterWithName("forecast").description("Return Forecast insights").optional(),
 					parameterWithName("empty").description("Return empty insights").optional()
