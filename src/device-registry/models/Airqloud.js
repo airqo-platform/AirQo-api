@@ -2,7 +2,6 @@ const { Schema } = require("mongoose");
 const ObjectId = Schema.Types.ObjectId;
 const uniqueValidator = require("mongoose-unique-validator");
 const { logElement, logObject, logText } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 const log4js = require("log4js");
@@ -50,9 +49,20 @@ const metadataSchema = new Schema(
   { _id: false }
 );
 
+const pointSchema = new Schema(
+  {
+    longitude: { type: Number },
+    latitude: { type: Number },
+  },
+  {
+    _id: false,
+  }
+);
+
 const airqloudSchema = new Schema(
   {
     location: { type: polygonSchema },
+    center_point: { type: pointSchema },
     name: {
       type: String,
       trim: true,
@@ -124,6 +134,7 @@ airqloudSchema.methods = {
       location: this.location,
       metadata: this.metadata,
       sites: this.sites,
+      center_point: this.center_point,
     };
   },
 };
@@ -152,8 +163,8 @@ airqloudSchema.statics = {
       let createdAirQloud = await this.create({
         ...body,
       });
-      let data = jsonify(createdAirQloud);
-      if (!isEmpty(data)) {
+      if (!isEmpty(createdAirQloud)) {
+        let data = createdAirQloud._doc;
         return {
           success: true,
           data,
@@ -161,7 +172,7 @@ airqloudSchema.statics = {
           status: HTTPStatus.OK,
         };
       }
-      if (isEmpty(data)) {
+      if (isEmpty(createdAirQloud)) {
         return {
           success: true,
           message: "airqloud not created despite successful operation",
@@ -169,9 +180,9 @@ airqloudSchema.statics = {
         };
       }
     } catch (err) {
-      let e = jsonify(err);
+      let e = err;
       let response = {};
-      logObject("the err in the model", err);
+      // logObject("the err in the model", err);
       message = "validation errors for some of the provided fields";
       const status = HTTPStatus.CONFLICT;
       Object.entries(err.errors).forEach(([key, value]) => {
@@ -208,6 +219,7 @@ airqloudSchema.statics = {
           admin_level: 1,
           isCustom: 1,
           metadata: 1,
+          center_point: 1,
           sites: "$sites",
         })
         .project({
@@ -295,8 +307,9 @@ airqloudSchema.statics = {
         modifiedUpdateBody,
         options
       ).exec();
-      let data = jsonify(updatedAirQloud);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(updatedAirQloud)) {
+        let data = updatedAirQloud._doc;
         return {
           success: true,
           message: "successfully modified the airqloud",
@@ -338,8 +351,9 @@ airqloudSchema.statics = {
         },
       };
       let removedAirqloud = await this.findOneAndRemove(filter, options).exec();
-      let data = jsonify(removedAirqloud);
-      if (!isEmpty(data)) {
+
+      if (!isEmpty(removedAirqloud)) {
+        let data = removedAirqloud._doc;
         return {
           success: true,
           message: "successfully removed the airqloud",
@@ -348,7 +362,7 @@ airqloudSchema.statics = {
         };
       }
 
-      if (isEmpty(data)) {
+      if (isEmpty(removedAirqloud)) {
         return {
           success: false,
           message: "airqloud does not exist, please crosscheck",

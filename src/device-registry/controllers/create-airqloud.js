@@ -1,11 +1,10 @@
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
-const { tryCatchErrors, badRequest } = require("../utils/errors");
+const errors = require("../utils/errors");
 const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-airqloud-controller");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const httpStatus = require("http-status");
 
 const createAirqloud = {
@@ -18,10 +17,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -59,10 +58,73 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
+  calculateGeographicalCenter: async (req, res) => {
+    try {
+      const { body, query } = req;
+      const { coordinates } = body;
+      const { id, tenant } = query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = {};
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["coordinates"] = coordinates;
+      request["query"]["id"] = id;
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
+        request
+      );
+
+      if (responseFromCalculateGeographicalCenter.success === true) {
+        const status = responseFromCalculateGeographicalCenter.status
+          ? responseFromCalculateGeographicalCenter.status
+          : httpStatus.OK;
+        logObject(
+          "responseFromCalculateGeographicalCenter",
+          responseFromCalculateGeographicalCenter
+        );
+        return res.status(status).json({
+          success: true,
+          message: responseFromCalculateGeographicalCenter.message,
+          center_point: responseFromCalculateGeographicalCenter.data,
+        });
+      } else if (responseFromCalculateGeographicalCenter.success === false) {
+        const status = responseFromCalculateGeographicalCenter.status
+          ? responseFromCalculateGeographicalCenter.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        const errors = responseFromCalculateGeographicalCenter.errors
+          ? responseFromCalculateGeographicalCenter.errors
+          : "";
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCalculateGeographicalCenter.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   delete: async (req, res) => {
     try {
       const { query } = req;
@@ -74,10 +136,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -108,7 +170,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
   refresh: async (req, res) => {
@@ -161,10 +223,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query, body } = req;
@@ -221,10 +283,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["body"] = body;
@@ -258,7 +320,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
@@ -271,10 +333,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -326,10 +388,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -361,7 +423,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "manageAirQloud controller");
+      errors.tryCatchErrors(res, errors, "manageAirQloud controller");
     }
   },
 };

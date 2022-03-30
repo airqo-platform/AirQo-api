@@ -41,6 +41,7 @@ jobs:
       run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
       run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
       run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_view: ${{ steps.check_files.outputs.run_view }} # view
       run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
       run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
@@ -76,6 +77,7 @@ jobs:
           echo "::set-output name=run_gp_model::false"
           echo "::set-output name=run_exceedances::false"
           echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_view::false"
           echo "::set-output name=run_calibrate::false"
           echo "::set-output name=run_average_jobs::false"
           echo "::set-output name=run_events_check::false"
@@ -121,6 +123,10 @@ jobs:
               echo "::set-output name=run_predict::true"
             fi
 
+            if [[ $file == src/predict-job/* ]]; then
+              echo "::set-output name=run_predict::true"
+            fi
+
             if [[ $file == src/gp-model/* ]]; then
               echo "::set-output name=run_gp_model::true"
             fi
@@ -133,6 +139,10 @@ jobs:
               echo "::set-output name=run_datawarehouse::true"
             fi
 
+            if [[ $file == src/view/* ]]; then
+              echo "::set-output name=run_view::true"
+            fi
+            
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
@@ -153,7 +163,7 @@ jobs:
               echo "::set-output name=run_airflow::true"
             fi
 
-            if [[ $file == workflow-versions ]]; then
+            if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
@@ -207,6 +217,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:latest
       - name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/auth-service/prod-auth-api.yaml
           kubectl set image deployment/airqo-auth-api auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
@@ -244,6 +255,7 @@ jobs:
         with:
           push: true
           context: src/airflow
+          target: deployment
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:latest
 
       # - name: Deploy to K8S
@@ -292,6 +304,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:latest
       - name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/device-registry/prod-device-registry-api.yaml -n production
           kubectl set image deployment/airqo-device-registry-api device-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
@@ -327,6 +340,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:latest
       - name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/device-monitor/prod-device-monitor-api.yaml -n production
           kubectl set image deployment/airqo-device-monitor-api dev-monitor-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-device-monitor-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-monitor-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
   
@@ -360,8 +374,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-data-mgt-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/data-mgt/
-          kubectl apply -f prod-data-mgt-api.yaml
+          kubectl apply -f k8s/data-mgt/prod-data-mgt-api.yaml -n production
           kubectl rollout restart deployment/airqo-data-mgt-api -n production
   
   ### analytics ###
@@ -399,6 +412,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/analytics/prod-analytics-api.yaml -n production
           kubectl set image deployment/airqo-analytics-api analytics-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-analytics-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-analytics-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
  
@@ -434,8 +448,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-uptime-job:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-uptime/
-          kubectl apply -f prod-airqo-device-uptime-job.yaml
+          kubectl apply -f k8s/device-uptime/prod-airqo-device-uptime-job.yaml
   
   ### device status ###
   device-status:
@@ -469,9 +482,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-device-status-job:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/device-status/
-          kubectl apply -f prod-airqo-device-status-job.yaml
-          kubectl rollout restart deployment/prod-device-status-job -n production
+          kubectl apply -f k8s/device-status/prod-airqo-device-status-job.yaml
 
   ### locate ###
   locate:
@@ -508,6 +519,7 @@ jobs:
 
       - name: Deploy to K8S
         run: |
+          kubectl apply -f k8s/locate/prod-locate-api.yaml -n production
           kubectl set image deployment/airqo-locate-api locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
   
@@ -543,10 +555,8 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-gp-model-job:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/gp-model/
-          kubectl apply -f prod-airqo-gp-model-job.yaml
-          kubectl rollout restart deployment/prod-gpmodel -n production
-  
+          kubectl apply -f k8s/gp-model/prod-airqo-gp-model-job.yaml
+ 
   ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
@@ -619,18 +629,67 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }}
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:latest
 
-          docker build --target=production-message-broker --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:latest
-
       - name: Deploy to K8S
         run: |
-          kubectl set image deployment/airqo-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n production
-          kubectl set image deployment/airqo-datawarehouse-msg-broker msg-broker=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} -n production
-          
+          kubectl apply -f k8s/data-warehouse/prod-data-warehouse-api.yaml
+          kubectl set image deployment/airqo-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n production    
           kubectl annotate deployment/airqo-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-          kubectl annotate deployment/airqo-datawarehouse-msg-broker kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-datawarehouse-msg-broker:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+
+  ### view ###
+  view:
+    name: build-push-deploy-view
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_view == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+      -
+        name: Build and push API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-api:latest
+          target: api
+          context: src/view
+      -
+        name: Build and push Message Broker
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-message-broker:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-view-message-broker:latest
+          target: message-broker
+          context: src/view
+
+      - name: Deploy API to K8S
+        run: |
+          kubectl apply -f k8s/view-api/prod-view-api.yaml -n production
+          kubectl rollout restart deployment airqo-view-api  -n production
+
+      - name: Deploy Message Broker to K8S
+        run: |
+          kubectl apply -f k8s/view-api/prod-view-message-broker.yaml -n production
+          kubectl rollout restart deployment airqo-view-message-broker  -n production
 
   #### Calibrate ######
   calibrate:
@@ -641,83 +700,61 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      ### run unit tests ###
-      
-      - name: Login to GCR
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
+      -
+        name: Build and push calibrate API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/calibrate
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
+      -
+        name: Build and push calibrate pickle file
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/calibrate
+          target: pickle-file
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
+      - 
+        name: Login to Main k8s cluster
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-      
-      - name: Build and Push Docker Image
+      - 
+        name: Deploy to Main k8s cluster
         run: |
-          cd src/calibrate/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} .
-          docker build --target=pickle-file --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} .
-
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
-
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }}
-
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
-
-      - name: Deploy to K8S
-        run: |
-          cd k8s/calibrate/
-          kubectl apply -f prod-calibrate-api.yaml
+          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
           kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
-
-  ### averages and calibration jobs ###
-  averages:
-    name: build-push-deploy-average-and-calibration-jobs
-    needs: [check, image-tag]
-    if: needs.check.outputs.run_average_jobs == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-      
-      ### run unit tests ###
-      
-      - name: Login to GCR
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
+      -
+        name: Login to Pipeline k8s cluster
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
-          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-      
-      - name: Build and Push Docker Image
+          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+      - 
+        name: Deploy to Pipeline k8s cluster
         run: |
-          cd src/data-mgt/python/cron-jobs/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prod-average-jobs:latest
-
-      - name: Deploy to K8S
-        run: |
-          ccd k8s/calibrate-job/
-          sh 'cat prod-calibrate-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
-          sh 'cat prod-airqo-daily-average-job.yaml | sed "s/{{IMAGE_VERSION}}/${{ needs.image-tag.outputs.build_id }}/g" | kubectl apply -f -'
+          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
   ### events check ###
   events-check:
@@ -751,8 +788,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-events-notifs-job:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/events-monitor/
-          kubectl apply -f prod-events-notifs-cronjob.yaml -n production
+          kubectl apply -f k8s/events-monitor/prod-events-notifs-cronjob.yaml -n production
 
   #### notification ######
   notification:
@@ -788,43 +824,58 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:latest
       - name: Deploy to K8S
         run: |
-          cd k8s/notification-service/
-          kubectl apply -f prod-notification-api.yaml
+          kubectl apply -f k8s/notification-service/prod-notification-api.yaml
           kubectl set image deployment/airqo-notification-api notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
-  ### predict api service ###
+  ### predict api and job ###
   predict-service:
     name: build-push-deploy-predict-api
     needs: [check, image-tag]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - 
+        name: Checkout
         uses: actions/checkout@v2
-      
-      - name: Login to GCR
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
+      - 
+        name: Login to K8S
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-      
-      - name: Build and Push Docker Image
+      -
+        name: Build and push API Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
+      -
+        name: Build and push Job Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict-job
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:latest
+      - 
+        name: Deploy to K8S
         run: |
-          cd src/predict/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
-      - name: Deploy to K8S
-        run: |
-          cd k8s/predict/
-          kubectl apply -f prod-prediction-api.yaml -n production
+          kubectl apply -f k8s/predict/prod-prediction-api.yaml -n production
           kubectl rollout restart deployment airqo-prediction-api -n production
+          kubectl apply -f k8s/predict/prod-airqo-predict-job.yaml -n production

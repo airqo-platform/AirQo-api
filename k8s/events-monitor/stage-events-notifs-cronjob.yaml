@@ -6,7 +6,7 @@ metadata:
 spec:
   successfulJobsHistoryLimit: 1
   failedJobsHistoryLimit: 1
-  schedule: "@hourly"
+  schedule: "30 * * * *"
   jobTemplate:
     metadata:
       name: stage-events-notifs-job

@@ -5,48 +5,51 @@ const { logObject, logElement } = require("../utils/log");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 
-const CandidateSchema = new mongoose.Schema({
-  email: {
-    type: String,
-    required: [true, "Email is required"],
-    trim: true,
-    validate: {
-      validator(email) {
-        return validator.isEmail(email);
+const CandidateSchema = new mongoose.Schema(
+  {
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      trim: true,
+      validate: {
+        validator(email) {
+          return validator.isEmail(email);
+        },
+        message: "{VALUE} is not a valid email!",
       },
-      message: "{VALUE} is not a valid email!",
+    },
+    firstName: {
+      type: String,
+      required: [true, "FirstName is required!"],
+      trim: true,
+    },
+    lastName: {
+      type: String,
+      required: [true, "LastName is required"],
+      trim: true,
+    },
+    description: { type: String, required: [true, "description is required"] },
+    long_organization: {
+      type: String,
+      required: [true, "long_organization is required"],
+    },
+    jobTitle: { type: String, required: [true, "jobTitle is required"] },
+    category: { type: String, required: [true, "category is required"] },
+    website: { type: String, required: [true, "website is required"] },
+    isDenied: {
+      type: Boolean,
+    },
+    status: {
+      type: String,
+      default: "pending",
+    },
+    verified: {
+      type: Boolean,
+      default: false,
     },
   },
-  firstName: {
-    type: String,
-    required: [true, "FirstName is required!"],
-    trim: true,
-  },
-  lastName: {
-    type: String,
-    required: [true, "LastName is required"],
-    trim: true,
-  },
-  description: { type: String, required: [true, "description is required"] },
-  long_organization: {
-    type: String,
-    required: [true, "long_organization is required"],
-  },
-  jobTitle: { type: String, required: [true, "jobTitle is required"] },
-  category: { type: String, required: [true, "category is required"] },
-  website: { type: String, required: [true, "website is required"] },
-  isDenied: {
-    type: Boolean,
-  },
-  status: {
-    type: String,
-    default: "pending",
-  },
-  verified: {
-    type: Boolean,
-    default: false,
-  },
-});
+  { timestamps: true }
+);
 
 CandidateSchema.statics = {
   register(args) {
@@ -173,6 +176,8 @@ CandidateSchema.methods = {
       jobTitle: this.jobTitle,
       website: this.website,
       status: this.status,
+      createdAt: this.createdAt,
+      updatedAt: this.updatedAt,
     };
   },
 };

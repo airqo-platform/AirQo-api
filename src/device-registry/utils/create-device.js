@@ -4,30 +4,56 @@ const DeviceSchema = require("../models/Device");
 const { getModelByTenant } = require("./multitenancy");
 const axios = require("axios");
 const { logObject, logElement, logText } = require("./log");
-const deleteChannel = require("./delete-channel");
 const { transform } = require("node-json-transform");
 const constants = require("../config/constants");
 const cryptoJS = require("crypto-js");
 const generateFilter = require("./generate-filter");
-const { utillErrors } = require("./errors");
-const jsonify = require("./jsonify");
+const errors = require("./errors");
 const isEmpty = require("is-empty");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-device-util");
 const qs = require("qs");
-const { logger_v2 } = require("../utils/errors");
 const QRCode = require("qrcode");
-const cleanDeep = require("clean-deep");
+const { kafkaProducer } = require("../config/kafkajs");
 const httpStatus = require("http-status");
 let devicesModel = (tenant) => {
   return getModelByTenant(tenant, "device", DeviceSchema);
 };
 
-const registerDeviceUtil = {
+const createDevice = {
+  doesDeviceSearchExist: async (request) => {
+    try {
+      const { filter, tenant } = request;
+      let doesSearchExist = await getModelByTenant(
+        tenant,
+        "device",
+        DeviceSchema
+      ).exists(filter);
+      logElement(" doesSearchExist", doesSearchExist);
+      if (doesSearchExist) {
+        return {
+          success: true,
+          message: "search exists",
+          data: doesSearchExist,
+        };
+      } else {
+        return {
+          success: false,
+          message: "search does not exist",
+          data: doesSearchExist,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
   doesDeviceExist: async (request) => {
     logText("checking device existence...");
-    const responseFromList = await registerDeviceUtil.list(request);
-    logObject("responseFromList", responseFromList);
+    const responseFromList = await createDevice.list(request);
     if (responseFromList.success === true && responseFromList.data) {
       return true;
     }
@@ -42,7 +68,7 @@ const registerDeviceUtil = {
           callback({
             success: true,
             message: "retrieved the number of devices",
-            status: httpStatus.OK,
+            status: HTTPStatus.OK,
             data: count,
           });
         }
@@ -51,7 +77,7 @@ const registerDeviceUtil = {
             success: false,
             message: "Internal Server Error",
             errors: { message: err },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
           });
         }
       });
@@ -66,15 +92,18 @@ const registerDeviceUtil = {
   generateQR: async (request) => {
     try {
       let { include_site } = request.query;
-      let responseFromListDevice = await registerDeviceUtil.list(request);
+      let responseFromListDevice = await createDevice.list(request);
       if (responseFromListDevice.success) {
         let deviceBody = responseFromListDevice.data;
         if (!isEmpty(include_site) && include_site === "no") {
           logger.info(`the site details have been removed from the data`);
-          delete deviceBody.site;
+          delete deviceBody[0].site;
         }
         logger.info(`deviceBody -- ${deviceBody}`);
-        let responseFromQRCode = await QRCode.toDataURL(deviceBody);
+        const stringifiedJSON = JSON.stringify(deviceBody[0]);
+        let responseFromQRCode = await QRCode.toDataURL(stringifiedJSON, {
+          type: String,
+        });
         logger.info(`responseFromQRCode -- ${responseFromQRCode}`);
         if (!isEmpty(responseFromQRCode)) {
           return {
@@ -84,11 +113,15 @@ const registerDeviceUtil = {
             status: HTTPStatus.OK,
           };
         }
-        return {
-          success: false,
-          message: "unable to generate the QR code",
-          status: HTTPStatus.INTERNAL_SERVER_ERROR,
-        };
+
+        if (isEmpty(responseFromQRCode)) {
+          logObject("responseFromQRCode", responseFromQRCode);
+          return {
+            success: false,
+            message: "unable to generate the QR code",
+            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+          };
+        }
       }
 
       if (responseFromListDevice.success === false) {
@@ -121,9 +154,10 @@ const registerDeviceUtil = {
         return {
           success: false,
           message: "creation is not yet possible for this organisation",
+          status: httpStatus.NOT_IMPLEMENTED,
         };
       }
-      let responseFromCreateOnThingspeak = await registerDeviceUtil.createOnThingSpeak(
+      let responseFromCreateOnThingspeak = await createDevice.createOnThingSpeak(
         request
       );
 
@@ -145,7 +179,7 @@ const registerDeviceUtil = {
           ...enrichmentDataForDeviceCreation,
         };
 
-        let responseFromCreateDeviceOnPlatform = await registerDeviceUtil.createOnPlatform(
+        let responseFromCreateDeviceOnPlatform = await createDevice.createOnPlatform(
           modifiedRequest
         );
 
@@ -170,7 +204,7 @@ const registerDeviceUtil = {
           deleteRequest["query"]["device_number"] =
             enrichmentDataForDeviceCreation.device_number;
           logger.info(`deleteRequest -- ${deleteRequest}`);
-          let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
+          let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
             deleteRequest
           );
 
@@ -253,7 +287,7 @@ const registerDeviceUtil = {
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
         logger.info(`the device_number is not present`);
-        let responseFromListDevice = await registerDeviceUtil.list(request);
+        let responseFromListDevice = await createDevice.list(request);
         logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
           let errors = responseFromListDevice.errors
@@ -270,15 +304,15 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UnmodifiedRequest ", request);
-      let responseFromUpdateDeviceOnThingspeak = await registerDeviceUtil.updateOnThingspeak(
+
+      let responseFromUpdateDeviceOnThingspeak = await createDevice.updateOnThingspeak(
         modifiedRequest
       );
       logger.info(
         `responseFromUpdateDeviceOnThingspeak -- ${responseFromUpdateDeviceOnThingspeak}`
       );
       if (responseFromUpdateDeviceOnThingspeak.success === true) {
-        let responseFromUpdateDeviceOnPlatform = await registerDeviceUtil.updateOnPlatform(
+        let responseFromUpdateDeviceOnPlatform = await createDevice.updateOnPlatform(
           request
         );
         logger.info(
@@ -339,7 +373,6 @@ const registerDeviceUtil = {
     try {
       const { id, device_number, name, tenant } = request.query;
       const { body } = request;
-      logObject("The request", request);
       let update = body;
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
@@ -349,7 +382,6 @@ const registerDeviceUtil = {
       );
       logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
-        logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
@@ -369,8 +401,6 @@ const registerDeviceUtil = {
         "device",
         DeviceSchema
       ).encryptKeys({ filter, update });
-
-      logObject("responseFromEncryptKeys ", responseFromEncryptKeys);
 
       if (responseFromEncryptKeys.success === true) {
         let status = responseFromEncryptKeys.status
@@ -420,7 +450,7 @@ const registerDeviceUtil = {
       let modifiedRequest = request;
       if (isEmpty(device_number)) {
         logger.info(`the device_number is not present`);
-        let responseFromListDevice = await registerDeviceUtil.list(request);
+        let responseFromListDevice = await createDevice.list(request);
         logger.info(`responseFromListDevice -- ${responseFromListDevice}`);
         if (responseFromListDevice.success === false) {
           let errors = responseFromListDevice.errors
@@ -441,9 +471,8 @@ const registerDeviceUtil = {
         modifiedRequest["query"]["device_number"] = device_number;
       }
       logger.info(`the modifiedRequest -- ${modifiedRequest} `);
-      logObject("the UnModifiedRequest ", request);
 
-      let responseFromDeleteDeviceFromThingspeak = await registerDeviceUtil.deleteOnThingspeak(
+      let responseFromDeleteDeviceFromThingspeak = await createDevice.deleteOnThingspeak(
         modifiedRequest
       );
 
@@ -451,7 +480,7 @@ const registerDeviceUtil = {
         `responseFromDeleteDeviceFromThingspeak -- ${responseFromDeleteDeviceFromThingspeak}`
       );
       if (responseFromDeleteDeviceFromThingspeak.success === true) {
-        let responseFromDeleteDeviceOnPlatform = await registerDeviceUtil.deleteOnPlatform(
+        let responseFromDeleteDeviceOnPlatform = await createDevice.deleteOnPlatform(
           modifiedRequest
         );
 
@@ -525,12 +554,9 @@ const registerDeviceUtil = {
       logger.info(`responseFromFilter -- ${responseFromFilter}`);
 
       if (responseFromFilter.success === true) {
-        logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
         logger.info(`the filter in list -- ${filter}`);
-      }
-
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status ? responseFromFilter.status : "";
         logger.error(`the error from filter in list -- ${errors}`);
@@ -572,9 +598,7 @@ const registerDeviceUtil = {
           errors,
           status,
         };
-      }
-
-      if (responseFromListDevice.success === true) {
+      } else if (responseFromListDevice.success === true) {
         let data = responseFromListDevice.data;
         let status = responseFromListDevice.status
           ? responseFromListDevice.status
@@ -622,13 +646,25 @@ const registerDeviceUtil = {
         "device",
         DeviceSchema
       ).register(body);
-
-      logObject("responseFromRegisterDevice", responseFromRegisterDevice);
       logger.info(
         `the responseFromRegisterDevice --${responseFromRegisterDevice} `
       );
 
       if (responseFromRegisterDevice.success === true) {
+        try {
+          await kafkaProducer.send({
+            topic: constants.DEVICES_TOPIC,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterDevice.data),
+              },
+            ],
+          });
+        } catch (error) {
+          logObject("error on kafka", error);
+        }
+
         return {
           success: true,
           data: responseFromRegisterDevice.data,
@@ -668,13 +704,11 @@ const registerDeviceUtil = {
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       logger.info(`the context -- ${context}`);
-      const responseFromTransformRequestBody = await registerDeviceUtil.transform(
-        {
-          data,
-          map,
-          context,
-        }
-      );
+      const responseFromTransformRequestBody = await createDevice.transform({
+        data,
+        map,
+        context,
+      });
       logger.info(
         `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
       );
@@ -741,12 +775,10 @@ const registerDeviceUtil = {
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
       const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       logger.info(`the context -- ${context}`);
-      const responseFromTransformRequestBody = await registerDeviceUtil.transform(
-        {
-          data,
-          map,
-        }
-      );
+      const responseFromTransformRequestBody = await createDevice.transform({
+        data,
+        map,
+      });
       logger.info(
         `responseFromTransformRequestBody -- ${responseFromTransformRequestBody}`
       );
@@ -789,9 +821,8 @@ const registerDeviceUtil = {
   },
   updateOnPlatform: async (request) => {
     try {
-      const { id, device_number, name, tenant } = request.query;
+      const { tenant } = request.query;
       const { body } = request;
-      logObject("The request", request);
       let update = body;
       let filter = {};
       let responseFromFilter = generateFilter.devices(request);
@@ -801,7 +832,6 @@ const registerDeviceUtil = {
       );
       logger.info(`the filter ${responseFromFilter.data}`);
       if (responseFromFilter.success === true) {
-        logObject("the filter", responseFromFilter.data);
         filter = responseFromFilter.data;
       }
 
@@ -826,8 +856,6 @@ const registerDeviceUtil = {
         "device",
         DeviceSchema
       ).modify({ filter, update, opts });
-
-      logObject("responseFromModifyDevice ", responseFromModifyDevice);
 
       if (responseFromModifyDevice.success === true) {
         let status = responseFromModifyDevice.status
@@ -909,7 +937,10 @@ const registerDeviceUtil = {
       }
     } catch (error) {
       logger.error(`deleteOnThingspeak -- ${error.message}`);
-      utillErrors.tryCatchErrors(error, "server error - updateOnPlatform util");
+      errors.utillErrors.tryCatchErrors(
+        error,
+        "server error - updateOnPlatform util"
+      );
     }
   },
   deleteOnPlatform: async (request) => {
@@ -991,25 +1022,24 @@ const registerDeviceUtil = {
 
   decryptKey: (encryptedKey) => {
     try {
-      logText("we are inside the decrypt key");
       let bytes = cryptoJS.AES.decrypt(
         encryptedKey,
         constants.KEY_ENCRYPTION_KEY
       );
       let originalText = bytes.toString(cryptoJS.enc.Utf8);
-      let status = HTTPStatus.OK;
-      let message = "successfully decrypted the text";
       let isKeyUnknown = isEmpty(originalText);
-      logElement("isKeyUnknown", isKeyUnknown);
       if (isKeyUnknown) {
-        status = HTTPStatus.NOT_FOUND;
-        message = "the provided encrypted key is not recognizable";
+        return {
+          success: false,
+          status: HTTPStatus.NOT_FOUND,
+          message: "the provided encrypted key is not recognizable",
+        };
       }
       return {
         success: true,
-        message,
+        message: "successfully decrypted the text",
         data: originalText,
-        status,
+        status: HTTPStatus.OK,
       };
     } catch (err) {
       logObject("the err", err);
@@ -1052,71 +1082,4 @@ const registerDeviceUtil = {
   },
 };
 
-/********************************** older code **************************** */
-const createOnThingSpeak = async (
-  req,
-  res,
-  baseUrl,
-  prepBodyTS,
-  channel,
-  device,
-  deviceBody,
-  tenant
-) => {
-  await axios
-    .post(baseUrl, prepBodyTS)
-    .then(async (response) => {
-      channel = response.data.id;
-      logText("device successfully created on TS.");
-      let writeKey = response.data.api_keys[0].write_flag
-        ? response.data.api_keys[0].api_key
-        : "";
-      let readKey = !response.data.api_keys[1].write_flag
-        ? response.data.api_keys[1].api_key
-        : "";
-      let prepBodyDeviceModel = {
-        ...deviceBody,
-        channelID: `${response.data.id}`,
-        writeKey: writeKey,
-        readKey: readKey,
-      };
-      logText("adding the device to the platform...");
-      await createDevice(tenant, prepBodyDeviceModel, req, res);
-    })
-    .catch(async (e) => {
-      logElement(
-        "unable to create device on the platform, attempting to delete it from TS",
-        e.message
-      );
-      let error = e.message;
-      await deleteChannel(channel, device, error, req, res);
-    });
-};
-
-const createOnClarity = (tenant, req, res) => {
-  return res.status(HTTPStatus.TEMPORARY_REDIRECT).json({
-    message: `temporary redirect, device creation for this organisation (${tenant}) not yet enabled/integrated`,
-    success: false,
-  });
-};
-
-const createDevice = async (tenant, prepBodyDeviceModel, req, res) => {
-  const device = await getModelByTenant(
-    tenant,
-    "device",
-    DeviceSchema
-  ).createDevice(prepBodyDeviceModel);
-  logElement("DB addition response", device);
-  return res.status(HTTPStatus.CREATED).json({
-    success: true,
-    message: "successfully created the device",
-    device,
-  });
-};
-
-module.exports = {
-  createDevice,
-  createOnThingSpeak,
-  createOnClarity,
-  registerDeviceUtil,
-};
+module.exports = createDevice;
