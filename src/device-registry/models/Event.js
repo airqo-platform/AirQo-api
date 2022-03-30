@@ -35,6 +35,10 @@ const valueSchema = new Schema({
     trim: true,
     default: null,
   },
+  tenant: {
+    type: String,
+    trim: true,
+  },
   is_device_primary: {
     type: Boolean,
     trim: true,
@@ -64,7 +68,34 @@ const valueSchema = new Schema({
     uncertaintyValue: { type: Number, default: null },
     standardDeviationValue: { type: Number, default: null },
   },
+  s1_pm1: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  s2_pm1: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
   pm2_5: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  s1_pm2_5: {
     value: {
       type: Number,
       default: null,
@@ -83,6 +114,16 @@ const valueSchema = new Schema({
     standardDeviationValue: { type: Number, default: null },
   },
   pm10: {
+    value: {
+      type: Number,
+      trim: true,
+      default: null,
+    },
+    calibratedValue: { type: Number, default: null },
+    uncertaintyValue: { type: Number, default: null },
+    standardDeviationValue: { type: Number, default: null },
+  },
+  s1_pm10: {
     value: {
       type: Number,
       trim: true,
@@ -249,6 +290,7 @@ const eventSchema = new Schema(
     },
     nValues: {
       type: Number,
+      required: [true, "the nValues is required"],
     },
     values: [valueSchema],
   },
@@ -336,7 +378,7 @@ eventSchema.statics = {
         projection: { _id: 0, email: 1, firstName: 1, lastName: 1 },
       };
       let removedEvents = await this.deleteMany(filter, options).exec();
-      let data = jsonify(removedEvents);
+      let data = removedEvents;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -358,7 +400,7 @@ eventSchema.statics = {
       };
     }
   },
-  async list({ skip = 0, limit = 100, filter = {} } = {}) {
+  async list({ skip = 0, limit = 100, filter = {}, page = 1 } = {}) {
     try {
       const { metadata, frequency, external, tenant, device, recent } = filter;
       let search = filter;
@@ -376,6 +418,21 @@ eventSchema.statics = {
       let projection = {
         _id: 0,
       };
+      let meta = {
+        total: { $arrayElemAt: ["$total.device", 0] },
+        skip: { $literal: skip },
+        limit: { $literal: limit },
+        page: {
+          $trunc: {
+            $literal: skip / limit + 1,
+          },
+        },
+        pages: {
+          $ceil: {
+            $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
+          },
+        },
+      };
       let siteProjection = {};
       let deviceProjection = {};
 
@@ -385,6 +442,7 @@ eventSchema.statics = {
       delete search["tenant"];
       delete search["device"];
       delete search["recent"];
+      delete search["page"];
 
       if (tenant !== "airqo") {
         pm2_5 = "$pm2_5";
@@ -484,16 +542,7 @@ eventSchema.statics = {
             data: [{ $addFields: { device: "$device" } }],
           })
           .project({
-            meta: {
-              total: { $arrayElemAt: ["$total.device", 0] },
-              limit: { $literal: limit },
-              page: { $literal: skip / limit + 1 },
-              pages: {
-                $ceil: {
-                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-                },
-              },
-            },
+            meta,
             data: {
               $slice: [
                 "$data",
@@ -596,16 +645,7 @@ eventSchema.statics = {
             ],
           })
           .project({
-            meta: {
-              total: { $arrayElemAt: ["$total.device", 0] },
-              limit: { $literal: limit },
-              page: { $literal: skip / limit + 1 },
-              pages: {
-                $ceil: {
-                  $divide: [{ $arrayElemAt: ["$total.device", 0] }, limit],
-                },
-              },
-            },
+            meta,
             data: {
               $slice: [
                 "$data",
@@ -820,7 +860,7 @@ eventSchema.statics = {
       return {
         success: false,
         message: "model server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },

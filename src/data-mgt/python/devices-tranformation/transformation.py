@@ -134,7 +134,7 @@ class Transformation:
 
                     update = dict({
                         "nearest_tahmo_station": station_data,
-                        "_id": site_dict.get("_id"),
+                        "id": site_dict.get("_id"),
                         "tenant": self.tenant,
                     })
 
