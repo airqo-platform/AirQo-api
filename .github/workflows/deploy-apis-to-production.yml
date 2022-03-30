@@ -187,6 +187,7 @@ jobs:
               echo "::set-output name=run_device_registry::true"
               echo "::set-output name=run_auth_service::true"
               echo "::set-output name=run_airflow::true"
+              echo "::set-output name=run_channel_data::true"
             fi
 
           done < files.txt
