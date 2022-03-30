@@ -1,0 +1,55 @@
+###########################################################
+# Start deployment of network uptime api - Production
+###########################################################
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-network-uptime-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: prod-network-uptime
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: prod-network-uptime
+    spec:
+      containers:
+        - name: prod-network-uptime
+          image: us.gcr.io/airqo-250220/airqo-network-uptime-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8501
+              name: prod-network-uptime
+          # readinessProbe:
+          #   httpGet:
+          #     path: /health
+          #     port: 3000
+          #   initialDelaySecond: 5
+          #   periodSeconds: 3
+          #   successThreshold: 1
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-network-uptime-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: prod-network-uptime
+  ports:
+    - protocol: TCP
+      port: 8501
+      targetPort: 8501
+      nodePort: 30012
+  type: NodePort

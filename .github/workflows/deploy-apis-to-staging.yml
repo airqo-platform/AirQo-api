@@ -925,4 +925,3 @@ jobs:
           kubectl apply -f k8s/network-uptime/stage-airqo-network-uptime-job.yaml -n staging
           kubectl set image deployment/airqo-stage-network-uptime-api sta-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
-
