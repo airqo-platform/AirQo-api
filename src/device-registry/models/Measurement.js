@@ -29,7 +29,6 @@ const valueSchema = new Schema({
     type: Boolean,
     trim: true,
   },
-  /**** */
   device: {
     type: String,
     trim: true,
@@ -54,204 +53,221 @@ const valueSchema = new Schema({
   site: {
     type: String,
     default: null,
+    required: [true, "The site ID is required"],
   },
   site_id: {
     type: ObjectId,
   },
-  /**** */
   pm1: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   s1_pm1: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   s2_pm1: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   pm2_5: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   s1_pm2_5: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   s2_pm2_5: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   pm10: {
     value: {
       type: Number,
-      trim: true,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   s1_pm10: {
     value: {
       type: Number,
-      trim: true,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   s2_pm10: {
     value: {
       type: Number,
-      trim: true,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   no2: {
     value: {
       type: Number,
       default: null,
     },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   battery: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  location: {
-    latitude: {
-      value: {
-        type: Number,
-        default: null,
-      },
+  latitude: {
+    value: {
+      type: Number,
+      default: null,
     },
-    longitude: {
-      value: {
-        type: Number,
-        default: null,
-      },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
+  },
+  longitude: {
+    value: {
+      type: Number,
+      default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   altitude: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  speed: {
+  wind_speed: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   satellites: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
   hdop: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  internalTemperature: {
+  internal_temperature: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  internalHumidity: {
+  internal_humidity: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  externalTemperature: {
+  external_temperature: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  externalHumidity: {
+  external_humidity: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
-  average_pm2_5: {
-    value: {
-      type: Number,
-      trim: true,
-      default: null,
-    },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
-  },
-  average_pm10: {
-    value: {
-      type: Number,
-      trim: true,
-      default: null,
-    },
-    calibratedValue: { type: Number, default: null },
-    uncertaintyValue: { type: Number, default: null },
-    standardDeviationValue: { type: Number, default: null },
-  },
-  externalPressure: {
-    value: { type: Number, default: null },
-  },
-  externalAltitude: {
+  external_pressure: {
     value: {
       type: Number,
       default: null,
     },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
+  },
+  external_altitude: {
+    value: {
+      type: Number,
+      default: null,
+    },
+    calibrated_value: { type: Number, default: null },
+    uncertainty_value: { type: Number, default: null },
+    standard_deviation_value: { type: Number, default: null },
   },
 });
 
-const eventSchema = new Schema(
+const measurementSchema = new Schema(
   {
     day: {
       type: String,
@@ -299,7 +315,7 @@ const eventSchema = new Schema(
   }
 );
 
-eventSchema.index(
+measurementSchema.index(
   {
     "values.time": 1,
     device_id: 1,
@@ -313,7 +329,7 @@ eventSchema.index(
   }
 );
 
-eventSchema.index(
+measurementSchema.index(
   {
     "values.time": 1,
     "values.device": 1,
@@ -328,16 +344,16 @@ eventSchema.index(
   }
 );
 
-eventSchema.pre("save", function() {
+measurementSchema.pre("save", function() {
   const err = new Error("something went wrong");
   next(err);
 });
 
-eventSchema.plugin(uniqueValidator, {
+measurementSchema.plugin(uniqueValidator, {
   message: `{VALUE} already taken!`,
 });
 
-eventSchema.methods = {
+measurementSchema.methods = {
   toJSON() {
     return {
       day: this.day,
@@ -366,7 +382,7 @@ const elementAtIndexName = (metadata, recent) => {
   }
 };
 
-eventSchema.statics = {
+measurementSchema.statics = {
   createEvent(args) {
     return this.create({
       ...args,
@@ -527,11 +543,11 @@ eventSchema.statics = {
             speed: { $first: "$speed" },
             satellites: { $first: "$satellites" },
             hdop: { $first: "$hdop" },
-            internalTemperature: { $first: "$internalTemperature" },
-            externalTemperature: { $first: "$externalTemperature" },
-            internalHumidity: { $first: "$internalHumidity" },
-            externalHumidity: { $first: "$externalHumidity" },
-            externalAltitude: { $first: "$externalAltitude" },
+            internal_temperature: { $first: "$internal_temperature" },
+            external_temperature: { $first: "$external_temperature" },
+            internal_humidity: { $first: "$internal_humidity" },
+            external_humidity: { $first: "$external_humidity" },
+            external_altitude: { $first: "$external_altitude" },
             pm1: { $first: "$pm1" },
             no2: { $first: "$no2" },
             [as]: elementAtIndex0,
@@ -595,11 +611,11 @@ eventSchema.statics = {
             _device_id: "$device_id",
             _site: "$site",
             _device_number: "$device_number",
-            _internalTemperature: "$internalTemperature",
-            _externalTemperature: "$externalTemperature",
-            _internalHumidity: "$internalHumidity",
-            _externalHumidity: "$externalHumidity",
-            _externalAltitude: "$externalAltitude",
+            _internal_temperature: "$internal_temperature",
+            _external_temperature: "$external_temperature",
+            _internal_humidity: "$internal_humidity",
+            _external_humidity: "$external_humidity",
+            _external_altitude: "$external_altitude",
             _pm1: "$pm1",
             _no2: "$no2",
             [_as]: elementAtIndex0,
@@ -626,11 +642,11 @@ eventSchema.statics = {
             speed: "$_speed",
             satellites: "$_satellites",
             hdop: "$_hdop",
-            internalTemperature: "$_internalTemperature",
-            externalTemperature: "$_externalTemperature",
-            internalHumidity: "$_internalHumidity",
-            externalHumidity: "$_externalHumidity",
-            externalAltitude: "$_externalAltitude",
+            internal_temperature: "$_internal_temperature",
+            external_temperature: "$_external_temperature",
+            internal_humidity: "$_internal_humidity",
+            external_humidity: "$_external_humidity",
+            external_altitude: "$_external_altitude",
             pm1: "$_pm1",
             no2: "$_no2",
             [as]: "$" + _as,
@@ -866,8 +882,12 @@ eventSchema.statics = {
   },
 };
 
-const eventsModel = (tenant) => {
-  return getModelByTenant(tenant.toLowerCase(), "event", eventSchema);
+const measurementsModel = (tenant) => {
+  return getModelByTenant(
+    tenant.toLowerCase(),
+    "measurement",
+    measurementSchema
+  );
 };
 
-module.exports = eventsModel;
+module.exports = measurementsModel;

@@ -119,5 +119,14 @@ sh clean.sh
 
 ## Working with dags
 
-ETL dags for historical data require you to specify `startDateTime` and `endDateTime` in the dag config using the 
-format `YYYY-MM-ddTHH:mm:ssZ`
+ETL dags for historical data require you to specify `startDateTime` and `endDateTime` in the dag config using the format `YYYY-MM-ddTHH:mm:ssZ`
+
+## BigQuery Schemas
+
+Schema files are located in the `schema` folder in the `airqo_etl_utils` package  i.e  `airqo_etl_utils/schema`
+
+| Schema file               | Description      | Partitioning     | Clustering order       |
+|---------------------------|------------------|------------------|------------------|
+| `measurements.json` | Schema for the table that stores device measurements such as `pm2.5`, `pm10` | Partitioned by `MONTH` on `timestamp`. Requires a partition filter | `tenant`,`site_id`,`device`,`timestamp` |
+| `weather_data.json` | Schema for the table that stores weather data from other data sources such as `precipitation`, `wind_gusts`, `wind_direction` | Partitioned by `MONTH` on `timestamp`. Requires a partition filter | `tenant`,`site_id`,`timestamp` |
+| `data_warehouse.json` | Schema for the table that stores device measurements, weather data and site information for example `pm2.5`, `wind_gusts`, `site_landform_270`  | Partitioned by `MONTH` on `timestamp`. Requires a partition filter | `tenant`,`site_id`,`device_name`,`timestamp` |

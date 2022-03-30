@@ -10,6 +10,12 @@
         "mode": "REQUIRED"
     },
     {
+        "name": "time",
+        "type": "TIMESTAMP",
+        "mode": "NULLABLE",
+        "description": "This field is depreciated. Use timestamp"
+    },
+    {
         "name": "site_id",
         "type": "STRING",
         "mode": "REQUIRED"

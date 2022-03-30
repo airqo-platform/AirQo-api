@@ -689,7 +689,7 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
     for _, data_row in data_df.iterrows():
         device_data = dict(
             {
-                "time": str_to_date(data_row["time"]),
+                "timestamp": str_to_date(data_row["time"]),
                 "tenant": "airqo",
                 "site_id": data_row["site_id"],
                 "device_number": data_row["device_number"],

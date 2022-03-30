@@ -99,7 +99,6 @@ photoSchema.statics = {
           success: false,
           message: "photo not created despite successful operation",
           status: HTTPStatus.ACCEPTED,
-          data,
         };
       }
     } catch (err) {
