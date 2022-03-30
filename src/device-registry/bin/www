@@ -7,7 +7,6 @@ var debug = require('debug')('log4js-example');
 var cluster = require('express-cluster');
 var http = require("http");
 var isEmpty = require("is-empty");
-// const { kafkaMeasurementsConsumer } = require("../controllers/kafka/raw-device-measurements-consumer");
 var log4js = require('log4js');
 log4js.configure('./config/log4js.json');
 var log = log4js.getLogger("start-script");
@@ -120,5 +119,4 @@ Running on ${ENV}`);
     var addr = server.address();
     var bind = typeof addr === "string" ? "pipe " + addr : "port " + addr.port;
     debug("Listening on " + bind);
-    // kafkaMeasurementsConsumer;
 }

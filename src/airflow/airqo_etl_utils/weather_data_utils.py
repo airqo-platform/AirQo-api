@@ -11,6 +11,12 @@ from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.tahmo import TahmoApi
 
 
+def transform_weather_data_for_bigquery(data: list) -> list:
+    data_df = pd.DataFrame(data)
+    data_df.rename(columns={"time": "timestamp"}, inplace=True)
+    return data_df.to_dict(orient="records")
+
+
 def resample_weather_data(data: list, frequency: str):
     weather_raw_data = pd.DataFrame(data)
     if weather_raw_data.empty:
@@ -169,8 +175,8 @@ def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -
 
     if measurements:
         measurements_df = pd.DataFrame(data=measurements)
-        measurements_df["station_code"] = measurements_df["station"]
-        del measurements_df["station"]
+        measurements_df.rename(columns={"station": "station_code"}, inplace=True)
+
     else:
         measurements_df = pd.DataFrame(
             [], columns=["value", "variable", "time", "station_code"]
