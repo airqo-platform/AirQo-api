@@ -108,7 +108,7 @@ def save_insights_data(insights_data: list = None, action: str = "insert"):
     if insights_data is None:
         insights_data = []
 
-    print("saving insights .... ")
+    print(f"saving {len(insights_data)} insights .... ")
 
     data = {
         "data": insights_data,
@@ -266,7 +266,7 @@ def transform_old_forecast(start_date_time: str, end_date_time: str) -> list:
 
 
 def query_insights_data(
-    freq: str, start_date_time: str, end_date_time: str, forecast=False
+    freq: str, start_date_time: str, end_date_time: str, forecast=False, all_data=False
 ) -> list:
     airqo_api = AirQoApi()
     insights = []
@@ -287,7 +287,11 @@ def query_insights_data(
 
         try:
             api_results = airqo_api.get_app_insights(
-                start_time=start, frequency=freq, end_time=end, forecast=forecast
+                start_time=start,
+                frequency=freq,
+                end_time=end,
+                forecast=forecast,
+                all_data=all_data,
             )
             insights.extend(api_results)
 
@@ -321,7 +325,10 @@ def create_insights_data_from_bigquery(
 def create_insights_data(data: list) -> list:
     print("creating insights .... ")
 
-    insights_data = pd.DataFrame(data)
+    if not data:
+        return []
+
+    insights_data = pd.DataFrame(data, columns=insights_columns)
 
     insights_data["frequency"] = insights_data["frequency"].apply(
         lambda x: str(x).upper()
