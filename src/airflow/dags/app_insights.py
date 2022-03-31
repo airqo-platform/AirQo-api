@@ -14,7 +14,32 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 )
 def app_forecast_insights_etl():
     @task(multiple_outputs=True)
-    def extract_forecast_data():
+    def extract_insights_forecast_data():
+        from airqo_etl_utils.app_insights_utils import (
+            create_insights_data,
+            transform_old_forecast,
+        )
+        from airqo_etl_utils.date import (
+            date_to_str,
+            first_day_of_week,
+            first_day_of_month,
+        )
+
+        now = datetime.now()
+        start_date_time = date_to_str(
+            first_day_of_week(first_day_of_month(date_time=now))
+        )
+        end_date_time = date_to_str(now)
+
+        forecast_data = transform_old_forecast(
+            start_date_time=start_date_time, end_date_time=end_date_time
+        )
+        insights_data = create_insights_data(data=forecast_data)
+
+        return dict({"data": insights_data})
+
+    @task(multiple_outputs=True)
+    def extract_api_forecast_data():
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_forecast_data,
@@ -26,14 +51,18 @@ def app_forecast_insights_etl():
         return dict({"data": insights_data})
 
     @task()
-    def load(data: dict):
+    def load(forecast: dict, transformed_forecast: dict):
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
-        insights_data = data.get("data")
+        forecast_insights_data = forecast.get("data")
+        transformed_forecast_data = transformed_forecast.get("data")
+        insights_data = list(forecast_insights_data).extend(transformed_forecast_data)
+
         save_insights_data(insights_data=insights_data, action="save")
 
-    insights = extract_forecast_data()
-    load(insights)
+    insights_forecast_data = extract_insights_forecast_data()
+    api_forecast_data = extract_api_forecast_data()
+    load(forecast=api_forecast_data, transformed_forecast=insights_forecast_data)
 
 
 @dag(

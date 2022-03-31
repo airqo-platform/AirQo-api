@@ -137,7 +137,7 @@ def get_forecast_data(tenant: str) -> list:
     devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
 
     forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
-    time = int(datetime.utcnow().timestamp())
+    time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())
 
     for device in devices:
         device_dict = dict(device)
@@ -251,7 +251,23 @@ def average_insights_data(data: list, frequency="daily") -> list:
     return sampled_data
 
 
-def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> list:
+def transform_old_forecast(start_date_time: str, end_date_time: str) -> list:
+    forecast_data = query_insights_data(
+        freq="hourly",
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        forecast=True,
+    )
+
+    forecast_data_df = pd.DataFrame(data=forecast_data, columns=insights_columns)
+    forecast_data_df["forecast"] = False
+    forecast_data_df["empty"] = False
+    return forecast_data_df.to_dict(orient="records")
+
+
+def query_insights_data(
+    freq: str, start_date_time: str, end_date_time: str, forecast=False
+) -> list:
     airqo_api = AirQoApi()
     insights = []
 
@@ -271,9 +287,7 @@ def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> 
 
         try:
             api_results = airqo_api.get_app_insights(
-                start_time=start,
-                frequency=freq,
-                end_time=end,
+                start_time=start, frequency=freq, end_time=end, forecast=forecast
             )
             insights.extend(api_results)
 
