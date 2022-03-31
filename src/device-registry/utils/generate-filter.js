@@ -743,7 +743,7 @@ const generateFilter = {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     logElement("defaultStartTime", oneMonthBack);
-    logElement(" defaultEndTime", oneMonthInfront);
+    logElement("defaultEndTime", oneMonthInfront);
     let filter = {
       day: {
         $gte: generateDateFormatWithoutHrs(oneMonthBack),
@@ -788,7 +788,7 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      filter[" generated_name"] = generated_name;
+      filter["generated_name"] = generated_name;
     }
 
     if (endTime) {
