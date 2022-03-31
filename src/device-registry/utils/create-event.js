@@ -479,8 +479,7 @@ const createEvent = {
       requestDeviceList["query"] = {};
       requestDeviceList["query"]["name"] = name;
       requestDeviceList["query"]["tenant"] = tenant;
-      requestDeviceList["query"]["device_number"] = chid;
-      requestDeviceList["query"]["device_number"] = device_number;
+      requestDeviceList["query"]["device_number"] = chid || device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(
         requestDeviceList
@@ -493,15 +492,7 @@ const createEvent = {
           deviceDetail = responseFromListDevice.data[0];
         }
       } else if (responseFromListDevice.success === false) {
-        logObject(
-          "responseFromListDevice has an error",
-          responseFromListDevice
-        );
-        const status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        delete responseFromListDevice.status;
-        return res.status(status).json(responseFromListDevice);
+        return responseFromListDevice;
       }
 
       const channel = deviceDetail.device_number;
@@ -512,11 +503,7 @@ const createEvent = {
       if (responseFromDecryptKey.success === true) {
         api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
-        const status = responseFromDecryptKey.status
-          ? responseFromDecryptKey.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        delete responseFromDecryptKey.status;
-        return res.status(status).json(responseFromDecryptKey);
+        return responseFromDecryptKey;
       }
 
       let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
@@ -1143,7 +1130,7 @@ const createEvent = {
           device_id: "6228c43567c2db20bffaa0cb",
           device_number: 0,
           device: "A0WN66FH",
-          latitude: " 0.2857506",
+          latitude: "0.2857506",
           longitude: "32.5783253",
           pm2_5: 45.11,
           pm10: 39.16,
@@ -1166,7 +1153,7 @@ const createEvent = {
           device_id: "6228c43567c2db20bffaa0cb",
           device_number: 0,
           device: "aq_613_97",
-          latitude: " 0.2857506",
+          latitude: "0.2857506",
           longitude: "32.5783253",
           pm2_5: 45.11,
           pm10: 39.16,
@@ -1511,11 +1498,9 @@ const createEvent = {
 
       let request = {};
       request["query"] = {};
-      request["query"]["name"] = device;
-      request["query"]["name"] = name;
+      request["query"]["name"] = device || name;
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
+      request["query"]["device_number"] = chid || device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(request);
 
