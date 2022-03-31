@@ -59,8 +59,9 @@ public class Insight implements Serializable {
 	@JsonIgnore
 	private Date endDateTime;
 
-	public void setId() {
+	public Insight setId() {
 		this.id = new InsightId(time, frequency, siteId).toString();
+		return this;
 	}
 
 	@Override
