@@ -454,7 +454,7 @@ const createEvent = {
             errors: {
               message: error.response
                 ? error.response.data.error.details
-                : "No active internet connection",
+                : "Unable to establish connection with external system",
             },
             status: error.response
               ? error.response.data.status
@@ -551,7 +551,7 @@ const createEvent = {
             errors: {
               message: error.response
                 ? error.response.data.error.details
-                : "No active internet connection",
+                : "Unable to establish connection with external system",
             },
             status: error.response
               ? error.response.data.status
