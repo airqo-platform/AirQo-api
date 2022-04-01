@@ -5,3 +5,4 @@ numpy
 google-cloud-bigquery
 confluent-kafka[avro]
 pyarrow
+kafka-python

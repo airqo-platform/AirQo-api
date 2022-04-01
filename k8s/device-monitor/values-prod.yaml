@@ -3,7 +3,7 @@ env:
   deployment_name: airqo-device-monitor-api
   service_name: airqo-device-monitor-api-svc
   labels: dev-monitor-api
-  secret: prod-device-monitor-secret
+  secret: env-device-monitoring-production
 
 replicaCount: 2
 

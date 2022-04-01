@@ -65,6 +65,9 @@ class BaseMongoOperations:
 
 
 class ChainableMongoOperations(BaseMongoOperations):
+    ASCENDING = 1
+    DESCENDING = -1
+
     def __init__(self):
         self.stages = []
         self.init_match_expr = "$and"
@@ -72,7 +75,7 @@ class ChainableMongoOperations(BaseMongoOperations):
 
     @staticmethod
     def to_object_ids(ids):
-        return [ObjectId(ID) for ID in ids]
+        return tuple(ObjectId(ID) for ID in ids)
 
     def _update_match_stage(self, expression, raise_exc=True, **new_filters):
         """

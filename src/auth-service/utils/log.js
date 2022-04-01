@@ -20,4 +20,12 @@ const logObject = (message, object) => {
   return "log deactivated in prod and stage";
 };
 
-module.exports = { logText, logElement, logObject };
+const logError = (error) => {
+  if (process.env.NODE_ENV === "development") {
+    console.log("an unhandled promise rejection" + ": ");
+    console.error(e);
+  }
+  return "log deactivated in prod and stage";
+};
+
+module.exports = { logText, logElement, logObject, logError };

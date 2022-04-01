@@ -4,11 +4,13 @@ import com.fasterxml.jackson.annotation.JsonAlias;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 
 import java.io.Serializable;
 
 @Getter
 @Setter
+@ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class AirqoDevice implements Serializable {
 
@@ -20,14 +22,5 @@ public class AirqoDevice implements Serializable {
 
     @JsonAlias({ "site_details", "siteDetails" })
     private SiteDetails site = new SiteDetails();
-
-    @Override
-    public String toString() {
-        return "AirqoDevice{" +
-                "device='" + device + '\'' +
-                ", deviceNumber=" + deviceNumber +
-                ", site=" + site +
-                '}';
-    }
 }
 

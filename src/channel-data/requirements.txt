@@ -1,0 +1,7 @@
+# Function dependencies, for example:
+# package>=version
+
+google-cloud-storage
+ndjson
+google.cloud.bigquery
+python-dotenv

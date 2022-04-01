@@ -1,24 +1,23 @@
-import json
-import os
-
 import urllib3
 from dotenv import load_dotenv
 
-from kafka_client import KafkaClient
-from measurements import average_measurements_by_hour
+import averages
+import calibrate
+from config import configuration, JobType
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 load_dotenv()
 
 
 def main():
-    hours = int(os.getenv("HOURS", 1))
-    average_measurements_by_hour(hours=hours)
-    hourly_measurements = average_measurements_by_hour()
-    data = json.dumps(dict({"measurements": hourly_measurements}))
-    print(data)
-    client = KafkaClient()
-    client.produce_measurements(data)
+    if configuration.JOB_TYPE == JobType.CALIBRATE:
+        calibrate.main()
+
+    if configuration.JOB_TYPE == JobType.CALIBRATE_HISTORICAL:
+        calibrate.main_historical_data(configuration.START_TIME, configuration.END_TIME)
+
+    if configuration.JOB_TYPE == JobType.DAILY_AVERAGES:
+        averages.main()
 
 
 if __name__ == '__main__':

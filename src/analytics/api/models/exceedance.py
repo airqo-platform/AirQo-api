@@ -52,9 +52,10 @@ class ExceedanceModel(BasePyMongoModel):
             return self.project(site_id={"$toObjectId": "$site_id"}, who=1)
         return self.project(site_id={"$toObjectId": "$site_id"}, aqi=1)
 
-
     @cache.memoize()
-    def get_exceedances(self, start_date, end_date, pollutant, standard):
+    def get_exceedances(self, start_date, end_date, pollutant, standard, sites=None):
+        if sites:
+            return self.get_exceedances_by_sites(start_date, end_date, pollutant, standard, sites)
         return (
             self
                 .date_range("exceedances.time", start_date=start_date, end_date=end_date)
@@ -71,5 +72,27 @@ class ExceedanceModel(BasePyMongoModel):
                     exceedance=1,
                     site={"name": 1, "description": 1, "generated_name": 1},
                 )
+                .exec()
+        )
+
+    def get_exceedances_by_sites(self, start_date, end_date, pollutant, standard, sites):
+        print("running the unique")
+        return (
+            self
+                .date_range("exceedances.time", start_date=start_date, end_date=end_date)
+                .unwind("exceedances")
+                .replace_root("exceedances")
+                .project_by_standard(standard)
+                .match_in(site_id=self.to_object_ids(sites))
+                .lookup("sites", local_field="site_id", foreign_field="_id", col_as="site")
+                .group_by_pollutant(pollutant, standard)
+                .add_fields_by_pollutant(pollutant, standard)
+                .unwind("site")
+                .project(
+                _id=0,
+                total=1,
+                exceedance=1,
+                site={"name": 1, "description": 1, "generated_name": 1},
+            )
                 .exec()
         )

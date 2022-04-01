@@ -8,13 +8,16 @@ class SiteModel(BasePyMongoModel):
         super().__init__(tenant, collection_name="sites")
 
     @cache.memoize()
-    def get_sites(self):
+    def get_sites(self, sites=None):
+        if sites:
+            return self.get_specific_sites(sites, id_key="site_id")
+
         return self.project(_id=0, site_id={"$toString": "$_id"}, name=1, description=1, generated_name=1).exec()
 
-    def get_specific_sites(self, sites):
+    def get_specific_sites(self, sites, id_key="_id"):
         return (
-            self.project(_id={"$toString": "$_id"}, name=1, description=1, generated_name=1)
-                .match_in(_id=sites)
+            self.project(**{id_key: {"$toString": "$_id"}}, name=1, description=1, generated_name=1)
+                .match_in(**{id_key: sites})
                 .exec()
         )
 

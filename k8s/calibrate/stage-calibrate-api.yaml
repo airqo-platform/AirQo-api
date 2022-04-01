@@ -22,6 +22,30 @@ spec:
       labels:
         app: sta-calibrate
     spec:
+      initContainers:
+        - name: calibrate-pickle
+          image: us.gcr.io/airqo-250220/airqo-stage-calibrate-pickle-file:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "500m"
+            limits:
+              memory: 1Gi
+              cpu: "2000m"
+          envFrom:
+            - configMapRef:
+                name: stage-calibrate-api-config
+          env:
+            - name: RF_REG_MODEL
+              value: /usr/pickle-files/rf_reg_model.pkl
+            - name:  LASSO_MODEL
+              value: /usr/pickle-files/lasso_model.pkl
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          - name: shared-data
+            mountPath: /usr/pickle-files
       containers:
         - name: sta-calibrate
           image: us.gcr.io/airqo-250220/airqo-stage-calibrate-api:latest
@@ -36,15 +60,38 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "500m"
+            limits:
+              memory: 1Gi
+              cpu: "2000m"
           env:
-            - name: GET_HOSTS_FROM
-              value: dns
+            - name: RF_REG_MODEL
+              value: /usr/pickle-files/rf_reg_model.pkl
+            - name: LASSO_MODEL
+              value: /usr/pickle-files/lasso_model.pkl
+          envFrom:
+            - configMapRef:
+                name: stage-calibrate-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          - name: shared-data
+            mountPath: /usr/pickle-files
+      volumes:
+        - name: config-volume
+          configMap:
+            name: stage-calibrate-api-config-files
+        - name: shared-data
+          emptyDir: {}
 
 ---
 kind: Service
 apiVersion: v1
 metadata:
-  name: airqo-stage-calibrate-svc
+  name: airqo-stage-calibrate-api-svc
   namespace: staging
 spec:
   selector:
