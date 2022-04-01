@@ -1,3 +1,5 @@
+import os
+from dotenv import load_dotenv
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -7,13 +9,18 @@ import pymongo
 import requests
 import streamlit as st
 
+dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+load_dotenv(dotenv_path)
+
+BASE_API_URL = os.getenv('BASE_URL')
+
 matplotlib.use('Agg')
 
 st.set_page_config(page_title='NETWORK UPTIME AND DOWNTIME', layout="wide")
 st.title('Data report on network uptime and outages over the first quarter, 2022')
 
 
-api_url = 'https://platform.airqo.net/api/v1/devices?tenant=airqo'
+api_url = f"{BASE_API_URL}/devices?tenant=airqo"
 results = requests.get(api_url)
 devices_data = results.json()["devices"]
 
@@ -23,7 +30,7 @@ selected_device = st.sidebar.selectbox('Device name', device_name)
 
 @st.cache
 def load_device_data(device):
-    api = 'https://platform.airqo.net/api/v1/monitor/devices/uptime?tenant=airqo&startDate=2022-01-01T00:00:00.001Z&endDate=2022-03-25T19:00:00.001Z&device_name=' + device
+    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate=2022-01-01T00:00:00.001Z&endDate=2022-03-25T19:00:00.001Z&device_name=' + device
     api_result = requests.get(api)
     values = api_result.json()['data'][0]['values']
     subset = ['created_at', 'uptime', 'downtime']
