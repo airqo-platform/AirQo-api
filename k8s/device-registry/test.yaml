@@ -1,0 +1,63 @@
+###########################################################
+# Start deployment of device registry api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: test-device-registry
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: test-device-registry
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: test-device-registry
+    spec:
+      containers:
+        - name: test-device-registry
+          image: mwanjemike767/test:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+              name: test
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 30
+          livenessProbe:
+            httpGet:
+              path: /live
+              port: 3000
+            initialDelaySeconds: 20
+            periodSeconds: 60
+          envFrom:
+            - configMapRef:
+                name: env-device-registry-staging
+
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: test-device-registry
+  namespace: default
+spec:
+  selector:
+    app: test-device-registry
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+      nodePort: 32767
+  type: NodePort
