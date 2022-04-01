@@ -187,7 +187,6 @@ const createAirqloud = {
         };
       }
     } catch (err) {
-      logElement(" the util server error,", err.message);
       return {
         success: false,
         message: "unable to create airqloud",

@@ -60,8 +60,8 @@ public class MeasurementServiceImpl implements MeasurementService {
 	}
 
 	@Override
-	public List<Insight> getInsightsBefore(Date beforeTime) {
-		return insightRepository.findAllByTimeBefore(beforeTime);
+	public List<Insight> getForecastInsightsBefore(Date beforeTime) {
+		return insightRepository.findAllByTimeBeforeAndForecast(beforeTime, true);
 	}
 
 	@Override

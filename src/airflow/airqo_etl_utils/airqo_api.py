@@ -178,14 +178,23 @@ class AirQoApi:
         end_time: str,
         frequency: str,
         site_id=None,
+        forecast=False,
+        empty=False,
+        all_data=False,
     ) -> list:
-        params = {
-            "startDateTime": start_time,
-            "endDateTime": end_time,
-            "frequency": frequency,
-            "empty": False,
-            "forecast": False,
-        }
+        if all_data:
+            params = {
+                "startDateTime": start_time,
+                "endDateTime": end_time,
+            }
+        else:
+            params = {
+                "startDateTime": start_time,
+                "endDateTime": end_time,
+                "frequency": frequency,
+                "empty": empty,
+                "forecast": forecast,
+            }
         if site_id:
             params["siteId"] = site_id
 

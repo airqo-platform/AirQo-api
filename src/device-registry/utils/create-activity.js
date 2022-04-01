@@ -265,10 +265,10 @@ const createActivity = {
           deviceBody["body"] = {};
           deviceBody["query"] = {};
           deviceBody["body"]["height"] = height;
-          deviceBody["body"][" mountType"] = mountType;
-          deviceBody["body"][" powerType"] = powerType;
-          deviceBody["body"][" isPrimaryInLocation"] = isPrimaryInLocation;
-          deviceBody["body"][" nextMaintenance"] = addMonthsToProvideDateTime(
+          deviceBody["body"]["mountType"] = mountType;
+          deviceBody["body"]["powerType"] = powerType;
+          deviceBody["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
+          deviceBody["body"]["nextMaintenance"] = addMonthsToProvideDateTime(
             date && new Date(date),
             3
           );
@@ -353,10 +353,10 @@ const createActivity = {
       deviceBody["body"] = {};
       deviceBody["query"] = {};
       deviceBody["body"]["height"] = 0;
-      deviceBody["body"][" mountType"] = "";
-      deviceBody["body"][" powerType"] = "";
-      deviceBody["body"][" isPrimaryInLocation"] = false;
-      deviceBody["body"][" nextMaintenance"] = "";
+      deviceBody["body"]["mountType"] = "";
+      deviceBody["body"]["powerType"] = "";
+      deviceBody["body"]["isPrimaryInLocation"] = false;
+      deviceBody["body"]["nextMaintenance"] = "";
       deviceBody["body"]["latitude"] = "";
       deviceBody["body"]["longitude"] = "";
       deviceBody["body"]["isActive"] = false;
