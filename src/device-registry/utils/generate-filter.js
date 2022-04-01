@@ -234,6 +234,7 @@ const generateFilter = {
         metadata,
         tenant,
         recent,
+        page,
       } = query;
 
       let oneMonthBack = monthsInfront(-1);
@@ -371,6 +372,14 @@ const generateFilter = {
         filter["device"] = false;
       }
 
+      if (device && !recent && (!external || external === "yes")) {
+        filter["recent"] = "no";
+      }
+
+      if (page) {
+        filter["page"] = page;
+      }
+
       if (device_number) {
         let deviceArray = device_number.split(",");
         filter["device_number"]["$in"] = deviceArray;
@@ -440,7 +449,7 @@ const generateFilter = {
       return {
         success: false,
         message: "unable to generate the filter",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -465,7 +474,7 @@ const generateFilter = {
     }
 
     if (channel) {
-      filter["channelID"] = channel;
+      filter["device_number"] = channel;
     }
 
     if (location) {
@@ -499,7 +508,7 @@ const generateFilter = {
       } else {
       }
     }
-
+    logObject("the filter we are sending", filter);
     return filter;
   },
   devices: (req) => {
@@ -539,7 +548,7 @@ const generateFilter = {
       }
 
       if (channel) {
-        filter["channelID"] = channel;
+        filter["device_number"] = channel;
       }
 
       if (device_number) {
@@ -555,7 +564,7 @@ const generateFilter = {
       }
 
       if (chid) {
-        filter["channelID"] = chid;
+        filter["device_number"] = chid;
       }
 
       if (location) {
@@ -734,7 +743,7 @@ const generateFilter = {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     logElement("defaultStartTime", oneMonthBack);
-    logElement(" defaultEndTime", oneMonthInfront);
+    logElement("defaultEndTime", oneMonthInfront);
     let filter = {
       day: {
         $gte: generateDateFormatWithoutHrs(oneMonthBack),
@@ -779,7 +788,7 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      filter[" generated_name"] = generated_name;
+      filter["generated_name"] = generated_name;
     }
 
     if (endTime) {

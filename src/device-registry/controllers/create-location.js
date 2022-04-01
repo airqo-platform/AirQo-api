@@ -1,11 +1,10 @@
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
-const { tryCatchErrors, badRequest } = require("../utils/errors");
+const errors = require("../utils/errors");
 const createLocationUtil = require("../utils/create-location");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-location-controller");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const createLocation = {
   register: async (req, res) => {
@@ -17,10 +16,10 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -58,7 +57,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createLocation controller");
+      errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
 
@@ -73,10 +72,10 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -107,7 +106,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createLocation controller");
+      errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
 
@@ -120,10 +119,10 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["body"] = body;
@@ -157,7 +156,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createLocation controller");
+      errors.tryCatchErrors(res, errors, "createLocation controller");
     }
   },
 
@@ -170,10 +169,10 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -207,7 +206,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "create location controller");
+      errors.tryCatchErrors(res, errors, "create location controller");
     }
   },
 
@@ -221,10 +220,10 @@ const createLocation = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -256,7 +255,7 @@ const createLocation = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "manageLocation controller");
+      errors.tryCatchErrors(res, errors, "manageLocation controller");
     }
   },
 };

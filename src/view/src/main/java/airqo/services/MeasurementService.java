@@ -18,7 +18,7 @@ public interface MeasurementService {
 
 	Page<Measurement> apiGetMeasurements(Predicate predicate, Pageable pageable);
 
-	List<Insight> getInsightsBefore(Date beforeTime);
+	List<Insight> getForecastInsightsBefore(Date beforeTime);
 
 	void saveInsights(List<Insight> insights);
 

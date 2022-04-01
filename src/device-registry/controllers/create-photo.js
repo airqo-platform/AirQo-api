@@ -1,25 +1,10 @@
-const uploadImages = require("../utils/upload-images");
-const fs = require("fs");
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
-const {
-  tryCatchErrors,
-  missingQueryParams,
-  badRequest,
-} = require("../utils/errors");
-const getDetail = require("../utils/get-device-details");
-const isEmpty = require("is-empty");
-const {
-  updateThingBodies,
-  getChannelID,
-} = require("../utils/does-device-exist");
-const updateDeviceUtil = require("../utils/update-device");
+const errors = require("../utils/errors");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-photo-controller");
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const createPhotoUtil = require("../utils/create-photo");
-const { registerDeviceUtil } = require("../utils/create-device");
 
 const processImage = {
   create: async (req, res) => {
@@ -31,10 +16,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -85,10 +70,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -134,10 +119,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -187,10 +172,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -236,18 +221,27 @@ const processImage = {
   createPhotoOnPlatform: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();
+      logElement("hasErrors", hasErrors);
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
+      const { tenant } = query;
+      const { image_url, device_name, device_id } = body;
+
       let request = {};
-      request["body"] = body;
-      request["query"] = query;
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["image_url"] = image_url;
+      request["body"]["device_name"] = device_name;
+      request["body"]["device_id"] = device_id;
+      request["query"]["tenant"] = tenant;
+
       const responseFromCreatePhotoOnPlatform = await createPhotoUtil.createPhotoOnPlatform(
         request
       );
@@ -259,14 +253,13 @@ const processImage = {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
           : HTTPStatus.OK;
+        const data = responseFromCreatePhotoOnPlatform.data;
         res.status(status).json({
           success: true,
           message: responseFromCreatePhotoOnPlatform.message,
-          created_photo: responseFromCreatePhotoOnPlatform.data,
+          created_photo: data,
         });
-      }
-
-      if (responseFromCreatePhotoOnPlatform.success === false) {
+      } else if (responseFromCreatePhotoOnPlatform.success === false) {
         const status = responseFromCreatePhotoOnPlatform.status
           ? responseFromCreatePhotoOnPlatform.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -292,10 +285,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -348,10 +341,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -405,10 +398,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -460,10 +453,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -515,10 +508,10 @@ const processImage = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { body, query } = req;
@@ -565,40 +558,6 @@ const processImage = {
           message: error.message,
         },
       });
-    }
-  },
-
-  /**
-   ******************** legacy ***************************************
-   */
-  uploadManyPhotosOnCloudinary: async (req, res) => {
-    try {
-      const { tenant } = req.query;
-
-      if (tenant) {
-        const uploader = async (path) => {
-          await uploadImages.uploads(path, "Images");
-        };
-        const urls = [];
-        const files = req.files;
-
-        for (const file of files) {
-          const { path } = file;
-          const newPath = await uploader(path);
-          urls.push(newPath);
-          fs.unlinkSync(path);
-        }
-
-        res.status(HTTPStatus.OK).json({
-          success: true,
-          message: "images uploaded successfully",
-          data: urls,
-        });
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(e, req, res);
     }
   },
 };

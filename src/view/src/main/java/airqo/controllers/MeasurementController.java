@@ -58,6 +58,7 @@ public class MeasurementController {
 		return ResponseEntity.ok(measurements);
 	}
 
+	@Deprecated
 	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsights(
 		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {

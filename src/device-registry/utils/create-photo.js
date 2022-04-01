@@ -7,8 +7,9 @@ const constants = require("../config/constants");
 const cloudinary = require("../config/cloudinary");
 const { logObject, logElement, logText } = require("./log");
 const generateFilter = require("./generate-filter");
-const jsonify = require("../utils/jsonify");
-const { tryCatchErrors } = require("./errors");
+const log4js = require("log4js");
+const logger = log4js.getLogger("create-photo-util");
+const { kafkaProducer } = require("../config/kafkajs");
 
 const createPhoto = {
   /*************** general ****************************** */
@@ -700,9 +701,7 @@ const createPhoto = {
           status,
           data,
         };
-      }
-
-      if (responseFromModifyPhoto.success === false) {
+      } else if (responseFromModifyPhoto.success === false) {
         const status = responseFromModifyPhoto.status
           ? responseFromModifyPhoto.status
           : "";
@@ -732,11 +731,12 @@ const createPhoto = {
     try {
       let { body, query } = request;
       let { tenant } = query;
-      let { image_url, device_name } = body;
+      let { image_url, device_name, device_id } = body;
       let requestForImageIdExtraction = {};
       requestForImageIdExtraction["body"] = {};
       requestForImageIdExtraction["query"] = {};
       requestForImageIdExtraction["query"]["device_name"] = device_name;
+      requestForImageIdExtraction["query"]["device_id"] = device_id;
       requestForImageIdExtraction["body"]["image_urls"] = [];
       requestForImageIdExtraction["body"]["image_urls"].push(image_url);
       const responseFromExtractImage = await createPhoto.extractImageIds(
@@ -751,9 +751,7 @@ const createPhoto = {
         modifiedRequestBody["metadata"] = {};
         modifiedRequestBody["metadata"]["public_id"] = photoId[0];
         modifiedRequestBody["metadata"]["url"] = image_url;
-      }
-
-      if (responseFromExtractImage.success === false) {
+      } else if (responseFromExtractImage.success === false) {
         logObject("responseFromExtractImage", responseFromExtractImage);
         return {
           success: false,
@@ -772,19 +770,33 @@ const createPhoto = {
       logObject("responseFromRegisterPhoto", responseFromRegisterPhoto);
 
       if (responseFromRegisterPhoto.success === true) {
+        let data = responseFromRegisterPhoto.data;
+
+        try {
+          await kafkaProducer.send({
+            topic: constants.PHOTOS_TOPIC,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(responseFromRegisterPhoto.data),
+              },
+            ],
+          });
+        } catch (error) {
+          logObject("error on kafka", error.message);
+        }
+
         let status = responseFromRegisterPhoto.status
           ? responseFromRegisterPhoto.status
           : "";
-        let data = jsonify(responseFromRegisterPhoto.data);
+
         return {
           success: true,
           message: responseFromRegisterPhoto.message,
           status,
           data,
         };
-      }
-
-      if (responseFromRegisterPhoto.success === false) {
+      } else if (responseFromRegisterPhoto.success === false) {
         let status = responseFromRegisterPhoto.status
           ? responseFromRegisterPhoto.status
           : "";
