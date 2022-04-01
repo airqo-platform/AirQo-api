@@ -17,6 +17,16 @@ class Config:
     BIGQUERY_ANALYTICS_TABLE = os.getenv("BIGQUERY_ANALYTICS_TABLE")
     BIGQUERY_RAW_EVENTS_TABLE = os.getenv("BIGQUERY_RAW_EVENTS_TABLE")
 
+    BIGQUERY_HOURLY_EVENTS_TABLE_SCHEMA = os.getenv(
+        "BIGQUERY_HOURLY_EVENTS_TABLE_SCHEMA", "measurements.json"
+    )
+    BIGQUERY_HOURLY_WEATHER_TABLE_SCHEMA = os.getenv(
+        "BIGQUERY_HOURLY_WEATHER_TABLE_SCHEMA", "weather_data.json"
+    )
+    BIGQUERY_ANALYTICS_TABLE_SCHEMA = os.getenv(
+        "BIGQUERY_ANALYTICS_TABLE_SCHEMA", "data_warehouse.json"
+    )
+
     POST_EVENTS_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
     POST_WEATHER_BODY_SIZE = os.getenv("POST_EVENTS_BODY_SIZE", 10)
     CALIBRATE_REQUEST_BODY_SIZE = os.getenv("CALIBRATE_REQUEST_BODY_SIZE", 10)
@@ -38,6 +48,12 @@ class Config:
     CALIBRATION_BASE_URL = os.getenv("CALIBRATION_BASE_URL")
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
+
+    GOOGLE_APPLICATION_CREDENTIALS = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+    APP_USERS_DATABASE = os.getenv("APP_USERS_DATABASE")
+    APP_NOTIFICATIONS_TEMPLATE = os.getenv(
+        "APP_NOTIFICATIONS_TEMPLATE", "app_notification_template.json"
+    )
 
 
 configuration = Config()

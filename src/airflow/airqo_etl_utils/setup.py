@@ -21,6 +21,7 @@ setup(
         "kafka-python",
         "numpy",
         "google-cloud-bigquery",
+        "firebase-admin",
     ],
     keywords=["python", "airflow", "AirQo"],
     license="MIT",

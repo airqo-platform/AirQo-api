@@ -202,6 +202,25 @@ def insights_forecast():
     )
 
 
+def app_notifications():
+    from airqo_etl_utils.app_messaging_utils import (
+        get_notifications_recipients,
+        get_notification_template,
+        create_notification_messages,
+    )
+
+    recipients = get_notifications_recipients()
+    pd.DataFrame(recipients).to_csv(path_or_buf="app_recipients.csv", index=False)
+
+    message_template = get_notification_template()
+    print(message_template)
+
+    notifications = create_notification_messages(
+        template=message_template, recipients=recipients
+    )
+    print(notifications)
+
+
 def insights_daily_insights(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.app_insights_utils import (
         query_insights_data,
@@ -312,6 +331,9 @@ if __name__ == "__main__":
 
     elif action == "forecast_insights_data":
         insights_forecast()
+
+    elif action == "app_notifications":
+        app_notifications()
 
     else:
         raise Exception("Invalid arguments")

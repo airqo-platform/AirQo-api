@@ -1,11 +1,9 @@
-import os
-
 import pandas as pd
 from google.cloud import bigquery
-from airqo_etl_utils.config import configuration
-import json
 
+from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.utils import get_file_content
 
 
 class BigQueryApi:
@@ -14,7 +12,6 @@ class BigQueryApi:
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
-        self.package_directory, _ = os.path.split(__file__)
 
         self.analytics_numeric_columns = self.get_column_names(
             table=self.analytics_table, data_type="FLOAT"
@@ -59,23 +56,16 @@ class BigQueryApi:
 
     def get_column_names(self, table: str, data_type="") -> list:
         if table == self.hourly_measurements_table:
-            schema_path = "schema/measurements.json"
-            schema = "measurements.json"
+            schema_file = configuration.BIGQUERY_HOURLY_EVENTS_TABLE_SCHEMA
         elif table == self.hourly_weather_table:
-            schema_path = "schema/weather_data.json"
-            schema = "weather_data.json"
+            schema_file = configuration.BIGQUERY_HOURLY_WEATHER_TABLE_SCHEMA
         elif table == self.analytics_table:
-            schema_path = "schema/data_warehouse.json"
-            schema = "data_warehouse.json"
+            schema_file = configuration.BIGQUERY_ANALYTICS_TABLE_SCHEMA
         else:
             raise Exception("Invalid table")
 
-        try:
-            schema_file = open(os.path.join(self.package_directory, schema_path))
-        except FileNotFoundError:
-            schema_file = open(os.path.join(self.package_directory, schema))
+        schema = get_file_content(file_name=schema_file)
 
-        schema = json.load(schema_file)
         columns = []
         if data_type:
             for column in schema:
