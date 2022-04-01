@@ -426,9 +426,6 @@ const createEvent = {
         .post(constants.ADD_VALUE_JSON, requestBody)
         .then(function(response) {
           let resp = {};
-          resp.channel_id = response.data.channel_id;
-          resp.created_at = response.data.created_at;
-          resp.entry_id = response.data.entry_id;
           if (isEmpty(response.data)) {
             return {
               success: false,
@@ -439,7 +436,10 @@ const createEvent = {
                 message: "likely a duplicate value or system conflict",
               },
             };
-          } else {
+          } else if (!isEmpty(response.data)) {
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
             return {
               message: "successfully transmitted the data",
               success: true,
@@ -452,11 +452,11 @@ const createEvent = {
             success: false,
             message: "Server Error",
             errors: {
-              message: error.response.data.error
+              message: error.response
                 ? error.response.data.error.details
                 : "No active internet connection",
             },
-            status: error.response.data
+            status: error.response
               ? error.response.data.status
               : HTTPStatus.INTERNAL_SERVER_ERROR,
           };
@@ -525,23 +525,35 @@ const createEvent = {
       return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
-          let output = JSON.parse(response.config.data).updates;
-          return {
-            message: "successfully transmitted the data",
-            success: true,
-            data: output,
-          };
+          if (isEmpty(response)) {
+            return {
+              success: false,
+              message: "successful operation but no data sent",
+              status: HTTPStatus.CONFLICT,
+              errors: {
+                message: "likely duplicate values or system conflicts",
+              },
+            };
+          } else if (!isEmpty(response)) {
+            let output = JSON.parse(response.config.data).updates;
+            return {
+              message: "successfully transmitted the data",
+              success: true,
+              data: output,
+              status: HTTPStatus.OK,
+            };
+          }
         })
         .catch(function(error) {
           return {
             success: false,
             message: "Server Error",
             errors: {
-              message: error.response.data.error
+              message: error.response
                 ? error.response.data.error.details
                 : "No active internet connection",
             },
-            status: error.response.data
+            status: error.response
               ? error.response.data.status
               : HTTPStatus.INTERNAL_SERVER_ERROR,
           };
