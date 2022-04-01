@@ -8,6 +8,8 @@ const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
 const privileges = require("../utils/privileges");
+const { roles } = require("../utils/roles");
+const isEmpty = require("is-empty");
 const {
   axiosError,
   tryCatchErrors,
@@ -277,6 +279,37 @@ const requiresSignIn = expressJwt({
   userProperty: "auth",
 });
 
+const grantAccess = function (action, resource) {
+  return async (req, res, next) => {
+    try {
+      const permission = roles.can(req.user.privilege)[action](resource);
+      if (!permission.granted) {
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          message: "You don't have enough permission to perform this action",
+          success: false,
+        });
+      }
+      next();
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
+const allowIfLoggedin = async (req, res, next) => {
+  try {
+    const user = res.locals.loggedInUser;
+    if (!user)
+      return res.status(401).json({
+        error: "You need to be logged in to access this route",
+      });
+    req.user = user;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   setLocalAuth: setLocalAuth,
   authLocal: authLocal,
@@ -285,4 +318,6 @@ module.exports = {
   authColabLocal: authColabLocal,
   isLoggedIn: isLoggedIn,
   requiresSignIn: requiresSignIn,
+  grantAccess: grantAccess,
+  allowIfLoggedin: allowIfLoggedin,
 };

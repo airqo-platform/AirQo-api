@@ -5,6 +5,7 @@ const requestController = require("../controllers/request");
 const defaultsController = require("../controllers/defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
+const { grantAccess } = require("../services/auth");
 
 const {
   setJWTAuth,
@@ -520,6 +521,7 @@ router.get(
   ]),
   setJWTAuth,
   authJWT,
+  grantAccess("readAny", "users"),
   requestController.list
 );
 router.post(
