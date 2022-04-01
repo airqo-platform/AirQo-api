@@ -65,7 +65,7 @@ python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
 ### Prerequisites
 
 - Docker
-- Docker compose
+- Docker compose (>= v1.29.2)
 - You have set up your environment following the [Environment Setup](#environment-setup)  instructions.
 
 ### Starting all containers

@@ -16,12 +16,12 @@ def app_notifications_etl():
     @task(multiple_outputs=True)
     def extract_notifications_recipients():
         from airqo_etl_utils.app_messaging_utils import (
-            get_notifications_recipients,
+            get_notification_recipients,
         )
 
         from airqo_etl_utils.commons import fill_nan
 
-        recipients = get_notifications_recipients()
+        recipients = get_notification_recipients()
 
         return dict({"data": fill_nan(data=recipients)})
 
@@ -44,7 +44,7 @@ def app_notifications_etl():
             create_notification_messages,
         )
 
-        message_template = un_fill_nan(message_template_data.get("data"))
+        message_template = message_template_data.get("data")
         recipients = un_fill_nan(recipients_data.get("data"))
 
         notifications = create_notification_messages(
@@ -54,11 +54,13 @@ def app_notifications_etl():
         return dict({"data": fill_nan(data=notifications)})
 
     @task()
-    def load(data: dict):
+    def send_notifications(data: dict):
         from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.app_messaging_utils import send_notification_messages
 
         messages = un_fill_nan(data.get("data"))
-        print(messages)
+        print(f"Messages to be sent : {len(messages)}")
+        send_notification_messages(messages=messages)
 
     recipients_result = extract_notifications_recipients()
     notification_template_result = extract_notification_template()
@@ -66,7 +68,7 @@ def app_notifications_etl():
         message_template_data=notification_template_result,
         recipients_data=recipients_result,
     )
-    load(data=notifications_result)
+    send_notifications(data=notifications_result)
 
 
 app_notifications_etl_dag = app_notifications_etl()

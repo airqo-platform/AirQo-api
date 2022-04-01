@@ -204,12 +204,12 @@ def insights_forecast():
 
 def app_notifications():
     from airqo_etl_utils.app_messaging_utils import (
-        get_notifications_recipients,
+        get_notification_recipients,
         get_notification_template,
         create_notification_messages,
     )
 
-    recipients = get_notifications_recipients()
+    recipients = get_notification_recipients()
     pd.DataFrame(recipients).to_csv(path_or_buf="app_recipients.csv", index=False)
 
     message_template = get_notification_template()

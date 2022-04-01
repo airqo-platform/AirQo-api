@@ -1,15 +1,16 @@
-import json
-import os
+import datetime
 import random
+import traceback
 
 import firebase_admin
-from firebase_admin import credentials
+from firebase_admin import credentials, messaging
 from firebase_admin import firestore
+
 from airqo_etl_utils.config import configuration
 from airqo_etl_utils.utils import get_file_content
 
 
-def get_notifications_recipients() -> list:
+def get_notification_recipients() -> list:
 
     cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
     firebase_admin.initialize_app(cred)
@@ -60,3 +61,34 @@ def create_notification_messages(template: list, recipients: list) -> list:
             messages.append({"device": recipient.get("device"), "message": message})
 
     return messages
+
+
+def send_notification_messages(messages: list):
+
+    cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
+    firebase_admin.initialize_app(cred)
+
+    notifications = []
+    for message in messages:
+
+        notification = messaging.Message(
+            notification=messaging.Notification(
+                title="AirQo", body=message.get("message")
+            ),
+            token=message.get("device"),
+            android=messaging.AndroidConfig(
+                ttl=datetime.timedelta(seconds=3600),
+                priority="normal"
+            ),
+        )
+        notifications.append(notification)
+
+    for i in range(0, len(notifications), 500):
+        messages = notifications[i : i + 500]
+
+        try:
+            response = messaging.send_all(messages)
+            print("{0} messages were sent successfully".format(response.success_count))
+        except Exception as ex:
+            print(ex)
+            traceback.print_exc()
