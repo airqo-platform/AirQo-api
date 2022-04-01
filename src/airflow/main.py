@@ -179,7 +179,19 @@ def insights_forecast():
     from airqo_etl_utils.app_insights_utils import (
         create_insights_data,
         get_forecast_data,
+        transform_old_forecast,
     )
+
+    from airqo_etl_utils.date import date_to_str, first_day_of_week, first_day_of_month
+
+    now = datetime.now()
+    start_date_time = date_to_str(first_day_of_week(first_day_of_month(date_time=now)))
+    end_date_time = date_to_str(now)
+
+    old_forecast = transform_old_forecast(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    pd.DataFrame(old_forecast).to_csv(path_or_buf="old_forecast_data.csv", index=False)
 
     forecast_data = get_forecast_data("airqo")
     pd.DataFrame(forecast_data).to_csv(path_or_buf="forecast_data.csv", index=False)

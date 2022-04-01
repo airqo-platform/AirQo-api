@@ -56,22 +56,18 @@ public class MessageBroker {
 
 			Message<Insight> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
 			});
-			log.info(dataMessage.toString());
-			List<Insight> insights = dataMessage.getData();
+			log.info(String.format("Received Insights : %s", dataMessage.getData().size()));
 
-			List<Insight> insightsList = new ArrayList<>();
-			for (Insight insight : insights) {
-				insight.setId();
-				insightsList.add(insight);
-			}
+			List<Insight> data = dataMessage.getData();
+			List<Insight> insights = data.stream().map(Insight::setId).collect(Collectors.toList());
+			List<Insight> emptyInsights = insights.stream().filter(Insight::getEmpty).collect(Collectors.toList());
+			List<Insight> availableInsights = insights.stream().filter(insight -> !insight.getEmpty()).collect(Collectors.toList());
 
-			if (dataMessage.getAction() == null || dataMessage.getAction().equals(MessageAction.SAVE)) {
-				measurementService.saveInsights(insightsList);
-			} else {
-				measurementService.insertInsights(insightsList);
-			}
+			log.info(String.format("Empty Insights : %s", emptyInsights.size()));
+			log.info(String.format("Available Insights : %s", availableInsights.size()));
 
-			log.info("{}", insightsList);
+			measurementService.insertInsights(emptyInsights);
+			measurementService.saveInsights(availableInsights);
 
 		} catch (JsonProcessingException e) {
 			Sentry.captureException(e);
