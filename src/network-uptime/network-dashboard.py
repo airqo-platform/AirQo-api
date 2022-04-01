@@ -3,7 +3,6 @@ import pandas as pd
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
-import pymongo
 import requests
 import streamlit as st
 
