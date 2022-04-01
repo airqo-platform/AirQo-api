@@ -30,6 +30,9 @@ spec:
           ports:
             - containerPort: 8501
               name: sta-network-uptime
+          envFrom:
+            - configMapRef:
+              name: env-network-uptime-staging
           # readinessProbe:
           #   httpGet:
           #     path: /health
