@@ -21,6 +21,8 @@ spec:
     metadata:
       labels:
         app: prod-airqo-tahmo-values-stream
+      annotations:
+        sidecar.istio.io/inject: "false"
     spec:
       containers:
         - name: prod-airqo-tahmo-values-stream
@@ -36,10 +38,5 @@ spec:
           envFrom:
             - configMapRef:
                 name: prod-tahmo-streams-config
-          # env:
-          #   - name: tahmo.api.key
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: prod-tahmo-streams-secrets
-          #         key: tahmo.api.key
-
+            # - secretRef:
+            #     name: prod-tahmo-streams-secrets

@@ -9,7 +9,6 @@ from flask_excel import init_excel
 from flask_restx import Api
 from flask_caching import Cache
 from flask_cors import CORS
-from decouple import config as env_config
 from marshmallow import ValidationError as MarshmallowValidationError
 
 # middlewares
@@ -17,10 +16,9 @@ from api.middlewares import middleware_blueprint
 from api.middlewares.base_validator import ValidationError
 
 # Config
-from config import config
+from config import BASE_URL, CONFIGURATIONS
 
-config_name = env_config('FLASK_ENV', 'production')
-rest_api = Api(prefix='/api/v1/analytics', doc=False)
+rest_api = Api(prefix=BASE_URL, doc=False)
 cache = Cache()
 
 
@@ -30,7 +28,7 @@ def initialize_blueprints(application):
     application.register_blueprint(middleware_blueprint)
 
 
-def create_app(rest_api, config=config[config_name]):
+def create_app(rest_api, config=CONFIGURATIONS):
     """creates a flask app object from a config object"""
 
     app = Flask(__name__)

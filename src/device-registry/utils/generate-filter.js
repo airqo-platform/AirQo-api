@@ -8,7 +8,6 @@ const {
 } = require("./date");
 const mongoose = require("mongoose");
 const ObjectId = mongoose.Types.ObjectId;
-
 const { logElement, logObject, logText } = require("./log");
 const log4js = require("log4js");
 const logger = log4js.getLogger("generate-filter-util");
@@ -27,7 +26,9 @@ const generateFilter = {
     frequency,
     startTime,
     endTime,
-    metadata
+    metadata,
+    external,
+    tenant
   ) => {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
@@ -50,6 +51,17 @@ const generateFilter = {
 
     if (metadata) {
       filter["metadata"] = metadata;
+    }
+
+    if (external) {
+      filter["external"] = external;
+    }
+    if (!external) {
+      filter["external"] = "yes";
+    }
+
+    if (tenant) {
+      filter["tenant"] = tenant;
     }
 
     if (startTime) {
@@ -140,7 +152,6 @@ const generateFilter = {
         }
         return value;
       });
-      logObject("the modifiedDeviceArray ", modifiedDeviceArray);
       let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
       filter["values.device"]["$in"] = mergedArray;
     }
@@ -197,6 +208,11 @@ const generateFilter = {
      */
     if (frequency) {
       filter["values.frequency"] = frequency;
+      filter["frequency"] = frequency;
+    }
+    if (!frequency) {
+      filter["values.frequency"] = "hourly";
+      filter["frequency"] = "hourly";
     }
 
     return filter;
@@ -204,6 +220,7 @@ const generateFilter = {
 
   events_v2: (request) => {
     try {
+      const { query } = request;
       const {
         device,
         device_number,
@@ -213,21 +230,46 @@ const generateFilter = {
         endTime,
         device_id,
         site_id,
-      } = request.query;
+        external,
+        metadata,
+        tenant,
+        recent,
+        page,
+      } = query;
+
       let oneMonthBack = monthsInfront(-1);
       let oneMonthInfront = monthsInfront(1);
       let today = monthsInfront(0);
       let oneWeekBack = addDays(-7);
       let oneWeekInfront = addDays(7);
       let filter = {
+        day: {
+          $gte: generateDateFormatWithoutHrs(oneWeekBack),
+          $lte: generateDateFormatWithoutHrs(today),
+        },
         "values.time": { $gte: oneWeekBack, $lte: today },
-        device_id: {},
-        site_id: {},
-        site: {},
-        device: {},
-        device_number: {},
+        "values.device": {},
+        "values.site": {},
+        "values.device_id": {},
+        "values.site_id": {},
         "values.device_number": {},
+        device_number: {},
       };
+
+      if (metadata) {
+        filter["metadata"] = metadata;
+      }
+
+      if (external) {
+        filter["external"] = external;
+      }
+      if (!external) {
+        filter["external"] = "yes";
+      }
+
+      if (tenant) {
+        filter["tenant"] = tenant;
+      }
 
       if (startTime) {
         if (isTimeEmpty(startTime) == false) {
@@ -236,6 +278,7 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(startTime);
       }
 
       if (endTime) {
@@ -245,6 +288,7 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        filter["day"]["$lte"] = generateDateFormatWithoutHrs(endTime);
       }
 
       if (startTime && !endTime) {
@@ -256,6 +300,13 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        let addedOneMonthToProvidedDateTime = addMonthsToProvideDateTime(
+          startTime,
+          1
+        );
+        filter["day"]["$lte"] = generateDateFormatWithoutHrs(
+          addedOneMonthToProvidedDateTime
+        );
       }
 
       if (!startTime && endTime) {
@@ -267,6 +318,13 @@ const generateFilter = {
         } else {
           delete filter["values.time"];
         }
+        let removedOneMonthFromProvidedDateTime = addMonthsToProvideDateTime(
+          endTime,
+          -1
+        );
+        filter["day"]["$gte"] = generateDateFormatWithoutHrs(
+          removedOneMonthFromProvidedDateTime
+        );
       }
 
       if (startTime && endTime) {
@@ -291,41 +349,35 @@ const generateFilter = {
         }
       }
       /**
-       * the unique site and device ids
-       */
-      if (device_id) {
-        let deviceIdArray = device_id.split(",");
-        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
-          return ObjectId(device_id);
-        });
-        filter["device_id"]["$in"] = modifiedDeviceIdArray;
-      }
-
-      if (!device_id) {
-        delete filter["device_id"];
-      }
-
-      if (site_id) {
-        let siteIdArray = site_id.split(",");
-        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
-          return ObjectId(site_id);
-        });
-        filter["site_id"]["$in"] = modifiedSiteIdArray;
-      }
-
-      if (!site_id) {
-        delete filter["site_id"];
-      }
-      /**
-       * the unique site and device names
+       * unique names for sites and devices
        */
       if (device) {
         let deviceArray = device.split(",");
-        filter["device"]["$in"] = deviceArray;
+        let modifiedDeviceArray = deviceArray.map((value) => {
+          if (isLowerCase(value)) {
+            return value.toUpperCase();
+          }
+          if (!isLowerCase(value)) {
+            return value.toLowerCase();
+          }
+          return value;
+        });
+        let mergedArray = [].concat(modifiedDeviceArray, deviceArray);
+        filter["values.device"]["$in"] = mergedArray;
+        filter["device"] = true;
       }
 
       if (!device) {
-        delete filter["device"];
+        delete filter["values.device"];
+        filter["device"] = false;
+      }
+
+      if (device && !recent && (!external || external === "yes")) {
+        filter["recent"] = "no";
+      }
+
+      if (page) {
+        filter["page"] = page;
       }
 
       if (device_number) {
@@ -340,19 +392,52 @@ const generateFilter = {
       }
 
       if (site) {
-        let siteArray = site.split(",");
-        filter["site"]["$in"] = siteArray;
+        let deviceArray = site.split(",");
+        filter["values.site"]["$in"] = deviceArray;
       }
 
       if (!site) {
-        delete filter["site"];
+        delete filter["values.site"];
+      }
+
+      /**
+       * unique ids for devices and sites
+       */
+      if (device_id) {
+        let deviceIdArray = device_id.split(",");
+        let modifiedDeviceIdArray = deviceIdArray.map((device_id) => {
+          return ObjectId(device_id);
+        });
+        filter["values.device_id"]["$in"] = modifiedDeviceIdArray;
+      }
+      if (!device_id) {
+        delete filter["values.device_id"];
+      }
+      if (site_id) {
+        let siteIdArray = site_id.split(",");
+        let modifiedSiteIdArray = siteIdArray.map((site_id) => {
+          return ObjectId(site_id);
+        });
+        filter["values.site_id"]["$in"] = modifiedSiteIdArray;
+      }
+      if (!site_id) {
+        delete filter["values.site_id"];
       }
       /**
-       * end unique site and device names
+       * ends unique site and device ids
        */
 
       if (frequency) {
+        filter["values.frequency"] = frequency;
         filter["frequency"] = frequency;
+      }
+      if (!frequency) {
+        filter["values.frequency"] = "hourly";
+        filter["frequency"] = "hourly";
+      }
+
+      if (recent) {
+        filter["recent"] = recent;
       }
 
       return {
@@ -364,7 +449,7 @@ const generateFilter = {
       return {
         success: false,
         message: "unable to generate the filter",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -385,14 +470,11 @@ const generateFilter = {
     let filter = {};
 
     if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
+      filter["name"] = name;
     }
 
     if (channel) {
-      filter["channelID"] = channel;
+      filter["device_number"] = channel;
     }
 
     if (location) {
@@ -400,17 +482,11 @@ const generateFilter = {
     }
 
     if (siteName) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        siteName
-      );
-      filter["siteName"] = { $regex: regexExpression, $options: "i" };
+      filter["siteName"] = siteName;
     }
 
     if (mapAddress) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        mapAddress
-      );
-      filter["locationName"] = { $regex: regexExpression, $options: "i" };
+      filter["locationName"] = mapAddress;
     }
 
     if (primary) {
@@ -432,7 +508,7 @@ const generateFilter = {
       } else {
       }
     }
-
+    logObject("the filter we are sending", filter);
     return filter;
   },
   devices: (req) => {
@@ -452,6 +528,7 @@ const generateFilter = {
         site,
         site_id,
         id,
+        device_name,
         device_id,
         device_number,
       } = req.query;
@@ -463,8 +540,15 @@ const generateFilter = {
         filter["name"] = name;
       }
 
+      if (device_name) {
+        // let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
+        //   name
+        // );
+        filter["name"] = device_name;
+      }
+
       if (channel) {
-        filter["channelID"] = channel;
+        filter["device_number"] = channel;
       }
 
       if (device_number) {
@@ -480,7 +564,7 @@ const generateFilter = {
       }
 
       if (chid) {
-        filter["channelID"] = chid;
+        filter["device_number"] = chid;
       }
 
       if (location) {
@@ -498,24 +582,15 @@ const generateFilter = {
       }
 
       if (siteName) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          siteName
-        );
-        filter["siteName"] = { $regex: regexExpression, $options: "i" };
+        filter["siteName"] = siteName;
       }
 
       if (mapAddress) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          mapAddress
-        );
-        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+        filter["locationName"] = mapAddress;
       }
 
       if (map) {
-        let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-          map
-        );
-        filter["locationName"] = { $regex: regexExpression, $options: "i" };
+        filter["locationName"] = map;
       }
 
       if (primary) {
@@ -570,17 +645,11 @@ const generateFilter = {
     let filter = {};
 
     if (name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        name
-      );
-      filter["name"] = { $regex: regexExpression, $options: "i" };
+      filter["name"] = name;
     }
 
     if (county) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        county
-      );
-      filter["county"] = { $regex: regexExpression, $options: "i" };
+      filter["county"] = county;
     }
 
     if (lat_long) {
@@ -592,58 +661,37 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        generated_name
-      );
-      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+      filter["generated_name"] = generated_name;
     }
 
     if (district) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        district
-      );
-      filter["district"] = { $regex: regexExpression, $options: "i" };
+      filter["district"] = district;
     }
 
     if (region) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        region
-      );
-      filter["region"] = { $regex: regexExpression, $options: "i" };
+      filter["region"] = region;
     }
 
     if (city) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        city
-      );
-      filter["city"] = { $regex: regexExpression, $options: "i" };
+      filter["city"] = city;
     }
 
     if (street) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        street
-      );
-      filter["street"] = { $regex: regexExpression, $options: "i" };
+      filter["street"] = street;
     }
 
     if (country) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        country
-      );
-      filter["country"] = { $regex: regexExpression, $options: "i" };
+      filter["country"] = country;
     }
 
     if (parish) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        parish
-      );
-      filter["parish"] = { $regex: regexExpression, $options: "i" };
+      filter["parish"] = parish;
     }
 
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name } = req.query;
+    let { id, name, admin_level } = req.query;
     let filter = {};
 
     if (name) {
@@ -654,6 +702,28 @@ const generateFilter = {
       filter["_id"] = ObjectId(id);
     }
 
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
+
+    return filter;
+  },
+
+  locations: (req) => {
+    let { id, name, admin_level } = req.query;
+    let filter = {};
+
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (name) {
+      filter["name"] = name;
+    }
+
+    if (admin_level) {
+      filter["admin_level"] = admin_level;
+    }
     return filter;
   },
 
@@ -673,7 +743,7 @@ const generateFilter = {
     let oneMonthBack = monthsInfront(-1);
     let oneMonthInfront = monthsInfront(1);
     logElement("defaultStartTime", oneMonthBack);
-    logElement(" defaultEndTime", oneMonthInfront);
+    logElement("defaultEndTime", oneMonthInfront);
     let filter = {
       day: {
         $gte: generateDateFormatWithoutHrs(oneMonthBack),
@@ -688,23 +758,14 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        generated_name
-      );
-      filter["generated_name"] = { $regex: regexExpression, $options: "i" };
+      filter["generated_name"] = generated_name;
     }
 
     if (maintenance_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        maintenance_type
-      );
-      filter["maintenance_type"] = { $regex: regexExpression, $options: "i" };
+      filter["maintenance_type"] = maintenance_type;
     }
     if (activity_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        activity_type
-      );
-      filter["activity_type"] = { $regex: regexExpression, $options: "i" };
+      filter["activity_type"] = activity_type;
     }
     if (activity_tags) {
     }
@@ -727,7 +788,7 @@ const generateFilter = {
     }
 
     if (generated_name) {
-      filter[" generated_name"] = generated_name;
+      filter["generated_name"] = generated_name;
     }
 
     if (endTime) {
@@ -792,16 +853,10 @@ const generateFilter = {
     };
 
     if (maintenance_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        maintenance_type
-      );
-      filter["maintenanceType"] = { $regex: regexExpression, $options: "i" };
+      filter["maintenanceType"] = maintenance_type;
     }
     if (activity_type) {
-      let regexExpression = generateFilter.generateRegexExpressionFromStringElement(
-        activity_type
-      );
-      filter["activityType"] = { $regex: regexExpression, $options: "i" };
+      filter["activityType"] = activity_type;
     }
     if (site_id) {
       filter["site_id"] = ObjectId(site_id);
@@ -819,6 +874,28 @@ const generateFilter = {
 
     if (device) {
       filter["device"] = device;
+    }
+
+    return filter;
+  },
+
+  photos: (request) => {
+    let { id, device_id, device_number, device_name } = request.query;
+    let filter = {};
+    if (id) {
+      filter["_id"] = ObjectId(id);
+    }
+
+    if (device_id) {
+      filter["device_id"] = ObjectId(device_id);
+    }
+
+    if (device_number) {
+      filter["device_number"] = device_number;
+    }
+
+    if (device_name) {
+      filter["device_name"] = device_name;
     }
 
     return filter;

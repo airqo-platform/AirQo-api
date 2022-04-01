@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 import logging
 from helpers.convert_dates import validate_datetime
 from helpers.convert_object_ids import convert_model_ids
+from helpers.utils import str_to_bool
 from models import DeviceStatus, NetworkUptime, DeviceUptime
 import routes
 
@@ -103,5 +104,35 @@ def get_device_uptime():
     result = model.get_device_uptime(start_date, end_date, device_name)
 
     response = dict(message="device uptime query successful", data=result)
+    return jsonify(response), 200
+
+
+@device_status_bp.route(routes.DEVICE_UPTIME_LEADERBOARD, methods=['GET'])
+def get_device_uptime_leaderboard():
+    errors = {}
+    tenant = request.args.get('tenant')
+
+    try:
+        start_date = validate_datetime(request.args.get('startDate'))
+    except Exception:
+        errors['startDate'] = 'This query param is required.' \
+                              'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
+
+    try:
+        end_date = validate_datetime(request.args.get('endDate'))
+    except Exception:
+        errors['endDate'] = 'This query param is required.' \
+                              'Please provide a valid ISO formatted datetime string (%Y-%m-%dT%H:%M:%S.%fZ)'
+
+    if errors:
+        return jsonify({
+            'message': 'Some errors occurred while processing this request',
+            'errors': errors
+        }), 400
+
+    model = DeviceUptime(tenant)
+    result = model.get_uptime_leaderboard(start_date, end_date)
+
+    response = dict(message="uptime leaderboard query successful", data=result)
     return jsonify(response), 200
 

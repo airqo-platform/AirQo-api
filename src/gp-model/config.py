@@ -16,22 +16,37 @@ class Config:
 
 
 class ProductionConfig(Config):
-    DB_NAME = os.getenv("DB_NAME_PROD")
-    MONGO_URI = os.getenv('MONGO_GCE_URI')
+    MONGO_URI_NETMANAGER = os.getenv('MONGO_GCE_URI_NETMANAGER')
+    DB_NAME_NETMANAGER = os.getenv("DB_NAME_PROD_NETMANAGER")
+    MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
+    DB_NAME_DEVICE_REGISTRY = os.getenv("DB_NAME_PROD_DEVICE_REGISTRY")
+    VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_PROD')
+    LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_PROD')
+    EVENTS_URI = os.getenv('EVENTS_URI_PROD')
 
 
 class DevelopmentConfig(Config):
     DEVELOPMENT = True
     DEBUG = True
-    MONGO_URI = os.getenv("MONGO_DEV_URI")
-    DB_NAME = os.getenv("DB_NAME_DEV")
+    MONGO_URI_NETMANAGER = os.getenv('MONGO_DEV_URI_NETMANAGER')
+    DB_NAME_NETMANAGER = os.getenv("DB_NAME_DEV_NETMANAGER")
+    MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_DEV_URI_DEVICE_REGISTRY')
+    DB_NAME_DEVICE_REGISTRY = os.getenv("DB_NAME_DEV_DEVICE_REGISTRY")
+    VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_DEV')
+    LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_DEV')
+    EVENTS_URI = os.getenv('EVENTS_URI_DEV')
 
 
 class TestingConfig(Config):
     DEBUG = True
     TESTING = True
-    MONGO_URI = os.getenv('MONGO_GCE_URI')
-    DB_NAME = os.getenv("DB_NAME_STAGE")
+    DB_NAME_NETMANAGER = os.getenv("DB_NAME_STAGE_NETMANAGER")
+    MONGO_URI_NETMANAGER = os.getenv('MONGO_GCE_URI_NETMANAGER')
+    MONGO_URI_DEVICE_REGISTRY = os.getenv('MONGO_GCE_URI_DEVICE_REGISTRY')
+    DB_NAME_DEVICE_REGISTRY = os.getenv("DB_NAME_STAGE_DEVICE_REGISTRY")
+    VIEW_AIRQLOUD_URI = os.getenv('VIEW_AIRQLOUD_URI_STAGE')
+    LIST_DEVICES_URI = os.getenv('LIST_DEVICES_URI_STAGE')
+    EVENTS_URI = os.getenv('EVENTS_URI_STAGE')
 
 
 app_config = {
@@ -47,7 +62,10 @@ print("ENVIRONMENT", environment or 'staging')
 configuration = app_config.get(environment, TestingConfig)
 
 
-def connect_mongo(tenant):
-    client = MongoClient(configuration.MONGO_URI)
-    db = client[f'{configuration.DB_NAME}_{tenant.lower()}']
+def connect_mongo(tenant, db_host=configuration.MONGO_URI_NETMANAGER):
+    client = MongoClient(db_host)
+    if db_host == configuration.MONGO_URI_NETMANAGER:
+        db = client[configuration.DB_NAME_NETMANAGER]
+    else:
+        db = client[f'{configuration.DB_NAME_DEVICE_REGISTRY}_{tenant.lower()}']
     return db

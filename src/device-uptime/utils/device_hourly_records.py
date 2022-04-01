@@ -58,7 +58,7 @@ class DeviceChannelRecords:
                 time=time,
                 sensor_one_pm2_5=0,
                 sensor_two_pm2_5=0,
-                battery_voltage=0
+                battery_voltage=self.record.get("battery")
             )
 
         return DeviceSensorReadings(

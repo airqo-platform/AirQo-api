@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -102,17 +103,21 @@ public class Utils {
         });
         Date startTime, endTime;
 
-        try {
-
-            if (!(startMeasurement.isPresent() && endMeasurement.isPresent())) {
-                throw new Exception("Not present");
+        if (!(startMeasurement.isPresent() && endMeasurement.isPresent())) {
+            try {
+                throw new Exception("Start and end Measurements are not present");
+            } catch (Exception e) {
+                e.printStackTrace();
+                return deviceMeasurements;
             }
+        }
 
+        try {
             startTime = DateUtils.addHours(dateFormat.parse(startMeasurement.get().getTime().toString()), -interval);
             endTime = dateFormat.parse(endMeasurement.get().getTime().toString());
-        } catch (Exception e) {
+        } catch (ParseException e) {
             e.printStackTrace();
-            return new TransformedDeviceMeasurements();
+            return deviceMeasurements;
         }
 
         StationData stationData = new StationData();

@@ -212,7 +212,11 @@ function setLocalAuth(req, res, next) {
         manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
       );
     }
-    setLocalStrategy(req.query.tenant, req, res, next);
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    setLocalStrategy(tenant, req, res, next);
     next();
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);
@@ -231,7 +235,12 @@ function setJWTAuth(req, res, next) {
         manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
       );
     }
-    setJWTStrategy(req.query.tenant, req, res, next);
+    let tenant = "airqo";
+    if (req.query.tenant) {
+      tenant = req.query.tenant;
+    }
+    logElement("the tenant for the job", tenant);
+    setJWTStrategy(tenant, req, res, next);
     next();
   } catch (e) {
     console.log("the error in setLocalAuth is: ", e.message);

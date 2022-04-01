@@ -1,0 +1,35 @@
+{{- range $i, $val := connectList }}
+---
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnect
+metadata:
+  name: {{ $val.name }}
+  namespace: {{ $val.namespace }}
+  annotations:
+    strimzi.io/use-connector-resources: "true"
+spec:
+  image: "{{ $val.image.repository }}:{{ $val.image.tag }}"
+  replicas: {{ $val.connect.replicas }}
+  bootstrapServers: {{ $val.connect.bootstrapServers }}
+  replicas: {{ $val.connect.replicas }}
+
+  {{- if $val.externalConfiguration -}}
+  externalConfiguration:
+    volumes:
+    {{- range $i, $config := $val.externalConfiguration.volumesConfig }}
+      {{ $key }}: {{ $val }}
+    {{ end -}}
+  {{- end -}}
+
+  config:
+  {{- range $key, $val := $val.connect.config }}
+    {{ $key }}: {{ $val }}
+  {{ end -}}
+
+  template:
+    connectContainer:
+      env:
+        - name: STRIMZI_IMAGE_PULL_POLICY
+          value: {{ $val.image.pullPolicy }}
+
+{{ end -}}

@@ -1,4 +1,4 @@
-from .charts import generate_pie_chart_data
+from .charts import generate_pie_chart_data, d3_generate_pie_chart_data
 from .date import str_date_to_format_str
 from .pm_25 import (
     PM_25_CATEGORY,

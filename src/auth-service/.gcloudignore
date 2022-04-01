@@ -12,6 +12,7 @@
 # below:
 .git
 .gitignore
+Jenkinsfile
 
 # Node.js dependencies:
 node_modules/
