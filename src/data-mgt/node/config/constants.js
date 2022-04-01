@@ -10,9 +10,11 @@ const devConfig = {
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
   GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
-    return `http://localhost:3000/api/v1/devices?tenant=${tenant}&device_number=${channel.trim()}`;
+    return `${
+      process.env.DEVICE_REGISTRY_BASE_URL_DEV
+    }?tenant=${tenant}&device_number=${channel.trim()}`;
   },
-  DECYPT_DEVICE_KEY_URL: "http://localhost:3000/api/v1/devices/decrypt",
+  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_DEV}/decrypt`,
 };
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -21,10 +23,11 @@ const stageConfig = {
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
   GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
-    return `https://staging-platform.airqo.net/api/v1/devices?tenant=${tenant}&device_number=${channel.trim()}`;
+    return `${
+      process.env.DEVICE_REGISTRY_BASE_URL_STAGE
+    }?tenant=${tenant}&device_number=${channel.trim()}`;
   },
-  DECYPT_DEVICE_KEY_URL:
-    "https://staging-platform.airqo.net/api/v1/devices/decrypt",
+  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_STAGE}/decrypt`,
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -33,43 +36,52 @@ const prodConfig = {
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
   GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
-    return `https://platform.airqo.net/api/v1/devices?tenant=${tenant}&device_number=${channel.trim()}`;
+    return `${
+      process.env.DEVICE_REGISTRY_BASE_URL_PROD
+    }?tenant=${tenant}&device_number=${channel.trim()}`;
   },
-  DECYPT_DEVICE_KEY_URL: "https://platform.airqo.net/api/v1/devices/decrypt",
+  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_PROD}/decrypt`,
 };
 const defaultConfig = {
   TS_TEST_CHANNEL: process.env.TS_TEST_CHANNEL,
   TS_API_KEY_TEST_DEVICE: process.env.TS_API_KEY_TEST_DEVICE,
-  GET_CHANNELS_CACHE_EXPIRATION: 300,
-  GET_LAST_ENTRY_CACHE_EXPIRATION: 30,
-  GET_HOURLY_CACHE_EXPIRATION: 3600,
-  GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION: 30,
-  GET_CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION: 30,
-  GET_LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION: 30,
-  GET_DEVICE_COUNT_CACHE_EXPIRATION: 300,
+  GET_CHANNELS_CACHE_EXPIRATION: process.env.GET_CHANNELS_CACHE_EXPIRATION,
+  GET_LAST_ENTRY_CACHE_EXPIRATION: process.env.GET_LAST_ENTRY_CACHE_EXPIRATION,
+  GET_HOURLY_CACHE_EXPIRATION: process.env.GET_HOURLY_CACHE_EXPIRATION,
+  GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION:
+    process.env.DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION,
+  GET_CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION:
+    process.env.CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION,
+  GET_LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION:
+    process.env.LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION,
+  GET_DEVICE_COUNT_CACHE_EXPIRATION: process.env.DEVICE_COUNT_CACHE_EXPIRATION,
   PORT: process.env.PORT || 3000,
-  API_URL_CHANNELS: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  API_URL_CHANNELS: `${process.env.THINGSPEAK_BASE_URL}/channels.json?api_key=${process.env.TS_API_KEY}`,
   GET_LAST_FIELD_ENTRY_AGE: (channel, field) => {
-    return `https://api.thingspeak.com/channels/${channel.trim()}/fields/${field.trim()}/last_data_age.json`;
+    return `${
+      process.env.THINGSPEAK_BASE_URL
+    }/channels/${channel.trim()}/fields/${field.trim()}/last_data_age.json`;
   },
   GET_CHANNEL_LAST_ENTRY_AGE: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel.trim()}/feeds/last_data_age.json`;
+    return `${
+      process.env.THINGSPEAK_BASE_URL
+    }/channels/${channel.trim()}/feeds/last_data_age.json`;
   },
-  THINGSPEAK_BASE_URL: "https://api.thingspeak.com/channels",
+  THINGSPEAK_BASE_URL: process.env.THINGSPEAK_BASE_URL,
   READ_DEVICE_FEEDS: ({
     channel = process.env.TS_TEST_CHANNEL,
     api_key = process.env.TS_API_KEY_TEST_DEVICE,
     start = Date.now(),
     end = Date.now(),
   } = {}) => {
-    return `https://api.thingspeak.com/channels/${channel}/feeds.json?api_key=${api_key}&start=${start}&end=${end}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?api_key=${api_key}&start=${start}&end=${end}`;
   },
   GET_FEEDS: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel}/feeds.json`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json`;
   },
-  GET_CHANNELS: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  GET_CHANNELS: `${process.env.THINGSPEAK_BASE_URL}/channels.json?api_key=${process.env.TS_API_KEY}`,
   GET_HOURLY_FEEDS: (channel) => {
-    return `https://us-central1-airqo-250220.cloudfunctions.net/get_hourly_channel_data?channel_id=${channel}`;
+    return `${process.env.CLOUD_FUNCTIONS_BASE_URL}/get_hourly_channel_data?channel_id=${channel}`;
   },
   GET_GPS: (channel) => {
     return `${channel}`;
