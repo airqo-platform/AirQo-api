@@ -1,0 +1,57 @@
+###########################################################
+# Start deployment of notification api - Staging
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: airqo-stage-notification-api
+  namespace: staging
+spec:
+  selector:
+    matchLabels:
+      app: sta-notification-api
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: sta-notification-api
+    spec:
+      containers:
+        - name: sta-notification-api
+          image: us.gcr.io/airqo-250220/airqo-stage-notification-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: stage-notification-api-config
+          volumeMounts:
+          - name: config-volume
+            mountPath: /etc/config
+          resources: {}
+      volumes:
+        - name: config-volume
+          configMap:
+            name: stage-notification-api-config-files
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: airqo-stage-notification-api-svc
+  namespace: staging
+spec:
+  selector:
+    app: sta-notification-api
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
+      nodePort: 31005
+  type: NodePort

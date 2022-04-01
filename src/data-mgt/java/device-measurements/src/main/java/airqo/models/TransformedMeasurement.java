@@ -11,7 +11,7 @@ public class TransformedMeasurement implements Serializable {
 
     private String frequency = "raw";
     private String siteId = "";
-    private Integer deviceNumber = null;
+    private Integer deviceNumber = 0;
     private String time = "";
     private String tenant = "";
     private String device = "";

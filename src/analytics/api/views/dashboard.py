@@ -14,9 +14,11 @@ from api.models import (
 )
 
 from api.utils.http import create_response, Status
+from api.utils.coordinates import approximate_coordinates
 from api.utils.request_validators import validate_request_params, validate_request_json
 from api.utils.pollutants import (
     generate_pie_chart_data,
+    d3_generate_pie_chart_data,
     PM_COLOR_CATEGORY,
     set_pm25_category_background,
 )
@@ -32,7 +34,7 @@ class DownloadCustomisedDataResource(Resource):
         'frequency|required:str', 'pollutants|required:list'
     )
     def post(self):
-        tenant = request.args.get("tenant")
+        tenant = request.args.get("tenant", "").lower()
         download_type = request.args.get('downloadType')
         json_data = request.get_json()
         sites = json_data["sites"]
@@ -40,9 +42,18 @@ class DownloadCustomisedDataResource(Resource):
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
+        from_bigquery = json_data.get("fromBigQuery")
+
+        if from_bigquery:
+            data = EventsModel.from_bigquery(tenant, sites, start_date, end_date, frequency, pollutants)
+
+            if download_type == 'csv':
+                return excel.make_response_from_records(data, 'csv', file_name=f'airquality-{frequency}-data')
+
+            return create_response("air-quality data download successful", data=data), Status.HTTP_200_OK
 
         events_model = EventsModel(tenant)
-        data = events_model.get_downloadable_events(sites, start_date, end_date, frequency, pollutants)
+        data = approximate_coordinates(events_model.get_downloadable_events(sites, start_date, end_date, frequency, pollutants))
 
         if download_type == 'json':
             return create_response("air-quality data download successful", data=data), Status.HTTP_200_OK
@@ -142,6 +153,37 @@ class ChartDataResource(Resource):
         ), Status.HTTP_200_OK
 
 
+@rest_api.route('/dashboard/chart/d3/data')
+class D3ChartDataResource(Resource):
+    @swag_from('/api/docs/dashboard/d3_chart_data_post.yml')
+    @validate_request_json(
+        'sites|required:list', 'startDate|required:datetime',
+        'endDate|required:datetime', 'frequency|required:str',
+        'pollutant|required:str', 'chartType|required:str'
+    )
+    def post(self):
+        tenant = request.args.get('tenant')
+
+        json_data = request.get_json()
+        sites = json_data["sites"]
+        start_date = json_data["startDate"]
+        end_date = json_data["endDate"]
+        frequency = json_data["frequency"]
+        pollutant = json_data["pollutant"]
+        chart_type = json_data["chartType"]
+
+        events_model = EventsModel(tenant)
+        data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+
+        if chart_type.lower() == 'pie':
+            data = d3_generate_pie_chart_data(data, pollutant)
+
+        return create_response(
+            "successfully retrieved d3 chart data",
+            data=data
+        ), Status.HTTP_200_OK
+
+
 @rest_api.route('/dashboard/sites')
 class MonitoringSiteResource(Resource):
 
@@ -163,17 +205,20 @@ class MonitoringSiteResource(Resource):
 class DailyAveragesResource(Resource):
 
     @swag_from('/api/docs/dashboard/device_daily_measurements_get.yml')
-    @validate_request_json('pollutant|required:str', 'startDate|required:datetime', 'endDate|required:datetime')
+    @validate_request_json(
+        'pollutant|required:str', 'startDate|required:datetime',
+        'endDate|required:datetime', 'sites|optional:list')
     def post(self):
         tenant = request.args.get('tenant')
         json_data = request.get_json()
         pollutant = json_data["pollutant"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
+        sites = json_data.get("sites", None)
 
         events_model = EventsModel(tenant)
         site_model = SiteModel(tenant)
-        sites = site_model.get_sites()
+        sites = site_model.get_sites(sites)
         data = events_model.get_averages_by_pollutant(start_date, end_date, pollutant)
 
         values = []
@@ -215,7 +260,8 @@ class ExceedancesResource(Resource):
     @swag_from('/api/docs/dashboard/exceedances_post.yml')
     @validate_request_json(
         'pollutant|required:str', 'standard|required:str',
-        'startDate|required:datetime', 'endDate|required:datetime'
+        'startDate|required:datetime', 'endDate|required:datetime',
+        'sites|optional:list'
     )
     def post(self):
         tenant = request.args.get('tenant')
@@ -225,10 +271,10 @@ class ExceedancesResource(Resource):
         standard = json_data["standard"]
         start_date = json_data["startDate"]
         end_date = json_data["endDate"]
+        sites = json_data.get("sites", None)
 
         exc_model = ExceedanceModel(tenant)
-
-        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard)
+        data = exc_model.get_exceedances(start_date, end_date, pollutant, standard, sites=sites)
 
         return create_response(
             "exceedance data successfully fetched",

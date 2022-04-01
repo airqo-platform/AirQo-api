@@ -1,0 +1,24 @@
+{
+  "properties": [
+    {
+      "name": "spring.kafka.consumer.topics.hourly-measurements",
+      "type": "java.lang.String",
+      "description": "Topic for hourly measurements."
+    },
+    {
+      "name": "spring.kafka.consumer.topics.devices",
+      "type": "java.lang.String",
+      "description": "Topic for devices."
+    },
+    {
+      "name": "spring.kafka.consumer.topics.sites",
+      "type": "java.lang.String",
+      "description": "Topic for sites."
+    },
+    {
+      "name": "spring.kafka.consumer.topics.insights",
+      "type": "java.lang.String",
+      "description": "Topic for insights."
+    }
+  ]
+}

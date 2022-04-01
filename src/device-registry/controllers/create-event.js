@@ -1,28 +1,78 @@
 const HTTPStatus = require("http-status");
 const { logObject, logText, logElement } = require("../utils/log");
-const { getMeasurements } = require("../utils/get-measurements");
 const log4js = require("log4js");
 const logger = log4js.getLogger("create-event-controller");
-const {
-  tryCatchErrors,
-  missingQueryParams,
-  badRequest,
-} = require("../utils/errors");
-const { validationResult } = require("express-validator");
-const getDetail = require("../utils/get-device-details");
-const isEmpty = require("is-empty");
 
-const { transformMeasurements_v2 } = require("../utils/transform-measurements");
-const insertMeasurements = require("../utils/insert-measurements");
-const {
-  transmitOneSensorValue,
-  transmitMultipleSensorValues,
-  bulkTransmitMultipleSensorValues,
-} = require("../utils/transmit-values");
+const errors = require("../utils/errors");
+
+const { validationResult } = require("express-validator");
+const isEmpty = require("is-empty");
 const createEventUtil = require("../utils/create-event");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
+createDeviceUtil = require("../utils/create-device");
+
+const { Kafka } = require("kafkajs");
+const { SchemaRegistry } = require("@kafkajs/confluent-schema-registry");
+const constants = require("../config/constants");
+const SCHEMA_REGISTRY = constants.SCHEMA_REGISTRY;
+const BOOTSTRAP_SERVERS = constants.KAFKA_BOOTSTRAP_SERVERS;
+const RAW_MEASUREMENTS_TOPICS = constants.KAFKA_RAW_MEASUREMENTS_TOPICS;
+const KAFKA_CLIENT_ID = constants.KAFKA_CLIENT_ID;
+const KAFKA_CLIENT_GROUP = constants.KAFKA_CLIENT_GROUP;
+
+const kafka = new Kafka({
+  clientId: KAFKA_CLIENT_ID,
+  brokers: [BOOTSTRAP_SERVERS],
+});
+const registry = new SchemaRegistry({ host: SCHEMA_REGISTRY });
+const consumer = kafka.consumer({ groupId: KAFKA_CLIENT_GROUP });
 
 const createEvent = {
+  rawMeasurementsConsumer: async () => {
+    await consumer.connect();
+
+    const topics = RAW_MEASUREMENTS_TOPICS.split(",");
+
+    for (const topic of topics) {
+      await consumer.subscribe({
+        topic: topic.trim().toLowerCase(),
+        fromBeginning: true,
+      });
+    }
+
+    await consumer.run({
+      eachMessage: async ({ topic, partition, message }) => {
+        try {
+          const decodedValue = await registry.decode(message.value);
+          const measurements = decodedValue.measurements;
+          // insertMeasurtements.addValuesArray(measurements);
+        } catch (e) {
+          logObject("Kafka Raw Measurements consumer", e);
+        }
+      },
+    });
+  },
+  consume: async (req, res) => {
+    try {
+      const responseFromConsumeMeasurements = await createEventUtil.consume();
+      if (responseFromConsumeMeasurements.success === true) {
+        return res.status(HTTPStatus.OK).json({
+          message: responseFromConsumeMeasurements.message,
+          response: responseFromConsumeMeasurements.data,
+        });
+      } else {
+        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          message: responseFromConsumeMeasurements.message,
+          errors: responseFromConsumeMeasurements.errors,
+        });
+      }
+    } catch (error) {
+      logObject("error", error);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   addValues: async (req, res) => {
     try {
       logText("adding values...");
@@ -31,41 +81,14 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
-      const responseFromTransformMeasurements = await transformMeasurements_v2(
-        measurements
-      );
-      logObject(
-        "responseFromTransformMeasurements",
-        responseFromTransformMeasurements
-      );
-
-      if (!responseFromTransformMeasurements.success) {
-        let error = responseFromTransformMeasurements.error
-          ? responseFromTransformMeasurements.error
-          : "";
-        res.status(HTTPStatus.BAD_GATEWAY).json({
-          success: false,
-          message: responseFromTransformMeasurements.message,
-          error,
-        });
-      }
-
-      logObject(
-        "responseFromTransformMeasurements.data",
-        responseFromTransformMeasurements.data
-      );
-
-      let response = await insertMeasurements(
-        tenant,
-        responseFromTransformMeasurements.data
-      );
+      let response = await createEventUtil.insert(tenant, measurements);
 
       if (!response.success) {
         return res.status(HTTPStatus.BAD_REQUEST).json({
@@ -80,83 +103,330 @@ const createEvent = {
         });
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "server side error , create events - controller",
-        error: e.message,
+        errors: { message: e.message },
       });
     }
   },
-
-  getValues: (req, res) => {
+  list: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query } = req;
       const {
         device,
-        tenant,
-        limit,
-        skip,
-        key,
-        recent,
+        device_number,
+        site,
         frequency,
         startTime,
         endTime,
         device_id,
-        site,
         site_id,
-        device_number,
+        external,
         metadata,
-      } = req.query;
+        tenant,
+        recent,
+        skip,
+        limit,
+        page,
+      } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["device"] = device;
+      request["query"]["device_number"] = device_number;
+      request["query"]["site"] = site;
+      request["query"]["frequency"] = frequency;
+      request["query"]["startTime"] = startTime;
+      request["query"]["endTime"] = endTime;
+      request["query"]["device_id"] = device_id;
+      request["query"]["site_id"] = site_id;
+      request["query"]["external"] = external;
+      request["query"]["metadata"] = metadata;
+      request["query"]["tenant"] = tenant;
+      request["query"]["recent"] = recent;
+      request["query"]["skip"] = parseInt(skip);
+      request["query"]["limit"] = parseInt(limit);
+      request["query"]["page"] = parseInt(page);
 
+      await createEventUtil.list(request, (result) => {
+        logObject("the result for listing events", result);
+        if (result.success === true) {
+          const status = result.status ? result.status : HTTPStatus.OK;
+          res.status(status).json({
+            success: true,
+            isCache: result.isCache,
+            message: result.message,
+            meta: result.data[0].meta,
+            measurements: result.data[0].data,
+          });
+        } else if (result.success === false) {
+          const status = result.status
+            ? result.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          const errors = result.errors ? result.errors : { message: "" };
+          res.status(status).json({
+            success: false,
+            errors,
+            message: result.message,
+          });
+        }
+      });
+    } catch (error) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  transform: async (req, res) => {
+    try {
+      const { query, body } = req;
+      let request = {};
+      request["query"] = {};
+      request["body"] = {};
+      request["query"] = query;
+      request["body"] = body;
+
+      const responseFromTransformEvents = await createEventUtil.transformManyEvents(
+        request
+      );
+
+      if (responseFromTransformEvents.success === true) {
+        const status = responseFromTransformEvents.status
+          ? responseFromTransformEvents.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          message: responseFromTransformEvents.message,
+          transformedEvents: responseFromTransformEvents.data,
+        });
+      } else if (responseFromTransformEvents.success === false) {
+        const status = responseFromTransformEvents.status
+          ? responseFromTransformEvents.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransformEvents.errors
+          ? responseFromTransformEvents.errors
+          : { message: "" };
+        return res.status(status).json({
+          message: responseFromTransformEvents.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logObject("the error", error);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  create: async (req, res) => {
+    try {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const limitInt = parseInt(limit, 0);
-      const skipInt = parseInt(skip, 0);
-      logText(".......getting values.......");
-      if (tenant) {
-        getMeasurements(
-          res,
-          recent,
-          device,
-          device_number,
-          device_id,
-          site,
-          site_id,
-          skipInt,
-          limitInt,
-          frequency,
-          tenant,
-          startTime,
-          endTime,
-          metadata
-        );
-      } else {
-        missingQueryParams(req, res);
-      }
-    } catch (e) {
-      tryCatchErrors(res, e);
-    }
-  },
-  transmitValues: async (req, res) => {
-    try {
-      const { type, tenant } = req.query;
-      if (type == "one" && tenant) {
-        await transmitOneSensorValue(req, res);
-      } else if (type == "many" && tenant) {
-        await transmitMultipleSensorValues(req, res);
-      } else if (type == "bulk" && tenant) {
-        await bulkTransmitMultipleSensorValues(req, res, tenant);
-      } else {
-        missingQueryParams(req, res);
+
+      const { query, body } = req;
+      let request = {};
+      request["body"] = body;
+      request["query"] = query;
+      const responseFromCreateEvents = await createEventUtil.create(request);
+      if (responseFromCreateEvents.success === true) {
+        const status = responseFromCreateEvents.status
+          ? responseFromCreateEvents.status
+          : HTTPStatus.OK;
+        return res
+          .status(status)
+          .json({ success: true, message: responseFromCreateEvents.message });
+      } else if (responseFromCreateEvents.success === false) {
+        const status = responseFromCreateEvents.status
+          ? responseFromCreateEvents.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromCreateEvents.errors
+          ? responseFromCreateEvents.errors
+          : { message: "" };
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateEvents.message,
+          errors,
+        });
       }
     } catch (error) {
-      tryCatchErrors(res, error);
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+  transmitMultipleSensorValues: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const { body, query } = req;
+      const { name, device_number, chid, tenant } = query;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid || device_number;
+      request["body"] = body;
+
+      const responseFromTransmitMultipleSensorValues = await createEventUtil.transmitMultipleSensorValues(
+        request
+      );
+
+      if (responseFromTransmitMultipleSensorValues.success === true) {
+        const status = responseFromTransmitMultipleSensorValues.status
+          ? responseFromTransmitMultipleSensorValues.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromTransmitMultipleSensorValues.message,
+          response: responseFromTransmitMultipleSensorValues.data,
+        });
+      } else {
+        const status = responseFromTransmitMultipleSensorValues.status
+          ? responseFromTransmitMultipleSensorValues.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransmitMultipleSensorValues.errors
+          ? responseFromTransmitMultipleSensorValues.errors
+          : { message: "" };
+        res.status(status).json({
+          message: responseFromTransmitMultipleSensorValues.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  bulkTransmitMultipleSensorValues: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      const { body, query } = req;
+      const { name, device_number, chid, tenant } = query;
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      request["query"]["device_number"] = chid || device_number;
+      request["body"] = body;
+
+      const responseFromBulkTransmitMultipleSensorValues = await createEventUtil.bulkTransmitMultipleSensorValues(
+        request
+      );
+
+      if (responseFromBulkTransmitMultipleSensorValues.success === true) {
+        const status = responseFromBulkTransmitMultipleSensorValues.status
+          ? responseFromBulkTransmitMultipleSensorValues.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromBulkTransmitMultipleSensorValues.message,
+          response: responseFromBulkTransmitMultipleSensorValues.data,
+        });
+      } else {
+        const status = responseFromBulkTransmitMultipleSensorValues.status
+          ? responseFromBulkTransmitMultipleSensorValues.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromBulkTransmitMultipleSensorValues.errors
+          ? responseFromBulkTransmitMultipleSensorValues.errors
+          : { message: "" };
+        res.status(status).json({
+          message: responseFromBulkTransmitMultipleSensorValues.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  transmitValues: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = {};
+      request["query"] = {};
+      request["body"] = {};
+
+      const responseFromTransmitValues = await createEventUtil.transmitValues(
+        request
+      );
+
+      if (responseFromTransmitValues.success === true) {
+        const status = responseFromTransmitValues.status
+          ? responseFromTransmitValues.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          message: responseFromTransmitValues.message,
+          response: responseFromTransmitValues.data,
+        });
+      } else {
+        const status = responseFromTransmitValues.status
+          ? responseFromTransmitValues.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromTransmitValues.errors
+          ? responseFromTransmitValues.errors
+          : { message: "" };
+        res
+          .status(status)
+          .json({ message: responseFromTransmitValues.message, errors });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
   deleteValues: async () => {},
@@ -167,7 +437,7 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(res, "bad request errors", nestedErrors);
+        return errors.badRequest(res, "bad request errors", nestedErrors);
       }
       const { body } = req;
       let request = {};
@@ -185,7 +455,7 @@ const createEvent = {
       if (responseFromClearValuesOnPlatform.success == false) {
         let error = responseFromClearValuesOnPlatform.error
           ? responseFromClearValuesOnPlatform.error
-          : "";
+          : { message: "" };
         return res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromClearValuesOnPlatform.message,
@@ -202,64 +472,11 @@ const createEvent = {
       }
     } catch (e) {
       logger.error(`responseFromClearValuesOnPlatform -- ${e.message}`);
-      tryCatchErrors(res, e.message, "responseFromClearValuesOnPlatform");
-    }
-  },
-  deleteValuesOnThingspeak: async (req, res) => {
-    try {
-      const { device, tenant } = req.query;
-
-      const hasErrors = !validationResult(req).isEmpty();
-      if (hasErrors) {
-        let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
-      }
-
-      const deviceDetails = await getDetail(tenant, device);
-      const doesDeviceExist = !isEmpty(deviceDetails);
-      logElement("isDevicePresent ?", doesDeviceExist);
-      if (doesDeviceExist) {
-        const channelID = await getChannelID(
-          req,
-          res,
-          device,
-          tenant.toLowerCase()
-        );
-        logText("...................................");
-        logText("clearing the Thing....");
-        logElement("url", constants.CLEAR_THING_URL(channelID));
-        await axios
-          .delete(constants.CLEAR_THING_URL(channelID))
-          .then(async (response) => {
-            logText("successfully cleared the device in TS");
-            logObject("response from TS", response.data);
-            res.status(HTTPStatus.OK).json({
-              message: `successfully cleared the data for device ${device}`,
-              success: true,
-              updatedDevice,
-            });
-          })
-          .catch(function(error) {
-            console.log(error);
-            res.status(HTTPStatus.BAD_GATEWAY).json({
-              message: `unable to clear the device data, device ${device} does not exist`,
-              success: false,
-            });
-          });
-      } else {
-        logText(`device ${device} does not exist in the system`);
-        res.status(HTTPStatus.OK).json({
-          message: `device ${device} does not exist in the system`,
-          success: false,
-        });
-      }
-    } catch (e) {
-      logText(`unable to clear device ${device}`);
-      tryCatchErrors(res, e);
+      errors.tryCatchErrors(
+        res,
+        e.message,
+        "responseFromClearValuesOnPlatform"
+      );
     }
   },
 
@@ -272,10 +489,10 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       logger.info(`adding values...`);
@@ -301,7 +518,7 @@ const createEvent = {
       if (!responseFromAddEventsUtil.success) {
         let errors = responseFromAddEventsUtil.error
           ? responseFromAddEventsUtil.error
-          : "";
+          : { message: "" };
         return res.status(HTTPStatus.FORBIDDEN).json({
           success: false,
           message: "finished the operation with some errors",
@@ -331,10 +548,10 @@ const createEvent = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
@@ -354,7 +571,7 @@ const createEvent = {
       if (responseFromEventsUtil.success === false) {
         let error = responseFromEventsUtil.error
           ? responseFromEventsUtil.error
-          : "";
+          : { message: "" };
         res.status(HTTPStatus.BAD_GATEWAY).json({
           success: false,
           message: responseFromEventsUtil.message,

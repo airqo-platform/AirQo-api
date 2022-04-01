@@ -1,11 +1,12 @@
 from datetime import timedelta
+from time import sleep
 
 import pandas as pd
 import requests
 
 from config import configuration
-from date import date_to_str
-from kafka_client import KafkaWithoutRegistry
+from date import date_to_str_hours
+from message_broker import BrokerConnector
 from utils import get_valid_devices
 
 """
@@ -16,8 +17,8 @@ from utils import get_valid_devices
 class KccaBatchFetch:
 
     def __init__(self):
-        self.kafka_client = KafkaWithoutRegistry(boot_strap_servers=configuration.BOOT_STRAP_SERVERS,
-                                                 topic=configuration.OUTPUT_TOPIC)
+        self.kafka_client = BrokerConnector(bootstrap_servers=configuration.BOOTSTRAP_SERVERS,
+                                            output_topic=configuration.OUTPUT_TOPIC)
         self.devices = get_valid_devices(configuration.AIRQO_BASE_URL, "kcca")
         self.device_codes_str = self.__get_devices_codes()
         super().__init__()
@@ -28,8 +29,8 @@ class KccaBatchFetch:
         dates = pd.date_range(configuration.START_TIME, configuration.END_TIME, freq=interval)
 
         for date in dates:
-            start_time = date_to_str(date)
-            end_time = date_to_str(date + timedelta(hours=int(configuration.BATCH_FETCH_TIME_INTERVAL)))
+            start_time = date_to_str_hours(date)
+            end_time = date_to_str_hours(date + timedelta(hours=int(configuration.BATCH_FETCH_TIME_INTERVAL)))
 
             print(start_time + " : " + end_time)
 
@@ -51,18 +52,23 @@ class KccaBatchFetch:
             if transformed_data:
                 self.kafka_client.produce(transformed_data)
 
+            sleep(60.0)
+
     def __get_measurements(self, start_time, end_time):
 
         api_url = f"{configuration.CLARITY_API_BASE_URL}measurements?" \
-                  f"startTime={start_time}&endTime={end_time}&code={self.device_codes_str}"
+                  f"startTime={start_time}&endTime={end_time}"
 
-        # frequency = configuration.FREQUENCY.strip().lower()
-        # if frequency == "hour":
-        #     api_url = f"{api_url}&average=hour"
-        # elif frequency == "day":
-        #     api_url = f"{api_url}&average=day"
-        # else:
-        #     pass
+        if self.device_codes_str != '':
+            api_url = f"{api_url}&code={self.device_codes_str}"
+
+        frequency = configuration.FREQUENCY.strip().lower()
+        if frequency == "hour":
+            api_url = f"{api_url}&average=hour"
+        elif frequency == "day":
+            api_url = f"{api_url}&average=day"
+        else:
+            pass
 
         headers = {'x-api-key': configuration.CLARITY_API_KEY, 'Accept-Encoding': 'gzip'}
         results = requests.get(api_url, headers=headers)

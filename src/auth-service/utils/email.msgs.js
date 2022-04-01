@@ -17,11 +17,11 @@ module.exports = {
   joinRequest: (firstName, lastName) => {
     return (
       `Dear ${firstName + " " + lastName}, \n\n` +
-      "Your request to join the AirQo platform has been received.\n" +
-      "We shall get back to you as soon as possible. \n\n" +
-      "Before utilising airqo data, your application record has to undergo \n" +
-      "the process of approval by platform administration. Once your \n" +
-      "application is reviewed, you will receive an email on the mailbox \n\n" +
+      "Your request to join the AirQo platform has been received, " +
+      "we shall get back to you as soon as possible. \n\n" +
+      "Before utilising the AirQo data, your application record has to undergo " +
+      "the process of approval by the AirQo platform administration.\n" +
+      "Once your application is reviewed, you will receive an email on the mailbox \n\n" +
       "Please visit our website to learn more about us. \n" +
       `https://airqo.net/`
     );
@@ -47,10 +47,12 @@ module.exports = {
       `Dear ${firstName + " " + lastName} \n\n` +
       "Welcome to the AirQo air quality monitoring platform. \n\n" +
       `Your username is: ${username}\n` +
-      `Your temporary password is: ${password}\n\n` +
-      `You can always change your password in your account settings after login\n` +
-      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n` +
-      "A guide to using the platform will be found under the Documentation section of the platform\n" +
+      `Your temporary password is: ${password}\n` +
+      `You can always change your password in your account settings after login\n\n` +
+      `Follow this link to access the dashboard right now: ${constants.LOGIN_PAGE}\n\n` +
+      `You can also use your platform credentials to access the AirQo API\n` +
+      `The AirQo API reference can be found here: https://docs.airqo.net/airqo-rest-api-documentation/ \n\n` +
+      `By actively utilising the platform, you automatically agree to the AirQo terms and conditions: https://docs.airqo.net/airqo-terms-and-conditions/HxYx3ysdA6k0ng6YJkU3/ \n\n` +
       `Demos for using our main features can be found on our Youtube channel here:  ${constants.YOUTUBE_CHANNEL}\n\n\n\n` +
       "PLEASE DO NOT REPLY TO THIS EMAIL\n\n" +
       "If you experience any technical challenges or wish to offer suggestions, please contact us at support@airqo.net"
@@ -62,6 +64,22 @@ module.exports = {
       "Your account AirQo Platform account details have been updated. \n\n" +
       "If this activity sounds suspicious to you, please reach out to your organisation's administrator \n\n" +
       `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
+    );
+  },
+  join_by_email: (token) => {
+    return (
+      `Begin your journey to Knowing Your Air and Breathe Clean. \n\n` +
+      `First, we need to know that your email address is real.\n\n` +
+      `Enter the code below in the app to verify your email. \n\n` +
+      `The code: ${token}`
+    );
+  },
+  authenticate_email: (token) => {
+    return (
+      `You are about to make changes to your email address. \n\n` +
+      `First, you need you to re-authenticate.\n\n` +
+      `Enter the code below in the app. \n\n` +
+      `The code: ${token}`
     );
   },
 };

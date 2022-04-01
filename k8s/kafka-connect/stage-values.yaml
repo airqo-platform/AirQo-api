@@ -1,0 +1,43 @@
+name: stage-measurements-connector-cluster
+namespace: staging
+spec:
+  image: 
+    repository: us.gcr.io/airqo-250220
+    tag: latest
+    pullPolicy: Always
+  replicas: 2
+  bootstrapServers: stage-kafka-cluster-kafka-bootstrap:9092
+  readinessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
+  livenessProbe:
+    initialDelaySeconds: 15
+    timeoutSeconds: 5
+  config:
+    group.id: stage-measurements-connector-cluster
+    offset.storage.topic: stage-measurements-connector-cluster-offsets
+    config.storage.topic: stage-measurements-connector-cluster-configs
+    status.storage.topic: stage-measurements-connector-cluster-status
+    cleanup.policy: compact
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter.schemas.enable: false
+    config.storage.replication.factor: 3
+    offset.storage.replication.factor: 3
+    status.storage.replication.factor: 3
+    # config.providers: file,secrets,configmaps
+    # config.providers.secrets.class: io.strimzi.kafka.KubernetesSecretConfigProvider
+    # config.providers.configmaps.class: io.strimzi.kafka.KubernetesConfigMapConfigProvider
+    config.providers: file
+    config.providers.file.class: org.apache.kafka.common.config.provider.FileConfigProvider
+  metricsConfig:
+    type: jmxPrometheusExporter
+    configMapName: stage-measurements-connector-cluster-metrics
+    configMapKey: stage-measurements-connector-cluster-metrics-config.yml
+  authentication:
+    type: scram-sha-512
+    username: measurements-connect-cluster
+    passwordSecret:
+      secretName: measurements-connect-secret
+      password: measurements-connect-user-password

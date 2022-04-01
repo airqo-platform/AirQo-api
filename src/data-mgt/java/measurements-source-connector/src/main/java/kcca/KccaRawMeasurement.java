@@ -3,6 +3,7 @@ package kcca;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Getter;
 import lombok.Setter;
+import lombok.ToString;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 
@@ -11,6 +12,7 @@ import java.util.HashMap;
 
 @Getter
 @Setter
+@ToString
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class KccaRawMeasurement implements Serializable {
 
@@ -23,17 +25,4 @@ public class KccaRawMeasurement implements Serializable {
     private HashMap<String, Object> location;
     private HashMap<String, HashMap<String, Double>> characteristics;
 
-    @Override
-    public String toString() {
-        return "RawMeasurements{" +
-                "_id='" + _id + '\'' +
-                ", recId='" + recId + '\'' +
-                ", time='" + time + '\'' +
-                ", device='" + device + '\'' +
-                ", deviceCode='" + deviceCode + '\'' +
-                ", average='" + average + '\'' +
-                ", location=" + location +
-                ", characteristics=" + characteristics +
-                '}';
-    }
 }

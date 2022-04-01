@@ -1,11 +1,11 @@
 const HTTPStatus = require("http-status");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
-const { tryCatchErrors, badRequest } = require("../utils/errors");
+const errors = require("../utils/errors");
 const createAirQloudUtil = require("../utils/create-airqloud");
 const log4js = require("log4js");
-const logger = log4js.getLogger("create-airqloud-util");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const logger = log4js.getLogger("create-airqloud-controller");
+const httpStatus = require("http-status");
 
 const createAirqloud = {
   register: async (req, res) => {
@@ -17,10 +17,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -58,10 +58,73 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
+  calculateGeographicalCenter: async (req, res) => {
+    try {
+      const { body, query } = req;
+      const { coordinates } = body;
+      const { id, tenant } = query;
+
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+
+      let request = {};
+      request["body"] = {};
+      request["query"] = {};
+      request["body"]["coordinates"] = coordinates;
+      request["query"]["id"] = id;
+      request["query"]["tenant"] = tenant;
+
+      const responseFromCalculateGeographicalCenter = await createAirQloudUtil.calculateGeographicalCenter(
+        request
+      );
+
+      if (responseFromCalculateGeographicalCenter.success === true) {
+        const status = responseFromCalculateGeographicalCenter.status
+          ? responseFromCalculateGeographicalCenter.status
+          : httpStatus.OK;
+        logObject(
+          "responseFromCalculateGeographicalCenter",
+          responseFromCalculateGeographicalCenter
+        );
+        return res.status(status).json({
+          success: true,
+          message: responseFromCalculateGeographicalCenter.message,
+          center_point: responseFromCalculateGeographicalCenter.data,
+        });
+      } else if (responseFromCalculateGeographicalCenter.success === false) {
+        const status = responseFromCalculateGeographicalCenter.status
+          ? responseFromCalculateGeographicalCenter.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        const errors = responseFromCalculateGeographicalCenter.errors
+          ? responseFromCalculateGeographicalCenter.errors
+          : "";
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCalculateGeographicalCenter.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
   delete: async (req, res) => {
     try {
       const { query } = req;
@@ -73,10 +136,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -107,7 +170,107 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      errors.tryCatchErrors(res, errors, "createAirqloud controller");
+    }
+  },
+  refresh: async (req, res) => {
+    try {
+      const { query, body } = req;
+      const { id, admin_level, name, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["admin_level"] = admin_level;
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+      const responseFromRefreshAirQloud = await createAirQloudUtil.refresh(
+        request
+      );
+      if (responseFromRefreshAirQloud.success === true) {
+        const status = responseFromRefreshAirQloud.status
+          ? responseFromRefreshAirQloud.status
+          : HTTPStatus.OK;
+        res.status(status).json({
+          success: true,
+          message: responseFromRefreshAirQloud.message,
+          refreshed_airqloud: responseFromRefreshAirQloud.data,
+        });
+      }
+      if (responseFromRefreshAirQloud.success === false) {
+        const status = responseFromRefreshAirQloud.status
+          ? responseFromRefreshAirQloud.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        const errors = responseFromRefreshAirQloud.errors
+          ? responseFromRefreshAirQloud.errors
+          : "";
+        res.status(status).json({
+          message: responseFromRefreshAirQloud.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      logObject("refresh controller", error);
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
+  findSites: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { query, body } = req;
+      const { id, name, admin_level, tenant } = query;
+      let request = {};
+      request["query"] = {};
+      request["query"]["id"] = id;
+      request["query"]["name"] = name;
+      request["query"]["admin_level"] = admin_level;
+      request["query"]["tenant"] = tenant;
+      logObject("request", request);
+      let responseFromFindSites = await createAirQloudUtil.findSites(request);
+      logObject("responseFromFindSites", responseFromFindSites);
+      if (responseFromFindSites.success === true) {
+        let status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : httpStatus.OK;
+        res.status(status).json({
+          success: true,
+          sites: responseFromFindSites.data,
+          message: responseFromFindSites.message,
+        });
+      }
+      if (responseFromFindSites.success === false) {
+        let errors = responseFromFindSites.errors
+          ? responseFromFindSites.errors
+          : "";
+        let status = responseFromFindSites.status
+          ? responseFromFindSites.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+        res.status(status).json({
+          success: false,
+          message: responseFromFindSites.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
     }
   },
 
@@ -120,10 +283,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["body"] = body;
@@ -157,7 +320,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "createAirqloud controller");
+      errors.tryCatchErrors(res, errors, "createAirqloud controller");
     }
   },
 
@@ -170,10 +333,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -207,7 +370,11 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "create airqloud controller");
+      res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: errors.message },
+      });
     }
   },
 
@@ -221,10 +388,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       request["query"] = query;
@@ -256,7 +423,7 @@ const createAirqloud = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "manageAirQloud controller");
+      errors.tryCatchErrors(res, errors, "manageAirQloud controller");
     }
   },
 };

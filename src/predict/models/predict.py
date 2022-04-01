@@ -28,18 +28,19 @@ from models import datamanagement
 from dotenv import load_dotenv
 import os
 from pymongo import MongoClient
+from config.constants import connect_mongo
 
 
 _logger = logging.getLogger(__name__)
 
-load_dotenv()
+# load_dotenv()
 
-MONGO_URI = os.getenv('MONGO_URI')
+# MONGO_URI = os.getenv('MONGO_URI')
 
-def connect_mongo():
-    client = MongoClient(MONGO_URI)
-    db=client['airqo_netmanager_staging']
-    return db
+# def connect_mongo():
+#     client = MongoClient(MONGO_URI)
+#     db=client['airqo_netmanager_staging']
+#     return db
 
 
 def get_next_24hr_predictions_for_channel(channel_id,prediction_start_time):

@@ -1,7 +1,7 @@
 var log4js = require("log4js");
 var express = require("express");
 var path = require("path");
-var log = log4js.getLogger("app");
+var logger = log4js.getLogger("app");
 
 const dotenv = require("dotenv");
 var bodyParser = require("body-parser");
@@ -11,8 +11,12 @@ var cookieParser = require("cookie-parser");
 var apiV1 = require("./routes/api-v1");
 var apiV2 = require("./routes/api-v2");
 const { mongodb } = require("./config/database");
+const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
+
+runKafkaProducer();
+runKafkaConsumer();
 
 var app = express();
 
@@ -26,34 +30,19 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/devices/", apiV1);
 app.use("/api/v2/devices/", apiV2);
 
-// catch 404 and forward to error handler
 app.use(function(req, res, next) {
-  var err = new Error("Not Found");
+  const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
-// development error handler
-// will print stacktrace
-// if (app.get("env") === "development") {
-//   app.use(function(err, req, res, next) {
-//     log.error("Something went wrong:", err);
-//     res.status(err.status || 500).json({
-//       success: false,
-//       message: `does this endpoint exist? -- ${err.message}`,
-//       error: err,
-//     });
-//   });
-// }
-
-// production error handler
-// no stacktraces leaked to user
 app.use(function(err, req, res, next) {
+  logger.error(`${err.message}`);
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -61,7 +50,7 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "bad request error",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -69,7 +58,7 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Unauthorized",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -77,7 +66,7 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Forbidden",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -85,7 +74,7 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -93,7 +82,7 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Bad Gateway",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -101,7 +90,7 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Service Unavailable",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -109,14 +98,14 @@ app.use(function(err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: " Gateway Timeout.",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
   res.status(err.status || 500).json({
     success: false,
     message: "server side error",
-    error: err.message,
+    errors: { message: err.message },
   });
 });
 

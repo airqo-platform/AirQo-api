@@ -25,7 +25,9 @@ class DeviceStatus:
 def get_all_devices(tenant):
     model = Device(tenant)
     results = model.get_devices()
-    return [device for device in results if device.get("isActive")]
+    return [
+        device for device in results if device.get("isActive") or (device.get("mobility") and device.get("powerType"))
+    ]
 
 
 def get_device_status(device):
@@ -41,6 +43,9 @@ def get_device_status(device):
         return DeviceStatus(is_online=False, elapsed_time=-1, device=device)
 
     result = device_status.json()
+
+    device['latitude'] = device.get('latitude') or float(result.get('latitude'))
+    device['longitude'] = device.get('longitude') or float(result.get('longitude'))
 
     current_datetime = datetime.utcnow()
 

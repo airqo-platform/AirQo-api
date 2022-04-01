@@ -1,4 +1,4 @@
-FROM thinkwhere/gdal-python
+FROM python:3.7-slim as base
 
 COPY . /app/
 WORKDIR /app/
@@ -6,12 +6,26 @@ WORKDIR /app/
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-COPY . /app/
-WORKDIR /app/
+ENV PYTHONDONWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-RUN pip install -r requirements.txt
-
+# production 
+FROM base as production 
 ENV ENV=production
-ENV GOOGLE_APPLICATION_CREDENTIALS=AirQo-e37846081569.json
 
+# run application
+CMD ["python", "main.py", "--tenant=airqo"]
+
+# production 
+FROM base as staging 
+ENV ENV=staging
+
+# run application
+CMD ["python", "main.py", "--tenant=airqo"]
+
+# production 
+FROM base as dev
+ENV ENV=development
+
+# run application
 CMD ["python", "main.py", "--tenant=airqo"]

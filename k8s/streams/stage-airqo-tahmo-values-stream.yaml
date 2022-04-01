@@ -38,9 +38,5 @@ spec:
           envFrom:
             - configMapRef:
                 name: stage-tahmo-streams-config
-          # env:
-          #   - name: tahmo.api.key
-          #     valueFrom:
-          #       secretKeyRef:
-          #         name: stage-tahmo-streams-secrets
-          #         key: tahmo.api.key
+            # - secretRef:
+            #     name: stage-tahmo-streams-secrets

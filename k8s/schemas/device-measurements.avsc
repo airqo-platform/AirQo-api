@@ -36,7 +36,7 @@
                             "name": "site_id",  "type": ["null", "string"], "default": null
                         },
                         {
-                            "name": "device_number", "type": ["null", "int"], "default": null
+                            "name": "device_number", "type": "int", "default": 0
                         },
                         {
                             "name": "tenant",
