@@ -43,7 +43,7 @@ kind: Service
 apiVersion: v1
 metadata:
   name: airqo-network-uptime-api-svc
-  namespace: staging
+  namespace: production
 spec:
   selector:
     app: prod-network-uptime

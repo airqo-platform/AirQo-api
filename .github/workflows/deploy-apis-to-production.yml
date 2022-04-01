@@ -164,7 +164,7 @@ jobs:
               echo "::set-output name=run_airflow::true"
             fi
 
-            if [[ $file == src/airflow/* ]]; then
+            if [[ $file == src/network-uptime/* ]]; then
               echo "::set-output name=run_network_uptime::true"
             fi
 
