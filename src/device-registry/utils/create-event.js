@@ -448,18 +448,21 @@ const createEvent = {
           }
         })
         .catch(function(error) {
-          const errorMessage = error.response
-            ? error.response.data
-            : "No active internet connection";
-
           return {
-            message: "Intenal Server Error",
-            errors: { message: errorMessage },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
             success: false,
+            message: "Server Error",
+            errors: {
+              message: error.response.data.error
+                ? error.response.data.error.details
+                : "No active internet connection",
+            },
+            status: error.response.data
+              ? error.response.data.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
+      logger.error(`transmitMultipleSensorValues -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -530,20 +533,21 @@ const createEvent = {
           };
         })
         .catch(function(error) {
-          const errorMessage = error.response
-            ? error.response.data
-            : "No active internet connection";
-
           return {
             success: false,
-            message: "Internal Server Error",
+            message: "Server Error",
             errors: {
-              message: errorMessage,
+              message: error.response.data.error
+                ? error.response.data.error.details
+                : "No active internet connection",
             },
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: error.response.data
+              ? error.response.data.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
+      logger.error(`the error for bulk transmission -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
