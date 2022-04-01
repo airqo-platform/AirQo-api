@@ -5,6 +5,16 @@ const { logElement, logText, logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
 const HTTPStatus = require("http-status");
 
+const periodSchema = new mongoose.Schema(
+  {
+    value: { type: String },
+    label: { type: String },
+    unitValue: { type: Number },
+    unit: { type: String },
+  },
+  { _id: false }
+);
+
 const DefaultsSchema = new mongoose.Schema(
   {
     pollutant: {
@@ -48,7 +58,7 @@ const DefaultsSchema = new mongoose.Schema(
         type: ObjectId,
       },
     ],
-    period: { type: {}, required: [true, "period is required!"] },
+    period: { type: periodSchema, required: [true, "period is required!"] },
   },
   {
     timestamps: true,

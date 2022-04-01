@@ -47,6 +47,7 @@ jobs:
       run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
       run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
+      run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
 
     runs-on: ubuntu-latest
     steps:
@@ -83,6 +84,7 @@ jobs:
           echo "::set-output name=run_events_check::false"
           echo "::set-output name=run_notifications::false"
           echo "::set-output name=run_airflow::false"
+          echo "::set-output name=run_channel_data::false"
 
           while IFS= read -r file
           do
@@ -123,6 +125,10 @@ jobs:
               echo "::set-output name=run_predict::true"
             fi
 
+            if [[ $file == src/predict-job/* ]]; then
+              echo "::set-output name=run_predict::true"
+            fi
+
             if [[ $file == src/gp-model/* ]]; then
               echo "::set-output name=run_gp_model::true"
             fi
@@ -137,7 +143,8 @@ jobs:
 
             if [[ $file == src/view/* ]]; then
               echo "::set-output name=run_view::true"
-              
+            fi
+            
             if [[ $file == src/calibrate/* ]]; then
               echo "::set-output name=run_calibrate::true"
             fi
@@ -158,7 +165,11 @@ jobs:
               echo "::set-output name=run_airflow::true"
             fi
 
-            if [[ $file == workflow-versions ]]; then
+            if [[ $file == src/channel-data/* ]]; then
+              echo "::set-output name=run_channel_data::true"
+            fi
+
+            if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
               echo "::set-output name=run_calibrate::true"
@@ -176,6 +187,7 @@ jobs:
               echo "::set-output name=run_device_registry::true"
               echo "::set-output name=run_auth_service::true"
               echo "::set-output name=run_airflow::true"
+              echo "::set-output name=run_channel_data::true"
             fi
 
           done < files.txt
@@ -695,40 +707,58 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v2
-
-      ### run unit tests ###
-      
-      - name: Login to GCR
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
         uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
           password: ${{ secrets.GCR_CONFIG }}
-
-      - name: Login to K8S
+      -
+        name: Build and push calibrate API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/calibrate
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
+      -
+        name: Build and push calibrate pickle file
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/calibrate
+          target: pickle-file
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
+      - 
+        name: Login to Main k8s cluster
         uses: azure/k8s-set-context@v1
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-      
-      - name: Build and Push Docker Image
+      - 
+        name: Deploy to Main k8s cluster
         run: |
-          cd src/calibrate/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} .
-          docker build --target=pickle-file --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} .
-
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
-
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }}
-
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:latest
-
-      - name: Deploy to K8S
+          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
+          kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+      -
+        name: Login to Pipeline k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+      - 
+        name: Deploy to Pipeline k8s cluster
         run: |
-          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml
+          kubectl apply -f k8s/calibrate/prod-calibrate-api.yaml -n production
           kubectl set image deployment/airqo-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl set image deployment/airqo-calibrate-api calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
@@ -805,11 +835,63 @@ jobs:
           kubectl set image deployment/airqo-notification-api notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
-  ### predict api service ###
+  ### predict api and job ###
   predict-service:
     name: build-push-deploy-predict-api
     needs: [check, image-tag]
     if: needs.check.outputs.run_predict == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - 
+        name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+      -
+        name: Build and push API Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
+      -
+        name: Build and push Job Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict-job
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:latest
+      - 
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/predict/prod-prediction-api.yaml -n production
+          kubectl rollout restart deployment airqo-prediction-api -n production
+          kubectl apply -f k8s/predict/prod-airqo-predict-job.yaml -n production
+
+  #### Channel data ######
+  channel-data:
+    name: build-push-deploy-channel-data-job
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_channel_data == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -830,12 +912,10 @@ jobs:
       
       - name: Build and Push Docker Image
         run: |
-          cd src/predict/
-          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }} .
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
+          cd src/channel-data/
+          docker build --target=production --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-update-channel-data-job:latest .
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-update-channel-data-job:latest
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/predict/prod-prediction-api.yaml -n production
-          kubectl rollout restart deployment airqo-prediction-api -n production
+          kubectl apply -f k8s/channel-data/prod-airqo-update-channel-data-job.yaml -n production
+

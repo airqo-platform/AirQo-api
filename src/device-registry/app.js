@@ -1,7 +1,7 @@
 var log4js = require("log4js");
 var express = require("express");
 var path = require("path");
-var log = log4js.getLogger("app");
+var logger = log4js.getLogger("app");
 
 const dotenv = require("dotenv");
 var bodyParser = require("body-parser");
@@ -11,8 +11,12 @@ var cookieParser = require("cookie-parser");
 var apiV1 = require("./routes/api-v1");
 var apiV2 = require("./routes/api-v2");
 const { mongodb } = require("./config/database");
+const { runKafkaConsumer, runKafkaProducer } = require("./config/kafkajs");
 
 mongodb;
+
+runKafkaProducer();
+runKafkaConsumer();
 
 var app = express();
 
@@ -26,14 +30,14 @@ app.use(express.static(path.join(__dirname, "public")));
 app.use("/api/v1/devices/", apiV1);
 app.use("/api/v2/devices/", apiV2);
 
-// catch 404 and forward to error handler
 app.use(function(req, res, next) {
-  var err = new Error("Not Found");
+  const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
 app.use(function(err, req, res, next) {
+  logger.error(`${err.message}`);
   if (err.status === 404) {
     res.status(err.status).json({
       success: false,

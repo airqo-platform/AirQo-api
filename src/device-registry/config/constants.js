@@ -1,7 +1,6 @@
-const { logElement } = require("../utils/log");
-const isEmpty = require("is-empty");
-const { Schema, model } = require("mongoose");
-const ObjectId = Schema.Types.ObjectId;
+const mongoose = require("mongoose");
+const ObjectId = mongoose.Types.ObjectId;
+
 const {
   generateDateFormatWithoutHrs,
   monthsInfront,
@@ -12,24 +11,26 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV,
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_DEV.split(","),
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_DEV,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_DEV,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_DEV,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_DEV,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_DEV,
+  ENV_ACRONYM: "dev",
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD,
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_PROD.split(","),
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_PROD,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_PROD,
   KAFKA_RAW_MEASUREMENTS_TOPICS: process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_PROD,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_PROD,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_PROD,
+  ENV_ACRONYM: "prod",
 };
 
 const stageConfig = {
@@ -37,20 +38,31 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
-  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE,
+  KAFKA_BOOTSTRAP_SERVERS: process.env.KAFKA_BOOTSTRAP_SERVERS_STAGE.split(","),
   KAFKA_TOPICS: process.env.KAFKA_TOPICS_STAGE,
   SCHEMA_REGISTRY: process.env.SCHEMA_REGISTRY_STAGE,
   KAFKA_RAW_MEASUREMENTS_TOPICS:
     process.env.KAFKA_RAW_MEASUREMENTS_TOPICS_STAGE,
   KAFKA_CLIENT_ID: process.env.KAFKA_CLIENT_ID_STAGE,
   KAFKA_CLIENT_GROUP: process.env.KAFKA_CLIENT_GROUP_STAGE,
+  ENV_ACRONYM: "stage",
 };
 
 const defaultConfig = {
+  SITES_TOPIC: process.env.SITES_TOPIC,
+  DEVICES_TOPIC: process.env.DEVICES_TOPIC,
+  LOCATIONS_TOPIC: process.env.LOCATIONS_TOPIC,
+  SENSORS_TOPIC: process.env.SENSORS_TOPIC,
+  AIRQLOUDS_TOPIC: process.env.AIRQLOUDS_TOPIC,
+  ACTIVITIES_TOPIC: process.env.ACTIVITIES_TOPIC,
+  PHOTOS_TOPIC: process.env.PHOTOS_TOPIC,
+  HOURLY_MEASUREMENTS_TOPIC: process.env.HOURLY_MEASUREMENTS_TOPIC,
   PORT: process.env.PORT || 3000,
   TAHMO_API_GET_STATIONS_URL: process.env.TAHMO_API_GET_STATIONS_URL,
   TAHMO_API_CREDENTIALS_USERNAME: process.env.TAHMO_API_CREDENTIALS_USERNAME,
   TAHMO_API_CREDENTIALS_PASSWORD: process.env.TAHMO_API_CREDENTIALS_PASSWORD,
+  UNIQUE_CONSUMER_GROUP: process.env.UNIQUE_CONSUMER_GROUP,
+  UNIQUE_PRODUCER_GROUP: process.env.UNIQUE_PRODUCER_GROUP,
   GET_ROAD_METADATA_PATHS: {
     altitude: "altitude",
     greenness: "greenness",
@@ -73,35 +85,35 @@ const defaultConfig = {
     const endDate = generateDateFormatWithoutHrs(today);
     const startDate = generateDateFormatWithoutHrs(oneMonthAgo);
     if (path === "greenness") {
-      return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
+      return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}&startDate=${startDate}&endDate=${endDate}`;
     }
-    return `https://platform.airqo.net/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
+    return `${process.env.PLATFORM_BASE_URL}/api/v1/datawarehouse/${path}?lat=${latitude}&lon=${longitude}`;
   },
   GET_ADDRESS_URL: (lat, long) => {
-    return `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
+    return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/geocode/json?latlng=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
   GET_ELEVATION_URL: (lat, long) => {
-    return `https://maps.googleapis.com/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
+    return `${process.env.MAPS_GOOGLEAPIS_BASE_URL}/maps/api/elevation/json?locations=${lat},${long}&key=${process.env.GCP_KEY}`;
   },
-  CREATE_THING_URL: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  CREATE_THING_URL: `${process.env.THINGSPEAK_BASE_URL}/channels.json?api_key=${process.env.TS_API_KEY}`,
   DELETE_THING_URL: (device) => {
-    return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   CLEAR_THING_URL: (device) => {
-    return `https://api.thingspeak.com/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}/feeds.json?api_key=${process.env.TS_API_KEY}`;
   },
   UPDATE_THING: (device) => {
-    return `https://api.thingspeak.com/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}.json?api_key=${process.env.TS_API_KEY}`;
   },
   ADD_VALUE: (field, value, apiKey) => {
-    return `https://api.thingspeak.com/update.json?api_key=${apiKey}&${field}=${value}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/update.json?api_key=${apiKey}&${field}=${value}`;
   },
-  ADD_VALUE_JSON: `https://api.thingspeak.com/update.json`,
+  ADD_VALUE_JSON: `${process.env.THINGSPEAK_BASE_URL}/update.json`,
   BULK_ADD_VALUES_JSON: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel}/bulk_update.json`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${channel}/bulk_update.json`;
   },
   ADD_VALUES: (device) => {
-    return `https://api.thingspeak.com/channels/${device}/bulk_update.json`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${device}/bulk_update.json`;
   },
   JWT_SECRET: process.env.JWT_SECRET,
   REGION: "europe-west1",
@@ -109,8 +121,6 @@ const defaultConfig = {
   MQTT_BRIDGE_PORT: 8883,
   NUM_MESSAGES: 5,
   TOKEN_EXP_MINS: 360,
-  ALGORITHM: "RS256",
-  HTTP_BRIDGE_ADDRESS: "cloudiotdevice.googleapis.com",
   MESSAGE_TYPE: "events",
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
@@ -187,62 +197,97 @@ const defaultConfig = {
       time: "time",
       day: "time",
       frequency: "frequency",
+      device: "device",
+      device_id: "device_id",
+      device_number: "device_number",
+      site: "site",
+      site_id: "site_id",
       tenant: "tenant",
       is_test_data: "is_test_data",
       is_device_primary: "is_device_primary",
 
-      "pm2_5.value": "pm2_5.value",
-      "pm2_5.calibratedValue": "pm2_5.calibratedValue",
-      "pm2_5.uncertaintyValue": "pm2_5.uncertaintyValue",
-      "pm2_5.standardDeviationValue": "pm2_5.standardDeviationValue",
+      "pm2_5.value": "pm2_5",
+      "pm2_5.calibrated_value": "pm2_5_calibrated_value",
+      "pm2_5.uncertainty_value": "pm2_5_uncertainty_value",
+      "pm2_5.standard_deviation_value": "pm2_5_standard_deviation_value",
 
-      "s2_pm2_5.value": "s2_pm2_5.value",
-      "s2_pm2_5.calibratedValue": "s2_pm2_5.calibratedValue",
-      "s2_pm2_5.uncertaintyValue": "s2_pm2_5.uncertaintyValue",
-      "s2_pm2_5.standardDeviationValue": "s2_pm2_5.standardDeviationValue",
+      "s1_pm2_5.value": "s1_pm2_5",
+      "s1_pm2_5.calibrated_value": "s1_pm2_5_calibrated_value",
+      "s1_pm2_5.uncertainty_value": "s1_pm2_5_uncertainty_value",
+      "s1_pm2_5.standard_deviation_value": "s1_pm2_5_standard_deviation_value",
 
-      "pm10.value": "pm10.value",
-      "pm10.calibratedValue": "pm10.calibratedValue",
-      "pm10.uncertaintyValue": "pm10.uncertaintyValue",
-      "pm10.standardDeviationValue": "pm10.standardDeviationValue",
+      "s2_pm2_5.value": "s2_pm2_5",
+      "s2_pm2_5.calibrated_value": "s2_pm2_5_calibrated_value",
+      "s2_pm2_5.uncertainty_value": "s2_pm2_5_uncertainty_value",
+      "s2_pm2_5.standard_deviation_value": "s2_pm2_5_standard_deviation_value",
 
-      "s2_pm10.value": "s2_pm10.value",
-      "s2_pm10.calibratedValue": "s2_pm10.calibratedValue",
-      "s2_pm10.uncertaintyValue": "s2_pm10.uncertaintyValue",
-      "s2_pm10.standardDeviationValue": "s2_pm10.standardDeviationValue",
+      "pm10.value": "pm10",
+      "pm10.calibrated_value": "pm10._calibrated_value",
+      "pm10.uncertainty_value": "pm10_uncertainty_value",
+      "pm10.standard_deviation_value": "pm10_standard_deviation_value",
 
-      "pm1.value": "pm1.value",
-      "pm1.calibratedValue": "pm1.calibratedValue",
-      "pm1.uncertaintyValue": "pm1.uncertaintyValue",
-      "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+      "s1_pm10.value": "s1_pm10",
+      "s1_pm10.calibrated_value": "s1_pm10_calibrated_value",
+      "s1_pm10.uncertainty_value": "s1_pm10_uncertainty_value",
+      "s1_pm10.standard_deviation_value": "s1_pm10_standard_deviation_value",
 
-      "location.latitude.value": "location.latitude.value",
-      "location.longitude.value": "location.longitude.value",
+      "s2_pm10.value": "s2_pm10",
+      "s2_pm10.calibrated_value": "s2_pm10_calibrated_value",
+      "s2_pm10.uncertainty_value": "s2_pm10_uncertainty_value",
+      "s2_pm10.standard_deviation_value": "s2_pm10_standard_deviation_value",
 
-      "no2.value": "no2.value",
-      "no2.calibratedValue": "no2.calibratedValue",
-      "no2.uncertaintyValue": "no2.uncertaintyValue",
-      "no2.standardDeviationValue": "no2.standardDeviationValue",
+      "pm1.value": "pm1",
+      "pm1.calibrated_value": "pm1_calibrated_value",
+      "pm1.uncertainty_value": "pm1_uncertainty_value",
+      "pm1.standard_deviation_value": "pm1_standard_deviation_value",
 
-      "pm1.value": "pm1.value",
-      "pm1.calibratedValue": "pm1.calibratedValue",
-      "pm1.uncertaintyValue": "pm1.uncertaintyValue",
-      "pm1.standardDeviationValue": "pm1.standardDeviationValue",
+      "s1_pm1.value": "s1_pm1",
+      "s1_pm1.calibrated_value": "s1_pm1_calibrated_value",
+      "s1_pm1.uncertainty_value": "s1_pm1_uncertainty_value",
+      "s1_pm1.standard_deviation_value": "s1_pm1_standard_deviation_value",
 
-      "internalTemperature.value": "internalTemperature.value",
-      "externalTemperature.value": "externalTemperature.value",
+      "s2_pm1.value": "s2_pm1",
+      "s2_pm1.calibrated_value": "s2_pm1_calibrated_value",
+      "s2_pm1.uncertainty_value": "s2_pm1_uncertainty_value",
+      "s2_pm1.standard_deviation_value": "s2_pm1_standard_deviation_value",
 
-      "internalHumidity.value": "internalHumidity.value",
-      "externalHumidity.value": "externalHumidity.value",
+      "latitude.value": "latitude",
+      "longitude.value": "longitude",
 
-      "externalPressure.value": "externalPressure.value",
-      "internalPressure.value": "internalPressure.value",
+      "no2.value": "no2",
+      "no2.calibrated_value": "no2_calibrated_value",
+      "no2.uncertainty_value": "no2_uncertainty_value",
+      "no2.standard_deviation_value": "no2_standard_deviation_value",
 
-      "speed.value": "speed.value",
-      "altitude.value": "altitude.value",
-      "battery.value": "battery.value",
-      "satellites.value": "satellites.value",
-      "hdop.value": "hdop.value",
+      "pm1.value": "pm1",
+      "pm1.calibrated_value": "pm1_calibrated_value",
+      "pm1.uncertainty_value": "pm1_uncertainty_value",
+      "pm1.standard_deviation_value": "pm1_standard_deviation_value",
+
+      "s1_pm1.value": "s1_pm1",
+      "s1_pm1.calibrated_value": "s1_pm1_calibrated_value",
+      "s1_pm1.uncertainty_value": "s1_pm1_uncertainty_value",
+      "s1_pm1.standard_deviation_value": "s1_pm1_standard_deviation_value",
+
+      "s2_pm1.value": "s2_pm1",
+      "s2_pm1.calibrated_value": "s2_pm1_calibrated_value",
+      "s2_pm1.uncertainty_value": "s2_pm1_uncertainty_value",
+      "s2_pm1.standard_deviation_value": "s2_pm1_standard_deviation_value",
+
+      "internal_temperature.value": "internal_temperature",
+      "external_temperature.value": "external_temperature",
+
+      "internal_humidity.value": "internal_humidity",
+      "external_humidity.value": "external_humidity",
+
+      "external_pressure.value": "external_pressure",
+      "internal_pressure.value": "internal_pressure",
+
+      "wind_speed.value": "wind_speed",
+      "altitude.value": "altitude",
+      "battery.value": "battery",
+      "satellites.value": "satellites",
+      "hdop.value": "hdop",
     },
     remove: [],
     defaults: {
@@ -252,44 +297,64 @@ const defaultConfig = {
       device_id: null,
       site_id: null,
       day: null,
-      frequency: null,
+      frequency: "hourly",
       site: null,
       device_number: null,
       is_test_data: null,
       is_device_primary: null,
 
       "pm10.value": null,
-      "pm10.calibratedValue": null,
-      "pm10.uncertaintyValue": null,
-      "pm10.standardDeviationValue": null,
+      "pm10.calibrated_value": null,
+      "pm10.uncertainty_value": null,
+      "pm10.standard_deviation_value": null,
+
+      "s1_pm10.value": null,
+      "s1_pm10.calibrated_value": null,
+      "s1_pm10.uncertainty_value": null,
+      "s1_pm10.standard_deviation_value": null,
 
       "s2_pm10.value": null,
-      "s2_pm10.calibratedValue": null,
-      "s2_pm10.uncertaintyValue": null,
-      "s2_pm10.standardDeviationValue": null,
+      "s2_pm10.calibrated_value": null,
+      "s2_pm10.uncertainty_value": null,
+      "s2_pm10.standard_deviation_value": null,
 
       "pm2_5.value": null,
-      "pm2_5.calibratedValue": null,
-      "pm2_5.uncertaintyValue": null,
-      "pm2_5.standardDeviationValue": null,
+      "pm2_5.calibrated_value": null,
+      "pm2_5.uncertainty_value": null,
+      "pm2_5.standard_deviation_value": null,
+
+      "s1_pm2_5.value": null,
+      "s1_pm2_5.calibrated_value": null,
+      "s1_pm2_5.uncertainty_value": null,
+      "s1_pm2_5.standard_deviation_value": null,
 
       "s2_pm2_5.value": null,
-      "s2_pm2_5.calibratedValue": null,
-      "s2_pm2_5.uncertaintyValue": null,
-      "s2_pm2_5.standardDeviationValue": null,
+      "s2_pm2_5.calibrated_value": null,
+      "s2_pm2_5.uncertainty_value": null,
+      "s2_pm2_5.standard_deviation_value": null,
 
-      "location.latitude.value": null,
-      "location.longitude.value": null,
+      "latitude.value": null,
+      "longitude.value": null,
 
       "no2.value": null,
-      "no2.calibratedValue": null,
-      "no2.uncertaintyValue": null,
-      "no2.standardDeviationValue": null,
+      "no2.calibrated_value": null,
+      "no2.uncertainty_value": null,
+      "no2.standard_deviation_value": null,
 
       "pm1.value": null,
-      "pm1.calibratedValue": null,
-      "pm1.uncertaintyValue": null,
-      "pm1.standardDeviationValue": null,
+      "pm1.calibrated_value": null,
+      "pm1.uncertainty_value": null,
+      "pm1.standard_deviation_value": null,
+
+      "s1_pm1.value": null,
+      "s1_pm1.calibrated_value": null,
+      "s1_pm1.uncertainty_value": null,
+      "s1_pm1.standard_deviation_value": null,
+
+      "s2_pm1.value": null,
+      "s2_pm1.calibrated_value": null,
+      "s2_pm1.uncertainty_value": null,
+      "s2_pm1.standard_deviation_value": null,
 
       "internalTemperature.value": null,
       "externalTemperature.value": null,
@@ -300,7 +365,7 @@ const defaultConfig = {
       "externalPressure.value": null,
       "internalPressure.value": null,
 
-      "speed.value": null,
+      "wind_speed.value": null,
       "altitude.value": null,
       "battery.value": null,
       "satellites.value": null,
@@ -326,23 +391,40 @@ const defaultConfig = {
       item.filter = {};
       item.update = {};
       item.options = {};
-      item["filter"]["device_number"] = context.device_number
-        ? context.device_number
-        : null;
-      item["filter"]["site"] = context.site ? context.site : null;
       item["filter"]["device_id"] = context.device_id
         ? context.device_id
         : null;
-      item["filter"]["values.frequency"] = context.frequency
-        ? context.frequency
-        : null;
       item["filter"]["site_id"] = context.site_id ? context.site_id : null;
-      item["filter"]["values.time"] = context.time ? context.time : null;
-      item["filter"]["device"] = context.device ? context.device : null;
-      item["filter"]["nValues"] = { $lt: defaultConfig.N_VALUES };
+      item["filter"]["nValues"] = { $lt: parseInt(defaultConfig.N_VALUES) };
       item["filter"]["day"] = generateDateFormatWithoutHrs(context.time);
-      item["update"]["$min"] = { first: context.time };
-      item["update"]["$max"] = { last: context.time };
+      item["filter"]["$or"] = [
+        { "values.time": { $ne: context.time ? context.time : null } },
+        { "values.device": { $ne: context.device ? context.device : null } },
+        {
+          "values.frequency": {
+            $ne: context.frequency ? context.frequency : null,
+          },
+        },
+        {
+          "values.device_id": {
+            $ne: context.device_id ? context.device_id : null,
+          },
+        },
+        { "values.site_id": { $ne: context.site_id } },
+        {
+          day: {
+            $ne: context.time
+              ? generateDateFormatWithoutHrs(context.time)
+              : null,
+          },
+        },
+      ];
+      item["update"]["$min"] = {
+        first: context.time ? new Date(context.time) : null,
+      };
+      item["update"]["$max"] = {
+        last: context.time ? new Date(context.time) : null,
+      };
       item["update"]["$inc"] = { nValues: 1 };
       item["options"]["upsert"] = true;
       return item;
