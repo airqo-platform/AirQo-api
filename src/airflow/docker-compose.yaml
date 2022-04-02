@@ -10,6 +10,10 @@ x-db-common-data: &db-common-data
     AIRFLOW_UI_USER: airflow
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
 
+x-message-borker-common-data: &message-broker-common-data
+  env_file:
+    - .env
+
 x-common-data: &common-data
 #  platform: linux/amd64
   restart: on-failure
@@ -59,6 +63,7 @@ services:
       - "9093:9092"
 
   message-broker-setup:
+    <<: *message-broker-common-data
     container_name: message-broker-setup
     build:
       context: .

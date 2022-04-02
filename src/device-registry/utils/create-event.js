@@ -426,9 +426,6 @@ const createEvent = {
         .post(constants.ADD_VALUE_JSON, requestBody)
         .then(function(response) {
           let resp = {};
-          resp.channel_id = response.data.channel_id;
-          resp.created_at = response.data.created_at;
-          resp.entry_id = response.data.entry_id;
           if (isEmpty(response.data)) {
             return {
               success: false,
@@ -439,7 +436,10 @@ const createEvent = {
                 message: "likely a duplicate value or system conflict",
               },
             };
-          } else {
+          } else if (!isEmpty(response.data)) {
+            resp.channel_id = response.data.channel_id;
+            resp.created_at = response.data.created_at;
+            resp.entry_id = response.data.entry_id;
             return {
               message: "successfully transmitted the data",
               success: true,
@@ -448,18 +448,21 @@ const createEvent = {
           }
         })
         .catch(function(error) {
-          const errorMessage = error.response
-            ? error.response.data
-            : "No active internet connection";
-
           return {
-            message: "Intenal Server Error",
-            errors: { message: errorMessage },
-            status: httpStatus.INTERNAL_SERVER_ERROR,
             success: false,
+            message: "Server Error",
+            errors: {
+              message: error.response
+                ? error.response.data.error.details
+                : "Unable to establish connection with external system",
+            },
+            status: error.response
+              ? error.response.data.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
+      logger.error(`transmitMultipleSensorValues -- ${error.message}`);
       return {
         message: "Internal Server Error",
         errors: { message: error.message },
@@ -479,8 +482,7 @@ const createEvent = {
       requestDeviceList["query"] = {};
       requestDeviceList["query"]["name"] = name;
       requestDeviceList["query"]["tenant"] = tenant;
-      requestDeviceList["query"]["device_number"] = chid;
-      requestDeviceList["query"]["device_number"] = device_number;
+      requestDeviceList["query"]["device_number"] = chid || device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(
         requestDeviceList
@@ -493,15 +495,7 @@ const createEvent = {
           deviceDetail = responseFromListDevice.data[0];
         }
       } else if (responseFromListDevice.success === false) {
-        logObject(
-          "responseFromListDevice has an error",
-          responseFromListDevice
-        );
-        const status = responseFromListDevice.status
-          ? responseFromListDevice.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        delete responseFromListDevice.status;
-        return res.status(status).json(responseFromListDevice);
+        return responseFromListDevice;
       }
 
       const channel = deviceDetail.device_number;
@@ -512,11 +506,7 @@ const createEvent = {
       if (responseFromDecryptKey.success === true) {
         api_key = responseFromDecryptKey.data;
       } else if (responseFromDecryptKey.success === false) {
-        const status = responseFromDecryptKey.status
-          ? responseFromDecryptKey.status
-          : HTTPStatus.INTERNAL_SERVER_ERROR;
-        delete responseFromDecryptKey.status;
-        return res.status(status).json(responseFromDecryptKey);
+        return responseFromDecryptKey;
       }
 
       let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
@@ -535,28 +525,41 @@ const createEvent = {
       return await axios
         .post(constants.BULK_ADD_VALUES_JSON(channel), requestObject)
         .then(function(response) {
-          let output = JSON.parse(response.config.data).updates;
-          return {
-            message: "successfully transmitted the data",
-            success: true,
-            data: output,
-          };
+          if (isEmpty(response)) {
+            return {
+              success: false,
+              message: "successful operation but no data sent",
+              status: HTTPStatus.CONFLICT,
+              errors: {
+                message: "likely duplicate values or system conflicts",
+              },
+            };
+          } else if (!isEmpty(response)) {
+            let output = JSON.parse(response.config.data).updates;
+            return {
+              message: "successfully transmitted the data",
+              success: true,
+              data: output,
+              status: HTTPStatus.OK,
+            };
+          }
         })
         .catch(function(error) {
-          const errorMessage = error.response
-            ? error.response.data
-            : "No active internet connection";
-
           return {
             success: false,
-            message: "Internal Server Error",
+            message: "Server Error",
             errors: {
-              message: errorMessage,
+              message: error.response
+                ? error.response.data.error.details
+                : "Unable to establish connection with external system",
             },
-            status: HTTPStatus.INTERNAL_SERVER_ERROR,
+            status: error.response
+              ? error.response.data.status
+              : HTTPStatus.INTERNAL_SERVER_ERROR,
           };
         });
     } catch (error) {
+      logger.error(`the error for bulk transmission -- ${error.message}`);
       return {
         success: false,
         message: "Internal Server Error",
@@ -1143,7 +1146,7 @@ const createEvent = {
           device_id: "6228c43567c2db20bffaa0cb",
           device_number: 0,
           device: "A0WN66FH",
-          latitude: " 0.2857506",
+          latitude: "0.2857506",
           longitude: "32.5783253",
           pm2_5: 45.11,
           pm10: 39.16,
@@ -1166,7 +1169,7 @@ const createEvent = {
           device_id: "6228c43567c2db20bffaa0cb",
           device_number: 0,
           device: "aq_613_97",
-          latitude: " 0.2857506",
+          latitude: "0.2857506",
           longitude: "32.5783253",
           pm2_5: 45.11,
           pm10: 39.16,
@@ -1511,11 +1514,9 @@ const createEvent = {
 
       let request = {};
       request["query"] = {};
-      request["query"]["name"] = device;
-      request["query"]["name"] = name;
+      request["query"]["name"] = device || name;
       request["query"]["tenant"] = tenant;
-      request["query"]["device_number"] = chid;
-      request["query"]["device_number"] = device_number;
+      request["query"]["device_number"] = chid || device_number;
 
       const responseFromListDevice = await createDeviceUtil.list(request);
 

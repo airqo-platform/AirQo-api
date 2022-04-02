@@ -867,9 +867,7 @@ const createDevice = {
           data: responseFromModifyDevice.data,
           status,
         };
-      }
-
-      if (responseFromModifyDevice.success === false) {
+      } else if (responseFromModifyDevice.success === false) {
         let errors = responseFromModifyDevice.errors
           ? responseFromModifyDevice.errors
           : "";
