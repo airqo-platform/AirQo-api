@@ -6,7 +6,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 
 @dag(
     "App-Notifications",
-    schedule_interval="0 10,18 * * *",
+    schedule_interval="@hourly",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -19,56 +19,55 @@ def app_notifications_etl():
             get_notification_recipients,
         )
 
-        from airqo_etl_utils.commons import fill_nan
-
         recipients = get_notification_recipients()
 
-        return dict({"data": fill_nan(data=recipients)})
+        return dict({"data": recipients})
 
     @task(multiple_outputs=True)
-    def extract_notification_template():
+    def extract_notification_templates_and_insights():
         from airqo_etl_utils.app_messaging_utils import (
-            get_notification_template,
+            get_notification_templates,
+            get_latest_insights,
         )
 
-        template = get_notification_template()
+        templates = get_notification_templates()
+        latest_insights = get_latest_insights()
 
-        return dict({"data": template})
+        return dict({"templates": templates, "insights": latest_insights})
 
     @task()
-    def create_notifications(message_template_data: dict, recipients_data: dict):
+    def create_notifications(meta_data: dict, recipients_data: dict):
         from airqo_etl_utils.commons import fill_nan
 
-        from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.app_messaging_utils import (
             create_notification_messages,
         )
 
-        message_template = message_template_data.get("data")
-        recipients = un_fill_nan(recipients_data.get("data"))
+        message_templates = meta_data.get("templates")
+        insights = meta_data.get("insights")
+        recipients = recipients_data.get("data")
 
-        notifications = create_notification_messages(
-            template=message_template, recipients=recipients
+        notification_messages = create_notification_messages(
+            templates=message_templates, recipients=recipients, insights=insights
         )
 
-        return dict({"data": fill_nan(data=notifications)})
+        return dict({"data": fill_nan(data=notification_messages)})
 
     @task()
     def send_notifications(data: dict):
-        from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.app_messaging_utils import send_notification_messages
 
-        messages = un_fill_nan(data.get("data"))
+        messages = data.get("data")
         print(f"Messages to be sent : {len(messages)}")
         send_notification_messages(messages=messages)
 
     recipients_result = extract_notifications_recipients()
-    notification_template_result = extract_notification_template()
-    notifications_result = create_notifications(
-        message_template_data=notification_template_result,
+    notification_meta_data = extract_notification_templates_and_insights()
+    notifications = create_notifications(
+        message_template_data=notification_meta_data,
         recipients_data=recipients_result,
     )
-    send_notifications(data=notifications_result)
+    send_notifications(data=notifications)
 
 
 app_notifications_etl_dag = app_notifications_etl()

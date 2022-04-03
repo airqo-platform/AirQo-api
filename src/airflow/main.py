@@ -27,7 +27,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         start_time=start_date_time, end_time=end_date_time, freq="hourly"
     )
     pd.DataFrame(kcca_unclean_data).to_csv(
-        path_or_buf="outputs/kcca_unclean_data.csv", index=False
+        path_or_buf="kcca_unclean_data.csv", index=False
     )
 
     # API
@@ -205,18 +205,22 @@ def insights_forecast():
 def app_notifications():
     from airqo_etl_utils.app_messaging_utils import (
         get_notification_recipients,
-        get_notification_template,
+        get_notification_templates,
         create_notification_messages,
+        get_latest_insights,
     )
+
+    recent_insights = get_latest_insights()
+    pd.DataFrame(recent_insights).to_csv(path_or_buf="recent_insights.csv", index=False)
 
     recipients = get_notification_recipients()
     pd.DataFrame(recipients).to_csv(path_or_buf="app_recipients.csv", index=False)
 
-    message_template = get_notification_template()
-    print(message_template)
+    message_templates = get_notification_templates()
+    print(message_templates)
 
     notifications = create_notification_messages(
-        template=message_template, recipients=recipients
+        templates=message_templates, recipients=recipients, insights=recent_insights
     )
     print(notifications)
 

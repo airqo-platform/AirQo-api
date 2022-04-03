@@ -1,3 +1,4 @@
 {
-  "notifications": ["Hello $NAME$, ", "Welcome $NAME$"]
+  "reminders": ["Hello $NAME$, it's time to check the air quality of your places."],
+  "updates": ["Air pollution update: $POLLUTION_UPDATE$"]
 }
