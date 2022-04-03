@@ -1001,17 +1001,20 @@ def calibrate_hourly_airqo_measurements(
         | (data_df["humidity"].isnull())
     ]
 
-    data_for_calibration = data_df.dropna(
+    calibration_data_df = data_df.dropna(
         subset=["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10", "temperature", "humidity"]
     )
     calibrated_measurements = []
 
-    if method.lower() == "pickle":
-        calibrated_data = calibrate_using_pickle_file(data_for_calibration)
-    else:
-        calibrated_data = calibrate_using_api(data_for_calibration)
+    if not calibration_data_df.empty:
+        data_for_calibration = calibration_data_df.to_dict(orient="records")
+        if method.lower() == "pickle":
+            calibrated_data = calibrate_using_pickle_file(data_for_calibration)
+        else:
+            calibrated_data = calibrate_using_api(data_for_calibration)
 
-    calibrated_measurements.extend(calibrated_data)
+        calibrated_measurements.extend(calibrated_data)
+
     calibrated_measurements.extend(uncalibrated_data.to_dict(orient="records"))
 
     return calibrated_measurements
