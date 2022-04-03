@@ -139,6 +139,7 @@ const deviceSchema = new mongoose.Schema(
     category: {
       type: String,
       required: [true, "the category is required"],
+      default: "lowcost",
       trim: true,
     },
     isActive: {
