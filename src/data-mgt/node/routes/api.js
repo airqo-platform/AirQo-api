@@ -30,7 +30,7 @@ router.get(
       .isInt()
       .withMessage("the channel should be an integer value"),
   ]),
-  transformController.readDataRangeOfEvents
+  transformController.readFeeds
 );
 
 router.get(
@@ -46,7 +46,7 @@ router.get(
       .isInt()
       .withMessage("the channel should be an integer value"),
   ]),
-  transformController.readDataRangeOfEvents
+  transformController.readMostRecentFeeds
 );
 
 module.exports = router;
