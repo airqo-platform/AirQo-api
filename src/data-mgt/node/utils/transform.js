@@ -4,6 +4,7 @@ const { logElement, logText, logObject } = require("./log");
 const constants = require("../config/constants");
 const redis = require("../config/redis");
 const { generateDateFormatWithoutHrs } = require("./date");
+const cleanDeep = require("clean-deep");
 
 const transform = {
   readDeviceMeasurementsFromThingspeak: ({ request } = {}) => {
@@ -169,7 +170,7 @@ const transform = {
         },
         {}
       );
-      return newObj;
+      return cleanDeep(newObj);
     } catch (e) {
       console.log("the trasformFieldValues error", e.message);
     }
@@ -177,19 +178,8 @@ const transform = {
 
   transformMeasurement: async (measurement) => {
     try {
-      /**
-       * first extract the value of device type from the field 8
-       *
-       * based on the value, then used
-       *
-       * Based on the value of the Device Type field, return
-       * using the BAM mappings instead.
-       *
-       * Should we use the device
-       */
-      let responseFromTransformFieldValues = transform.trasformFieldValues(
-        measurement.field8
-      );
+      let responseFromTransformFieldValues =
+        await transform.trasformFieldValues(measurement.field8);
 
       let newObj = await Object.entries(measurement).reduce(
         (newObj, [field, value]) => {
@@ -210,7 +200,8 @@ const transform = {
         },
         {}
       );
-      return newObj;
+      delete newObj["undefined"];
+      return cleanDeep(newObj);
     } catch (e) {
       console.log("the transformMeasurement error", e.message);
     }
