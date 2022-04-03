@@ -46,7 +46,7 @@ def fill_nan(data: list) -> list:
 
 def un_fill_nan(data: list) -> list:
     data_df = pd.DataFrame(data)
-    data_df = data_df.replace(to_replace="none", value=None)
+    data_df = data_df.replace(to_replace="none", value=np.nan)
     return data_df.to_dict(orient="records")
 
 
