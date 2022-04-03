@@ -1,7 +1,6 @@
 const axios = require("axios");
 const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 
 const devConfig = {
   MONGO_URI: "mongodb://localhost/",
@@ -85,6 +84,33 @@ const defaultConfig = {
   },
   GET_GPS: (channel) => {
     return `${channel}`;
+  },
+
+  FIELDS_AND_LABELS: {
+    field1: "pm2_5",
+    field2: "pm10",
+    field3: "s2_pm2_5",
+    field4: "s2_pm10",
+    field5: "latitude",
+    field6: "longitude",
+    field7: "battery",
+    field8: "other_data",
+    created_at: "created_at",
+  },
+
+  POSITIONS_AND_LABELS: {
+    0: "latitude",
+    1: "longitude",
+    2: "altitude",
+    3: "speed",
+    4: "satellites",
+    5: "hdop",
+    6: "internalTemperature",
+    7: "internalHumidity",
+    8: "externalTemperature",
+    9: "ExternalHumidity",
+    10: "ExternalPressure",
+    11: "ExternalAltitude",
   },
 };
 
