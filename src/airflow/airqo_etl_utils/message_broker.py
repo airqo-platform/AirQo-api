@@ -55,24 +55,25 @@ class KafkaBrokerClient:
 
                 current_partition = (
                     partition
-                    if partition
+                    if partition or partition == 0
                     else self.get_partition(current_partition=current_partition)
                 )
 
                 producer.send(
                     topic=topic,
-                    value=simplejson.dumps(message).encode("utf-8"),
+                    value=simplejson.dumps(message, ignore_nan=True).encode("utf-8"),
                     partition=current_partition,
                 ).add_callback(self.on_success).add_errback(self.on_error)
 
         else:
+            value = simplejson.dumps(info, ignore_nan=True).encode("utf-8")
             if partition:
                 producer.send(
                     topic=topic,
-                    value=simplejson.dumps(info).encode("utf-8"),
+                    value=value,
                     partition=partition,
                 ).add_callback(self.on_success).add_errback(self.on_error)
             else:
-                producer.send(
-                    topic=topic, value=simplejson.dumps(info).encode("utf-8")
-                ).add_callback(self.on_success).add_errback(self.on_error)
+                producer.send(topic=topic, value=value).add_callback(
+                    self.on_success
+                ).add_errback(self.on_error)
