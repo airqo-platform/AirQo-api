@@ -329,7 +329,7 @@ const activity = {
         res.status(status).json({
           success: true,
           message: responseFromListActivities.message,
-          activities: responseFromListActivities.data,
+          site_activities: responseFromListActivities.data,
         });
       } else if (responseFromListActivities.success === false) {
         let errors = responseFromListActivities.errors
