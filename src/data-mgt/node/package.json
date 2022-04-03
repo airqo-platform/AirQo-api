@@ -16,6 +16,7 @@
     "dependencies": {
         "axios": "^0.19.2",
         "body-parser": "~1.18.2",
+        "clean-deep": "^3.4.0",
         "compression": "^1.7.4",
         "cookie-parser": "~1.4.3",
         "debug": "~2.6.9",
