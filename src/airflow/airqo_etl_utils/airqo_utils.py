@@ -539,6 +539,10 @@ def restructure_airqo_data_for_api(data: list) -> list:
 
 
 def map_site_ids_to_historical_measurements(data: list, deployment_logs: list) -> list:
+
+    if not deployment_logs or not data:
+        return data
+
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="airqo")
 
