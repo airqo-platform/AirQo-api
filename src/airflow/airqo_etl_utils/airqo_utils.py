@@ -815,6 +815,9 @@ def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
 
 
 def calibrate_using_pickle_file(measurements: list) -> list:
+    if not measurements:
+        return []
+
     pm_2_5_model_file = download_file_from_gcs(
         bucket_name="airqo_prediction_bucket",
         source_file="PM2.5_calibrate_model.pkl",
@@ -913,6 +916,9 @@ def calibrate_using_pickle_file(measurements: list) -> list:
 
 
 def calibrate_using_api(measurements: list) -> list:
+    if not measurements:
+        return []
+
     data_df = pd.DataFrame(measurements)
 
     data_df_groups = data_df.groupby("time")
@@ -971,12 +977,20 @@ def calibrate_hourly_airqo_measurements(
     )
     data_df["s1_pm10"] = data_df["s1_pm10"].apply(lambda x: get_valid_value(x, "pm10"))
     data_df["s2_pm10"] = data_df["s2_pm10"].apply(lambda x: get_valid_value(x, "pm10"))
-    data_df["temperature"] = data_df["temperature"].apply(
-        lambda x: get_valid_value(x, "temperature")
-    )
-    data_df["humidity"] = data_df["humidity"].apply(
-        lambda x: get_valid_value(x, "humidity")
-    )
+
+    if "temperature" in data_df.columns:
+        data_df["temperature"] = data_df["temperature"].apply(
+            lambda x: get_valid_value(x, "temperature")
+        )
+    else:
+        data_df["temperature"] = None
+
+    if "humidity" in data_df.columns:
+        data_df["humidity"] = data_df["humidity"].apply(
+            lambda x: get_valid_value(x, "humidity")
+        )
+    else:
+        data_df["humidity"] = None
 
     uncalibrated_data = data_df.loc[
         (data_df["s1_pm2_5"].isnull())
@@ -987,17 +1001,20 @@ def calibrate_hourly_airqo_measurements(
         | (data_df["humidity"].isnull())
     ]
 
-    data_for_calibration = data_df.dropna(
+    calibration_data_df = data_df.dropna(
         subset=["s1_pm2_5", "s2_pm2_5", "s1_pm10", "s2_pm10", "temperature", "humidity"]
     )
     calibrated_measurements = []
 
-    if method.lower() == "pickle":
-        calibrated_data = calibrate_using_pickle_file(data_for_calibration)
-    else:
-        calibrated_data = calibrate_using_api(data_for_calibration)
+    if not calibration_data_df.empty:
+        data_for_calibration = calibration_data_df.to_dict(orient="records")
+        if method.lower() == "pickle":
+            calibrated_data = calibrate_using_pickle_file(data_for_calibration)
+        else:
+            calibrated_data = calibrate_using_api(data_for_calibration)
 
-    calibrated_measurements.extend(calibrated_data)
+        calibrated_measurements.extend(calibrated_data)
+
     calibrated_measurements.extend(uncalibrated_data.to_dict(orient="records"))
 
     return calibrated_measurements
