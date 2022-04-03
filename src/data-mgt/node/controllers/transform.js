@@ -401,6 +401,11 @@ const data = {
                       return item.entry_id === lastEntryId;
                     });
 
+                  logObject(
+                    "extractedRecentReadings[0]",
+                    extractedRecentReadings[0]
+                  );
+
                   let transformedData =
                     await transformUtil.transformMeasurement(
                       extractedRecentReadings[0]
@@ -413,6 +418,7 @@ const data = {
                     );
                     delete transformedData.other_data;
                   }
+
                   let data = { ...transformedData, ...transformedField };
                   measurements.push({
                     ...data,

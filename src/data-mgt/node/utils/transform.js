@@ -125,6 +125,13 @@ const transform = {
       logElement("the getFieldLabel error", error.message);
     }
   },
+  getBamFieldLabel: (field) => {
+    try {
+      return constants.BAM_FIELDS_AND_LABELS[field];
+    } catch (error) {
+      logElement("the getBamFieldLabel error", error.message);
+    }
+  },
   getFieldByLabel: (value) => {
     try {
       return Object.keys(constants.FIELDS_AND_LABELS).find(
@@ -170,24 +177,40 @@ const transform = {
 
   transformMeasurement: async (measurement) => {
     try {
-      if (isEmpty(measurement)) {
-        return {};
-      } else {
-        let newObj = await Object.entries(measurement).reduce(
-          (newObj, [field, value]) => {
-            if (value) {
-              let transformedField = transform.getFieldLabel(field);
+      /**
+       * first extract the value of device type from the field 8
+       *
+       * based on the value, then used
+       *
+       * Based on the value of the Device Type field, return
+       * using the BAM mappings instead.
+       *
+       * Should we use the device
+       */
+      let responseFromTransformFieldValues = transform.trasformFieldValues(
+        measurement.field8
+      );
 
-              return {
-                ...newObj,
-                [transformedField]: value,
-              };
+      let newObj = await Object.entries(measurement).reduce(
+        (newObj, [field, value]) => {
+          if (value) {
+            let transformedField = "";
+            if (responseFromTransformFieldValues.DeviceType === "BAM") {
+              logText("the device is a BAM");
+              transformedField = transform.getBamFieldLabel(field);
+              logElement("transformedField", transformedField);
+            } else {
+              transformedField = transform.getFieldLabel(field);
             }
-          },
-          {}
-        );
-        return newObj;
-      }
+            return {
+              ...newObj,
+              [transformedField]: value,
+            };
+          }
+        },
+        {}
+      );
+      return newObj;
     } catch (e) {
       console.log("the transformMeasurement error", e.message);
     }

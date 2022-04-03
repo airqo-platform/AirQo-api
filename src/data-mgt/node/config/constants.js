@@ -86,6 +86,30 @@ const defaultConfig = {
     return `${channel}`;
   },
 
+  BAM_FIELDS_AND_DESCRIPTIONS: {
+    field1: "RTCADC",
+    field2: "RTCV",
+    field3: "RTC",
+    field4: "STCADC",
+    field5: "STCV",
+    field6: "STC",
+    field7: "Battery Voltage",
+    field8: "Other Data",
+    created_at: "created_at",
+  },
+
+  BAM_FIELDS_AND_LABELS: {
+    field1: "rtc_adc",
+    field2: "rtc_v",
+    field3: "rtc",
+    field4: "stc_adc",
+    field5: "stc_v",
+    field6: "stc",
+    field7: "battery",
+    field8: "other_data",
+    created_at: "created_at",
+  },
+
   FIELDS_AND_LABELS: {
     field1: "pm2_5",
     field2: "pm10",
@@ -111,6 +135,7 @@ const defaultConfig = {
     9: "ExternalHumidity",
     10: "ExternalPressure",
     11: "ExternalAltitude",
+    12: "DeviceType",
   },
 };
 
