@@ -143,6 +143,9 @@ def create_updates(update_templates: dict, recipients: list, insights: list) -> 
             message = None
 
         if message:
+            message = message.strip()
+            if message.endswith(","):
+                message = f"{message[:len(message) - 1]}."
             messages.append({"device": recipient.get("device"), "message": message})
     return messages
 
