@@ -315,7 +315,9 @@ def hourly_measurements_etl():
         info = {"data": insights_data, "action": "save"}
 
         kafka = KafkaBrokerClient()
-        kafka.send_data(info=info, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+        kafka.send_data(
+            info=info, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC, partition=0
+        )
 
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: dict):

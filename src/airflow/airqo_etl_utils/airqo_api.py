@@ -270,7 +270,7 @@ class AirQoApi:
                 "%s%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=simplejson.dumps(body),
+                data=simplejson.dumps(body, ignore_nan=True),
                 verify=False,
             )
         elif method == "post":
@@ -279,7 +279,7 @@ class AirQoApi:
                 "%s%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=simplejson.dumps(body),
+                data=simplejson.dumps(body, ignore_nan=True),
                 verify=False,
             )
         else:

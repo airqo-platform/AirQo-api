@@ -104,7 +104,9 @@ def format_airqo_data_to_insights(data: list):
     return create_insights_data(data=restructured_data)
 
 
-def save_insights_data(insights_data: list = None, action: str = "insert"):
+def save_insights_data(
+    insights_data: list = None, action: str = "insert", partition: int = 0
+):
     if insights_data is None:
         insights_data = []
 
@@ -116,7 +118,9 @@ def save_insights_data(insights_data: list = None, action: str = "insert"):
     }
 
     kafka = KafkaBrokerClient()
-    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+    kafka.send_data(
+        info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC, partition=partition
+    )
 
 
 def predict_time_to_string(time: str):
