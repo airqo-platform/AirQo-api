@@ -219,6 +219,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      category: this.category,
     };
   },
 };
@@ -309,6 +310,7 @@ deviceSchema.statics = {
           height: 1,
           mobility: 1,
           status: 1,
+          category: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .project({
@@ -481,7 +483,13 @@ deviceSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
+        projection: {
+          _id: 1,
+          name: 1,
+          device_number: 1,
+          long_name: 1,
+          category: 1,
+        },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
 

@@ -381,6 +381,16 @@ router.post(
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
         ),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "low"])
+        .withMessage(
+          "the category value is not among the expected ones which include: low and bam"
+        ),
       body("powerType")
         .optional()
         .notEmpty()
@@ -902,6 +912,16 @@ router.post(
         .isIn(["pole", "wall", "faceboard", "rooftop", "suspended"])
         .withMessage(
           "the mountType value is not among the expected ones which include: pole, wall, faceboard, suspended and rooftop "
+        ),
+      body("category")
+        .exists()
+        .withMessage("the category should be provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "low"])
+        .withMessage(
+          "the category value is not among the expected ones which include: low and bam"
         ),
       body("powerType")
         .optional()
