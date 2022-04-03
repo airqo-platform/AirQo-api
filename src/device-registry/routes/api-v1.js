@@ -700,6 +700,15 @@ router.put(
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
         ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "low"])
+        .withMessage(
+          "the category value is not among the expected ones which include: low and bam"
+        ),
       body("isActive")
         .optional()
         .notEmpty()
@@ -1066,6 +1075,15 @@ router.put(
         .isIn(["solar", "mains", "alternator"])
         .withMessage(
           "the powerType value is not among the expected ones which include: solar, mains and alternator"
+        ),
+      body("category")
+        .optional()
+        .notEmpty()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "low"])
+        .withMessage(
+          "the category value is not among the expected ones which include: low and bam"
         ),
       body("isActive")
         .optional()
