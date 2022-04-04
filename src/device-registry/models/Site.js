@@ -522,7 +522,6 @@ siteSchema.statics = {
       ).exec();
 
       if (!isEmpty(updatedSite)) {
-        logObject("updatedSite", updatedSite._doc);
         let data = updatedSite._doc;
 
         return {
