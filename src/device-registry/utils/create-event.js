@@ -449,7 +449,7 @@ const createEvent = {
         .catch(function(error) {
           return {
             success: false,
-            message: "Server Error",
+            message: "Internal Server Error",
             errors: {
               message: error.response
                 ? error.response.data.error.details
@@ -558,10 +558,10 @@ const createEvent = {
         .catch(function(error) {
           return {
             success: false,
-            message: "Server Error",
+            message: "Internal Server Error",
             errors: {
               message: error.response
-                ? error.response.data.error.details
+                ? error.response.data.error
                 : "Unable to establish connection with external system",
             },
             status: error.response
