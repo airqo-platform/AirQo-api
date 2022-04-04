@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.annotation.TopicPartition;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -50,8 +51,37 @@ public class MessageBroker {
 		}
 	}
 
-	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}")
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
+		clientIdPrefix = "insights-partition-0",
+		topicPartitions = @TopicPartition(
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = {"0"}))
 	public void appInsights(String content) {
+		log.info("\n");
+		log.info("Partition 0");
+		processAppInsights(content);
+	}
+
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
+		clientIdPrefix = "insights-partition-1",
+		topicPartitions = @TopicPartition(
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = { "1" }))
+	public void appForecastInsights(String content) {
+		log.info("\n");
+		log.info("Partition 1");
+		processAppInsights(content);
+	}
+
+	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
+		clientIdPrefix = "insights-partition-2",
+		topicPartitions = @TopicPartition(
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = { "2" }))
+	public void appPlaceHolderInsights(String content) {
+		log.info("\n");
+		log.info("Partition 2");
+		processAppInsights(content);
+	}
+
+	private void processAppInsights(String content) {
 		try {
 
 			Message<Insight> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
