@@ -839,11 +839,6 @@ const createEvent = {
           for (const result of results) {
             transforms.push(result.data);
           }
-          return {
-            success: true,
-            data: transforms,
-            message: "successful transformations",
-          };
         } else if (results.every((res) => res.success === false)) {
           for (const result of results) {
             let error = result.errors ? result.errors : { message: "" };
@@ -852,14 +847,16 @@ const createEvent = {
           logger.error(
             `unsuccessful tranformEvents -- ${JSON.stringify(errors)}}`
           );
-          return {
-            success: false,
-            errors,
-            message: "failed transformations",
-          };
         }
+        return {
+          success: true,
+          errors,
+          message: "transaction happened",
+          data: transforms,
+        };
       });
     } catch (error) {
+      logObject("transformEvents error", error);
       logger.error(`transformEvents -- ${error.message}`);
       return {
         success: false,
