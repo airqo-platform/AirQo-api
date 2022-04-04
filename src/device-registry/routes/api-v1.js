@@ -387,9 +387,9 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["bam", "low"])
+        .isIn(["bam", "lowcost"])
         .withMessage(
-          "the category value is not among the expected ones which include: low and bam"
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("powerType")
         .optional()
@@ -705,9 +705,9 @@ router.put(
         .notEmpty()
         .trim()
         .toLowerCase()
-        .isIn(["bam", "low"])
+        .isIn(["bam", "lowcost"])
         .withMessage(
-          "the category value is not among the expected ones which include: low and bam"
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("isActive")
         .optional()
@@ -928,9 +928,9 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["bam", "low"])
+        .isIn(["bam", "lowcost"])
         .withMessage(
-          "the category value is not among the expected ones which include: low and bam"
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("powerType")
         .optional()
@@ -1081,9 +1081,9 @@ router.put(
         .notEmpty()
         .trim()
         .toLowerCase()
-        .isIn(["bam", "low"])
+        .isIn(["bam", "lowcost"])
         .withMessage(
-          "the category value is not among the expected ones which include: low and bam"
+          "the category value is not among the expected ones which include: LOWCOST and BAM"
         ),
       body("isActive")
         .optional()
@@ -3267,16 +3267,6 @@ router.post(
         .isInt()
         .withMessage("external_altitude should be an integer value")
         .trim(),
-      body("type")
-        .exists()
-        .trim()
-        .withMessage("type is missing")
-        .bail()
-        .trim()
-        .isIn(["BAM", "LOWCOST"])
-        .withMessage(
-          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
-        ),
       body("status")
         .optional()
         .notEmpty()
@@ -3505,16 +3495,6 @@ router.post(
         .isInt()
         .withMessage("external_altitude should be an integer value")
         .trim(),
-      body("*.type")
-        .exists()
-        .trim()
-        .withMessage("type is missing")
-        .bail()
-        .trim()
-        .isIn(["BAM", "LOWCOST"])
-        .withMessage(
-          "the type body parameter value is not among the expected ones which are: BAM and LOWCOST"
-        ),
       body("*.status")
         .optional()
         .notEmpty()

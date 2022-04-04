@@ -272,7 +272,13 @@ const createEvent = {
         external_humidity,
         external_pressure,
         external_altitude,
-        type,
+        category,
+        rtc_adc,
+        rtc_v,
+        rtc,
+        stc_adc,
+        stc_v,
+        stc,
       } = req.body;
 
       let stringPositionsAndValues = {};
@@ -288,13 +294,13 @@ const createEvent = {
       stringPositionsAndValues[9] = external_humidity || null;
       stringPositionsAndValues[10] = external_pressure || null;
       stringPositionsAndValues[11] = external_altitude || null;
-      stringPositionsAndValues[12] = type || null;
+      stringPositionsAndValues[12] = category || null;
 
       const otherDataString = createEvent.generateOtherDataString(
         stringPositionsAndValues
       );
-
-      let requestBody = {
+      let requestBody = {};
+      const lowCostRequestBody = {
         api_key: api_key,
         created_at: time,
         field1: s1_pm2_5,
@@ -309,6 +315,29 @@ const createEvent = {
         longitude: longitude,
         status: status,
       };
+
+      const bamRequestBody = {
+        api_key: api_key,
+        created_at: time,
+        field1: rtc_adc,
+        field2: rtc_v,
+        field3: rtc,
+        field4: stc_adc,
+        field5: stc_v,
+        field6: stc,
+        field7: battery,
+        field8: otherDataString,
+        latitude: latitude,
+        longitude: longitude,
+        status: status,
+      };
+
+      if (category === "bam") {
+        requestBody = bamRequestBody;
+      } else if (category === "lowcost") {
+        requestBody = lowCostRequestBody;
+      }
+
       return {
         success: true,
         message: "successfully created ThingSpeak body",
@@ -322,76 +351,22 @@ const createEvent = {
       };
     }
   },
-  getTSField: (measurement, res) => {
-    try {
-      let requestBody = {
-        api_key: "api_key",
-        created_at: "created_at",
-        s1_pm2_5: "field1",
-        s1_pm10: "field2",
-        s2_pm2_5: "field3",
-        s2_pm10: "field4",
-        latitude: "field5",
-        longitude: "field6",
-        battery: "field7",
-        latitude: "latitude",
-        longitude: "longitude",
-        status: "field8",
-        altitude: "field8",
-        wind_speed: "field8",
-        satellites: "field8",
-        hdop: "field8",
-        internal_temperature: "field8",
-        internal_humidity: "field8",
-        external_temperature: "field8",
-        external_humidity: "field8",
-        external_pressure: "field8",
-        external_altitude: "field8",
-        type: "field8",
-      };
-
-      if (requestBody.hasOwnProperty(measurement)) {
-        return {
-          success: true,
-          data: requestBody[measurement],
-          status: HTTPStatus.OK,
-        };
-      } else {
-        return {
-          success: false,
-          message: `the provided quantity kind (${measurement}) does not exist for this organization`,
-          status: HTTPStatus.BAD_REQUEST,
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      };
-    }
-  },
   transmitMultipleSensorValues: async (request) => {
     try {
       let requestBody = {};
-      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
-        request
-      );
-
-      if (responseFromCreateRequestBody.success === true) {
-        requestBody = responseFromCreateRequestBody.data;
-      } else {
-        return {
-          success: false,
-          message: responseFromCreateRequestBody.message,
-          status: responseFromCreateRequestBody.status,
-        };
-      }
       const responseFromListDevice = await createDeviceUtil.list(request);
       let deviceDetail = {};
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+          if (isEmpty(deviceDetail.category)) {
+            return {
+              success: false,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message:
+                "unable to categorise this device, please first update device details",
+            };
+          }
         } else {
           return {
             success: false,
@@ -414,6 +389,30 @@ const createEvent = {
           status,
         };
       }
+
+      let requestBodyForCreateThingsSpeakBody = request;
+      requestBodyForCreateThingsSpeakBody["body"]["category"] =
+        deviceDetail.category;
+
+      logObject(
+        "requestBodyForCreateThingsSpeakBody",
+        requestBodyForCreateThingsSpeakBody
+      );
+
+      const responseFromCreateRequestBody = createEvent.createThingSpeakRequestBody(
+        requestBodyForCreateThingsSpeakBody
+      );
+
+      if (responseFromCreateRequestBody.success === true) {
+        requestBody = responseFromCreateRequestBody.data;
+      } else {
+        return {
+          success: false,
+          message: responseFromCreateRequestBody.message,
+          status: responseFromCreateRequestBody.status,
+        };
+      }
+
       let api_key = deviceDetail.writeKey;
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
       if (responseFromDecryptKey.success === true) {
@@ -478,28 +477,33 @@ const createEvent = {
       const { name, chid, device_number, tenant } = request.query;
       const { body } = request;
 
-      let requestDeviceList = {};
-      requestDeviceList["query"] = {};
-      requestDeviceList["query"]["name"] = name;
-      requestDeviceList["query"]["tenant"] = tenant;
-      requestDeviceList["query"]["device_number"] = chid || device_number;
-
-      const responseFromListDevice = await createDeviceUtil.list(
-        requestDeviceList
-      );
+      const responseFromListDevice = await createDeviceUtil.list(request);
 
       let deviceDetail = {};
 
       if (responseFromListDevice.success === true) {
         if (responseFromListDevice.data.length === 1) {
           deviceDetail = responseFromListDevice.data[0];
+          if (isEmpty(deviceDetail.category)) {
+            return {
+              success: false,
+              status: httpStatus.INTERNAL_SERVER_ERROR,
+              message:
+                "unable to categorise this device, please first update device details",
+            };
+          }
+        } else {
+          return {
+            success: false,
+            status: httpStatus.NOT_FOUND,
+            message: "device not found for this organisation",
+          };
         }
       } else if (responseFromListDevice.success === false) {
         return responseFromListDevice;
       }
 
       const channel = deviceDetail.device_number;
-
       let api_key = deviceDetail.writeKey;
 
       const responseFromDecryptKey = await createDeviceUtil.decryptKey(api_key);
@@ -508,10 +512,17 @@ const createEvent = {
       } else if (responseFromDecryptKey.success === false) {
         return responseFromDecryptKey;
       }
+      let enrichedBody = [];
+
+      body.forEach((value) => {
+        value["category"] = deviceDetail.category;
+        enrichedBody.push(value);
+      });
 
       let responseFromTransformMeasurements = await createEvent.transformMeasurementFields(
-        body
+        enrichedBody
       );
+
       let transformedUpdates = {};
       if (responseFromTransformMeasurements.success === true) {
         transformedUpdates = responseFromTransformMeasurements.data;
