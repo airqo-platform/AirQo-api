@@ -1334,7 +1334,8 @@ const createEvent = {
         logger.error(`internal server serror ${e.message}`);
         eventsRejected.push(measurement);
         let errMsg = {
-          msg: "there is a system conflict, most likely a duplicate record",
+          msg:
+            "there is a system conflict, most likely a cast error or duplicate record",
           more: e.message,
           record: {
             ...(measurement.device ? { device: measurement.device } : {}),
