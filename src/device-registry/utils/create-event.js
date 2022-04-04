@@ -744,12 +744,11 @@ const createEvent = {
       if (responseFromGetDeviceDetails.success === true) {
         if (responseFromGetDeviceDetails.data.length === 1) {
           let deviceDetails = responseFromGetDeviceDetails.data[0];
-          logObject("the device details baby", deviceDetails);
+
           enrichedEvent["is_test_data"] = !deviceDetails.isActive;
           enrichedEvent["is_device_primary"] =
             deviceDetails.isPrimaryInLocation;
 
-          logObject("enrichedEvent", enrichedEvent);
           return {
             success: true,
             message: "successfully enriched",
@@ -792,14 +791,11 @@ const createEvent = {
         `the body received for transformation -- ${JSON.stringify(body)}`
       );
       let promises = body.map(async (event) => {
-        logObject("the event", event);
         let data = event;
         let map = constants.EVENT_MAPPINGS;
         let context = event;
         context["device_id"] = ObjectId(event.device_id);
         context["site_id"] = ObjectId(event.site_id);
-
-        logObject("context", context);
 
         let responseFromTransformEvent = await createEvent.transformOneEvent({
           data,
@@ -807,7 +803,6 @@ const createEvent = {
           context,
         });
 
-        logObject("responseFromTransformEvent", responseFromTransformEvent);
         logger.info(
           `responseFromTransformEvent -- ${JSON.stringify(
             responseFromTransformEvent
@@ -882,7 +877,7 @@ const createEvent = {
       let responseFromTransformEvents = await createEvent.transformManyEvents(
         request
       );
-      logObject("responseFromTransformEvents", responseFromTransformEvents);
+
       logger.info(
         `responseFromTransformEvents -- ${JSON.stringify(
           responseFromTransformEvents
@@ -904,8 +899,6 @@ const createEvent = {
           tenant,
           transformedMeasurements
         );
-
-        logObject("responseFromInsertEvents", responseFromInsertEvents);
 
         if (responseFromInsertEvents.success) {
           return {
@@ -943,9 +936,8 @@ const createEvent = {
       let update = {};
       let modifiedFilter = {};
       let dot = new Dot(".");
-      logObject("the transformed events received", events);
+
       for (const event of events) {
-        logObject("the event in events", event);
         try {
           options = event.options;
           value = event;
@@ -961,16 +953,11 @@ const createEvent = {
             value
           );
           logger.info(`the value -- ${JSON.stringify(value)}`);
-          logObject("the value", value);
 
           update["$push"] = { values: value };
           logger.info(`the update -- ${JSON.stringify(update)}`);
 
           logger.info(`the options -- ${JSON.stringify(options)}`);
-
-          logObject("update", update);
-          logObject("options", options);
-          logObject("modifiedFilter", modifiedFilter);
 
           const addedEvents = await Model(tenant).updateOne(
             modifiedFilter,
@@ -1006,7 +993,6 @@ const createEvent = {
           }
         } catch (error) {
           logger.error(`insertTransformedEvents -- ${error.message}`);
-          logObject;
           dot.delete("nValues", filter);
           let errMsg = {
             msg: "duplicate event",
@@ -1103,7 +1089,6 @@ const createEvent = {
 
       let filter = {};
       let responseFromFilter = generateFilter.events_v2(request);
-      logObject("responseFromFilter", responseFromFilter);
 
       if (responseFromFilter.success == true) {
         filter = responseFromFilter.data;
@@ -1239,7 +1224,6 @@ const createEvent = {
       //   },
       // });
     } catch (error) {
-      logObject("the error", error);
       return {
         success: false,
         message: "Internal Server Error",
