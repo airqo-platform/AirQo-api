@@ -16,11 +16,10 @@ class Train_calibrate_tool():
     """
         The class contains functionality for computing device calibrated values .
     """
-
+    # map_columns = {"datetime":"created_at"}
     def train_calibration_model(self, pollutant, map_columns, df):
        # Map columns from uploaded csv
         df.rename(columns=map_columns,inplace=True)
-        print("Columns", df.columns)
         
         #Get average PM
         df['Average_PM2.5'] = df[['pm2_5', 's2_pm2_5']].mean(axis=1).round(2)
