@@ -253,7 +253,7 @@ def app_hourly_insights_etl():
 
 @dag(
     "App-Insights-cleanup",
-    schedule_interval="@weekly",
+    schedule_interval="@daily",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
