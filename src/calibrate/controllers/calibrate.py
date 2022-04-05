@@ -44,6 +44,7 @@ def calibrate_tool():
         
         rgModel = calibration_tool.Regression()
         
+        map_columns = {value: key for key, value in map_columns.items()}
         calibrated_data = rgModel.compute_calibrated_val(map_columns, df) 
         resp = make_response(calibrated_data.to_csv())
         resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
@@ -61,7 +62,9 @@ def train_calibrate_tool():
                 return jsonify({"message": "Please upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity and collocated reference monitor PM values. Refer to the API documentation for details.", "success": False}), 400
             
             rgtool = training_tool.Train_calibrate_tool()
-    
+
+            map_columns = {value: key for key, value in map_columns.items()}
+
             calibrated_data_ext = rgtool.train_calibration_model(pollutant, map_columns, df) 
             resp = make_response(calibrated_data_ext.to_csv())
             resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data_ext.csv"
