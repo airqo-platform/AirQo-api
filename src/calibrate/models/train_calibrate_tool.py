@@ -16,7 +16,7 @@ class Train_calibrate_tool():
     """
         The class contains functionality for computing device calibrated values .
     """
-
+    # map_columns = {"datetime":"created_at"}
     def train_calibration_model(self, pollutant, map_columns, df):
        # Map columns from uploaded csv
         df.rename(columns=map_columns,inplace=True)
