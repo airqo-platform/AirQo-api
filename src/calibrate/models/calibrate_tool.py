@@ -18,7 +18,7 @@ class Regression():
     """
         The class contains functionality for computing device calibrated values .
     """
-    # map_columns = {"created_at":"datetime"}
+    # map_columns = {"datetime":"created_at"}
     def compute_calibrated_val(self, map_columns, df):      
         # Map columns from uploaded csv
         df.rename(columns=map_columns,inplace=True)
