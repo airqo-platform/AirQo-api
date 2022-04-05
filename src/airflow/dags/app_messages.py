@@ -64,7 +64,7 @@ def app_notifications_etl():
     recipients_result = extract_notifications_recipients()
     notification_meta_data = extract_notification_templates_and_insights()
     notifications = create_notifications(
-        message_template_data=notification_meta_data,
+        meta_data=notification_meta_data,
         recipients_data=recipients_result,
     )
     send_notifications(data=notifications)
