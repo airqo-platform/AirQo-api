@@ -29,7 +29,7 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8501
-              name: prod-network-uptime
+              name: prod-net-uptime
           envFrom:
             - configMapRef:
                 name: env-network-uptime-production
