@@ -32,7 +32,7 @@ spec:
               name: prod-network-uptime
           envFrom:
             - configMapRef:
-              name: env-network-uptime-production
+                name: env-network-uptime-production
           # readinessProbe:
           #   httpGet:
           #     path: /health

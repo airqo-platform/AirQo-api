@@ -32,7 +32,7 @@ spec:
               name: sta-network-uptime
           envFrom:
             - configMapRef:
-              name: env-network-uptime-staging
+                name: env-network-uptime-staging
           # readinessProbe:
           #   httpGet:
           #     path: /health
