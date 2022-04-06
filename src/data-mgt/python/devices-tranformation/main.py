@@ -47,6 +47,9 @@ if __name__ == '__main__':
     elif action.lower().strip() == "devices_without_forecast":
         transformation.get_devices_without_forecast()
 
+    elif action.lower().strip() == "refresh_sites":
+        transformation.refresh_sites()
+
     elif action.lower().strip() == "export_sites":
         try:
             tenant = f"{strings_list[3]}"
