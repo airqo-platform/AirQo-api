@@ -39,11 +39,12 @@ def calibrate_tool():
         map_columns = request.form
         file=request.files['file']
         df=pd.read_csv(file)
-        if (not file):
+        if (not file or not map_columns['datetime'] or not map_columns['pm2_5'] or not map_columns['s2_pm2_5'] or not map_columns['pm10'] or not map_columns['s2_pm10'] or not map_columns['temperature'] or not map_columns['humidity']):
             return jsonify({"message": "Please upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature and humidity values. Refer to the API documentation for details.", "success": False}), 400
-        
+
         rgModel = calibration_tool.Regression()
         
+        map_columns = {value: key for key, value in map_columns.items()}
         calibrated_data = rgModel.compute_calibrated_val(map_columns, df) 
         resp = make_response(calibrated_data.to_csv())
         resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data.csv"
@@ -57,11 +58,12 @@ def train_calibrate_tool():
             map_columns = request.form
             file=request.files['file']
             df=pd.read_csv(file)
-            if (not file):
-                return jsonify({"message": "Please upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity and collocated reference monitor PM values. Refer to the API documentation for details.", "success": False}), 400
-            
+            if (not file or not pollutant or not map_columns['ref_data'] or not map_columns['datetime'] or not map_columns['pm2_5'] or not map_columns['s2_pm2_5'] or not map_columns['pm10'] or not map_columns['s2_pm10'] or not map_columns['temperature'] or not map_columns['humidity']):
+                return jsonify({"message": "Please specify pollutant and upload CSV file with the following information datetime, sensor1 pm2.5, sensor2 pm2.5, sensor1 pm10, sensor1 pm10, temperature, humidity values and reference monitor PM. Refer to the API documentation for details.", "success": False}), 400
+           
             rgtool = training_tool.Train_calibrate_tool()
-    
+
+            map_columns = {value: key for key, value in map_columns.items()}
             calibrated_data_ext = rgtool.train_calibration_model(pollutant, map_columns, df) 
             resp = make_response(calibrated_data_ext.to_csv())
             resp.headers["Content-Disposition"] = "attachment; filename=calibrated_data_ext.csv"
