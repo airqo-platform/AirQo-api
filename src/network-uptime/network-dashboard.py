@@ -29,7 +29,7 @@ selected_device = st.sidebar.selectbox('Device name', device_name)
 
 @st.cache
 def load_device_data(device):
-    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate=2022-01-01T00:00:00.001Z&endDate=2022-03-25T19:00:00.001Z&device_name=' + device
+    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate=2022-01-01T00:00:00.001Z&endDate=2022-03-25T19:00:00.001Z&device_name=" + device
     api_result = requests.get(api)
     values = api_result.json()['data'][0]['values']
     subset = ['created_at', 'uptime', 'downtime']
