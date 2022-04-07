@@ -1,6 +1,6 @@
 const HTTPStatus = require("http-status");
 const { logText, logObject } = require("../utils/log");
-const defaultsUtil = require("../utils/defaults");
+const defaultsUtil = require("../utils/create-defaults");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const log4js = require("log4js");
