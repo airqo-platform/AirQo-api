@@ -121,7 +121,7 @@ const siteSchema = new Schema(
       type: String,
     },
     aspect: {
-      type: String,
+      type: Number,
     },
     status: {
       type: String,

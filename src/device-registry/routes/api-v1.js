@@ -2519,6 +2519,14 @@ router.put(
         .withMessage("altitude must be a number")
         .bail()
         .toFloat(),
+      body("aspect")
+        .optional()
+        .notEmpty()
+        .trim()
+        .isFloat()
+        .withMessage("aspect must be a number")
+        .bail()
+        .toFloat(),
       body("city")
         .optional()
         .notEmpty()
