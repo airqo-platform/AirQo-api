@@ -2,7 +2,7 @@ const UserSchema = require("../models/User");
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../services/mailer");
-const generatePassword = require("./generate-password");
+const generatePassword = require("generate-password");
 const bcrypt = require("bcrypt");
 const crypto = require("crypto");
 const isEmpty = require("is-empty");
@@ -363,7 +363,7 @@ const join = {
        * we shall take this generate password to the
        * verify logic and remove it from here
        */
-      let responseFromGeneratePassword = generatePassword(10);
+      let responseFromGeneratePassword = join.createPassword(10);
       logObject("responseFromGeneratePassword", responseFromGeneratePassword);
       if (responseFromGeneratePassword.success === true) {
         const password = responseFromGeneratePassword.data;
@@ -417,9 +417,7 @@ const join = {
                 message: "user successfully created",
                 data: createdUser._doc,
               };
-            }
-
-            if (responseFromSendEmail.success === false) {
+            } else if (responseFromSendEmail.success === false) {
               let status = responseFromSendEmail.status
                 ? responseFromSendEmail.status
                 : "";
@@ -433,14 +431,10 @@ const join = {
                 status,
               };
             }
-          }
-
-          if (responseFromCreateToken.success === false) {
+          } else if (responseFromCreateToken.success === false) {
             return responseFromCreateToken;
           }
-        }
-
-        if (responseFromCreateUser.success === false) {
+        } else if (responseFromCreateUser.success === false) {
           let error = responseFromCreateUser.error
             ? responseFromCreateUser.error
             : "";
@@ -454,9 +448,7 @@ const join = {
             status,
           };
         }
-      }
-
-      if (responseFromGeneratePassword.success === false) {
+      } else if (responseFromGeneratePassword.success === false) {
         let error = responseFromGeneratePassword.error
           ? responseFromGeneratePassword.error
           : "";
@@ -839,6 +831,25 @@ const join = {
         success: false,
         message: "util server error",
         error: error.message,
+      };
+    }
+  },
+  createPassword: (length) => {
+    try {
+      let password = generatePassword.generate(
+        constants.RANDOM_PASSWORD_CONFIGURATION(length)
+      );
+      return {
+        success: true,
+        message: "password generated",
+        data: password,
+      };
+    } catch (e) {
+      logElement("generate password util error message", e.message);
+      return {
+        success: false,
+        message: "generate password util server error",
+        error: e.message,
       };
     }
   },

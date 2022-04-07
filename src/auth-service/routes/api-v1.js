@@ -2,10 +2,9 @@ const express = require("express");
 const router = express.Router();
 const joinController = require("../controllers/join");
 const requestController = require("../controllers/request");
-const defaultsController = require("../controllers/defaults");
+const defaultsController = require("../controllers/create-defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
-const joinUtil = require("../utils/join");
 
 const {
   setJWTAuth,

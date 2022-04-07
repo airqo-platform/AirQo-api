@@ -1,13 +1,12 @@
 const HTTPStatus = require("http-status");
 const validations = require("../utils/validations");
 const { logElement, logText, logObject } = require("../utils/log");
-const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
+const errorsUtil = require("../utils/errors");
 const joinUtil = require("../utils/join");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
-const { badRequest } = require("../utils/errors");
-const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger("join-controller");
 
 const join = {
   list: async (req, res) => {
@@ -15,11 +14,10 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       logText(".....................................");
       logText("list all users by query params provided");
@@ -73,7 +71,10 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`list users -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   verify: (req, res) => {
@@ -90,16 +91,19 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let { email } = req.body;
       let { tenant } = req.query;
       if (!tenant && !email) {
-        missingQueryParams(req, res);
+        logger.error(`forgot credentials`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message = "Bad Request";
+        const error = {};
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       logElement("the email", email);
       const { error, isValid } = validations.forgot(email);
@@ -153,7 +157,10 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`forgot -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -164,11 +171,10 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { errors, isValid } = validations.register(req.body);
       const { tenant } = req.query;
@@ -225,7 +231,10 @@ const join = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`register user -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -236,15 +245,18 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant, id } = req.query;
       if (!tenant) {
-        missingQueryParams(req, res);
+        logger.error(`confirm email`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message = "Bad Request, missing tenant";
+        const error = {};
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let responseFromFilter = generateFilter.users(req);
       logElement("responseFromFilter", responseFromFilter);
@@ -292,8 +304,10 @@ const join = {
         }
       }
     } catch (error) {
-      logElement("controller server error", error.message);
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`confirm email -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -304,18 +318,17 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { errors, isValid } = validations.login(req.body);
       if (!isValid) {
         return res.status(HTTPStatus.BAD_REQUEST).json(errors);
       }
       if (req.auth.success === true) {
-        const status = req.auth.status ? req.auth.status : httpStatus.OK;
+        const status = req.auth.status ? req.auth.status : HTTPStatus.OK;
         res.status(status).json(req.user.toAuthJSON());
       } else {
         const status = req.auth.status
@@ -329,7 +342,10 @@ const join = {
         });
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`user login -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -339,7 +355,10 @@ const join = {
       logText("inside delete user............");
       const { tenant, id } = req.query;
       if (!tenant && !id) {
-        return missingQueryParams(req, res);
+        logger.error(`delete user`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message = "Bad Request, tenant and id missing";
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
@@ -381,7 +400,10 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`delete user -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -392,15 +414,18 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant, id } = req.query;
       if (!tenant && !id) {
-        return missingQueryParams(req, res);
+        logger.error(`update user`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message = "Bad Request, missing tenant and ids";
+        const error = {};
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
@@ -450,7 +475,10 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`update user -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -459,11 +487,10 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { body, query } = req;
       let request = {};
@@ -511,11 +538,10 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { body, query } = req;
       let request = {};
@@ -563,16 +589,20 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant } = req.query;
       const { password, resetPasswordToken } = req.body;
       if (!tenant && !resetPasswordToken && !password) {
-        return missingQueryParams(req, res);
+        logger.error(`update forgotten password`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message =
+          "Bad Request, missing tenant, resetPassword and password";
+        const error = {};
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let responseFromFilter = generateFilter.users(req);
       // logObject("responseFromFilter", responseFromFilter);
@@ -625,7 +655,10 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`update forgotten password -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -635,11 +668,10 @@ const join = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { errors, isValid } = validations.updateKnownPassword(req.body);
       if (!isValid) {
@@ -648,7 +680,12 @@ const join = {
       const { tenant, id } = req.query;
       const { password, old_password } = req.body;
       if (!tenant && !password && !old_password && id) {
-        return missingQueryParams(req, res);
+        logger.error(`update known password`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message =
+          "Bad Request, missing tenant, password, old password and id";
+        const error = {};
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
 
       let responseFromFilter = generateFilter.users(req);
@@ -696,7 +733,10 @@ const join = {
         }
       }
     } catch (error) {
-      tryCatchErrors(res, error, "join controller");
+      logger.error(`update known password -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = "Internal Server Error";
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 };

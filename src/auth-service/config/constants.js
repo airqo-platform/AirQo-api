@@ -1,38 +1,37 @@
 const devConfig = {
-  MONGO_URI: "mongodb://localhost",
+  MONGO_URI: `${process.env.MONGO_DEV_URI}`,
   DB_NAME: process.env.MONGO_DEV,
-  PWD_RESET: "http://localhost:5000/reset",
-  LOGIN_PAGE: "http://localhost:5000/login",
-  FORGOT_PAGE: "http://localhost:5000/forgot",
-  BASE_URL: "http://localhost:3000/api/v1/users",
+  PWD_RESET: `${process.env.PLATFORM_DEV_BASE_URL}/reset`,
+  LOGIN_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/login`,
+  FORGOT_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/forgot`,
+  BASE_URL: `${process.env.PLATFORM_DEV_BASE_URL}/api/v1/users`,
 };
 const prodConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_PROD,
-  // PWD_RESET: "https://34.78.78.202:30101",
-  PWD_RESET: "https://platform.airqo.net/reset",
-  LOGIN_PAGE: "https://platform.airqo.net/login",
-  FORGOT_PAGE: "https://platform.airqo.net/forgot",
-  BASE_URL: "https://platform.airqo.net/api/v1/users",
+  PWD_RESET: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`,
+  LOGIN_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`,
+  FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
+  BASE_URL: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/api/v1/users`,
 };
 
 const stageConfig = {
-  MONGO_URI: process.env.MONGO_GCE_URI,
+  MONGO_URI: process.env.MONGO_PROD_URI,
   DB_NAME: process.env.MONGO_STAGE,
-  PWD_RESET: "https://staging-platform.airqo.net/reset",
-  LOGIN_PAGE: "https://staging-platform.airqo.net/login",
-  FORGOT_PAGE: "https://staging-platform.airqo.net/forgot",
-  BASE_URL: "https://staging-platform.airqo.net/api/v1/users",
+  PWD_RESET: `${process.env.PLATFORM_STAGING_BASE_URL}/reset`,
+  LOGIN_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/login`,
+  FORGOT_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`,
+  BASE_URL: `${process.env.PLATFORM_STAGING_BASE_URL}/api/v1/users`,
 };
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
-  CLIENT_ORIGIN: "https://airqo.net/",
+  CLIENT_ORIGIN: `${process.env.AIRQO_WEBSITE}`,
   BCRYPT_SALT_ROUNDS: 12,
   JWT_SECRET: process.env.JWT_SECRET,
   EMAIL: process.env.MAIL_USER,
   REQUEST_ACCESS_EMAILS: process.env.REQUEST_ACCESS_EMAILS,
-  YOUTUBE_CHANNEL: "https://www.youtube.com/channel/UCx7YtV55TcqKGeKsDdT5_XQ",
+  YOUTUBE_CHANNEL: `${process.env.AIRQO_YOUTUBE}`,
   ACCOUNT_UPDATED: "The AirQo Platform account has successfully been updated",
   RANDOM_PASSWORD_CONFIGURATION: (length) => {
     return {

@@ -1,20 +1,14 @@
 const HTTPStatus = require("http-status");
-const msgs = require("../utils/email.msgs");
-const register = require("../utils/register");
-const { getModelByTenant } = require("../utils/multitenancy");
-const constants = require("../config/constants");
 const requestUtil = require("../utils/request");
 const generateFilter = require("../utils/generate-filter");
 const validations = require("../utils/validations");
-
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
-const { badRequest } = require("../utils/errors");
-
-const { tryCatchErrors, missingQueryParams } = require("utils/errors");
-const { logText, logElement, logObject, logError } = require("../utils/log");
+const { missingQueryParams } = require("utils/errors");
+const { logObject } = require("../utils/log");
 const isEmpty = require("is-empty");
-const { request } = require("../app");
+const log4js = require("log4js");
+const logger = log4js.getLogger("request-controller");
+const errorsUtil = require("../utils/errors");
 
 const candidate = {
   create: async (req, res) => {
@@ -22,11 +16,10 @@ const candidate = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant } = req.query;
       const {
@@ -92,15 +85,18 @@ const candidate = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant } = req.query;
       if (isEmpty(tenant)) {
-        missingQueryParams(req, res);
+        logger.error(`update user`);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        const message = "Bad Request, missing tenant";
+        const error = {};
+        errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
@@ -165,11 +161,10 @@ const candidate = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const {
         firstName,
@@ -269,11 +264,10 @@ const candidate = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant } = req.query;
       if (!tenant) {
@@ -336,11 +330,10 @@ const candidate = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant } = req.query;
       if (!tenant) {

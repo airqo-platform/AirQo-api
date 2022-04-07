@@ -280,9 +280,7 @@ const createOrganization = {
           data: responseFromRemoveOrganization.data,
           success: true,
         };
-      }
-
-      if (responseFromRemoveOrganization.success === false) {
+      } else if (responseFromRemoveOrganization.success === false) {
         let status = responseFromRemoveOrganization.status
           ? responseFromRemoveOrganization.status
           : "";
@@ -316,9 +314,7 @@ const createOrganization = {
       if (responseFromGenerateFilter.success === true) {
         filter = responseFromGenerateFilter.data;
         logObject("filter", filter);
-      }
-
-      if (responseFromGenerateFilter.success === false) {
+      } else if (responseFromGenerateFilter.success === false) {
         let errors = responseFromGenerateFilter.errors
           ? responseFromGenerateFilter.errors
           : "";

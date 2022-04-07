@@ -3,9 +3,6 @@ const CandidateSchema = require("../models/Candidate");
 const { getModelByTenant } = require("../utils/multitenancy");
 const { logObject, logElement, logText } = require("../utils/log");
 const mailer = require("../services/mailer");
-const generatePassword = require("./generate-password");
-var jsonify = require("./jsonify");
-const generateFilter = require("./generate-filter");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
 const validationsUtil = require("./validations");
@@ -21,6 +18,8 @@ const UserModel = (tenant) => {
 const CandidateModel = (tenant) => {
   return getModelByTenant(tenant, "candidate", CandidateSchema);
 };
+
+const joinUtil = require("./join");
 
 const request = {
   create: async (request, callback) => {
@@ -284,7 +283,7 @@ const request = {
         responseFromListCandidate.success === true &&
         !isEmpty(responseFromListCandidate.data)
       ) {
-        let responseFromGeneratePassword = generatePassword(10);
+        let responseFromGeneratePassword = joinUtil.createPassword(10);
         logObject("responseFromGeneratePassword", responseFromGeneratePassword);
         if (responseFromGeneratePassword.success === true) {
           let password = responseFromGeneratePassword.data;
@@ -319,8 +318,8 @@ const request = {
             responseFromCreateUser
           );
           let createdUser = await responseFromCreateUser.data;
-          let jsonifyCreatedUser = jsonify(createdUser);
-          logObject("jsonifyCreatedUser", jsonifyCreatedUser);
+
+          logObject("createdUser", createdUser);
 
           if (responseFromCreateUser.success === true) {
             let responseFromSendEmail = await mailer.user(

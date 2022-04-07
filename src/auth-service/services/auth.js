@@ -7,21 +7,13 @@ const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
 const { Strategy: JwtStrategy, ExtractJwt } = require("passport-jwt");
 const expressJwt = require("express-jwt");
-const privileges = require("../utils/privileges");
-const {
-  axiosError,
-  tryCatchErrors,
-  missingQueryParams,
-  callbackErrors,
-} = require("../utils/errors");
 const { getModelByTenant } = require("../utils/multitenancy");
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
 };
-
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
-const { badRequest } = require("../utils/errors");
+
+const errorsUtil = require("../utils/errors");
 
 const setLocalOptions = (req) => {
   try {
@@ -97,6 +89,7 @@ const useLocalStrategy = (tenant, req, res, next) => {
     return localOptions;
   }
 };
+
 const useEmailWithLocalStrategy = (tenant, req, res, next) =>
   new LocalStrategy(
     authenticateWithEmailOptions,
@@ -225,11 +218,10 @@ function setLocalAuth(req, res, next) {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-      );
+      const message = "bad request errors";
+      const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+      const statusCode = HTTPStatus.BAD_REQUEST;
+      return errorsUtil.errorResponse({ res, message, statusCode, error });
     }
     let tenant = "airqo";
     if (req.query.tenant) {
@@ -248,12 +240,10 @@ function setJWTAuth(req, res, next) {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
-        res,
-        "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-      );
-    }
+      const message = "bad request errors";
+      const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+      const statusCode = HTTPStatus.BAD_REQUEST;
+      return errorsUtil.errorResponse({ res, message, statusCode, error });
     let tenant = "airqo";
     if (req.query.tenant) {
       tenant = req.query.tenant;

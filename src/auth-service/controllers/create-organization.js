@@ -1,12 +1,22 @@
-const { logElement, logText, logObject } = require("../utils/log");
+const { logText, logObject } = require("../utils/log");
 const HTTPStatus = require("http-status");
 const createOrganizationUtil = require("../utils/create-organization");
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
+const log4js = require("log4js");
+const logger = log4js.getLogger("organization-controller");
+const errorsUtil = require("../utils/errors");
 
 const createOrganization = {
   getTenantFromEmail: async (req, res) => {
     try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
+      }
       let { body, query } = req;
       let request = {};
       request["body"] = body;
@@ -38,11 +48,10 @@ const createOrganization = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: { message: error.message },
-      });
+      logger.error(`update defaults -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   create: async (req, res) => {
@@ -51,11 +60,10 @@ const createOrganization = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let { body, query, params } = req;
       let request = {};
@@ -82,9 +90,7 @@ const createOrganization = {
           message: responseFromCreateOrganization.message,
           created_organization: responseFromCreateOrganization.data,
         });
-      }
-
-      if (responseFromCreateOrganization.success === false) {
+      } else if (responseFromCreateOrganization.success === false) {
         let errors = responseFromCreateOrganization.errors
           ? responseFromCreateOrganization.errors
           : "";
@@ -100,11 +106,11 @@ const createOrganization = {
         });
       }
     } catch (err) {
-      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: err.message,
-      });
+      logger.error(`update defaults -- ${err}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = err.message;
+      const error = err;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   update: async (req, res) => {
@@ -112,11 +118,10 @@ const createOrganization = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let { body, query, params } = req;
       let request = {};
@@ -138,9 +143,7 @@ const createOrganization = {
           updated_organization: responseFromUpdateOrganization.data,
           success: true,
         });
-      }
-
-      if (responseFromUpdateOrganization.success === false) {
+      } else if (responseFromUpdateOrganization.success === false) {
         let status = responseFromUpdateOrganization.status
           ? responseFromUpdateOrganization.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -154,11 +157,10 @@ const createOrganization = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: error.message,
-      });
+      logger.error(`update defaults -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   delete: async (req, res) => {
@@ -166,11 +168,10 @@ const createOrganization = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
 
       let { body, query } = req;
@@ -197,9 +198,7 @@ const createOrganization = {
           deleted_organization: responseFromDeleteOrganization.data,
           success: true,
         });
-      }
-
-      if (responseFromDeleteOrganization.success === false) {
+      } else if (responseFromDeleteOrganization.success === false) {
         let status = responseFromDeleteOrganization.status
           ? responseFromDeleteOrganization.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -214,11 +213,10 @@ const createOrganization = {
         });
       }
     } catch (error) {
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        message: "Internal Server Error",
-        errors: error.message,
-        success: false,
-      });
+      logger.error(`update defaults -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
   list: async (req, res) => {
@@ -226,11 +224,10 @@ const createOrganization = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       let { body, query } = req;
       let request = {};
@@ -256,9 +253,7 @@ const createOrganization = {
           message: responseFromListOrganizations.message,
           organizations: responseFromListOrganizations.data,
         });
-      }
-
-      if (responseFromListOrganizations.success === false) {
+      } else if (responseFromListOrganizations.success === false) {
         let status = responseFromListOrganizations.status
           ? responseFromListOrganizations.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -272,12 +267,10 @@ const createOrganization = {
         });
       }
     } catch (error) {
-      logElement("internal server error", error.message);
-      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
-        success: false,
-        message: "Internal Server Error",
-        errors: error.message,
-      });
+      logger.error(`update defaults -- ${error}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = error.message;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 };

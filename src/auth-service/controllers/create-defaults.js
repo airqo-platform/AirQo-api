@@ -1,11 +1,11 @@
 const HTTPStatus = require("http-status");
-const { logElement, logText, logObject } = require("../utils/log");
-const { tryCatchErrors, missingQueryParams } = require("../utils/errors");
+const { logText, logObject } = require("../utils/log");
 const defaultsUtil = require("../utils/defaults");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
-const { badRequest } = require("../utils/errors");
+const log4js = require("log4js");
+const logger = log4js.getLogger("defaults-controller");
+const errorsUtil = require("../utils/errors");
 
 const defaults = {
   update: async (req, res) => {
@@ -13,11 +13,10 @@ const defaults = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
 
       const { tenant } = req.query;
@@ -43,9 +42,7 @@ const defaults = {
             message: responseFromUpdateDefault.message,
             default: responseFromUpdateDefault.data,
           });
-        }
-
-        if (responseFromUpdateDefault.success === false) {
+        } else if (responseFromUpdateDefault.success === false) {
           let errors = responseFromUpdateDefault.errors
             ? responseFromUpdateDefault.errors
             : "";
@@ -73,7 +70,11 @@ const defaults = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "defaults controller");
+      logger.error(`update default -- ${errors}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = errors.message;
+      const error = errors;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -83,11 +84,10 @@ const defaults = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
 
       let request = {};
@@ -105,9 +105,7 @@ const defaults = {
           message: responseFromCreateDefault.message,
           default: responseFromCreateDefault.data,
         });
-      }
-
-      if (responseFromCreateDefault.success === false) {
+      } else if (responseFromCreateDefault.success === false) {
         let errors = responseFromCreateDefault.errors
           ? responseFromCreateDefault.errors
           : "";
@@ -122,7 +120,11 @@ const defaults = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "defaults controller");
+      logger.error(`create default -- ${errors}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = errors.message;
+      const error = errors;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -133,11 +135,10 @@ const defaults = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
       const { tenant } = req.query;
       const limit = parseInt(req.query.limit, 0);
@@ -165,9 +166,7 @@ const defaults = {
             message: responseFromListDefaults.message,
             defaults: responseFromListDefaults.data,
           });
-        }
-
-        if (responseFromListDefaults.success === false) {
+        } else if (responseFromListDefaults.success === false) {
           let errors = responseFromListDefaults.errors
             ? responseFromListDefaults.errors
             : "";
@@ -182,9 +181,7 @@ const defaults = {
             errors,
           });
         }
-      }
-
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status
           ? responseFromFilter.status
@@ -196,7 +193,11 @@ const defaults = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "join controller");
+      logger.error(`list defaults -- ${errors}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = errors.message;
+      const error = errors;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 
@@ -206,11 +207,10 @@ const defaults = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
-          res,
-          "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
-        );
+        const message = "bad request errors";
+        const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
+        const statusCode = HTTPStatus.BAD_REQUEST;
+        return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
 
       let request = {};
@@ -227,9 +227,7 @@ const defaults = {
           message: responseFromDeleteDefault.message,
           default: responseFromDeleteDefault.data,
         });
-      }
-
-      if (responseFromDeleteDefault.success === false) {
+      } else if (responseFromDeleteDefault.success === false) {
         let errors = responseFromDeleteDefault.errors
           ? responseFromDeleteDefault.errors
           : "";
@@ -246,7 +244,11 @@ const defaults = {
         });
       }
     } catch (errors) {
-      tryCatchErrors(res, errors, "defaults controller");
+      logger.error(`delete default -- ${errors}`);
+      const statusCode = HTTPStatus.INTERNAL_SERVER_ERROR;
+      const message = errors.message;
+      const error = errors;
+      errorsUtil.errorResponse({ res, message, statusCode, error });
     }
   },
 };
