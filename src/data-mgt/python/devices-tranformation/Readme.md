@@ -67,6 +67,12 @@ Update sites to include the nearest Tahmo Station.
     python main.py devices_without_forecast csv
 ```
 
+## Refresh sites
+
+```bash
+    python main.py refresh_sites 
+```
+
 ## Update sites search names based on csv file
 Updates the `search_name` and `location_name` of sites. You must add to this directory a `sites.csv` file containing `search_name`, `location_name` and either `lat_long` or `id` of the sites to  be updated.
 
