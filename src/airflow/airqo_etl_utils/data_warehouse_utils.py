@@ -17,7 +17,6 @@ hourly_weather_columns = [
     "wind_direction",
 ]
 
-
 hourly_measurements_columns = [
     "timestamp",
     "site_id",
@@ -120,6 +119,44 @@ def extract_sites_meta_data(tenant=None) -> list:
             "city",
         ]
     ]
+
+    sites_df[
+        [
+            "latitude",
+            "longitude",
+            "bearing_to_kampala_center",
+            "landform_90",
+            "distance_to_kampala_center",
+            "altitude",
+            "landform_270",
+            "aspect",
+            "distance_to_nearest_tertiary_road",
+            "distance_to_nearest_primary_road",
+            "distance_to_nearest_road",
+            "distance_to_nearest_residential_road",
+            "distance_to_nearest_secondary_road",
+            "distance_to_nearest_unclassified_road",
+        ]
+    ] = sites_df[
+        [
+            "latitude",
+            "longitude",
+            "bearing_to_kampala_center",
+            "landform_90",
+            "distance_to_kampala_center",
+            "altitude",
+            "landform_270",
+            "aspect",
+            "distance_to_nearest_tertiary_road",
+            "distance_to_nearest_primary_road",
+            "distance_to_nearest_road",
+            "distance_to_nearest_residential_road",
+            "distance_to_nearest_secondary_road",
+            "distance_to_nearest_unclassified_road",
+        ]
+    ].apply(
+        pd.to_numeric, errors="coerce"
+    )
 
     sites_df.rename(
         columns={
