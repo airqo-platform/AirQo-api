@@ -168,13 +168,16 @@ def merge_measurements_weather_sites(
         how="left",
     )
 
-    measurements_df["humidity"] = measurements_df["humidity"].fillna(
-        measurements_df["external_humidity"]
+    measurements_df["external_humidity"] = measurements_df["external_humidity"].fillna(
+        measurements_df["humidity"]
     )
 
-    measurements_df["temperature"] = measurements_df["temperature"].fillna(
-        measurements_df["external_temperature"]
-    )
+    measurements_df["external_temperature"] = measurements_df[
+        "external_temperature"
+    ].fillna(measurements_df["temperature"])
+
+    measurements_df["temperature"] = measurements_df["external_temperature"]
+    measurements_df["humidity"] = measurements_df["external_humidity"]
 
     del measurements_df["external_temperature"]
     del measurements_df["external_humidity"]

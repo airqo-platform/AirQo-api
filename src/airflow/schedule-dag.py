@@ -2,7 +2,6 @@ import argparse
 import base64
 import json
 import os
-import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -20,10 +19,6 @@ load_dotenv(dotenv_path)
 
 
 class ScheduleDag:
-    start_date_time = None
-    end_date_time = None
-    logical_date_interval = None
-
     def __init__(
         self, start_date_time: str, end_date_time: str, logical_date_interval: int
     ) -> None:
@@ -38,8 +33,8 @@ class ScheduleDag:
     def get_authentication_string() -> str:
         username = os.getenv("ADMIN_USERNAME")
         password = os.getenv("ADMIN_PASSWORD")
-        input_string_bytes = f"{username}:{password}".encode("ascii")
-        base64_bytes = base64.b64encode(input_string_bytes)
+        auth_bytes = f"{username}:{password}".encode("ascii")
+        base64_bytes = base64.b64encode(auth_bytes)
         base64_string = base64_bytes.decode("ascii")
         return base64_string
 
@@ -80,8 +75,7 @@ class ScheduleDag:
                 "Content-Type": "application/json",
             },
         )
-        print("\n")
-        print(json.loads(api_request.content))
+        print(f"\n{json.loads(api_request.content)}")
 
     def schedule(self, dag: str):
         frequency = self.dag_frequency(dag=dag)
@@ -112,7 +106,7 @@ class ScheduleDag:
 if __name__ == "__main__":
     hour_of_day = datetime.utcnow() - timedelta(hours=1)
 
-    valid_dag_values = ", ".join([str(elem) for elem in ScheduleDag.dag_names()])
+    valid_dag_names = ", ".join([str(name) for name in ScheduleDag.dag_names()])
     parser = argparse.ArgumentParser(description="DAG configuration")
     parser.add_argument(
         "--start",
@@ -133,7 +127,7 @@ if __name__ == "__main__":
         help="range interval in minutes",
     )
     parser.add_argument(
-        "--dag", required=True, type=str, help=f"DAG. Examples: {valid_dag_values}"
+        "--dag", required=True, type=str, help=f"DAG. Examples: {valid_dag_names}"
     )
     args = parser.parse_args()
 
@@ -146,4 +140,4 @@ if __name__ == "__main__":
     if args.dag in ScheduleDag.dag_names().keys():
         schedule_dag.schedule(dag=args.dag)
     else:
-        raise Exception(f"Invalid dag. Valid values are {valid_dag_values}")
+        raise Exception(f"Invalid dag. Valid values are {valid_dag_names}")
