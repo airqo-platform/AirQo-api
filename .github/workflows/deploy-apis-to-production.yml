@@ -925,7 +925,7 @@ jobs:
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:latest
       - name: Deploy to K8S
         run: |
-          kubectl apply -f k8s/network-uptime/prod-airqo-network-uptime-job.yaml -n production
+          kubectl apply -f k8s/network-uptime/prod-airqo-network-uptime-api.yaml -n production
           kubectl set image deployment/airqo-network-uptime-api prod-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production 
 

@@ -29,7 +29,7 @@ spec:
           imagePullPolicy: Always
           ports:
             - containerPort: 8501
-              name: sta-network-uptime
+              name: sta-net-uptime
           envFrom:
             - configMapRef:
                 name: env-network-uptime-staging
