@@ -117,9 +117,30 @@ Ctrl + c
 sh clean.sh  
 ```
 
-## Working with dags
+## Working with DAGs
 
-ETL dags for historical data require you to specify `startDateTime` and `endDateTime` in the dag config using the format `YYYY-MM-ddTHH:mm:ssZ`
+### Scheduling DAGs for historical data
+
+#### Using the UI
+
+Specify `startDateTime` and `endDateTime` in the dag config using the format `YYYY-MM-ddTHH:mm:ssZ`
+
+#### Using the API
+
+Specify the `start_date_time`, `end_date_time`, interval between DAG instances and the name of the DAG. For example the command below creates muliple instances of the AirQo historical data DAG that stream data between 2022-0-01 to 2022-04-01 with an interval of 20 minutes between the instances
+
+```bash
+python schedule-dag.py --start=2022-01-01T00:00:00Z --end=2022-04-01T00:00:00Z --logical_date_minutes_interval=20 --dag=airqo_historical_hourly_data
+```
+
+| DAG                                   | Description      |
+|---------------------------------------|------------------|
+| `airqo_historical_hourly_data`        | Historical hourly AirQo data |
+| `kcca_historical_hourly_data`         | Historical hourly KCCA data |
+| `data_warehouse`                      | Data warehouse |
+| `historical_weather_data`             | Historical weather data |
+| `app_historical_daily_insights`       | Historical daily app insights |
+| `app_historical_hourly_insights`      | Historical hourly app insights |
 
 ## BigQuery Schemas
 
