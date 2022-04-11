@@ -121,7 +121,7 @@ const siteSchema = new Schema(
       type: String,
     },
     aspect: {
-      type: String,
+      type: Number,
     },
     status: {
       type: String,
@@ -414,7 +414,6 @@ siteSchema.statics = {
           "airqlouds.location": 0,
           "airqlouds.airqloud_tags": 0,
           "airqlouds.long_name": 0,
-          "airqlouds.createdAt": 0,
           "airqlouds.updatedAt": 0,
           "airqlouds.sites": 0,
           "airqlouds.__v": 0,
@@ -431,7 +430,6 @@ siteSchema.statics = {
           "devices.tags": 0,
           "devices.description": 0,
           "devices.isUsedForCollocation": 0,
-          "devices.createdAt": 0,
           "devices.updatedAt": 0,
           "devices.locationName": 0,
           "devices.siteName": 0,
