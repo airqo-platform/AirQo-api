@@ -122,10 +122,6 @@ jobs:
               echo "::set-output name=run_predict::true"
             fi
 
-            if [[ $file == src/predict-job/* ]]; then
-              echo "::set-output name=run_predict::true"
-            fi
-
             if [[ $file == src/gp-model/* ]]; then
               echo "::set-output name=run_gp_model::true"
             fi
@@ -272,9 +268,9 @@ jobs:
           kubectl apply -f k8s/airflow/stage-airflow-app.yaml -n stage-airflow
           kubectl rollout restart deployment airflow  -n stage-airflow
 
-  ### predict api and job ###
+  ### predict api and jobs ###
   predict-service:
-    name: build-push-deploy-predict-api
+    name: build-push-deploy-predict-service
     needs: [check, image-tag]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
@@ -306,23 +302,32 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/predict
+          context: src/predict/api
           target: staging
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-prediction-api:latest
       -
-        name: Build and push Job Docker Image
+        name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/predict-job
+          context: src/predict/jobs/predict
           target: staging
-          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-predict-job:latest
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-predict-job:latest
+      -
+        name: Build and push train Job Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict/jobs/train
+          target: staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-train-job:latest
       - 
         name: Deploy to K8S
         run: |
           kubectl apply -f k8s/predict/stage-prediction-api.yaml -n staging
           kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
           kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml -n staging
+          kubectl apply -f k8s/predict/stage-airqo-train-job.yaml -n staging
 
   #### Device Registry ######
   device-registry:

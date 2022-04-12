@@ -123,10 +123,6 @@ jobs:
               echo "::set-output name=run_predict::true"
             fi
 
-            if [[ $file == src/predict-job/* ]]; then
-              echo "::set-output name=run_predict::true"
-            fi
-
             if [[ $file == src/gp-model/* ]]; then
               echo "::set-output name=run_gp_model::true"
             fi
@@ -828,9 +824,9 @@ jobs:
           kubectl set image deployment/airqo-notification-api notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
 
-  ### predict api and job ###
+  ### predict api and jobs ###
   predict-service:
-    name: build-push-deploy-predict-api
+    name: build-push-deploy-predict-service
     needs: [check, image-tag]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
@@ -862,20 +858,29 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/predict
+          context: src/predict/api
           target: production
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-prediction-api:latest
       -
-        name: Build and push Job Docker Image
+        name: Build and push predict Job Docker Image
         uses: docker/build-push-action@v2
         with:
           push: true
-          context: src/predict-job
+          context: src/predict/jobs/predict
           target: production
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-predict-job:latest
+      -
+        name: Build and push train Job Docker Image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/predict/jobs/train
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-train-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-train-job:latest
       - 
         name: Deploy to K8S
         run: |
           kubectl apply -f k8s/predict/prod-prediction-api.yaml -n production
           kubectl rollout restart deployment airqo-prediction-api -n production
           kubectl apply -f k8s/predict/prod-airqo-predict-job.yaml -n production
+          kubectl apply -f k8s/predict/prod-airqo-train-job.yaml -n production
