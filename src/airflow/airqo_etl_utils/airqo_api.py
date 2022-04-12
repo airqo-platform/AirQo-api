@@ -48,6 +48,7 @@ class AirQoApi:
             if self.CALIBRATION_BASE_URL
             else self.AIRQO_BASE_URL
         )
+        endpoint = "calibrate"
         for i in range(
             0, len(calibrate_body), int(configuration.CALIBRATE_REQUEST_BODY_SIZE)
         ):
@@ -86,14 +87,19 @@ class AirQoApi:
                     traceback.print_exc()
                     print(ex)
 
-            endpoint = "calibrate"
+            try:
+                response = self.__request(
+                    endpoint=endpoint,
+                    method="post",
+                    body=request_body,
+                    base_url=base_url,
+                )
 
-            response = self.__request(
-                endpoint=endpoint, method="post", body=request_body, base_url=base_url
-            )
-
-            if response is not None:
-                calibrated_data.extend(response)
+                if response is not None:
+                    calibrated_data.extend(response)
+            except Exception as ex:
+                traceback.print_exc()
+                print(ex)
 
         return calibrated_data
 
@@ -172,13 +178,23 @@ class AirQoApi:
         end_time: str,
         frequency: str,
         site_id=None,
+        forecast=False,
+        empty=False,
+        all_data=False,
     ) -> list:
-        params = {
-            "time": [start_time, end_time],
-            "frequency": frequency,
-            "empty": False,
-            "forecast": False,
-        }
+        if all_data:
+            params = {
+                "startDateTime": start_time,
+                "endDateTime": end_time,
+            }
+        else:
+            params = {
+                "startDateTime": start_time,
+                "endDateTime": end_time,
+                "frequency": frequency,
+                "empty": empty,
+                "forecast": forecast,
+            }
         if site_id:
             params["siteId"] = site_id
 
@@ -212,14 +228,22 @@ class AirQoApi:
         if tenant:
             response = self.__request("devices/sites", {"tenant": tenant})
             if "sites" in response:
-                return response["sites"]
+                sites = response["sites"]
+                sites_with_tenant = []
+                for site in sites:
+                    site["tenant"] = tenant
+                    sites_with_tenant.append(site)
+                return sites_with_tenant
         else:
-            sites = []
+            sites_with_tenant = []
             for x in ["airqo", "kcca"]:
                 response = self.__request("devices/sites", {"tenant": x})
                 if "sites" in response:
-                    sites.extend(response["sites"])
-            return sites
+                    sites = response["sites"]
+                    for site in sites:
+                        site["tenant"] = x
+                        sites_with_tenant.append(site)
+            return sites_with_tenant
 
     def __request(
         self, endpoint, params=None, body=None, method=None, version="v1", base_url=None
@@ -246,7 +270,7 @@ class AirQoApi:
                 "%s%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=simplejson.dumps(body),
+                data=simplejson.dumps(body, ignore_nan=True),
                 verify=False,
             )
         elif method == "post":
@@ -255,7 +279,7 @@ class AirQoApi:
                 "%s%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=simplejson.dumps(body),
+                data=simplejson.dumps(body, ignore_nan=True),
                 verify=False,
             )
         else:

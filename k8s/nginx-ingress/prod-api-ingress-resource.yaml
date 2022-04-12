@@ -147,3 +147,7 @@ spec:
             backend:
               serviceName: airqo-view-api-svc
               servicePort: 8081
+          - path: /api/v1/network-uptime
+            backend:
+              serviceName: airqo-network-uptime-api-svc
+              servicePort: 8501

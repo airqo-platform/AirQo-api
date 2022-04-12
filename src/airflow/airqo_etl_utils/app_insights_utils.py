@@ -104,11 +104,13 @@ def format_airqo_data_to_insights(data: list):
     return create_insights_data(data=restructured_data)
 
 
-def save_insights_data(insights_data: list = None, action: str = "insert"):
+def save_insights_data(
+    insights_data: list = None, action: str = "insert", partition: int = 0
+):
     if insights_data is None:
         insights_data = []
 
-    print("saving insights .... ")
+    print(f"saving {len(insights_data)} insights .... ")
 
     data = {
         "data": insights_data,
@@ -116,7 +118,9 @@ def save_insights_data(insights_data: list = None, action: str = "insert"):
     }
 
     kafka = KafkaBrokerClient()
-    kafka.send_data(info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC)
+    kafka.send_data(
+        info=data, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC, partition=partition
+    )
 
 
 def predict_time_to_string(time: str):
@@ -137,7 +141,7 @@ def get_forecast_data(tenant: str) -> list:
     devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
 
     forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
-    time = int(datetime.utcnow().timestamp())
+    time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())
 
     for device in devices:
         device_dict = dict(device)
@@ -251,7 +255,23 @@ def average_insights_data(data: list, frequency="daily") -> list:
     return sampled_data
 
 
-def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> list:
+def transform_old_forecast(start_date_time: str, end_date_time: str) -> list:
+    forecast_data = query_insights_data(
+        freq="hourly",
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        forecast=True,
+    )
+
+    forecast_data_df = pd.DataFrame(data=forecast_data, columns=insights_columns)
+    forecast_data_df["forecast"] = False
+    forecast_data_df["empty"] = False
+    return forecast_data_df.to_dict(orient="records")
+
+
+def query_insights_data(
+    freq: str, start_date_time: str, end_date_time: str, forecast=False, all_data=False
+) -> list:
     airqo_api = AirQoApi()
     insights = []
 
@@ -274,6 +294,8 @@ def query_insights_data(freq: str, start_date_time: str, end_date_time: str) -> 
                 start_time=start,
                 frequency=freq,
                 end_time=end,
+                forecast=forecast,
+                all_data=all_data,
             )
             insights.extend(api_results)
 
@@ -294,20 +316,23 @@ def create_insights_data_from_bigquery(
     hourly_data = bigquery_api.get_hourly_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
-        columns=["pm2_5", "pm10", "site_id", "time"],
+        columns=["pm2_5", "pm10", "site_id", "timestamp"],
         table=bigquery_api.hourly_measurements_table,
     )
     hourly_data["forecast"] = False
     hourly_data["empty"] = False
     hourly_data["frequency"] = "hourly"
-    hourly_data.rename(columns={"site_id": "siteId"}, inplace=True)
+    hourly_data.rename(columns={"site_id": "siteId", "timestamp": "time"}, inplace=True)
     return hourly_data.to_dict(orient="records")
 
 
 def create_insights_data(data: list) -> list:
     print("creating insights .... ")
 
-    insights_data = pd.DataFrame(data)
+    if not data:
+        return []
+
+    insights_data = pd.DataFrame(data, columns=insights_columns)
 
     insights_data["frequency"] = insights_data["frequency"].apply(
         lambda x: str(x).upper()

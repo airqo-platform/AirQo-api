@@ -4,30 +4,11 @@ const isEmpty = require("is-empty");
 const { logObject, logElement, logText } = require("../utils/log");
 const { validationResult } = require("express-validator");
 
-const {
-  carryOutActivity,
-  isDeviceDeployed,
-  isDeviceRecalled,
-  siteActivityRequestBodies,
-  queryFilterOptions,
-  bodyFilterOptions,
-} = require("../utils/site-activities");
-
-const {
-  tryCatchErrors,
-  missingQueryParams,
-  callbackErrors,
-  missingOrInvalidValues,
-  badRequest,
-  logger_v2,
-  errorCodes,
-} = require("../utils/errors");
+const errors = require("../utils/errors");
 
 const generateFilter = require("../utils/generate-filter");
 
 const createSiteUtil = require("../utils/create-site");
-
-const manipulateArraysUtil = require("../utils/manipulate-arrays");
 
 const { getModelByTenant } = require("../utils/multitenancy");
 
@@ -42,10 +23,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -90,10 +71,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let responseFromGenerateMetadata = await createSiteUtil.generateMetadata(
@@ -137,10 +118,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query, body } = req;
@@ -187,7 +168,6 @@ const manageSite = {
   listWeatherStations: async (req, res) => {
     try {
       const responseFromListTahmoStations = await createSiteUtil.listWeatherStations();
-      logObject("responseFromListTahmoStations", responseFromListTahmoStations);
       if (responseFromListTahmoStations.success === true) {
         const status = responseFromListTahmoStations.status
           ? responseFromListTahmoStations.status
@@ -224,10 +204,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { query, body } = req;
@@ -281,10 +261,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let filter = generateFilter.sites(req);
@@ -329,10 +309,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -383,10 +363,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant } = req.query;
@@ -434,10 +414,10 @@ const manageSite = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       const { tenant, latitude, longitude, radius } = req.query;
@@ -493,32 +473,26 @@ const manageSite = {
 
   list: async (req, res) => {
     try {
-      logText(".....................................");
-      logText("list all sites by query params provided");
       const { tenant } = req.query;
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
       let filter = generateFilter.sites(req);
-      logObject("filter in the controller", filter);
       let responseFromListSites = await createSiteUtil.list({
         tenant,
         filter,
         limit,
         skip,
       });
-      logElement(
-        "has the response for listing sites been successful?",
-        responseFromListSites.success
-      );
+
       if (responseFromListSites.success === true) {
         let status = responseFromListSites.status
           ? responseFromListSites.status
@@ -528,21 +502,19 @@ const manageSite = {
           message: responseFromListSites.message,
           sites: responseFromListSites.data,
         });
-      }
-
-      if (responseFromListSites.success === false) {
-        let error = responseFromListSites.errors
+      } else if (responseFromListSites.success === false) {
+        let errors = responseFromListSites.errors
           ? responseFromListSites.errors
-          : "";
+          : { message: "" };
 
         let status = responseFromListSites.status
           ? responseFromListSites.status
-          : HTTPStatus.BAD_GATEWAY;
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
 
         res.status(status).json({
           success: false,
           message: responseFromListSites.message,
-          error,
+          errors,
         });
       }
     } catch (error) {
@@ -559,25 +531,27 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
-    const isRecalled = await isDeviceRecalled(deviceName, tenant.toLowerCase());
+    const isRecalled = await createSiteUtil.isDeviceRecalled(
+      deviceName,
+      tenant.toLowerCase()
+    );
     if (isRecalled) {
       return res.status(HTTPStatus.CONFLICT).json({
         success: false,
         message: `Device ${deviceName} already recalled`,
       });
     }
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-      req,
-      res,
-      "recall"
-    );
-    return await carryOutActivity(
+    const {
+      siteActivityBody,
+      deviceBody,
+    } = createSiteUtil.siteActivityRequestBodies(req, res, "recall");
+    return await createSiteUtil.carryOutActivity(
       res,
       tenant,
       deviceName,
@@ -606,14 +580,17 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
 
-    const isDeployed = await isDeviceDeployed(deviceName, tenant.toLowerCase());
+    const isDeployed = await createSiteUtil.isDeviceDeployed(
+      deviceName,
+      tenant.toLowerCase()
+    );
 
     if (isDeployed) {
       return res.status(HTTPStatus.CONFLICT).json({
@@ -622,12 +599,11 @@ const manageSite = {
       });
     }
 
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-      req,
-      res,
-      "deploy"
-    );
-    return await carryOutActivity(
+    const {
+      siteActivityBody,
+      deviceBody,
+    } = createSiteUtil.siteActivityRequestBodies(req, res, "deploy");
+    return await createSiteUtil.carryOutActivity(
       res,
       tenant,
       deviceName,
@@ -645,19 +621,18 @@ const manageSite = {
     const hasErrors = !validationResult(req).isEmpty();
     if (hasErrors) {
       let nestedErrors = validationResult(req).errors[0].nestedErrors;
-      return badRequest(
+      return errors.badRequest(
         res,
         "bad request errors",
-        manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        errors.convertErrorArrayToObject(nestedErrors)
       );
     }
 
-    const { siteActivityBody, deviceBody } = siteActivityRequestBodies(
-      req,
-      res,
-      "maintain"
-    );
-    return await carryOutActivity(
+    const {
+      siteActivityBody,
+      deviceBody,
+    } = createSiteUtil.siteActivityRequestBodies(req, res, "maintain");
+    return await createSiteUtil.carryOutActivity(
       res,
       tenant,
       deviceName,
@@ -704,7 +679,7 @@ const manageSite = {
             });
           });
       } else {
-        missingQueryParams(res);
+        errors.missingQueryParams(res);
       }
     } catch (e) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
@@ -721,33 +696,42 @@ const manageSite = {
       logElement("tenant", tenant);
       logElement("id", id);
       if (tenant && id) {
-        const { activityBody } = await bodyFilterOptions(req, res);
+        const { activityBody } = await createSiteUtil.bodyFilterOptions(
+          req,
+          res
+        );
         let filter = { _id: id };
 
         logObject("activity body", activityBody);
 
-        const updated_activity = await getModelByTenant(
+        const update = activityBody;
+
+        const responseFromUpdateActivity = await getModelByTenant(
           tenant.toLowerCase(),
           "activity",
           SiteActivitySchema
-        ).findOneAndUpdate(filter, activityBody, {
-          new: true,
-        });
+        ).modify({ filter, update });
 
-        if (!isEmpty(updated_activity)) {
-          return res.status(HTTPStatus.OK).json({
+        if (responseFromUpdateActivity.success === true) {
+          const status = responseFromUpdateActivity.status
+            ? responseFromUpdateActivity.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
             message: "activity updated successfully",
-            updated_activity,
+            updated_activity: responseFromUpdateActivity.data,
           });
-        } else if (isEmpty(updated_activity)) {
-          return res.status(HTTPStatus.BAD_REQUEST).json({
+        } else if (responseFromUpdateActivity.success === false) {
+          const status = responseFromUpdateActivity.status
+            ? responseFromUpdateActivity.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
             success: false,
-            message: `An activity log by this ID (${id}) could be missing, please crosscheck`,
+            message: responseFromUpdateActivity.message,
           });
         }
       } else {
-        missingQueryParams(res);
+        errors.missingQueryParams(res);
       }
     } catch (e) {
       return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
@@ -766,29 +750,35 @@ const manageSite = {
       const { tenant } = req.query;
 
       if (!tenant) {
-        missingQueryParams(res);
+        errors.missingQueryParams(res);
       }
 
       const filter = generateFilter.activities_v0(req);
       logObject("activity filter", filter);
 
-      const site_activities = await getModelByTenant(
+      const responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
         "activity",
         SiteActivitySchema
       ).list({ filter, limit, skip });
 
-      if (!isEmpty(site_activities)) {
+      if (responseFromListSite.success === true) {
         return res.status(HTTPStatus.OK).json({
           success: true,
           message: "activities fetched successfully",
-          site_activities,
+          site_activities: responseFromListSite.data,
         });
-      } else if (isEmpty(site_activities)) {
-        return res.status(HTTPStatus.OK).json({
+      } else if (responseFromListSite.success === false) {
+        const errors = responseFromListSite.errors
+          ? responseFromListSite.errors
+          : "";
+        const status = responseFromListSite.status
+          ? responseFromListSite.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
           success: false,
-          message: `no site site_activities for this organisation (${tenant.toLowerCase()})`,
-          site_activities,
+          message: responseFromListSite.message,
+          errors,
         });
       }
     } catch (e) {

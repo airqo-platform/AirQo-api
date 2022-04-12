@@ -19,23 +19,40 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         extract_kcca_measurements,
         transform_kcca_measurements_for_api,
         transform_kcca_data_for_message_broker,
+        transform_kcca_hourly_data_for_bigquery,
     )
+    from airqo_etl_utils.bigquery_api import BigQueryApi
 
     kcca_unclean_data = extract_kcca_measurements(
         start_time=start_date_time, end_time=end_date_time, freq="hourly"
     )
     pd.DataFrame(kcca_unclean_data).to_csv(
-        path_or_buf="kcca_unclean_data.csv", index=False
+        path_or_buf="outputs/kcca_unclean_data.csv", index=False
     )
+
+    # API
     cleaned_data = transform_kcca_measurements_for_api(kcca_unclean_data)
     pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
 
-    bigquery_data = transform_kcca_data_for_message_broker(
+    # Message Broker
+    message_broker_data = transform_kcca_data_for_message_broker(
         kcca_unclean_data, frequency="hourly"
     )
-    pd.DataFrame(bigquery_data).to_csv(
-        path_or_buf="kcca_data_for_bigquery.csv", index=False
+    pd.DataFrame(message_broker_data).to_csv(
+        path_or_buf="kcca_message_broker_data.csv", index=False
     )
+
+    # Big Query
+    bigquery_data = transform_kcca_hourly_data_for_bigquery(data=kcca_unclean_data)
+    bigquery_data_df = pd.DataFrame(bigquery_data)
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=bigquery_data_df,
+        columns=bigquery_api.hourly_measurements_columns,
+        numeric_columns=bigquery_api.hourly_measurements_numeric_columns,
+        table=bigquery_api.hourly_measurements_table,
+    )
+    bigquery_data_df.to_csv(path_or_buf="kcca_data_for_bigquery.csv", index=False)
 
 
 def data_warehouse(start_date_time: str, end_date_time: str):
@@ -45,6 +62,7 @@ def data_warehouse(start_date_time: str, end_date_time: str):
         extract_sites_meta_data,
         merge_measurements_weather_sites,
     )
+    from airqo_etl_utils.bigquery_api import BigQueryApi
 
     hourly_device_measurements = query_hourly_measurements(
         start_date_time=start_date_time,
@@ -70,24 +88,16 @@ def data_warehouse(start_date_time: str, end_date_time: str):
         weather_data=hourly_weather_measurements,
         sites=sites_meta_data,
     )
-    pd.DataFrame(data).to_csv(path_or_buf="data.csv", index=False)
 
-
-def kcca_historical_hourly_measurements(start_date_time: str, end_date_time: str):
-    from airqo_etl_utils.kcca_utils import (
-        extract_kcca_measurements,
-        transform_kcca_hourly_data_for_bigquery,
+    data_df = pd.DataFrame(data)
+    bigquery_api = BigQueryApi()
+    data_df = bigquery_api.validate_data(
+        dataframe=data_df,
+        columns=bigquery_api.analytics_columns,
+        numeric_columns=bigquery_api.analytics_numeric_columns,
+        table=bigquery_api.analytics_table,
     )
-
-    kcca_unclean_data = extract_kcca_measurements(
-        start_time=start_date_time, end_time=end_date_time, freq="hourly"
-    )
-    pd.DataFrame(kcca_unclean_data).to_csv(
-        path_or_buf="kcca_unclean_data.csv", index=False
-    )
-
-    cleaned_data = transform_kcca_hourly_data_for_bigquery(kcca_unclean_data)
-    pd.DataFrame(cleaned_data).to_csv(path_or_buf="kcca_cleaned_data.csv", index=False)
+    data_df.to_csv(path_or_buf="data_warehouse.csv", index=False)
 
 
 def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
@@ -99,6 +109,7 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
         calibrate_hourly_airqo_measurements,
         restructure_airqo_data,
     )
+    from airqo_etl_utils.bigquery_api import BigQueryApi
 
     # extract_airqo_data
     raw_airqo_data = extract_airqo_data_from_thingspeak(
@@ -144,9 +155,16 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
     restructure_data = restructure_airqo_data(
         data=calibrated_data, destination="bigquery"
     )
-    pd.DataFrame(restructure_data).to_csv(
-        path_or_buf="airqo_data_for_bigquery.csv", index=False
+
+    bigquery_data_df = pd.DataFrame(restructure_data)
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=bigquery_data_df,
+        columns=bigquery_api.hourly_measurements_columns,
+        numeric_columns=bigquery_api.hourly_measurements_numeric_columns,
+        table=bigquery_api.hourly_measurements_table,
     )
+    bigquery_data_df.to_csv(path_or_buf="airqo_data_for_bigquery.csv", index=False)
 
     # restructure data for message broker
     restructure_data = restructure_airqo_data(
@@ -161,7 +179,19 @@ def insights_forecast():
     from airqo_etl_utils.app_insights_utils import (
         create_insights_data,
         get_forecast_data,
+        transform_old_forecast,
     )
+
+    from airqo_etl_utils.date import date_to_str, first_day_of_week, first_day_of_month
+
+    now = datetime.now()
+    start_date_time = date_to_str(first_day_of_week(first_day_of_month(date_time=now)))
+    end_date_time = date_to_str(now)
+
+    old_forecast = transform_old_forecast(
+        start_date_time=start_date_time, end_date_time=end_date_time
+    )
+    pd.DataFrame(old_forecast).to_csv(path_or_buf="old_forecast_data.csv", index=False)
 
     forecast_data = get_forecast_data("airqo")
     pd.DataFrame(forecast_data).to_csv(path_or_buf="forecast_data.csv", index=False)
@@ -196,7 +226,9 @@ def weather_data(start_date_time: str, end_date_time: str):
         resample_weather_data,
         query_weather_data_from_tahmo,
         add_site_info_to_weather_data,
+        transform_weather_data_for_bigquery,
     )
+    from airqo_etl_utils.bigquery_api import BigQueryApi
 
     raw_weather_data = query_weather_data_from_tahmo(
         start_date_time=start_date_time, end_date_time=end_date_time
@@ -205,7 +237,6 @@ def weather_data(start_date_time: str, end_date_time: str):
         path_or_buf="raw_weather_data.csv", index=False
     )
 
-    # raw_weather_data = pd.read_csv("raw_weather_data.csv")
     hourly_weather_data = resample_weather_data(
         data=raw_weather_data, frequency="hourly"
     )
@@ -213,11 +244,21 @@ def weather_data(start_date_time: str, end_date_time: str):
         path_or_buf="hourly_weather_data.csv", index=False
     )
 
-    # hourly_weather_data = pd.read_csv("hourly_weather_data.csv")
     sites_weather_data = add_site_info_to_weather_data(data=hourly_weather_data)
     pd.DataFrame(sites_weather_data).to_csv(
         path_or_buf="sites_weather_data.csv", index=False
     )
+
+    bigquery_data = transform_weather_data_for_bigquery(data=sites_weather_data)
+    bigquery_data_df = pd.DataFrame(bigquery_data)
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=bigquery_data_df,
+        columns=bigquery_api.hourly_weather_columns,
+        numeric_columns=bigquery_api.hourly_weather_numeric_columns,
+        table=bigquery_api.hourly_weather_table,
+    )
+    bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
 if __name__ == "__main__":
@@ -258,18 +299,17 @@ if __name__ == "__main__":
         data_warehouse(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
+
     elif action == "kcca_hourly_data":
         kcca_hourly_measurements(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
-    elif action == "kcca_historical_hourly_data":
-        kcca_historical_hourly_measurements(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+
     elif action == "daily_insights_data":
         insights_daily_insights(
             start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
         )
+
     elif action == "forecast_insights_data":
         insights_forecast()
 

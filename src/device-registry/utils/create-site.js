@@ -16,7 +16,7 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
-const { distanceBtnTwoPoints } = require("./distance");
+const distance = require("./distance");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -26,6 +26,13 @@ const createAirqloudUtil = require("./create-airqloud");
 const pointInPolygon = require("point-in-polygon");
 const httpStatus = require("http-status");
 const geolib = require("geolib");
+const { kafkaProducer, kafkaClient } = require("../config/kafkajs");
+
+const DeviceSchema = require("../models/Device");
+const SiteActivitySchema = require("../models/SiteActivity");
+const mongoose = require("mongoose");
+const { threeMonthsFromNow } = require("./date");
+const createDeviceUtil = require("./create-device");
 
 const manageSite = {
   hasWhiteSpace: (name) => {
@@ -106,26 +113,22 @@ const manageSite = {
               data: airqloud_ids,
               status: HTTPStatus.OK,
             };
-          }
-          if (isEmpty(airqloud_ids)) {
+          } else if (isEmpty(airqloud_ids)) {
             return {
               success: true,
               message: "no associated AirQlouds found",
               data: airqloud_ids,
-              status: HTTPStatus.OK,
+              status: HTTPStatus.NOT_FOUND,
             };
           }
-        }
-
-        if (responseFromListAirQlouds.success === false) {
+        } else if (responseFromListAirQlouds.success === false) {
           return {
             success: false,
             message: responseFromListAirQlouds.message,
             status: responseFromListAirQlouds.status,
           };
         }
-      }
-      if (responseFromListSites.success === false) {
+      } else if (responseFromListSites.success === false) {
         const status = responseFromListSites.status
           ? responseFromListSites.status
           : "";
@@ -386,9 +389,7 @@ const manageSite = {
       if (responseFromGenerateName.success === true) {
         generated_name = responseFromGenerateName.data;
         request["body"]["generated_name"] = generated_name;
-      }
-
-      if (responseFromGenerateName.success === false) {
+      } else if (responseFromGenerateName.success === false) {
         let errors = responseFromGenerateName.errors
           ? responseFromGenerateName.errors
           : "";
@@ -409,9 +410,7 @@ const manageSite = {
       logObject("responseFromGenerateMetadata", responseFromGenerateMetadata);
       if (responseFromGenerateMetadata.success === true) {
         requestBodyForCreatingSite = responseFromGenerateMetadata.data;
-      }
-
-      if (responseFromGenerateMetadata.success === false) {
+      } else if (responseFromGenerateMetadata.success === false) {
         let errors = responseFromGenerateMetadata.errors
           ? responseFromGenerateMetadata.errors
           : "";
@@ -434,6 +433,20 @@ const manageSite = {
 
       if (responseFromCreateSite.success === true) {
         let createdSite = responseFromCreateSite.data;
+        try {
+          await kafkaProducer.send({
+            topic: constants.SITES_TOPIC,
+            messages: [
+              {
+                action: "create",
+                value: JSON.stringify(createdSite),
+              },
+            ],
+          });
+        } catch (error) {
+          logObject("error on kafka", error.message);
+        }
+
         let status = responseFromCreateSite.status
           ? responseFromCreateSite.status
           : "";
@@ -804,29 +817,24 @@ const manageSite = {
         );
       }
 
-      // const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
-      //   requestForAirQloudsAndWeatherStations
-      // );
+      const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
+        requestForAirQloudsAndWeatherStations
+      );
 
-      // logObject(
-      //   "responseFromNearestWeatherStation",
-      //   responseFromNearestWeatherStation
-      // );
-
-      // if (responseFromNearestWeatherStation.success === true) {
-      //   let nearest_tahmo_station = responseFromNearestWeatherStation.data;
-      //   delete nearest_tahmo_station.elevation;
-      //   delete nearest_tahmo_station.countrycode;
-      //   delete nearest_tahmo_station.timezoneoffset;
-      //   delete nearest_tahmo_station.name;
-      //   delete nearest_tahmo_station.type;
-      //   request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
-      // } else if (responseFromNearestWeatherStation.success === false) {
-      //   logObject(
-      //     "unable to find the nearest weather station",
-      //     responseFromNearestWeatherStation
-      //   );
-      // }
+      if (responseFromNearestWeatherStation.success === true) {
+        let nearest_tahmo_station = responseFromNearestWeatherStation.data;
+        delete nearest_tahmo_station.elevation;
+        delete nearest_tahmo_station.countrycode;
+        delete nearest_tahmo_station.timezoneoffset;
+        delete nearest_tahmo_station.name;
+        delete nearest_tahmo_station.type;
+        request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
+      } else if (responseFromNearestWeatherStation.success === false) {
+        logObject(
+          "unable to find the nearest weather station",
+          responseFromNearestWeatherStation
+        );
+      }
 
       request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await manageSite.generateMetadata(
@@ -937,7 +945,7 @@ const manageSite = {
       };
     }
   },
-  list: async ({ tenant, filter, _skip, _limit }) => {
+  list: async ({ tenant, filter, skip, limit }) => {
     try {
       let responseFromListSite = await getModelByTenant(
         tenant.toLowerCase(),
@@ -945,42 +953,22 @@ const manageSite = {
         SiteSchema
       ).list({
         filter,
-        _limit,
-        _skip,
+        limit,
+        skip,
       });
 
       if (responseFromListSite.success === false) {
-        let errors = responseFromListSite.errors
-          ? responseFromListSite.errors
-          : "";
-
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
-          : "";
-        return {
-          success: false,
-          message: responseFromListSite.message,
-          errors,
-          status,
-        };
-      }
-
-      if (responseFromListSite.success === true) {
-        data = responseFromListSite.data.filter(function(obj) {
-          return obj.lat_long !== "4_4";
-        });
-        let status = responseFromListSite.status
-          ? responseFromListSite.status
-          : "";
-        return {
-          success: true,
-          message: "successfully listed the site(s)",
-          data,
-          status,
-        };
+        return responseFromListSite;
+      } else if (responseFromListSite.success === true) {
+        let modifiedResponseFromListSite = responseFromListSite;
+        modifiedResponseFromListSite.data = responseFromListSite.data.filter(
+          function(obj) {
+            return obj.lat_long !== "4_4";
+          }
+        );
+        return modifiedResponseFromListSite;
       }
     } catch (e) {
-      logElement("list Sites util", { message: e.message });
       return {
         success: false,
         message: "Internal Server Error",
@@ -1236,14 +1224,14 @@ const manageSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            let distance = distanceBtnTwoPoints(
+            let distanceBetweenTwoPoints = distance.distanceBtnTwoPoints(
               latitude,
               longitude,
               site["latitude"],
               site["longitude"]
             );
 
-            if (distance < radius) {
+            if (distanceBetweenTwoPoints < radius) {
               site["distance"] = distance;
               nearest_sites.push(site);
             }
@@ -1277,6 +1265,323 @@ const manageSite = {
         errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
+    }
+  },
+
+  getGpsCoordinates: async (locationName, tenant) => {
+    logText("...................................");
+    logText("Getting the GPS coordinates...");
+
+    let location = await getModelByTenant(
+      tenant.toLowerCase(),
+      "location_registry",
+      SiteSchema
+    )
+      .find({ name: locationName })
+      .exec();
+    if (location) {
+      const lat = `${location.latitude}`;
+      const lon = `${location.longitude}`;
+      if (lat && lon) {
+        logText(
+          "Successfully retrieved the GPS coordinates from the location..."
+        );
+        return { lat, lon };
+      } else {
+        logText("Unable to retrieve the GPS coordinates from location...");
+      }
+    } else {
+      logText(`Unable to find location ${locationName}`);
+    }
+  },
+  carryOutActivity: async (
+    res,
+    tenant,
+    deviceName,
+    deviceBody,
+    activityBody,
+    options
+  ) => {
+    const deviceFilter = { name: deviceName };
+    return getModelByTenant(
+      tenant.toLowerCase(),
+      "device",
+      DeviceSchema
+    ).findOneAndUpdate(
+      deviceFilter,
+      deviceBody,
+      { new: true },
+      async (error, updatedDevice) => {
+        if (error) {
+          return res.status(HTTPStatus.BAD_GATEWAY).json({
+            message: (options && options.errorMsg) || "Operation failed",
+            error,
+            success: false,
+          });
+        }
+        if (updatedDevice) {
+          let createdActivity = {};
+          await getModelByTenant(
+            tenant.toLowerCase(),
+            "activity",
+            SiteActivitySchema
+          )
+            .register(activityBody)
+            .then((log) => (createdActivity = log));
+
+          const data = createdActivity.data;
+
+          return res.status(HTTPStatus.OK).json({
+            message:
+              (options && options.successMsg) ||
+              "Operation successfully carried out",
+            createdActivity: data,
+            updatedDevice,
+            success: true,
+          });
+        }
+        return res.status(HTTPStatus.NOT_FOUND).json({
+          message: `device does not exist, please first create the device`,
+          success: false,
+        });
+      }
+    );
+  },
+  doesLocationExist: async (locationName, tenant) => {
+    let location = await getModelByTenant(
+      tenant.toLowerCase(),
+      "location_registry",
+      SiteSchema
+    )
+      .find({ name: locationName })
+      .exec();
+    if (location) {
+      return true;
+    } else {
+      return false;
+    }
+  },
+
+  siteActivityRequestBodies: (req, res, type = null) => {
+    try {
+      type = req.query.type || type;
+      logText("....................");
+      logText("siteActivityRequestBodies...");
+      logElement("activityType", type);
+      let siteActivityBody = {};
+      let deviceBody = {};
+      const {
+        deviceName,
+        siteName,
+        height,
+        mountType,
+        powerType,
+        description,
+        latitude,
+        longitude,
+        date,
+        tags,
+        isPrimaryInLocation,
+        maintenanceType,
+        site_id,
+      } = req.body;
+
+      if (type === "deploy") {
+        /****** deploy bodies ******/
+        let deployment_date = new Date(date);
+        siteActivityBody = {
+          device: deviceName || req.query.deviceName,
+          date: (date && new Date(date)) || new Date(),
+          description: "device deployed",
+          activityType: "deployment",
+          site_id: site_id,
+        };
+
+        deviceBody = {
+          height: height,
+          mountType: mountType,
+          powerType: powerType,
+          isPrimaryInLocation: isPrimaryInLocation,
+          nextMaintenance: threeMonthsFromNow(date),
+          isActive: true,
+          latitude: latitude,
+          longitude: longitude,
+          site_id: site_id,
+          deployment_date,
+        };
+        logObject("siteActivityBody", siteActivityBody);
+        logObject("deviceBody", deviceBody);
+        return { siteActivityBody, deviceBody };
+      } else if (type === "recall") {
+        /****** recalling bodies ******/
+        let recall_date = new Date();
+        siteActivityBody = {
+          device: deviceName || req.query.deviceName,
+          date: new Date(),
+          description: "device recalled",
+          activityType: "recallment",
+          site_id: site_id,
+        };
+        deviceBody = {
+          height: 0,
+          mountType: "",
+          powerType: "",
+          isPrimaryInLocation: false,
+          nextMaintenance: "",
+          longitude: "",
+          latitude: "",
+          isActive: false,
+          site_id: null,
+          description: "",
+          siteName: "",
+          locationName: "",
+          recall_date,
+        };
+        logObject("siteActivityBody", siteActivityBody);
+        logObject("deviceBody", deviceBody);
+        return { siteActivityBody, deviceBody };
+      } else if (type === "maintain") {
+        /******** maintaining bodies *************/
+        let maintenance_date = date && new Date(date);
+        logObject("the tags", tags);
+        siteActivityBody = {
+          site: siteName,
+          site_id: site_id,
+          device: deviceName || req.query.deviceName,
+          date: (date && new Date(date)) || new Date(),
+          description: description,
+          activityType: "maintenance",
+          nextMaintenance: threeMonthsFromNow(date),
+          maintenanceType: maintenanceType,
+          tags: tags,
+        };
+        deviceBody = {
+          nextMaintenance: threeMonthsFromNow(date),
+          maintenance_date,
+        };
+
+        logObject("siteActivityBody", siteActivityBody);
+        logObject("deviceBody", deviceBody);
+        return { siteActivityBody, deviceBody };
+      } else {
+        /****incorrect query parameter....... */
+        return res.status(HTTPStatus.BAD_REQUEST).json({
+          message: "incorrect query parameter",
+          success: false,
+        });
+      }
+    } catch (e) {
+      logElement("error", e);
+    }
+  },
+  isDeviceRecalled: async (name, tenant) => {
+    try {
+      logText("....................");
+      logText("checking isDeviceRecalled....");
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let device = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          device = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
+      logObject("device", device);
+      const isRecalled = !device.isActive;
+      logElement("locationName", device.locationName);
+      logElement("isRecalled", isRecalled);
+      return isRecalled;
+    } catch (e) {
+      logText("error", e);
+    }
+  },
+  isDeviceDeployed: async (name, tenant) => {
+    try {
+      logText("....................");
+      logText("checking isDeviceNotDeployed....");
+
+      let request = {};
+      request["query"] = {};
+      request["query"]["name"] = name;
+      request["query"]["tenant"] = tenant;
+
+      const responseFromListDevice = await createDeviceUtil.list(request);
+
+      let device = {};
+
+      if (responseFromListDevice.success === true) {
+        if (responseFromListDevice.data.length === 1) {
+          device = responseFromListDevice.data[0];
+        }
+      } else if (responseFromListDevice.success === false) {
+        logObject(
+          "responseFromListDevice has an error",
+          responseFromListDevice
+        );
+      }
+      logObject("device", device);
+      const isDeployed = device.isActive;
+      logElement("isDeployed", isDeployed);
+      return isDeployed;
+    } catch (e) {
+      logText("error", e);
+    }
+  },
+  queryFilterOptions: async (req, res) => {
+    try {
+      const { location, type, device, next, id } = req.query;
+
+      let filter = {
+        ...(!isEmpty(location) && { location: location }),
+        ...(!isEmpty(type) && { type: type }),
+        ...(!isEmpty(device) && { device: device }),
+        ...(!isEmpty(next) && { next: next }),
+        ...(!isEmpty(id) && { _id: id }),
+        ...!isEmpty(),
+      };
+      return { filter };
+    } catch (e) {
+      tryCatchErrors(res, e);
+    }
+  },
+  bodyFilterOptions: async (req, res) => {
+    try {
+      const {
+        location,
+        device,
+        date,
+        description,
+        activityType,
+        nextMaintenance,
+        tags,
+        maintenanceType,
+      } = req.body;
+
+      let activityBody = {
+        ...(!isEmpty(location) && { location }),
+        ...(!isEmpty(date) && { date }),
+        ...(!isEmpty(device) && { device }),
+        ...(!isEmpty(description) && { description }),
+        ...(!isEmpty(activityType) && { activityType }),
+        ...(!isEmpty(nextMaintenance) && { nextMaintenance }),
+        ...(!isEmpty(maintenanceType) && { maintenanceType }),
+        ...(!isEmpty(tags) && { tags }),
+      };
+      return { activityBody };
+    } catch (e) {
+      tryCatchErrors(res, e);
     }
   },
 };

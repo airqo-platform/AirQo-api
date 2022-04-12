@@ -11,6 +11,6 @@ public interface InsightRepository extends BaseRepository<Insight> {
 
 	void deleteAllByTimeBefore(Date time);
 
-	List<Insight> findAllByTimeBefore(Date time);
+	List<Insight> findAllByTimeBeforeAndForecast(Date time, Boolean forecast);
 
 }
