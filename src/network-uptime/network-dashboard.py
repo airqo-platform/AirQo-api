@@ -12,6 +12,8 @@ dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
 load_dotenv(dotenv_path)
 
 BASE_API_URL = os.getenv('BASE_URL')
+START_QUERY_DATE = os.getenv('START_DATE')
+END_QUERY_DATE = os.getenv('END_DATE')
 
 matplotlib.use('Agg')
 
@@ -27,11 +29,17 @@ device_name = devices_name = [data['name'] for data in devices_data]
 selected_device = st.sidebar.selectbox('Device name', device_name)
 
 
-@st.cache
+@st.cache(suppress_st_warning=True)
 def load_device_data(device):
-    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate=2022-01-01T00:00:00.001Z&endDate=2022-03-25T19:00:00.001Z&device_name=" + device
+    api = f"{BASE_API_URL}/monitor/devices/uptime?tenant=airqo&startDate={START_QUERY_DATE}&endDate={END_QUERY_DATE}&device_name=" + device
     api_result = requests.get(api)
-    values = api_result.json()['data'][0]['values']
+    try:
+        values = api_result.json()['data'][0]['values']
+    except:
+        st.title('#')
+        st.title('#')
+        st.write('NO DATA AVAILABLE FOR THIS DEVICE WITHIN THE SPECIFIED DATE RANGE')
+        st.stop()
     subset = ['created_at', 'uptime', 'downtime']
     data_subset_list = []
     for element in values:
