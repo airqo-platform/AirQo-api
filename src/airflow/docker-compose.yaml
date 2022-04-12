@@ -7,7 +7,7 @@ x-db-common-data: &db-common-data
     POSTGRES_NAME: postgres
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
-    AIRFLOW_UI_USER: airflow
+    ADMIN_USERNAME: airflow
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
 
 x-message-borker-common-data: &message-broker-common-data

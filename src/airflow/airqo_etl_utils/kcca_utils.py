@@ -1,3 +1,4 @@
+import traceback
 from datetime import timedelta
 
 import numpy as np
@@ -31,11 +32,16 @@ def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
         api_url = f"{api_url}&outputFrequency=minute"
 
     headers = {"x-api-key": configuration.CLARITY_API_KEY, "Accept-Encoding": "gzip"}
-    results = requests.get(api_url, headers=headers)
-    if results.status_code != 200:
-        print(f"{results.content}")
+    try:
+        results = requests.get(api_url, headers=headers)
+        if results.status_code != 200:
+            print(f"{results.content}")
+            return []
+        return results.json()
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
         return []
-    return results.json()
 
 
 def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list:
