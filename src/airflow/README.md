@@ -37,7 +37,7 @@ pip install -r dev-requirements.txt
 
 ### Run the main function
 
-The `main.py` accepts atleast one argument which specifies the utilty functions you want to run. Output of every task/function is a csv file containing data generated after execution.
+The `main.py` accepts one mandatory argument `--action` which specifies the utility functions you want to run. Output of every task/function is a csv file containing data generated after execution.
 
 | Argument         | Purpose|
 |---------------------------|------------------|
@@ -47,17 +47,18 @@ The `main.py` accepts atleast one argument which specifies the utilty functions 
 | data_warehouse | Data warehouse ETL functions   |
 | daily_insights_data | App Daily Insights ETL functions   |
 | forecast_insights_data | App Forecast Insights ETL functions   |
+| meta_data | Functions for updating sites and device on BigQuery   |
 
 For example
 
 ```bash
-python main.py airqo_hourly_data
+python main.py --action=airqo_hourly_data
 ```
 
-You may specify additinal arguments for `start_date_time` and `end_date_time`. For example
+You may specify additional arguments for `start` and `end`. For example
 
 ```bash
-python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
+python main.py --action=airqo_hourly_data --start-2022-01-01T10:00:00Z --end=2022-01-01T17:00:00Z
 ```
 
 ## Running using Docker

@@ -135,7 +135,7 @@ def extract_meta_data(component: str, tenant=None) -> list:
         dataframe=dataframe, data_type="float", columns=numeric_columns
     )
     dataframe = format_dataframe_column_type(
-        dataframe=dataframe, data_type="datetime", columns=date_time_columns
+        dataframe=dataframe, data_type="datetime_str", columns=date_time_columns
     )
     dataframe.rename(columns=rename_columns, inplace=True)
     dataframe.reset_index(drop=True, inplace=True)

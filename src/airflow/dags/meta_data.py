@@ -6,7 +6,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 
 
 @dag(
-    "Update-Bigquery-Sites",
+    "Update-BigQuery-Sites",
     schedule_interval="@daily",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
@@ -47,7 +47,7 @@ def big_query_update_sites_etl():
 
 
 @dag(
-    "Update-Bigquery-Devices",
+    "Update-BigQuery-Devices",
     schedule_interval="@daily",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),

@@ -507,6 +507,18 @@ def format_dataframe_column_type(
     if data_type == "datetime":
         dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
 
+    if data_type == "datetime_str":
+        dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
+
+        def _date_to_str(date: datetime):
+            try:
+                return date_to_str(date=date)
+            except Exception:
+                return None
+
+        for column in columns:
+            dataframe[column] = dataframe[column].apply(_date_to_str)
+
     return dataframe
 
 

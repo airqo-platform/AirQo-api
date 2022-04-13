@@ -14,9 +14,9 @@ class JobAction(Enum):
     OVERWRITE = 2
 
     def get_name(self):
-        if self.APPEND:
+        if self == self.APPEND:
             return "WRITE_APPEND"
-        elif self.OVERWRITE:
+        elif self == self.OVERWRITE:
             return "WRITE_TRUNCATE"
         else:
             return "WRITE_EMPTY"
@@ -38,7 +38,7 @@ class BigQueryApi:
         if table == self.hourly_measurements_table:
             dataframe["time"] = dataframe["timestamp"]
 
-        columns = self.__get_column_names(table=table)
+        columns = self.__get_columns(table=table)
 
         if sorted(list(dataframe.columns)) != sorted(columns):
             print(f"Required columns {columns}")
@@ -48,21 +48,21 @@ class BigQueryApi:
             )
             raise Exception("Invalid columns")
 
-        # Handling timestamp
-        date_time_columns = self.__get_column_names(table=table, data_type="TIMESTAMP")
+        # validating timestamp
+        date_time_columns = self.__get_columns(table=table, data_type="TIMESTAMP")
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
         )
 
-        # Handling floats
-        numeric_columns = self.__get_column_names(table=table, data_type="FLOAT")
+        # validating floats
+        numeric_columns = self.__get_columns(table=table, data_type="FLOAT")
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
 
         return dataframe
 
-    def __get_column_names(self, table: str, data_type="") -> list:
+    def __get_columns(self, table: str, data_type="") -> list:
         if table == self.hourly_measurements_table:
             schema_path = "schema/measurements.json"
             schema = "measurements.json"
