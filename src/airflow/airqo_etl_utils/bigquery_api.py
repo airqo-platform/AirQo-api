@@ -26,6 +26,7 @@ class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
+        self.raw_measurements_table = configuration.BIGQUERY_RAW_EVENTS_TABLE
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.raw_weather_table = configuration.BIGQUERY_RAW_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE

@@ -21,7 +21,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         extract_kcca_measurements,
         transform_kcca_measurements_for_api,
         transform_kcca_data_for_message_broker,
-        transform_kcca_hourly_data_for_bigquery,
+        transform_kcca_data_for_bigquery,
     )
     from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -45,7 +45,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     )
 
     # Big Query
-    bigquery_data = transform_kcca_hourly_data_for_bigquery(data=kcca_unclean_data)
+    bigquery_data = transform_kcca_data_for_bigquery(data=kcca_unclean_data)
     bigquery_data_df = pd.DataFrame(bigquery_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(

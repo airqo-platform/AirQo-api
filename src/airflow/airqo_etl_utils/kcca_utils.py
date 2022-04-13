@@ -306,7 +306,7 @@ def transform_kcca_data_for_message_broker(data: list, frequency: str) -> list:
     return restructured_data
 
 
-def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
+def transform_kcca_data_for_bigquery(data: list) -> list:
     restructured_data = []
 
     data_df = pd.DataFrame(data)
