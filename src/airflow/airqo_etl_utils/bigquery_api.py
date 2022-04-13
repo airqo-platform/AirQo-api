@@ -10,16 +10,16 @@ from airqo_etl_utils.date import date_to_str
 
 
 class JobAction(Enum):
-    WRITE_APPEND = 1
-    WRITE_REPLACE = 2
+    APPEND = 1
+    OVERWRITE = 2
 
     def get_name(self):
-        if self.WRITE_APPEND:
+        if self.APPEND:
             return "WRITE_APPEND"
-        elif self.WRITE_REPLACE:
-            return "WRITE_REPLACE"
+        elif self.OVERWRITE:
+            return "WRITE_TRUNCATE"
         else:
-            return ""
+            return "WRITE_EMPTY"
 
 
 class BigQueryApi:
@@ -38,7 +38,7 @@ class BigQueryApi:
         if table == self.hourly_measurements_table:
             dataframe["time"] = dataframe["timestamp"]
 
-        columns = self.get_column_names(table=table)
+        columns = self.__get_column_names(table=table)
 
         if sorted(list(dataframe.columns)) != sorted(columns):
             print(f"Required columns {columns}")
@@ -49,20 +49,20 @@ class BigQueryApi:
             raise Exception("Invalid columns")
 
         # Handling timestamp
-        date_time_columns = self.get_column_names(table=table, data_type="TIMESTAMP")
+        date_time_columns = self.__get_column_names(table=table, data_type="TIMESTAMP")
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
         )
 
         # Handling floats
-        numeric_columns = self.get_column_names(table=table, data_type="FLOAT")
+        numeric_columns = self.__get_column_names(table=table, data_type="FLOAT")
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
 
         return dataframe
 
-    def get_column_names(self, table: str, data_type="") -> list:
+    def __get_column_names(self, table: str, data_type="") -> list:
         if table == self.hourly_measurements_table:
             schema_path = "schema/measurements.json"
             schema = "measurements.json"
@@ -97,7 +97,7 @@ class BigQueryApi:
         return columns
 
     def save_data(
-        self, data: list, table: str, job_action: JobAction = JobAction.WRITE_APPEND
+        self, data: list, table: str, job_action: JobAction = JobAction.APPEND
     ) -> None:
 
         dataframe = pd.DataFrame(data)

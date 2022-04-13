@@ -39,7 +39,7 @@ def big_query_update_sites_etl():
         big_query_api.save_data(
             data=data,
             table=big_query_api.sites_table,
-            job_action=JobAction.WRITE_REPLACE,
+            job_action=JobAction.OVERWRITE,
         )
 
     sites = extract_sites()
@@ -80,7 +80,7 @@ def big_query_update_devices_etl():
         big_query_api.save_data(
             data=data,
             table=big_query_api.devices_table,
-            job_action=JobAction.WRITE_REPLACE,
+            job_action=JobAction.OVERWRITE,
         )
 
     devices = extract_devices()
