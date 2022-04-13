@@ -1,3 +1,4 @@
+import argparse
 import os
 import sys
 from datetime import datetime, timedelta
@@ -6,6 +7,8 @@ import pandas as pd
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from airqo_etl_utils.arg_parse_validator import valid_datetime_format
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -261,57 +264,98 @@ def weather_data(start_date_time: str, end_date_time: str):
     bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
+def meta_data():
+    from airqo_etl_utils.meta_data_utils import extract_meta_data
+    from airqo_etl_utils.bigquery_api import BigQueryApi
+
+    sites = extract_meta_data(component="sites")
+    sites_df = pd.DataFrame(sites)
+    sites_df.to_csv(path_or_buf="sites_data.csv", index=False)
+
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=sites_df,
+        columns=bigquery_api.sites_columns,
+        numeric_columns=bigquery_api.sites_numeric_columns,
+        table=bigquery_api.sites_table,
+    )
+    bigquery_data_df.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
+
+    devices = extract_meta_data(component="devices")
+    devices_df = pd.DataFrame(devices)
+    devices_df.to_csv(path_or_buf="devices_data.csv", index=False)
+
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=devices_df,
+        columns=bigquery_api.devices_columns,
+        numeric_columns=bigquery_api.devices_numeric_columns,
+        table=bigquery_api.devices_table,
+    )
+    bigquery_data_df.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
+
+
 if __name__ == "__main__":
 
-    args = sys.argv[1:]
-    if len(args) == 0:
-        raise Exception(
-            "Missing required action argument. Valid arguments are airqo_hourly_data,"
-            " kcca_hourly_data, kcca_historical_hourly_data. "
-            "For example `python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z`"
-        )
+    from airqo_etl_utils.date import date_to_str_hours
 
-    action = args[0]
-    arg_start_date_time = ""
-    arg_end_date_time = ""
+    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    default_args_start = date_to_str_hours(hour_of_day)
+    default_args_end = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-    if len(args) >= 3:
-        arg_start_date_time = args[1]
-        arg_end_date_time = args[2]
+    parser = argparse.ArgumentParser(description="Test functions configuration")
+    parser.add_argument(
+        "--start",
+        default=default_args_start,
+        required=False,
+        type=valid_datetime_format,
+        help='start datetime in format "yyyy-MM-ddThh:mm:ssZ"',
+    )
+    parser.add_argument(
+        "--end",
+        required=False,
+        default=default_args_end,
+        type=valid_datetime_format,
+        help='end datetime in format "yyyy-MM-ddThh:mm:ssZ"',
+    )
+    parser.add_argument(
+        "--action",
+        required=True,
+        type=str.lower,
+        help="range interval in minutes",
+        choices=[
+            "airqo_hourly_data",
+            "weather_data",
+            "data_warehouse",
+            "kcca_hourly_data",
+            "daily_insights_data",
+            "forecast_insights_data",
+            "meta_data",
+        ],
+    )
 
-    if arg_start_date_time == "" or arg_end_date_time == "":
-        from airqo_etl_utils.date import date_to_str_hours
+    args = parser.parse_args()
 
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
-        arg_start_date_time = date_to_str_hours(hour_of_day)
-        arg_end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+    if args.action == "airqo_hourly_data":
+        airqo_hourly_measurements(start_date_time=args.start, end_date_time=args.end)
 
-    if action == "airqo_hourly_data":
-        airqo_hourly_measurements(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
-    elif action == "weather_data":
-        weather_data(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "weather_data":
+        weather_data(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "data_warehouse":
-        data_warehouse(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "data_warehouse":
+        data_warehouse(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "kcca_hourly_data":
-        kcca_hourly_measurements(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "kcca_hourly_data":
+        kcca_hourly_measurements(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "daily_insights_data":
-        insights_daily_insights(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "daily_insights_data":
+        insights_daily_insights(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "forecast_insights_data":
+    elif args.action == "forecast_insights_data":
         insights_forecast()
+
+    elif args.action == "meta_data":
+        meta_data()
 
     else:
         raise Exception("Invalid arguments")

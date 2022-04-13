@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 import pandas as pd
 from google.cloud import bigquery
@@ -8,14 +9,31 @@ import json
 from airqo_etl_utils.date import date_to_str
 
 
+class JobAction(Enum):
+    WRITE_APPEND = 1
+    WRITE_REPLACE = 2
+
+    def get_name(self):
+        if self.WRITE_APPEND:
+            return "WRITE_APPEND"
+        elif self.WRITE_REPLACE:
+            return "WRITE_REPLACE"
+        else:
+            return ""
+
+
 class BigQueryApi:
     def __init__(self):
         self.client = bigquery.Client()
         self.hourly_measurements_table = configuration.BIGQUERY_HOURLY_EVENTS_TABLE
         self.hourly_weather_table = configuration.BIGQUERY_HOURLY_WEATHER_TABLE
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
+        self.sites_table = configuration.BIGQUERY_SITES_TABLE
+        self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+
         self.package_directory, _ = os.path.split(__file__)
 
+        # Filling numeric columns
         self.analytics_numeric_columns = self.get_column_names(
             table=self.analytics_table, data_type="FLOAT"
         )
@@ -25,7 +43,14 @@ class BigQueryApi:
         self.hourly_weather_numeric_columns = self.get_column_names(
             table=self.hourly_weather_table, data_type="FLOAT"
         )
+        self.devices_numeric_columns = self.get_column_names(
+            table=self.devices_table, data_type="FLOAT"
+        )
+        self.sites_numeric_columns = self.get_column_names(
+            table=self.sites_table, data_type="FLOAT"
+        )
 
+        # Filling columns
         self.hourly_measurements_columns = self.get_column_names(
             table=self.hourly_measurements_table
         )
@@ -33,6 +58,8 @@ class BigQueryApi:
             table=self.hourly_weather_table
         )
         self.analytics_columns = self.get_column_names(table=self.analytics_table)
+        self.sites_columns = self.get_column_names(table=self.sites_table)
+        self.devices_columns = self.get_column_names(table=self.devices_table)
 
     def validate_data(
         self, dataframe: pd.DataFrame, columns: list, numeric_columns: list, table: str
@@ -50,7 +77,9 @@ class BigQueryApi:
             )
             raise Exception("Invalid columns")
 
-        dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+        if "timestamp" in list(dataframe.columns):
+            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
@@ -67,6 +96,12 @@ class BigQueryApi:
         elif table == self.analytics_table:
             schema_path = "schema/data_warehouse.json"
             schema = "data_warehouse.json"
+        elif table == self.sites_table:
+            schema_path = "schema/sites.json"
+            schema = "sites.json"
+        elif table == self.devices_table:
+            schema_path = "schema/devices.json"
+            schema = "devices.json"
         else:
             raise Exception("Invalid table")
 
@@ -86,7 +121,9 @@ class BigQueryApi:
             columns = [column["name"] for column in schema]
         return columns
 
-    def save_data(self, data: list, table: str) -> None:
+    def save_data(
+        self, data: list, table: str, job_action: JobAction = JobAction.WRITE_APPEND
+    ) -> None:
         if table == self.hourly_measurements_table:
             columns = self.hourly_measurements_columns
             numeric_columns = self.hourly_measurements_numeric_columns
@@ -96,6 +133,12 @@ class BigQueryApi:
         elif table == self.analytics_table:
             columns = self.analytics_columns
             numeric_columns = self.analytics_numeric_columns
+        elif table == self.sites_table:
+            columns = self.sites_columns
+            numeric_columns = self.sites_numeric_columns
+        elif table == self.devices_table:
+            columns = self.devices_columns
+            numeric_columns = self.devices_numeric_columns
         else:
             raise Exception("Invalid destination table")
 
@@ -109,7 +152,7 @@ class BigQueryApi:
         )
 
         job_config = bigquery.LoadJobConfig(
-            write_disposition="WRITE_APPEND",
+            write_disposition=job_action.get_name(),
         )
 
         job = self.client.load_table_from_dataframe(
