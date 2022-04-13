@@ -2,10 +2,9 @@ import argparse
 import os
 import sys
 from datetime import datetime, timedelta
-
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
 from dotenv import load_dotenv
 
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
@@ -50,10 +49,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     bigquery_data_df = pd.DataFrame(bigquery_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df,
-        columns=bigquery_api.hourly_measurements_columns,
-        numeric_columns=bigquery_api.hourly_measurements_numeric_columns,
-        table=bigquery_api.hourly_measurements_table,
+        dataframe=bigquery_data_df, table=bigquery_api.hourly_measurements_table
     )
     bigquery_data_df.to_csv(path_or_buf="kcca_data_for_bigquery.csv", index=False)
 
@@ -95,10 +91,7 @@ def data_warehouse(start_date_time: str, end_date_time: str):
     data_df = pd.DataFrame(data)
     bigquery_api = BigQueryApi()
     data_df = bigquery_api.validate_data(
-        dataframe=data_df,
-        columns=bigquery_api.analytics_columns,
-        numeric_columns=bigquery_api.analytics_numeric_columns,
-        table=bigquery_api.analytics_table,
+        dataframe=data_df, table=bigquery_api.analytics_table
     )
     data_df.to_csv(path_or_buf="data_warehouse.csv", index=False)
 
@@ -162,10 +155,7 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
     bigquery_data_df = pd.DataFrame(restructure_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df,
-        columns=bigquery_api.hourly_measurements_columns,
-        numeric_columns=bigquery_api.hourly_measurements_numeric_columns,
-        table=bigquery_api.hourly_measurements_table,
+        dataframe=bigquery_data_df, table=bigquery_api.hourly_measurements_table
     )
     bigquery_data_df.to_csv(path_or_buf="airqo_data_for_bigquery.csv", index=False)
 
@@ -256,10 +246,7 @@ def weather_data(start_date_time: str, end_date_time: str):
     bigquery_data_df = pd.DataFrame(bigquery_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df,
-        columns=bigquery_api.hourly_weather_columns,
-        numeric_columns=bigquery_api.hourly_weather_numeric_columns,
-        table=bigquery_api.hourly_weather_table,
+        dataframe=bigquery_data_df, table=bigquery_api.hourly_weather_table
     )
     bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
@@ -274,10 +261,7 @@ def meta_data():
 
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=sites_df,
-        columns=bigquery_api.sites_columns,
-        numeric_columns=bigquery_api.sites_numeric_columns,
-        table=bigquery_api.sites_table,
+        dataframe=sites_df, table=bigquery_api.sites_table
     )
     bigquery_data_df.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
 
@@ -287,10 +271,7 @@ def meta_data():
 
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=devices_df,
-        columns=bigquery_api.devices_columns,
-        numeric_columns=bigquery_api.devices_numeric_columns,
-        table=bigquery_api.devices_table,
+        dataframe=devices_df, table=bigquery_api.devices_table
     )
     bigquery_data_df.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
 
@@ -358,4 +339,4 @@ if __name__ == "__main__":
         meta_data()
 
     else:
-        raise Exception("Invalid arguments")
+        pass

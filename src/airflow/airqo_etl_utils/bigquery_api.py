@@ -1,11 +1,11 @@
+import json
 import os
 from enum import Enum
 
 import pandas as pd
 from google.cloud import bigquery
-from airqo_etl_utils.config import configuration
-import json
 
+from airqo_etl_utils.config import configuration
 from airqo_etl_utils.date import date_to_str
 
 
@@ -30,44 +30,15 @@ class BigQueryApi:
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
-
         self.package_directory, _ = os.path.split(__file__)
 
-        # Filling numeric columns
-        self.analytics_numeric_columns = self.get_column_names(
-            table=self.analytics_table, data_type="FLOAT"
-        )
-        self.hourly_measurements_numeric_columns = self.get_column_names(
-            table=self.hourly_measurements_table, data_type="FLOAT"
-        )
-        self.hourly_weather_numeric_columns = self.get_column_names(
-            table=self.hourly_weather_table, data_type="FLOAT"
-        )
-        self.devices_numeric_columns = self.get_column_names(
-            table=self.devices_table, data_type="FLOAT"
-        )
-        self.sites_numeric_columns = self.get_column_names(
-            table=self.sites_table, data_type="FLOAT"
-        )
-
-        # Filling columns
-        self.hourly_measurements_columns = self.get_column_names(
-            table=self.hourly_measurements_table
-        )
-        self.hourly_weather_columns = self.get_column_names(
-            table=self.hourly_weather_table
-        )
-        self.analytics_columns = self.get_column_names(table=self.analytics_table)
-        self.sites_columns = self.get_column_names(table=self.sites_table)
-        self.devices_columns = self.get_column_names(table=self.devices_table)
-
-    def validate_data(
-        self, dataframe: pd.DataFrame, columns: list, numeric_columns: list, table: str
-    ) -> pd.DataFrame:
+    def validate_data(self, dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
 
         # time id depreciated. It will be replaced with timestamp
         if table == self.hourly_measurements_table:
             dataframe["time"] = dataframe["timestamp"]
+
+        columns = self.get_column_names(table=table)
 
         if sorted(list(dataframe.columns)) != sorted(columns):
             print(f"Required columns {columns}")
@@ -77,9 +48,14 @@ class BigQueryApi:
             )
             raise Exception("Invalid columns")
 
-        if "timestamp" in list(dataframe.columns):
-            dataframe["timestamp"] = pd.to_datetime(dataframe["timestamp"])
+        # Handling timestamp
+        date_time_columns = self.get_column_names(table=table, data_type="TIMESTAMP")
+        dataframe[date_time_columns] = dataframe[date_time_columns].apply(
+            pd.to_datetime, errors="coerce"
+        )
 
+        # Handling floats
+        numeric_columns = self.get_column_names(table=table, data_type="FLOAT")
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
@@ -115,7 +91,6 @@ class BigQueryApi:
         if data_type:
             for column in schema:
                 if column["type"] == data_type:
-
                     columns.append(column["name"])
         else:
             columns = [column["name"] for column in schema]
@@ -124,32 +99,10 @@ class BigQueryApi:
     def save_data(
         self, data: list, table: str, job_action: JobAction = JobAction.WRITE_APPEND
     ) -> None:
-        if table == self.hourly_measurements_table:
-            columns = self.hourly_measurements_columns
-            numeric_columns = self.hourly_measurements_numeric_columns
-        elif table == self.hourly_weather_table:
-            columns = self.hourly_weather_columns
-            numeric_columns = self.hourly_weather_numeric_columns
-        elif table == self.analytics_table:
-            columns = self.analytics_columns
-            numeric_columns = self.analytics_numeric_columns
-        elif table == self.sites_table:
-            columns = self.sites_columns
-            numeric_columns = self.sites_numeric_columns
-        elif table == self.devices_table:
-            columns = self.devices_columns
-            numeric_columns = self.devices_numeric_columns
-        else:
-            raise Exception("Invalid destination table")
 
         dataframe = pd.DataFrame(data)
 
-        dataframe = self.validate_data(
-            dataframe=dataframe,
-            columns=columns,
-            numeric_columns=numeric_columns,
-            table=table,
-        )
+        dataframe = self.validate_data(dataframe=dataframe, table=table)
 
         job_config = bigquery.LoadJobConfig(
             write_disposition=job_action.get_name(),

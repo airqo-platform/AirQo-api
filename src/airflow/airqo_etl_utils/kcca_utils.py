@@ -6,18 +6,17 @@ import pandas as pd
 import requests
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import (
-    date_to_str,
-    str_to_date,
-    frequency_time,
-)
 from airqo_etl_utils.commons import (
     get_valid_column_value,
     to_double,
     get_site_and_device_id,
     get_column_value,
+)
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import (
+    date_to_str,
+    str_to_date,
+    frequency_time,
 )
 
 
@@ -432,6 +431,4 @@ def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
 
         restructured_data.append(device_data)
 
-    return pd.DataFrame(
-        columns=BigQueryApi().hourly_measurements_columns, data=restructured_data
-    ).to_dict(orient="records")
+    return pd.DataFrame(data=restructured_data).to_dict(orient="records")

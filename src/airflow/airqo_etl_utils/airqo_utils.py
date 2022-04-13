@@ -8,9 +8,6 @@ import pandas as pd
 import requests
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import date_to_str, str_to_date
 from airqo_etl_utils.commons import (
     get_device,
     get_valid_value,
@@ -23,6 +20,8 @@ from airqo_etl_utils.commons import (
     un_fill_nan,
     get_column_value,
 )
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import date_to_str, str_to_date
 
 
 def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
@@ -539,7 +538,6 @@ def restructure_airqo_data_for_api(data: list) -> list:
 
 
 def map_site_ids_to_historical_measurements(data: list, deployment_logs: list) -> list:
-
     if not deployment_logs or not data:
         return data
 
@@ -647,7 +645,6 @@ def restructure_airqo_data_for_message_broker(data: list) -> list:
 
 
 def restructure_airqo_data(data: list, destination: str) -> list:
-
     data_df = pd.DataFrame(data)
     data_df["raw_pm2_5"] = data_df[["s1_pm2_5", "s2_pm2_5"]].mean(axis=1)
     data_df["raw_pm10"] = data_df[["s1_pm10", "s2_pm10"]].mean(axis=1)
@@ -759,9 +756,7 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
 
         restructured_data.append(device_data)
 
-    return pd.DataFrame(
-        columns=BigQueryApi().hourly_measurements_columns, data=restructured_data
-    ).to_dict(orient="records")
+    return pd.DataFrame(data=restructured_data).to_dict(orient="records")
 
 
 def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
