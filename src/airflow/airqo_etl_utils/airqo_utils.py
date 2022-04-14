@@ -739,6 +739,36 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
                     columns=columns,
                     series=data_row,
                 ),
+                "no2": get_column_value(
+                    column="no2",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "no2_raw_value": get_column_value(
+                    column="raw_no2",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "no2_calibrated_value": get_column_value(
+                    column="calibrated_no2",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm1": get_column_value(
+                    column="pm1",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm1_raw_value": get_column_value(
+                    column="raw_pm1",
+                    columns=columns,
+                    series=data_row,
+                ),
+                "pm1_calibrated_value": get_column_value(
+                    column="calibrated_pm1",
+                    columns=columns,
+                    series=data_row,
+                ),
                 "altitude": get_column_value(
                     column="altitude", columns=columns, series=data_row
                 ),

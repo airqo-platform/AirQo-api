@@ -319,7 +319,7 @@ def transform_kcca_data_for_bigquery(data: list) -> list:
         device_name = data_row["deviceCode"]
         site_id, _ = get_site_and_device_id(devices, device_name=device_name)
         if not site_id:
-            continue
+            site_id = ""
 
         location = str(data_row["location.coordinates"])
         location = location.replace("[", "").replace("]", "")

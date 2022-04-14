@@ -36,8 +36,11 @@ class BigQueryApi:
 
     def validate_data(self, dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
 
-        # time id depreciated. It will be replaced with timestamp
-        if table == self.hourly_measurements_table:
+        # time is depreciated. It will be replaced with timestamp
+        if (
+            table == self.hourly_measurements_table
+            or table == self.raw_measurements_table
+        ):
             dataframe["time"] = dataframe["timestamp"]
 
         columns = self.__get_columns(table=table)
@@ -65,10 +68,13 @@ class BigQueryApi:
         return dataframe
 
     def __get_columns(self, table: str, data_type="") -> list:
-        if table == self.hourly_measurements_table:
+        if (
+            table == self.hourly_measurements_table
+            or table == self.raw_measurements_table
+        ):
             schema_path = "schema/measurements.json"
             schema = "measurements.json"
-        elif table == self.hourly_weather_table:
+        elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_path = "schema/weather_data.json"
             schema = "weather_data.json"
         elif table == self.analytics_table:
@@ -151,6 +157,3 @@ class BigQueryApi:
             dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
 
         return dataframe
-
-    def save_raw_measurements(self, measurements: list) -> None:
-        pass

@@ -39,15 +39,23 @@ class ScheduleDag:
         return base64_string
 
     @staticmethod
-    def dag_frequency(dag: str) -> int:
+    def date_range_frequency(dag: str) -> str:
         mapping = dict(
             {
-                "airqo_historical_hourly_data": 240,
-                "historical_weather_data": 360,
-                "data_warehouse": 360,
-                "kcca_historical_hourly_data": 360,
-                "app_historical_daily_insights": 720,
-                "app_historical_hourly_insights": 360,
+                # AirQo Data
+                "airqo_historical_hourly_data": "240H",
+                "airqo_historical_raw_data": "240H",
+                # Weather Data
+                "historical_hourly_weather_data": "360H",
+                "historical_raw_weather_data": "240H",
+                # Data warehouse
+                "data_warehouse": "360H",
+                # KCCA Data
+                "kcca_historical_hourly_data": "360H",
+                "kcca_historical_raw_data": "240H",
+                # Mobile App Data
+                "app_historical_daily_insights": "720H",
+                "app_historical_hourly_insights": "360H",
             }
         )
         return mapping.get(dag)
@@ -56,10 +64,18 @@ class ScheduleDag:
     def dag_names() -> dict:
         return dict(
             {
+                # AirQo Data
                 "airqo_historical_hourly_data": "AirQo-Historical-Hourly-Measurements",
-                "historical_weather_data": "Historical-Hourly-Weather-Measurements",
-                "data_warehouse": "Data-Warehouse-ETL",
+                "airqo_historical_raw_data": "AirQo-Historical-Raw-Measurements",
+                # Weather Data
+                "historical_hourly_weather_data": "Historical-Hourly-Weather-Measurements",
+                "historical_raw_weather_data": "Historical-Raw-Weather-Measurements",
+                # KCCA Data
                 "kcca_historical_hourly_data": "Kcca-Historical-Hourly-Measurements",
+                "kcca_historical_raw_data": "Kcca-Historical-Raw-Measurements",
+                # Data warehouse
+                "data_warehouse": "Data-Warehouse-ETL",
+                # Mobile App Data
                 "app_historical_daily_insights": "App-Historical-Daily-Insights",
                 "app_historical_hourly_insights": "App-Historical-Hourly-Insights",
             }
@@ -78,10 +94,8 @@ class ScheduleDag:
         print(f"\n{json.loads(api_request.content)}")
 
     def schedule(self, dag: str):
-        frequency = self.dag_frequency(dag=dag)
-        dates = pd.date_range(
-            self.start_date_time, self.end_date_time, freq=f"{frequency}H"
-        )
+        frequency = self.date_range_frequency(dag=dag)
+        dates = pd.date_range(self.start_date_time, self.end_date_time, freq=frequency)
         last_date_time = dates.values[len(dates.values) - 1]
         logical_date = datetime.utcnow() + timedelta(minutes=30)
         for date in dates:

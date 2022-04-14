@@ -56,7 +56,7 @@
     },
     {
         "name": "device_number",
-        "type": "FLOAT",
+        "type": "INTEGER",
         "mode": "NULLABLE"
     },
     {

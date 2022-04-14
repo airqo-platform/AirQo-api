@@ -438,7 +438,9 @@ def airqo_realtime_measurements_etl():
         )
 
         big_query_api = BigQueryApi()
-        big_query_api.save_raw_measurements(airqo_restructured_data)
+        big_query_api.save_data(
+            airqo_restructured_data, table=big_query_api.raw_measurements_table
+        )
 
     @task()
     def send_raw_measurements_to_api(airqo_data: dict):

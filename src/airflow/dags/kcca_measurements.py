@@ -130,7 +130,7 @@ def raw_measurements_etl():
         big_query_api = BigQueryApi()
         big_query_api.save_data(
             data=kcca_data,
-            table=big_query_api.hourly_measurements_table,
+            table=big_query_api.raw_measurements_table,
         )
 
     extracted_data = extract()
@@ -278,7 +278,7 @@ def historical_hourly_measurements_etl():
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
-    tags=["kcca", "hourly", "historical"],
+    tags=["kcca", "raw", "historical"],
 )
 def historical_raw_measurements_etl():
     @task()
@@ -322,7 +322,7 @@ def historical_raw_measurements_etl():
             big_query_api = BigQueryApi()
             big_query_api.save_data(
                 data=kcca_transformed_data,
-                table=big_query_api.hourly_measurements_table,
+                table=big_query_api.raw_measurements_table,
             )
 
         elif destination == "message-broker":
