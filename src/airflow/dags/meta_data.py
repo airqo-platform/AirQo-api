@@ -30,7 +30,8 @@ def big_query_update_sites_etl():
 
     @task()
     def load(inputs: dict):
-        from airqo_etl_utils.bigquery_api import BigQueryApi, JobAction
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import JobAction
         from airqo_etl_utils.commons import un_fill_nan
 
         data = un_fill_nan(inputs.get("data"))
@@ -71,7 +72,8 @@ def big_query_update_devices_etl():
 
     @task()
     def load(inputs: dict):
-        from airqo_etl_utils.bigquery_api import BigQueryApi, JobAction
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import JobAction
         from airqo_etl_utils.commons import un_fill_nan
 
         data = un_fill_nan(inputs.get("data"))

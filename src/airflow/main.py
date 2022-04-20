@@ -195,10 +195,11 @@ def insights_forecast():
     )
 
 
-def insights_daily_insights(start_date_time: str, end_date_time: str):
+def daily_insights(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.app_insights_utils import (
         query_insights_data,
         average_insights_data,
+        create_insights_data,
     )
 
     hourly_insights_data = query_insights_data(
@@ -208,10 +209,15 @@ def insights_daily_insights(start_date_time: str, end_date_time: str):
         path_or_buf="hourly_insights_airqo_data.csv", index=False
     )
 
-    airqo_data = average_insights_data(frequency="daily", data=hourly_insights_data)
-    pd.DataFrame(airqo_data).to_csv(
+    daily_insights_data = average_insights_data(
+        frequency="daily", data=hourly_insights_data
+    )
+    pd.DataFrame(daily_insights_data).to_csv(
         path_or_buf="daily_insights_airqo_data.csv", index=False
     )
+
+    insights_data = create_insights_data(daily_insights_data)
+    pd.DataFrame(insights_data).to_csv(path_or_buf="insights_data.csv", index=False)
 
 
 def weather_data(start_date_time: str, end_date_time: str):
@@ -330,7 +336,7 @@ if __name__ == "__main__":
         kcca_hourly_measurements(start_date_time=args.start, end_date_time=args.end)
 
     elif args.action == "daily_insights_data":
-        insights_daily_insights(start_date_time=args.start, end_date_time=args.end)
+        daily_insights(start_date_time=args.start, end_date_time=args.end)
 
     elif args.action == "forecast_insights_data":
         insights_forecast()

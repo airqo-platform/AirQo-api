@@ -11,6 +11,7 @@ from google.cloud import storage
 
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import AirQuality, Pollutant
 from airqo_etl_utils.date import (
     str_to_date,
     date_to_str,
@@ -494,6 +495,37 @@ def get_tenant(**kwargs) -> str:
         tenant = None
 
     return tenant
+
+
+def get_air_quality(value: float, pollutant: Pollutant):
+    if pollutant == Pollutant.PM10:
+        if value <= 50.99:
+            return AirQuality.GOOD
+        elif 51.00 <= value <= 100.99:
+            return AirQuality.MODERATE
+        elif 101.00 <= value <= 250.99:
+            return AirQuality.UNHEALTHY_FSGs
+        elif 251.00 <= value <= 350.99:
+            return AirQuality.UNHEALTHY
+        elif 351.00 <= value <= 430.99:
+            return AirQuality.VERY_UNHEALTHY
+        else:
+            return AirQuality.HAZARDOUS
+    elif pollutant == Pollutant.PM2_5:
+        if value <= 12.09:
+            return AirQuality.GOOD
+        elif 12.1 <= value <= 35.49:
+            return AirQuality.MODERATE
+        elif 35.5 <= value <= 55.49:
+            return AirQuality.UNHEALTHY_FSGs
+        elif 55.5 <= value <= 150.49:
+            return AirQuality.UNHEALTHY
+        elif 150.5 <= value <= 250.49:
+            return AirQuality.VERY_UNHEALTHY
+        else:
+            return AirQuality.HAZARDOUS
+    else:
+        return None
 
 
 def format_dataframe_column_type(

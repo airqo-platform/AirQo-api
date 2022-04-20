@@ -1,3 +1,4 @@
+import math
 import traceback
 from datetime import datetime, timedelta
 
@@ -19,6 +20,7 @@ from airqo_etl_utils.commons import (
     resample_data,
     get_frequency,
     get_column_value,
+    get_air_quality,
 )
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
@@ -326,6 +328,21 @@ def create_insights_data_from_bigquery(
     return hourly_data.to_dict(orient="records")
 
 
+def round_off_value(value, pollutant, decimals: int = 2):
+    new_value = round(value, decimals)
+
+    if get_air_quality(value, pollutant) != get_air_quality(new_value, pollutant):
+        try:
+            new_value = f"{value}".split(".")
+            decimal_values = new_value[1][:decimals]
+            return float(f"{new_value[0]}.{decimal_values}")
+        except Exception as ex:
+            print(ex)
+        return value
+
+    return new_value
+
+
 def create_insights_data(data: list) -> list:
     print("creating insights .... ")
 
@@ -339,7 +356,12 @@ def create_insights_data(data: list) -> list:
     )
     insights_data["forecast"] = insights_data["forecast"].fillna(False)
     insights_data["empty"] = False
-
+    insights_data["pm2_5"] = insights_data["pm2_5"].apply(
+        lambda x: round_off_value(x, "pm2_5")
+    )
+    insights_data["pm10"] = insights_data["pm10"].apply(
+        lambda x: round_off_value(x, "pm10")
+    )
     if sorted(list(insights_data.columns)) != sorted(insights_columns):
         print(f"Required columns {insights_columns}")
         print(f"Dataframe columns {list(insights_data.columns)}")
