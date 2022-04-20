@@ -11,6 +11,8 @@ TWO_HOURS = 7200 # seconds
 
 BASE_URL = "/api/v1/analytics"
 
+APP_ENV = env_var('FLASK_ENV', 'production')
+
 
 class Config:
     DEBUG = False
@@ -20,7 +22,7 @@ class Config:
 
     CACHE_TYPE = 'RedisCache'
     CACHE_DEFAULT_TIMEOUT = TWO_HOURS
-    CACHE_KEY_PREFIX = 'Analytics'
+    CACHE_KEY_PREFIX = f'Analytics-{APP_ENV}'
     CACHE_REDIS_HOST = env_var('REDIS_SERVER')
     CACHE_REDIS_PORT = env_var('REDIS_PORT')
     CACHE_REDIS_URL = f"redis://{env_var('REDIS_SERVER')}:{env_var('REDIS_PORT')}"
@@ -57,6 +59,8 @@ class ProductionConfig(Config):
     DEBUG = False
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_PROD")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES_PROD")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_PROD")
 
 
 class DevelopmentConfig(Config):
@@ -64,6 +68,8 @@ class DevelopmentConfig(Config):
     DEBUG = True
     MONGO_URI = env_var("MONGO_LOCAL_URI")
     DB_NAME = env_var("MONGO_DEV")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
 
 
 class TestingConfig(Config):
@@ -71,6 +77,8 @@ class TestingConfig(Config):
     DEBUG = True
     MONGO_URI = env_var("MONGO_GCE_URI")
     DB_NAME = env_var("MONGO_STAGE")
+    BIGQUERY_SITES = env_var("BIGQUERY_SITES_STAGE")
+    BIGQUERY_EVENTS = env_var("BIGQUERY_EVENTS_STAGE")
 
 
 config = {
@@ -79,3 +87,7 @@ config = {
     "staging": TestingConfig,
     "production": ProductionConfig
 }
+
+print(f'app running - {APP_ENV.upper()} mode')
+
+CONFIGURATIONS = config[APP_ENV]

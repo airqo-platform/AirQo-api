@@ -1,7 +1,6 @@
 const axios = require("axios");
 const isEmpty = require("is-empty");
 const { logElement, logText, logObject } = require("../utils/log");
-const jsonify = require("../utils/jsonify");
 
 const devConfig = {
   MONGO_URI: "mongodb://localhost/",
@@ -9,6 +8,12 @@ const devConfig = {
   DB_NAME: process.env.MONGO_DEV,
   REDIS_SERVER: process.env.REDIS_SERVER_DEV,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
+    return `${
+      process.env.DEVICE_REGISTRY_BASE_URL_DEV
+    }?tenant=${tenant}&device_number=${channel.trim()}`;
+  },
+  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_DEV}/decrypt`,
 };
 const stageConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -16,6 +21,12 @@ const stageConfig = {
   DB_NAME: process.env.MONGO_STAGE,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
+    return `${
+      process.env.DEVICE_REGISTRY_BASE_URL_STAGE
+    }?tenant=${tenant}&device_number=${channel.trim()}`;
+  },
+  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_STAGE}/decrypt`,
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_GCE_URI,
@@ -23,87 +34,108 @@ const prodConfig = {
   DB_NAME: process.env.MONGO_PROD,
   REDIS_SERVER: process.env.REDIS_SERVER,
   REDIS_PORT: process.env.REDIS_PORT,
+  GET_DEVICES_URL: ({ tenant = "airqo", channel } = {}) => {
+    return `${
+      process.env.DEVICE_REGISTRY_BASE_URL_PROD
+    }?tenant=${tenant}&device_number=${channel.trim()}`;
+  },
+  DECYPT_DEVICE_KEY_URL: `${process.env.DEVICE_REGISTRY_BASE_URL_PROD}/decrypt`,
 };
 const defaultConfig = {
-  GET_CHANNELS_CACHE_EXPIRATION: 300,
-  GET_LAST_ENTRY_CACHE_EXPIRATION: 30,
-  GET_HOURLY_CACHE_EXPIRATION: 3600,
-  GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION: 30,
-  GET_CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION: 30,
-  GET_LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION: 30,
-  GET_DEVICE_COUNT_CACHE_EXPIRATION: 300,
+  TS_TEST_CHANNEL: process.env.TS_TEST_CHANNEL,
+  TS_API_KEY_TEST_DEVICE: process.env.TS_API_KEY_TEST_DEVICE,
+  GET_CHANNELS_CACHE_EXPIRATION: process.env.GET_CHANNELS_CACHE_EXPIRATION,
+  GET_LAST_ENTRY_CACHE_EXPIRATION: process.env.GET_LAST_ENTRY_CACHE_EXPIRATION,
+  GET_HOURLY_CACHE_EXPIRATION: process.env.GET_HOURLY_CACHE_EXPIRATION,
+  GET_DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION:
+    process.env.DESCRPIPTIVE_LAST_ENTRY_CACHE_EXPIRATION,
+  GET_CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION:
+    process.env.CHANNEL_LAST_ENTRY_AGE_CACHE_EXPIRATION,
+  GET_LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION:
+    process.env.LAST_FIELD_ENTRY_AGE_CACHE_EXPIRATION,
+  GET_DEVICE_COUNT_CACHE_EXPIRATION: process.env.DEVICE_COUNT_CACHE_EXPIRATION,
   PORT: process.env.PORT || 3000,
-  API_URL_CHANNELS: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  API_URL_CHANNELS: `${process.env.THINGSPEAK_BASE_URL}/channels.json?api_key=${process.env.TS_API_KEY}`,
   GET_LAST_FIELD_ENTRY_AGE: (channel, field) => {
-    return `https://api.thingspeak.com/channels/${channel.trim()}/fields/${field.trim()}/last_data_age.json`;
+    return `${
+      process.env.THINGSPEAK_BASE_URL
+    }/channels/${channel.trim()}/fields/${field.trim()}/last_data_age.json`;
   },
   GET_CHANNEL_LAST_ENTRY_AGE: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel.trim()}/feeds/last_data_age.json`;
+    return `${
+      process.env.THINGSPEAK_BASE_URL
+    }/channels/${channel.trim()}/feeds/last_data_age.json`;
   },
-  GENERATE_LAST_ENTRY: ({
+  THINGSPEAK_BASE_URL: process.env.THINGSPEAK_BASE_URL,
+  READ_DEVICE_FEEDS: ({
     channel = process.env.TS_TEST_CHANNEL,
     api_key = process.env.TS_API_KEY_TEST_DEVICE,
+    start = Date.now(),
+    end = Date.now(),
   } = {}) => {
-    // logElement("the channel inside", channel);
-    // logElement("the api_key", api_key);
-    return `https://api.thingspeak.com/channels/${channel}/feeds.json?api_key=${api_key}`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json?api_key=${api_key}&start=${start}&end=${end}`;
   },
   GET_FEEDS: (channel) => {
-    return `https://api.thingspeak.com/channels/${channel}/feeds.json`;
+    return `${process.env.THINGSPEAK_BASE_URL}/channels/${channel}/feeds.json`;
   },
-  GET_CHANNELS: `https://api.thingspeak.com/channels.json?api_key=${process.env.TS_API_KEY}`,
+  GET_CHANNELS: `${process.env.THINGSPEAK_BASE_URL}/channels.json?api_key=${process.env.TS_API_KEY}`,
   GET_HOURLY_FEEDS: (channel) => {
-    return `https://us-central1-airqo-250220.cloudfunctions.net/get_hourly_channel_data?channel_id=${channel}`;
+    return `${process.env.CLOUD_FUNCTIONS_BASE_URL}/get_hourly_channel_data?channel_id=${channel}`;
   },
   GET_GPS: (channel) => {
     return `${channel}`;
   },
-  GET_API_KEY: async (channel) => {
-    logText("GET_API_KEY...........");
-    // logElement("the channel", channel);
-    let url = `https://platform.airqo.net/api/v1/devices?tenant=airqo&device_number=${channel.trim()}`;
-    return axios
-      .get(url)
-      .then(async (response) => {
-        let responseJSON = response.data;
-        logObject("the response", responseJSON);
-        if (responseJSON.success === true) {
-          let deviceDetails = responseJSON.devices[0];
-          let readKey = deviceDetails.readKey;
-          if (!isEmpty(readKey)) {
-            return {
-              success: true,
-              data: readKey,
-              message: "read key successfully retrieved",
-            };
-          } else {
-            return {
-              success: false,
-              message: "readKey unavailable, please update device details",
-            };
-          }
-        } else if (responseJSON.success === false) {
-          if (responseJSON.error) {
-            return {
-              success: false,
-              error: error,
-              message: responseJSON.message,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseJSON.message,
-            };
-          }
-        }
-      })
-      .catch((error) => {
-        return {
-          success: false,
-          error: error.message,
-          message: "constants server side error",
-        };
-      });
+
+  BAM_FIELDS_AND_DESCRIPTIONS: {
+    field1: "RTCADC",
+    field2: "RTCV",
+    field3: "RTC",
+    field4: "STCADC",
+    field5: "STCV",
+    field6: "STC",
+    field7: "Battery Voltage",
+    field8: "Other Data",
+    created_at: "created_at",
+  },
+
+  BAM_FIELDS_AND_LABELS: {
+    field1: "rtc_adc",
+    field2: "rtc_v",
+    field3: "rtc",
+    field4: "stc_adc",
+    field5: "stc_v",
+    field6: "stc",
+    field7: "battery",
+    field8: "other_data",
+    created_at: "created_at",
+  },
+
+  FIELDS_AND_LABELS: {
+    field1: "pm2_5",
+    field2: "pm10",
+    field3: "s2_pm2_5",
+    field4: "s2_pm10",
+    field5: "latitude",
+    field6: "longitude",
+    field7: "battery",
+    field8: "other_data",
+    created_at: "created_at",
+  },
+
+  POSITIONS_AND_LABELS: {
+    0: "latitude",
+    1: "longitude",
+    2: "altitude",
+    3: "speed",
+    4: "satellites",
+    5: "hdop",
+    6: "internalTemperature",
+    7: "internalHumidity",
+    8: "externalTemperature",
+    9: "ExternalHumidity",
+    10: "ExternalPressure",
+    11: "ExternalAltitude",
+    12: "DeviceType",
   },
 };
 

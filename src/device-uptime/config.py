@@ -16,7 +16,7 @@ class Config:
     DB_NAME = os.getenv("DB_NAME_PROD")
     REGISTRY_MONGO_URI = os.getenv('REGISTRY_MONGO_GCE_URI')
     MONITORING_MONGO_URI = os.getenv('MONITORING_MONGO_GCE_URI')
-    MONITOR_FREQUENCY_MINUTES = os.getenv('MONITOR_FREQUENCY_MINUTES', 60)
+    MONITOR_FREQUENCY_MINUTES = int(os.getenv('MONITOR_FREQUENCY_MINUTES', 60))
     BASE_API_URL = "https://staging-platform.airqo.net/api/v1"
     DAILY_EVENTS_URL = f"{BASE_API_URL}/devices/events"
     DEVICE_RECENT_EVENTS_URL = f"{BASE_API_URL}/data/feeds/transform/recent"

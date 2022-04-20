@@ -80,13 +80,17 @@ class AirQoApi:
 
             params = {"tenant": site.pop("tenant")}
 
-            if "_id" in site.keys():
-                params["id"] = site.pop("_id")
+            if "id" in site.keys():
+                params["id"] = site.pop("id")
             if "lat_long" in site.keys():
                 params["lat_long"] = site.pop("lat_long")
 
             response = self.__request("devices/sites", params, site, "put")
             print(response)
+
+    def refresh_site(self, params):
+        response = self.__request("devices/sites/refresh", params, [], "put")
+        print(response)
 
     def __request(self, endpoint, params, body=None, method=None):
 

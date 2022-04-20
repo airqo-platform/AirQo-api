@@ -11,6 +11,7 @@ flask_pymongo
 python-decouple
 python-dotenv
 marshmallow
+google-cloud-bigquery[pandas]
 redis
 
 # Ports for stable python 3 functionality
