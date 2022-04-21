@@ -29,7 +29,6 @@ spec:
           emptyDir: {}
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -45,7 +44,6 @@ spec:
     app: jenkins
 
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
