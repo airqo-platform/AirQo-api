@@ -103,29 +103,21 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant, all_devices=True) -> list:
+    def get_devices(self, tenant) -> list:
 
         devices_with_tenant = []
 
         if tenant:
-            params = {
-                "tenant": tenant,
-            }
-            if not all_devices:
-                params["active"] = "yes"
-            response = self.__request("devices", params)
-
+            response = self.__request("devices", {"tenant": tenant})
             if "devices" in response:
-                devices = response["devices"]
-                for device in devices:
+                for device in response["devices"]:
                     device["tenant"] = tenant
                     devices_with_tenant.append(device)
         else:
             for x in ["airqo", "kcca"]:
                 response = self.__request("devices", {"tenant": x})
                 if "devices" in response:
-                    devices = response["devices"]
-                    for device in devices:
+                    for device in response["devices"]:
                         device["tenant"] = x
                         devices_with_tenant.append(device)
 
@@ -243,9 +235,8 @@ class AirQoApi:
         if tenant:
             response = self.__request("devices/sites", {"tenant": tenant})
             if "sites" in response:
-                sites = response["sites"]
                 sites_with_tenant = []
-                for site in sites:
+                for site in response["sites"]:
                     site["tenant"] = tenant
                     sites_with_tenant.append(site)
                 return sites_with_tenant
@@ -254,8 +245,7 @@ class AirQoApi:
             for x in ["airqo", "kcca"]:
                 response = self.__request("devices/sites", {"tenant": x})
                 if "sites" in response:
-                    sites = response["sites"]
-                    for site in sites:
+                    for site in response["sites"]:
                         site["tenant"] = x
                         sites_with_tenant.append(site)
             return sites_with_tenant

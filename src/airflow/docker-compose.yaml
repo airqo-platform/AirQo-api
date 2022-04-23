@@ -15,7 +15,7 @@ x-message-borker-common-data: &message-broker-common-data
     - .env
 
 x-common-data: &common-data
-#  platform: linux/amd64
+  #  platform: linux/amd64
   restart: on-failure
   env_file:
     - .env
@@ -50,7 +50,7 @@ services:
     build:
       context: .
       target: db-setup
-#    platform: linux/amd64
+    #    platform: linux/amd64
     restart: on-failure
     healthcheck:
       test: "exit 0"
@@ -87,7 +87,7 @@ services:
     <<: *common-data
     container_name: webserver
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
     build:
       context: .
       target: webserver

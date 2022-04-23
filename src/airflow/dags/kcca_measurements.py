@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.commons import slack_dag_failure_notification
@@ -32,7 +33,6 @@ def hourly_measurements_etl():
 
     @task()
     def send_hourly_measurements_to_api(inputs: dict):
-
         from airqo_etl_utils.kcca_utils import transform_kcca_measurements_for_api
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_api import AirQoApi
@@ -45,7 +45,6 @@ def hourly_measurements_etl():
 
     @task()
     def send_hourly_measurements_to_message_broker(airqo_data: dict):
-
         from airqo_etl_utils.kcca_utils import transform_kcca_data_for_message_broker
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.config import configuration
@@ -63,7 +62,6 @@ def hourly_measurements_etl():
 
     @task()
     def send_hourly_measurements_to_bigquery(kcca_data: dict):
-
         from airqo_etl_utils.kcca_utils import transform_kcca_data_for_bigquery
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -93,7 +91,6 @@ def hourly_measurements_etl():
 def raw_measurements_etl():
     @task(multiple_outputs=True)
     def extract():
-
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
         from airqo_etl_utils.commons import fill_nan
         from airqo_etl_utils.date import date_to_str
@@ -110,7 +107,6 @@ def raw_measurements_etl():
 
     @task(multiple_outputs=True)
     def transform(inputs: dict):
-
         from airqo_etl_utils.kcca_utils import transform_kcca_data_for_bigquery
         from airqo_etl_utils.commons import un_fill_nan, fill_nan
 
@@ -121,7 +117,6 @@ def raw_measurements_etl():
 
     @task()
     def load(inputs: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -149,7 +144,6 @@ def raw_measurements_etl():
 def daily_measurements_etl():
     @task(multiple_outputs=True)
     def extract():
-
         from airqo_etl_utils.date import date_to_str_days
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
         from airqo_etl_utils.commons import fill_nan
@@ -166,7 +160,6 @@ def daily_measurements_etl():
 
     @task(multiple_outputs=True)
     def transform(inputs: dict):
-
         from airqo_etl_utils.kcca_utils import transform_kcca_measurements_for_api
         from airqo_etl_utils.commons import un_fill_nan, fill_nan
 
@@ -177,7 +170,6 @@ def daily_measurements_etl():
 
     @task()
     def load(inputs: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_api import AirQoApi
 

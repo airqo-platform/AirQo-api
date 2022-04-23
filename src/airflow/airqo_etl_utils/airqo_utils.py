@@ -30,7 +30,7 @@ def extract_airqo_hourly_data_from_api(start_time: str, end_time: str) -> list:
     devices_list = list(devices)
     hourly_events = []
 
-    if len(devices_list) == 0:
+    if not devices_list:
         print("devices empty")
         return []
 
@@ -180,13 +180,11 @@ def average_airqo_measurements(data: list, frequency: str) -> list:
     return pd.DataFrame(averaged_measurements).to_dict(orient="records")
 
 
-def extract_airqo_data_from_thingspeak(
-    start_time: str, end_time: str, all_devices: bool
-) -> list:
+def extract_airqo_data_from_thingspeak(start_time: str, end_time: str) -> list:
     thingspeak_base_url = configuration.THINGSPEAK_CHANNEL_URL
 
     airqo_api = AirQoApi()
-    airqo_devices = airqo_api.get_devices(tenant="airqo", all_devices=all_devices)
+    airqo_devices = airqo_api.get_devices(tenant="airqo")
     read_keys = airqo_api.get_read_keys(devices=airqo_devices)
 
     channels_data = []
@@ -790,7 +788,6 @@ def restructure_airqo_data_for_bigquery(data: list) -> list:
 
 
 def merge_airqo_and_weather_data(airqo_data: list, weather_data: list) -> list:
-    # TODO: notify in case of missing data
     airqo_data_df = pd.DataFrame(airqo_data)
     weather_data_df = pd.DataFrame(weather_data)
 

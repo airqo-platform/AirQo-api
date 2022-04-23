@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.commons import slack_dag_failure_notification

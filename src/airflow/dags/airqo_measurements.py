@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.commons import slack_dag_failure_notification
@@ -24,7 +25,7 @@ def historical_hourly_measurements_etl():
 
         start_time, end_time = get_date_time_values(**kwargs)
         raw_airqo_data = extract_airqo_data_from_thingspeak(
-            start_time=start_time, end_time=end_time, all_devices=True
+            start_time=start_time, end_time=end_time
         )
         average_data = average_airqo_data(data=raw_airqo_data, frequency="hourly")
 
@@ -176,7 +177,7 @@ def historical_raw_measurements_etl():
 
         start_time, end_time = get_date_time_values(**kwargs)
         raw_airqo_data = extract_airqo_data_from_thingspeak(
-            start_time=start_time, end_time=end_time, all_devices=True
+            start_time=start_time, end_time=end_time
         )
 
         return dict({"data": fill_nan(data=raw_airqo_data)})
@@ -285,18 +286,16 @@ def airqo_realtime_measurements_etl():
 
     @task(multiple_outputs=True)
     def extract_raw_data():
-
         from airqo_etl_utils.airqo_utils import extract_airqo_data_from_thingspeak
         from airqo_etl_utils.commons import fill_nan
 
         raw_airqo_data = extract_airqo_data_from_thingspeak(
-            start_time=start_time, end_time=end_time, all_devices=False
+            start_time=start_time, end_time=end_time
         )
         return dict({"data": fill_nan(data=raw_airqo_data)})
 
     @task(multiple_outputs=True)
     def average_data_by_hour(raw_data: dict):
-
         from airqo_etl_utils.airqo_utils import average_airqo_data
         from airqo_etl_utils.commons import fill_nan, un_fill_nan
 
@@ -317,7 +316,6 @@ def airqo_realtime_measurements_etl():
 
     @task(multiple_outputs=True)
     def merge_data(averaged_hourly_data: dict, weather_data: dict):
-
         from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
         from airqo_etl_utils.commons import fill_nan, un_fill_nan
 
@@ -376,7 +374,6 @@ def airqo_realtime_measurements_etl():
 
     @task()
     def send_hourly_measurements_to_message_broker(airqo_data: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.config import configuration
         from airqo_etl_utils.message_broker import KafkaBrokerClient
@@ -394,7 +391,6 @@ def airqo_realtime_measurements_etl():
 
     @task()
     def send_hourly_measurements_to_bigquery(airqo_data: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_utils import restructure_airqo_data
         from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -410,7 +406,6 @@ def airqo_realtime_measurements_etl():
 
     @task()
     def update_app_insights(airqo_data: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_utils import restructure_airqo_data
         from airqo_etl_utils.message_broker import KafkaBrokerClient
@@ -427,7 +422,6 @@ def airqo_realtime_measurements_etl():
 
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_utils import restructure_airqo_data
         from airqo_etl_utils.bigquery_api import BigQueryApi

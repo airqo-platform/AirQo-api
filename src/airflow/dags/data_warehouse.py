@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.commons import slack_dag_failure_notification
@@ -15,7 +16,6 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def data_warehouse_etl():
     @task(multiple_outputs=True)
     def extract_hourly_measurements(**kwargs):
-
         from airqo_etl_utils.data_warehouse_utils import (
             query_hourly_measurements,
         )
@@ -32,7 +32,6 @@ def data_warehouse_etl():
 
     @task(multiple_outputs=True)
     def extract_hourly_weather_data(**kwargs):
-
         from airqo_etl_utils.data_warehouse_utils import (
             query_hourly_weather_data,
         )
@@ -50,7 +49,6 @@ def data_warehouse_etl():
 
     @task()
     def extract_sites_meta_data():
-
         from airqo_etl_utils.commons import fill_nan
         from airqo_etl_utils.data_warehouse_utils import (
             extract_sites_meta_data,
@@ -62,7 +60,6 @@ def data_warehouse_etl():
 
     @task(multiple_outputs=True)
     def merge_data(measurements_data: dict, weather_data: dict, sites_data: dict):
-
         from airqo_etl_utils.commons import un_fill_nan, fill_nan
 
         from airqo_etl_utils.data_warehouse_utils import (
@@ -82,7 +79,6 @@ def data_warehouse_etl():
 
     @task()
     def load(inputs: dict):
-
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.commons import un_fill_nan
 

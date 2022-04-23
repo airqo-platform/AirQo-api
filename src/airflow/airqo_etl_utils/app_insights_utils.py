@@ -1,4 +1,3 @@
-import math
 import traceback
 from datetime import datetime, timedelta
 
@@ -6,15 +5,6 @@ import numpy as np
 import pandas as pd
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.message_broker import KafkaBrokerClient
-from airqo_etl_utils.date import (
-    date_to_str_hours,
-    date_to_str_days,
-    date_to_str,
-    predict_str_to_date,
-    str_to_date,
-)
 from airqo_etl_utils.commons import (
     get_airqo_api_frequency,
     resample_data,
@@ -22,6 +12,15 @@ from airqo_etl_utils.commons import (
     get_column_value,
     get_air_quality,
 )
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import (
+    date_to_str_hours,
+    date_to_str_days,
+    date_to_str,
+    predict_str_to_date,
+    str_to_date,
+)
+from airqo_etl_utils.message_broker import KafkaBrokerClient
 
 insights_columns = ["time", "pm2_5", "pm10", "siteId", "frequency", "forecast", "empty"]
 
@@ -140,7 +139,7 @@ def measurement_time_to_string(time: str, daily=False):
 
 def get_forecast_data(tenant: str) -> list:
     airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant=tenant, all_devices=False)
+    devices = airqo_api.get_devices(tenant=tenant)
 
     forecast_measurements = pd.DataFrame(data=[], columns=insights_columns)
     time = int((datetime.utcnow() + timedelta(hours=1)).timestamp())
@@ -185,7 +184,7 @@ def get_forecast_data(tenant: str) -> list:
 
 def get_airqo_data(freq: str, start_time: str = None, end_time: str = None) -> list:
     airqo_api = AirQoApi()
-    devices = airqo_api.get_devices(tenant="airqo", all_devices=False)
+    devices = airqo_api.get_devices(tenant="airqo")
     measurements = []
 
     start = (

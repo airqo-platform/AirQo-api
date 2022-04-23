@@ -109,7 +109,7 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
 
     # extract_airqo_data
     raw_airqo_data = extract_airqo_data_from_thingspeak(
-        start_time=start_date_time, end_time=end_date_time, all_devices=False
+        start_time=start_date_time, end_time=end_date_time
     )
     pd.DataFrame(raw_airqo_data).to_csv(path_or_buf="raw_airqo_data.csv", index=False)
     average_data = average_airqo_data(data=raw_airqo_data, frequency="hourly")

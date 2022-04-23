@@ -117,7 +117,6 @@ def weather_measurements_etl():
 
     @task(multiple_outputs=True)
     def create_hourly_data(inputs: dict):
-
         from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,

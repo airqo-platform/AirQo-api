@@ -23,18 +23,13 @@ from airqo_etl_utils.tahmo import TahmoApi
 
 def measurement_time_to_string(time: str, daily=False):
     date_time = str_to_date(time)
-    if daily:
-        return date_to_str_days(date_time)
-    else:
-        return date_to_str_hours(date_time)
+    return date_to_str_days(date_time) if daily else date_to_str_hours(date_time)
 
 
 def to_double(x):
     try:
         value = float(x)
-        if math.isnan(value) or np.isnan(value):
-            return None
-        return value
+        return None if (math.isnan(value) or np.isnan(value)) else value
     except Exception:
         return None
 
@@ -182,9 +177,6 @@ def resample_weather_data(data: list, frequency: str):
         filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites)
     )
 
-    # to include site id
-    # devices = get_devices_or_sites(configuration.AIRQO_BASE_URL, tenant='airqo', sites=False)
-
     temperature = weather_raw_data.loc[
         weather_raw_data["variable"] == "te", ["value", "variable", "station", "time"]
     ]
@@ -255,15 +247,7 @@ def resample_weather_data(data: list, frequency: str):
             traceback.print_exc()
             continue
 
-        # to include site id
-        # device_station_data_df = pd.DataFrame(device_weather_data)
-        # device_station_data_df['site_id'] = device_station_data_df['device_id'].apply(
-        #     lambda x: get_device_site_id(x, devices))
-        # devices_weather_data.extend(device_station_data_df.to_dict(orient='records'))
-
         devices_weather_data.extend(device_weather_data)
-
-    # pd.DataFrame(devices_weather_data).to_csv(path_or_buf='devices_weather.csv', index=False)
 
     return devices_weather_data
 
@@ -558,16 +542,9 @@ def get_device(devices=None, channel_id=None, device_id=None):
     if devices is None:
         devices = []
 
-    if channel_id:
-        result = list(filter(lambda x: x["device_number"] == channel_id, devices))
-        if not result:
-            return None
-        return result[0]
-
-    elif device_id:
-        result = list(filter(lambda x: x["_id"] == device_id, devices))
-        if not result:
-            return None
-        return result[0]
-
-    return None
+    result = (
+        list(filter(lambda x: x["device_number"] == channel_id, devices))
+        if channel_id
+        else list(filter(lambda x: x["_id"] == device_id, devices))
+    )
+    return None if not result else result[0]
