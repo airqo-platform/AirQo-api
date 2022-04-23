@@ -4,7 +4,7 @@ const devConfig = {
   PWD_RESET: `${process.env.PLATFORM_DEV_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_DEV_BASE_URL}/forgot`,
-  BASE_URL: `${process.env.PLATFORM_DEV_BASE_URL}/api/v1/users`,
+  BASE_URL: `${process.env.PLATFORM_DEV_BASE_URL}`,
 };
 const prodConfig = {
   MONGO_URI: process.env.MONGO_PROD_URI,
@@ -12,7 +12,7 @@ const prodConfig = {
   PWD_RESET: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/forgot`,
-  BASE_URL: `${process.env.PLATFORM_PRODUCTION_BASE_URL}/api/v1/users`,
+  BASE_URL: `${process.env.PLATFORM_PRODUCTION_BASE_URL}`,
 };
 
 const stageConfig = {
@@ -21,11 +21,12 @@ const stageConfig = {
   PWD_RESET: `${process.env.PLATFORM_STAGING_BASE_URL}/reset`,
   LOGIN_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/login`,
   FORGOT_PAGE: `${process.env.PLATFORM_STAGING_BASE_URL}/forgot`,
-  BASE_URL: `${process.env.PLATFORM_STAGING_BASE_URL}/api/v1/users`,
+  BASE_URL: `${process.env.PLATFORM_STAGING_BASE_URL}`,
 };
 
 const defaultConfig = {
   PORT: process.env.PORT || 3000,
+  PASSWORD_REGEX: () => process.env.PASSWORD_REGEX,
   CLIENT_ORIGIN: `${process.env.AIRQO_WEBSITE}`,
   BCRYPT_SALT_ROUNDS: 12,
   JWT_SECRET: process.env.JWT_SECRET,

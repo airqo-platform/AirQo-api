@@ -5,22 +5,11 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const constants = require("../config/constants");
 const { logObject, logElement, logText } = require("../utils/log");
-const ObjectId = mongoose.Schema.Types.ObjectId;
-const validations = require("../utils/validations");
 const isEmpty = require("is-empty");
-const { log } = require("debug");
 const saltRounds = constants.SALT_ROUNDS;
 const HTTPStatus = require("http-status");
-
-function oneMonthFromNow() {
-  var d = new Date();
-  var targetMonth = d.getMonth() + 1;
-  d.setMonth(targetMonth);
-  if (d.getMonth() !== targetMonth % 12) {
-    d.setDate(0); // last day of previous month
-  }
-  return d;
-}
+const datesUtil = require("../utils/date");
+const ObjectId = mongoose.Schema.Types.ObjectId;
 
 const UserSchema = new Schema(
   {
@@ -36,23 +25,19 @@ const UserSchema = new Schema(
         message: "{VALUE} is not a valid email!",
       },
     },
-    emailConfirmed: {
-      type: Boolean,
-      default: false,
-    },
     firstName: {
       type: String,
-      required: [true, "FirstName is required!"],
+      required: [true, "firstName is required!"],
       trim: true,
     },
     lastName: {
       type: String,
-      required: [true, "LastName is required"],
+      required: [true, "lastName is required"],
       trim: true,
     },
     userName: {
       type: String,
-      required: [true, "UserName is required!"],
+      required: [true, "userName is required!"],
       trim: true,
       unique: true,
     },
@@ -60,17 +45,10 @@ const UserSchema = new Schema(
       type: String,
       required: [true, "Password is required!"],
       trim: true,
-      minlength: [6, "Password is required"],
-      validate: {
-        validator(password) {
-          return validations.passwordReg.test(password);
-        },
-        message: "{VALUE} is not a valid password, please check documentation!",
-      },
     },
     privilege: { type: String, required: [true, "the role is required!"] },
     isActive: { type: Boolean },
-    duration: { type: Date, default: oneMonthFromNow },
+    duration: { type: Date, default: datesUtil.monthsInfront(1) },
     organization: {
       type: String,
       required: [true, "the organization is required!"],
@@ -101,10 +79,19 @@ const UserSchema = new Schema(
     profilePicture: {
       type: String,
     },
-    verified: {
+    emailVerified: {
       type: Boolean,
       default: false,
     },
+    confirmationCode: {
+      type: String,
+    },
+    roles: [
+      {
+        type: ObjectId,
+        ref: "Role",
+      },
+    ],
   },
   { timestamps: true }
 );
@@ -194,27 +181,25 @@ UserSchema.statics = {
         return {
           success: true,
           data,
-          message: "successfully listed the users",
+          message: "successfully retrieved the users",
         };
-      }
-
-      if (isEmpty(data)) {
+      } else if (isEmpty(users)) {
         return {
           success: true,
           message: "no users exist",
-          data,
+          data: [],
         };
       }
       return {
         success: false,
         message: "unable to retrieve users",
-        data,
+        data: [],
       };
     } catch (error) {
       return {
         success: false,
-        message: "User model server error - list",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },
@@ -330,6 +315,7 @@ UserSchema.methods = {
       description: this.description,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      verified: this.verified,
     };
   },
 };

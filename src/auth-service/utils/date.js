@@ -1,6 +1,6 @@
 const { logText, logObject, logElement } = require("./log");
 
-const dates = {
+const date = {
   generateDateFormat: (ISODate) => {
     try {
       let date = new Date(ISODate);
@@ -138,4 +138,4 @@ const dates = {
     return d;
   },
 };
-module.exports = days;
+module.exports = date;

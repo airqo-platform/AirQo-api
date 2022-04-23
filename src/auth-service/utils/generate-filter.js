@@ -1,6 +1,7 @@
 const { logElement, logObject } = require("./log");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
+const HTTPStatus = require("http-status");
 
 const filter = {
   users: (req) => {
@@ -37,12 +38,14 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: HTTPStatus.OK,
       };
     } catch (e) {
       return {
         success: false,
-        message: "filter util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -116,7 +119,7 @@ const filter = {
   },
   candidates: (req) => {
     try {
-      let { category, id } = req.query;
+      let { category, id, confirmationCode } = req.query;
       let { email } = req.body;
       let filter = {};
       if (email) {
@@ -125,6 +128,9 @@ const filter = {
       if (category) {
         filter["category"] = category;
       }
+      if (confirmationCode) {
+        filter["confirmationCode"] = confirmationCode;
+      }
       if (id) {
         filter["_id"] = id;
       }
@@ -132,12 +138,14 @@ const filter = {
         success: true,
         message: "successfully created the filter",
         data: filter,
+        status: HTTPStatus.OK,
       };
     } catch (e) {
       return {
         success: false,
-        message: "filter util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

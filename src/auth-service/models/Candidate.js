@@ -36,16 +36,16 @@ const CandidateSchema = new mongoose.Schema(
     jobTitle: { type: String, required: [true, "jobTitle is required"] },
     category: { type: String, required: [true, "category is required"] },
     website: { type: String, required: [true, "website is required"] },
-    isDenied: {
-      type: Boolean,
-    },
     status: {
       type: String,
       default: "pending",
     },
-    verified: {
+    isEmailVerified: {
       type: Boolean,
       default: false,
+    },
+    confirmationCode: {
+      type: String,
     },
   },
   { timestamps: true }
@@ -65,7 +65,7 @@ CandidateSchema.statics = {
     } catch (error) {
       return {
         errors: { message: error.message },
-        message: "unable to create candidate",
+        message: "Internal Server Error",
         success: false,
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
@@ -73,6 +73,7 @@ CandidateSchema.statics = {
   },
   async list({ skip = 0, limit = 5, filter = {} } = {}) {
     try {
+      logObject("the filter for list candidates", filter);
       let candidates = await this.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -85,49 +86,57 @@ CandidateSchema.statics = {
           success: true,
           data,
           message: "successfully listed the candidates",
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: true,
           message: "no candidates exist",
-          data,
+          data: [],
+          status: httpStatus.OK,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "unable to list the candidates",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
+      logObject("the filter for update candidate", filter);
       let updatedCandidate = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
-
+      logObject("updatedCandidate", updatedCandidate);
       if (!isEmpty(updatedCandidate)) {
         let data = updatedCandidate._doc;
         return {
           success: true,
           message: "successfully modified the candidate",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "candidate does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
+          errors: { message: "unable to modify non existent candidate" },
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "model server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -146,18 +155,21 @@ CandidateSchema.statics = {
           success: true,
           message: "successfully removed the candidate",
           data,
+          status: httpStatus.OK,
         };
       } else {
         return {
           success: false,
           message: "candidate does not exist, please crosscheck",
+          status: httpStatus.NOT_FOUND,
         };
       }
     } catch (error) {
       return {
         success: false,
-        message: "model server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
@@ -178,6 +190,7 @@ CandidateSchema.methods = {
       status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      isEmailVerified: this.isEmailVerified,
     };
   },
 };

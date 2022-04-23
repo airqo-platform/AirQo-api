@@ -64,7 +64,7 @@ module.exports = {
   Thank you for your interest in the AirQo platform. You need to verify that 
   this is your email address by clicking here: ${constants.BASE_URL}/verify/${id}/${token};
 
-  Kind Regards, AirQo platform team`;
+  Kind Regards, AirQo Platform Team`;
   },
   user_updated: (firstName, lastName) => {
     return (
@@ -89,5 +89,19 @@ module.exports = {
       `Enter the code below in the app. \n\n` +
       `The code: ${token}`
     );
+  },
+  verify_user_email: (firstName, token) => {
+    return `<h1>Email Confirmation</h1>
+    <h2>Hello ${firstName}</h2>
+    <p>Thank you for requesting access to the AirQo Platform. Please confirm your email by clicking on the following link</p>
+    <a href=${constants.BASE_URL}/confirm/${token}> Click here</a>
+    </div>`;
+  },
+  verify_candidate_email: (firstName, token) => {
+    return `<h1>Email Confirmation</h1>
+    <h2>Hello ${firstName}</h2>
+    <p>Thank you for requesting access to the AirQo Platform. Please confirm your email by clicking on the following link</p>
+    <a href=${constants.BASE_URL}/candidates/confirm/${token}> Click here</a>
+    </div>`;
   },
 };

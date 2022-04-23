@@ -1,7 +1,7 @@
 const passport = require("passport");
 const LocalStrategy = require("passport-local");
 const HTTPStatus = require("http-status");
-const Validator = require("validator");
+const validator = require("validator");
 const UserSchema = require("../models/User");
 const constants = require("../config/constants");
 const { logElement, logText, logObject } = require("../utils/log");
@@ -19,22 +19,18 @@ const setLocalOptions = (req) => {
   try {
     let authenticationFields = {};
     if (
-      !Validator.isEmpty(req.body.userName) &&
-      Validator.isEmail(req.body.userName)
+      !validator.isEmpty(req.body.userName + "") &&
+      validator.isEmail(req.body.userName + "")
     ) {
       authenticationFields.usernameField = "email";
       authenticationFields.passwordField = "password";
-    }
-
-    if (
-      !Validator.isEmpty(req.body.userName) &&
-      !Validator.isEmail(req.body.userName)
+    } else if (
+      !validator.isEmpty(req.body.userName + "") &&
+      !validator.isEmail(req.body.userName + "")
     ) {
       authenticationFields.usernameField = "userName";
       authenticationFields.passwordField = "password";
-    }
-
-    if (Validator.isEmpty(req.body.userName)) {
+    } else if (validator.isEmpty(req.body.userName + "")) {
       return {
         success: false,
         message: "the userName field is missing",
@@ -71,21 +67,15 @@ const jwtOpts = {
 
 const useLocalStrategy = (tenant, req, res, next) => {
   let localOptions = setLocalOptions(req);
-  logObject("the localOptions", localOptions);
-  if (localOptions.success == true) {
-    logText("success state is true");
+  if (localOptions.success === true) {
     let { usernameField } = localOptions.authenticationFields;
-    logElement("the username field", usernameField);
-    if (usernameField == "email") {
+    if (usernameField === "email") {
       req.body.email = req.body.userName;
-      logText("we are using email");
       return useEmailWithLocalStrategy(tenant, req, res, next);
-    } else if (usernameField == "userName") {
-      logText("we are using username");
+    } else if (usernameField === "userName") {
       return useUsernameWithLocalStrategy(tenant, req, res, next);
     }
-  } else if (localOptions.success == false) {
-    logText("success state is false");
+  } else if (localOptions.success === false) {
     return localOptions;
   }
 };
@@ -99,18 +89,23 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           .findOne({ email })
           .exec();
         req.auth = {};
-        if (!user._doc.verified) {
-          logText("the user verified is not verified");
+        logObject("user", user);
+        if (user && !user._doc.verified) {
           req.auth.success = false;
-          req.auth.message = "account inactive or incorrect credentials";
+          req.auth.message =
+            "account inactive or non existent or incorrect credentials";
           req.auth.status = HTTPStatus.UNAUTHORIZED;
           next();
         } else if (!user) {
           req.auth.success = false;
-          req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          req.auth.errors = {
+            message:
+              "account inactive or non existent or incorrect credentials",
+          };
+          req.auth.message = `account inactive or non existent or incorrect credentials`;
           req.auth.status = HTTPStatus.NOT_FOUND;
           next();
-        } else if (!user.authenticateUser(password)) {
+        } else if (user && !user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
           req.auth.status = HTTPStatus.BAD_REQUEST;
@@ -123,7 +118,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
       } catch (e) {
         req.auth.success = false;
         req.auth.message = "Server Error";
-        req.auth.error = e.message;
+        req.auth.errors = { message: e.message };
         req.auth.status = HTTPStatus.INTERNAL_SERVER_ERROR;
         next();
       }
@@ -141,17 +136,18 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
         req.auth = {};
         if (!user) {
           req.auth.success = false;
-          req.auth.message = `username or password does not exist in this organisation (${tenant})`;
+          req.auth.message = `account inactive or non existent or incorrect credentials`;
           req.auth.status = HTTPStatus.NOT_FOUND;
           next();
-        } else if (!user.authenticateUser(password)) {
+        } else if (user && !user.authenticateUser(password)) {
           req.auth.success = false;
           req.auth.message = "incorrect username or password";
           req.auth.status = HTTPStatus.BAD_REQUEST;
           next();
-        } else if (!user._doc.verified) {
+        } else if (user && !user._doc.verified) {
           req.auth.success = false;
-          req.auth.message = "account inactive or incorrect credentials";
+          req.auth.message =
+            "account inactive or non existent or incorrect credentials";
           req.auth.status = HTTPStatus.UNAUTHORIZED;
           next();
         }
@@ -162,7 +158,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
       } catch (e) {
         req.auth.success = false;
         req.auth.message = "Server Error";
-        req.auth.error = e.message;
+        req.auth.errors = { message: e.message };
         req.auth.status = HTTPStatus.INTERNAL_SERVER_ERROR;
         next();
       }
@@ -244,6 +240,7 @@ function setJWTAuth(req, res, next) {
       const error = errorsUtil.convertErrorArrayToObject(nestedErrors);
       const statusCode = HTTPStatus.BAD_REQUEST;
       return errorsUtil.errorResponse({ res, message, statusCode, error });
+    }
     let tenant = "airqo";
     if (req.query.tenant) {
       tenant = req.query.tenant;

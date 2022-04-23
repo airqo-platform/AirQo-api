@@ -1,6 +1,6 @@
 const UserSchema = require("../models/User");
-const { getModelByTenant } = require("../utils/multitenancy");
-const { logObject, logElement, logText } = require("../utils/log");
+const { getModelByTenant } = require("./multitenancy");
+const { logObject, logElement, logText } = require("./log");
 const mailer = require("../services/mailer");
 const generatePassword = require("generate-password");
 const bcrypt = require("bcrypt");
@@ -12,9 +12,9 @@ const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
 const validationsUtil = require("./validations");
 const constants = require("../config/constants");
-const createTokenUtil = require("../utils/create-token");
 const log4js = require("log4js");
 const logger = log4js.getLogger("join-util");
+const jwt = require("jsonwebtoken");
 
 const UserModel = (tenant) => {
   try {
@@ -34,7 +34,7 @@ const join = {
         limit,
         skip,
       });
-      if (responseFromListUser.success == true) {
+      if (responseFromListUser.success === true) {
         return {
           success: true,
           message: responseFromListUser.message,
@@ -71,48 +71,31 @@ const join = {
           update,
         }
       );
-      if (responseFromModifyUser.success == true) {
+      if (responseFromModifyUser.success === true) {
         let user = responseFromModifyUser.data;
-        let responseFromSendEmail = await mailer.update(
-          user.email,
-          user.firstName,
-          user.lastName,
-          type
-        );
+        const password = update.password ? update.password : "";
 
-        if (responseFromSendEmail.success == true) {
-          return {
-            success: true,
-            message: responseFromModifyUser.message,
-            data: responseFromModifyUser.data,
-          };
-        } else if (responseFromSendEmail.success == false) {
-          if (responseFromSendEmail.error) {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-              error: responseFromSendEmail.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromSendEmail.message,
-            };
-          }
+        const email = user.email,
+          firstName = user.firstName,
+          entity = "user",
+          lastName = user.lastName;
+
+        let responseFromSendEmail = await mailer.update({
+          email,
+          firstName,
+          lastName,
+          type,
+          entity,
+          password,
+        });
+
+        if (responseFromSendEmail.success === true) {
+          return responseFromSendEmail;
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
         }
-      } else if (responseFromModifyUser.success == false) {
-        if (responseFromModifyUser.error) {
-          return {
-            success: false,
-            message: responseFromModifyUser.message,
-            error: responseFromModifyUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyUser.message,
-          };
-        }
+      } else if (responseFromModifyUser.success === false) {
+        return responseFromModifyUser;
       }
     } catch (e) {
       logElement("update users util", e.message);
@@ -140,7 +123,7 @@ const join = {
           await validationsUtil.checkEmailExistenceUsingKickbox(
             email,
             (value) => {
-              if (value.success == false) {
+              if (value.success === false) {
                 const errors = value.errors ? value.errors : "";
                 callback({
                   success: false,
@@ -227,13 +210,13 @@ const join = {
           filter,
         }
       );
-      if (responseFromRemoveUser.success == true) {
+      if (responseFromRemoveUser.success === true) {
         return {
           success: true,
           message: responseFromRemoveUser.message,
           data: responseFromRemoveUser.data,
         };
-      } else if (responseFromRemoveUser.success == false) {
+      } else if (responseFromRemoveUser.success === false) {
         if (responseFromRemoveUser.error) {
           return {
             success: false,
@@ -256,98 +239,9 @@ const join = {
       };
     }
   },
-  verify: async (req) => {
-    try {
-      /**
-       * first find the user
-       * Using userId and category, check for the token
-       * then update the user
-       * send the general welcome or request access email after the
-       *
-       * I think the password generation for user creation
-       * should happen at the verification stage
-       */
-      const { query } = req;
-      const { tenant, token, id } = query;
-      const responseFromListUser = await join.list(tenant, { _id: id });
 
-      if (responseFromListUser.success === true) {
-        if (responseFromListUser.data.length === 1) {
-          let request = {};
-          request["userId"] = id;
-          request["token"] = token;
-          request["category"] = "user";
-
-          const responseFromListToken = await createTokenUtil.list(request);
-
-          if (responseFromListToken.success === true) {
-            const filter = {
-              _id: responseFromListUser.data._id,
-            };
-            const password = "";
-            const update = {
-              verified: true,
-              password,
-            };
-            const responseFromUpdateUser = await join.update(
-              tenant,
-              filter,
-              update,
-              "verified"
-            );
-            if (responseFromUpdateUser.success === true) {
-              return {
-                success: true,
-                message: "successfully verified the user",
-                status: httpStatus.OK,
-              };
-            }
-
-            if (responseFromUpdateUser.success === false) {
-              return responseFromUpdateUser;
-            }
-          }
-          if (responseFromListToken.success === false) {
-            return responseFromListToken;
-          }
-        }
-        if (responseFromListUser.data.length > 1) {
-          return {
-            success: false,
-            message: "more than one user exists for this operation ",
-            status: httpStatus.NOT_FOUND,
-          };
-        }
-        if (responseFromListUser.data.length === 0) {
-          return {
-            success: false,
-            message: "no user found for this operation ",
-            status: httpStatus.NOT_FOUND,
-          };
-        }
-      }
-
-      if (responseFromListUser.success === false) {
-        return responseFromListUser;
-      }
-    } catch (error) {
-      return {
-        success: false,
-        message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
-      };
-    }
-  },
   create: async (request) => {
     try {
-      /***
-       * create new user
-       * create new token
-       * send email with verification link
-       *
-       */
       let {
         tenant,
         firstName,
@@ -357,14 +251,7 @@ const join = {
         long_organization,
         privilege,
       } = request;
-      let response = {};
-      logText("...........create user util...................");
-      /**
-       * we shall take this generate password to the
-       * verify logic and remove it from here
-       */
       let responseFromGeneratePassword = join.createPassword(10);
-      logObject("responseFromGeneratePassword", responseFromGeneratePassword);
       if (responseFromGeneratePassword.success === true) {
         const password = responseFromGeneratePassword.data;
         let createUserRequestBody = {
@@ -385,83 +272,22 @@ const join = {
         if (responseFromCreateUser.success === true) {
           let createdUser = await responseFromCreateUser.data;
           logObject("created user in util", createdUser._doc);
-          const id = createdUser._doc._id;
-          const token = crypto.randomBytes(32).toString("hex");
+          const token = jwt.sign({ email }, constants.JWT_SECRET);
 
-          let createTokenRequestBody = {
-            category: "user",
-            userId: id,
-            token,
-          };
-
-          const responseFromCreateToken = await createTokenUtil.create(
-            createTokenRequestBody
+          const responseFromSendEmail = await mailer.confirmEmail(
+            firstName,
+            email,
+            "user",
+            token
           );
 
-          if (responseFromCreateToken.success === true) {
-            let responseFromSendEmail = await mailer.user(
-              firstName,
-              lastName,
-              email,
-              password,
-              tenant,
-              "verify",
-              id,
-              token
-            );
-
-            logObject("responseFromSendEmail", responseFromSendEmail);
-            if (responseFromSendEmail.success === true) {
-              return {
-                success: true,
-                message: "user successfully created",
-                data: createdUser._doc,
-              };
-            } else if (responseFromSendEmail.success === false) {
-              let status = responseFromSendEmail.status
-                ? responseFromSendEmail.status
-                : "";
-              let error = responseFromSendEmail.error
-                ? responseFromSendEmail.error
-                : "";
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-                error,
-                status,
-              };
-            }
-          } else if (responseFromCreateToken.success === false) {
-            return responseFromCreateToken;
-          }
+          logObject("responseFromSendEmail", responseFromSendEmail);
+          return responseFromSendEmail;
         } else if (responseFromCreateUser.success === false) {
-          let error = responseFromCreateUser.error
-            ? responseFromCreateUser.error
-            : "";
-          let status = responseFromCreateUser.status
-            ? responseFromCreateUser.status
-            : "";
-          return {
-            success: false,
-            message: responseFromCreateUser.message,
-            error,
-            status,
-          };
+          return responseFromCreateUser;
         }
       } else if (responseFromGeneratePassword.success === false) {
-        let error = responseFromGeneratePassword.error
-          ? responseFromGeneratePassword.error
-          : "";
-        let status = responseFromGeneratePassword.status
-          ? responseFromGeneratePassword.status
-          : "";
-        logElement("error when password generation fails", error);
-        return {
-          success: false,
-          message: responseFromGeneratePassword.message,
-          error,
-          status,
-        };
+        return responseFromGeneratePassword;
       }
     } catch (e) {
       return {
@@ -474,49 +300,42 @@ const join = {
   },
   confirmEmail: (tenant, filter) => {
     try {
-      let responseFromListUser = join.list({ filter });
-      if (responseFromListUser.success == true) {
-        let responseFromUpdateUser = this.update(tenant, filter, update);
-        if (responseFromUpdateUser.success == true) {
-          return {
-            success: true,
-            message: "remail successfully confirmed",
-            data: responseFromUpdateUser.data,
+      const responseFromListUser = join.list(tenant, filter, limit, skip);
+      if (responseFromListUser.success === true) {
+        const responseFromGeneratePassword = join.createPassword(10);
+        if (responseFromGeneratePassword.success === true) {
+          let update = {
+            verified: true,
+            password: responseFromGeneratePassword.data,
           };
-        } else if (responseFromUpdateUser.success == false) {
-          if (responseFromUpdateUser.error) {
+          const responseFromUpdateUser = join.update(
+            tenant,
+            filter,
+            update,
+            "verified"
+          );
+          if (responseFromUpdateUser.success === true) {
             return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
+              success: true,
+              message: "email successfully confirmed",
+              data: responseFromUpdateUser.data,
+              status: responseFromUpdateUser.status,
             };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-            };
+          } else if (responseFromUpdateUser.success === false) {
+            return responseFromUpdateUser;
           }
+        } else if (responseFromGeneratePassword.success === false) {
+          return responseFromGeneratePassword;
         }
-      } else if (responseFromListUser.success == false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else if (responseFromListUser.success === false) {
+        return responseFromListUser;
       }
     } catch (error) {
-      logElement("confirm email util", error.message);
+      logger.error(`the error --- ${error}`);
       return {
         success: false,
-        message: "join util server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },
@@ -619,7 +438,7 @@ const join = {
         "responseFromCheckTokenValidity",
         responseFromCheckTokenValidity
       );
-      if (responseFromCheckTokenValidity.success == true) {
+      if (responseFromCheckTokenValidity.success === true) {
         let modifiedUpdate = {
           ...update,
           resetPasswordToken: null,
@@ -634,13 +453,13 @@ const join = {
           "responseFromUpdateUser in update forgotten password",
           responseFromUpdateUser
         );
-        if (responseFromUpdateUser.success == true) {
+        if (responseFromUpdateUser.success === true) {
           return {
             success: true,
             message: responseFromUpdateUser.message,
             data: responseFromUpdateUser.data,
           };
-        } else if (responseFromUpdateUser == false) {
+        } else if (responseFromUpdateUser === false) {
           if (responseFromUpdateUser.error) {
             return {
               success: false,
@@ -654,7 +473,7 @@ const join = {
             };
           }
         }
-      } else if (responseFromCheckTokenValidity.success == false) {
+      } else if (responseFromCheckTokenValidity.success === false) {
         if (responseFromCheckTokenValidity.error) {
           return {
             success: false,
@@ -689,20 +508,20 @@ const join = {
         old_pwd
       );
       logObject("responseFromComparePassword", responseFromComparePassword);
-      if (responseFromComparePassword.success == true) {
+      if (responseFromComparePassword.success === true) {
         let update = {
           password: new_pwd,
         };
 
         let responseFromUpdateUser = await join.update(tenant, filter, update);
         logObject("responseFromUpdateUser", responseFromUpdateUser);
-        if (responseFromUpdateUser.success == true) {
+        if (responseFromUpdateUser.success === true) {
           return {
             success: true,
             message: responseFromUpdateUser.message,
             data: responseFromUpdateUser.data,
           };
-        } else if (responseFromUpdateUser.success == false) {
+        } else if (responseFromUpdateUser.success === false) {
           if (responseFromUpdateUser.error) {
             return {
               success: false,
@@ -716,12 +535,13 @@ const join = {
             };
           }
         }
-      } else if (responseFromComparePassword.success == false) {
+      } else if (responseFromComparePassword.success === false) {
         if (responseFromComparePassword.error) {
           return {
             success: false,
             message: responseFromComparePassword.message,
-            error: responseFromComparePassword.error,
+            errors: responseFromComparePassword.errors,
+            status: responseFromComparePassword.status,
           };
         } else {
           return {
@@ -747,16 +567,16 @@ const join = {
           old_pwd,
           user._doc.password
         );
-        if (responseFromBcrypt == true) {
+        if (responseFromBcrypt === true) {
           return {
             success: true,
             message: "the passwords match",
           };
-        } else if (responseFromBcrypt == false) {
+        } else if (responseFromBcrypt === false) {
           return {
-            message:
-              "either your old password is incorrect or the provided user does not exist",
+            message: "user does not exist or incorrect old password",
             success: false,
+            status: HTTPStatus.NOT_FOUND,
           };
         }
       } else {
@@ -798,7 +618,7 @@ const join = {
       });
       logObject("responseFromListUser", responseFromListUser);
       // logObject("the filter", filter);
-      if (responseFromListUser.success == true) {
+      if (responseFromListUser.success === true) {
         if (isEmpty(responseFromListUser.data)) {
           return {
             success: false,
@@ -811,7 +631,7 @@ const join = {
             data: responseFromListUser.data,
           };
         }
-      } else if (responseFromListUser.success == false) {
+      } else if (responseFromListUser.success === false) {
         if (responseFromListUser.error) {
           return {
             success: false,
@@ -843,13 +663,15 @@ const join = {
         success: true,
         message: "password generated",
         data: password,
+        status: httpStatus.OK,
       };
     } catch (e) {
       logElement("generate password util error message", e.message);
       return {
         success: false,
         message: "generate password util server error",
-        error: e.message,
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },

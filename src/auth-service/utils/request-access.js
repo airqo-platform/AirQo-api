@@ -1,12 +1,12 @@
 const UserSchema = require("../models/User");
 const CandidateSchema = require("../models/Candidate");
-const { getModelByTenant } = require("../utils/multitenancy");
-const { logObject, logElement, logText } = require("../utils/log");
+const { getModelByTenant } = require("./multitenancy");
+const { logObject, logElement, logText } = require("./log");
 const mailer = require("../services/mailer");
 const isEmpty = require("is-empty");
 const httpStatus = require("http-status");
-const validationsUtil = require("./validations");
 constants = require("../config/constants");
+const jwt = require("jsonwebtoken");
 const kickbox = require("kickbox")
   .client(`${constants.KICKBOX_API_KEY}`)
   .kickbox();
@@ -19,34 +19,32 @@ const CandidateModel = (tenant) => {
   return getModelByTenant(tenant, "candidate", CandidateSchema);
 };
 
-const joinUtil = require("./join");
+const joinUtil = require("./join-platform");
 
 const request = {
   create: async (request, callback) => {
     try {
-      let {
-        firstName,
-        lastName,
-        email,
-        long_organization,
-        jobTitle,
-        website,
-        description,
-        category,
-        tenant,
-      } = request;
+      const { firstName, email, tenant } = request;
 
-      await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
-        if (value.success == false) {
-          const errors = value.errors ? value.errors : "";
-          callback({
-            success: false,
-            message: value.message,
-            errors,
-            status: value.status,
-          });
-        }
-      });
+      /***
+       * after the creation request, just send a verification email
+       * to the requester.
+       *
+       * but we also need to save the user with the verification
+       *
+       * Afterwards, you will just use a verification code to confirm the email
+       * and then confirm the user accordingly.
+       *
+       * As for the roles/responsibilities/permissions, we shall have to diver deeper into
+       * this discussion LATER!
+       */
+
+      const token = jwt.sign({ email }, constants.JWT_SECRET);
+
+      logObject("body", request);
+
+      let candidateBody = request;
+      candidateBody["confirmationCode"] = token;
 
       const responseFromCreateCandidate = await CandidateModel(tenant).register(
         request
@@ -54,55 +52,21 @@ const request = {
 
       if (responseFromCreateCandidate.success === true) {
         let createdCandidate = await responseFromCreateCandidate.data;
-        let responseFromSendEmail = await mailer.candidate(
+        logObject("created candidate in the util", createdCandidate._doc);
+
+        const entity = "candidate";
+
+        const responseFromSendEmail = await mailer.confirmEmail({
           firstName,
-          lastName,
           email,
-          tenant,
-          "verify"
-        );
-        if (responseFromSendEmail.success === true) {
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
-          callback({
-            success: true,
-            message: "candidate successfully created",
-            data: createdCandidate,
-            status,
-          });
-        }
-
-        if (responseFromSendEmail.success === false) {
-          const errors = responseFromSendEmail.error
-            ? responseFromSendEmail.error
-            : "";
-          const status = responseFromSendEmail.status
-            ? responseFromSendEmail.status
-            : "";
-
-          callback({
-            success: false,
-            message: responseFromSendEmail.message,
-            errors,
-            status,
-          });
-        }
-      }
-
-      if (responseFromCreateCandidate.success === false) {
-        const errors = responseFromCreateCandidate.errors
-          ? responseFromCreateCandidate.errors
-          : "";
-        const status = responseFromCreateCandidate.status
-          ? responseFromCreateCandidate.status
-          : "";
-        callback({
-          success: false,
-          message: responseFromCreateCandidate.message,
-          errors,
-          status,
+          entity,
+          token,
         });
+
+        logObject("responseFromSendEmail", responseFromSendEmail);
+        callback(responseFromSendEmail);
+      } else if (responseFromCreateCandidate.success === false) {
+        callback(responseFromCreateCandidate);
       }
     } catch (e) {
       callback({
@@ -114,14 +78,50 @@ const request = {
     }
   },
 
+  confirmEmail: (tenant, filter) => {
+    try {
+      const responseFromListCandidate = request.list(
+        tenant,
+        filter,
+        limit,
+        skip
+      );
+      if (responseFromListCandidate.success === true) {
+        let update = {
+          verified: true,
+        };
+        const responseFromUpdateCandidate = request.update(
+          tenant,
+          filter,
+          update,
+          "verified"
+        );
+        if (responseFromUpdateCandidate.success === true) {
+          return {
+            success: true,
+            message: "email successfully confirmed",
+            data: responseFromUpdateCandidate.data,
+            status: responseFromUpdateCandidate.status,
+          };
+        } else if (responseFromUpdateCandidate.success === false) {
+          return responseFromUpdateCandidate;
+        }
+      } else if (responseFromListCandidate.success === false) {
+        return responseFromListCandidate;
+      }
+    } catch (error) {
+      logger.error(`the error --- ${error}`);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      };
+    }
+  },
+
   list: async ({ tenant, filter, limit, skip }) => {
     try {
-      logElement("the tenant", tenant);
-      logObject("the filter", filter);
-      logElement("limit", limit);
-      logElement("the skip", skip);
-
-      let responseFromListCandidate = await CandidateModel(
+      const responseFromListCandidate = await CandidateModel(
         tenant.toLowerCase()
       ).list({
         filter,
@@ -130,39 +130,42 @@ const request = {
       });
 
       logObject(
-        "responseFromListCandidate in the util",
-        responseFromListCandidate
+        "responseFromListCandidate",
+        responseFromListCandidate.data[0]._doc
       );
-      if (responseFromListCandidate.success == true) {
+
+      if (responseFromListCandidate.success === true) {
         return {
           success: true,
           message: responseFromListCandidate.message,
           data: responseFromListCandidate.data,
         };
-      } else if (responseFromListCandidate.success == false) {
-        if (responseFromListCandidate.error) {
-          return {
-            success: false,
-            message: responseFromListCandidate.message,
-            error: responseFromListCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListCandidate.message,
-          };
-        }
+      } else if (responseFromListCandidate.success === false) {
+        const errors = responseFromListCandidate.errors
+          ? responseFromListCandidate.errors
+          : { message: "" };
+        const status = responseFromListCandidate.status
+          ? responseFromListCandidate.status
+          : "";
+
+        return {
+          success: false,
+          message: responseFromListCandidate.message,
+          errors,
+          status,
+        };
       }
     } catch (e) {
       return {
         success: false,
-        message: "utils server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
+        status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
   },
 
-  update: async (tenant, filter, update) => {
+  update: async (tenant, filter, update, type) => {
     try {
       let responseFromModifyCandidate = await CandidateModel(
         tenant.toLowerCase()
@@ -170,90 +173,36 @@ const request = {
         filter,
         update,
       });
-      logObject("responseFromModifyCandidate", responseFromModifyCandidate);
-      if (responseFromModifyCandidate.success == true) {
-        return {
-          success: true,
-          message: responseFromModifyCandidate.message,
-          data: responseFromModifyCandidate.data,
-        };
-      } else if (responseFromModifyCandidate.success == false) {
-        if (responseFromModifyCandidate.error) {
-          return {
-            success: false,
-            message: responseFromModifyCandidate.message,
-            error: responseFromModifyCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromModifyCandidate.message,
-          };
+
+      if (responseFromModifyCandidate.success === true) {
+        let candidate = responseFromModifyCandidate.data;
+
+        const email = candidate.email,
+          firstName = candidate.firstName,
+          lastName = candidate.lastName;
+        entity = "candidate";
+
+        let responseFromSendEmail = await mailer.update({
+          email,
+          firstName,
+          lastName,
+          type,
+          entity,
+        });
+
+        if (responseFromSendEmail.success === true) {
+          return responseFromModifyCandidate;
+        } else if (responseFromSendEmail.success === false) {
+          return responseFromSendEmail;
         }
-      }
-    } catch (e) {
-      return {
-        success: false,
-        message: "util server error",
-        error: e.message,
-      };
-    }
-  },
-
-  verify: async (req) => {
-    try {
-      /**
-       * check for the token/candidate in the records
-       * then update/verify the candidate accordingly
-       * for this case, there is no need for password generation
-       */
-      const { token, id, tenant } = req;
-      let requestBodyForListToken = {};
-      requestBodyForListToken["category"] = "candidate";
-      requestBodyForListToken["userId"] = id;
-      requestBodyForListToken["token"] = token;
-
-      const responseFromListToken = await createTokenUtil.list(
-        requestBodyForListToken
-      );
-
-      if (responseFromListToken.success === true) {
-        let update = {};
-        update["verified"] = true;
-        const filter = {
-          _id: id,
-        };
-        const responseFromUpdateCandidate = await request.update(
-          tenant,
-          filter,
-          update
-        );
-        if (responseFromUpdateCandidate.success === true) {
-          const responseFromDeleteToken = await createTokenUtil.delete({
-            _id: id,
-          });
-          if (responseFromDeleteToken.success === true) {
-            return {
-              success: true,
-              message: "successfully verified the candidate",
-              status: httpStatus.OK,
-            };
-          } else if (responseFromDeleteToken.success === false) {
-            return responseFromDeleteToken;
-          }
-        } else if (responseFromUpdateCandidate.success === false) {
-          return responseFromUpdateCandidate;
-        }
-      } else if (responseFromListToken.success === false) {
-        return responseFromListToken;
+      } else if (responseFromModifyCandidate.success === false) {
+        return responseFromModifyCandidate;
       }
     } catch (error) {
       return {
         success: false,
         message: "Internal Server Error",
-        errors: {
-          message: error.message,
-        },
+        errors: { message: error.message },
       };
     }
   },
@@ -376,7 +325,7 @@ const request = {
               }
             }
           }
-          if (responseFromCreateUser.success == false) {
+          if (responseFromCreateUser.success === false) {
             if (responseFromCreateUser.error) {
               return {
                 success: false,
@@ -458,13 +407,13 @@ const request = {
         filter,
       });
 
-      if (responseFromRemoveCandidate.success == true) {
+      if (responseFromRemoveCandidate.success === true) {
         return {
           success: true,
           message: responseFromRemoveCandidate.message,
           data: responseFromRemoveCandidate.data,
         };
-      } else if (responseFromRemoveCandidate.success == false) {
+      } else if (responseFromRemoveCandidate.success === false) {
         if (responseFromRemoveCandidate.error) {
           return {
             success: false,

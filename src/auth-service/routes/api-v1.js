@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const joinController = require("../controllers/join");
-const requestController = require("../controllers/request");
+const joinController = require("../controllers/join-platform");
+const requestController = require("../controllers/request-access");
 const defaultsController = require("../controllers/create-defaults");
 const organizationController = require("../controllers/create-organization");
 const { check, oneOf, query, body, param } = require("express-validator");
@@ -12,6 +12,7 @@ const {
   setLocalAuth,
   authLocal,
 } = require("../services/auth");
+
 const privileges = require("../utils/privileges");
 
 const mongoose = require("mongoose");
@@ -33,9 +34,9 @@ router.post(
   "/loginUser",
   oneOf([
     query("tenant")
-      .if(query("tenant").exists())
+      .optional()
       .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
+      .withMessage("tenant should not be empty if/when provided")
       .bail()
       .trim()
       .toLowerCase()
@@ -44,8 +45,17 @@ router.post(
   ]),
   oneOf([
     [
-      body("userName").exists().withMessage("the userName must be provided"),
-      body("password").exists().withMessage("the password must be provided"),
+      body("userName")
+        .exists()
+        .withMessage("the userName must be provided")
+        .notEmpty()
+        .withMessage("the useraName must not be empty"),
+      body("password")
+        .exists()
+        .withMessage("the password must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the password must not be empty"),
     ],
   ]),
   setLocalAuth,
@@ -112,6 +122,25 @@ router.post(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      body("firstName").exists().withMessage("the firstName must be provided"),
+      body("lastName").exists().withMessage("the lastName must be provided"),
+      body("email")
+        .exists()
+        .withMessage("the email should be provided")
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("privilege").exists().withMessage("the privilege must be provided"),
+      body("organization")
+        .exists()
+        .withMessage("the organization must be provided"),
+      body("long_organization")
+        .exists()
+        .withMessage("the long_organization must be provided"),
+    ],
+  ]),
   joinController.register
 );
 router.get(
@@ -147,6 +176,42 @@ router.put(
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
   ]),
+  oneOf([
+    [
+      body("password")
+        .exists()
+        .withMessage("the password must be provided")
+        .bail()
+        .isLength({ min: 6, max: 30 })
+        .withMessage(
+          "password must be at least 6 characters and not more than 30 characters"
+        )
+        .bail()
+        .isStrongPassword({
+          minLength: 6,
+          minLowercase: 1,
+          minUppercase: 1,
+          minNumbers: 1,
+          minSymbols: 0,
+          returnScore: false,
+          pointsPerUnique: 1,
+          pointsPerRepeat: 0.5,
+          pointsForContainingLower: 10,
+          pointsForContainingUpper: 10,
+          pointsForContainingNumber: 10,
+          pointsForContainingSymbol: 10,
+        })
+        .withMessage(
+          "the password is not strong enough, please check documentation"
+        ),
+      body("old_password")
+        .exists()
+        .withMessage("the old_password must be provided")
+        .bail()
+        .notEmpty()
+        .withMessage("the old_password should not be empty"),
+    ],
+  ]),
   setJWTAuth,
   authJWT,
   joinController.updateKnownPassword
@@ -162,6 +227,18 @@ router.post(
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("the provided email is invalid")
+        .bail()
+        .trim(),
+    ],
   ]),
   joinController.forgot
 );
@@ -229,16 +306,18 @@ router.put(
   oneOf([
     [
       body("pollutant")
-        .if(body("pollutant").exists())
+        .optional()
         .notEmpty()
+        .withMessage("pollutant should not be empty if/when provided")
         .trim()
         .isIn(["no2", "pm2_5", "pm10", "pm1"])
         .withMessage(
           "the pollutant value is not among the expected ones which include: no2, pm2_5, pm10, pm1"
         ),
       body("frequency")
-        .if(body("frequency").exists())
+        .optional()
         .notEmpty()
+        .withMessage("frequency should not be empty if/when provided")
         .trim()
         .toLowerCase()
         .isIn(["daily", "hourly", "monthly", "diurnal"])
@@ -246,8 +325,9 @@ router.put(
           "the frequency value is not among the expected ones which include: daily, hourly, diurnal and monthly"
         ),
       body("chartType")
-        .if(body("chartType").exists())
+        .optional()
         .notEmpty()
+        .withMessage("chartType should not be empty if/when provided")
         .trim()
         .toLowerCase()
         .isIn(["bar", "line", "pie"])
@@ -255,22 +335,25 @@ router.put(
           "the chartType value is not among the expected ones which include: bar, line and pie"
         ),
       body("startDate")
-        .if(body("startDate").exists())
+        .optional()
         .notEmpty()
+        .withMessage("startDate should not be empty if/when provided")
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("startDate must be a valid datetime."),
       body("endDate")
-        .if(body("endDate").exists())
+        .optional()
         .notEmpty()
+        .withMessage("endDate should not be empty if/when provided")
         .trim()
         .toDate()
         .isISO8601({ strict: true, strictSeparator: true })
         .withMessage("endDate must be a valid datetime."),
       body("user")
-        .if(body("user").exists())
+        .optional()
         .notEmpty()
+        .withMessage("user should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("the user must be an object ID")
@@ -279,8 +362,9 @@ router.put(
           return ObjectId(value);
         }),
       body("airqloud")
-        .if(body("airqloud").exists())
+        .optional()
         .notEmpty()
+        .withMessage("airqloud should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("the airqloud must be an object ID")
@@ -288,39 +372,52 @@ router.put(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
-      body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
-      body("period")
-        .if(body("period").exists())
+      body("chartTitle")
+        .optional()
         .notEmpty()
-        .withMessage("period cannot be empty if provided")
+        .withMessage("chartTitle should not be empty if/when provided")
+        .trim(),
+      body("period")
+        .optional()
+        .notEmpty()
+        .withMessage("period should not be empty if/when provided")
+        .trim()
         .bail()
         .custom((value) => {
           return typeof value === "object";
         })
         .withMessage("the period should be an object"),
       body("period.unitValue")
-        .if(body("period.unitValue").exists())
+        .optional()
         .notEmpty()
-        .withMessage("period.unitValue cannot be empty if provided")
+        .withMessage("period.unitValue should not be empty if/when provided")
         .trim()
         .bail()
         .isFloat()
         .withMessage("period.unitValue must be a number"),
       body("chartSubTitle")
-        .if(body("chartSubTitle").exists())
+        .optional()
         .notEmpty()
+        .withMessage("chartSubTitle should not be empty if/when provided")
         .trim(),
-      body("chartTitle").if(body("chartTitle").exists()).notEmpty().trim(),
-      body("sites")
-        .if(body("sites").exists())
+      body("chartTitle")
+        .optional()
         .notEmpty()
+        .withMessage("chartTitle should not be empty if/when provided")
+        .trim(),
+      body("sites")
+        .optional()
+        .notEmpty()
+        .withMessage("sites should not be empty if/when provided")
+        .trim()
         .custom((value) => {
           return Array.isArray(value);
         })
         .withMessage("the sites should be an array"),
       body("sites.*")
-        .if(body("sites.*").exists())
+        .optional()
         .notEmpty()
+        .withMessage("each provided sites should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("site must be an object ID"),
@@ -483,8 +580,9 @@ router.get(
   oneOf([
     [
       query("id")
-        .if(query("id").exists())
+        .optional()
         .notEmpty()
+        .withMessage("id should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("id must be an object ID")
@@ -493,8 +591,9 @@ router.get(
           return ObjectId(value);
         }),
       query("user")
-        .if(query("user").exists())
+        .optional()
         .notEmpty()
+        .withMessage("user should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("user must be an object ID")
@@ -503,8 +602,9 @@ router.get(
           return ObjectId(value);
         }),
       query("airqloud")
-        .if(query("airqloud").exists())
+        .optional()
         .notEmpty()
+        .withMessage("airqloud should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("the airqloud must be an object ID")
@@ -513,8 +613,9 @@ router.get(
           return ObjectId(value);
         }),
       query("site")
-        .if(query("site").exists())
+        .optional()
         .notEmpty()
+        .withMessage("site should not be empty if/when provided")
         .trim()
         .isMongoId()
         .withMessage("the site must be an object ID")
@@ -581,6 +682,17 @@ router.post(
       .isEmail()
       .withMessage("this is not a valid email address")
       .trim(),
+    body("firstName").exists().withMessage("the firstName must be provided"),
+    body("lastName").exists().withMessage("the lastName must be provided"),
+    body("category").exists().withMessage("the category must be provided"),
+    body("jobTitle").exists().withMessage("the jobTitle must be provided"),
+    body("website").exists().withMessage("the website must be provided"),
+    body("description")
+      .exists()
+      .withMessage("the description must be provided"),
+    body("long_organization")
+      .exists()
+      .withMessage("the long_organization must be provided"),
   ]),
   requestController.create
 );
@@ -616,6 +728,31 @@ router.post(
   authJWT,
   requestController.confirm
 );
+
+router.post(
+  "/candidates/email/confirm",
+  oneOf([
+    query("tenant")
+      .exists()
+      .withMessage("tenant should be provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    query("confirmationCode")
+      .exists()
+      .withMessage("the confirmationCode should be provided")
+      .bail()
+      .trim(),
+  ]),
+  setJWTAuth,
+  authJWT,
+  requestController.confirmEmail
+);
+
 router.delete(
   "/candidates",
   oneOf([
@@ -677,8 +814,9 @@ router.put(
   oneOf([
     [
       body("status")
-        .if(body("status").exists())
+        .optional()
         .notEmpty()
+        .withMessage("status should not be empty if/when provided")
         .trim()
         .toLowerCase()
         .isIn(["pending", "rejected"])
@@ -697,9 +835,10 @@ router.delete(
   "/organizations",
   oneOf([
     query("tenant")
-      .if(query("tenant").exists())
+      .optional()
       .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
+      .withMessage("tenant should not be empty if/when provided")
+      .trim()
       .bail()
       .trim()
       .toLowerCase()
@@ -730,9 +869,10 @@ router.put(
   "/organizations",
   oneOf([
     query("tenant")
-      .if(query("tenant").exists())
+      .optional()
       .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
+      .withMessage("tenant should not be empty if/when provided")
+      .trim()
       .bail()
       .trim()
       .toLowerCase()
@@ -757,41 +897,46 @@ router.put(
   oneOf([
     [
       body("email")
-        .if(body("email").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the email should not be empty")
+        .withMessage("email should not be empty if/when provided")
+        .trim()
         .bail()
         .isEmail()
         .withMessage("this is not a valid email address")
         .trim(),
       body("website")
-        .if(body("website").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the website should not be empty")
+        .withMessage("website should not be empty if/when provided")
+        .trim()
         .bail()
         .isURL()
         .withMessage("the website is not a valid URL")
         .trim(),
       body("isAlias")
-        .if(body("isAlias").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the isAlias should not be empty")
+        .withMessage("isAlias should not be empty if/when provided")
+        .trim()
         .bail()
         .isBoolean()
         .withMessage("isAlias must be a Boolean")
         .trim(),
       body("isActive")
-        .if(body("isActive").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the isActive should not be empty")
+        .withMessage("isActive should not be empty if/when provided")
+        .trim()
         .bail()
         .isBoolean()
         .withMessage("isActive must be a Boolean")
         .trim(),
       body("status")
-        .if(body("status").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the status should not be empty")
+        .withMessage("status should not be empty if/when provided")
+        .trim()
         .bail()
         .toLowerCase()
         .isIn(["active", "inactive", "pending"])
@@ -800,29 +945,30 @@ router.put(
         )
         .trim(),
       body("phoneNumber")
-        .if(body("phoneNumber").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the phoneNumber should not be empty")
+        .withMessage("phoneNumber should not be empty if/when provided")
+        .trim()
         .bail()
         .isMobilePhone()
         .withMessage("the phoneNumber is not a valid one")
         .bail()
         .trim(),
       body("category")
-        .if(body("category").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the category should not be empty")
+        .withMessage("category should not be empty if/when provided")
         .bail()
         .trim(),
       body("name")
-        .if(body("name").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the name should not be empty")
+        .withMessage("name should not be empty if/when provided")
         .trim(),
       body("tenant")
-        .if(body("tenant").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the tenant cannot be empty if provided")
+        .withMessage("tenant should not be empty if/when provided")
         .trim()
         .toLowerCase(),
     ],
@@ -836,11 +982,11 @@ router.get(
   "/organizations",
   oneOf([
     query("tenant")
-      .if(query("tenant").exists())
+      .optional()
       .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
+      .withMessage("tenant should not be empty if/when provided")
       .trim()
+      .bail()
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
@@ -854,11 +1000,12 @@ router.post(
   "/organizations",
   oneOf([
     query("tenant")
-      .if(query("tenant").exists())
+      .optional()
       .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
+      .withMessage("tenant should not be empty if/when provided")
       .trim()
+      .bail()
+
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),
@@ -887,17 +1034,19 @@ router.post(
         .withMessage("isAlias must be a Boolean")
         .trim(),
       body("isActive")
-        .if(body("isActive").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the isActive should not be empty")
+        .withMessage("isActive should not be empty if/when provided")
+        .trim()
         .bail()
         .isBoolean()
         .withMessage("isActive must be a Boolean")
         .trim(),
       body("status")
-        .if(body("status").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the status should not be empty")
+        .withMessage("status should not be empty if/when provided")
+        .trim()
         .bail()
         .toLowerCase()
         .isIn(["active", "inactive", "pending"])
@@ -935,9 +1084,9 @@ router.post(
         .withMessage("the organization's name is required")
         .trim(),
       body("tenant")
-        .if(body("tenant").exists())
+        .optional()
         .notEmpty()
-        .withMessage("the tenant cannot be empty if provided")
+        .withMessage("tenant should not be empty if/when provided")
         .trim()
         .toLowerCase(),
     ],
@@ -951,11 +1100,11 @@ router.post(
   "/organizations/tenant",
   oneOf([
     query("tenant")
-      .if(query("tenant").exists())
+      .optional()
       .notEmpty()
-      .withMessage("tenant cannot be empty if provided")
-      .bail()
+      .withMessage("tenant should not be empty if/when provided")
       .trim()
+      .bail()
       .toLowerCase()
       .isIn(["kcca", "airqo"])
       .withMessage("the tenant value is not among the expected ones"),

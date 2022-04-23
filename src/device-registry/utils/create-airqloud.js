@@ -467,6 +467,8 @@ const createAirqloud = {
         requestForAirQlouds
       );
 
+      logObject("responseFromListAirQlouds", responseFromListAirQlouds);
+
       if (responseFromListAirQlouds.success === true) {
         let airqloud = {};
         let data = responseFromListAirQlouds.data;

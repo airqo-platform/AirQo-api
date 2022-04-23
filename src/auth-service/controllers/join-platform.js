@@ -2,7 +2,7 @@ const HTTPStatus = require("http-status");
 const validations = require("../utils/validations");
 const { logElement, logText, logObject } = require("../utils/log");
 const errorsUtil = require("../utils/errors");
-const joinUtil = require("../utils/join");
+const joinUtil = require("../utils/join-platform");
 const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const log4js = require("log4js");
@@ -213,9 +213,7 @@ const join = {
           message: responseFromCreateUser.message,
           user: responseFromCreateUser.data,
         });
-      }
-
-      if (responseFromCreateUser.success === false) {
+      } else if (responseFromCreateUser.success === false) {
         let status = responseFromCreateUser.status
           ? responseFromCreateUser.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -323,10 +321,7 @@ const join = {
         const statusCode = HTTPStatus.BAD_REQUEST;
         return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
-      const { errors, isValid } = validations.login(req.body);
-      if (!isValid) {
-        return res.status(HTTPStatus.BAD_REQUEST).json(errors);
-      }
+
       if (req.auth.success === true) {
         const status = req.auth.status ? req.auth.status : HTTPStatus.OK;
         res.status(status).json(req.user.toAuthJSON());
@@ -334,7 +329,7 @@ const join = {
         const status = req.auth.status
           ? req.auth.status
           : INTERNAL_SERVER_ERROR;
-        const errors = req.auth.error ? req.auth.error : "";
+        const errors = req.auth.errors ? req.auth.errors : "";
         res.status(status).json({
           success: req.auth.success,
           errors,
@@ -559,9 +554,7 @@ const join = {
             auth_code: value.data.emailLinkCode,
             email: value.data.email,
           });
-        }
-
-        if (value.success === false) {
+        } else if (value.success === false) {
           const status = value.status
             ? value.status
             : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -673,50 +666,43 @@ const join = {
         const statusCode = HTTPStatus.BAD_REQUEST;
         return errorsUtil.errorResponse({ res, message, statusCode, error });
       }
-      const { errors, isValid } = validations.updateKnownPassword(req.body);
-      if (!isValid) {
-        return res.status(400).json(errors);
-      }
+
       const { tenant, id } = req.query;
       const { password, old_password } = req.body;
-      if (!tenant && !password && !old_password && id) {
-        logger.error(`update known password`);
-        const statusCode = HTTPStatus.BAD_REQUEST;
-        const message =
-          "Bad Request, missing tenant, password, old password and id";
-        const error = {};
-        errorsUtil.errorResponse({ res, message, statusCode, error });
-      }
 
       let responseFromFilter = generateFilter.users(req);
       logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success === true) {
         let filter = responseFromFilter.data;
-        let responseFromUpdatePassword = await joinUtil.updateKnownPassword(
-          tenant,
-          password,
-          old_password,
-          filter
-        );
-        if (responseFromUpdatePassword.success === true) {
-          return res.status(HTTPStatus.OK).json({
+        let responseFromUpdateKnownPassword =
+          await joinUtil.updateKnownPassword(
+            tenant,
+            password,
+            old_password,
+            filter
+          );
+        if (responseFromUpdateKnownPassword.success === true) {
+          const status = responseFromUpdateKnownPassword.status
+            ? responseFromUpdateKnownPassword.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
-            message: responseFromUpdatePassword.message,
-            user: responseFromUpdatePassword.data,
+            message: responseFromUpdateKnownPassword.message,
+            user: responseFromUpdateKnownPassword.data,
           });
-        } else if (responseFromUpdatePassword.success === false) {
-          if (responseFromUpdatePassword.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdatePassword.message,
-              error: responseFromUpdatePassword.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdatePassword.message,
-            });
-          }
+        } else if (responseFromUpdateKnownPassword.success === false) {
+          const errors = responseFromUpdateKnownPassword.errors
+            ? responseFromUpdateKnownPassword.errors
+            : { message: "" };
+          const status = responseFromUpdateKnownPassword.status
+            ? responseFromUpdateKnownPassword.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromUpdateKnownPassword.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
         if (responseFromFilter.error) {
