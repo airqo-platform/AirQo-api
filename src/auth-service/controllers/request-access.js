@@ -408,34 +408,32 @@ const candidate = {
       let updateRequestBody = {};
       updateRequestBody["is_email_verified"] = true;
 
-      let responseFromUpdateCandidate = await requestUtil.update(
+      const responseFromConfirmEmail = await requestUtil.confirmEmail(
         tenant,
-        filter,
-        updateRequestBody
+        filter
       );
+      logObject("responseFromConfirmEmail", responseFromConfirmEmail);
 
-      logObject("responseFromUpdateCandidate", responseFromUpdateCandidate);
-
-      if (responseFromUpdateCandidate.success === true) {
-        const status = responseFromUpdateCandidate.status
-          ? responseFromUpdateCandidate.status
+      if (responseFromConfirmEmail.success === true) {
+        const status = responseFromConfirmEmail.status
+          ? responseFromConfirmEmail.status
           : HTTPStatus.OK;
         return res.status(status).json({
           success: true,
-          message: "successfully confirmed the candidate's email",
-          confirmed_candidate: responseFromUpdateCandidate.data,
+          message: responseFromConfirmEmail.message,
+          confirmed_candidate: responseFromConfirmEmail.data,
         });
-      } else if (responseFromUpdateCandidate.success === false) {
-        const status = responseFromUpdateCandidate.status
-          ? responseFromUpdateCandidate.status
+      } else if (responseFromConfirmEmail.success === false) {
+        const status = responseFromConfirmEmail.status
+          ? responseFromConfirmEmail.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
-        const errors = responseFromUpdateCandidate.errors
-          ? responseFromUpdateCandidate.errors
+        const errors = responseFromConfirmEmail.errors
+          ? responseFromConfirmEmail.errors
           : { message: "" };
         logger.error(`confirmEmail --- ${errors}`);
         return res.status(status).json({
           success: false,
-          message: "Internal Server Error",
+          message: responseFromConfirmEmail.message,
           errors,
         });
       }

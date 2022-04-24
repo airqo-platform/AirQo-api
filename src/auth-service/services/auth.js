@@ -90,7 +90,7 @@ const useEmailWithLocalStrategy = (tenant, req, res, next) =>
           .exec();
         req.auth = {};
         logObject("user", user);
-        if (user && !user._doc.verified) {
+        if (user && !user._doc.is_email_verified) {
           req.auth.success = false;
           req.auth.message =
             "account inactive or non existent or incorrect credentials";
@@ -144,7 +144,7 @@ const useUsernameWithLocalStrategy = (tenant, req, res, next) =>
           req.auth.message = "incorrect username or password";
           req.auth.status = HTTPStatus.BAD_REQUEST;
           next();
-        } else if (user && !user._doc.verified) {
+        } else if (user && !user._doc.is_email_verified) {
           req.auth.success = false;
           req.auth.message =
             "account inactive or non existent or incorrect credentials";

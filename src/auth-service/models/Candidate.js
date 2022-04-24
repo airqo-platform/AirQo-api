@@ -108,15 +108,15 @@ CandidateSchema.statics = {
   async modify({ filter = {}, update = {} } = {}) {
     try {
       let options = { new: true };
-      logObject("the filter for update candidate", filter);
       let updatedCandidate = await this.findOneAndUpdate(
         filter,
         update,
         options
       ).exec();
-      logObject("updatedCandidate", updatedCandidate);
+
       if (!isEmpty(updatedCandidate)) {
         let data = updatedCandidate._doc;
+        data.fields_updated = update;
         return {
           success: true,
           message: "successfully modified the candidate",
@@ -126,9 +126,11 @@ CandidateSchema.statics = {
       } else {
         return {
           success: false,
-          message: "candidate does not exist, please crosscheck",
+          message: "candidate account does not exist, please crosscheck",
           status: httpStatus.NOT_FOUND,
-          errors: { message: "unable to modify non existent candidate" },
+          errors: {
+            message: "unable to modify non existent candidate account",
+          },
         };
       }
     } catch (error) {

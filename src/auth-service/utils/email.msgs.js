@@ -66,10 +66,12 @@ module.exports = {
 
   Kind Regards, AirQo Platform Team`;
   },
-  user_updated: (firstName, lastName) => {
+  user_updated: (firstName, lastName, fields_updated) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
       "Your account AirQo Platform account details have been updated. \n\n" +
+      // "The updated fields include: \n" +
+      // `${JSON.stringify(fields_updated)} \n\n` +
       "If this activity sounds suspicious to you, please reach out to your organisation's administrator \n\n" +
       `Follow this link to access the platform right now: ${constants.LOGIN_PAGE}\n`
     );

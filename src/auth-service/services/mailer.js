@@ -4,6 +4,8 @@ const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const msgs = require("../utils/email.msgs");
 const httpStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger("mailer-service");
 
 const mailer = {
   candidate: async (firstName, lastName, email, tenant, type, id, token) => {
@@ -263,11 +265,12 @@ const mailer = {
     type = "",
     password = "",
     entity = "",
+    fields_updated = {},
   } = {}) => {
     try {
       let bcc = "";
       let subject = "AirQo Platform Account Updated";
-      let text = `${msgs.user_updated(firstName, lastName)}`;
+      let text = `${msgs.user_updated(firstName, lastName, fields_updated)}`;
 
       logElement("type", type);
       logElement("entity", entity);
@@ -305,10 +308,11 @@ const mailer = {
         };
       }
     } catch (error) {
+      logger.error(`update -- ${error.message}`);
       return {
         success: false,
-        message: "mailer server error",
-        error: error.message,
+        message: "Internal Server Error",
+        errors: { message: error.message },
       };
     }
   },

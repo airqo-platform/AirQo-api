@@ -10,6 +10,8 @@ const jwt = require("jsonwebtoken");
 const kickbox = require("kickbox")
   .client(`${constants.KICKBOX_API_KEY}`)
   .kickbox();
+const log4js = require("log4js");
+const logger = log4js.getLogger("request-access-util");
 
 const UserModel = (tenant) => {
   return getModelByTenant(tenant, "user", UserSchema);
@@ -26,19 +28,6 @@ const request = {
     try {
       const { firstName, email, tenant } = request;
 
-      /***
-       * after the creation request, just send a verification email
-       * to the requester.
-       *
-       * but we also need to save the user with the verification
-       *
-       * Afterwards, you will just use a verification code to confirm the email
-       * and then confirm the user accordingly.
-       *
-       * As for the roles/responsibilities/permissions, we shall have to diver deeper into
-       * this discussion LATER!
-       */
-
       const token = jwt.sign({ email }, constants.JWT_SECRET);
 
       logObject("body", request);
@@ -52,8 +41,6 @@ const request = {
 
       if (responseFromCreateCandidate.success === true) {
         let createdCandidate = await responseFromCreateCandidate.data;
-        logObject("created candidate in the util", createdCandidate._doc);
-
         const entity = "candidate";
 
         const responseFromSendEmail = await mailer.confirmEmail({
@@ -62,8 +49,6 @@ const request = {
           entity,
           token,
         });
-
-        logObject("responseFromSendEmail", responseFromSendEmail);
         callback(responseFromSendEmail);
       } else if (responseFromCreateCandidate.success === false) {
         callback(responseFromCreateCandidate);
@@ -78,36 +63,33 @@ const request = {
     }
   },
 
-  confirmEmail: (tenant, filter) => {
+  confirmEmail: async (tenant, filter) => {
     try {
-      const responseFromListCandidate = request.list(
+      let update = {
+        is_email_verified: true,
+        confirmationCode: "",
+      };
+      const responseFromUpdateCandidate = await request.update(
         tenant,
         filter,
-        limit,
-        skip
+        update,
+        "verified"
       );
-      if (responseFromListCandidate.success === true) {
-        let update = {
-          verified: true,
+
+      if (responseFromUpdateCandidate.success === true) {
+        return {
+          success: true,
+          message: "email successfully confirmed",
+          data: responseFromUpdateCandidate.data,
+          status: responseFromUpdateCandidate.status,
         };
-        const responseFromUpdateCandidate = request.update(
-          tenant,
-          filter,
-          update,
-          "verified"
-        );
-        if (responseFromUpdateCandidate.success === true) {
-          return {
-            success: true,
-            message: "email successfully confirmed",
-            data: responseFromUpdateCandidate.data,
-            status: responseFromUpdateCandidate.status,
-          };
-        } else if (responseFromUpdateCandidate.success === false) {
-          return responseFromUpdateCandidate;
-        }
-      } else if (responseFromListCandidate.success === false) {
-        return responseFromListCandidate;
+      } else if (responseFromUpdateCandidate.success === false) {
+        return {
+          success: false,
+          message: "invalid confirmation code or email is already verified",
+          errors: responseFromUpdateCandidate.errors,
+          status: responseFromUpdateCandidate.status,
+        };
       }
     } catch (error) {
       logger.error(`the error --- ${error}`);
@@ -128,11 +110,6 @@ const request = {
         limit,
         skip,
       });
-
-      logObject(
-        "responseFromListCandidate",
-        responseFromListCandidate.data[0]._doc
-      );
 
       if (responseFromListCandidate.success === true) {
         return {
@@ -179,8 +156,11 @@ const request = {
 
         const email = candidate.email,
           firstName = candidate.firstName,
-          lastName = candidate.lastName;
-        entity = "candidate";
+          lastName = candidate.lastName,
+          entity = "candidate",
+          fields_updated = candidate.fields_updated
+            ? candidate.fields_updated
+            : {};
 
         let responseFromSendEmail = await mailer.update({
           email,
@@ -188,6 +168,7 @@ const request = {
           lastName,
           type,
           entity,
+          fields_updated,
         });
 
         if (responseFromSendEmail.success === true) {

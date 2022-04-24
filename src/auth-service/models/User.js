@@ -217,6 +217,7 @@ UserSchema.statics = {
       ).exec();
       if (!isEmpty(updatedUser)) {
         let data = updatedUser._doc;
+        data.fields_updated = update;
         return {
           success: true,
           message: "successfully modified the user",

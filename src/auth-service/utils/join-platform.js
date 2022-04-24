@@ -78,7 +78,8 @@ const join = {
         const email = user.email,
           firstName = user.firstName,
           entity = "user",
-          lastName = user.lastName;
+          lastName = user.lastName,
+          fields_updated = user.fields_updated;
 
         let responseFromSendEmail = await mailer.update({
           email,
@@ -87,6 +88,7 @@ const join = {
           type,
           entity,
           password,
+          fields_updated,
         });
 
         if (responseFromSendEmail.success === true) {

@@ -746,6 +746,8 @@ router.post(
       .exists()
       .withMessage("the confirmationCode should be provided")
       .bail()
+      .notEmpty()
+      .withMessage("the confirmationCode should not be empty")
       .trim(),
   ]),
   setJWTAuth,
