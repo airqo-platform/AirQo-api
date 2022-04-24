@@ -146,7 +146,7 @@ const candidate = {
         });
       }
     } catch (e) {
-      return res.status(HTTPStatus.BAD_GATEWAY).json({
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
         success: false,
         message: "controller server error",
         errors: { message: e.message },
