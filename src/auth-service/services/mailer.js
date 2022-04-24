@@ -48,7 +48,7 @@ const mailer = {
       return {
         success: false,
         message: "mailer server error",
-        error: error.message,
+        errors: { message: error.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -105,7 +105,7 @@ const mailer = {
       return {
         success: false,
         message: "mailer server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },

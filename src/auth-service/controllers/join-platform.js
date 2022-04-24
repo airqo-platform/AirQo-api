@@ -37,38 +37,41 @@ const join = {
         );
 
         if (responseFromListUsers.success === true) {
-          res.status(HTTPStatus.OK).json({
+          const status = responseFromListUsers.status
+            ? responseFromListUsers.status
+            : HTTPStatus.OK;
+
+          res.status(status).json({
             success: true,
             message: responseFromListUsers.message,
             users: responseFromListUsers.data,
           });
         } else if (responseFromListUsers.success === false) {
-          if (responseFromListUsers.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListUsers.message,
-              error: responseFromListUsers.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromListUsers.message,
-            });
-          }
+          const errors = responseFromListUsers.errors
+            ? responseFromListUsers.errors
+            : { message: "" };
+          const status = responseFromListUsers.status
+            ? responseFromListUsers.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromListUsers.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`list users -- ${error}`);
@@ -122,39 +125,40 @@ const join = {
         );
         logObject("responseFromForgotPassword", responseFromForgotPassword);
         if (responseFromForgotPassword.success === true) {
-          return res.status(HTTPStatus.OK).json({
+          const status = responseFromForgotPassword.status
+            ? responseFromForgotPassword.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
             message: responseFromForgotPassword.message,
             response: responseFromForgotPassword.data,
           });
         } else if (responseFromForgotPassword.success === false) {
-          if (responseFromForgotPassword.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-              error: responseFromForgotPassword.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromForgotPassword.message,
-            });
-          }
+          const errors = responseFromForgotPassword.errors
+            ? responseFromForgotPassword.errors
+            : { message: "" };
+          const status = responseFromForgotPassword.status
+            ? responseFromForgotPassword.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromForgotPassword.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`forgot -- ${error}`);
@@ -268,38 +272,39 @@ const join = {
           update
         );
         if (responseFromConfirmEmail.success === true) {
-          return res.status(HTTPStatus.OK).json({
+          const status = responseFromConfirmEmail.status
+            ? responseFromConfirmEmail.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
             message: responseFromConfirmEmail.message,
           });
         } else if (responseFromConfirmEmail.success === false) {
-          if (responseFromConfirmEmail.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromConfirmEmail.message,
-              error: responseFromConfirmEmail.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromConfirmEmail.message,
-            });
-          }
+          const errors = responseFromConfirmEmail.errors
+            ? responseFromConfirmEmail.errors
+            : { message: "" };
+          const status = responseFromConfirmEmail.status
+            ? responseFromConfirmEmail.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromConfirmEmail.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          return res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`confirm email -- ${error}`);
@@ -367,32 +372,32 @@ const join = {
             user: responseFromRemoveUser.data,
           });
         } else if (responseFromRemoveUser.success === false) {
-          if (responseFromRemoveUser.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromRemoveUser.message,
-              error: responseFromRemoveUser.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromRemoveUser.message,
-            });
-          }
+          const errors = responseFromRemoveUser.errors
+            ? responseFromRemoveUser.errors
+            : { message: "" };
+          const status = responseFromRemoveUser.status
+            ? responseFromRemoveUser.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromRemoveUser.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`delete user -- ${error}`);
@@ -436,38 +441,41 @@ const join = {
         );
         logObject("responseFromUpdateUser", responseFromUpdateUser);
         if (responseFromUpdateUser.success === true) {
-          return res.status(HTTPStatus.OK).json({
+          const status = responseFromUpdateUser.status
+            ? responseFromUpdateUser.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
             success: true,
             message: responseFromUpdateUser.message,
             user: responseFromUpdateUser.data,
           });
         } else if (responseFromUpdateUser.success === false) {
-          if (responseFromUpdateUser.error) {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            });
-          } else {
-            return res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateUser.message,
-            });
-          }
+          const errors = responseFromUpdateUser.errors
+            ? responseFromUpdateUser.errors
+            : { message: "" };
+          const status = responseFromUpdateUser.status
+            ? responseFromUpdateUser.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+          return res.status(status).json({
+            success: false,
+            message: responseFromUpdateUser.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`update user -- ${error}`);
@@ -614,38 +622,39 @@ const join = {
           responseFromUpdateForgottenPassword
         );
         if (responseFromUpdateForgottenPassword.success === true) {
-          return res.status(HTTPStatus.OK).json({
+          const status = responseFromUpdateForgottenPassword.status
+            ? responseFromUpdateForgottenPassword.status
+            : HTTPStatus.OK;
+          return res.status(status).json({
             success: true,
             message: responseFromUpdateForgottenPassword.message,
             user: responseFromUpdateForgottenPassword.data,
           });
         } else if (responseFromUpdateForgottenPassword.success === false) {
-          if (responseFromUpdateForgottenPassword.error) {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-              error: responseFromUpdateForgottenPassword.error,
-            });
-          } else {
-            res.status(HTTPStatus.BAD_GATEWAY).json({
-              success: false,
-              message: responseFromUpdateForgottenPassword.message,
-            });
-          }
+          const errors = responseFromUpdateForgottenPassword.errors
+            ? responseFromUpdateForgottenPassword.errors
+            : { message: "" };
+          const status = responseFromUpdateForgottenPassword.status
+            ? responseFromUpdateForgottenPassword.status
+            : HTTPStatus.INTERNAL_SERVER_ERROR;
+          return res.status(status).json({
+            success: false,
+            message: responseFromUpdateForgottenPassword.message,
+            errors,
+          });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`update forgotten password -- ${error}`);
@@ -705,18 +714,18 @@ const join = {
           });
         }
       } else if (responseFromFilter.success === false) {
-        if (responseFromFilter.error) {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-            error: responseFromFilter.error,
-          });
-        } else {
-          res.status(HTTPStatus.BAD_GATEWAY).json({
-            success: false,
-            message: responseFromFilter.message,
-          });
-        }
+        const errors = responseFromFilter.errors
+          ? responseFromFilter.errors
+          : { message: "" };
+        const status = responseFromFilter.status
+          ? responseFromFilter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromFilter.message,
+          errors,
+        });
       }
     } catch (error) {
       logger.error(`update known password -- ${error}`);

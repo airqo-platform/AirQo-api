@@ -2,6 +2,8 @@ const { logElement, logObject } = require("./log");
 const mongoose = require("mongoose").set("debug", true);
 const ObjectId = mongoose.Types.ObjectId;
 const HTTPStatus = require("http-status");
+const log4js = require("log4js");
+const logger = log4js.getLogger("generate-filter-util");
 
 const filter = {
   users: (req) => {
@@ -177,7 +179,7 @@ const filter = {
       return {
         success: false,
         message: "filter util server error",
-        error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -259,7 +261,7 @@ const filter = {
       return {
         success: false,
         message: "filter util server error",
-        error: e.message,
+        errors: { message: e.message },
       };
     }
   },

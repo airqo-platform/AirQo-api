@@ -1,4 +1,6 @@
 const { logText, logObject, logElement } = require("./log");
+const log4js = require("log4js");
+const logger = log4js.getLogger("date-util");
 
 const date = {
   generateDateFormat: (ISODate) => {
@@ -17,7 +19,8 @@ const date = {
       }
       return `${year}-${month}-${day}-${hrs}`;
     } catch (e) {
-      console.log("server side error: ", e.message);
+      logger.error(`generateDateFormat error, ${e.message}`);
+      logElement("generateDateFormat error", e.message);
     }
   },
   isTimeEmpty: (dateTime) => {
@@ -56,7 +59,8 @@ const date = {
 
       return `${year}-${month}-${day}`;
     } catch (e) {
-      console.log("server side error: ", e.message);
+      logger.error(`generateDateFormatWithoutHrs error, ${e.message}`);
+      logElement("generateDateFormatWithoutHrs", e.message);
     }
   },
   addMonthsToProvidedDate: (date, number) => {
@@ -69,7 +73,8 @@ const date = {
       let modifiedMonth = "0" + newMonth;
       return `${year}-${modifiedMonth}-${day}`;
     } catch (e) {
-      console.log("server side error: ", e.message);
+      logger.error(`addMonthsToProvidedDate error, ${e.message}`);
+      logElement("addMonthsToProvidedDate error", e.message);
     }
   },
   addMonthsToProvideDateTime: (dateTime, number) => {
@@ -94,7 +99,8 @@ const date = {
         return newDate;
       }
     } catch (e) {
-      console.log("server side error: ", e.message);
+      logger.error(`addMonthsToProvideDateTime error, ${e.message}`);
+      logElement("addMonthsToProvideDateTime error", e.message);
     }
   },
   monthsInfront: (number) => {
@@ -107,7 +113,8 @@ const date = {
       }
       return d;
     } catch (e) {
-      console.log("server side error: ", e.message);
+      logger.error(`monthsInfront error, ${e.message}`);
+      logElement("monthsInfront error", e.message);
     }
   },
   addDays: (number) => {
@@ -116,7 +123,8 @@ const date = {
       let target = d.setDate(d.getDate() + number);
       return d;
     } catch (e) {
-      console.log("server side error: ", e.message);
+      logger.error(`addDays error, ${e.message}`);
+      logElement("addDays error", e.message);
     }
   },
   getDifferenceInMonths: (d1, d2) => {

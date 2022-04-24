@@ -40,26 +40,15 @@ const join = {
           message: responseFromListUser.message,
           data: responseFromListUser.data,
         };
-      } else if ((responseFromListUser.success = false)) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+      } else if (responseFromListUser.success === false) {
+        return responseFromListUser;
       }
     } catch (e) {
       logElement("list users util", e.message);
       return {
         success: false,
         message: "list users util server error",
-        error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -104,7 +93,7 @@ const join = {
       return {
         success: false,
         message: "util server error",
-        error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -219,25 +208,14 @@ const join = {
           data: responseFromRemoveUser.data,
         };
       } else if (responseFromRemoveUser.success === false) {
-        if (responseFromRemoveUser.error) {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-            error: responseFromRemoveUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveUser.message,
-          };
-        }
+        return responseFromRemoveUser;
       }
     } catch (e) {
       logElement("delete users util", e.message);
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },
@@ -295,7 +273,7 @@ const join = {
       return {
         success: false,
         message: "Internal Server Error",
-        error: { message: e.message },
+        errors: { message: e.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -376,57 +354,24 @@ const join = {
           }
 
           if (responseFromSendEmail.success === false) {
-            if (responseFromSendEmail.error) {
-              return {
-                success: false,
-                error: responseFromSendEmail.error,
-                message: "unable to send the email request",
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromSendEmail.message,
-              };
-            }
+            return responseFromSendEmail;
           }
         }
 
         if (responseFromModifyUser.success === false) {
-          if (responseFromModifyUser.error) {
-            return {
-              success: false,
-              error: responseFromModifyUser.error,
-              message: responseFromModifyUser.message,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromModifyUser.message,
-            };
-          }
+          return responseFromModifyUser;
         }
       }
 
       if (responseFromGenerateResetToken.success === false) {
-        if (responseFromGenerateResetToken.error) {
-          return {
-            success: false,
-            error: responseFromGenerateResetToken.error,
-            message: responseFromGenerateResetToken.message,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromGenerateResetToken.message,
-          };
-        }
+        return responseFromGenerateResetToken;
       }
     } catch (e) {
       logElement("forgot password util", e.message);
       return {
         success: false,
         message: "util server error",
-        error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -462,39 +407,17 @@ const join = {
             data: responseFromUpdateUser.data,
           };
         } else if (responseFromUpdateUser === false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: true,
-              message: responseFromUpdateUser.message,
-            };
-          }
+          return responseFromUpdateUser;
         }
       } else if (responseFromCheckTokenValidity.success === false) {
-        if (responseFromCheckTokenValidity.error) {
-          return {
-            success: false,
-            message: responseFromCheckTokenValidity.message,
-            error: responseFromCheckTokenValidity.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromCheckTokenValidity.message,
-          };
-        }
+        return responseFromCheckTokenValidity;
       }
     } catch (error) {
       logElement("update forgotten password", error.message);
       return {
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -524,40 +447,17 @@ const join = {
             data: responseFromUpdateUser.data,
           };
         } else if (responseFromUpdateUser.success === false) {
-          if (responseFromUpdateUser.error) {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-              error: responseFromUpdateUser.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromUpdateUser.message,
-            };
-          }
+          return responseFromUpdateUser;
         }
       } else if (responseFromComparePassword.success === false) {
-        if (responseFromComparePassword.error) {
-          return {
-            success: false,
-            message: responseFromComparePassword.message,
-            errors: responseFromComparePassword.errors,
-            status: responseFromComparePassword.status,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromComparePassword.message,
-          };
-        }
+        return responseFromComparePassword;
       }
     } catch (e) {
       logElement("update known password", e.message);
       return {
         success: false,
         message: "update known password util server error",
-        error: e.message,
+        errors: { message: e.message },
       };
     }
   },
@@ -592,7 +492,7 @@ const join = {
       return {
         success: false,
         message: "compare passwords utils server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -609,7 +509,7 @@ const join = {
       return {
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -634,25 +534,14 @@ const join = {
           };
         }
       } else if (responseFromListUser.success === false) {
-        if (responseFromListUser.error) {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-            error: responseFromListUser.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromListUser.message,
-          };
-        }
+        return responseFromListUser;
       }
     } catch (error) {
       logElement("is password token valid", error.message);
       return {
         success: false,
         message: "util server error",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },

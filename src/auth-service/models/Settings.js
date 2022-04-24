@@ -253,7 +253,7 @@ SettingsSchema.statics = {
       return {
         success: false,
         message: "unable to list the defaults",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -331,7 +331,7 @@ SettingsSchema.statics = {
       return {
         success: false,
         message: "model server error",
-        error: error.message,
+        errors: { message: error.message },
         status: HTTPStatus.INTERNAL_SERVER_ERROR,
       };
     }

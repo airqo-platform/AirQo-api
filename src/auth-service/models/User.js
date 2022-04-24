@@ -162,7 +162,7 @@ UserSchema.statics = {
       }
 
       return {
-        error: response,
+        errors: { message: response },
         message,
         success: false,
         status,
@@ -233,7 +233,7 @@ UserSchema.statics = {
       return {
         success: false,
         message: "User model server error - modify",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },
@@ -261,7 +261,7 @@ UserSchema.statics = {
       return {
         success: false,
         message: "User model server error - remove",
-        error: error.message,
+        errors: { message: error.message },
       };
     }
   },

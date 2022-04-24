@@ -31,7 +31,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "this endpoint does not exist",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -39,7 +39,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "bad request error",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -47,7 +47,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Unauthorized",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -55,7 +55,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Forbidden",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -63,7 +63,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Internal Server Error",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -71,7 +71,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Bad Gateway",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -79,7 +79,7 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: "Service Unavailable",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
@@ -87,14 +87,14 @@ app.use(function (err, req, res, next) {
     res.status(err.status).json({
       success: false,
       message: " Gateway Timeout.",
-      error: err.message,
+      errors: { message: err.message },
     });
   }
 
   res.status(err.status || 500).json({
     success: false,
     message: "server side error",
-    error: err.message,
+    errors: { message: err.message },
   });
 });
 

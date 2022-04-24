@@ -235,11 +235,6 @@ const request = {
           };
           logObject("requestBody during confirmation", requestBody);
 
-          /**
-           * what if we take this process to the join util?
-           *
-           */
-
           let responseFromCreateUser = await UserModel(tenant).register(
             requestBody
           );
@@ -273,68 +268,21 @@ const request = {
                 return {
                   success: true,
                   message: "candidate successfully confirmed",
-                  data: jsonifyCreatedUser,
+                  data: createdUser,
                 };
               } else if (responseFromDeleteCandidate.success === false) {
-                if (responseFromDeleteCandidate.error) {
-                  return {
-                    success: false,
-                    message: responseFromDeleteCandidate.message,
-                    data: responseFromDeleteCandidate.data,
-                    error: responseFromDeleteCandidate.error,
-                  };
-                } else {
-                  return {
-                    success: false,
-                    message: responseFromDeleteCandidate.message,
-                    data: responseFromDeleteCandidate.data,
-                  };
-                }
+                return responseFromDeleteCandidate;
               }
             } else if (responseFromSendEmail.success === false) {
-              if (responseFromSendEmail.error) {
-                return {
-                  success: false,
-                  message: responseFromSendEmail.message,
-                  error: responseFromSendEmail.error,
-                };
-              } else {
-                return {
-                  success: false,
-                  message: responseFromSendEmail.message,
-                };
-              }
+              return responseFromSendEmail;
             }
           }
           if (responseFromCreateUser.success === false) {
-            if (responseFromCreateUser.error) {
-              return {
-                success: false,
-                message: responseFromCreateUser.message,
-                error: responseFromCreateUser.error,
-              };
-            } else {
-              return {
-                success: false,
-                message: responseFromCreateUser.message,
-              };
-            }
+            return responseFromCreateUser;
           }
         }
-
         if (responseFromGeneratePassword.success === false) {
-          if (responseFromGeneratePassword.error) {
-            return {
-              success: false,
-              message: responseFromGeneratePassword.message,
-              error: responseFromGeneratePassword.error,
-            };
-          } else {
-            return {
-              success: false,
-              message: responseFromGeneratePassword.message,
-            };
-          }
+          return responseFromGeneratePassword;
         }
       }
 
@@ -349,32 +297,21 @@ const request = {
       }
 
       if (responseFromListCandidate.success === false) {
-        if (responseFromListCandidate.error) {
-          return {
-            success: false,
-            message: "unable to retrieve candidate",
-            error: responseFromListCandidate.error,
-          };
-        } else {
-          return {
-            success: true,
-            message: "unable to retrieve candidate",
-          };
-        }
+        return responseFromListCandidate;
       }
     } catch (e) {
       if (e.code === 11000) {
         return {
           success: false,
           message: "duplicate entry",
-          error: e.keyValue,
+          errors: { message: e.keyValue },
           status: httpStatus.BAD_REQUEST,
         };
       }
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
         status: httpStatus.INTERNAL_SERVER_ERROR,
       };
     }
@@ -395,24 +332,13 @@ const request = {
           data: responseFromRemoveCandidate.data,
         };
       } else if (responseFromRemoveCandidate.success === false) {
-        if (responseFromRemoveCandidate.error) {
-          return {
-            success: false,
-            message: responseFromRemoveCandidate.message,
-            error: responseFromRemoveCandidate.error,
-          };
-        } else {
-          return {
-            success: false,
-            message: responseFromRemoveCandidate.message,
-          };
-        }
+        return responseFromRemoveCandidate;
       }
     } catch (e) {
       return {
         success: false,
-        message: "util server error",
-        error: e.message,
+        message: "Internal Server Error",
+        errors: { message: e.message },
       };
     }
   },
