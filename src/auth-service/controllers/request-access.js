@@ -105,7 +105,7 @@ const candidate = {
         });
         if (responseFromListCandidate.success === true) {
           const candidates = responseFromListCandidate.data.filter(
-            (element) => element.isEmailVerified === true
+            (element) => element.is_email_verified === true
           );
           const status = responseFromListCandidate.status
             ? responseFromListCandidate.status
@@ -403,10 +403,10 @@ const candidate = {
 
       let filter = {};
       filter["confirmationCode"] = confirmationCode;
-      filter["isEmailVerified"] = false;
+      filter["is_email_verified"] = false;
 
       let updateRequestBody = {};
-      updateRequestBody["isEmailVerified"] = true;
+      updateRequestBody["is_email_verified"] = true;
 
       let responseFromUpdateCandidate = await requestUtil.update(
         tenant,

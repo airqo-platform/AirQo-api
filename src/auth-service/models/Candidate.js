@@ -40,7 +40,7 @@ const CandidateSchema = new mongoose.Schema(
       type: String,
       default: "pending",
     },
-    isEmailVerified: {
+    is_email_verified: {
       type: Boolean,
       default: false,
     },
@@ -190,7 +190,7 @@ CandidateSchema.methods = {
       status: this.status,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
-      isEmailVerified: this.isEmailVerified,
+      is_email_verified: this.is_email_verified,
     };
   },
 };
