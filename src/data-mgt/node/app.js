@@ -26,22 +26,83 @@ app.use("/api/v1/data", api);
 
 app.use(responseTime);
 
-// catch 404 and forward to error handler
 app.use(function (req, res, next) {
-  var err = new Error("Not Found");
+  const err = new Error("Not Found");
   err.status = 404;
   next(err);
 });
 
 // error handler
 app.use(function (err, req, res, next) {
-  res.locals.message = err.message;
-  res.locals.error = req.app.get("env") === "development" ? err : {};
+  logger.error(`${err.message}`);
+  if (err.status === 404) {
+    res.status(err.status).json({
+      success: false,
+      message: "this endpoint does not exist",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 400) {
+    res.status(err.status).json({
+      success: false,
+      message: "bad request error",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 401) {
+    res.status(err.status).json({
+      success: false,
+      message: "Unauthorized",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 403) {
+    res.status(err.status).json({
+      success: false,
+      message: "Forbidden",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 500) {
+    res.status(err.status).json({
+      success: false,
+      message: "Internal Server Error",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 502) {
+    res.status(err.status).json({
+      success: false,
+      message: "Bad Gateway",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 503) {
+    res.status(err.status).json({
+      success: false,
+      message: "Service Unavailable",
+      errors: { message: err.message },
+    });
+  }
+
+  if (err.status === 504) {
+    res.status(err.status).json({
+      success: false,
+      message: " Gateway Timeout.",
+      errors: { message: err.message },
+    });
+  }
 
   res.status(err.status || 500).json({
     success: false,
-    message: "Server Error",
-    error: err.message,
+    message: "server side error",
+    errors: { message: err.message },
   });
 });
 

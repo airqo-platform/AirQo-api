@@ -1,20 +1,13 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  annotations:
-    kompose.cmd: kompose convert
-    kompose.service.type: NodePort
-    kompose.version: 1.21.0 (992df58d8)
-  creationTimestamp: null
-  labels:
-    io.kompose.service: airqo-stage-data-mgt-api
   name: airqo-stage-data-mgt-api
   namespace: staging
 spec:
   replicas: 2
   selector:
     matchLabels:
-      io.kompose.service: airqo-stage-data-mgt-api
+      app: airqo-stage-data-mgt-api
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -23,13 +16,8 @@ spec:
   minReadySeconds: 5
   template:
     metadata:
-      annotations:
-        kompose.cmd: kompose convert
-        kompose.service.type: NodePort
-        kompose.version: 1.21.0 (992df58d8)
-      creationTimestamp: null
       labels:
-        io.kompose.service: airqo-stage-data-mgt-api
+        app: airqo-stage-data-mgt-api
     spec:
       containers:
         - name: airqo-stage-data-mgt-api
@@ -44,94 +32,16 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          env:
-            - name: MONGO_GCE_URI
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: MONGO_GCE_URI
-            - name: MONGO_PROD
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: MONGO_PROD
-            - name: JWT_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: JWT_SECRET
-            - name: MONGO_TEST
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: MONGO_TEST
-            - name: MONGO_STAGE
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: MONGO_STAGE
-            - name: TS_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: TS_API_KEY
-            - name: LICENSE_ID
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: LICENSE_ID
-            - name: CHANNEL
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: CHANNEL
-            - name: NAME
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: NAME
-            - name: READ
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: READ
-            - name: WRITE
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: WRITE
-            - name: SESSION_SECRET
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: SESSION_SECRET
-            - name: REDIS_SERVER
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: REDIS_SERVER
-            - name: REDIS_PORT
-              valueFrom:
-                secretKeyRef:
-                  name: stage-data-mgt-secret
-                  key: REDIS_PORT
+          envFrom:
+            - configMapRef:
+                name: data-mgt-api-config
           resources: {}
       restartPolicy: Always
-      serviceAccountName: ""
-      volumes: null
-status: {}
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  annotations:
-    kompose.cmd: kompose convert
-    kompose.service.type: NodePort
-    kompose.version: 1.21.0 (992df58d8)
-  creationTimestamp: null
-  labels:
-    io.kompose.service: airqo-stage-data-mgt-api
   name: airqo-stage-data-mgt-api-svc
   namespace: staging
 spec:
@@ -141,7 +51,5 @@ spec:
       targetPort: 3000
       nodePort: 31001
   selector:
-    io.kompose.service: airqo-stage-data-mgt-api
+    app: airqo-stage-data-mgt-api
   type: NodePort
-status:
-  loadBalancer: {}

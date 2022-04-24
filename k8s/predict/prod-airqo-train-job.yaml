@@ -1,0 +1,31 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: airqo-train-job
+  namespace: production
+spec:
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  schedule: "0 5 * * 1"
+  jobTemplate:
+    metadata:
+      name: airqo-train-job
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          schedulerName: default-scheduler
+          containers:
+          - name: airqo-train-job
+            image: us.gcr.io/airqo-250220/airqo-train-job:latest
+            imagePullPolicy: Always
+            envFrom:
+              - configMapRef:
+                  name: env-train-job-production
+            volumeMounts:
+              - name: config-volume
+                mountPath: /etc/config
+          volumes:
+            - name: config-volume
+              configMap:
+                name: train-job-config-files
