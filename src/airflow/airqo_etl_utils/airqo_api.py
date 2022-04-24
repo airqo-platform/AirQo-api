@@ -104,17 +104,32 @@ class AirQoApi:
         return calibrated_data
 
     def get_devices(self, tenant, all_devices=True) -> list:
-        params = {
-            "tenant": tenant,
-        }
-        if not all_devices:
-            params["active"] = "yes"
-        response = self.__request("devices", params)
 
-        if "devices" in response:
-            return response["devices"]
+        devices_with_tenant = []
 
-        return []
+        if tenant:
+            params = {
+                "tenant": tenant,
+            }
+            if not all_devices:
+                params["active"] = "yes"
+            response = self.__request("devices", params)
+
+            if "devices" in response:
+                devices = response["devices"]
+                for device in devices:
+                    device["tenant"] = tenant
+                    devices_with_tenant.append(device)
+        else:
+            for x in ["airqo", "kcca"]:
+                response = self.__request("devices", {"tenant": x})
+                if "devices" in response:
+                    devices = response["devices"]
+                    for device in devices:
+                        device["tenant"] = x
+                        devices_with_tenant.append(device)
+
+        return devices_with_tenant
 
     def get_read_keys(self, devices: list) -> dict:
 

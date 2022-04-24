@@ -486,6 +486,42 @@ def get_date_time_values(interval_in_days: int = 1, **kwargs):
     return start_date_time, end_date_time
 
 
+def get_tenant(**kwargs) -> str:
+    try:
+        dag_run = kwargs.get("dag_run")
+        tenant = dag_run.conf["tenant"]
+    except KeyError:
+        tenant = None
+
+    return tenant
+
+
+def format_dataframe_column_type(
+    dataframe: pd.DataFrame, data_type: str, columns: list
+) -> pd.DataFrame:
+    if not columns:
+        return dataframe
+    if data_type == "float":
+        dataframe[columns] = dataframe[columns].apply(pd.to_numeric, errors="coerce")
+
+    if data_type == "datetime":
+        dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
+
+    if data_type == "datetime_str":
+        dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
+
+        def _date_to_str(date: datetime):
+            try:
+                return date_to_str(date=date)
+            except Exception:
+                return None
+
+        for column in columns:
+            dataframe[column] = dataframe[column].apply(_date_to_str)
+
+    return dataframe
+
+
 def get_device(devices=None, channel_id=None, device_id=None):
     if devices is None:
         devices = []
