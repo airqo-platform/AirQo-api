@@ -17,7 +17,7 @@ def transform_weather_data_for_bigquery(data: list) -> list:
     return data_df.to_dict(orient="records")
 
 
-def resample_weather_data(data: list, frequency: str):
+def resample_weather_data(data: list, frequency: str = None):
     weather_raw_data = pd.DataFrame(data)
     if weather_raw_data.empty:
         return weather_raw_data.to_dict(orient="records")
@@ -53,12 +53,7 @@ def resample_weather_data(data: list, frequency: str):
                 unit_df.columns = [unit, "time"]
                 return unit_df
 
-            df = resample_data(
-                station_data.loc[
-                    station_data["variable"] == unit_mappings[unit], ["value", "time"]
-                ],
-                frequency,
-            )
+            df = resample_data(unit_df, frequency) if frequency else unit_df
             df.columns = [unit, "time"]
             return df
 
