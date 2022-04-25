@@ -2,5 +2,6 @@ numpy
 pandas
 matplotlib
 requests
+datetime
 streamlit
 python-dotenv
