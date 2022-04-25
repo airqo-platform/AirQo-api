@@ -168,7 +168,7 @@ def historical_hourly_measurements_etl():
 )
 def historical_raw_measurements_etl():
     @task(multiple_outputs=True)
-    def extract_hourly_raw_data(**kwargs):
+    def extract_raw_data(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values, fill_nan
         from airqo_etl_utils.airqo_utils import (
@@ -260,7 +260,7 @@ def historical_raw_measurements_etl():
                 "Invalid data destination. Valid values are bigquery, message-broker and api"
             )
 
-    extracted_airqo_data = extract_hourly_raw_data()
+    extracted_airqo_data = extract_raw_data()
     device_logs = extract_device_deployment_logs()
     data_with_site_ids = map_site_ids(
         airqo_data=extracted_airqo_data, deployment_logs=device_logs
