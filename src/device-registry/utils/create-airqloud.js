@@ -415,8 +415,9 @@ const createAirqloud = {
           } else {
             return {
               success: false,
-              message: "unable to retrieve one respective airqloud",
-              status: httpStatus.NOT_FOUND,
+              message: `unable to find the provided airqloud: ${id}`,
+              status: responseFromListAirQloud.status,
+              errors: { message: "" },
             };
           }
         } else if (responseFromListAirQloud.success === false) {
@@ -511,6 +512,11 @@ const createAirqloud = {
               if (isSiteInAirQloud === true) {
                 site_ids.push(site._id);
               } else if (isSiteInAirQloud === false) {
+                logger.info(
+                  `Site ${site._id} does not belong to this AirQloud`
+                );
+              } else {
+                logger.info(`unable to categorise this Site ${site._id} `);
               }
             } else {
               logger.error(
