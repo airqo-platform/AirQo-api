@@ -415,8 +415,9 @@ const createAirqloud = {
           } else {
             return {
               success: false,
-              message: "unable to retrieve one respective airqloud",
-              status: httpStatus.NOT_FOUND,
+              message: `unable to find the provided airqloud: ${id}`,
+              status: responseFromListAirQloud.status,
+              errors: { message: "" },
             };
           }
         } else if (responseFromListAirQloud.success === false) {
