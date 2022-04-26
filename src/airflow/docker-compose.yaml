@@ -7,7 +7,7 @@ x-db-common-data: &db-common-data
     POSTGRES_NAME: postgres
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
-    AIRFLOW_UI_USER: airflow
+    ADMIN_USERNAME: airflow
     AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
 
 x-message-borker-common-data: &message-broker-common-data
@@ -28,6 +28,7 @@ x-common-data: &common-data
     AIRFLOW__WEBSERVER__INSTANCE_NAME: AirQo
     AIRFLOW__CORE__DAGBAG_IMPORT_TIMEOUT: 240
     AIRFLOW__CORE__KILLED_TASK_CLEANUP_TIME: 604800
+    AIRFLOW__WEBSERVER__BASE_URL: http://localhost:8080
     AIRFLOW_UID: 50000
     BOOTSTRAP_SERVERS: message-broker:9092
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json

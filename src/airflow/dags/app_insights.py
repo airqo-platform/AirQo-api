@@ -253,7 +253,7 @@ def app_hourly_insights_etl():
 
 @dag(
     "App-Insights-cleanup",
-    schedule_interval="@weekly",
+    schedule_interval="@daily",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
@@ -386,5 +386,6 @@ def insights_cleanup_etl():
 
 app_forecast_insights_etl_dag = app_forecast_insights_etl()
 app_historical_daily_insights_etl_dag = app_historical_daily_insights_etl()
+app_historical_hourly_insights_etl_dag = app_historical_hourly_insights_etl()
 app_daily_insights_etl_dag = app_daily_insights_etl()
 insights_cleanup_etl_dag = insights_cleanup_etl()

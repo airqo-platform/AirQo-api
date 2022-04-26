@@ -149,27 +149,133 @@ def historical_hourly_measurements_etl():
     data_with_site_ids = map_site_ids(
         airqo_data=extracted_airqo_data, deployment_logs=device_logs
     )
-
-    # Temporarily disabling weather data
-    # extracted_weather_data = extract_hourly_weather_data()
-    # merged_data = merge_data(
-    #     averaged_airqo_data=data_with_site_ids, weather_data=extracted_weather_data
-    # )
-    # calibrated_data = calibrate(merged_data)
-
-    calibrated_data = calibrate(data_with_site_ids)
+    extracted_weather_data = extract_hourly_weather_data()
+    merged_data = merge_data(
+        averaged_airqo_data=data_with_site_ids, weather_data=extracted_weather_data
+    )
+    calibrated_data = calibrate(merged_data)
     load(calibrated_data)
 
 
 @dag(
-    "AirQo-Hourly-Measurements",
+    "AirQo-Historical-Raw-Measurements",
+    schedule_interval=None,
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["airqo", "raw", "historical"],
+)
+def historical_raw_measurements_etl():
+    @task(multiple_outputs=True)
+    def extract_hourly_raw_data(**kwargs):
+
+        from airqo_etl_utils.commons import get_date_time_values, fill_nan
+        from airqo_etl_utils.airqo_utils import (
+            extract_airqo_data_from_thingspeak,
+        )
+
+        start_time, end_time = get_date_time_values(**kwargs)
+        raw_airqo_data = extract_airqo_data_from_thingspeak(
+            start_time=start_time, end_time=end_time, all_devices=True
+        )
+
+        return dict({"data": fill_nan(data=raw_airqo_data)})
+
+    @task(multiple_outputs=True)
+    def extract_device_deployment_logs():
+
+        from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
+
+        logs = extract_airqo_devices_deployment_history()
+
+        return dict({"data": logs})
+
+    @task()
+    def map_site_ids(airqo_data: dict, deployment_logs: dict):
+
+        from airqo_etl_utils.commons import un_fill_nan, fill_nan
+        from airqo_etl_utils.airqo_utils import map_site_ids_to_historical_measurements
+
+        data = un_fill_nan(airqo_data.get("data"))
+        logs = deployment_logs.get("data")
+
+        restructured_data = map_site_ids_to_historical_measurements(
+            data=data, deployment_logs=logs
+        )
+
+        return dict({"data": fill_nan(data=restructured_data)})
+
+    @task()
+    def load(airqo_data: dict, **kwargs):
+
+        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.airqo_utils import restructure_airqo_data
+        from airqo_etl_utils.config import configuration
+
+        data = un_fill_nan(airqo_data.get("data"))
+
+        try:
+            dag_run = kwargs.get("dag_run")
+            destination = dag_run.conf["destination"]
+        except KeyError:
+            destination = "bigquery"
+
+        if destination == "bigquery":
+            from airqo_etl_utils.bigquery_api import BigQueryApi
+
+            airqo_restructured_data = restructure_airqo_data(
+                data=data, destination="bigquery"
+            )
+            big_query_api = BigQueryApi()
+            big_query_api.save_data(
+                data=airqo_restructured_data,
+                table=big_query_api.raw_measurements_table,
+            )
+
+        elif destination == "message-broker":
+            from airqo_etl_utils.message_broker import KafkaBrokerClient
+
+            airqo_restructured_data = restructure_airqo_data(
+                data=data, destination="message-broker"
+            )
+
+            info = {
+                "data": airqo_restructured_data,
+                "action": "insert",
+                "tenant": "airqo",
+            }
+            kafka = KafkaBrokerClient()
+            kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
+        elif destination == "api":
+            from airqo_etl_utils.airqo_api import AirQoApi
+
+            airqo_restructured_data = restructure_airqo_data(
+                data=data, destination="api"
+            )
+            airqo_api = AirQoApi()
+            airqo_api.save_events(measurements=airqo_restructured_data, tenant="airqo")
+        else:
+            raise Exception(
+                "Invalid data destination. Valid values are bigquery, message-broker and api"
+            )
+
+    extracted_airqo_data = extract_hourly_raw_data()
+    device_logs = extract_device_deployment_logs()
+    data_with_site_ids = map_site_ids(
+        airqo_data=extracted_airqo_data, deployment_logs=device_logs
+    )
+    load(data_with_site_ids)
+
+
+@dag(
+    "AirQo-Realtime-Measurements",
     schedule_interval="10 * * * *",
     on_failure_callback=slack_dag_failure_notification,
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["airqo", "hourly", "realtime", "raw"],
 )
-def hourly_measurements_etl():
+def airqo_realtime_measurements_etl():
     from airqo_etl_utils.date import date_to_str_hours
     from datetime import datetime, timedelta
 
@@ -332,7 +438,9 @@ def hourly_measurements_etl():
         )
 
         big_query_api = BigQueryApi()
-        big_query_api.save_raw_measurements(airqo_restructured_data)
+        big_query_api.save_data(
+            airqo_restructured_data, table=big_query_api.raw_measurements_table
+        )
 
     @task()
     def send_raw_measurements_to_api(airqo_data: dict):
@@ -349,22 +457,19 @@ def hourly_measurements_etl():
     extracted_airqo_data = extract_raw_data()
     averaged_airqo_data = average_data_by_hour(extracted_airqo_data)
 
-    # Temporarily disabling weather data
-    # extracted_weather_data = extract_hourly_weather_data()
-    # merged_data = merge_data(
-    #     averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
-    # )
-    # calibrated_data = calibrate(merged_data)
-
-    calibrated_data = calibrate(averaged_airqo_data)
+    extracted_weather_data = extract_hourly_weather_data()
+    merged_data = merge_data(
+        averaged_hourly_data=averaged_airqo_data, weather_data=extracted_weather_data
+    )
+    calibrated_data = calibrate(merged_data)
     send_hourly_measurements_to_api(calibrated_data)
     send_hourly_measurements_to_message_broker(calibrated_data)
     send_hourly_measurements_to_bigquery(calibrated_data)
     update_app_insights(calibrated_data)
+    send_raw_measurements_to_bigquery(extracted_airqo_data)
 
     # Temporarily disabling sanding raw data device registry API
     # send_raw_measurements_to_api(extracted_airqo_data)
-    # send_raw_measurements_to_bigquery(extracted_airqo_data)
 
 
 @dag(
@@ -443,5 +548,7 @@ def daily_measurements_etl():
 
 
 historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
-hourly_realtime_measurements_etl_dag = hourly_measurements_etl()
+airqo_realtime_measurements_etl_dag = airqo_realtime_measurements_etl()
+historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
+
 # airqo_daily_measurements_etl_dag = airqo_daily_measurements_etl()
