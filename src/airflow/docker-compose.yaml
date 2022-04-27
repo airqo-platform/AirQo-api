@@ -15,7 +15,6 @@ x-message-borker-common-data: &message-broker-common-data
     - .env
 
 x-common-data: &common-data
-  #  platform: linux/amd64
   restart: on-failure
   env_file:
     - .env
@@ -50,7 +49,6 @@ services:
     build:
       context: .
       target: db-setup
-    #    platform: linux/amd64
     restart: on-failure
     healthcheck:
       test: "exit 0"

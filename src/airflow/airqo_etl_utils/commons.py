@@ -34,13 +34,18 @@ def to_double(x):
         return None
 
 
-def fill_nan(data: list) -> list:
+def to_xcom_format(data: list) -> list:
     data_df = pd.DataFrame(data)
     data_df = data_df.fillna("none")
+    if 'timestamp' in data_df.columns:
+        try:
+            data_df["timestamp"] = data_df["timestamp"].apply(lambda x: date_to_str(x))
+        except:
+            pass
     return data_df.to_dict(orient="records")
 
 
-def un_fill_nan(data: list) -> list:
+def from_xcom_format(data: list) -> list:
     data_df = pd.DataFrame(data)
     data_df = data_df.replace(to_replace="none", value=np.nan)
     return data_df.to_dict(orient="records")

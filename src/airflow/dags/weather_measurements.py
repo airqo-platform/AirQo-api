@@ -16,25 +16,25 @@ def historical_raw_weather_measurements_etl():
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,
         )
-        from airqo_etl_utils.commons import fill_nan, get_date_time_values
+        from airqo_etl_utils.commons import to_xcom_format, get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
         weather_data = extract_weather_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time, frequency=None
         )
 
-        return dict({"data": fill_nan(data=weather_data)})
+        return dict({"data": to_xcom_format(data=weather_data)})
 
     @task()
     def save_to_bigquery(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
 
         from airqo_etl_utils.weather_data_utils import (
             transform_weather_data_for_bigquery,
         )
 
-        weather_data = un_fill_nan(inputs.get("data"))
+        weather_data = from_xcom_format(inputs.get("data"))
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
@@ -59,25 +59,25 @@ def historical_hourly_weather_measurements_etl():
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,
         )
-        from airqo_etl_utils.commons import fill_nan, get_date_time_values
+        from airqo_etl_utils.commons import to_xcom_format, get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
         weather_data = extract_weather_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": fill_nan(data=weather_data)})
+        return dict({"data": to_xcom_format(data=weather_data)})
 
     @task()
     def save_to_bigquery(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
 
         from airqo_etl_utils.weather_data_utils import (
             transform_weather_data_for_bigquery,
         )
 
-        weather_data = un_fill_nan(inputs.get("data"))
+        weather_data = from_xcom_format(inputs.get("data"))
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
@@ -103,7 +103,7 @@ def weather_measurements_etl():
         from airqo_etl_utils.weather_data_utils import (
             query_weather_data_from_tahmo,
         )
-        from airqo_etl_utils.commons import fill_nan
+        from airqo_etl_utils.commons import to_xcom_format
 
         hour_of_day = datetime.utcnow() - timedelta(hours=1)
         start_date_time = date_to_str_hours(hour_of_day)
@@ -113,18 +113,18 @@ def weather_measurements_etl():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": fill_nan(data=raw_weather_data)})
+        return dict({"data": to_xcom_format(data=raw_weather_data)})
 
     @task(multiple_outputs=True)
     def create_hourly_data(inputs: dict):
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,
             add_site_info_to_weather_data,
         )
-        from airqo_etl_utils.commons import fill_nan
+        from airqo_etl_utils.commons import to_xcom_format
 
-        raw_weather_data = un_fill_nan(inputs.get("data"))
+        raw_weather_data = from_xcom_format(inputs.get("data"))
 
         resampled_weather_data = resample_weather_data(
             data=raw_weather_data,
@@ -132,18 +132,18 @@ def weather_measurements_etl():
         )
         sites_weather_data = add_site_info_to_weather_data(data=resampled_weather_data)
 
-        return dict({"data": fill_nan(data=sites_weather_data), "data_type": "hourly"})
+        return dict({"data": to_xcom_format(data=sites_weather_data), "data_type": "hourly"})
 
     @task(multiple_outputs=True)
     def format_raw_data(inputs: dict):
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,
             add_site_info_to_weather_data,
         )
-        from airqo_etl_utils.commons import fill_nan
+        from airqo_etl_utils.commons import to_xcom_format
 
-        raw_weather_data = un_fill_nan(inputs.get("data"))
+        raw_weather_data = from_xcom_format(inputs.get("data"))
 
         resampled_weather_data = resample_weather_data(
             data=raw_weather_data,
@@ -151,17 +151,17 @@ def weather_measurements_etl():
         )
         sites_weather_data = add_site_info_to_weather_data(data=resampled_weather_data)
 
-        return dict({"data": fill_nan(data=sites_weather_data), "data_type": "raw"})
+        return dict({"data": to_xcom_format(data=sites_weather_data), "data_type": "raw"})
 
     @task()
     def save_to_bigquery(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
         from airqo_etl_utils.weather_data_utils import (
             transform_weather_data_for_bigquery,
         )
 
-        weather_data = un_fill_nan(inputs.get("data"))
+        weather_data = from_xcom_format(inputs.get("data"))
         data_type = inputs.get("data_type")
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 

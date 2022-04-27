@@ -17,7 +17,7 @@ from airqo_etl_utils.commons import (
     remove_invalid_dates,
     download_file_from_gcs,
     get_frequency,
-    un_fill_nan,
+    from_xcom_format,
     get_column_value,
 )
 from airqo_etl_utils.config import configuration
@@ -552,7 +552,7 @@ def map_site_ids_to_historical_measurements(data: list, deployment_logs: list) -
         lambda x: str_to_date(x)
     )
 
-    data = un_fill_nan(data)
+    data = from_xcom_format(data)
     data_df = pd.DataFrame(data)
 
     for _, data_row in data_df.iterrows():

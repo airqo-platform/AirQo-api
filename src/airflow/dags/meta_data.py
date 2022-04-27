@@ -16,7 +16,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def big_query_update_sites_etl():
     @task(multiple_outputs=True)
     def extract_sites(**kwargs):
-        from airqo_etl_utils.commons import get_tenant, fill_nan
+        from airqo_etl_utils.commons import get_tenant, to_xcom_format
         from airqo_etl_utils.meta_data_utils import extract_meta_data
 
         tenant = get_tenant(**kwargs)
@@ -26,15 +26,15 @@ def big_query_update_sites_etl():
             tenant=tenant,
         )
 
-        return dict({"data": fill_nan(data=sites_data)})
+        return dict({"data": to_xcom_format(data=sites_data)})
 
     @task()
     def load(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import JobAction
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
 
-        data = un_fill_nan(inputs.get("data"))
+        data = from_xcom_format(inputs.get("data"))
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
@@ -58,7 +58,7 @@ def big_query_update_sites_etl():
 def big_query_update_devices_etl():
     @task(multiple_outputs=True)
     def extract_devices(**kwargs):
-        from airqo_etl_utils.commons import get_tenant, fill_nan
+        from airqo_etl_utils.commons import get_tenant, to_xcom_format
         from airqo_etl_utils.meta_data_utils import extract_meta_data
 
         tenant = get_tenant(**kwargs)
@@ -68,15 +68,15 @@ def big_query_update_devices_etl():
             tenant=tenant,
         )
 
-        return dict({"data": fill_nan(data=devices_data)})
+        return dict({"data": to_xcom_format(data=devices_data)})
 
     @task()
     def load(inputs: dict):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.constants import JobAction
-        from airqo_etl_utils.commons import un_fill_nan
+        from airqo_etl_utils.commons import from_xcom_format
 
-        data = un_fill_nan(inputs.get("data"))
+        data = from_xcom_format(inputs.get("data"))
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
