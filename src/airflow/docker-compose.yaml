@@ -31,8 +31,13 @@ x-common-data: &common-data
     AIRFLOW_UID: 50000
     BOOTSTRAP_SERVERS: message-broker:9092
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json
+    AIRFLOW__CORE__XCOM_BACKEND: include.gcs_xcom_backend.GCSXComBackend
+    PYTHONPATH: /opt/airflow
+
   volumes:
     - ${PWD}/google_application_credentials.json:/etc/config/google_application_credentials.json
+    - ${PWD}/include:/opt/airflow/include
+
   depends_on:
     - db
     - db-setup

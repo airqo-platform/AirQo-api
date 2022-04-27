@@ -1,5 +1,7 @@
 from datetime import timedelta, datetime
+from typing import Dict, Any
 
+import pandas as pd
 from airflow.decorators import dag, task
 
 
@@ -97,7 +99,7 @@ def historical_hourly_weather_measurements_etl():
     tags=["weather", "hourly", "raw"],
 )
 def weather_measurements_etl():
-    @task(multiple_outputs=True)
+    @task()
     def extract_raw_data():
         from airqo_etl_utils.date import date_to_str_hours
         from airqo_etl_utils.weather_data_utils import (
@@ -113,10 +115,11 @@ def weather_measurements_etl():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": to_xcom_format(data=raw_weather_data)})
+        return raw_weather_data
 
-    @task(multiple_outputs=True)
-    def create_hourly_data(inputs: dict):
+
+    @task()
+    def create_hourly_data(raw_weather_data: pd.DataFrame):
         from airqo_etl_utils.commons import from_xcom_format
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,
@@ -124,7 +127,7 @@ def weather_measurements_etl():
         )
         from airqo_etl_utils.commons import to_xcom_format
 
-        raw_weather_data = from_xcom_format(inputs.get("data"))
+        # raw_weather_data = inputs.get("data_01")
 
         resampled_weather_data = resample_weather_data(
             data=raw_weather_data,
@@ -132,10 +135,11 @@ def weather_measurements_etl():
         )
         sites_weather_data = add_site_info_to_weather_data(data=resampled_weather_data)
 
-        return dict({"data": to_xcom_format(data=sites_weather_data), "data_type": "hourly"})
+        return sites_weather_data
 
-    @task(multiple_outputs=True)
-    def format_raw_data(inputs: dict):
+
+    @task()
+    def format_raw_data(raw_weather_data: pd.DataFrame):
         from airqo_etl_utils.commons import from_xcom_format
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,
@@ -143,7 +147,7 @@ def weather_measurements_etl():
         )
         from airqo_etl_utils.commons import to_xcom_format
 
-        raw_weather_data = from_xcom_format(inputs.get("data"))
+        # raw_weather_data = inputs.get("data_01")
 
         resampled_weather_data = resample_weather_data(
             data=raw_weather_data,
@@ -151,33 +155,73 @@ def weather_measurements_etl():
         )
         sites_weather_data = add_site_info_to_weather_data(data=resampled_weather_data)
 
-        return dict({"data": to_xcom_format(data=sites_weather_data), "data_type": "raw"})
+        return sites_weather_data
+
+    # @task()
+    # def save_to_bigquery(inputs: dict):
+    #     from airqo_etl_utils.bigquery_api import BigQueryApi
+    #     from airqo_etl_utils.commons import from_xcom_format
+    #     from airqo_etl_utils.weather_data_utils import (
+    #         transform_weather_data_for_bigquery,
+    #     )
+    #
+    #     weather_data = inputs.get("data_01")
+    #     data_type = inputs.get("data_type")
+    #     bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
+    #
+    #     big_query_api = BigQueryApi()
+    #     table = (
+    #         big_query_api.hourly_weather_table
+    #         if data_type == "hourly"
+    #         else big_query_api.raw_weather_table
+    #     )
+    #     big_query_api.save_data(data=bigquery_data.to_dict(orient="records"), table=table)
 
     @task()
-    def save_to_bigquery(inputs: dict):
+    def save_raw_data_to_bigquery(weather_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
         from airqo_etl_utils.commons import from_xcom_format
         from airqo_etl_utils.weather_data_utils import (
             transform_weather_data_for_bigquery,
         )
 
-        weather_data = from_xcom_format(inputs.get("data"))
-        data_type = inputs.get("data_type")
+        # weather_data = inputs.get("data_01")
+        # data_type = inputs.get("data_type")
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
-        table = (
-            big_query_api.hourly_weather_table
-            if data_type == "hourly"
-            else big_query_api.raw_weather_table
+        # table = (
+        #     big_query_api.hourly_weather_table
+        #     if data_type == "hourly"
+        #     else big_query_api.raw_weather_table
+        # )
+        big_query_api.save_data(dataframe=bigquery_data, table=big_query_api.raw_weather_table)
+
+    @task()
+    def save_hourly_data_to_bigquery(weather_data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.commons import from_xcom_format
+        from airqo_etl_utils.weather_data_utils import (
+            transform_weather_data_for_bigquery,
         )
-        big_query_api.save_data(data=bigquery_data, table=table)
+
+        # weather_data = inputs.get("data_01")
+        # data_type = inputs.get("data_type")
+        bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
+
+        big_query_api = BigQueryApi()
+        # table = (
+        #     big_query_api.hourly_weather_table
+        #     if data_type == "hourly"
+        #     else big_query_api.raw_weather_table
+        # )
+        big_query_api.save_data(dataframe=bigquery_data, table=big_query_api.hourly_weather_table)
 
     extracted_raw_data = extract_raw_data()
     raw_data = format_raw_data(extracted_raw_data)
     hourly_data = create_hourly_data(extracted_raw_data)
-    save_to_bigquery(raw_data)
-    save_to_bigquery(hourly_data)
+    save_raw_data_to_bigquery(raw_data)
+    save_hourly_data_to_bigquery(hourly_data)
 
 
 historical_raw_weather_measurements_etl_dag = historical_raw_weather_measurements_etl()

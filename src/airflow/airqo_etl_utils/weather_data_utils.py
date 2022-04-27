@@ -11,14 +11,15 @@ from airqo_etl_utils.date import date_to_str
 from airqo_etl_utils.tahmo import TahmoApi
 
 
-def transform_weather_data_for_bigquery(data: list) -> list:
-    data_df = pd.DataFrame(data)
+def transform_weather_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
+    data_df = data
     data_df.rename(columns={"time": "timestamp"}, inplace=True)
-    return data_df.to_dict(orient="records")
+    data_df.reset_index(drop=True, inplace=True)
+    return data_df
 
 
-def resample_weather_data(data: list, frequency: str = None):
-    weather_raw_data = pd.DataFrame(data)
+def resample_weather_data(data: pd.DataFrame, frequency: str = None) -> pd.DataFrame:
+    weather_raw_data = data
     if weather_raw_data.empty:
         return weather_raw_data.to_dict(orient="records")
 
@@ -104,11 +105,11 @@ def resample_weather_data(data: list, frequency: str = None):
             traceback.print_exc()
             continue
 
-    return weather_data
+    return pd.DataFrame(weather_data)
 
 
-def add_site_info_to_weather_data(data: list) -> list:
-    weather_data = pd.DataFrame(data)
+def add_site_info_to_weather_data(data: pd.DataFrame) -> pd.DataFrame:
+    weather_data = data
     if weather_data.empty:
         return weather_data.to_dict(orient="records")
     airqo_api = AirQoApi()
@@ -132,10 +133,10 @@ def add_site_info_to_weather_data(data: list) -> list:
         sites = airqo_api.get_sites(tenant=tenant)
         add_site_tenant_info(tenant_sites=sites, sites_tenant=tenant)
 
-    return sites_weather_data
+    return pd.DataFrame(sites_weather_data)
 
 
-def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -> list:
+def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -> pd.DataFrame:
     airqo_api = AirQoApi()
     sites = airqo_api.get_sites(tenant=tenant)
     station_codes = []
@@ -181,7 +182,7 @@ def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -
     clean_measurements_df = remove_invalid_dates(
         dataframe=measurements_df, start_time=start_date_time, end_time=end_date_time
     )
-    return clean_measurements_df.to_dict(orient="records")
+    return clean_measurements_df
 
 
 def extract_weather_data_from_tahmo(

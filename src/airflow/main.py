@@ -8,6 +8,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
+from airqo_etl_utils.commons import upload_dataframe_to_gcs, download_file_from_gcs
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -257,6 +258,12 @@ def weather_data(start_date_time: str, end_date_time: str):
     bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
+def upload_to_gcs():
+    test_data = pd.DataFrame([{"name": "joe doe"}])
+    response = upload_dataframe_to_gcs(bucket_name="airflow_xcom", contents=test_data, destination_file="test_data.csv")
+    download_file_from_gcs(bucket_name="airflow_xcom", source_file="test_data.csv", destination_file="test_data.csv")
+
+
 def meta_data():
     from airqo_etl_utils.meta_data_utils import extract_meta_data
     from airqo_etl_utils.bigquery_api import BigQueryApi
@@ -318,6 +325,7 @@ if __name__ == "__main__":
             "daily_insights_data",
             "forecast_insights_data",
             "meta_data",
+            "upload_to_gcs"
         ],
     )
 
@@ -344,5 +352,7 @@ if __name__ == "__main__":
     elif args.action == "meta_data":
         meta_data()
 
+    elif args.action == "upload_to_gcs":
+        upload_to_gcs()
     else:
         pass

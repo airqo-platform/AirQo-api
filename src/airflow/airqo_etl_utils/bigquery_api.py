@@ -92,11 +92,9 @@ class BigQueryApi:
         return columns
 
     def save_data(
-        self, data: list, table: str, job_action: JobAction = JobAction.APPEND
+        self, dataframe: pd.DataFrame, table: str, job_action: JobAction = JobAction.APPEND
     ) -> None:
-
-        dataframe = pd.DataFrame(data)
-
+        dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
         job_config = bigquery.LoadJobConfig(
