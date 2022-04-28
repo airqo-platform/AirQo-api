@@ -8,7 +8,7 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
-from airqo_etl_utils.commons import upload_dataframe_to_gcs, download_file_from_gcs
+from airqo_etl_utils.commons import download_file_from_gcs
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -260,9 +260,6 @@ def weather_data(start_date_time: str, end_date_time: str):
 
 def upload_to_gcs():
     test_data = pd.DataFrame([{"name": "joe doe"}])
-    response = upload_dataframe_to_gcs(
-        bucket_name="airflow_xcom", contents=test_data, destination_file="test_data.csv"
-    )
     download_file_from_gcs(
         bucket_name="airflow_xcom",
         source_file="test_data.csv",

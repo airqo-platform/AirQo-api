@@ -34,23 +34,6 @@ def to_double(x):
         return None
 
 
-def to_xcom_format(data: list) -> list:
-    data_df = pd.DataFrame(data)
-    data_df = data_df.fillna("none")
-    if "timestamp" in data_df.columns:
-        try:
-            data_df["timestamp"] = data_df["timestamp"].apply(lambda x: date_to_str(x))
-        except:
-            pass
-    return data_df.to_dict(orient="records")
-
-
-def from_xcom_format(data: list) -> list:
-    data_df = pd.DataFrame(data)
-    data_df = data_df.replace(to_replace="none", value=np.nan)
-    return data_df.to_dict(orient="records")
-
-
 def get_valid_value(raw_value, name=None):
     value = to_double(raw_value)
 
@@ -171,10 +154,11 @@ def resample_data(data: pd.DataFrame, frequency: str) -> pd.DataFrame:
     return averages
 
 
-def resample_weather_data(data: list, frequency: str):
-    weather_raw_data = pd.DataFrame(data)
-    if weather_raw_data.empty:
-        return weather_raw_data.to_dict(orient="records")
+def resample_weather_data(
+    raw_weather_data: pd.DataFrame, frequency: str
+) -> pd.DataFrame:
+    if raw_weather_data.empty:
+        return raw_weather_data.to_dict(orient="records")
 
     airqo_api = AirQoApi()
     sites = airqo_api.get_sites(tenant="airqo")
@@ -182,14 +166,14 @@ def resample_weather_data(data: list, frequency: str):
         filter(lambda x: "nearest_tahmo_station" in dict(x).keys(), sites)
     )
 
-    temperature = weather_raw_data.loc[
-        weather_raw_data["variable"] == "te", ["value", "variable", "station", "time"]
+    temperature = raw_weather_data.loc[
+        raw_weather_data["variable"] == "te", ["value", "variable", "station", "time"]
     ]
-    humidity = weather_raw_data.loc[
-        weather_raw_data["variable"] == "rh", ["value", "variable", "station", "time"]
+    humidity = raw_weather_data.loc[
+        raw_weather_data["variable"] == "rh", ["value", "variable", "station", "time"]
     ]
-    wind_speed = weather_raw_data.loc[
-        weather_raw_data["variable"] == "ws", ["value", "variable", "station", "time"]
+    wind_speed = raw_weather_data.loc[
+        raw_weather_data["variable"] == "ws", ["value", "variable", "station", "time"]
     ]
 
     humidity["value"] = pd.to_numeric(humidity["value"], errors="coerce")
@@ -254,7 +238,7 @@ def resample_weather_data(data: list, frequency: str):
 
         devices_weather_data.extend(device_weather_data)
 
-    return devices_weather_data
+    return pd.DataFrame(devices_weather_data)
 
 
 def slack_success_notification(context):
@@ -357,7 +341,9 @@ def get_airqo_api_frequency(freq: str) -> str:
         return "5H"
 
 
-def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant="airqo"):
+def get_weather_data_from_tahmo(
+    start_time=None, end_time=None, tenant="airqo"
+) -> pd.DataFrame:
     airqo_api = AirQoApi()
     airqo_sites = airqo_api.get_sites(tenant=tenant)
     station_codes = []
@@ -401,7 +387,7 @@ def get_weather_data_from_tahmo(start_time=None, end_time=None, tenant="airqo"):
     clean_measurements_df = remove_invalid_dates(
         dataframe=measurements_df, start_time=start_time, end_time=end_time
     )
-    return clean_measurements_df.to_dict(orient="records")
+    return clean_measurements_df
 
 
 def remove_invalid_dates(

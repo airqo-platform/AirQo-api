@@ -1,6 +1,5 @@
 from datetime import timedelta, datetime
 
-import pandas as pd
 from airflow.decorators import dag, task
 
 
@@ -12,35 +11,35 @@ from airflow.decorators import dag, task
     tags=["weather", "historical", "raw"],
 )
 def historical_raw_weather_measurements_etl():
+    import pandas as pd
+
     @task(multiple_outputs=True)
-    def extract(**kwargs):
+    def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,
         )
-        from airqo_etl_utils.commons import to_xcom_format, get_date_time_values
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
         weather_data = extract_weather_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time, frequency=None
         )
 
-        return dict({"data": to_xcom_format(data=weather_data)})
+        return weather_data
 
     @task()
-    def save_to_bigquery(inputs: dict):
+    def save_to_bigquery(weather_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import from_xcom_format
 
         from airqo_etl_utils.weather_data_utils import (
             transform_weather_data_for_bigquery,
         )
 
-        weather_data = from_xcom_format(inputs.get("data"))
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=bigquery_data, table=big_query_api.raw_weather_table
+            dataframe=bigquery_data, table=big_query_api.raw_weather_table
         )
 
     extracted_raw_data = extract()
@@ -55,35 +54,35 @@ def historical_raw_weather_measurements_etl():
     tags=["weather", "historical", "hourly"],
 )
 def historical_hourly_weather_measurements_etl():
+    import pandas as pd
+
     @task(multiple_outputs=True)
-    def extract(**kwargs):
+    def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,
         )
-        from airqo_etl_utils.commons import to_xcom_format, get_date_time_values
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
         weather_data = extract_weather_data_from_tahmo(
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": to_xcom_format(data=weather_data)})
+        return weather_data
 
     @task()
-    def save_to_bigquery(inputs: dict):
+    def save_to_bigquery(weather_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
-        from airqo_etl_utils.commons import from_xcom_format
 
         from airqo_etl_utils.weather_data_utils import (
             transform_weather_data_for_bigquery,
         )
 
-        weather_data = from_xcom_format(inputs.get("data"))
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=bigquery_data, table=big_query_api.hourly_weather_table
+            dataframe=bigquery_data, table=big_query_api.hourly_weather_table
         )
 
     extracted_data = extract()
@@ -98,8 +97,10 @@ def historical_hourly_weather_measurements_etl():
     tags=["weather", "hourly", "raw"],
 )
 def weather_measurements_etl():
+    import pandas as pd
+
     @task()
-    def extract_raw_data():
+    def extract_raw_data() -> pd.DataFrame:
         from airqo_etl_utils.date import date_to_str_hours
         from airqo_etl_utils.weather_data_utils import (
             query_weather_data_from_tahmo,
@@ -116,7 +117,7 @@ def weather_measurements_etl():
         return raw_weather_data
 
     @task()
-    def create_hourly_data(raw_weather_data: pd.DataFrame):
+    def create_hourly_data(raw_weather_data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,
             add_site_info_to_weather_data,
@@ -131,7 +132,7 @@ def weather_measurements_etl():
         return sites_weather_data
 
     @task()
-    def format_raw_data(raw_weather_data: pd.DataFrame):
+    def format_raw_data(raw_weather_data: pd.DataFrame) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import (
             resample_weather_data,
             add_site_info_to_weather_data,

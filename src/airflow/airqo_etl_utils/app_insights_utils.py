@@ -74,16 +74,15 @@ def format_measurements_to_insights(data: list):
     data["empty"] = False
     data["forecast"] = False
 
-    return data.to_dict(orient="records")
+    return data
 
 
-def format_airqo_data_to_insights(data: list):
+def format_airqo_data_to_insights(data: pd.DataFrame) -> pd.DataFrame:
     restructured_data = []
 
-    data_df = pd.DataFrame(data)
-    columns = list(data_df.columns)
+    columns = list(data.columns)
 
-    for _, data_row in data_df.iterrows():
+    for _, data_row in data.iterrows():
         device_data = dict(
             {
                 "time": data_row["time"],
@@ -102,14 +101,15 @@ def format_airqo_data_to_insights(data: list):
 
         restructured_data.append(device_data)
 
-    return create_insights_data(data=restructured_data)
+    return create_insights_data(data=pd.DataFrame(restructured_data))
 
 
 def save_insights_data(
-    insights_data: list = None, action: str = "insert", partition: int = 0
+    insights_data: pd.DataFrame = None, action: str = "insert", partition: int = 0
 ):
-    if insights_data is None:
-        insights_data = []
+    insights_data = (
+        [] if insights_data.empty else insights_data.to_dict(orient="records")
+    )
 
     print(f"saving {len(insights_data)} insights .... ")
 
@@ -137,7 +137,7 @@ def measurement_time_to_string(time: str, daily=False):
         return date_to_str_hours(date_time)
 
 
-def get_forecast_data(tenant: str) -> list:
+def get_forecast_data(tenant: str) -> pd.DataFrame:
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant=tenant)
 
@@ -179,10 +179,12 @@ def get_forecast_data(tenant: str) -> list:
         forecast_measurements["pm2_5"].notna()
     ]
 
-    return forecast_measurements.to_dict(orient="records")
+    return forecast_measurements
 
 
-def get_airqo_data(freq: str, start_time: str = None, end_time: str = None) -> list:
+def get_airqo_data(
+    freq: str, start_time: str = None, end_time: str = None
+) -> pd.DataFrame:
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="airqo")
     measurements = []
@@ -231,13 +233,11 @@ def get_airqo_data(freq: str, start_time: str = None, end_time: str = None) -> l
     return insights
 
 
-def average_insights_data(data: list, frequency="daily") -> list:
-    data_df = pd.DataFrame(data)
+def average_insights_data(data: pd.DataFrame, frequency="daily") -> pd.DataFrame:
+    if data.empty:
+        return pd.DataFrame(data=[], columns=insights_columns)
 
-    if data_df.empty:
-        return pd.DataFrame(data=[], columns=insights_columns).to_dict(orient="records")
-
-    site_groups = data_df.groupby("siteId")
+    site_groups = data.groupby("siteId")
     sampled_data = []
 
     for _, site_group in site_groups:
@@ -253,10 +253,10 @@ def average_insights_data(data: list, frequency="daily") -> list:
 
         sampled_data.extend(averages.to_dict(orient="records"))
 
-    return sampled_data
+    return pd.DataFrame(sampled_data)
 
 
-def transform_old_forecast(start_date_time: str, end_date_time: str) -> list:
+def transform_old_forecast(start_date_time: str, end_date_time: str) -> pd.DataFrame:
     forecast_data = query_insights_data(
         freq="hourly",
         start_date_time=start_date_time,
@@ -267,12 +267,12 @@ def transform_old_forecast(start_date_time: str, end_date_time: str) -> list:
     forecast_data_df = pd.DataFrame(data=forecast_data, columns=insights_columns)
     forecast_data_df["forecast"] = False
     forecast_data_df["empty"] = False
-    return forecast_data_df.to_dict(orient="records")
+    return forecast_data_df
 
 
 def query_insights_data(
     freq: str, start_date_time: str, end_date_time: str, forecast=False, all_data=False
-) -> list:
+) -> pd.DataFrame:
     airqo_api = AirQoApi()
     insights = []
 
@@ -304,12 +304,12 @@ def query_insights_data(
             print(ex)
             traceback.print_exc()
 
-    return insights
+    return pd.DataFrame(insights)
 
 
 def create_insights_data_from_bigquery(
     start_date_time: str, end_date_time: str
-) -> list:
+) -> pd.DataFrame:
     from airqo_etl_utils.bigquery_api import BigQueryApi
 
     bigquery_api = BigQueryApi()
@@ -324,7 +324,7 @@ def create_insights_data_from_bigquery(
     hourly_data["empty"] = False
     hourly_data["frequency"] = "hourly"
     hourly_data.rename(columns={"site_id": "siteId", "timestamp": "time"}, inplace=True)
-    return hourly_data.to_dict(orient="records")
+    return hourly_data
 
 
 def round_off_value(value, pollutant, decimals: int = 2):
@@ -342,30 +342,22 @@ def round_off_value(value, pollutant, decimals: int = 2):
     return new_value
 
 
-def create_insights_data(data: list) -> list:
+def create_insights_data(data: pd.DataFrame) -> pd.DataFrame:
     print("creating insights .... ")
 
     if not data:
-        return []
+        return pd.DataFrame(columns=insights_columns)
 
-    insights_data = pd.DataFrame(data, columns=insights_columns)
-
-    insights_data["frequency"] = insights_data["frequency"].apply(
-        lambda x: str(x).upper()
-    )
-    insights_data["forecast"] = insights_data["forecast"].fillna(False)
-    insights_data["empty"] = False
-    insights_data["pm2_5"] = insights_data["pm2_5"].apply(
-        lambda x: round_off_value(x, "pm2_5")
-    )
-    insights_data["pm10"] = insights_data["pm10"].apply(
-        lambda x: round_off_value(x, "pm10")
-    )
-    if sorted(list(insights_data.columns)) != sorted(insights_columns):
+    data["frequency"] = data["frequency"].apply(lambda x: str(x).upper())
+    data["forecast"] = data["forecast"].fillna(False)
+    data["empty"] = False
+    data["pm2_5"] = data["pm2_5"].apply(lambda x: round_off_value(x, "pm2_5"))
+    data["pm10"] = data["pm10"].apply(lambda x: round_off_value(x, "pm10"))
+    if sorted(list(data.columns)) != sorted(insights_columns):
         print(f"Required columns {insights_columns}")
-        print(f"Dataframe columns {list(insights_data.columns)}")
+        print(f"Dataframe columns {list(data.columns)}")
         raise Exception("Invalid columns")
 
-    insights_data = insights_data.dropna()
+    data = data.dropna()
 
-    return insights_data.to_dict(orient="records")
+    return data

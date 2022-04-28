@@ -189,7 +189,7 @@ def query_weather_data_from_tahmo(
 
 def extract_weather_data_from_tahmo(
     start_date_time: str, end_date_time: str, frequency="hourly", tenant=None
-) -> list:
+) -> pd.DataFrame:
     raw_weather_data = query_weather_data_from_tahmo(
         start_date_time=start_date_time, end_date_time=end_date_time, tenant=tenant
     )
