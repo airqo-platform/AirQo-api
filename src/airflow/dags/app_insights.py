@@ -16,7 +16,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def app_forecast_insights_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_insights_forecast_data():
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
@@ -41,7 +41,7 @@ def app_forecast_insights_etl():
 
         return insights_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_api_forecast_data():
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
@@ -78,7 +78,7 @@ def app_forecast_insights_etl():
 def app_historical_daily_insights_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def average_insights_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import (
             query_insights_data,
@@ -124,7 +124,7 @@ def app_historical_daily_insights_etl():
 def app_daily_insights_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def average_insights_data():
         from airqo_etl_utils.app_insights_utils import (
             query_insights_data,
@@ -172,7 +172,7 @@ def app_daily_insights_etl():
 def app_historical_hourly_insights_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_airqo_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data_from_bigquery,
@@ -211,7 +211,7 @@ def app_historical_hourly_insights_etl():
     tags=["insights", "hourly"],
 )
 def app_hourly_insights_etl():
-    @task(multiple_outputs=True)
+    @task()
     def extract_airqo_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
@@ -265,7 +265,7 @@ def insights_cleanup_etl():
         last_day_of_week(last_day_of_month(date_time=datetime.now()))
     )
 
-    @task(multiple_outputs=True)
+    @task()
     def create_empty_insights():
 
         from airqo_etl_utils.airqo_api import AirQoApi
@@ -318,7 +318,7 @@ def insights_cleanup_etl():
 
         return pd.DataFrame(insights)
 
-    @task(multiple_outputs=True)
+    @task()
     def query_insights_data():
         from airqo_etl_utils.app_insights_utils import query_insights_data
 
@@ -331,7 +331,7 @@ def insights_cleanup_etl():
 
         return all_insights_data
 
-    @task(multiple_outputs=True)
+    @task()
     def filter_insights(
         empty_insights_data: pd.DataFrame, available_insights_data: pd.DataFrame
     ):

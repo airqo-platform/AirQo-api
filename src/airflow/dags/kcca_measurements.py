@@ -16,7 +16,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def hourly_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract():
         from airqo_etl_utils.date import date_to_str_hours
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
@@ -87,7 +87,7 @@ def hourly_measurements_etl():
 def raw_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract():
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
         from airqo_etl_utils.date import date_to_str
@@ -102,7 +102,7 @@ def raw_measurements_etl():
 
         return kcca_data
 
-    @task(multiple_outputs=True)
+    @task()
     def transform(data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import transform_kcca_data_for_bigquery
 
@@ -135,7 +135,7 @@ def raw_measurements_etl():
 def daily_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract():
         from airqo_etl_utils.date import date_to_str_days
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements

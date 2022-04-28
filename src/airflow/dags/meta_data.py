@@ -16,7 +16,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def big_query_update_sites_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_sites(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.commons import get_tenant
         from airqo_etl_utils.meta_data_utils import extract_meta_data
@@ -57,7 +57,7 @@ def big_query_update_sites_etl():
 def big_query_update_devices_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_devices(**kwargs):
         from airqo_etl_utils.commons import get_tenant
         from airqo_etl_utils.meta_data_utils import extract_meta_data

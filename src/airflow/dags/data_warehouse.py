@@ -16,7 +16,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def data_warehouse_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_hourly_measurements(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import (
             query_hourly_measurements,
@@ -32,7 +32,7 @@ def data_warehouse_etl():
 
         return hourly_device_measurements
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_hourly_weather_data(**kwargs):
         from airqo_etl_utils.data_warehouse_utils import (
             query_hourly_weather_data,
@@ -59,7 +59,7 @@ def data_warehouse_etl():
 
         return sites_data
 
-    @task(multiple_outputs=True)
+    @task()
     def merge_data(
         measurements_data: pd.DataFrame,
         weather_data: pd.DataFrame,

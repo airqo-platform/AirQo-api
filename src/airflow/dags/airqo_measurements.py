@@ -16,7 +16,7 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
 def historical_hourly_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_hourly_raw_data(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values
@@ -33,7 +33,7 @@ def historical_hourly_measurements_etl():
 
         return average_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_device_deployment_logs():
 
         from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
@@ -53,7 +53,7 @@ def historical_hourly_measurements_etl():
 
         return restructured_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_hourly_weather_data(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values
@@ -65,7 +65,7 @@ def historical_hourly_measurements_etl():
         )
         return airqo_weather_data
 
-    @task(multiple_outputs=True)
+    @task()
     def merge_data(averaged_airqo_data: pd.DataFrame, weather_data: pd.DataFrame):
 
         from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
@@ -76,7 +76,7 @@ def historical_hourly_measurements_etl():
 
         return merged_measurements
 
-    @task(multiple_outputs=True)
+    @task()
     def calibrate(data: pd.DataFrame):
 
         from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
@@ -157,7 +157,7 @@ def historical_hourly_measurements_etl():
 def historical_raw_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_raw_data(**kwargs):
 
         from airqo_etl_utils.commons import get_date_time_values
@@ -172,7 +172,7 @@ def historical_raw_measurements_etl():
 
         return raw_airqo_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_device_deployment_logs():
 
         from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
@@ -269,7 +269,7 @@ def airqo_realtime_measurements_etl():
     start_time = date_to_str_hours(hour_of_day)
     end_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_raw_data():
         from airqo_etl_utils.airqo_utils import extract_airqo_data_from_thingspeak
 
@@ -278,7 +278,7 @@ def airqo_realtime_measurements_etl():
         )
         return raw_airqo_data
 
-    @task(multiple_outputs=True)
+    @task()
     def average_data_by_hour(raw_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import average_airqo_data
 
@@ -286,7 +286,7 @@ def airqo_realtime_measurements_etl():
 
         return average_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_hourly_weather_data():
         from airqo_etl_utils.airqo_utils import extract_airqo_weather_data_from_tahmo
 
@@ -295,7 +295,7 @@ def airqo_realtime_measurements_etl():
         )
         return airqo_weather_data
 
-    @task(multiple_outputs=True)
+    @task()
     def merge_data(averaged_hourly_data: pd.DataFrame, weather_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import merge_airqo_and_weather_data
 
@@ -322,7 +322,7 @@ def airqo_realtime_measurements_etl():
     #     multiple_outputs=True,
     #     python_version="3.7",
     # )
-    @task(multiple_outputs=True)
+    @task()
     def calibrate(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
 
@@ -455,7 +455,7 @@ def daily_measurements_etl():
 
         return start_time, end_time
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_airqo_data(**kwargs):
 
         from airqo_etl_utils.airqo_utils import extract_airqo_hourly_data_from_api
@@ -467,7 +467,7 @@ def daily_measurements_etl():
 
         return data
 
-    @task(multiple_outputs=True)
+    @task()
     def average_data(data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import average_airqo_measurements
 
@@ -475,7 +475,7 @@ def daily_measurements_etl():
 
         return averaged_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_devices_logs():
         from airqo_etl_utils.airqo_utils import extract_airqo_devices_deployment_history
 

@@ -413,7 +413,7 @@ def extract_airqo_weather_data_from_tahmo(
     return sampled_weather_data
 
 
-def restructure_airqo_data_for_api(data: pd.DataFrame) -> pd.DataFrame:
+def restructure_airqo_data_for_api(data: pd.DataFrame) -> list:
     restructured_data = []
 
     columns = list(data.columns)
@@ -528,7 +528,7 @@ def restructure_airqo_data_for_api(data: pd.DataFrame) -> pd.DataFrame:
 
         restructured_data.append(device_data)
 
-    return pd.DataFrame(restructured_data)
+    return restructured_data
 
 
 def map_site_ids_to_historical_measurements(

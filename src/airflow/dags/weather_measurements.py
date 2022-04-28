@@ -13,7 +13,7 @@ from airflow.decorators import dag, task
 def historical_raw_weather_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,
@@ -56,7 +56,7 @@ def historical_raw_weather_measurements_etl():
 def historical_hourly_weather_measurements_etl():
     import pandas as pd
 
-    @task(multiple_outputs=True)
+    @task()
     def extract(**kwargs) -> pd.DataFrame:
         from airqo_etl_utils.weather_data_utils import (
             extract_weather_data_from_tahmo,

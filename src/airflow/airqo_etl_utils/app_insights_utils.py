@@ -345,7 +345,7 @@ def round_off_value(value, pollutant, decimals: int = 2):
 def create_insights_data(data: pd.DataFrame) -> pd.DataFrame:
     print("creating insights .... ")
 
-    if not data:
+    if data.empty:
         return pd.DataFrame(columns=insights_columns)
 
     data["frequency"] = data["frequency"].apply(lambda x: str(x).upper())
