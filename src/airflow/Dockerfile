@@ -16,7 +16,6 @@ COPY requirements.txt requirements.txt
 RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
 RUN pip install airqo_etl_utils-1.0.0-py3-none-any.whl
 COPY --chown=airflow:root dags/* /opt/airflow/dags/
-COPY --chown=airflow:root include/* /opt/airflow/include/
 
 FROM base-builder as db-setup
 USER root

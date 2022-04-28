@@ -1,12 +1,10 @@
 import os
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 import pandas as pd
-import pendulum
 from airflow.models.xcom import BaseXCom
 from google.cloud import storage
-from sqlalchemy.orm import Session
 
 
 class GCSXComBackend(BaseXCom):
@@ -14,7 +12,9 @@ class GCSXComBackend(BaseXCom):
     BUCKET_NAME = os.getenv("AIRFLOW_XCOM_BUCKET")
 
     @staticmethod
-    def download_file_from_gcs(bucket_name: str, source_file: str, destination_file: str):
+    def download_file_from_gcs(
+        bucket_name: str, source_file: str, destination_file: str
+    ):
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(source_file)
@@ -25,12 +25,14 @@ class GCSXComBackend(BaseXCom):
         return destination_file
 
     @staticmethod
-    def upload_dataframe_to_gcs(bucket_name: str, contents: pd.DataFrame, destination_file: str):
+    def upload_dataframe_to_gcs(
+        bucket_name: str, contents: pd.DataFrame, destination_file: str
+    ):
         storage_client = storage.Client()
         bucket = storage_client.bucket(bucket_name)
         blob = bucket.blob(destination_file)
         contents.reset_index(drop=True, inplace=True)
-        blob.upload_from_string(contents.to_csv(index=False), 'text/csv')
+        blob.upload_from_string(contents.to_csv(index=False), "text/csv")
 
         print(
             "{} with contents {} has been uploaded to {}.".format(
@@ -45,10 +47,13 @@ class GCSXComBackend(BaseXCom):
         if isinstance(value, pd.DataFrame):
             filename = f"airflow_data_{str(uuid.uuid4())}.csv"
 
-            uploaded_file_path = GCSXComBackend.upload_dataframe_to_gcs(bucket_name=GCSXComBackend.BUCKET_NAME,
-                                                                        contents=value, destination_file=filename)
-            last_index = uploaded_file_path.rindex('/')
-            value = uploaded_file_path[last_index + 1:]
+            uploaded_file_path = GCSXComBackend.upload_dataframe_to_gcs(
+                bucket_name=GCSXComBackend.BUCKET_NAME,
+                contents=value,
+                destination_file=filename,
+            )
+            last_index = uploaded_file_path.rindex("/")
+            value = uploaded_file_path[last_index + 1 :]
 
         return BaseXCom.serialize_value(value)
 
@@ -57,19 +62,12 @@ class GCSXComBackend(BaseXCom):
         result = BaseXCom.deserialize_value(result)
         if isinstance(result, str):
             filename = f"/tmp/airflow_data_{str(uuid.uuid4())}.csv"
-            GCSXComBackend.download_file_from_gcs(bucket_name=GCSXComBackend.BUCKET_NAME,
-                                                  source_file=result, destination_file=filename)
+            GCSXComBackend.download_file_from_gcs(
+                bucket_name=GCSXComBackend.BUCKET_NAME,
+                source_file=result,
+                destination_file=filename,
+            )
             result = pd.read_csv(filename)
             result.reset_index(drop=True, inplace=True)
 
         return result
-
-    def orm_deserialize_value(self) -> Any:
-        return super().orm_deserialize_value()
-
-    @classmethod
-    def clear(cls, execution_date: Optional[pendulum.DateTime] = None, dag_id: str = None, task_id: str = None,
-              run_id: str = None, session: Session = None) -> None:
-        super().clear(execution_date, dag_id, task_id, run_id, session)
-
-

@@ -136,7 +136,9 @@ def add_site_info_to_weather_data(data: pd.DataFrame) -> pd.DataFrame:
     return pd.DataFrame(sites_weather_data)
 
 
-def query_weather_data_from_tahmo(start_date_time, end_date_time, tenant=None) -> pd.DataFrame:
+def query_weather_data_from_tahmo(
+    start_date_time, end_date_time, tenant=None
+) -> pd.DataFrame:
     airqo_api = AirQoApi()
     sites = airqo_api.get_sites(tenant=tenant)
     station_codes = []

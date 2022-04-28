@@ -364,7 +364,9 @@ def insights_cleanup_etl():
             [empty_insights_data_df, insights_data_df]
         ).drop_duplicates(keep=False, subset=["siteId", "time", "frequency"])
 
-        return dict({"data": to_xcom_format(data=insights_data.to_dict(orient="records"))})
+        return dict(
+            {"data": to_xcom_format(data=insights_data.to_dict(orient="records"))}
+        )
 
     @task()
     def load(insights_data: dict):

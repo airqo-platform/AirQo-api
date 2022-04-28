@@ -37,7 +37,7 @@ def to_double(x):
 def to_xcom_format(data: list) -> list:
     data_df = pd.DataFrame(data)
     data_df = data_df.fillna("none")
-    if 'timestamp' in data_df.columns:
+    if "timestamp" in data_df.columns:
         try:
             data_df["timestamp"] = data_df["timestamp"].apply(lambda x: date_to_str(x))
         except:

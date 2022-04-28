@@ -260,8 +260,14 @@ def weather_data(start_date_time: str, end_date_time: str):
 
 def upload_to_gcs():
     test_data = pd.DataFrame([{"name": "joe doe"}])
-    response = upload_dataframe_to_gcs(bucket_name="airflow_xcom", contents=test_data, destination_file="test_data.csv")
-    download_file_from_gcs(bucket_name="airflow_xcom", source_file="test_data.csv", destination_file="test_data.csv")
+    response = upload_dataframe_to_gcs(
+        bucket_name="airflow_xcom", contents=test_data, destination_file="test_data.csv"
+    )
+    download_file_from_gcs(
+        bucket_name="airflow_xcom",
+        source_file="test_data.csv",
+        destination_file="test_data.csv",
+    )
 
 
 def meta_data():
@@ -325,7 +331,7 @@ if __name__ == "__main__":
             "daily_insights_data",
             "forecast_insights_data",
             "meta_data",
-            "upload_to_gcs"
+            "upload_to_gcs",
         ],
     )
 
