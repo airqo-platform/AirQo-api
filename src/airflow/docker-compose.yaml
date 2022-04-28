@@ -60,6 +60,14 @@ services:
     depends_on:
       - db
 
+  xcom-setup:
+    environment:
+      AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
+    container_name: xcom-setup
+    build:
+      context: .
+      target: xcom-setup
+
   message-broker:
     container_name: message-broker
     image: noahnsimbe/kafka-docker
