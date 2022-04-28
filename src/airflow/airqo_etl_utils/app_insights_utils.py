@@ -104,9 +104,7 @@ def format_airqo_data_to_insights(data: pd.DataFrame) -> pd.DataFrame:
     return create_insights_data(data=pd.DataFrame(restructured_data))
 
 
-def save_insights_data(
-    insights_data: pd.DataFrame = None, action: str = "insert", partition: int = 0
-):
+def save_insights_data(insights_data: pd.DataFrame = None, partition: int = 0):
     insights_data = (
         [] if insights_data.empty else insights_data.to_dict(orient="records")
     )
@@ -115,7 +113,7 @@ def save_insights_data(
 
     data = {
         "data": insights_data,
-        "action": action,
+        "action": "",
     }
 
     kafka = KafkaBrokerClient()

@@ -58,9 +58,7 @@ def app_forecast_insights_etl():
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
         save_insights_data(
-            insights_data=forecast.to_dict(orient="records"),
-            action="save",
-            partition=1,
+            insights_data=forecast.to_dict(orient="records"), partition=1
         )
 
     api_forecast_data = extract_api_forecast_data()
@@ -107,7 +105,7 @@ def app_historical_daily_insights_etl():
         )
 
         insights_data = create_insights_data(data=data)
-        save_insights_data(insights_data=insights_data, action="save", partition=2)
+        save_insights_data(insights_data=insights_data, partition=2)
 
     insights = average_insights_data()
     load(insights)
@@ -155,7 +153,7 @@ def app_daily_insights_etl():
         )
 
         insights_data = create_insights_data(data=data)
-        save_insights_data(insights_data=insights_data, action="save")
+        save_insights_data(insights_data=insights_data)
 
     insights = average_insights_data()
     load(insights)
@@ -196,7 +194,7 @@ def app_historical_hourly_insights_etl():
         )
 
         insights_data = create_insights_data(data=data)
-        save_insights_data(insights_data=insights_data, action="save", partition=2)
+        save_insights_data(insights_data=insights_data, partition=2)
 
     insights = extract_airqo_data()
     load_hourly_insights(insights)
@@ -233,7 +231,7 @@ def app_hourly_insights_etl():
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
-        save_insights_data(insights_data=insights_data, action="save")
+        save_insights_data(insights_data=insights_data)
 
     hourly_data = extract_airqo_data()
     load_hourly_insights(hourly_data)
@@ -347,7 +345,7 @@ def insights_cleanup_etl():
 
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
-        save_insights_data(insights_data=insights_data, action="insert", partition=2)
+        save_insights_data(insights_data=insights_data, partition=2)
 
     empty_insights = create_empty_insights()
     available_insights = query_insights_data()

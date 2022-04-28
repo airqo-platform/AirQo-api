@@ -373,18 +373,12 @@ def airqo_realtime_measurements_etl():
     @task()
     def update_app_insights(airqo_data: pd.DataFrame):
         from airqo_etl_utils.airqo_utils import restructure_airqo_data
-        from airqo_etl_utils.message_broker import KafkaBrokerClient
-        from airqo_etl_utils.config import configuration
+        from airqo_etl_utils.app_insights_utils import save_insights_data
 
         insights_data = restructure_airqo_data(
             data=airqo_data, destination="app-insights"
         )
-        info = {"data": insights_data, "action": "save"}
-
-        kafka = KafkaBrokerClient()
-        kafka.send_data(
-            info=info, topic=configuration.INSIGHTS_MEASUREMENTS_TOPIC, partition=0
-        )
+        save_insights_data(insights_data=insights_data, partition=0)
 
     @task()
     def send_raw_measurements_to_bigquery(airqo_data: pd.DataFrame):
