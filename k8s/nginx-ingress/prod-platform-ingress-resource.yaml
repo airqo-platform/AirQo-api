@@ -162,6 +162,22 @@ spec:
             backend:
               serviceName: airqo-calibrate-api-svc
               servicePort: 4001
+          - path: /api/v1/calibrate_tool
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v2/calibrate_tool
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v1/train_calibrate_tool
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v2/train_calibrate_tool
+            backend:
+              serviceName: airqo-calibrate-api-svc
+              servicePort: 4001
           - path: /api/v1/incentives
             backend:
               serviceName: airqo-incentives-api-svc
