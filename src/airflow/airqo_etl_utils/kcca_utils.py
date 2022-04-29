@@ -43,7 +43,9 @@ def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
         return []
 
 
-def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list:
+def extract_kcca_measurements(
+    start_time: str, end_time: str, freq: str
+) -> pd.DataFrame:
     if freq.lower() == "hourly":
         interval = "6H"
     elif freq.lower() == "daily":
@@ -71,11 +73,10 @@ def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list
         measurements.extend(range_measurements)
 
     measurements_df = pd.json_normalize(measurements)
-    return measurements_df.to_dict(orient="records")
+    return measurements_df
 
 
-def transform_kcca_measurements_for_api(unclean_data) -> list:
-    data = pd.DataFrame(unclean_data)
+def transform_kcca_measurements_for_api(data: pd.DataFrame) -> list:
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
     device_gps = data.groupby("deviceCode")
@@ -217,16 +218,14 @@ def transform_kcca_measurements_for_api(unclean_data) -> list:
     return cleaned_measurements
 
 
-def transform_kcca_data_for_message_broker(data: list, frequency: str) -> list:
+def transform_kcca_data_for_message_broker(data: pd.DataFrame, frequency: str) -> list:
     restructured_data = []
-
-    data_df = pd.DataFrame(data)
-    columns = list(data_df.columns)
+    columns = list(data.columns)
 
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
 
-    for _, data_row in data_df.iterrows():
+    for _, data_row in data.iterrows():
         device_name = data_row["deviceCode"]
         site_id, device_id = get_site_and_device_id(devices, device_name=device_name)
         if not site_id and not device_id:
@@ -306,16 +305,15 @@ def transform_kcca_data_for_message_broker(data: list, frequency: str) -> list:
     return restructured_data
 
 
-def transform_kcca_data_for_bigquery(data: list) -> list:
+def transform_kcca_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
     restructured_data = []
 
-    data_df = pd.DataFrame(data)
-    columns = list(data_df.columns)
+    columns = list(data.columns)
 
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
 
-    for _, data_row in data_df.iterrows():
+    for _, data_row in data.iterrows():
         device_name = data_row["deviceCode"]
         site_id, _ = get_site_and_device_id(devices, device_name=device_name)
         if not site_id:
@@ -431,4 +429,4 @@ def transform_kcca_data_for_bigquery(data: list) -> list:
 
         restructured_data.append(device_data)
 
-    return pd.DataFrame(data=restructured_data).to_dict(orient="records")
+    return pd.DataFrame(data=restructured_data)

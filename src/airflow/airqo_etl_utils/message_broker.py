@@ -48,7 +48,6 @@ class KafkaBrokerClient:
             action = info["action"]
             current_partition = -1
             for i in range(0, len(data), 50):
-
                 range_data = data[i : i + 50]
 
                 message = {"data": range_data, "action": action, "tenant": tenant}

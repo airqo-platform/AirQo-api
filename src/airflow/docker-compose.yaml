@@ -15,7 +15,6 @@ x-message-borker-common-data: &message-broker-common-data
     - .env
 
 x-common-data: &common-data
-#  platform: linux/amd64
   restart: on-failure
   env_file:
     - .env
@@ -32,8 +31,14 @@ x-common-data: &common-data
     AIRFLOW_UID: 50000
     BOOTSTRAP_SERVERS: message-broker:9092
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json
+    AIRFLOW__CORE__XCOM_BACKEND: gcs_xcom_backend.GCSXComBackend
+    AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
+    PYTHONPATH: /etc/airflow_xcom
+
   volumes:
     - ${PWD}/google_application_credentials.json:/etc/config/google_application_credentials.json
+    - ${PWD}/airflow_xcom:/etc/airflow_xcom
+
   depends_on:
     - db
     - db-setup
@@ -50,12 +55,19 @@ services:
     build:
       context: .
       target: db-setup
-#    platform: linux/amd64
     restart: on-failure
     healthcheck:
       test: "exit 0"
     depends_on:
       - db
+
+  xcom-setup:
+    environment:
+      AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
+    container_name: xcom-setup
+    build:
+      context: .
+      target: xcom-setup
 
   message-broker:
     container_name: message-broker
@@ -87,7 +99,7 @@ services:
     <<: *common-data
     container_name: webserver
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
     build:
       context: .
       target: webserver

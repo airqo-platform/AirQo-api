@@ -4,7 +4,6 @@ VERSION = "1.0.0"
 DESCRIPTION = "AirQo Airflow custom python package"
 LONG_DESCRIPTION = "This package contains functions shared by the DAG files"
 
-
 setup(
     name="airqo_etl_utils",
     version=VERSION,

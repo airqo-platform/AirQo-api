@@ -19,6 +19,17 @@ spec:
         app: airflow
     spec:
       serviceAccountName: stage-airflow-sa
+      initContainers:
+        - name: airflow-xcom
+          image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow-xcom
+          imagePullPolicy: Always
+          resources: {}
+          envFrom:
+            - configMapRef:
+                name: airflow-config
+          volumeMounts:
+            - name: xcom-config-volume
+              mountPath: /etc/airflow_xcom
       containers:
         - name: airflow-scheduler
           image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
@@ -38,6 +49,8 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
+          - name: xcom-config-volume
+            mountPath: /etc/airflow_xcom
         - name: airflow-webserver
           image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow
           imagePullPolicy: Always
@@ -64,10 +77,14 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
+          - name: xcom-config-volume
+            mountPath: /etc/airflow_xcom
       volumes:
         - name: config-volume
           configMap:
             name: airflow-config-files
+        - name:  xcom-config-volume
+          emptyDir: {}
       restartPolicy: Always
 
 
