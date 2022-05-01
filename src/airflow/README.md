@@ -1,11 +1,12 @@
 # Apache Airflow
 
-This folder contains functionality for running apache airflow, an open-source workflow management platform for data engineering pipelines.
+This folder contains functionality for running apache airflow, an open-source workflow management platform for data
+engineering pipelines.
 
 ## Environment Setup
 
-Add your [google_application_credentials.json](https://drive.google.com/file/d/18lW3Kc-N4n1tnnFOvtxko4rwuL5VfXyu/view?usp=sharing)
-and [.env](https://drive.google.com/file/d/1iTSBXvhoYC9IOV1qRPr9LJv6MbES-3_P/view?usp=sharing) files to this directory.
+Add the `google_application_credentials.json` and `.env` files to this
+directory. [Folder containing files](https://drive.google.com/drive/folders/158doKXGSQM3oivbC8EWJS5LLmV6be0Te?usp=sharing)
 
 ## Running the utility functions
 
@@ -37,7 +38,8 @@ pip install -r dev-requirements.txt
 
 ### Run the main function
 
-The `main.py` accepts atleast one argument which specifies the utilty functions you want to run. Output of every task/function is a csv file containing data generated after execution.
+The `main.py` accepts one mandatory argument `--action` which specifies the utility functions you want to run. Output of
+every task/function is a csv file containing data generated after execution.
 
 | Argument         | Purpose|
 |---------------------------|------------------|
@@ -47,17 +49,18 @@ The `main.py` accepts atleast one argument which specifies the utilty functions 
 | data_warehouse | Data warehouse ETL functions   |
 | daily_insights_data | App Daily Insights ETL functions   |
 | forecast_insights_data | App Forecast Insights ETL functions   |
+| meta_data | Functions for updating sites and device on BigQuery   |
 
 For example
 
 ```bash
-python main.py airqo_hourly_data
+python main.py --action=airqo_hourly_data
 ```
 
-You may specify additinal arguments for `start_date_time` and `end_date_time`. For example
+You may specify additional arguments for `start` and `end`. For example
 
 ```bash
-python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
+python main.py --action=airqo_hourly_data --start-2022-01-01T10:00:00Z --end=2022-01-01T17:00:00Z
 ```
 
 ## Running using Docker
@@ -66,6 +69,7 @@ python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
 
 - Docker
 - Docker compose (>= v1.29.2)
+- Docker compose (>= 1.29.2)
 - You have set up your environment following the [Environment Setup](#environment-setup)  instructions.
 
 ### Starting all containers
@@ -74,8 +78,8 @@ python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z
 sh run.sh  
 ```
 
-Wait for the webserver to be available by checking its status at <http://localhost:8080/health>.
-Visit the admin web ui at <http://localhost:8080/home>. Use `airflow` for username and password
+Wait for the webserver to be available by checking its status at <http://localhost:8080/health>. Visit the admin web ui
+at <http://localhost:8080/home>. Use `airflow` for username and password
 
 ### Interacting with kafka
 
@@ -117,16 +121,44 @@ Ctrl + c
 sh clean.sh  
 ```
 
-## Working with dags
+## Working with DAGs
 
-ETL dags for historical data require you to specify `startDateTime` and `endDateTime` in the dag config using the format `YYYY-MM-ddTHH:mm:ssZ`
+### Scheduling DAGs for historical data
+
+#### Using the UI
+
+Specify `startDateTime` and `endDateTime` in the dag config using the format `YYYY-MM-ddTHH:mm:ssZ`
+
+#### Using the API
+
+Specify the `start_date_time`, `end_date_time`, interval between DAG instances and the name of the DAG. For example the
+command below creates multiple instances of the AirQo historical data DAG that stream data between `2022-01-01`
+to `2022-04-01` with an interval of 20 minutes between the instances
+
+```bash
+python schedule-dag.py --start=2022-01-01T00:00:00Z --end=2022-04-01T00:00:00Z --logical_date_minutes_interval=20 --dag=airqo_historical_hourly_data
+```
+
+| DAG                                   | Description      |
+|---------------------------------------|------------------|
+| `airqo_historical_hourly_data`        | Historical hourly AirQo data |
+| `kcca_historical_hourly_data`         | Historical hourly KCCA data |
+| `data_warehouse`                      | Data warehouse |
+| `historical_hourly_weather_data`      | Historical hourly weather data |
+| `app_historical_daily_insights`       | Historical daily app insights |
+| `app_historical_hourly_insights`      | Historical hourly app insights |
+| `historical_raw_weather_data`         | Historical raw  weather data |
+| `airqo_historical_raw_data`           | Historical raw AirQo data |
+| `kcca_historical_raw_data`            | Historical raw KCCA data |
 
 ## BigQuery Schemas
 
-Schema files are located in the `schema` folder in the `airqo_etl_utils` package  i.e  `airqo_etl_utils/schema`
+Schema files are located in the `schema` folder in the `airqo_etl_utils` package i.e  `airqo_etl_utils/schema`
 
 | Schema file               | Description      | Partitioning     | Clustering order       |
 |---------------------------|------------------|------------------|------------------|
 | `measurements.json` | Schema for the table that stores device measurements such as `pm2.5`, `pm10` | Partitioned by `MONTH` on `timestamp`. Requires a partition filter | `tenant`,`site_id`,`device`,`timestamp` |
 | `weather_data.json` | Schema for the table that stores weather data from other data sources such as `precipitation`, `wind_gusts`, `wind_direction` | Partitioned by `MONTH` on `timestamp`. Requires a partition filter | `tenant`,`site_id`,`timestamp` |
 | `data_warehouse.json` | Schema for the table that stores device measurements, weather data and site information for example `pm2.5`, `wind_gusts`, `site_landform_270`  | Partitioned by `MONTH` on `timestamp`. Requires a partition filter | `tenant`,`site_id`,`device_name`,`timestamp` |
+| `sites.json` | Schema for the table that stores site details  | Not Partitioned | `tenant`,`id` |
+| `devices.json` | Schema for the table that stores device details  | Not Partitioned | `tenant`,`site_id`,`id` |

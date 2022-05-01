@@ -1,0 +1,127 @@
+[
+  {
+    "name": "tenant",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "latitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "longitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "name",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "description",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "bearing_to_kampala_center",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_kampala_center",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "landform_90",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "landform_270",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "aspect",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "altitude",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_nearest_tertiary_road",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_nearest_primary_road",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_nearest_road",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_nearest_residential_road",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_nearest_secondary_road",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "distance_to_nearest_unclassified_road",
+    "type": "FLOAT",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "country",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "region",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "district",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "city",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "county",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "sub_county",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "parish",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  }
+]

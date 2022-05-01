@@ -1,11 +1,14 @@
+import argparse
 import os
 import sys
 from datetime import datetime, timedelta
-
-import pandas as pd
 from pathlib import Path
 
+import pandas as pd
 from dotenv import load_dotenv
+
+from airqo_etl_utils.arg_parse_validator import valid_datetime_format
+from airqo_etl_utils.commons import download_file_from_gcs
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -19,7 +22,7 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
         extract_kcca_measurements,
         transform_kcca_measurements_for_api,
         transform_kcca_data_for_message_broker,
-        transform_kcca_hourly_data_for_bigquery,
+        transform_kcca_data_for_bigquery,
     )
     from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -43,14 +46,11 @@ def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     )
 
     # Big Query
-    bigquery_data = transform_kcca_hourly_data_for_bigquery(data=kcca_unclean_data)
+    bigquery_data = transform_kcca_data_for_bigquery(data=kcca_unclean_data)
     bigquery_data_df = pd.DataFrame(bigquery_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df,
-        columns=bigquery_api.hourly_measurements_columns,
-        numeric_columns=bigquery_api.hourly_measurements_numeric_columns,
-        table=bigquery_api.hourly_measurements_table,
+        dataframe=bigquery_data_df, table=bigquery_api.hourly_measurements_table
     )
     bigquery_data_df.to_csv(path_or_buf="kcca_data_for_bigquery.csv", index=False)
 
@@ -92,10 +92,7 @@ def data_warehouse(start_date_time: str, end_date_time: str):
     data_df = pd.DataFrame(data)
     bigquery_api = BigQueryApi()
     data_df = bigquery_api.validate_data(
-        dataframe=data_df,
-        columns=bigquery_api.analytics_columns,
-        numeric_columns=bigquery_api.analytics_numeric_columns,
-        table=bigquery_api.analytics_table,
+        dataframe=data_df, table=bigquery_api.analytics_table
     )
     data_df.to_csv(path_or_buf="data_warehouse.csv", index=False)
 
@@ -113,7 +110,7 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
 
     # extract_airqo_data
     raw_airqo_data = extract_airqo_data_from_thingspeak(
-        start_time=start_date_time, end_time=end_date_time, all_devices=False
+        start_time=start_date_time, end_time=end_date_time
     )
     pd.DataFrame(raw_airqo_data).to_csv(path_or_buf="raw_airqo_data.csv", index=False)
     average_data = average_airqo_data(data=raw_airqo_data, frequency="hourly")
@@ -159,10 +156,7 @@ def airqo_hourly_measurements(start_date_time: str, end_date_time: str):
     bigquery_data_df = pd.DataFrame(restructure_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df,
-        columns=bigquery_api.hourly_measurements_columns,
-        numeric_columns=bigquery_api.hourly_measurements_numeric_columns,
-        table=bigquery_api.hourly_measurements_table,
+        dataframe=bigquery_data_df, table=bigquery_api.hourly_measurements_table
     )
     bigquery_data_df.to_csv(path_or_buf="airqo_data_for_bigquery.csv", index=False)
 
@@ -225,10 +219,11 @@ def app_notifications():
     print(notifications)
 
 
-def insights_daily_insights(start_date_time: str, end_date_time: str):
+def daily_insights(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.app_insights_utils import (
         query_insights_data,
         average_insights_data,
+        create_insights_data,
     )
 
     hourly_insights_data = query_insights_data(
@@ -238,10 +233,15 @@ def insights_daily_insights(start_date_time: str, end_date_time: str):
         path_or_buf="hourly_insights_airqo_data.csv", index=False
     )
 
-    airqo_data = average_insights_data(frequency="daily", data=hourly_insights_data)
-    pd.DataFrame(airqo_data).to_csv(
+    daily_insights_data = average_insights_data(
+        frequency="daily", data=hourly_insights_data
+    )
+    pd.DataFrame(daily_insights_data).to_csv(
         path_or_buf="daily_insights_airqo_data.csv", index=False
     )
+
+    insights_data = create_insights_data(daily_insights_data)
+    pd.DataFrame(insights_data).to_csv(path_or_buf="insights_data.csv", index=False)
 
 
 def weather_data(start_date_time: str, end_date_time: str):
@@ -276,68 +276,112 @@ def weather_data(start_date_time: str, end_date_time: str):
     bigquery_data_df = pd.DataFrame(bigquery_data)
     bigquery_api = BigQueryApi()
     bigquery_data_df = bigquery_api.validate_data(
-        dataframe=bigquery_data_df,
-        columns=bigquery_api.hourly_weather_columns,
-        numeric_columns=bigquery_api.hourly_weather_numeric_columns,
-        table=bigquery_api.hourly_weather_table,
+        dataframe=bigquery_data_df, table=bigquery_api.hourly_weather_table
     )
     bigquery_data_df.to_csv(path_or_buf="bigquery_weather_data.csv", index=False)
 
 
+def upload_to_gcs():
+    test_data = pd.DataFrame([{"name": "joe doe"}])
+    download_file_from_gcs(
+        bucket_name="airflow_xcom",
+        source_file="test_data.csv",
+        destination_file="test_data.csv",
+    )
+
+
+def meta_data():
+    from airqo_etl_utils.meta_data_utils import extract_meta_data
+    from airqo_etl_utils.bigquery_api import BigQueryApi
+
+    sites = extract_meta_data(component="sites")
+    sites_df = pd.DataFrame(sites)
+    sites_df.to_csv(path_or_buf="sites_data.csv", index=False)
+
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=sites_df, table=bigquery_api.sites_table
+    )
+    bigquery_data_df.to_csv(path_or_buf="bigquery_sites_data.csv", index=False)
+
+    devices = extract_meta_data(component="devices")
+    devices_df = pd.DataFrame(devices)
+    devices_df.to_csv(path_or_buf="devices_data.csv", index=False)
+
+    bigquery_api = BigQueryApi()
+    bigquery_data_df = bigquery_api.validate_data(
+        dataframe=devices_df, table=bigquery_api.devices_table
+    )
+    bigquery_data_df.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
+
+
 if __name__ == "__main__":
 
-    args = sys.argv[1:]
-    if len(args) == 0:
-        raise Exception(
-            "Missing required action argument. Valid arguments are airqo_hourly_data,"
-            " kcca_hourly_data, kcca_historical_hourly_data. "
-            "For example `python main.py airqo_hourly_data 2022-01-01T10:00:00Z 2022-01-01T17:00:00Z`"
-        )
+    from airqo_etl_utils.date import date_to_str_hours
 
-    action = args[0]
-    arg_start_date_time = ""
-    arg_end_date_time = ""
+    hour_of_day = datetime.utcnow() - timedelta(hours=1)
+    default_args_start = date_to_str_hours(hour_of_day)
+    default_args_end = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
 
-    if len(args) >= 3:
-        arg_start_date_time = args[1]
-        arg_end_date_time = args[2]
+    parser = argparse.ArgumentParser(description="Test functions configuration")
+    parser.add_argument(
+        "--start",
+        default=default_args_start,
+        required=False,
+        type=valid_datetime_format,
+        help='start datetime in format "yyyy-MM-ddThh:mm:ssZ"',
+    )
+    parser.add_argument(
+        "--end",
+        required=False,
+        default=default_args_end,
+        type=valid_datetime_format,
+        help='end datetime in format "yyyy-MM-ddThh:mm:ssZ"',
+    )
+    parser.add_argument(
+        "--action",
+        required=True,
+        type=str.lower,
+        help="range interval in minutes",
+        choices=[
+            "airqo_hourly_data",
+            "weather_data",
+            "data_warehouse",
+            "kcca_hourly_data",
+            "daily_insights_data",
+            "forecast_insights_data",
+            "meta_data",
+            "upload_to_gcs",
+        ],
+    )
 
-    if arg_start_date_time == "" or arg_end_date_time == "":
-        from airqo_etl_utils.date import date_to_str_hours
+    args = parser.parse_args()
 
-        hour_of_day = datetime.utcnow() - timedelta(hours=1)
-        arg_start_date_time = date_to_str_hours(hour_of_day)
-        arg_end_date_time = datetime.strftime(hour_of_day, "%Y-%m-%dT%H:59:59Z")
+    if args.action == "airqo_hourly_data":
+        airqo_hourly_measurements(start_date_time=args.start, end_date_time=args.end)
 
-    if action == "airqo_hourly_data":
-        airqo_hourly_measurements(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
-    elif action == "weather_data":
-        weather_data(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "weather_data":
+        weather_data(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "data_warehouse":
-        data_warehouse(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "data_warehouse":
+        data_warehouse(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "kcca_hourly_data":
-        kcca_hourly_measurements(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "kcca_hourly_data":
+        kcca_hourly_measurements(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "daily_insights_data":
-        insights_daily_insights(
-            start_date_time=arg_start_date_time, end_date_time=arg_end_date_time
-        )
+    elif args.action == "daily_insights_data":
+        daily_insights(start_date_time=args.start, end_date_time=args.end)
 
-    elif action == "forecast_insights_data":
+    elif args.action == "forecast_insights_data":
         insights_forecast()
 
-    elif action == "app_notifications":
+    elif args.action == "app_notifications":
         app_notifications()
 
+    elif args.action == "meta_data":
+        meta_data()
+
+    elif args.action == "upload_to_gcs":
+        upload_to_gcs()
     else:
-        raise Exception("Invalid arguments")
+        pass

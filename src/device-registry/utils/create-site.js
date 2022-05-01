@@ -817,29 +817,24 @@ const manageSite = {
         );
       }
 
-      // const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
-      //   requestForAirQloudsAndWeatherStations
-      // );
+      const responseFromNearestWeatherStation = await manageSite.findNearestWeatherStation(
+        requestForAirQloudsAndWeatherStations
+      );
 
-      // logObject(
-      //   "responseFromNearestWeatherStation",
-      //   responseFromNearestWeatherStation
-      // );
-
-      // if (responseFromNearestWeatherStation.success === true) {
-      //   let nearest_tahmo_station = responseFromNearestWeatherStation.data;
-      //   delete nearest_tahmo_station.elevation;
-      //   delete nearest_tahmo_station.countrycode;
-      //   delete nearest_tahmo_station.timezoneoffset;
-      //   delete nearest_tahmo_station.name;
-      //   delete nearest_tahmo_station.type;
-      //   request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
-      // } else if (responseFromNearestWeatherStation.success === false) {
-      //   logObject(
-      //     "unable to find the nearest weather station",
-      //     responseFromNearestWeatherStation
-      //   );
-      // }
+      if (responseFromNearestWeatherStation.success === true) {
+        let nearest_tahmo_station = responseFromNearestWeatherStation.data;
+        delete nearest_tahmo_station.elevation;
+        delete nearest_tahmo_station.countrycode;
+        delete nearest_tahmo_station.timezoneoffset;
+        delete nearest_tahmo_station.name;
+        delete nearest_tahmo_station.type;
+        request["body"]["nearest_tahmo_station"] = nearest_tahmo_station;
+      } else if (responseFromNearestWeatherStation.success === false) {
+        logObject(
+          "unable to find the nearest weather station",
+          responseFromNearestWeatherStation
+        );
+      }
 
       request["query"]["tenant"] = tenant;
       let responseFromGenerateMetadata = await manageSite.generateMetadata(

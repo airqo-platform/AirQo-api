@@ -88,6 +88,10 @@ class AirQoApi:
             response = self.__request("devices/sites", params, site, "put")
             print(response)
 
+    def refresh_site(self, params):
+        response = self.__request("devices/sites/refresh", params, [], "put")
+        print(response)
+
     def __request(self, endpoint, params, body=None, method=None):
 
         headers = {'Authorization': self.AIRQO_API_KEY}

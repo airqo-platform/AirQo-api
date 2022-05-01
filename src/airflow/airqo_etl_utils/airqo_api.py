@@ -103,18 +103,25 @@ class AirQoApi:
 
         return calibrated_data
 
-    def get_devices(self, tenant, all_devices=True) -> list:
-        params = {
-            "tenant": tenant,
-        }
-        if not all_devices:
-            params["active"] = "yes"
-        response = self.__request("devices", params)
+    def get_devices(self, tenant) -> list:
 
-        if "devices" in response:
-            return response["devices"]
+        devices_with_tenant = []
 
-        return []
+        if tenant:
+            response = self.__request("devices", {"tenant": tenant})
+            if "devices" in response:
+                for device in response["devices"]:
+                    device["tenant"] = tenant
+                    devices_with_tenant.append(device)
+        else:
+            for x in ["airqo", "kcca"]:
+                response = self.__request("devices", {"tenant": x})
+                if "devices" in response:
+                    for device in response["devices"]:
+                        device["tenant"] = x
+                        devices_with_tenant.append(device)
+
+        return devices_with_tenant
 
     def get_read_keys(self, devices: list) -> dict:
 
@@ -228,9 +235,8 @@ class AirQoApi:
         if tenant:
             response = self.__request("devices/sites", {"tenant": tenant})
             if "sites" in response:
-                sites = response["sites"]
                 sites_with_tenant = []
-                for site in sites:
+                for site in response["sites"]:
                     site["tenant"] = tenant
                     sites_with_tenant.append(site)
                 return sites_with_tenant
@@ -239,8 +245,7 @@ class AirQoApi:
             for x in ["airqo", "kcca"]:
                 response = self.__request("devices/sites", {"tenant": x})
                 if "sites" in response:
-                    sites = response["sites"]
-                    for site in sites:
+                    for site in response["sites"]:
                         site["tenant"] = x
                         sites_with_tenant.append(site)
             return sites_with_tenant
@@ -270,7 +275,7 @@ class AirQoApi:
                 "%s%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=simplejson.dumps(body),
+                data=simplejson.dumps(body, ignore_nan=True),
                 verify=False,
             )
         elif method == "post":
@@ -279,7 +284,7 @@ class AirQoApi:
                 "%s%s" % (base_url, endpoint),
                 params=params,
                 headers=headers,
-                data=simplejson.dumps(body),
+                data=simplejson.dumps(body, ignore_nan=True),
                 verify=False,
             )
         else:

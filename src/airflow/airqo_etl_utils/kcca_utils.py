@@ -1,3 +1,4 @@
+import traceback
 from datetime import timedelta
 
 import numpy as np
@@ -5,18 +6,17 @@ import pandas as pd
 import requests
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.bigquery_api import BigQueryApi
-from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import (
-    date_to_str,
-    str_to_date,
-    frequency_time,
-)
 from airqo_etl_utils.commons import (
     get_valid_column_value,
     to_double,
     get_site_and_device_id,
     get_column_value,
+)
+from airqo_etl_utils.config import configuration
+from airqo_etl_utils.date import (
+    date_to_str,
+    str_to_date,
+    frequency_time,
 )
 
 
@@ -31,14 +31,21 @@ def query_kcca_measurements(frequency: str, start_time: str, end_time: str):
         api_url = f"{api_url}&outputFrequency=minute"
 
     headers = {"x-api-key": configuration.CLARITY_API_KEY, "Accept-Encoding": "gzip"}
-    results = requests.get(api_url, headers=headers)
-    if results.status_code != 200:
-        print(f"{results.content}")
+    try:
+        results = requests.get(api_url, headers=headers)
+        if results.status_code != 200:
+            print(f"{results.content}")
+            return []
+        return results.json()
+    except Exception as ex:
+        traceback.print_exc()
+        print(ex)
         return []
-    return results.json()
 
 
-def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list:
+def extract_kcca_measurements(
+    start_time: str, end_time: str, freq: str
+) -> pd.DataFrame:
     if freq.lower() == "hourly":
         interval = "6H"
     elif freq.lower() == "daily":
@@ -66,11 +73,10 @@ def extract_kcca_measurements(start_time: str, end_time: str, freq: str) -> list
         measurements.extend(range_measurements)
 
     measurements_df = pd.json_normalize(measurements)
-    return measurements_df.to_dict(orient="records")
+    return measurements_df
 
 
-def transform_kcca_measurements_for_api(unclean_data) -> list:
-    data = pd.DataFrame(unclean_data)
+def transform_kcca_measurements_for_api(data: pd.DataFrame) -> list:
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
     device_gps = data.groupby("deviceCode")
@@ -212,16 +218,14 @@ def transform_kcca_measurements_for_api(unclean_data) -> list:
     return cleaned_measurements
 
 
-def transform_kcca_data_for_message_broker(data: list, frequency: str) -> list:
+def transform_kcca_data_for_message_broker(data: pd.DataFrame, frequency: str) -> list:
     restructured_data = []
-
-    data_df = pd.DataFrame(data)
-    columns = list(data_df.columns)
+    columns = list(data.columns)
 
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
 
-    for _, data_row in data_df.iterrows():
+    for _, data_row in data.iterrows():
         device_name = data_row["deviceCode"]
         site_id, device_id = get_site_and_device_id(devices, device_name=device_name)
         if not site_id and not device_id:
@@ -301,20 +305,19 @@ def transform_kcca_data_for_message_broker(data: list, frequency: str) -> list:
     return restructured_data
 
 
-def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
+def transform_kcca_data_for_bigquery(data: pd.DataFrame) -> pd.DataFrame:
     restructured_data = []
 
-    data_df = pd.DataFrame(data)
-    columns = list(data_df.columns)
+    columns = list(data.columns)
 
     airqo_api = AirQoApi()
     devices = airqo_api.get_devices(tenant="kcca")
 
-    for _, data_row in data_df.iterrows():
+    for _, data_row in data.iterrows():
         device_name = data_row["deviceCode"]
         site_id, _ = get_site_and_device_id(devices, device_name=device_name)
         if not site_id:
-            continue
+            site_id = ""
 
         location = str(data_row["location.coordinates"])
         location = location.replace("[", "").replace("]", "")
@@ -426,6 +429,4 @@ def transform_kcca_hourly_data_for_bigquery(data: list) -> list:
 
         restructured_data.append(device_data)
 
-    return pd.DataFrame(
-        columns=BigQueryApi().hourly_measurements_columns, data=restructured_data
-    ).to_dict(orient="records")
+    return pd.DataFrame(data=restructured_data)

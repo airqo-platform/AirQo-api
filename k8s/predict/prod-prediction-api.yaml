@@ -45,10 +45,35 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
+          resources:
+            limits:
+              cpu: 250m
+            requests:
+              cpu: 100m
       volumes:
         - name: config-volume
           configMap:
             name: env-predict-production-files
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2beta2
+metadata:
+  name: airqo-prediction-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-prediction-api 
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
 
 ---
 kind: Service

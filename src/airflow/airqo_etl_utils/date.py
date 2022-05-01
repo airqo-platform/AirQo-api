@@ -79,11 +79,11 @@ def frequency_time(dateStr: str, frequency: str) -> str:
         return str_to_str_default(dateStr=dateStr)
 
 
-def first_day_of_month(date_time: datetime):
+def first_day_of_month(date_time: datetime) -> datetime:
     return datetime(year=date_time.year, month=date_time.month, day=1)
 
 
-def last_day_of_month(date_time: datetime):
+def last_day_of_month(date_time: datetime) -> datetime:
     month = date_time.month
     if month < 12:
         month = month + 1
@@ -91,7 +91,8 @@ def last_day_of_month(date_time: datetime):
         return next_month - timedelta(days=1)
     else:
         year = date_time.year + 1
-        datetime(year=year, month=1, day=1)
+        next_month = datetime(year=year, month=1, day=1)
+        return next_month - timedelta(days=1)
 
 
 def first_day_of_week(date_time: datetime):

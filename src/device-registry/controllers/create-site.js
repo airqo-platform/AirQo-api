@@ -168,7 +168,6 @@ const manageSite = {
   listWeatherStations: async (req, res) => {
     try {
       const responseFromListTahmoStations = await createSiteUtil.listWeatherStations();
-      logObject("responseFromListTahmoStations", responseFromListTahmoStations);
       if (responseFromListTahmoStations.success === true) {
         const status = responseFromListTahmoStations.status
           ? responseFromListTahmoStations.status

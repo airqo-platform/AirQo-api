@@ -145,6 +145,19 @@ class Transformation:
 
         self.__print(data=updated_sites)
 
+    def refresh_sites(self):
+
+        sites = self.airqo_api.get_sites(self.tenant)
+
+        for site in sites:
+            site_dict = dict(site)
+            params = {
+                "id": site_dict.get("_id"),
+                "tenant": self.tenant
+            }
+
+            self.airqo_api.refresh_site(params=params)
+
     def get_sites_without_a_primary_device(self):
 
         sites = self.airqo_api.get_sites(tenant=self.tenant)
