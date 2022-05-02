@@ -14,7 +14,7 @@ RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
 LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
 
 
-class Regression():
+class Regression:
     """
         The class contains functionality for computing device calibrated values .
     """
