@@ -1,6 +1,7 @@
 version: "3.8"
 
-x-db-common-data: &db-common-data
+x-common-data: &common-data
+  restart: on-failure
   env_file:
     - .env
   environment:
@@ -8,19 +9,8 @@ x-db-common-data: &db-common-data
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
     ADMIN_USERNAME: airflow
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
-
-x-message-borker-common-data: &message-broker-common-data
-  env_file:
-    - .env
-
-x-common-data: &common-data
-  restart: on-failure
-  env_file:
-    - .env
-  environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
     AIRFLOW__WEBSERVER__SECRET_KEY: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_CMD: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
@@ -39,18 +29,15 @@ x-common-data: &common-data
     - ${PWD}/google_application_credentials.json:/etc/config/google_application_credentials.json
     - ${PWD}/airflow_xcom:/etc/airflow_xcom
 
-  depends_on:
-    - db
-    - db-setup
 
 services:
   db:
-    <<: *db-common-data
+    <<: *common-data
     container_name: db
     image: postgres
 
   db-setup:
-    <<: *db-common-data
+    <<: *common-data
     container_name: db-setup
     build:
       context: .
@@ -76,7 +63,7 @@ services:
       - "9093:9092"
 
   message-broker-setup:
-    <<: *message-broker-common-data
+    <<: *common-data
     container_name: message-broker-setup
     build:
       context: .
@@ -94,6 +81,8 @@ services:
     build:
       context: .
       target: scheduler
+    depends_on:
+      - db-setup
 
   webserver:
     <<: *common-data
@@ -105,3 +94,5 @@ services:
       target: webserver
     ports:
       - "8080:8080"
+    depends_on:
+      - db-setup
