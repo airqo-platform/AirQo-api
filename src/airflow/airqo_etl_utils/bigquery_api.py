@@ -119,7 +119,7 @@ class BigQueryApi:
             )
         )
 
-    def get_hourly_data(
+    def query_data(
         self, start_date_time: str, end_date_time: str, columns: list, table: str
     ) -> pd.DataFrame:
 

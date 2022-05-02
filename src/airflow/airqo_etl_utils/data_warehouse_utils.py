@@ -48,7 +48,7 @@ hourly_measurements_columns = [
 def query_hourly_measurements(start_date_time: str, end_date_time: str) -> pd.DataFrame:
     biq_query_api = BigQueryApi()
 
-    hourly_measurements = biq_query_api.get_hourly_data(
+    hourly_measurements = biq_query_api.query_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
         columns=hourly_measurements_columns,
@@ -72,7 +72,7 @@ def query_hourly_measurements(start_date_time: str, end_date_time: str) -> pd.Da
 
 def query_hourly_weather_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
     biq_query_api = BigQueryApi()
-    hourly_weather_measurements = biq_query_api.get_hourly_data(
+    hourly_weather_measurements = biq_query_api.query_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
         columns=hourly_weather_columns,
