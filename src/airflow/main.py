@@ -202,6 +202,7 @@ def app_notifications():
         get_notification_templates,
         create_notification_messages,
         get_latest_insights,
+        send_notification_messages,
     )
 
     recent_insights = get_latest_insights()
@@ -217,6 +218,8 @@ def app_notifications():
         templates=message_templates, recipients=recipients, insights=recent_insights
     )
     print(notifications)
+
+    send_notification_messages(messages=notifications)
 
 
 def daily_insights(start_date_time: str, end_date_time: str):
@@ -352,6 +355,7 @@ if __name__ == "__main__":
             "forecast_insights_data",
             "meta_data",
             "upload_to_gcs",
+            "app_notifications",
         ],
     )
 

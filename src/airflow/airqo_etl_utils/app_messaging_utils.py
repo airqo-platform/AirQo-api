@@ -195,6 +195,7 @@ def send_notification_messages(messages: list):
             android=messaging.AndroidConfig(
                 ttl=datetime.timedelta(seconds=3600), priority="normal"
             ),
+            data={"type": message.get("type")},
         )
         notifications.append(notification)
 
