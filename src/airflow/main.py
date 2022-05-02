@@ -292,6 +292,100 @@ def meta_data():
     bigquery_data_df.to_csv(path_or_buf="bigquery_devices_data.csv", index=False)
 
 
+def calibrate_historical_data(start_date_time, end_date_time, tenant):
+    from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
+    from airqo_etl_utils.bigquery_api import BigQueryApi
+
+    bigquery_api = BigQueryApi()
+
+    device_measurements = bigquery_api.query_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        columns=[
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "timestamp",
+            "device_number",
+            "site_id",
+            "external_temperature",
+            "external_humidity",
+        ],
+        table=bigquery_api.hourly_measurements_table,
+        tenant=tenant,
+    )
+
+    weather_data = bigquery_api.query_data(
+        start_date_time=start_date_time,
+        end_date_time=end_date_time,
+        columns=["site_id", "timestamp", "temperature", "humidity"],
+        table=bigquery_api.hourly_weather_table,
+        tenant=tenant,
+    )
+
+    measurements = pd.merge(
+        left=device_measurements,
+        right=weather_data,
+        on=["site_id", "timestamp"],
+        how="left",
+    )
+
+    measurements = measurements.dropna(
+        subset=[
+            "site_id",
+            "device_number",
+            "s1_pm2_5",
+            "s2_pm2_5",
+            "s1_pm10",
+            "s2_pm10",
+            "timestamp",
+        ]
+    )
+
+    measurements["humidity"] = measurements["humidity"].fillna(
+        measurements["external_humidity"]
+    )
+    measurements["temperature"] = measurements["temperature"].fillna(
+        measurements["external_temperature"]
+    )
+
+    del measurements["external_temperature"]
+    del measurements["external_humidity"]
+
+    measurements = measurements.dropna(subset=["temperature", "humidity"])
+
+    measurements.rename(
+        columns={"timestamp": "time", "device_number": "device_id"}, inplace=True
+    )
+
+    n = 1000
+    measurements_list = [
+        measurements[i : i + n] for i in range(0, measurements.shape[0], n)
+    ]
+    index = 0
+    for chunk in measurements_list:
+        calibrated_data = calibrate_hourly_airqo_measurements(measurements=chunk)
+        calibrated_data.rename(
+            columns={
+                "time": "timestamp",
+                "device_id": "device_number",
+                "calibrated_pm2_5": "pm2_5_calibrated_value",
+                "calibrated_pm10": "pm10_calibrated_value",
+            },
+            inplace=True,
+        )
+        calibrated_data["tenant"] = tenant
+        bigquery_api.validate_data(
+            dataframe=calibrated_data,
+            table=bigquery_api.calibrated_hourly_measurements_table,
+        )
+        calibrated_data.to_csv(
+            path_or_buf=f"historical_calibrated_data_{index}.csv", index=False
+        )
+        index = index + 1
+
+
 if __name__ == "__main__":
 
     from airqo_etl_utils.date import date_to_str_hours
@@ -316,6 +410,12 @@ if __name__ == "__main__":
         help='end datetime in format "yyyy-MM-ddThh:mm:ssZ"',
     )
     parser.add_argument(
+        "--tenant",
+        required=False,
+        type=str.lower,
+        default="airqo",
+    )
+    parser.add_argument(
         "--action",
         required=True,
         type=str.lower,
@@ -329,6 +429,7 @@ if __name__ == "__main__":
             "forecast_insights_data",
             "meta_data",
             "upload_to_gcs",
+            "calibrate_historical_data",
         ],
     )
 
@@ -357,5 +458,10 @@ if __name__ == "__main__":
 
     elif args.action == "upload_to_gcs":
         upload_to_gcs()
+
+    elif args.action == "calibrate_historical_data":
+        calibrate_historical_data(
+            start_date_time=args.start, end_date_time=args.end, tenant=args.tenant
+        )
     else:
         pass
