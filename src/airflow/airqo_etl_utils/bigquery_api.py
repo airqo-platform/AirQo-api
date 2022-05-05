@@ -19,6 +19,9 @@ class BigQueryApi:
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.calibrated_hourly_measurements_table = (
+            configuration.BIGQUERY_CALIBRATED_HOURLY_EVENTS_TABLE
+        )
         self.package_directory, _ = os.path.split(__file__)
 
     def validate_data(self, dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
@@ -55,6 +58,7 @@ class BigQueryApi:
         return dataframe
 
     def __get_columns(self, table: str, data_type="") -> list:
+
         if (
             table == self.hourly_measurements_table
             or table == self.raw_measurements_table
@@ -64,6 +68,9 @@ class BigQueryApi:
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_path = "schema/weather_data.json"
             schema = "weather_data.json"
+        elif table == self.calibrated_hourly_measurements_table:
+            schema_path = "schema/calibrated_measurements.json"
+            schema = "calibrated_measurements.json"
         elif table == self.analytics_table:
             schema_path = "schema/data_warehouse.json"
             schema = "data_warehouse.json"
@@ -119,15 +126,20 @@ class BigQueryApi:
             )
         )
 
-    def get_hourly_data(
-        self, start_date_time: str, end_date_time: str, columns: list, table: str
+    def query_data(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        columns: list,
+        table: str,
+        tenant="airqo",
     ) -> pd.DataFrame:
 
         try:
             query = f"""
                 SELECT {', '.join(map(str, columns))}
                 FROM `{table}`
-                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
+                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
             """
             dataframe = self.client.query(query=query).result().to_dataframe()
         except Exception as ex:
@@ -135,7 +147,7 @@ class BigQueryApi:
             query = f"""
                 SELECT {', '.join(map(str, columns))}
                 FROM `{table}`
-                WHERE time >= '{start_date_time}' and time <= '{end_date_time}'
+                WHERE time >= '{start_date_time}' and time <= '{end_date_time}' and tenant = '{tenant}'
             """
 
             dataframe = self.client.query(query=query).result().to_dataframe()
