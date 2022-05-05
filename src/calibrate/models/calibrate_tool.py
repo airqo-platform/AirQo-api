@@ -14,10 +14,17 @@ load_dotenv(dotenv_path)
 RF_REG_MODEL = os.getenv('RF_REG_MODEL', 'jobs/rf_reg_model.pkl')
 LASSO_MODEL = os.getenv('LASSO_MODEL', 'jobs/lasso_model.pkl')
 
-class Regression():
+
+class Regression:
     """
         The class contains functionality for computing device calibrated values .
     """
+    def __init__(self):
+        self.rf_regressor = pickle.load(open(RF_REG_MODEL, 'rb'))
+        self.lasso_regressor = pickle.load(open(LASSO_MODEL, 'rb'))
+        # # load model from GCP
+        # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
+
     # map_columns = {"datetime":"created_at"}
     def compute_calibrated_val(self, map_columns, df):      
         # Map columns from uploaded csv
@@ -39,14 +46,9 @@ class Regression():
         df_copy = df
         
         df = df[['avg_pm2_5','avg_pm10','temperature','humidity','hour','error_pm2_5','error_pm10','pm2_5_pm10', 'pm2_5_pm10_mod']]
-        
-        #load model from disk
-        rf_regressor = pickle.load(open(RF_REG_MODEL, 'rb'))
-        lasso_regressor = pickle.load(open(LASSO_MODEL, 'rb'))
-        # # load model from GCP 
-        # rf_regressor = self.get_model('airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
-        calibrated_pm2_5 =  rf_regressor.predict(df)
-        calibrated_pm10 =  lasso_regressor.predict(df)
+
+        calibrated_pm2_5 = self.rf_regressor.predict(df)
+        calibrated_pm10 = self.lasso_regressor.predict(df)
 
         calibrated_data = df_copy[['avg_pm2_5','avg_pm10', 'datetime']]
         calibrated_data['calibrated_pm2_5'] = calibrated_pm2_5
