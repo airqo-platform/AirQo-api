@@ -49,7 +49,7 @@ const createAirqloud = {
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         let errors = responseFromCreateAirQloud.errors
           ? responseFromCreateAirQloud.errors
-          : "";
+          : { message: "" };
 
         return res.status(status).json({
           success: false,
@@ -71,10 +71,10 @@ const createAirqloud = {
       const hasErrors = !validationResult(req).isEmpty();
       if (hasErrors) {
         let nestedErrors = validationResult(req).errors[0].nestedErrors;
-        return badRequest(
+        return errors.badRequest(
           res,
           "bad request errors",
-          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+          errors.convertErrorArrayToObject(nestedErrors)
         );
       }
 
@@ -109,7 +109,7 @@ const createAirqloud = {
 
         const errors = responseFromCalculateGeographicalCenter.errors
           ? responseFromCalculateGeographicalCenter.errors
-          : "";
+          : { message: "" };
 
         return res.status(status).json({
           success: false,
@@ -159,7 +159,7 @@ const createAirqloud = {
       if (responseFromRemoveAirQloud.success === false) {
         let errors = responseFromRemoveAirQloud.errors
           ? responseFromRemoveAirQloud.errors
-          : "";
+          : { message: "" };
         let status = responseFromRemoveAirQloud.status
           ? responseFromRemoveAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -202,7 +202,7 @@ const createAirqloud = {
           : HTTPStatus.INTERNAL_SERVER_ERROR;
         const errors = responseFromRefreshAirQloud.errors
           ? responseFromRefreshAirQloud.errors
-          : "";
+          : { message: "" };
         res.status(status).json({
           message: responseFromRefreshAirQloud.message,
           errors,
@@ -253,7 +253,7 @@ const createAirqloud = {
       if (responseFromFindSites.success === false) {
         let errors = responseFromFindSites.errors
           ? responseFromFindSites.errors
-          : "";
+          : { message: "" };
         let status = responseFromFindSites.status
           ? responseFromFindSites.status
           : httpStatus.INTERNAL_SERVER_ERROR;
@@ -307,7 +307,7 @@ const createAirqloud = {
       if (responseFromUpdateAirQloud.success === false) {
         let errors = responseFromUpdateAirQloud.errors
           ? responseFromUpdateAirQloud.errors
-          : "";
+          : { message: "" };
 
         let status = responseFromUpdateAirQloud.status
           ? responseFromUpdateAirQloud.status
@@ -359,7 +359,7 @@ const createAirqloud = {
       if (responseFromListAirQlouds.success === false) {
         let errors = responseFromListAirQlouds.errors
           ? responseFromListAirQlouds.errors
-          : "";
+          : { message: "" };
         let status = responseFromListAirQlouds.status
           ? responseFromListAirQlouds.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;
@@ -412,7 +412,7 @@ const createAirqloud = {
       if (responseFromRemoveAirQloud.success === false) {
         let errors = responseFromRemoveAirQloud.errors
           ? responseFromRemoveAirQloud.errors
-          : "";
+          : { message: "" };
         let status = responseFromRemoveAirQloud.status
           ? responseFromRemoveAirQloud.status
           : HTTPStatus.INTERNAL_SERVER_ERROR;

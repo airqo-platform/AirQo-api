@@ -17,7 +17,7 @@
 
 It is implicit that `mongodb` should be installed and running.
 
-## Check endpoint
+## Calibrate Endpoint
 
 Make a "POST" request to http://localhost:4001/api/v1/calibrate with the following raw JSON payload in the body:
 
@@ -55,3 +55,20 @@ Make a "POST" request to http://localhost:4001/api/v1/calibrate with the followi
     ]
 }
 ```
+
+
+## Calibrate Tool Endpoint
+
+Make a `POST` request to http://localhost:4001/api/v1/calibrate_tool using form data: Form must contain:
+
+ - A csv file containing the data you want to calibrate.
+ - Mapping for `datetime`, `pm2_5`, `s2_pm2_5`, `pm10`, `s2_pm10`, `humidity`, `temperature`.
+
+### Sample contents for csv file containing uncalibrated data
+![Sample csv file](https://storage.googleapis.com/airqo_open_data/uncalibrated_data.png)
+
+### [Link to the sample file](https://storage.googleapis.com/airqo_open_data/uncalibrated_data.csv)
+
+### Sample form data
+![Sample form data](https://storage.googleapis.com/airqo_open_data/calibrate_tool_request.png)
+

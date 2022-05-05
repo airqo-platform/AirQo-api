@@ -1,6 +1,7 @@
 version: "3.8"
 
-x-db-common-data: &db-common-data
+x-common-data: &common-data
+  restart: on-failure
   env_file:
     - .env
   environment:
@@ -8,20 +9,8 @@ x-db-common-data: &db-common-data
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: postgres
     ADMIN_USERNAME: airflow
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
-
-x-message-borker-common-data: &message-broker-common-data
-  env_file:
-    - .env
-
-x-common-data: &common-data
-#  platform: linux/amd64
-  restart: on-failure
-  env_file:
-    - .env
-  environment:
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://postgres:postgres@db:5432/postgres
     AIRFLOW__WEBSERVER__SECRET_KEY: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_CMD: dev
     AIRFLOW__WEBSERVER__SECRET_KEY_SECRET: dev
@@ -32,30 +21,40 @@ x-common-data: &common-data
     AIRFLOW_UID: 50000
     BOOTSTRAP_SERVERS: message-broker:9092
     GOOGLE_APPLICATION_CREDENTIALS: /etc/config/google_application_credentials.json
+    AIRFLOW__CORE__XCOM_BACKEND: gcs_xcom_backend.GCSXComBackend
+    AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
+    PYTHONPATH: /etc/airflow_xcom
+
   volumes:
     - ${PWD}/google_application_credentials.json:/etc/config/google_application_credentials.json
-  depends_on:
-    - db
-    - db-setup
+    - ${PWD}/airflow_xcom:/etc/airflow_xcom
+
 
 services:
   db:
-    <<: *db-common-data
+    <<: *common-data
     container_name: db
     image: postgres
 
   db-setup:
-    <<: *db-common-data
+    <<: *common-data
     container_name: db-setup
     build:
       context: .
       target: db-setup
-#    platform: linux/amd64
     restart: on-failure
     healthcheck:
       test: "exit 0"
     depends_on:
       - db
+
+  xcom-setup:
+    environment:
+      AIRFLOW__CORE__XCOM_BACKEND_FOLDER: /etc/airflow_xcom/
+    container_name: xcom-setup
+    build:
+      context: .
+      target: xcom-setup
 
   message-broker:
     container_name: message-broker
@@ -64,7 +63,7 @@ services:
       - "9093:9092"
 
   message-broker-setup:
-    <<: *message-broker-common-data
+    <<: *common-data
     container_name: message-broker-setup
     build:
       context: .
@@ -82,14 +81,18 @@ services:
     build:
       context: .
       target: scheduler
+    depends_on:
+      - db-setup
 
   webserver:
     <<: *common-data
     container_name: webserver
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ]
     build:
       context: .
       target: webserver
     ports:
       - "8080:8080"
+    depends_on:
+      - db-setup

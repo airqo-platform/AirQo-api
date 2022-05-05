@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.commons import slack_dag_failure_notification
@@ -13,7 +14,9 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
     tags=["insights", "forecast"],
 )
 def app_forecast_insights_etl():
-    @task(multiple_outputs=True)
+    import pandas as pd
+
+    @task()
     def extract_insights_forecast_data():
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
@@ -24,7 +27,6 @@ def app_forecast_insights_etl():
             first_day_of_week,
             first_day_of_month,
         )
-        from airqo_etl_utils.commons import fill_nan
 
         now = datetime.now()
         start_date_time = date_to_str(
@@ -37,45 +39,30 @@ def app_forecast_insights_etl():
         )
         insights_data = create_insights_data(data=forecast_data)
 
-        return dict({"data": fill_nan(data=insights_data)})
+        return insights_data
 
-    @task(multiple_outputs=True)
+    @task()
     def extract_api_forecast_data():
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
             get_forecast_data,
         )
-        from airqo_etl_utils.commons import fill_nan
 
         forecast_data = get_forecast_data("airqo")
         insights_data = create_insights_data(data=forecast_data)
 
-        return dict({"data": fill_nan(data=insights_data)})
+        return insights_data
 
     @task()
-    def load(forecast: dict, transformed_forecast: dict):
-        from airqo_etl_utils.commons import un_fill_nan
+    def load(forecast: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import save_insights_data
-        import pandas as pd
-
-        forecast_insights_data = un_fill_nan(forecast.get("data"))
-        transformed_forecast_data = un_fill_nan(transformed_forecast.get("data"))
-
-        forecast_insights_data_df = pd.DataFrame(forecast_insights_data)
-        transformed_forecast_data_df = pd.DataFrame(transformed_forecast_data)
-        insights_data = pd.concat(
-            [forecast_insights_data_df, transformed_forecast_data_df], ignore_index=True
-        )
 
         save_insights_data(
-            insights_data=insights_data.to_dict(orient="records"),
-            action="save",
-            partition=1,
+            insights_data=forecast.to_dict(orient="records"), partition=1
         )
 
-    insights_forecast_data = extract_insights_forecast_data()
     api_forecast_data = extract_api_forecast_data()
-    load(forecast=api_forecast_data, transformed_forecast=insights_forecast_data)
+    load(forecast=api_forecast_data)
 
 
 @dag(
@@ -87,14 +74,16 @@ def app_forecast_insights_etl():
     tags=["insights", "daily"],
 )
 def app_historical_daily_insights_etl():
-    @task(multiple_outputs=True)
+    import pandas as pd
+
+    @task()
     def average_insights_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import (
             query_insights_data,
             average_insights_data,
         )
 
-        from airqo_etl_utils.commons import get_date_time_values, fill_nan
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
@@ -106,19 +95,17 @@ def app_historical_daily_insights_etl():
             frequency="daily", data=hourly_insights_data
         )
 
-        return dict({"data": fill_nan(data=ave_insights_data)})
+        return ave_insights_data
 
     @task()
-    def load(data: dict):
+    def load(data: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import (
             save_insights_data,
             create_insights_data,
         )
-        from airqo_etl_utils.commons import un_fill_nan
 
-        insights_list = un_fill_nan(data.get("data"))
-        insights_data = create_insights_data(data=insights_list)
-        save_insights_data(insights_data=insights_data, action="save", partition=2)
+        insights_data = create_insights_data(data=data)
+        save_insights_data(insights_data=insights_data, partition=2)
 
     insights = average_insights_data()
     load(insights)
@@ -133,14 +120,15 @@ def app_historical_daily_insights_etl():
     tags=["insights", "daily", "realtime"],
 )
 def app_daily_insights_etl():
-    @task(multiple_outputs=True)
+    import pandas as pd
+
+    @task()
     def average_insights_data():
         from airqo_etl_utils.app_insights_utils import (
             query_insights_data,
             average_insights_data,
         )
 
-        from airqo_etl_utils.commons import fill_nan
         from datetime import datetime
 
         now = datetime.utcnow()
@@ -155,19 +143,17 @@ def app_daily_insights_etl():
             frequency="daily", data=hourly_insights_data
         )
 
-        return dict({"data": fill_nan(data=ave_insights_data)})
+        return ave_insights_data
 
     @task()
-    def load(data: dict):
+    def load(data: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import (
             save_insights_data,
             create_insights_data,
         )
-        from airqo_etl_utils.commons import un_fill_nan
 
-        insights_list = un_fill_nan(data.get("data"))
-        insights_data = create_insights_data(data=insights_list)
-        save_insights_data(insights_data=insights_data, action="save")
+        insights_data = create_insights_data(data=data)
+        save_insights_data(insights_data=insights_data)
 
     insights = average_insights_data()
     load(insights)
@@ -182,13 +168,15 @@ def app_daily_insights_etl():
     tags=["insights", "hourly", "historical"],
 )
 def app_historical_hourly_insights_etl():
-    @task(multiple_outputs=True)
+    import pandas as pd
+
+    @task()
     def extract_airqo_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data_from_bigquery,
         )
 
-        from airqo_etl_utils.commons import get_date_time_values, fill_nan
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_date_time, end_date_time = get_date_time_values(**kwargs)
 
@@ -196,19 +184,17 @@ def app_historical_hourly_insights_etl():
             start_date_time=start_date_time, end_date_time=end_date_time
         )
 
-        return dict({"data": fill_nan(data=hourly_insights_data)})
+        return hourly_insights_data
 
     @task()
-    def load_hourly_insights(data: dict):
+    def load_hourly_insights(data: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import (
             save_insights_data,
             create_insights_data,
         )
-        from airqo_etl_utils.commons import un_fill_nan
 
-        insights_list = un_fill_nan(data.get("data"))
-        insights_data = create_insights_data(data=insights_list)
-        save_insights_data(insights_data=insights_data, action="save", partition=2)
+        insights_data = create_insights_data(data=data)
+        save_insights_data(insights_data=insights_data, partition=2)
 
     insights = extract_airqo_data()
     load_hourly_insights(insights)
@@ -223,7 +209,7 @@ def app_historical_hourly_insights_etl():
     tags=["insights", "hourly"],
 )
 def app_hourly_insights_etl():
-    @task(multiple_outputs=True)
+    @task()
     def extract_airqo_data(**kwargs):
         from airqo_etl_utils.app_insights_utils import (
             create_insights_data,
@@ -238,14 +224,14 @@ def app_hourly_insights_etl():
         )
         insights_data = create_insights_data(data=measurements_data)
 
-        return {"data": insights_data}
+        return insights_data
 
     @task()
     def load_hourly_insights(data: dict):
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
         insights_data = data.get("data")
-        save_insights_data(insights_data=insights_data, action="save")
+        save_insights_data(insights_data=insights_data)
 
     hourly_data = extract_airqo_data()
     load_hourly_insights(hourly_data)
@@ -260,6 +246,8 @@ def app_hourly_insights_etl():
     tags=["insights", "empty"],
 )
 def insights_cleanup_etl():
+    import pandas as pd
+
     from airqo_etl_utils.date import (
         date_to_str_days,
         first_day_of_week,
@@ -275,14 +263,12 @@ def insights_cleanup_etl():
         last_day_of_week(last_day_of_month(date_time=datetime.now()))
     )
 
-    @task(multiple_outputs=True)
+    @task()
     def create_empty_insights():
 
         from airqo_etl_utils.airqo_api import AirQoApi
 
-        from airqo_etl_utils.commons import fill_nan
         import random
-        import pandas as pd
         from airqo_etl_utils.date import (
             date_to_str_days,
             date_to_str_hours,
@@ -328,13 +314,11 @@ def insights_cleanup_etl():
                 except Exception as ex:
                     print(ex)
 
-        return dict({"data": fill_nan(data=insights)})
+        return pd.DataFrame(insights)
 
-    @task(multiple_outputs=True)
+    @task()
     def query_insights_data():
         from airqo_etl_utils.app_insights_utils import query_insights_data
-
-        from airqo_etl_utils.commons import fill_nan
 
         all_insights_data = query_insights_data(
             start_date_time=start_date_time,
@@ -343,38 +327,25 @@ def insights_cleanup_etl():
             freq="",
         )
 
-        return dict({"data": fill_nan(data=all_insights_data)})
-
-    @task(multiple_outputs=True)
-    def filter_insights(empty_insights_data: dict, available_insights_data: dict):
-
-        from airqo_etl_utils.commons import fill_nan, un_fill_nan
-
-        import pandas as pd
-
-        insights_data_df = pd.DataFrame(
-            data=un_fill_nan(available_insights_data.get("data"))
-        )
-        empty_insights_data_df = pd.DataFrame(
-            data=un_fill_nan(empty_insights_data.get("data"))
-        )
-
-        insights_data = pd.concat(
-            [empty_insights_data_df, insights_data_df]
-        ).drop_duplicates(keep=False, subset=["siteId", "time", "frequency"])
-
-        return dict({"data": fill_nan(data=insights_data.to_dict(orient="records"))})
+        return all_insights_data
 
     @task()
-    def load(insights_data: dict):
-        from airqo_etl_utils.commons import un_fill_nan
+    def filter_insights(
+        empty_insights_data: pd.DataFrame, available_insights_data: pd.DataFrame
+    ):
 
-        empty_insights_data = un_fill_nan(insights_data.get("data"))
+        insights_data = pd.concat(
+            [empty_insights_data, available_insights_data]
+        ).drop_duplicates(keep=False, subset=["siteId", "time", "frequency"])
+
+        return insights_data
+
+    @task()
+    def load(insights_data: pd.DataFrame):
+
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
-        save_insights_data(
-            insights_data=empty_insights_data, action="insert", partition=2
-        )
+        save_insights_data(insights_data=insights_data, partition=2)
 
     empty_insights = create_empty_insights()
     available_insights = query_insights_data()
