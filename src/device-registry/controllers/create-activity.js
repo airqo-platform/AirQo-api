@@ -148,6 +148,8 @@ const activity = {
         mountType,
         powerType,
         isPrimaryInLocation,
+        tags,
+        description,
         site_id,
       } = body;
       const { tenant, deviceName } = query;
@@ -161,7 +163,8 @@ const activity = {
       request["body"]["powerType"] = powerType;
       request["body"]["isPrimaryInLocation"] = isPrimaryInLocation;
       request["body"]["site_id"] = site_id;
-
+      request["body"]["description"] = description;
+      request["body"]["tags"] = tags;
       request["query"]["tenant"] = tenant;
       request["query"]["deviceName"] = deviceName;
       request["query"]["type"] = "maintain";

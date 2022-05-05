@@ -1,25 +1,12 @@
 import json
 import os
-from enum import Enum
 
 import pandas as pd
 from google.cloud import bigquery
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import JobAction
 from airqo_etl_utils.date import date_to_str
-
-
-class JobAction(Enum):
-    APPEND = 1
-    OVERWRITE = 2
-
-    def get_name(self):
-        if self == self.APPEND:
-            return "WRITE_APPEND"
-        elif self == self.OVERWRITE:
-            return "WRITE_TRUNCATE"
-        else:
-            return "WRITE_EMPTY"
 
 
 class BigQueryApi:
@@ -105,11 +92,12 @@ class BigQueryApi:
         return columns
 
     def save_data(
-        self, data: list, table: str, job_action: JobAction = JobAction.APPEND
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        job_action: JobAction = JobAction.APPEND,
     ) -> None:
-
-        dataframe = pd.DataFrame(data)
-
+        dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
         job_config = bigquery.LoadJobConfig(

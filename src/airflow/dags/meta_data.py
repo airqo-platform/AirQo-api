@@ -14,9 +14,11 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
     tags=["daily", "sites", "bigquery"],
 )
 def big_query_update_sites_etl():
-    @task(multiple_outputs=True)
-    def extract_sites(**kwargs):
-        from airqo_etl_utils.commons import get_tenant, fill_nan
+    import pandas as pd
+
+    @task()
+    def extract_sites(**kwargs) -> pd.DataFrame:
+        from airqo_etl_utils.commons import get_tenant
         from airqo_etl_utils.meta_data_utils import extract_meta_data
 
         tenant = get_tenant(**kwargs)
@@ -26,18 +28,16 @@ def big_query_update_sites_etl():
             tenant=tenant,
         )
 
-        return dict({"data": fill_nan(data=sites_data)})
+        return sites_data
 
     @task()
-    def load(inputs: dict):
-        from airqo_etl_utils.bigquery_api import BigQueryApi, JobAction
-        from airqo_etl_utils.commons import un_fill_nan
-
-        data = un_fill_nan(inputs.get("data"))
+    def load(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import JobAction
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=data,
+            dataframe=data,
             table=big_query_api.sites_table,
             job_action=JobAction.OVERWRITE,
         )
@@ -55,9 +55,11 @@ def big_query_update_sites_etl():
     tags=["daily", "devices", "bigquery"],
 )
 def big_query_update_devices_etl():
-    @task(multiple_outputs=True)
+    import pandas as pd
+
+    @task()
     def extract_devices(**kwargs):
-        from airqo_etl_utils.commons import get_tenant, fill_nan
+        from airqo_etl_utils.commons import get_tenant
         from airqo_etl_utils.meta_data_utils import extract_meta_data
 
         tenant = get_tenant(**kwargs)
@@ -67,18 +69,16 @@ def big_query_update_devices_etl():
             tenant=tenant,
         )
 
-        return dict({"data": fill_nan(data=devices_data)})
+        return devices_data
 
     @task()
-    def load(inputs: dict):
-        from airqo_etl_utils.bigquery_api import BigQueryApi, JobAction
-        from airqo_etl_utils.commons import un_fill_nan
-
-        data = un_fill_nan(inputs.get("data"))
+    def load(data: pd.DataFrame):
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+        from airqo_etl_utils.constants import JobAction
 
         big_query_api = BigQueryApi()
         big_query_api.save_data(
-            data=data,
+            dataframe=data,
             table=big_query_api.devices_table,
             job_action=JobAction.OVERWRITE,
         )
