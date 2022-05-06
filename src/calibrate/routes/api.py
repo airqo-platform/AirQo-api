@@ -1,8 +1,8 @@
-base_url = '/api/v1'
+base_url = '/api/v1/calibrate'
 
 route = {
-    'root': '/calibrate',
-    'calibrate': f'{base_url}/calibrate',
-    'calibrate_tool': f'{base_url}/calibrate_tool',
-    'train_calibrate_tool': f'{base_url}/train_calibrate_tool'
+    'root': '/',
+    'calibrate': f'{base_url}',
+    'calibrate_tool': f'{base_url}/tool',
+    'train_calibrate_tool': f'{base_url}/train_tool'
 }
