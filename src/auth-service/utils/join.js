@@ -786,11 +786,16 @@ const join = {
         };
       }
     } catch (error) {
+      const errorResponse = error.response ? error.response : {};
+      const text = errorResponse ? errorResponse.text : "";
+      const status = errorResponse
+        ? errorResponse.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
       return {
         success: false,
         message: "Internal Server Error",
-        errors: { message: error.message, more: error.response.text },
-        status: error.response.status,
+        errors: { message: error.message, more: text },
+        status,
       };
     }
   },
