@@ -7,6 +7,7 @@ const generateFilter = require("../utils/generate-filter");
 const { validationResult } = require("express-validator");
 const manipulateArraysUtil = require("../utils/manipulate-arrays");
 const { badRequest } = require("../utils/errors");
+const isEmpty = require("is-empty");
 
 const join = {
   list: async (req, res) => {
@@ -697,6 +698,55 @@ const join = {
       }
     } catch (error) {
       tryCatchErrors(res, error, "join controller");
+    }
+  },
+  subscribeToNewsLetter: async (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return badRequest(
+          res,
+          "bad request errors",
+          manipulateArraysUtil.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      let request = {};
+      request["body"] = req.body;
+      if (isEmpty(req.body.tags)) {
+        request["body"]["tags"] = [];
+      }
+      const responseFromSubscribeToNewsLetter =
+        await joinUtil.subscribeToNewsLetter(request);
+
+      if (responseFromSubscribeToNewsLetter.success === true) {
+        const status = responseFromSubscribeToNewsLetter.status
+          ? responseFromSubscribeToNewsLetter.status
+          : HTTPStatus.OK;
+        return res.status(status).json({
+          message: responseFromSubscribeToNewsLetter.message,
+          success: true,
+        });
+      } else if (responseFromSubscribeToNewsLetter.success === false) {
+        const status = responseFromSubscribeToNewsLetter.status
+          ? responseFromSubscribeToNewsLetter.status
+          : HTTPStatus.INTERNAL_SERVER_ERROR;
+
+        const errors = responseFromSubscribeToNewsLetter.errors
+          ? responseFromSubscribeToNewsLetter.errors
+          : { message: "" };
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromSubscribeToNewsLetter.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
     }
   },
 };
