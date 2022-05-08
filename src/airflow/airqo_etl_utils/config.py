@@ -1,8 +1,14 @@
 import os
+from pathlib import Path
 
 import urllib3
+from dotenv import load_dotenv
 
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+dotenv_path = os.path.join(BASE_DIR, ".env")
+load_dotenv(dotenv_path)
 
 
 class Config:

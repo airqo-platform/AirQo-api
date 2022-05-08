@@ -8,18 +8,18 @@ from firebase_admin import credentials, messaging
 from firebase_admin import firestore
 
 from airqo_etl_utils.config import configuration
-from airqo_etl_utils.date import get_utc_offset_for_noon, str_to_str_default
+from airqo_etl_utils.date import get_utc_offset_for_hour, str_to_str_default
 from airqo_etl_utils.utils import get_file_content, get_air_quality
 from airqo_etl_utils.airqo_api import AirQoApi
 
 
-def get_notification_recipients() -> list:
+def get_notification_recipients(hour: int) -> pd.DataFrame:
 
     cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
     firebase_admin.initialize_app(cred)
 
     db = firestore.client()
-    offset = get_utc_offset_for_noon()
+    offset = get_utc_offset_for_hour(hour)
     docs = (
         db.collection(configuration.APP_USERS_DATABASE)
         .where("utcOffset", "==", offset)
@@ -30,14 +30,18 @@ def get_notification_recipients() -> list:
         user_info = dict(doc.to_dict())
         device = user_info.get("device", None)
         user_id = user_info.get("userId", None)
-        if device and user_id:
-            recipient = dict(
-                {
+        recipient = dict()
+        if device:
+            recipient = {
+                **{
                     "device": device,
                     "firstName": user_info.get("firstName", ""),
                     "lastName": user_info.get("lastName", ""),
+                    "fav_places": [],
                 }
-            )
+            }
+
+        if user_id:
             fav_places_docs = (
                 db.collection(configuration.APP_USERS_FAV_PLACES_DATABASE)
                 .document(user_id)
@@ -56,15 +60,22 @@ def get_notification_recipients() -> list:
                     )
             recipient["fav_places"] = fav_places
 
-            recipients.append(recipient)
+        recipients.append(recipient)
 
-    return recipients
+    return pd.DataFrame(recipients)
 
 
-def get_notification_templates() -> dict:
+def get_notification_templates(hour: int) -> list:
     file = configuration.APP_NOTIFICATIONS_TEMPLATE
     template_content = get_file_content(file_name=file)
-    return dict(template_content)
+    if hour in range(0, 12):
+        return template_content["morning"]
+    elif hour in range(12, 3):
+        return template_content["afternoon"]
+    elif hour in range(3, 23):
+        return template_content["evening"]
+    else:
+        return []
 
 
 def get_latest_insights() -> list:
@@ -151,6 +162,30 @@ def create_updates(update_templates: dict, recipients: list, insights: list) -> 
 
 
 def create_notification_messages(
+    templates: list, recipients: pd.DataFrame, message_type=""
+) -> pd.DataFrame:
+
+    messages = []
+    for _, recipient in recipients.iterrows():
+        message_index = random.randrange(len(templates))
+        message = str(templates[message_index])
+
+        recipient_first_name = recipient["firstName"]
+        recipient_last_name = recipient["lastName"]
+        name = recipient_first_name if recipient_first_name else recipient_last_name
+
+        message = message.replace("$NAME$", name)
+        message = message.replace("$NAME$,", name)
+
+        messages.append({"device": recipient["device"], "message": message})
+
+    messages_df = pd.DataFrame(messages)
+    messages_df.drop_duplicates(subset="device", keep="first", inplace=True)
+    messages_df["type"] = message_type
+    return messages_df
+
+
+def create_notification_messages_(
     templates: dict, recipients: list, insights: list
 ) -> list:
     messages = []
@@ -179,23 +214,23 @@ def create_notification_messages(
     return messages_df.to_dict(orient="records")
 
 
-def send_notification_messages(messages: list):
+def send_notification_messages(messages: pd.DataFrame):
 
     cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
     firebase_admin.initialize_app(cred)
 
     notifications = []
-    for message in messages:
-
+    for _, message in messages.iterrows():
+        print(message["message"])
+        print(message["device"])
+        print(message["type"])
         notification = messaging.Message(
-            notification=messaging.Notification(
-                title="AirQo", body=message.get("message")
-            ),
-            token=message.get("device"),
+            notification=messaging.Notification(title="AirQo", body=message["message"]),
+            token=message["device"],
             android=messaging.AndroidConfig(
                 ttl=datetime.timedelta(seconds=3600), priority="normal"
             ),
-            data={"type": message.get("type")},
+            data={"type": message["type"]},
         )
         notifications.append(notification)
 

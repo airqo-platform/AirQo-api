@@ -14,8 +14,6 @@ BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
 load_dotenv(dotenv_path)
 
-sys.path.append("/")
-
 
 def kcca_hourly_measurements(start_date_time: str, end_date_time: str):
     from airqo_etl_utils.kcca_utils import (
@@ -201,25 +199,21 @@ def app_notifications():
         get_notification_recipients,
         get_notification_templates,
         create_notification_messages,
-        get_latest_insights,
         send_notification_messages,
     )
 
-    recent_insights = get_latest_insights()
-    pd.DataFrame(recent_insights).to_csv(path_or_buf="recent_insights.csv", index=False)
+    recipients = get_notification_recipients(16)
+    recipients.to_csv(path_or_buf="recipients.csv", index=False)
 
-    recipients = get_notification_recipients()
-    pd.DataFrame(recipients).to_csv(path_or_buf="app_recipients.csv", index=False)
+    templates = get_notification_templates(16)
+    pd.DataFrame(templates).to_csv(path_or_buf="templates.csv", index=False)
 
-    message_templates = get_notification_templates()
-    print(message_templates)
-
-    notifications = create_notification_messages(
-        templates=message_templates, recipients=recipients, insights=recent_insights
+    notification_messages = create_notification_messages(
+        templates=templates, recipients=recipients
     )
-    print(notifications)
+    notification_messages.to_csv(path_or_buf="notification_messages.csv", index=False)
 
-    send_notification_messages(messages=notifications)
+    send_notification_messages(messages=notification_messages)
 
 
 def daily_insights(start_date_time: str, end_date_time: str):

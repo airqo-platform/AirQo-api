@@ -1,12 +1,12 @@
 from datetime import datetime, timedelta
 
 
-def get_utc_offset_for_noon() -> int:
+def get_utc_offset_for_hour(subject_hour: int) -> int:
     hour = datetime.utcnow().hour
-    if hour < 12:
-        return abs(hour - 12)
-    elif hour > 12:
-        return 12 - hour
+    if hour < subject_hour:
+        return abs(hour - subject_hour)
+    elif hour > subject_hour:
+        return subject_hour - hour
     return hour
 
 

@@ -1,4 +1,7 @@
 {
   "reminders": ["Hello $NAME$, it's time to check the air quality of your places."],
-  "updates": ["Air pollution update: $POLLUTION_UPDATE$"]
+  "updates": ["Air pollution update: $POLLUTION_UPDATE$"],
+  "morning": ["Good morning $NAME$\nStart your day off right. Know the quality of air and plan your day better."],
+  "afternoon": ["Good afternoon $NAME$\nDay going on well?"],
+  "evening": ["Good evening $NAME$\nHow was your day? Check your air quality"]
 }
