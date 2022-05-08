@@ -822,8 +822,8 @@ def merge_airqo_and_weather_data(
     return merged_data
 
 
-def calibrate_using_pickle_file(measurements: list) -> list:
-    if not measurements:
+def calibrate_using_pickle_file(measurements: pd.DataFrame) -> list:
+    if measurements.empty:
         return []
 
     pm_2_5_model_file = download_file_from_gcs(
@@ -842,9 +842,8 @@ def calibrate_using_pickle_file(measurements: list) -> list:
     lasso_regressor = pickle.load(open(pm_10_model_file, "rb"))
 
     calibrated_measurements = []
-    data_df = pd.DataFrame(measurements)
 
-    for _, row in data_df:
+    for _, row in measurements:
         try:
             calibrated_row = row
             hour = pd.to_datetime(row["time"]).hour
@@ -923,13 +922,11 @@ def calibrate_using_pickle_file(measurements: list) -> list:
     return calibrated_measurements
 
 
-def calibrate_using_api(measurements: list) -> list:
-    if not measurements:
+def calibrate_using_api(measurements: pd.DataFrame) -> list:
+    if measurements.empty:
         return []
 
-    data_df = pd.DataFrame(measurements)
-
-    data_df_groups = data_df.groupby("time")
+    data_df_groups = measurements.groupby("time")
     airqo_api = AirQoApi()
     calibrated_measurements = []
 
@@ -1017,11 +1014,10 @@ def calibrate_hourly_airqo_measurements(
     calibrated_measurements = []
 
     if not calibration_data_df.empty:
-        data_for_calibration = calibration_data_df.to_dict(orient="records")
         if method.lower() == "pickle":
-            calibrated_data = calibrate_using_pickle_file(data_for_calibration)
+            calibrated_data = calibrate_using_pickle_file(calibration_data_df)
         else:
-            calibrated_data = calibrate_using_api(data_for_calibration)
+            calibrated_data = calibrate_using_api(calibration_data_df)
 
         calibrated_measurements.extend(calibrated_data)
 

@@ -40,11 +40,11 @@ spec:
             backend:
               serviceName: airqo-stage-data-mgt-api-svc
               servicePort: 3000
-          - path: /api/v1/map
+          - path: /api/v1/locate/map
             backend:
               serviceName: airqo-stage-locate-api-svc
               servicePort: 4001
-          - path: /api/v2/map
+          - path: /api/v2/locate/map
             backend:
               serviceName: airqo-stage-locate-api-svc
               servicePort: 4001
@@ -77,6 +77,22 @@ spec:
               serviceName: airqo-stage-calibrate-api-svc
               servicePort: 4001
           - path: /api/v2/calibrate
+            backend:
+              serviceName: airqo-stage-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v1/calibrate_tool
+            backend:
+              serviceName: airqo-stage-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v2/calibrate_tool
+            backend:
+              serviceName: airqo-stage-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v1/train_calibrate_tool
+            backend:
+              serviceName: airqo-stage-calibrate-api-svc
+              servicePort: 4001
+          - path: /api/v2/train_calibrate_tool
             backend:
               serviceName: airqo-stage-calibrate-api-svc
               servicePort: 4001

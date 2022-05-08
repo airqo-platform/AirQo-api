@@ -171,6 +171,10 @@ jobs:
               echo "::set-output name=run_channel_data::true"
             fi
 
+            if [[ $file == k8s/message-broker-topics/* ]]; then
+              echo "::set-output name=run_message_broker_topics::true"
+            fi
+
             if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
@@ -191,6 +195,8 @@ jobs:
               echo "::set-output name=run_airflow::true"
               echo "::set-output name=run_network_uptime::true"
               echo "::set-output name=run_channel_data::true"
+              echo "::set-output name=run_view::true"
+              echo "::set-output name=run_message_broker_topics::true"
             fi
 
           done < files.txt
@@ -231,6 +237,26 @@ jobs:
           kubectl apply -f k8s/auth-service/stage-auth-api.yaml
           kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+  ### message broker topics ###
+  message-broker-topics:
+    name: build-push-deploy-message-broker-topics
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_message_broker_topics == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+      - 
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/message-broker-topics/stage-kafka-topics.yaml -n staging
 
   ### airflow ###
   airflow:

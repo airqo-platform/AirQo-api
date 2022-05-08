@@ -199,6 +199,42 @@ router.delete(
   joinController.delete
 );
 
+router.post(
+  "/newsletter/subscribe",
+  oneOf([
+    query("tenant")
+      .if(query("tenant").exists())
+      .notEmpty()
+      .withMessage("tenant cannot be empty if provided")
+      .bail()
+      .trim()
+      .toLowerCase()
+      .isIn(["kcca", "airqo"])
+      .withMessage("the tenant value is not among the expected ones"),
+  ]),
+  oneOf([
+    [
+      body("email")
+        .exists()
+        .withMessage("the email must be provided")
+        .bail()
+        .isEmail()
+        .withMessage("this is not a valid email address")
+        .trim(),
+      body("tags")
+        .optional()
+        .notEmpty()
+        .withMessage("the tags should not be empty if provided")
+        .bail()
+        .custom((value) => {
+          return Array.isArray(value);
+        })
+        .withMessage("the tags should be an array"),
+    ],
+  ]),
+  joinController.subscribeToNewsLetter
+);
+
 /************************* settings/defaults **********************************/
 router.put(
   "/defaults",

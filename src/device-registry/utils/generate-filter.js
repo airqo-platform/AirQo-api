@@ -691,11 +691,15 @@ const generateFilter = {
     return filter;
   },
   airqlouds: (req) => {
-    let { id, name, admin_level } = req.query;
+    let { id, name, admin_level, summary } = req.query;
     let filter = {};
 
     if (name) {
       filter["name"] = name;
+    }
+
+    if (summary === "yes") {
+      filter["summary"] = summary;
     }
 
     if (id) {

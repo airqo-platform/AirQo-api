@@ -147,6 +147,144 @@ def historical_hourly_measurements_etl():
 
 
 @dag(
+    "AirQo-Historical-Data-Calibration",
+    schedule_interval=None,
+    on_failure_callback=slack_dag_failure_notification,
+    start_date=datetime(2021, 1, 1),
+    catchup=False,
+    tags=["airqo", "calibration", "historical"],
+)
+def historical_data_calibration_etl():
+    @task()
+    def extract_hourly_device_measurements(**kwargs):
+
+        from airqo_etl_utils.commons import get_date_time_values
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        bigquery_api = BigQueryApi()
+
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
+
+        measurements = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=[
+                "s1_pm2_5",
+                "s2_pm2_5",
+                "s1_pm10",
+                "s2_pm10",
+                "timestamp",
+                "external_temperature",
+                "external_humidity",
+                "device_number",
+                "site_id",
+            ],
+            table=bigquery_api.hourly_measurements_table,
+            tenant="airqo",
+        )
+
+        return measurements
+
+    @task()
+    def extract_hourly_weather_data(**kwargs):
+
+        from airqo_etl_utils.commons import get_date_time_values
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        bigquery_api = BigQueryApi()
+
+        start_date_time, end_date_time = get_date_time_values(**kwargs)
+
+        data = bigquery_api.query_data(
+            start_date_time=start_date_time,
+            end_date_time=end_date_time,
+            columns=["site_id", "timestamp", "temperature", "humidity"],
+            table=bigquery_api.hourly_weather_table,
+            tenant="airqo",
+        )
+
+        return data
+
+    @task()
+    def merge_data(hourly_device_measurements, hourly_weather_data):
+        import pandas as pd
+
+        measurements = pd.merge(
+            left=hourly_device_measurements,
+            right=hourly_weather_data,
+            how="left",
+            on=["site_id", "timestamp"],
+        )
+
+        measurements = measurements.dropna(
+            subset=[
+                "site_id",
+                "s1_pm2_5",
+                "s2_pm2_5",
+                "s1_pm10",
+                "s2_pm10",
+                "timestamp",
+                "device_number",
+            ]
+        )
+
+        measurements["temperature"] = measurements["temperature"].fillna(
+            measurements["external_temperature"]
+        )
+
+        measurements["humidity"] = measurements["humidity"].fillna(
+            measurements["external_humidity"]
+        )
+
+        del measurements["external_humidity"]
+        del measurements["external_temperature"]
+
+        measurements = measurements.dropna(subset=["temperature", "humidity"])
+
+        measurements.rename(
+            columns={"timestamp": "time", "device_number": "device_id"}, inplace=True
+        )
+
+        return measurements
+
+    @task()
+    def calibrate_and_save(measurements):
+
+        from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
+        from airqo_etl_utils.bigquery_api import BigQueryApi
+
+        bigquery_api = BigQueryApi()
+
+        n = 1000
+        measurements_list = [
+            measurements[i : i + n] for i in range(0, measurements.shape[0], n)
+        ]
+        for chunk in measurements_list:
+            calibrated_data = calibrate_hourly_airqo_measurements(measurements=chunk)
+            calibrated_data.rename(
+                columns={
+                    "time": "timestamp",
+                    "device_id": "device_number",
+                    "calibrated_pm2_5": "pm2_5_calibrated_value",
+                    "calibrated_pm10": "pm10_calibrated_value",
+                },
+                inplace=True,
+            )
+            calibrated_data["tenant"] = "airqo"
+            bigquery_api.save_data(
+                dataframe=calibrated_data,
+                table=bigquery_api.calibrated_hourly_measurements_table,
+            )
+
+    device_measurements = extract_hourly_device_measurements()
+    weather_data = extract_hourly_weather_data()
+    merged_data = merge_data(
+        hourly_device_measurements=device_measurements, hourly_weather_data=weather_data
+    )
+    calibrate_and_save(merged_data)
+
+
+@dag(
     "AirQo-Historical-Raw-Measurements",
     schedule_interval=None,
     on_failure_callback=slack_dag_failure_notification,
@@ -498,5 +636,5 @@ def daily_measurements_etl():
 historical_hourly_measurements_etl_dag = historical_hourly_measurements_etl()
 airqo_realtime_measurements_etl_dag = airqo_realtime_measurements_etl()
 historical_raw_measurements_etl_dag = historical_raw_measurements_etl()
-
+historical_data_calibration_etl_dag = historical_data_calibration_etl()
 # airqo_daily_measurements_etl_dag = airqo_daily_measurements_etl()
