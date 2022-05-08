@@ -64,23 +64,17 @@ class BigQueryApi:
             table == self.hourly_measurements_table
             or table == self.raw_measurements_table
         ):
-            schema_path = "schema/measurements.json"
-            schema = "measurements.json"
+            schema_file = "measurements.json"
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
-            schema_path = "schema/weather_data.json"
-            schema = "weather_data.json"
+            schema_file = "weather_data.json"
         elif table == self.calibrated_hourly_measurements_table:
-            schema_path = "schema/calibrated_measurements.json"
-            schema = "calibrated_measurements.json"
+            schema_file = "calibrated_measurements.json"
         elif table == self.analytics_table:
-            schema_path = "schema/data_warehouse.json"
-            schema = "data_warehouse.json"
+            schema_file = "data_warehouse.json"
         elif table == self.sites_table:
-            schema_path = "schema/sites.json"
-            schema = "sites.json"
+            schema_file = "sites.json"
         elif table == self.devices_table:
-            schema_path = "schema/devices.json"
-            schema = "devices.json"
+            schema_file = "devices.json"
         else:
             raise Exception("Invalid table")
 

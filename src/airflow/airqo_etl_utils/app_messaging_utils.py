@@ -221,9 +221,6 @@ def send_notification_messages(messages: pd.DataFrame):
 
     notifications = []
     for _, message in messages.iterrows():
-        print(message["message"])
-        print(message["device"])
-        print(message["type"])
         notification = messaging.Message(
             notification=messaging.Notification(title="AirQo", body=message["message"]),
             token=message["device"],
