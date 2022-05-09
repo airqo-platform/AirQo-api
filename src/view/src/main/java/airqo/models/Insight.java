@@ -1,9 +1,7 @@
 package airqo.models;
 
-import com.fasterxml.jackson.annotation.JsonFormat;
-import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import com.fasterxml.jackson.annotation.JsonProperty;
+import airqo.serializers.Views;
+import com.fasterxml.jackson.annotation.*;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.Transient;
@@ -36,15 +34,40 @@ public class Insight implements Serializable {
 	@JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
 	private String id;
 
+	@JsonView(Views.InsightView.class)
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
 	@DateTimeFormat(pattern = dateTimeFormat)
 	private Date time;
+
+	@JsonView(Views.InsightView.class)
 	private double pm2_5;
+
+	@JsonView(Views.InsightView.class)
 	private double pm10;
-	private Boolean empty;
-	private Boolean forecast;
-	private Frequency frequency;
+
+	@JsonView(Views.InsightView.class)
 	private String siteId;
+
+	@JsonView(Views.GraphInsightView.class)
+	private Boolean empty;
+
+	@JsonView({Views.GraphInsightView.class, Views.LatestInsightView.class})
+	private Boolean forecast;
+
+	@JsonView(Views.GraphInsightView.class)
+	private Frequency frequency;
+
+	@JsonView(Views.LatestInsightView.class)
+	private String name;
+
+	@JsonView(Views.LatestInsightView.class)
+	private String location;
+
+	@JsonView(Views.LatestInsightView.class)
+	private double latitude;
+
+	@JsonView(Views.LatestInsightView.class)
+	private double longitude;
 
 	@Transient
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")

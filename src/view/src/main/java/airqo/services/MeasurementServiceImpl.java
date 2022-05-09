@@ -70,7 +70,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Override
 	@SentrySpan
 	@Cacheable(value = "apiLatestInsightsCache", cacheNames = {"apiLatestInsightsCache"}, unless = "#result.size() <= 0")
-	public List<Insight> apiGetLatestInsights(Frequency frequency) {
+	public List<Insight> apiGetLatestInsights() {
 
 		Calendar cal = Calendar.getInstance();
 		cal.setTime(new Date());
@@ -78,15 +78,20 @@ public class MeasurementServiceImpl implements MeasurementService {
 		Date startDateTime = cal.getTime();
 
 		Aggregation agg = newAggregation(
-			match(Criteria.where("time").gte(startDateTime).and("empty").is(false).and("frequency").is(frequency)),
+			match(Criteria.where("time").gt(startDateTime)
+				.and("empty").is(false)
+				.and("forecast").is(false)
+				.and("frequency").is(Frequency.HOURLY)),
 			group("siteId")
 				.last("siteId").as("siteId")
+				.last("forecast").as("forecast")
 				.last("time").as("time")
 				.last("pm2_5").as("pm2_5")
 				.last("pm10").as("pm10")
-				.last("empty").as("empty")
-				.last("forecast").as("forecast")
-				.last("frequency").as("frequency"),
+				.last("name").as("name")
+				.last("location").as("location")
+				.last("latitude").as("latitude")
+				.last("longitude").as("longitude"),
 			sort(Sort.Direction.DESC, "time")
 		);
 

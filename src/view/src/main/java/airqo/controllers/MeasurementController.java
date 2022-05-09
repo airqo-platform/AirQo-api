@@ -6,7 +6,9 @@ import airqo.models.Insight;
 import airqo.models.Measurement;
 import airqo.predicate.InsightPredicate;
 import airqo.predicate.MeasurementPredicate;
+import airqo.serializers.Views;
 import airqo.services.MeasurementService;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -58,11 +60,10 @@ public class MeasurementController {
 		return ResponseEntity.ok(measurements);
 	}
 
+	@JsonView(Views.LatestInsightView.class)
 	@GetMapping("/app/insights/latest")
-	public ResponseEntity<ApiResponseBody> getLatestInsights(@RequestParam(defaultValue = "hourly") Frequency frequency) {
-		List<Insight> insights = measurementService.apiGetLatestInsights(frequency);
-		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
-		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
+	public List<Insight> getLatestInsights() {
+		return measurementService.apiGetLatestInsights();
 	}
 
 	@GetMapping("/app/insights")
