@@ -51,7 +51,7 @@ public class Insight implements Serializable {
 	@JsonView(Views.GraphInsightView.class)
 	private Boolean empty;
 
-	@JsonView({Views.GraphInsightView.class, Views.LatestInsightView.class})
+	@JsonView(Views.GraphInsightView.class)
 	private Boolean forecast;
 
 	@JsonView(Views.GraphInsightView.class)

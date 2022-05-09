@@ -84,7 +84,6 @@ public class MeasurementServiceImpl implements MeasurementService {
 				.and("frequency").is(Frequency.HOURLY)),
 			group("siteId")
 				.last("siteId").as("siteId")
-				.last("forecast").as("forecast")
 				.last("time").as("time")
 				.last("pm2_5").as("pm2_5")
 				.last("pm10").as("pm10")

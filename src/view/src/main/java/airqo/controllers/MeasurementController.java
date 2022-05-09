@@ -6,9 +6,7 @@ import airqo.models.Insight;
 import airqo.models.Measurement;
 import airqo.predicate.InsightPredicate;
 import airqo.predicate.MeasurementPredicate;
-import airqo.serializers.Views;
 import airqo.services.MeasurementService;
-import com.fasterxml.jackson.annotation.JsonView;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +35,7 @@ import static airqo.config.Constants.dateTimeFormat;
 @Slf4j
 @Profile({"api"})
 @RestController
-@RequestMapping("measurements")
+@RequestMapping("v1/view/measurements")
 public class MeasurementController {
 
 	private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
@@ -58,12 +56,6 @@ public class MeasurementController {
 
 		Page<Measurement> measurements = measurementService.apiGetMeasurements(predicate, pageable);
 		return ResponseEntity.ok(measurements);
-	}
-
-	@JsonView(Views.LatestInsightView.class)
-	@GetMapping("/app/insights/latest")
-	public List<Insight> getLatestInsights() {
-		return measurementService.apiGetLatestInsights();
 	}
 
 	@GetMapping("/app/insights")
