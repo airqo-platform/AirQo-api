@@ -11,7 +11,7 @@ import sys
 from collections.abc import MutableMapping
 from models.parishes import Parish
 
-locate_parish = Parish()
+#locate_parish = Parish()
 
 def json_to_df(json_list):
     '''
@@ -116,11 +116,11 @@ def delete_keys_from_dict(dictionary, keys):
                 modified_dict[key] = value  
     return modified_dict
 
-def recommend_locations(sensor_number, must_have_coordinates, polygon):
+def recommend_locations(sensor_number, must_have_coordinates, polygon, tenant):
     '''
     recommends parishes in which to place sensors
     '''
-    parish = Parish()
+    locate_parish = Parish(tenant)
     if polygon==None:
         return jsonify({'response': 'Please draw a polygon'}), 200
     elif must_have_coordinates==None:
