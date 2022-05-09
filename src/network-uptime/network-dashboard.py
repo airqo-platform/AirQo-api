@@ -6,7 +6,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 import streamlit as st
 
 dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
@@ -29,7 +29,7 @@ st.sidebar.markdown(
 side_row1_col1, side_row1_col2 = st.sidebar.columns([1, 1])
 with side_row1_col1:
     selected_start_date = st.date_input(
-        'start date', datetime(2020, 1, 1))
+        'start date', datetime.now() - timedelta(weeks=12))
 with side_row1_col2:
     selected_end_date = st.date_input(
         'end date', datetime.now())

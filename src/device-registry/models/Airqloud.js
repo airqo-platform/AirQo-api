@@ -287,7 +287,11 @@ airqloudSchema.statics = {
   },
   async modify({ filter = {}, update = {} } = {}) {
     try {
-      let options = { new: true, useFindAndModify: false };
+      let options = {
+        new: true,
+        useFindAndModify: false,
+        projection: { location: 0, __v: 0 },
+      };
       let modifiedUpdateBody = update;
       if (update._id) {
         delete modifiedUpdateBody._id;
