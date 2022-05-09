@@ -38,7 +38,7 @@ public class MessageBroker {
 		this.objectMapper = objectMapper;
 	}
 
-//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
+	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.sites}'.split(',')}")
 	public void sites(String content) {
 		try {
 			Message<Site> dataMessage = objectMapper.readValue(content, new TypeReference<>() {
@@ -64,7 +64,7 @@ public class MessageBroker {
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
 		clientIdPrefix = "insights-partition-1",
 		topicPartitions = @TopicPartition(
-			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = { "1" }))
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = {"1"}))
 	public void appForecastInsights(String content) {
 		log.info("\n");
 		log.info("Partition 1");
@@ -74,7 +74,7 @@ public class MessageBroker {
 	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.insights}'.split(',')}",
 		clientIdPrefix = "insights-partition-2",
 		topicPartitions = @TopicPartition(
-			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = { "2" }))
+			topic = "#{'${spring.kafka.consumer.topics.insights}'}", partitions = {"2"}))
 	public void appPlaceHolderInsights(String content) {
 		log.info("\n");
 		log.info("Partition 2");
@@ -105,7 +105,7 @@ public class MessageBroker {
 		}
 	}
 
-//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.hourly-measurements}'.split(',')}")
+	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.hourly-measurements}'.split(',')}")
 	public void measurements(String content) {
 		try {
 
@@ -121,7 +121,7 @@ public class MessageBroker {
 		}
 	}
 
-//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
+	//	@KafkaListener(topics = "#{'${spring.kafka.consumer.topics.devices}'.split(',')}")
 	public void devices(String content) {
 		try {
 			Message<Device> dataMessage = objectMapper.readValue(content, new TypeReference<>() {

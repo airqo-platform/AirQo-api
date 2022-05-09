@@ -58,7 +58,13 @@ public class MeasurementController {
 		return ResponseEntity.ok(measurements);
 	}
 
-	@Deprecated
+	@GetMapping("/app/insights/latest")
+	public ResponseEntity<ApiResponseBody> getLatestInsights(@RequestParam(defaultValue = "hourly") Frequency frequency) {
+		List<Insight> insights = measurementService.apiGetLatestInsights(frequency);
+		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
+		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
+	}
+
 	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsights(
 		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {

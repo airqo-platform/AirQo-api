@@ -1,5 +1,6 @@
 package airqo.config;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.cache.RedisCacheManagerBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -14,6 +15,12 @@ import java.time.Duration;
 @Configuration
 public class CacheConfig {
 
+	@Value("${latestInsightsCache}")
+	private long latestInsightsCache;
+
+	@Value("${insightsCache}")
+	private long insightsCache;
+
 	@Bean
 	public RedisCacheManagerBuilderCustomizer redisCacheManagerBuilderCustomizer() {
 		return (builder) -> builder
@@ -22,7 +29,9 @@ public class CacheConfig {
 			.withCacheConfiguration("insightsCache",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
 			.withCacheConfiguration("apiInsightsCache",
-				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(insightsCache)))
+			.withCacheConfiguration("apiLatestInsightsCache",
+				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(latestInsightsCache)))
 			.withCacheConfiguration("viewDevicesCache",
 				RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofSeconds(5)));
 	}

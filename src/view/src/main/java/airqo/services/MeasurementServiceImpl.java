@@ -11,13 +11,22 @@ import com.querydsl.core.types.Predicate;
 import io.sentry.spring.tracing.SentrySpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.MongoOperations;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.stereotype.Service;
 
+import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
+
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.*;
 
 @Slf4j
 @Service
@@ -25,11 +34,15 @@ public class MeasurementServiceImpl implements MeasurementService {
 
 	private final InsightRepository insightRepository;
 	private final MeasurementRepository measurementRepository;
+	private final MongoOperations mongoOperations;
+	@Value("${latestInsightsTimeLimit}")
+	private int latestInsightsTimeLimit;
 
 	@Autowired
-	public MeasurementServiceImpl(InsightRepository insightRepository, MeasurementRepository measurementRepository) {
+	public MeasurementServiceImpl(InsightRepository insightRepository, MeasurementRepository measurementRepository, MongoOperations mongoOperations) {
 		this.insightRepository = insightRepository;
 		this.measurementRepository = measurementRepository;
+		this.mongoOperations = mongoOperations;
 	}
 
 	@Override
@@ -52,6 +65,34 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Cacheable(value = "apiInsightsCache", cacheNames = {"apiInsightsCache"}, unless = "#result.size() <= 0")
 	public List<Insight> apiGetInsights(Predicate predicate) {
 		return Lists.newArrayList(insightRepository.findAll(predicate));
+	}
+
+	@Override
+	@SentrySpan
+	@Cacheable(value = "apiLatestInsightsCache", cacheNames = {"apiLatestInsightsCache"}, unless = "#result.size() <= 0")
+	public List<Insight> apiGetLatestInsights(Frequency frequency) {
+
+		Calendar cal = Calendar.getInstance();
+		cal.setTime(new Date());
+		cal.add(Calendar.HOUR, -latestInsightsTimeLimit);
+		Date startDateTime = cal.getTime();
+
+		Aggregation agg = newAggregation(
+			match(Criteria.where("time").gte(startDateTime).and("empty").is(false).and("frequency").is(frequency)),
+			group("siteId")
+				.last("siteId").as("siteId")
+				.last("time").as("time")
+				.last("pm2_5").as("pm2_5")
+				.last("pm10").as("pm10")
+				.last("empty").as("empty")
+				.last("forecast").as("forecast")
+				.last("frequency").as("frequency"),
+			sort(Sort.Direction.DESC, "time")
+		);
+
+		AggregationResults<Insight> groupResults = mongoOperations.aggregate(agg, Insight.class, Insight.class);
+
+		return groupResults.getMappedResults();
 	}
 
 	@Override

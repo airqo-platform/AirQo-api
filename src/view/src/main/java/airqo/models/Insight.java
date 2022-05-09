@@ -26,7 +26,8 @@ import static airqo.config.Constants.dateTimeFormat;
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Document(collection = "insights_measurements")
 @CompoundIndexes({
-	@CompoundIndex(name = "Insights Measurements Compound Index", def = "{'time' : 1, 'frequency': 1, 'siteId': 1}", unique = true)
+	@CompoundIndex(name = "Insights Measurements Compound Index", def = "{'time' : 1, 'frequency': 1, 'siteId': 1}", unique = true),
+	@CompoundIndex(name = "Latest Insights Compound Index", def = "{'time' : 1, 'frequency': 1, 'empty': 1}")
 })
 public class Insight implements Serializable {
 

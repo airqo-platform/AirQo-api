@@ -16,6 +16,8 @@ public interface MeasurementService {
 
 	List<Insight> apiGetInsights(Predicate predicate);
 
+	List<Insight> apiGetLatestInsights(Frequency frequency);
+
 	Page<Measurement> apiGetMeasurements(Predicate predicate, Pageable pageable);
 
 	List<Insight> getForecastInsightsBefore(Date beforeTime);
