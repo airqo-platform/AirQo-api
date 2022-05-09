@@ -57,9 +57,7 @@ def app_forecast_insights_etl():
     def load(forecast: pd.DataFrame):
         from airqo_etl_utils.app_insights_utils import save_insights_data
 
-        save_insights_data(
-            insights_data=forecast.to_dict(orient="records"), partition=1
-        )
+        save_insights_data(insights_data=forecast, partition=1)
 
     api_forecast_data = extract_api_forecast_data()
     load(forecast=api_forecast_data)
