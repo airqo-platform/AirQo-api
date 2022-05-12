@@ -1,5 +1,6 @@
 import json
 import os
+import traceback
 
 import pandas as pd
 from google.cloud import bigquery
@@ -24,7 +25,14 @@ class BigQueryApi:
         )
         self.package_directory, _ = os.path.split(__file__)
 
-    def validate_data(self, dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
+    def validate_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        raise_column_exception=True,
+        date_time_columns=None,
+        numeric_columns=None,
+    ) -> pd.DataFrame:
 
         # time is depreciated. It will be replaced with timestamp
         if (
@@ -41,16 +49,25 @@ class BigQueryApi:
             print(
                 f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
             )
-            raise Exception("Invalid columns")
+            if raise_column_exception:
+                raise Exception("Invalid columns")
 
         # validating timestamp
-        date_time_columns = self.__get_columns(table=table, data_type="TIMESTAMP")
+        date_time_columns = (
+            date_time_columns
+            if date_time_columns
+            else self.__get_columns(table=table, data_type="TIMESTAMP")
+        )
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
         )
 
         # validating floats
-        numeric_columns = self.__get_columns(table=table, data_type="FLOAT")
+        numeric_columns = (
+            numeric_columns
+            if numeric_columns
+            else self.__get_columns(table=table, data_type="FLOAT")
+        )
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
@@ -157,3 +174,34 @@ class BigQueryApi:
             dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
 
         return dataframe
+
+    def update_data(self, table: str, updated_data: pd.DataFrame):
+        dataframe = self.validate_data(
+            dataframe=updated_data,
+            table=table,
+            raise_column_exception=False,
+            date_time_columns=["timestamp"],
+            numeric_columns=[
+                "pm2_5_calibrated_value",
+                "pm10_calibrated_value",
+                "temperature",
+                "humidity",
+            ],
+        )
+
+        for _, row in dataframe.iterrows():
+            try:
+                query = f""" 
+                UPDATE {table}
+                SET pm2_5 = {row['pm2_5_calibrated_value']}, pm2_5_calibrated_value = {row['pm2_5_calibrated_value']},
+                pm10 = {row['pm10_calibrated_value']}, pm10_calibrated_value = {row['pm10_calibrated_value']},
+                temperature = {row['temperature']}, humidity = {row['humidity']}
+                WHERE device_number = {row['device_number']}
+                AND timestamp = '{row['timestamp']}'
+                AND tenant = '{row['tenant']}'
+                """
+                print(query)
+                # self.client.query(query=query).result()
+            except Exception as ex:
+                print(ex)
+                traceback.print_exc()
