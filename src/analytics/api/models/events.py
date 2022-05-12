@@ -1,7 +1,9 @@
+import pandas as pd
 import pytz
 from datetime import datetime
 from google.cloud import bigquery
 from api.models.base.base_model import BasePyMongoModel
+from api.utils.dates import date_to_str
 
 from main import cache, CONFIGURATIONS
 
@@ -265,6 +267,58 @@ class EventsModel(BasePyMongoModel):
                 .unwind("generated_name")
                 .exec()
         )
+
+    @cache.memoize()
+    def get_d3_chart_events_v2(self, sites, start_date, end_date, pollutant, frequency, tenant):
+
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+            raise Exception("Invalid pollutant")
+
+        columns = ["site_id", "name", "timestamp as time", "description as generated_name", f"{pollutant} as value"]
+
+        query = f"""
+          SELECT {', '.join(map(str, columns))} 
+          FROM {self.BIGQUERY_EVENTS}
+          JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
+          WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
+          AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
+          AND {self.BIGQUERY_EVENTS}.tenant = '{tenant}'
+          AND `airqo-250220.metadata.sites`.id in UNNEST({sites})
+        """
+
+        client = bigquery.Client()
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = client.query(query, job_config).result().to_dataframe()
+        dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
+        site_groups = dataframe.groupby("site_id")
+
+        data = []
+        if frequency.lower() == "daily":
+            resample_value = "24H"
+        elif frequency.lower() == "monthly":
+            resample_value = "720H"
+        elif frequency.lower() == "hourly":
+            resample_value = "1H"
+        else:
+            resample_value = "1H"
+
+        for _, site_group in site_groups:
+
+            values = site_group[["value", "time"]]
+            ave_values = pd.DataFrame(values.resample(resample_value, on="time").mean())
+            ave_values["time"] = ave_values.index
+            ave_values["time"] = ave_values["time"].apply(date_to_str)
+            ave_values = ave_values.reset_index(drop=True)
+
+            ave_values["site_id"] = site_group.iloc[0]["site_id"]
+            ave_values["generated_name"] = site_group.iloc[0]["generated_name"]
+            ave_values["name"] = site_group.iloc[0]["name"]
+
+            data.extend(ave_values.to_dict(orient="records"))
+
+        return data
 
     def get_events(self, sites, start_date, end_date, frequency):
         time_format_mapper = {
