@@ -1,12 +1,4 @@
-import pandas as pd
-from pymongo import MongoClient
-from dotenv import load_dotenv
-import os
-import sys
-from helpers import helper
-
-load_dotenv()
-MONGO_URI = os.getenv('MONGO_URI')
+from config import connect_mongo
 
 class Parish():
     '''
@@ -16,9 +8,8 @@ class Parish():
         attr2 (:obj:`int`, optional): Description of `attr2`.
     '''
 
-    def __init__(self):
-        ''' initialize ''' 
-
+    def __init__(self, tenant):
+        self.db = connect_mongo(tenant)
 
     def get_parishes_map(self, polygon):
         '''
@@ -40,9 +31,7 @@ class Parish():
                                 }
                 projection = {'_id': 0}
 
-                client = MongoClient(MONGO_URI)
-                db = client['airqo_netmanager']
-                records = db.locate.find(query, projection)
+                records = self.db.locate.find(query, projection)
                 records_list = list(records)
                 return records_list
             except:
@@ -63,8 +52,6 @@ class Parish():
             }
         }
         projection = {'_id': 0}
-        client = MongoClient(MONGO_URI)
-        db = client['airqo_netmanager']
-        records = db.locate.find(query, projection)
+        records = self.db.locate.find(query, projection)
         records_list = list(records)
         return records_list

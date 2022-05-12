@@ -27,13 +27,13 @@ class EventsModel(BasePyMongoModel):
         client = bigquery.Client()
 
 
-        QUERY = f"SELECT FORMAT_DATETIME('%FT%T%Ez', time) AS datetime, name, site_id, {cls.BIGQUERY_SITES}.latitude, " \
+        QUERY = f"SELECT FORMAT_DATETIME('%FT%T%Ez', timestamp) AS datetime, name, site_id, {cls.BIGQUERY_SITES}.latitude, " \
                 f"{cls.BIGQUERY_SITES}.longitude, {', '.join(formatted_pollutants)} " \
                 f"FROM {cls.BIGQUERY_EVENTS} " \
                 f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id " \
                 f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' " \
-                f"AND {cls.BIGQUERY_EVENTS}.time >= '{start_date}' " \
-                f"AND {cls.BIGQUERY_EVENTS}.time <= '{end_date}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.timestamp >= '{start_date}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.timestamp <= '{end_date}' " \
                 f"AND site_id IN UNNEST({sites})"
 
         job_config = bigquery.QueryJobConfig()
