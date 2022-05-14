@@ -157,7 +157,6 @@ def historical_hourly_measurements_etl():
 def historical_data_calibration_etl():
     @task()
     def extract_hourly_device_measurements(**kwargs):
-
         from airqo_etl_utils.commons import get_date_time_values
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -187,7 +186,6 @@ def historical_data_calibration_etl():
 
     @task()
     def extract_hourly_weather_data(**kwargs):
-
         from airqo_etl_utils.commons import get_date_time_values
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
@@ -249,7 +247,6 @@ def historical_data_calibration_etl():
 
     @task()
     def calibrate_and_save(measurements):
-
         from airqo_etl_utils.airqo_utils import calibrate_hourly_airqo_measurements
         from airqo_etl_utils.bigquery_api import BigQueryApi
 

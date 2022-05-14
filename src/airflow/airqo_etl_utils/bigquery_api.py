@@ -134,14 +134,8 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print("Table for loading {} ".format(table))
-        print(
-            "Loaded {} rows and {} columns to {}".format(
-                destination_table.num_rows,
-                len(destination_table.schema),
-                destination_table.friendly_name,
-            )
-        )
+        print(f"Loaded {len(dataframe)} rows to {table}")
+        print(f"Total rows after load :  {destination_table.num_rows}")
 
     def query_data(
         self,
@@ -174,34 +168,3 @@ class BigQueryApi:
             dataframe["time"] = dataframe["time"].apply(lambda x: date_to_str(x))
 
         return dataframe
-
-    def update_data(self, table: str, updated_data: pd.DataFrame):
-        dataframe = self.validate_data(
-            dataframe=updated_data,
-            table=table,
-            raise_column_exception=False,
-            date_time_columns=["timestamp"],
-            numeric_columns=[
-                "pm2_5_calibrated_value",
-                "pm10_calibrated_value",
-                "temperature",
-                "humidity",
-            ],
-        )
-
-        for _, row in dataframe.iterrows():
-            try:
-                query = f""" 
-                UPDATE {table}
-                SET pm2_5 = {row['pm2_5_calibrated_value']}, pm2_5_calibrated_value = {row['pm2_5_calibrated_value']},
-                pm10 = {row['pm10_calibrated_value']}, pm10_calibrated_value = {row['pm10_calibrated_value']},
-                temperature = {row['temperature']}, humidity = {row['humidity']}
-                WHERE device_number = {row['device_number']}
-                AND timestamp = '{row['timestamp']}'
-                AND tenant = '{row['tenant']}'
-                """
-                print(query)
-                # self.client.query(query=query).result()
-            except Exception as ex:
-                print(ex)
-                traceback.print_exc()
