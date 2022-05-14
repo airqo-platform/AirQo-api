@@ -1,8 +1,11 @@
-# <Replace with the tile for the Feature/Chore/Hotfix/Topic/Bug you are working on>
-
 **_WHAT DOES THIS PR DO?_**
 
-**_WHAT JIRA STORY/TASK IS RELATED TO THIS PR?_**
+**_WHAT ISSUES ARE RELATED TO THIS PR?_**
+
+- Jira cards
+    - []()
+- GitHub issues
+    - Closes #<enter GitHub issue number here>
 
 **_HOW DO I TEST OUT THIS PR?_**
 
@@ -10,10 +13,6 @@
 
 **_IS THERE ANY JENKINS CONSOLE LINK FOR CODE COVERAGE AND BUILD INFO?_**
 
-N/A
-
 **_ARE THERE ANY RELATED PRs?_**
-
-N/A
 
 
