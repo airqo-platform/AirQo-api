@@ -10,3 +10,4 @@ data/
 venv/
 *.pkl
 *.csv
+catboost_info/
