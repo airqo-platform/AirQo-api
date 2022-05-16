@@ -489,7 +489,7 @@ def merge_historical_calibrated_data(
         print(merged_data.head(8))
 
     big_query_api = BigQueryApi()
-    big_query_api.save_data(
+    big_query_api.load_data(
         dataframe=merged_data,
         table=big_query_api.hourly_measurements_table,
         job_action=JobAction.OVERWRITE,
