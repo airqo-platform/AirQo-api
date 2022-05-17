@@ -603,7 +603,7 @@ jobs:
   ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
     steps:
