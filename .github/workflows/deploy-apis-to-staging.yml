@@ -688,20 +688,27 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
-      
-      - name: Build and Push Docker Image
+      -
+        name: Build and push AirQo Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: airqo-staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
+      -
+        name: Build and push KCCA Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: kcca-staging
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
+      - 
+        name: Deploy to K8S
         run: |
-          cd src/exceedances/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest -f Dockerfile.stage.airqo .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-airqo-exceedance-job:latest
-
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest -f Dockerfile.stage.kcca .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/stage-kcca-exceedance-job:latest
-      - name: Deploy to K8S
-        run: |
-          cd k8s/exceedance/
-          kubectl apply -f stage-airqo-exceedance-job.yaml
-          kubectl apply -f stage-kcca-exceedance-job.yaml
+          kubectl apply -f k8s/exceedance/stage-airqo-exceedance-job.yaml
+          kubectl apply -f k8s/exceedance/stage-kcca-exceedance-job.yaml
 
   ### datawarehouse ###
   datawarehouse:
