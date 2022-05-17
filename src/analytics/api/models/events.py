@@ -1,10 +1,11 @@
+from datetime import datetime
+
 import pandas as pd
 import pytz
-from datetime import datetime
 from google.cloud import bigquery
+
 from api.models.base.base_model import BasePyMongoModel
 from api.utils.dates import date_to_str
-
 from main import cache, CONFIGURATIONS
 
 
@@ -315,6 +316,7 @@ class EventsModel(BasePyMongoModel):
             ave_values["site_id"] = site_group.iloc[0]["site_id"]
             ave_values["generated_name"] = site_group.iloc[0]["generated_name"]
             ave_values["name"] = site_group.iloc[0]["name"]
+            ave_values = ave_values.fillna(0)
 
             data.extend(ave_values.to_dict(orient="records"))
 
