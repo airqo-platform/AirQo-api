@@ -13,10 +13,15 @@ app = Flask(__name__)
 
 @app.route("/predict_faults", methods=['POST', 'GET'])
 def predict_fault():
-    data = request.json
+    data = request.get_json()
+    datetime = data.get('datetime')
+    raw_values = data.get('raw_values')       
+    if (not datetime or not raw_values):
+        return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400     
+    
     lstm = classification.Classification()
-    prediction = lstm.predict_faults(data)
-    return jsonify(prediction.to_dict())
+    prediction = lstm.predict_faults(raw_values)
+    return jsonify(prediction.to_dict(orient="records"))
 
 if __name__ == '__main__':
   
