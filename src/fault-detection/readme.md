@@ -19,7 +19,7 @@ It is implicit that `mongodb` should be installed and running.
 
 ## Calibrate Endpoint
 
-Make a "POST" request to http://localhost:4001/api/v1/calibrate with the following raw JSON payload in the body:
+Make a "POST" request to http://localhost:4001/api/v1/predict_faults with the following raw JSON payload in the body:
 
 ```{json}
 {
