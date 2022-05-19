@@ -3,60 +3,19 @@ import pandas as pd
 from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.bigquery_api import BigQueryApi
 
-hourly_weather_columns = [
-    "timestamp",
-    "site_id",
-    "temperature",
-    "humidity",
-    "wind_speed",
-    "atmospheric_pressure",
-    "radiation",
-    "vapor_pressure",
-    "wind_gusts",
-    "precipitation",
-    "wind_direction",
-]
-
-hourly_measurements_columns = [
-    "timestamp",
-    "site_id",
-    "device",
-    "device_number",
-    "latitude",
-    "longitude",
-    "pm2_5",
-    "s1_pm2_5",
-    "s2_pm2_5",
-    "pm2_5_raw_value",
-    "pm2_5_calibrated_value",
-    "pm10",
-    "s1_pm10",
-    "s2_pm10",
-    "pm10_raw_value",
-    "pm10_calibrated_value",
-    "no2",
-    "no2_raw_value",
-    "no2_calibrated_value",
-    "pm1",
-    "pm1_raw_value",
-    "pm1_calibrated_value",
-    "external_temperature",
-    "external_humidity",
-]
-
 
 def query_hourly_measurements(start_date_time: str, end_date_time: str) -> pd.DataFrame:
     biq_query_api = BigQueryApi()
-
+    columns = biq_query_api.get_columns(table=biq_query_api.hourly_measurements_table)
     hourly_measurements = biq_query_api.query_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
-        columns=hourly_measurements_columns,
+        columns=columns,
         table=biq_query_api.hourly_measurements_table,
     )
 
     if hourly_measurements.empty:
-        hourly_measurements = pd.DataFrame(data=[], columns=hourly_measurements_columns)
+        hourly_measurements = pd.DataFrame(data=[], columns=columns)
 
     hourly_measurements.rename(
         columns={
@@ -72,14 +31,15 @@ def query_hourly_measurements(start_date_time: str, end_date_time: str) -> pd.Da
 
 def query_hourly_weather_data(start_date_time: str, end_date_time: str) -> pd.DataFrame:
     biq_query_api = BigQueryApi()
+    columns = biq_query_api.get_columns(table=biq_query_api.hourly_weather_table)
     hourly_weather_measurements = biq_query_api.query_data(
         start_date_time=start_date_time,
         end_date_time=end_date_time,
-        columns=hourly_weather_columns,
+        columns=columns,
         table=biq_query_api.hourly_weather_table,
     )
     if hourly_weather_measurements.empty:
-        return pd.DataFrame(data=[], columns=hourly_weather_columns)
+        return pd.DataFrame(data=[], columns=columns)
 
     return hourly_weather_measurements
 
@@ -185,15 +145,24 @@ def extract_sites_meta_data(tenant=None) -> pd.DataFrame:
 def merge_measurements_weather_sites(
     measurements_data: pd.DataFrame, weather_data: pd.DataFrame, sites: pd.DataFrame
 ) -> pd.DataFrame:
+
+    biq_query_api = BigQueryApi()
     if weather_data.empty:
-        weather_data = pd.DataFrame(data=[], columns=hourly_weather_columns)
+        weather_columns = biq_query_api.get_columns(
+            table=biq_query_api.hourly_weather_table
+        )
+        weather_data = pd.DataFrame(data=[], columns=weather_columns)
     if measurements_data.empty:
-        measurements_data = pd.DataFrame(data=[], columns=hourly_measurements_columns)
+        measurements_columns = biq_query_api.get_columns(
+            table=biq_query_api.hourly_measurements_table
+        )
+        measurements_data = pd.DataFrame(data=[], columns=measurements_columns)
+    del measurements_data["wind_speed"]
 
     measurements_df = pd.merge(
         left=measurements_data,
         right=weather_data,
-        on=["site_id", "timestamp"],
+        on=["tenant", "site_id", "timestamp"],
         how="left",
     )
 
@@ -211,5 +180,5 @@ def merge_measurements_weather_sites(
     del measurements_df["external_temperature"]
     del measurements_df["external_humidity"]
 
-    data_df = pd.merge(measurements_df, sites, on=["site_id"], how="left")
+    data_df = pd.merge(measurements_df, sites, on=["tenant", "site_id"], how="left")
     return data_df

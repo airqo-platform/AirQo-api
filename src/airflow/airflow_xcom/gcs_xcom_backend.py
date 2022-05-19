@@ -71,3 +71,10 @@ class GCSXComBackend(BaseXCom):
             result.reset_index(drop=True, inplace=True)
 
         return result
+
+    def orm_deserialize_value(self) -> Any:
+        value = GCSXComBackend.deserialize_value(self)
+        if isinstance(value, pd.DataFrame):
+            return value.to_dict(orient="records")
+
+        return super().orm_deserialize_value()
