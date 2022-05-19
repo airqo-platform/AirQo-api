@@ -1,4 +1,4 @@
-from dotenv import load_dotenv, find_dotenv
+from dotenv import load_dotenv, find_dotenv, set_key
 import os
 import pandas as pd
 import numpy as np
@@ -12,20 +12,15 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
-CATBOOST_MODEL = os.getenv('CATBOOST_MODEL', 'jobs/catboost_model.pkl')
-
 load_dotenv(find_dotenv())
+set_key(find_dotenv(), "CATBOOST_MODEL", str(BASE_DIR) + "/catboost_model.pkl")
 
+CATBOOST_MODEL = os.getenv('CATBOOST_MODEL','jobs/catboost_model.pkl')
 
-load_dotenv(find_dotenv())
 
 MONGO_URI = os.environ.get("MONGO_URI")
-
-
-
 client = MongoClient(MONGO_URI)
 train_data = client.fault_detection.train_data
-
 train_df = pd.DataFrame(list(train_data.find()))
 
 def create_model(df):

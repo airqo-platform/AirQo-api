@@ -10,7 +10,8 @@ from pathlib import Path
 
 load_dotenv(find_dotenv())
 
-CATBOOST_MODEL = os.getenv('CATBOOST_MODEL', 'jobs/catboost_model.pkl')
+BASE_DIR = Path(__file__).resolve().parent
+CATBOOST_MODEL = os.getenv('CATBOOST_MODEL','jobs/catboost_model.pkl')
 
 class Classification():
     def predict_faults(self, model_inputs):

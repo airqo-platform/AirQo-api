@@ -1,16 +1,13 @@
 from flask import jsonify, Blueprint, request,make_response, Flask
-# from models import classification 
-
-import sys
-sys.path.append(r"/Users/paul/Documents/github_airqo/AirQo-api/src/fault-detection/")
-
+import pandas
 from models import classification
+from routes import api
 
-app = Flask(__name__)
 
+fault_detection = Blueprint('fault_detection', __name__)
 
-@app.route("/predict_fault", methods = ["POST"])
-def predict_fault():
+@fault_detection.route(api.route['predict_faults'], methods=['POST'])
+def predict_faults():
     request_data = request.get_json()
     cat = classification.Classification()
     try:
@@ -19,3 +16,4 @@ def predict_fault():
         return jsonify({"error": str(e)})
 
     return jsonify(pred.to_dict("records"))
+
