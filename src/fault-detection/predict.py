@@ -1,41 +1,4 @@
 # -*- coding: utf-8 -*-
-
-
-sample = {
-    "datetime": "2020-07-15 13:00:00",
-    "raw_values": [
-        {
-            "device_id":"aq_01", 
-            "sensor1_pm2.5": 44.12 , 
-            "sensor1_pm10":54.20, 
-            "sensor2_pm2.5": 44.12 , 
-            "sensor2_pm10":54.20,
-            "temperature":25.3, 
-            "humidity":62.0 
-        },
-        {
-            "device_id": "aq_02",
-            "sensor1_pm2.5": 44.12 , 
-            "sensor1_pm10":54.20, 
-            "sensor2_pm2.5": 44.12 , 
-            "sensor2_pm10":54.20,
-            "temperature":25.3, 
-            "humidity":62.0 
-        },
-        {
-            "device_id": "aq_03",
-            "sensor1_pm2.5": 44.12 , 
-            "sensor1_pm10":54.20, 
-            "sensor2_pm2.5": 44.12 , 
-            "sensor2_pm10":54.20,
-            "temperature":25.3, 
-            "humidity":62.0 
-        }
-    ]
-}
-
-
-
 """
 @author: Professor
 """
