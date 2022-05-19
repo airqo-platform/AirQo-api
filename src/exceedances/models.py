@@ -51,4 +51,4 @@ class Exceedance:
     def save_exceedance(self, records):
         tenant = self.tenant
         db = connect_mongo(tenant)
-        return db.exceedances.insert(records)
+        return db.exceedances.insert_one(records)
