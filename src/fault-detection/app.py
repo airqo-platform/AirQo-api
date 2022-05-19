@@ -9,7 +9,6 @@ load_dotenv()
 app = Flask(__name__)
 
 
-# app.config["MONGO_URI"] = os.getenv("MONGO_URI")
 
 @app.route("/predict_faults", methods=['POST', 'GET'])
 def predict_fault():
