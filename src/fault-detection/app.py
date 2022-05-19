@@ -20,7 +20,7 @@ def predict_fault():
         return jsonify({"message": "Please specify the datetime, pm2.5, pm10, temperature and humidity values in the body. Refer to the API documentation for details.", "success": False}), 400     
     
     lstm = classification.Classification()
-    prediction = lstm.predict_faults(raw_values)
+    prediction = lstm.predict_faults(raw_values, datetime)
     return jsonify(prediction.to_dict(orient="records"))
 
 if __name__ == '__main__':
