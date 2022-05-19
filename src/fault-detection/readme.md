@@ -3,8 +3,9 @@
 ## To run in a virtual environment
 
 1. Create a virtual environment
-2. `pip install -r requirements.txt`
-3. `flask run`
+2. `$ pip install -r requirements.txt`
+3. `$ python jobs\classification.py` **(one time)**
+4. `$ flask run`
 
 ## Calibrate Endpoint
 
@@ -33,7 +34,6 @@ Make a "POST" request to http://localhost:4001/api/v1/predict_faults with the fo
         "pm2.5": 80 ,
         "s2_pm2.5": 80.12
 
-        }
-        ]
+        }]
 }
 ```
