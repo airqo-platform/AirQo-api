@@ -13,9 +13,7 @@ from pymongo import MongoClient
 from keras.models import Sequential
 from keras.layers import LSTM, Activation, Dropout,Dense
 
-# BASE_DIR = Path(__file__).resolve().parent
-# dotenv_path = os.path.join(BASE_DIR, '.env')
-# print(dotenv_path)
+
 load_dotenv()
 
 
@@ -29,12 +27,7 @@ train_data = client.fault_detection.train_data
 train_df = pd.DataFrame(list(train_data.find()))
 
 def lstm_model(dataset):
-    # dataset.sort_values(by=['Datetime']).reset_index(drop=True)
-    # dataset['Datetime'] = pd.to_datetime(dataset.Datetime)
-    # dataset['Datetime_day'] = dataset.Datetime.dt.day
-    # dataset['Datetime_month'] = dataset.Datetime.dt.month
-    # dataset['Datetime_hour'] = dataset.Datetime.dt.hour
-    print(dataset)
+    
     dataset.fillna(-9999, inplace=True)
     X= dataset[['Sensor1_PM2.5','Sensor2_PM2.5']].values
     y = dataset[['Offset_fault','Out_of_bounds_fault','Data_loss_fault','High_variance_fault']].values    
@@ -54,10 +47,7 @@ def lstm_model(dataset):
     # close the file
     file.close()
     model.save(f'{filename}.h5')
-    ##dump the model to google cloud storage.
-    # save_trained_model(rf_regressor,'airqo-250220','airqo_prediction_bucket', 'PM2.5_calibrate_model.pkl')
 
-    
     return model
 
 
