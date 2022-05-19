@@ -14,14 +14,15 @@ BASE_DIR = Path(__file__).resolve().parent
 CATBOOST_MODEL = os.getenv('CATBOOST_MODEL','jobs/catboost_model.pkl')
 
 class Classification():
-    def predict_faults(self, model_inputs):
-    
+    def predict_faults(self,model_inputs):
+
         map_columns = {
             "time": "Datetime",
             "pm2.5": "Sensor1_PM2.5",
-            "S2_pm2.5": "Sensor2_PM2.5"
+            "s2_pm2.5": "Sensor2_PM2.5",
+            "device_id": "Device_ID"
         }
-        
+
         model_inputs = pd.DataFrame(model_inputs)
         model_inputs.rename(columns=map_columns, inplace = True)
 
@@ -35,26 +36,15 @@ class Classification():
         model_inputs["Mean"] = model_inputs[["Sensor1_PM2.5","Sensor2_PM2.5"]].mean(axis=1)
         model_inputs["Var"] = model_inputs[["Sensor1_PM2.5","Sensor2_PM2.5"]].var(axis=1)
 
-        classifier = pickle.load(open(str(CATBOOST_MODEL), 'rb'))
-        predicted_faults = classifier.predict(model_inputs)
+        classifier = pickle.load(open(CATBOOST_MODEL, 'rb'))
+        predicted_faults = classifier.predict(model_inputs.drop("Device_ID", axis = 1))
         faults_df = pd.DataFrame(predicted_faults, columns= ["Offset_fault","Out_of_bounds_fault","Data_loss_fault", "High_variance_fault"])
-        
-        model_output = model_inputs[["Datetime", "Sensor1_PM2.5","Sensor2_PM2.5"]].join(faults_df)
+
+        model_output = model_inputs[["Datetime","Device_ID", "Sensor1_PM2.5","Sensor2_PM2.5"]].join(faults_df)
+        model_output["Datetime"] = model_output["Datetime"].apply(str)
 
         return model_output
 
 
 if __name__ == "__main__":
     predictFault = Classification()
-#     print(predictFault.predict_faults([
-#     {
-#         "time":datetime.datetime(2021, 3, 31, 11, 5, 21),
-#         "pm2.5": np.NaN,
-#         "S2_pm2.5": 4.5
-#     },
-#     {
-#         "time":datetime.datetime(2021, 3, 31, 11, 5, 21),
-#         "pm2.5": 3.5,
-#         "S2_pm2.5": 4.5
-#     }
-# ]))
