@@ -10,9 +10,8 @@ fault_detection = Blueprint('fault_detection', __name__)
 def predict_faults():
     request_data = request.get_json()
 
-    datetime = request_data.get('datetime')
     raw_values = request_data.get('raw_values')
-    
+
     cat = classification.Classification()
     try:
         pred = cat.predict_faults(raw_values)
@@ -20,7 +19,7 @@ def predict_faults():
         return jsonify({"error": str(e)})
 
     resp = {
-    "datetime": "2020-07-15 13:00:00",
+    "datetime": request_data.get('datetime'),
     "values": pred.to_dict("records")
     }
     return resp
