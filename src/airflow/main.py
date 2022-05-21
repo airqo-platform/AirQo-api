@@ -8,7 +8,9 @@ import pandas as pd
 from dotenv import load_dotenv
 
 from airqo_etl_utils.arg_parse_validator import valid_datetime_format
+from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.commons import download_file_from_gcs
+from airqo_etl_utils.constants import JobAction
 
 BASE_DIR = Path(__file__).resolve().parent
 dotenv_path = os.path.join(BASE_DIR, ".env")
@@ -404,6 +406,114 @@ def calibrate_historical_data(start_date_time, end_date_time, tenant):
             path_or_buf=f"historical_calibrated_data_{index}.csv", index=False
         )
         index = index + 1
+
+
+def merge_historical_calibrated_data(
+    path_to_uncalibrated_data: str, path_to_calibrated_data: str
+):
+    hourly_device_measurements = pd.read_csv(path_to_uncalibrated_data)
+
+    kcca_data = hourly_device_measurements.loc[
+        hourly_device_measurements["tenant"] == "kcca"
+    ]
+    airqo_data = hourly_device_measurements.loc[
+        hourly_device_measurements["tenant"] == "airqo"
+    ]
+
+    calibrated_airqo_data = pd.read_csv(
+        path_to_calibrated_data,
+        usecols=[
+            "device_number",
+            "timestamp",
+            "pm2_5_calibrated_value",
+            "pm10_calibrated_value",
+            "temperature",
+            "humidity",
+        ],
+    )
+
+    calibrated_airqo_data.rename(
+        columns={
+            "pm2_5_calibrated_value": "new_pm2_5",
+            "pm10_calibrated_value": "new_pm10",
+            "temperature": "new_external_temperature",
+            "humidity": "new_external_humidity",
+        },
+        inplace=True,
+    )
+
+    airqo_data = pd.merge(
+        left=airqo_data,
+        right=calibrated_airqo_data,
+        how="left",
+        on=["timestamp", "device_number"],
+    )
+
+    uncalibrated_airqo_data = airqo_data.loc[
+        (airqo_data["new_pm2_5"].isnull()) & (airqo_data["new_pm10"].isnull())
+    ]
+
+    del uncalibrated_airqo_data["new_pm2_5"]
+    del uncalibrated_airqo_data["new_pm10"]
+    del uncalibrated_airqo_data["new_external_temperature"]
+    del uncalibrated_airqo_data["new_external_humidity"]
+
+    calibrated_airqo_data = airqo_data.loc[
+        (airqo_data["new_pm2_5"].notnull()) & (airqo_data["new_pm10"].notnull())
+    ]
+
+    calibrated_airqo_data["pm2_5"] = calibrated_airqo_data["new_pm2_5"]
+    calibrated_airqo_data["pm2_5_calibrated_value"] = calibrated_airqo_data["new_pm2_5"]
+    calibrated_airqo_data["pm10"] = calibrated_airqo_data["new_pm10"]
+    calibrated_airqo_data["pm10_calibrated_value"] = calibrated_airqo_data["new_pm10"]
+    calibrated_airqo_data["external_temperature"] = calibrated_airqo_data[
+        "new_external_temperature"
+    ]
+    calibrated_airqo_data["external_humidity"] = calibrated_airqo_data[
+        "new_external_humidity"
+    ]
+
+    del calibrated_airqo_data["new_pm2_5"]
+    del calibrated_airqo_data["new_pm10"]
+    del calibrated_airqo_data["new_external_temperature"]
+    del calibrated_airqo_data["new_external_humidity"]
+
+    assert sorted(list(calibrated_airqo_data.columns)) == sorted(
+        list(uncalibrated_airqo_data.columns)
+    )
+
+    airqo_data = pd.concat(
+        [calibrated_airqo_data, uncalibrated_airqo_data]
+    ).drop_duplicates(
+        subset=["timestamp", "device_number"], keep="first", ignore_index=True
+    )
+
+    merged_data = pd.concat([airqo_data, kcca_data], ignore_index=True)
+
+    assert (
+        sorted(list(airqo_data.columns))
+        == sorted(list(kcca_data.columns))
+        == sorted(list(merged_data.columns))
+    )
+
+    merged_data.to_csv("calibrated_merged_data.csv", index=False)
+
+    with pd.option_context(
+        "display.max_rows",
+        None,
+        "display.max_columns",
+        None,
+        "display.precision",
+        3,
+    ):
+        print(merged_data.head(8))
+
+    big_query_api = BigQueryApi()
+    big_query_api.load_data(
+        dataframe=merged_data,
+        table=big_query_api.hourly_measurements_table,
+        job_action=JobAction.OVERWRITE,
+    )
 
 
 if __name__ == "__main__":

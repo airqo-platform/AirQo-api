@@ -26,7 +26,6 @@ spec:
         - name: prediction-api
           image: us.gcr.io/airqo-250220/airqo-stage-prediction-api:latest
           imagePullPolicy: Always
-          resources: {}
           ports:
             - containerPort: 5000
               name: prediction-api

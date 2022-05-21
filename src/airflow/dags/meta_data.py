@@ -36,7 +36,7 @@ def big_query_update_sites_etl():
         from airqo_etl_utils.constants import JobAction
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=data,
             table=big_query_api.sites_table,
             job_action=JobAction.OVERWRITE,
@@ -77,7 +77,7 @@ def big_query_update_devices_etl():
         from airqo_etl_utils.constants import JobAction
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=data,
             table=big_query_api.devices_table,
             job_action=JobAction.OVERWRITE,
