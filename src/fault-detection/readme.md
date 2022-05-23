@@ -9,7 +9,7 @@
 
 ## Calibrate Endpoint
 
-Make a "POST" request to http://localhost:4001/api/v1/predict_faults with the following raw JSON payload in the body:
+Make a "POST" request to http://localhost:4001/api/v1/predict-faults/catboost with the following raw JSON payload in the body:
 
 ```{json}
 {
