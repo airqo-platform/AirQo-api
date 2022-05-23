@@ -25,8 +25,8 @@ class Classification():
         input_variables = pd.DataFrame(input_variables)
         output_variables = pd.DataFrame()
         map_columns = {
-            "time":'Datetime',
-            "device_id":"Device_ID",
+            "datetime":'Datetime',
+            "device_id":"Device_id",
             "sensor1_pm2.5":'Sensor1_PM2.5',
             "sensor2_pm2.5":'Sensor2_PM2.5'
             
@@ -43,8 +43,9 @@ class Classification():
         X =  scaler.transform(X)
 
         output =  savedModel.predict(X)
-        output_variables["Device_ID"] = input_variables["Device_ID"]
-        output_variables[['Offset_fault','Out_of_bounds_fault','Data_loss_fault','High_variance_fault']] = output
+        output_variables["Datetime"] = input_variables["Datetime"]
+        output_variables["Device_id"] = input_variables["Device_id"]
+        output_variables[['Offset_fault','Out_of_bounds_fault','Data_loss_fault','High_variance_fault']] = np.where(output>0.5,1,0)
         print(output_variables)
         return output_variables
                
