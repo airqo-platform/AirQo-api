@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, make_response
 import logging
 import os
+from routes import api
 from models import classification
 from dotenv import load_dotenv
 load_dotenv()
@@ -10,7 +11,7 @@ app = Flask(__name__)
 
 
 
-@app.route("/predict_faults", methods=['POST', 'GET'])
+@app.route(api.route['predict_faults'], methods=['POST', 'GET'])
 def predict_fault():
     data = request.get_json()
     datetime = data.get('datetime')
