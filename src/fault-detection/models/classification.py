@@ -7,6 +7,7 @@ import pickle
 from dotenv import load_dotenv, find_dotenv
 import datetime
 from pathlib import Path
+from datetime import datetime
 
 load_dotenv(find_dotenv())
 
@@ -41,7 +42,9 @@ class Classification():
         faults_df = pd.DataFrame(predicted_faults, columns= ["Offset_fault","Out_of_bounds_fault","Data_loss_fault", "High_variance_fault"])
 
         model_output = model_inputs[["Datetime","Device_ID", "Sensor1_PM2.5","Sensor2_PM2.5"]].join(faults_df)
-        model_output["Datetime"] = model_output["Datetime"].apply(str)
+        model_output["Datetime"] = model_output["Datetime"].apply(lambda x: x.isoformat()) #Convert to ISO format
+
+
 
         return model_output
 

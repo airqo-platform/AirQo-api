@@ -13,23 +13,23 @@ Make a "POST" request to http://localhost:4001/api/v1/predict_faults with the fo
 
 ```{json}
 {
-    "datetime": "2020-07-15 13:00:00",
-    "raw_values": [
+    "datetime": "2020-07-15T13:00",
+    "raw_values":[
         {
-        "time": "2020-07-15 13:03",
+        "time": "2020-07-15T13:03",
         "device_id":"aq_01",
         "s1_pm2.5": 44.12 ,
         "s2_pm2.5": 44.12
         },
         {
-        "time": "2020-07-15 13:05",
+        "time": "2020-07-15T13:05",
         "device_id":"aq_01",
         "s1_pm2.5": 12.12 ,
         "s2_pm2.5": 43.12
 
         },
         {
-        "time": "2020-07-15 13:07",
+        "time": "2020-07-15T13:07",
         "device_id":"aq_03",
         "s1_pm2.5": 80 ,
         "s2_pm2.5": 80.12
