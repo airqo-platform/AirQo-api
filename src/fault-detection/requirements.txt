@@ -8,3 +8,4 @@ pyarrow==3.0.0
 pymongo==3.11.3
 scikit_learn==0.24.1
 python-dotenv==0.18.0
+catboost==0.25

@@ -18,7 +18,7 @@ class Classification():
 
         map_columns = {
             "time": "Datetime",
-            "pm2.5": "Sensor1_PM2.5",
+            "s1_pm2.5": "Sensor1_PM2.5",
             "s2_pm2.5": "Sensor2_PM2.5",
             "device_id": "Device_ID"
         }
