@@ -1,21 +1,10 @@
 # Calibrate microservice
 
 ## To run in a virtual environment
-
-1. Add file `airqo-250220-5149c2aac8f2.json` to `jobs/`. Obtain from a team member or GCP.
 1. Create a virtual environment
 2. `pip install -r requirements.txt`
 3. `flask run`
 
-## To build and run with docker desktop(Not Implemented Yet)
-
-(Uses "production" dockerfile.)
-
-1. Add file `airqo-250220-5149c2aac8f2.json` to `jobs/`. Obtain from a team member or GCP.
-1. `docker build --target=dev -t calibrate .`
-2. `docker run -d -p 4001:4001 --env FLASK_APP=app.py --env FLASK_ENV=development --env MONGO_URI=mongodb://localhost:27017 calibrate`ult
-
-It is implicit that `mongodb` should be installed and running.
 
 ## predict faults
 
