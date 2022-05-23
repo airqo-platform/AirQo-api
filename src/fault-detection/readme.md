@@ -2,6 +2,7 @@
 
 ## To run in a virtual environment
 1. Create a virtual environment
+2. `cd AirQo-api/src/fault-detection`
 2. `pip install -r requirements.txt`
 3. `python jobs/classification.py`
 4. `flask run`
