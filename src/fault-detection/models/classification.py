@@ -5,7 +5,6 @@ from sklearn.multiclass import OneVsRestClassifier
 from catboost import CatBoostClassifier
 import pickle
 from dotenv import load_dotenv, find_dotenv
-import datetime
 from pathlib import Path
 from datetime import datetime
 
