@@ -8,7 +8,7 @@
 
 ## predict faults
 
-Make a "POST" request to http://localhost:4001/predict_faults with the following raw JSON payload in the body:
+Make a "POST" request to http://localhost:4001/api/v1/predict-faults/lstm with the following raw JSON payload in the body:
 
 ```{json}
 {
