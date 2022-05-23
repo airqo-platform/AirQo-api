@@ -35,7 +35,9 @@ class Classification():
 
         print(input_variables)
         X= input_variables[['Sensor1_PM2.5','Sensor2_PM2.5']].values
-
+        # input_variables['Datetime'] = input_variables['Datetime'].apply(
+        # lambda x: pd.datetools.parse(x).strftime('%Y-%m-%dT%H:%M:%SZ'))
+        input_variables['Datetime'] = pd.to_datetime(input_variables['Datetime']).dt.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
         #load model from disk
         scaler = pickle.load(open(SCALER, 'rb'))
         # load model
@@ -48,12 +50,3 @@ class Classification():
         output_variables[['Offset_fault','Out_of_bounds_fault','Data_loss_fault','High_variance_fault']] = np.where(output>0.5,1,0)
         print(output_variables)
         return output_variables
-               
-if __name__ == "__main__":
-    variables = {
-        "time":9494,
-        'Sensor1_PM2.5':2000,
-        'Sensor2_PM2.5':2000
-    }
-    predictor = Classification()
-    print(predictor.predict_faults(variables))
