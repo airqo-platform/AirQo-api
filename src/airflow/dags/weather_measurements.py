@@ -38,7 +38,7 @@ def historical_raw_weather_measurements_etl():
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=bigquery_data, table=big_query_api.raw_weather_table
         )
 
@@ -81,7 +81,7 @@ def historical_hourly_weather_measurements_etl():
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=bigquery_data, table=big_query_api.hourly_weather_table
         )
 
@@ -156,7 +156,7 @@ def weather_measurements_etl():
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=bigquery_data, table=big_query_api.raw_weather_table
         )
 
@@ -170,7 +170,7 @@ def weather_measurements_etl():
         bigquery_data = transform_weather_data_for_bigquery(data=weather_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=bigquery_data, table=big_query_api.hourly_weather_table
         )
 

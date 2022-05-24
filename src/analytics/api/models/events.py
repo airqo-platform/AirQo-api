@@ -25,13 +25,20 @@ class EventsModel(BasePyMongoModel):
     @cache.memoize()
     def from_bigquery(cls, tenant, sites, start_date, end_date, frequency, pollutants):
         decimal_places = 2
-        formatted_pollutants = [f'ROUND({pollutant}, {decimal_places}) AS {pollutant}' for pollutant in pollutants]
+        pollutant_mappings = dict({
+            "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
+            "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
+            "no2": ["no2_calibrated_value", "no2_raw_value"],
+        })
 
-        client = bigquery.Client()
+        columns = ["name", "FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', timestamp) AS datetime",
+                   f"{cls.BIGQUERY_SITES}.latitude", f"{cls.BIGQUERY_SITES}.longitude"]
 
+        for pollutant in pollutants:
+            pollutant_mapping = pollutant_mappings.get(pollutant, [])
+            columns.extend([f'ROUND({mapping}, {decimal_places}) AS {mapping}' for mapping in pollutant_mapping])
 
-        QUERY = f"SELECT FORMAT_DATETIME('%FT%T%Ez', timestamp) AS datetime, name, site_id, {cls.BIGQUERY_SITES}.latitude, " \
-                f"{cls.BIGQUERY_SITES}.longitude, {', '.join(formatted_pollutants)} " \
+        QUERY = f"SELECT {', '.join(map(str, columns))} " \
                 f"FROM {cls.BIGQUERY_EVENTS} " \
                 f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id " \
                 f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' " \
@@ -42,9 +49,10 @@ class EventsModel(BasePyMongoModel):
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        query = client.query(QUERY, job_config)
+        dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
+        dataframe.sort_values(["name", "datetime"], ascending=True, inplace=True)
 
-        return [dict(row) for row in query.result()]
+        return dataframe.to_dict(orient="records")
 
     def remove_outliers(self, pollutant):
         return self.add_stages(

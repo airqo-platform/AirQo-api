@@ -65,7 +65,7 @@ def hourly_measurements_etl():
         kcca_restructured_data = transform_kcca_data_for_bigquery(kcca_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=kcca_restructured_data,
             table=big_query_api.hourly_measurements_table,
         )
@@ -114,7 +114,7 @@ def raw_measurements_etl():
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
+        big_query_api.load_data(
             dataframe=kcca_data,
             table=big_query_api.raw_measurements_table,
         )
@@ -210,7 +210,7 @@ def historical_hourly_measurements_etl():
             kcca_transformed_data = transform_kcca_data_for_bigquery(kcca_data)
 
             big_query_api = BigQueryApi()
-            big_query_api.save_data(
+            big_query_api.load_data(
                 dataframe=kcca_transformed_data,
                 table=big_query_api.hourly_measurements_table,
             )
@@ -292,7 +292,7 @@ def historical_raw_measurements_etl():
             kcca_transformed_data = transform_kcca_data_for_bigquery(kcca_data)
 
             big_query_api = BigQueryApi()
-            big_query_api.save_data(
+            big_query_api.load_data(
                 dataframe=kcca_transformed_data,
                 table=big_query_api.raw_measurements_table,
             )
