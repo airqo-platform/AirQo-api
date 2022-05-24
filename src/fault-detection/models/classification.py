@@ -8,13 +8,25 @@ from dotenv import load_dotenv, find_dotenv
 from pathlib import Path
 from datetime import datetime
 
+from pathlib import Path
+import numpy as np
+import pandas as pd
+import pickle
+import joblib
+from dotenv import load_dotenv
+from keras.models import load_model
+
 load_dotenv(find_dotenv())
 
 BASE_DIR = Path(__file__).resolve().parent
 CATBOOST_MODEL = os.getenv('CATBOOST_MODEL','jobs/catboost_model.pkl')
 
+LSTM_MODEL = os.getenv('LSTM_MODEL','jobs/lstm_model.h5')
+SCALER = os.getenv('SCALER','jobs/scaler.pkl')
+
+
 class Classification():
-    def predict_faults(self,model_inputs):
+    def predict_faults_catboost(self,model_inputs):
 
         map_columns = {
             "time": "Datetime",
@@ -48,5 +60,37 @@ class Classification():
         return model_output
 
 
-if __name__ == "__main__":
-    predictFault = Classification()
+     def predict_faults_lstm(self,input_variables):
+        # features from datetime and PM
+
+        input_variables = pd.DataFrame(input_variables)
+        output_variables = pd.DataFrame()
+        map_columns = {
+            "datetime":'Datetime',
+            "device_id":"Device_id",
+            "sensor1_pm2.5":'Sensor1_PM2.5',
+            "sensor2_pm2.5":'Sensor2_PM2.5'
+            
+        }
+        input_variables.rename(columns=map_columns, inplace=True)
+
+        print(input_variables)
+        X= input_variables[['Sensor1_PM2.5','Sensor2_PM2.5']].values
+        # input_variables['Datetime'] = input_variables['Datetime'].apply(
+        # lambda x: pd.datetools.parse(x).strftime('%Y-%m-%dT%H:%M:%SZ'))
+        input_variables['Datetime'] = pd.to_datetime(input_variables['Datetime']).dt.strftime('%Y-%m-%dT%H:%M:%S.%f%z')
+        #load model from disk
+        scaler = pickle.load(open(SCALER, 'rb'))
+        # load model
+        savedModel=load_model(LSTM_MODEL)
+        X =  scaler.transform(X)
+
+        output =  savedModel.predict(X)
+        output_variables["Datetime"] = input_variables["Datetime"]
+        output_variables["Device_id"] = input_variables["Device_id"]
+        output_variables[['Offset_fault','Out_of_bounds_fault','Data_loss_fault','High_variance_fault']] = np.where(output>0.5,1,0)
+        print(output_variables)
+        return output_variables
+      
+
+
