@@ -1,4 +1,8 @@
 Flask==2.1.2
+flask_cors==3.0.10
+flask_pymongo==2.3.0
+pyarrow==3.0.0
+catboost==0.25
 gcsfs==2022.3.0
 joblib==1.1.0
 keras==2.8.0

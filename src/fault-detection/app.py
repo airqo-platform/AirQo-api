@@ -1,3 +1,4 @@
+from controllers.predict_faults import fault_detection
 from flask import Flask, jsonify, request, make_response
 import logging
 import os
@@ -6,12 +7,13 @@ from models import classification
 from dotenv import load_dotenv
 load_dotenv()
 
+_logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
 
-
-@app.route(api.route['predict_faults'], methods=['POST', 'GET'])
+# register blueprints
+app.register_blueprint(fault_detection)
 def predict_fault():
     data = request.get_json()
     datetime = data.get('datetime')
@@ -22,9 +24,3 @@ def predict_fault():
     lstm = classification.Classification()
     prediction = lstm.predict_faults(raw_values)
     return jsonify(prediction.to_dict(orient="records"))
-
-if __name__ == '__main__':
-  
-    # run() method of Flask class runs the application 
-    # on the local development server.
-    app.run()

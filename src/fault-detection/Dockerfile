@@ -33,4 +33,4 @@ ENV FLASK_ENV=development
 CMD ["flask", "run", "--host=0.0.0.0"]
 
 FROM builder as pickle-file
-CMD ["python", "jobs/regression.py"]
+CMD ["python", "jobs/classification.py"]
