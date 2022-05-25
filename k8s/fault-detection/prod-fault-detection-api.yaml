@@ -1,0 +1,91 @@
+###########################################################
+# Start deployment of fault detection microservice - production
+###########################################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-fault-detection-api
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: prod-fault-detection
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: prod-fault-detection
+    spec:
+      initContainers:
+        - name: train-catboost-model
+          image: us.gcr.io/airqo-250220/prod-train-catboost-model:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: prod-fault-detection-api-config
+          env:
+            - name: CATBOOST_MODEL
+              value: /usr/models/catboost_model.pkl
+          volumeMounts:
+          - name: shared-data
+            mountPath: /usr/models
+        - name: train-lstm-model
+          image: us.gcr.io/airqo-250220/prod-train-lstm-model:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: prod-fault-detection-api-config
+          env:
+            - name: LSTM_MODEL
+              value: /usr/models/lstm.h5
+            - name: SCALER
+              value: /usr/models/scaler.pkl
+          volumeMounts:
+          - name: shared-data
+            mountPath: /usr/models
+      containers:
+        - name: fault-detection-api
+          image: us.gcr.io/airqo-250220/prod-fault-detection-api:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 4001
+              name: fault-detection
+          resources: {}
+          env:
+            - name: LSTM_MODEL
+              value: /usr/models/lstm.h5
+            - name: SCALER
+              value: /usr/models/scaler.pkl
+            - name: CATBOOST_MODEL
+              value: /usr/models/catboost_model.pkl
+          envFrom:
+            - configMapRef:
+                name: prod-fault-detection-api-config
+          volumeMounts:
+          - name: shared-data
+            mountPath: /usr/models
+      volumes:
+        - name: shared-data
+          emptyDir: {}
+
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: prod-fault-detection-api-svc
+  namespace: production
+spec:
+  selector:
+    app: prod-fault-detection
+  ports:
+    - protocol: TCP
+      port: 4001
+      targetPort: 4001
+      nodePort: 31013
+  type: NodePort

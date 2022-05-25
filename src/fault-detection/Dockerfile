@@ -1,7 +1,8 @@
-FROM python:3.7-slim as builder
+FROM python:3.8-slim-buster as builder
 COPY . /app/
 WORKDIR /app/
-# RUN --mount=type=cache,target=/root/.cache/pip pip install -r requirements.txt
+
+RUN pip install --upgrade pip setuptools wheel
 RUN pip install -r requirements.txt
 ENV FLASK_APP=app.py
 ENV FLASK_RUN_PORT=4001
