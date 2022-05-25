@@ -65,6 +65,20 @@ class Classification:
             lambda x: x.isoformat()
         )  # Convert to ISO format
 
+        model_output.rename(
+            columns={
+                "Datetime": "datetime",
+                "Device_ID": "device_id",
+                "Sensor1_PM2.5": "s1_pm2.5",
+                "Sensor2_PM2.5": "s2_pm2.5",
+                "Offset_fault": "offset_fault",
+                "Out_of_bounds_fault": "out_of_bounds_fault",
+                "High_variance_fault": "high_variance_fault",
+                "Data_loss_fault": "data_loss_fault",
+            },
+            inplace=True,
+        )
+
         return model_output
 
     @staticmethod
@@ -102,5 +116,17 @@ class Classification:
                 "High_variance_fault",
             ]
         ] = np.where(output > 0.5, 1, 0)
+
+        output_variables.rename(
+            columns={
+                "Datetime": "datetime",
+                "Device_id": "device_id",
+                "Offset_fault": "offset_fault",
+                "Out_of_bounds_fault": "out_of_bounds_fault",
+                "High_variance_fault": "high_variance_fault",
+                "Data_loss_fault": "data_loss_fault",
+            },
+            inplace=True,
+        )
 
         return output_variables

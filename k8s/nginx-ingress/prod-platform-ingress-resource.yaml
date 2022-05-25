@@ -162,21 +162,9 @@ spec:
             backend:
               serviceName: airqo-calibrate-api-svc
               servicePort: 4001
-          - path: /api/v1/calibrate_tool
+          - path: /api/v1/predict-faults
             backend:
-              serviceName: airqo-calibrate-api-svc
-              servicePort: 4001
-          - path: /api/v2/calibrate_tool
-            backend:
-              serviceName: airqo-calibrate-api-svc
-              servicePort: 4001
-          - path: /api/v1/train_calibrate_tool
-            backend:
-              serviceName: airqo-calibrate-api-svc
-              servicePort: 4001
-          - path: /api/v2/train_calibrate_tool
-            backend:
-              serviceName: airqo-calibrate-api-svc
+              serviceName: prod-fault-detection-api-svc
               servicePort: 4001
           - path: /api/v1/incentives
             backend:
