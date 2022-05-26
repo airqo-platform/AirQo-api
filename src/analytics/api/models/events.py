@@ -173,10 +173,10 @@ class EventsModel(BasePyMongoModel):
             raise Exception("Invalid pollutant")
 
         query = f"""
-          SELECT site_id, {pollutant} as value 
-          FROM {self.BIGQUERY_EVENTS}
-          WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
-          AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
+            SELECT AVG({pollutant}) as value, site_id 
+            FROM {self.BIGQUERY_EVENTS}
+            WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
+            AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}' GROUP BY site_id
         """
 
         client = bigquery.Client()
