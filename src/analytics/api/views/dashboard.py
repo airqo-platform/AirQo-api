@@ -173,7 +173,8 @@ class D3ChartDataResource(Resource):
         chart_type = json_data["chartType"]
 
         events_model = EventsModel(tenant)
-        data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+        # data = events_model.get_d3_chart_events(sites, start_date, end_date, pollutant, frequency)
+        data = events_model.get_d3_chart_events_v2(sites, start_date, end_date, pollutant, frequency, tenant)
 
         if chart_type.lower() == 'pie':
             data = d3_generate_pie_chart_data(data, pollutant)

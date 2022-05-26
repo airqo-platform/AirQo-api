@@ -17,7 +17,7 @@ spec:
           schedulerName: default-scheduler
           containers:
           - name: stage-airqo-predict-job
-            image: us.gcr.io/airqo-250220/airqo-stage-predict-job:latest
+            image: us.gcr.io/airqo-250220/stage-airqo-predict-job:latest
             imagePullPolicy: Always
             envFrom:
               - configMapRef:

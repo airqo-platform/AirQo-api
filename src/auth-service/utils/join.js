@@ -12,6 +12,8 @@ const actionCodeSettings = require("../config/firebase-settings");
 const httpStatus = require("http-status");
 const validationsUtil = require("./validations");
 const constants = require("../config/constants");
+const mailchimp = require("../config/mailchimp");
+const md5 = require("md5");
 
 const UserModel = (tenant) => {
   try {
@@ -728,6 +730,72 @@ const join = {
         success: false,
         message: "util server error",
         error: error.message,
+      };
+    }
+  },
+
+  subscribeToNewsLetter: async (request) => {
+    try {
+      const { email, tags } = request.body;
+
+      const subscriberHash = md5(email);
+      const listId = constants.MAILCHIMP_LIST_ID;
+
+      const responseFromMailChimp = await mailchimp.lists.setListMember(
+        listId,
+        subscriberHash,
+        { email_address: email, status_if_new: "subscribed" }
+      );
+      const existingTags = responseFromMailChimp.tags.map((tag) => tag.name);
+
+      const allUniqueTags = [...new Set([...existingTags, ...tags])];
+      const formattedTags = allUniqueTags.map((tag) => {
+        return {
+          name: tag,
+          status: "active",
+        };
+      });
+
+      const responseFromUpdateSubscriberTags =
+        await mailchimp.lists.updateListMemberTags(
+          constants.MAILCHIMP_LIST_ID,
+          subscriberHash,
+          {
+            body: {
+              tags: formattedTags,
+            },
+          }
+        );
+
+      if (responseFromUpdateSubscriberTags === null) {
+        return {
+          success: true,
+          status: HTTPStatus.OK,
+          message:
+            "successfully subscribed the email address to the AirQo newsletter",
+        };
+      } else {
+        return {
+          success: false,
+          status: HTTPStatus.BAD_GATEWAY,
+          message: "unable to subscribe user to the AirQo newsletter",
+          errors: {
+            message:
+              "unable to Update Subsriber Tags for the newsletter subscription",
+          },
+        };
+      }
+    } catch (error) {
+      const errorResponse = error.response ? error.response : {};
+      const text = errorResponse ? errorResponse.text : "";
+      const status = errorResponse
+        ? errorResponse.status
+        : HTTPStatus.INTERNAL_SERVER_ERROR;
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message, more: text },
+        status,
       };
     }
   },
