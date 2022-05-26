@@ -55,7 +55,7 @@ jobs:
           image: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
           secrets: |
             /usr/src/app/.env=sta-env-auth-service:latest
-            /usr/src/app/config/firebase-admin-sdk.json=firebase-admin-sdk.json:latest
+            /usr/src/app/config/firebase-admin-sdk.json=sta-key-auth-service-firebase-admin-sdk:latest
 
       # Display app uri
       - name: Show Output
