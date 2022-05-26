@@ -1,0 +1,62 @@
+name: Deploy preview to Cloud Run
+
+on:
+  pull_request:
+    branches:
+      - staging
+
+env:
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  SERVICE: auth-service-pr-previews
+  REGION: ${{ secrets.REGION }}
+
+jobs:
+  deploy:
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v0'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+
+      # BEGIN - Docker auth and build
+
+      # Authenticate Docker to Google Cloud Artifact Registry
+      - name: Docker Auth
+        id: docker-auth
+        uses: 'docker/login-action@v1'
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+
+      - name: Build and Push Container
+        run: |
+          cd src/auth-service/
+          docker build --target=staging -t "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}" ./
+          docker push "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}"
+
+      # END - Docker auth and build
+
+      - name: Deploy to Cloud Run
+        id: deploy
+        uses: google-github-actions/deploy-cloudrun@v0
+        with:
+          service: auth-service-pr-previews
+          region: ${{ secrets.REGION }}
+          image: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          secrets: |
+            /usr/src/app/.env=sta-env-auth-service:latest
+            /usr/src/app/config/firebase-admin-sdk.json=firebase-admin-sdk.json:latest
+
+      # Display app uri
+      - name: Show Output
+        run: echo ${{ steps.deploy.outputs.url }}
