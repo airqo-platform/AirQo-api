@@ -64,10 +64,6 @@ jobs:
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
 
-      # Display app uri
-      - name: Show Output
-        run: echo ${{ steps.deploy.outputs.url }}
-
       - uses: actions/github-script@v3
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -77,4 +73,18 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               body: '👋 Great work, preview this PR at: ${{ steps.deploy.outputs.url }}'
+            })
+
+  comment-on-pr:
+    needs: [deploy]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: 'Preview this PR changes at: ${{ steps.deploy.outputs.url }}'
             })
