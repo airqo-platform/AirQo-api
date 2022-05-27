@@ -64,10 +64,17 @@ jobs:
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
 
-      - uses: mshick/add-pr-comment@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Display app uri
+      - name: Show Output
+        run: echo ${{ steps.deploy.outputs.url }}
+
+      - uses: actions/github-script@v3
         with:
-          message: |
-            PR preview deployed to: ${{ steps.deploy.outputs.url }}
-          allow-repeats: true
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '👋 Great work, preview this PR at: ${{ steps.deploy.outputs.url }}'
+            })
