@@ -7,7 +7,6 @@ on:
 
 env:
   PROJECT_ID: ${{ secrets.PROJECT_ID }}
-  SERVICE: auth-service-pr-previews
   REGION: ${{ secrets.REGION }}
 
 jobs:
@@ -17,9 +16,9 @@ jobs:
       id-token: 'write'
 
     runs-on: ubuntu-latest
-    
+
     outputs:
-      url: ${{ steps.deploy.outputs.url }} # pr preview url
+      url: ${{ steps.results.outputs.url }} # pr preview url
 
     steps:
       - name: Checkout
@@ -67,6 +66,9 @@ jobs:
             --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
+
+      - name: service-url
+        id: results
         run: |
           service-url=$(gcloud run services describe auth-service-pr-previews
             --format='value(status.url)'
