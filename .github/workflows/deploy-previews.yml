@@ -17,8 +17,9 @@ jobs:
       id-token: 'write'
 
     runs-on: ubuntu-latest
+    
     outputs:
-      build_id: ${{ steps.deploy.outputs.url }} # pr preview url
+      url: ${{ steps.deploy.outputs.url }} # pr preview url
 
     steps:
       - name: Checkout
