@@ -19,6 +19,13 @@ spec:
                 name: airqo-stage-platform-ui-svc
                 port: 
                   number: 80
+          - path: /calibrate
+            pathType: Prefix
+            backend:
+              service:
+                name: airqo-stage-calibrate-app-svc
+                port: 
+                  number: 80
           - path: /api/v1/users
             pathType: Prefix
             backend:
