@@ -49,6 +49,7 @@ jobs:
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_message_broker_topics: ${{ steps.check_files.outputs.run_message_broker_topics }} # message broker topics
 
     runs-on: ubuntu-latest
     steps:
@@ -87,6 +88,7 @@ jobs:
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_message_broker_topics::false"
 
           while IFS= read -r file
           do
