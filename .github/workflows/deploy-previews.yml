@@ -52,51 +52,20 @@ jobs:
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v0
         with:
-          metadata: .github/utils/cloudrun/auth-template-meta.yaml
-            # apiVersion: serving.knative.dev/v1
-            # kind: Service
-            # metadata:
-            #   name: auth-service-pr-previews
-            #   labels:
-            #     cloud.googleapis.com/location: ${{ env.REGION }}
-            # spec:
-            #   template:
-            #     metadata:
-            #       annotations:
-            #         autoscaling.knative.dev/maxScale: '10'
-            #     spec:
-            #       timeoutSeconds: 60
-            #       containerConcurrency: 10
-            #       containers:
-            #       - image: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-            #         ports:
-            #         - containerPort: 3000
-            #           name: http1
-            #         resources:
-            #           limits:
-            #             cpu: 1000m
-            #             memory: 256Mi
-            #         volumeMounts:
-            #         - mountPath: /etc/app-env
-            #           name: app-env-variables
-            #           readOnly: true
-            #         - mountPath: /etc/config
-            #           name: firebase-credentials
-            #           readOnly: true
-            #         command: ["/bin/sh","-c","cat /etc/app-env/.env >> /usr/src/app/.env; npm run stage-mac"]
-            #       volumes:
-            #       - name: app-env-variables
-            #         secret:
-            #           items:
-            #           - key: latest
-            #             path: .env
-            #           secretName: sta-env-auth-service
-            #       - name: firebase-credentials
-            #         secret:
-            #           items:
-            #           - key: latest
-            #             path: firebase-admin-sdk.json
-            #           secretName: sta-key-auth-service-firebase-admin-sdk
+          # metadata: .github/utils/cloudrun/auth-template-meta.yaml
+          metadata: |
+            auth-service-pr-previews \
+            --region=${{ secrets.REGION }} \
+            --max-instances=10 \
+            --timeout=60 \
+            --concurrency=10 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
+            --port=3000 \
+            --cpu=1000m \
+            --memory=256Mi \
+            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --allow-unauthenticated
 
       # Display app uri
       - name: Show Output
