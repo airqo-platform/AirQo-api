@@ -1,0 +1,45 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: auth-service-pr-previews
+  labels:
+    cloud.googleapis.com/location: us-central1
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/maxScale: '10'
+    spec:  
+      timeoutSeconds: 60
+      containerConcurrency: 10
+      containers:
+      - image: us.gcr.io/airqo-250220/pr-previews/auth-service-pr-previews:latest
+        ports:
+        - containerPort: 3000
+          name: http1
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+        volumeMounts:
+        - mountPath: /etc/app-env
+          name: app-env-variables
+          readOnly: true     
+        - mountPath: /etc/config
+          name: firebase-credentials
+          readOnly: true        
+        command: ["/bin/sh","-c","cat /etc/app-env/.env >> /usr/src/app/.env; npm run stage-mac"]
+      volumes:
+      - name: app-env-variables
+        secret:
+          items:
+          - key: latest
+            path: .env
+          secretName: sta-env-auth-service
+      - name: firebase-credentials
+        secret:
+          items:
+          - key: latest
+            path: firebase_admin_sdk.json
+          secretName: sta-key-auth-service-firebase-admin-sdk
+      
