@@ -64,6 +64,10 @@ jobs:
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
 
-      # Display app uri
-      - name: Show Output
-        run: echo ${{ steps.deploy.outputs.url }}
+      - uses: mshick/add-pr-comment@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          message: |
+            PR preview deployed to: ${{ steps.deploy.outputs.url }}
+          allow-repeats: true
