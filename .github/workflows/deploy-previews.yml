@@ -70,11 +70,11 @@ jobs:
       - name: Save service url
         id: results
         run: |
-          service-url=$(gcloud run services describe auth-service-pr-previews \
+          read service_url < <(gcloud run services describe auth-service-pr-previews \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service-url}"
+          echo "::set-output name=url::${service_url}"
 
   comment:
     name: comment-on-pr
