@@ -41,21 +41,60 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}" ./
-          docker push "${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}"
-
+          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          
       # END - Docker auth and build
 
       - name: Deploy to Cloud Run
         id: deploy
         uses: google-github-actions/deploy-cloudrun@v0
         with:
-          service: auth-service-pr-previews
-          region: ${{ secrets.REGION }}
-          image: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-          secrets: |
-            /usr/src/app/.env=sta-env-auth-service:latest
-            /usr/src/app/config/firebase-admin-sdk.json=sta-key-auth-service-firebase-admin-sdk:latest
+          metadata: |
+            apiVersion: serving.knative.dev/v1
+            kind: Service
+            metadata:
+              name: auth-service-pr-previews
+              labels:
+                cloud.googleapis.com/location: ${{ env.REGION }}
+            spec:
+              template:
+                metadata:
+                  annotations:
+                    autoscaling.knative.dev/maxScale: '10'
+                spec:
+                  timeoutSeconds: 60
+                  containerConcurrency: 10
+                  containers:
+                  - image: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+                    ports:
+                    - containerPort: 3000
+                      name: http1
+                    resources:
+                      limits:
+                        cpu: 1000m
+                        memory: 256Mi
+                    volumeMounts:
+                    - mountPath: /etc/config/environment
+                      name: environment-variables
+                      readOnly: false
+                    - mountPath: /etc/config
+                      name: firebase-credentials
+                      readOnly: true
+                    command: ["sh","-c","mv /etc/config/environment/.env /usr/src/app/.env && npm run stage-mac"]
+                  volumes:
+                  - name: environment-variables
+                    secret:
+                      items:
+                      - key: latest
+                        path: .env
+                      secretName: sta-env-auth-service
+                  - name: firebase-credentials
+                    secret:
+                      items:
+                      - key: latest
+                        path: firebase-admin-sdk.json
+                      secretName: sta-key-auth-service-firebase-admin-sdk
 
       # Display app uri
       - name: Show Output
