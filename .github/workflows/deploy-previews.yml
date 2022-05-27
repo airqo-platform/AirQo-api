@@ -67,12 +67,12 @@ jobs:
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
 
-      - name: service-url
+      - name: Save service url
         id: results
         run: |
-          service-url=$(gcloud run services describe auth-service-pr-previews
-            --format='value(status.url)'
-            --platform managed
+          service-url=$(gcloud run services describe auth-service-pr-previews \
+            --format='value(status.url)' \
+            --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service-url}"
 
