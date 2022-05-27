@@ -1,4 +1,4 @@
-name: Deploy preview to Cloud Run
+name: Deploy PR preview
 
 on:
   pull_request:
@@ -26,6 +26,9 @@ jobs:
         uses: 'google-github-actions/auth@v0'
         with:
           credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: 'Setup Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v0'
 
       # BEGIN - Docker auth and build
 
@@ -42,19 +45,13 @@ jobs:
         run: |
           cd src/auth-service/
           docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:latest
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:latest
           
       # END - Docker auth and build
 
       - name: Deploy to Cloud Run
-        id: deploy
-        uses: google-github-actions/deploy-cloudrun@v0
-        with:
-          # metadata: .github/utils/cloudrun/auth-template-meta.yaml
-          metadata: |
-            auth-service-pr-previews \
+        run: |-
+          gcloud run deploy  auth-service-pr-previews \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
