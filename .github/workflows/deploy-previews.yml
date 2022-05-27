@@ -75,7 +75,8 @@ jobs:
               body: '👋 Great work, preview this PR at: ${{ steps.deploy.outputs.url }}'
             })
 
-  comment-on-pr:
+  comment:
+    name: comment-on-pr
     needs: [deploy]
     runs-on: ubuntu-latest
     steps:
