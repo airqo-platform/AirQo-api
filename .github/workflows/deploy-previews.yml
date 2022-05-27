@@ -75,15 +75,15 @@ jobs:
                         cpu: 1000m
                         memory: 256Mi
                     volumeMounts:
-                    - mountPath: /etc/config/environment
-                      name: environment-variables
-                      readOnly: false
+                    - mountPath: /etc/app-env
+                      name: app-env-variables
+                      readOnly: true
                     - mountPath: /etc/config
                       name: firebase-credentials
                       readOnly: true
-                    command: ["sh","-c","mv /etc/config/environment/.env /usr/src/app/.env && npm run stage-mac"]
+                    command: ["/bin/sh","-c","cat /etc/app-env/.env >> /usr/src/app/.env; npm run stage-mac"]
                   volumes:
-                  - name: environment-variables
+                  - name: app-env-variables
                     secret:
                       items:
                       - key: latest
