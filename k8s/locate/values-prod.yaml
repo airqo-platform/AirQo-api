@@ -26,7 +26,7 @@ ingress:
   enabled: false
 
 nodeSelector: {}
-resources:{}
+resources: {}
 affinity: {}
 torelations: {}
 
