@@ -28,27 +28,27 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 200Mi
-              cpu: "100m"
+              cpu: 100m
+              memory: 250Mi
             limits:
+              cpu: 200m
               memory: 700Mi
-              cpu: "1000m"
           ports:
             - containerPort: 8080
               name: view-api
           envFrom:
             - configMapRef:
                 name: stage-view-api-config
-          readinessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8080
-              path: api/v1/view/actuator/health/readiness
-          livenessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8080
-              path: api/v1/view/actuator/health/liveness
+          # readinessProbe:
+          #   initialDelaySeconds: 30
+          #   httpGet:
+          #     port: 8080
+          #     path: api/v1/view/actuator/health/readiness
+          # livenessProbe:
+          #   initialDelaySeconds: 30
+          #   httpGet:
+          #     port: 8080
+          #     path: api/v1/view/actuator/health/liveness
           lifecycle:
             preStop:
               exec:
@@ -69,16 +69,16 @@ spec:
           envFrom:
             - configMapRef:
                 name: stage-views-api-config
-          readinessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/readiness
-          livenessProbe:
-            initialDelaySeconds: 30
-            httpGet:
-              port: 8081
-              path: api/v1/views/actuator/health/liveness
+          # readinessProbe:
+          #   initialDelaySeconds: 30
+          #   httpGet:
+          #     port: 8081
+          #     path: api/v1/views/actuator/health/readiness
+          # livenessProbe:
+          #   initialDelaySeconds: 30
+          #   httpGet:
+          #     port: 8081
+          #     path: api/v1/views/actuator/health/liveness
           lifecycle:
             preStop:
               exec:
