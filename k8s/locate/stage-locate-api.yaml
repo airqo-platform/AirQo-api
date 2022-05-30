@@ -41,11 +41,11 @@ spec:
                 name: env-locate-staging
           resources:
             requests:
-              cpu: 20m
-              memory: 50Mi
+              cpu: 100m
+              memory: 250Mi
             limits:
-              cpu: 2000m
-              memory: 2Gi
+              cpu: 200m
+              memory: 700Mi
 ---
 kind: Service
 apiVersion: v1
@@ -61,3 +61,23 @@ spec:
       targetPort: 4001
       nodePort: 31004
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-locate-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-locate-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

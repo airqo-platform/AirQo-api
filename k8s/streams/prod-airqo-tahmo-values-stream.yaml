@@ -30,11 +30,11 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 256Mi
-              cpu: "200m"
+              cpu: 100m
+              memory: 250Mi
             limits:
+              cpu: 200m
               memory: 700Mi
-              cpu: "1000m"
           envFrom:
             - configMapRef:
                 name: prod-tahmo-streams-config

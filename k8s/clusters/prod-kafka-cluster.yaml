@@ -7,13 +7,13 @@ spec:
   kafka:
     version: 3.0.0
     replicas: 3
-    resources:
-      requests:
-        cpu: 20m
-        memory: 50Mi
-      limits:
-        cpu: 2000m
-        memory: 2Gi
+    # resources:
+    #   requests:
+    #     memory: 2Gi
+    #     cpu: "100m"
+    #   limits:
+    #     memory: 4Gi
+    #     cpu: "2000m"
     readinessProbe:
       initialDelaySeconds: 15
       timeoutSeconds: 5
@@ -66,13 +66,13 @@ spec:
     #       key: prod-kafka-cluster-metrics-config.yml
   zookeeper:
     replicas: 3
-    resources:
-      requests:
-        cpu: 20m
-        memory: 50Mi
-      limits:
-        cpu: 2000m
-        memory: 2Gi
+    # resources:
+    #   requests:
+    #     memory: 1Gi
+    #     cpu: "200m"
+    #   limits:
+    #     memory: 2Gi
+    #     cpu: "1500m"
     storage:
       type: ephemeral
     readinessProbe:

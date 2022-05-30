@@ -37,11 +37,11 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              memory: 256Mi
-              cpu: "500m"
+              cpu: 100m
+              memory: 250Mi
             limits:
-              memory: 2Gi
-              cpu: "2000m"
+              cpu: 200m
+              memory: 700Mi
           envFrom:
             - configMapRef:
                 name: stage-datawarehouse-api-config
@@ -68,6 +68,26 @@ spec:
       targetPort: 4001
       nodePort: 31111
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-datawarehouse-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-datawarehouse-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
 
 ---
 apiVersion: apps/v1
@@ -97,11 +117,11 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 256Mi
-              cpu: "500m"
+              cpu: 100m
+              memory: 250Mi
             limits:
-              memory: 2Gi
-              cpu: "2000m"
+              cpu: 200m
+              memory: 700Mi
           envFrom:
             - configMapRef:
                 name: stage-datawarehouse-api-config
@@ -112,3 +132,23 @@ spec:
         - name: config-volume
           configMap:
             name: stage-datawarehouse-api-config-files
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-datawarehouse-msg-broker-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-datawarehouse-msg-broker
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
