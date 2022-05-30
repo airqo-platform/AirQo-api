@@ -220,7 +220,7 @@ class DailyAveragesResource(Resource):
         events_model = EventsModel(tenant)
         site_model = SiteModel(tenant)
         sites = site_model.get_sites(sites)
-        data = events_model.get_averages_by_pollutant(start_date, end_date, pollutant)
+        data = events_model.get_averages_by_pollutant_from_bigquery(start_date, end_date, pollutant)
 
         values = []
         labels = []
