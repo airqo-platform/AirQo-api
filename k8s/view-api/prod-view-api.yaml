@@ -26,13 +26,13 @@ spec:
         - name: view-api
           image: us.gcr.io/airqo-250220/airqo-view-api:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 200Mi
-            #   cpu: "100m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              memory: 200Mi
+              cpu: "100m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
           ports:
             - containerPort: 8080
               name: view-api
@@ -56,13 +56,13 @@ spec:
         - name: views-api
           image: us.gcr.io/airqo-250220/airqo-view-api:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 200Mi
-            #   cpu: "100m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              memory: 200Mi
+              cpu: "100m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
           ports:
             - containerPort: 8081
               name: views-api

@@ -23,7 +23,13 @@ spec:
         - name: airflow-xcom
           image: us.gcr.io/airqo-250220/airqo-stage-apache-airflow-xcom
           imagePullPolicy: Always
-          resources: {}
+          resources:
+            requests:
+              cpu: 20m
+              memory: 50Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
           envFrom:
             - configMapRef:
                 name: airflow-config
@@ -39,13 +45,13 @@ spec:
                 name: airflow-config
           command: ["airflow"]
           args: ["scheduler"]
-          resources: {}
-            # requests:
-            #   memory: 2Mi
-            #   cpu: 50m
-            # limits:
-            #   memory: 100Mi
-            #   cpu: 100m
+          resources:
+            requests:
+              cpu: 20m
+              memory: 50Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
@@ -61,13 +67,13 @@ spec:
                 name: airflow-config
           command: ["airflow"]
           args: ["webserver"]
-          resources: {}
-            # requests:
-            #   memory: 10Mi
-            #   cpu: 100m
-            # limits:
-            #   memory: 500Mi
-            #   cpu: 500m
+          resources: 
+            requests:
+              memory: 5Mi
+              cpu: 10m
+            limits:
+              memory: 2Gi
+              cpu: 500m
           readinessProbe: 
             initialDelaySeconds: 120
             timeoutSeconds: 120
@@ -87,7 +93,6 @@ spec:
           emptyDir: {}
       restartPolicy: Always
 
-
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -96,7 +101,6 @@ metadata:
   namespace: stage-airflow
 
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
@@ -116,7 +120,6 @@ rules:
   verbs: ["get", "list", "watch"]
 
 ---
-
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
@@ -149,4 +152,3 @@ spec:
     targetPort: 8080
  selector:
   app: airflow
-

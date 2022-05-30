@@ -25,7 +25,13 @@ ingress:
   enabled: false
 
 nodeSelector: {}
-resources: {}
+resources:
+  requests:
+    cpu: 20m
+    memory: 50Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
 affinity: {}
 torelations: {}
 

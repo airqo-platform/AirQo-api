@@ -38,7 +38,13 @@ spec:
         name: airqo-redis-server
         ports:
         - containerPort: 6379
-        resources: {}
+        resources:
+          requests:
+            cpu: 20m
+            memory: 50Mi
+          limits:
+            cpu: 2000m
+            memory: 2Gi
       restartPolicy: Always
       serviceAccountName: ""
       volumes: null

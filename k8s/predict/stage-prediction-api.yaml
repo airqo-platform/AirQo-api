@@ -46,10 +46,12 @@ spec:
           - name: config-volume
             mountPath: /etc/config
           resources:
-            limits:
-              cpu: 200m
             requests:
               cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 2000Mi
       volumes:
         - name: config-volume
           configMap:

@@ -28,13 +28,13 @@ spec:
         - name: prod-airqo-tahmo-values-stream
           image: us.gcr.io/airqo-250220/prod-tahmo-values-stream:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 256Mi
-            #   cpu: "200m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "200m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
           envFrom:
             - configMapRef:
                 name: prod-tahmo-streams-config

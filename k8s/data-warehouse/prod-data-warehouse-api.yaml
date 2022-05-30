@@ -35,7 +35,13 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          resources: {}
+          resources:
+            requests:
+              cpu: 20m
+              memory: 50Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
           envFrom:
             - configMapRef:
                 name: prod-datawarehouse-api-config
@@ -89,7 +95,13 @@ spec:
         - name: msg-broker
           image: us.gcr.io/airqo-250220/airqo-datawarehouse-msg-broker:latest
           imagePullPolicy: Always
-          resources: {}
+          resources:
+            requests:
+              cpu: 20m
+              memory: 50Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
           envFrom:
             - configMapRef:
                 name: prod-datawarehouse-api-config

@@ -40,6 +40,13 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
+          resources:
+            requests:
+              cpu: 20m
+              memory: 50Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
 
 ---
 kind: Service

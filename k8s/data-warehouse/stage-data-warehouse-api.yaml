@@ -40,7 +40,7 @@ spec:
               memory: 256Mi
               cpu: "500m"
             limits:
-              memory: 1Gi
+              memory: 2Gi
               cpu: "2000m"
           envFrom:
             - configMapRef:
@@ -100,7 +100,7 @@ spec:
               memory: 256Mi
               cpu: "500m"
             limits:
-              memory: 1Gi
+              memory: 2Gi
               cpu: "2000m"
           envFrom:
             - configMapRef:

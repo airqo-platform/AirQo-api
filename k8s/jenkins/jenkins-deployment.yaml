@@ -24,6 +24,13 @@ spec:
         volumeMounts:
           - name: jenkins-vol
             mountPath: /var/jenkins_vol
+        resources:
+          requests:
+            cpu: 10m
+            memory: 10Mi
+          limits:
+            cpu: 100m
+            memory: 100Mi
       volumes:
         - name: jenkins-vol
           emptyDir: {}

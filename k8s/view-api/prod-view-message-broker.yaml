@@ -25,7 +25,13 @@ spec:
         - name: view-message-broker
           image: us.gcr.io/airqo-250220/airqo-view-message-broker:latest
           imagePullPolicy: Always
-          resources: {}
           envFrom:
             - configMapRef:
                 name: prod-view-message-broker-config
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 700Mi

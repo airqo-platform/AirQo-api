@@ -36,9 +36,6 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          # env:
-          #   - name: GET_HOSTS_FROM
-          #     value: dns
           envFrom:
             - configMapRef:
                 name: env-predict-production
@@ -46,10 +43,12 @@ spec:
           - name: config-volume
             mountPath: /etc/config
           resources:
-            limits:
-              cpu: 250m
             requests:
               cpu: 100m
+              memory: 200Mi
+            limits:
+              cpu: 250m
+              memory: 2Gi
       volumes:
         - name: config-volume
           configMap:

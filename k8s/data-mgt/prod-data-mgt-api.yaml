@@ -35,7 +35,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: data-mgt-api-config
-          resources: {}
+          resources:
+            requests:
+              cpu: 20m
+              memory: 50Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
       restartPolicy: Always
 
 ---

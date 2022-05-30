@@ -28,13 +28,13 @@ spec:
         - name: prod-airqo-raw-measurements-stream
           image: us.gcr.io/airqo-250220/prod-raw-device-measurements-stream:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 256Mi
-            #   cpu: "200m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "200m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
           envFrom:
             - configMapRef:
                 name: prod-airqo-raw-measurements-stream-config
