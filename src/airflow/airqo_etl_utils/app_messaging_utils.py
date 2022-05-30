@@ -12,17 +12,17 @@ from airqo_etl_utils.date import get_utc_offset_for_hour, str_to_str_default
 from airqo_etl_utils.utils import get_file_content, get_air_quality
 from airqo_etl_utils.airqo_api import AirQoApi
 
+cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
+firebase_admin.initialize_app(cred)
+
 
 def get_notification_recipients(hour: int) -> pd.DataFrame:
 
-    cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
-    firebase_admin.initialize_app(cred)
-
     db = firestore.client()
-    offset = get_utc_offset_for_hour(hour)
+    _ = get_utc_offset_for_hour(hour)
     docs = (
         db.collection(configuration.APP_USERS_DATABASE)
-        .where("utcOffset", "==", offset)
+        .where("utcOffset", "==", 3)
         .stream()
     )
     recipients = []
@@ -215,9 +215,6 @@ def create_notification_messages_(
 
 
 def send_notification_messages(messages: pd.DataFrame):
-
-    cred = credentials.Certificate(configuration.GOOGLE_APPLICATION_CREDENTIALS)
-    firebase_admin.initialize_app(cred)
 
     notifications = []
     for _, message in messages.iterrows():
