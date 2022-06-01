@@ -10,13 +10,17 @@ env:
   REGION: ${{ secrets.REGION }}
   
 jobs:
-  Formated-branch-name:
-    name: Formated branch name string
+  branch-name:
+    name: Format branch name string
     runs-on: ubuntu-latest
+    outputs:
+      lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
     steps:
-      - name: downcase BRANCH_NAME
-        run: |
-          echo "BRANCH_NAME=${{ github.head_ref || github.ref_name }}" >>${GITHUB_ENV}
+      - id: string
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.head_ref || github.ref_name }}
+          
 
   check:
     name: check changed microservice(s)
@@ -162,7 +166,7 @@ jobs:
   ### auth service ###
   auth-service:
     name: build-push-deploy-auth
-    needs: [check]
+    needs: [check,branch-name]
     if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     permissions:
@@ -199,7 +203,7 @@ jobs:
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ env.BRANCH_NAME }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
