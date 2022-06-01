@@ -190,7 +190,7 @@ jobs:
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy preview-${{ BRANCH_NAME }}-auth-service \
+          gcloud run deploy preview-${{ env.BRANCH_NAME }}-auth-service \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
