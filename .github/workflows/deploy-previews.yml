@@ -8,9 +8,16 @@ on:
 env:
   PROJECT_ID: ${{ secrets.PROJECT_ID }}
   REGION: ${{ secrets.REGION }}
-  BRANCH_NAME: ${{ github.head_ref || github.ref_name }} 
   
 jobs:
+  Formated-branch-name:
+    name: Formated branch name string
+    runs-on: ubuntu-latest
+    steps:
+      - name: downcase BRANCH_NAME
+        run: |
+          echo "BRANCH_NAME=${{ github.head_ref || github.ref_name }}" >>${GITHUB_ENV}
+
   check:
     name: check changed microservice(s)
     outputs:
@@ -192,7 +199,7 @@ jobs:
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy preview-${{ env.BRANCH_NAME }}-auth-service \
+          gcloud run deploy ${{ env.BRANCH_NAME }}-auth-service-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
