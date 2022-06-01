@@ -678,8 +678,8 @@ jobs:
               body: 'Device status job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-status-preview'
             })
   
-  ### run_locate ###
-  run_locate:
+  ### locate ###
+  locate:
     name: build-push-deploy-auth
     needs: [check,branch-name]
     if: needs.check.outputs.run_locate == 'true'
@@ -712,37 +712,37 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/locate/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/locate-pr-previews:${{ github.sha }} \
+            --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-locate:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-locate-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_locate-pr-comment:
+  locate-pr-comment:
     name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_auth_service == 'true'
+    if: needs.check.outputs.run_locate == 'true'
     needs: [auth-service]
     runs-on: ubuntu-latest
     steps:
@@ -753,11 +753,11 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Locate API changes in this PR available for preview [here](${{ needs.locate.outputs.url }})'
             })
   
-  ### run_predict ###
-  run_predict:
+  ### predict service ###
+  predict-service:
     name: build-push-deploy-auth
     needs: [check,branch-name]
     if: needs.check.outputs.run_predict == 'true'

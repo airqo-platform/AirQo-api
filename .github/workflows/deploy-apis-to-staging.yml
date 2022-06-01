@@ -407,6 +407,22 @@ jobs:
           kubectl rollout restart deployment airqo-stage-prediction-api  -n staging
           kubectl apply -f k8s/predict/stage-airqo-predict-job.yaml -n staging
           kubectl apply -f k8s/predict/stage-airqo-train-job.yaml -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-predict-service \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   #### Device Registry ######
   device-registry:
@@ -755,6 +771,22 @@ jobs:
           kubectl set image deployment/airqo-stage-locate-api sta-locate-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-locate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-locate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-locate \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
   ### gp model ###
   gp-model:
     name: build-push-deploy-gp-model
@@ -788,6 +820,22 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/gp-model/stage-airqo-gp-model-job.yaml
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-gp-model \
+            --region=${{ secrets.REGION }} \
+            --quiet
   
   ### exceddences ###
   exceedance:
@@ -834,6 +882,22 @@ jobs:
         run: |
           kubectl apply -f k8s/exceedance/stage-airqo-exceedance-job.yaml
           kubectl apply -f k8s/exceedance/stage-kcca-exceedance-job.yaml
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-exceddences \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### datawarehouse ###
   datawarehouse:
@@ -873,6 +937,22 @@ jobs:
           kubectl apply -f k8s/data-warehouse/stage-data-warehouse-api.yaml
           kubectl set image deployment/airqo-stage-datawarehouse-api datawarehouse=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-datawarehouse-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-datawarehouse-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-datawarehouse \
+            --region=${{ secrets.REGION }} \
+            --quiet
   
   ### view  ###
   view:
@@ -929,6 +1009,22 @@ jobs:
         run: |
           kubectl apply -f k8s/view-api/stage-view-message-broker.yaml -n staging
           kubectl rollout restart deployment airqo-stage-view-message-broker  -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-view \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   #### Calibrate ######
   calibrate:
@@ -994,6 +1090,22 @@ jobs:
           kubectl set image deployment/airqo-stage-calibrate-api calibrate-pickle=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-pickle-file:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl set image deployment/airqo-stage-calibrate-api sta-calibrate=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-calibrate-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-calibrate-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-calibrate \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### events check ###
   events-check:
@@ -1028,6 +1140,22 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/events-monitor/stage-events-notifs-cronjob.yaml -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-events-check \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   #### notification ######
   notification:
@@ -1066,6 +1194,22 @@ jobs:
           kubectl apply -f k8s/notification-service/stage-notification-api.yaml
           kubectl set image deployment/airqo-stage-notification-api sta-notification-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-notification-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-notification-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-notifications \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### network uptime ###
   network-uptime:
@@ -1103,6 +1247,22 @@ jobs:
           kubectl set image deployment/airqo-stage-network-uptime-api sta-network-uptime=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-network-uptime-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-network-uptime-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
   
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-network_uptime \
+            --region=${{ secrets.REGION }} \
+            --quiet
+  
   #### Channel data ######
   channel-data:
     name: build-push-deploy-channel-data-job
@@ -1134,4 +1294,19 @@ jobs:
       - name: Deploy to K8S
         run: |
           kubectl apply -f k8s/channel-data/stage-airqo-update-channel-data-job.yaml -n staging
-    
+  
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-channel-data \
+            --region=${{ secrets.REGION }} \
+            --quiet    
