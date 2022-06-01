@@ -723,9 +723,9 @@ jobs:
           echo "::set-output name=url::${service_url}"
 
   locate-pr-comment:
-    name: auth-service-preview-link-comment
+    name: locate-preview-link-comment
     if: needs.check.outputs.run_locate == 'true'
-    needs: [auth-service]
+    needs: [locate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
