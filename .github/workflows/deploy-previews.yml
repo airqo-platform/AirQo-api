@@ -1,4 +1,4 @@
-name: deploy-changes-to-preview-environment
+name: deploy-to-preview-environment
 
 on:
   pull_request:
@@ -160,7 +160,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: 'read'
-      id-token: 'write'
+      id-token: 'write'    
+    outputs:
+      url: ${{ steps.preview-url.outputs.url }} # pr preview url
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -204,7 +206,7 @@ jobs:
             --allow-unauthenticated
 
       - name: Get preview service url
-        id: results
+        id: preview-url
         run: |
           read service_url < <(gcloud run services describe auth-service-pr-previews \
             --format='value(status.url)' \
