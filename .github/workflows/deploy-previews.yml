@@ -553,130 +553,130 @@ jobs:
             })
   
   ### device uptime ###
-  device-uptime:
-    name: build-push-deploy-device-uptime
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_device_uptime == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+  # device-uptime:
+  #   name: build-push-deploy-device-uptime
+  #   needs: [check,branch-name]
+  #   if: needs.check.outputs.run_device_uptime == 'true'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write    
+  #   outputs:
+  #     url: ${{ steps.preview-url.outputs.url }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
 
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Google Auth
+  #       id: auth
+  #       uses: google-github-actions/auth@v0
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+  #     - name: Setup Cloud SDK
+  #       uses: google-github-actions/setup-gcloud@v0
 
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Docker Auth
+  #       id: docker-auth
+  #       uses: docker/login-action@v1
+  #       with:
+  #         registry: ${{ secrets.REGISTRY_URL }}
+  #         username: _json_key
+  #         password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
-      - name: Build and Push Container
-        run: |
-          cd src/device-uptime/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }}
+  #     - name: Build and Push Container
+  #       run: |
+  #         cd src/device-uptime/
+  #         docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }} ./
+  #         docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }}
       
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-uptime-preview \
-            --region=${{ secrets.REGION }} \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }} \
-            --update-secrets=/etc/env/.env=sta-env-device-uptime:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
-            --quiet 
+  #     - name: Deploy to Cloud Run
+  #       run: |-
+  #         gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-uptime-preview \
+  #           --region=${{ secrets.REGION }} \
+  #           --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }} \
+  #           --update-secrets=/etc/env/.env=sta-env-device-uptime:latest \
+  #           --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+  #           --quiet 
 
-  device-uptime-pr-comment:
-    name: device-uptime-preview-link-comment
-    if: needs.check.outputs.run_device_uptime == 'true'
-    needs: [device-uptime]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Device uptime job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-uptime-preview'
-            })
+  # device-uptime-pr-comment:
+  #   name: device-uptime-preview-link-comment
+  #   if: needs.check.outputs.run_device_uptime == 'true'
+  #   needs: [device-uptime]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/github-script@v6
+  #       with:
+  #         script: |
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: 'Device uptime job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-uptime-preview'
+  #           })
   
-  ### device status ###
-  device-status:
-    name: build-push-deploy-device-status
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_device_status == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+  # ### device status ###
+  # device-status:
+  #   name: build-push-deploy-device-status
+  #   needs: [check,branch-name]
+  #   if: needs.check.outputs.run_device_status == 'true'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write    
+  #   outputs:
+  #     url: ${{ steps.preview-url.outputs.url }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
 
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Google Auth
+  #       id: auth
+  #       uses: google-github-actions/auth@v0
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+  #     - name: Setup Cloud SDK
+  #       uses: google-github-actions/setup-gcloud@v0
 
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Docker Auth
+  #       id: docker-auth
+  #       uses: docker/login-action@v1
+  #       with:
+  #         registry: ${{ secrets.REGISTRY_URL }}
+  #         username: _json_key
+  #         password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
-      - name: Build and Push Container
-        run: |
-          cd src/device-status/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }}
+  #     - name: Build and Push Container
+  #       run: |
+  #         cd src/device-status/
+  #         docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} ./
+  #         docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }}
       
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-status-preview \
-            --region=${{ secrets.REGION }} \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} \
-            --update-secrets=/etc/env/.env=sta-env-device-status:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
-            --quiet
+  #     - name: Deploy to Cloud Run
+  #       run: |-
+  #         gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-status-preview \
+  #           --region=${{ secrets.REGION }} \
+  #           --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} \
+  #           --update-secrets=/etc/env/.env=sta-env-device-status:latest \
+  #           --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+  #           --quiet
             
-  device-status-pr-comment:
-    name: device-status-preview-link-comment
-    if: needs.check.outputs.run_device_status == 'true'
-    needs: [device-status]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Device status job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-status-preview'
-            })
+  # device-status-pr-comment:
+  #   name: device-status-preview-link-comment
+  #   if: needs.check.outputs.run_device_status == 'true'
+  #   needs: [device-status]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/github-script@v6
+  #       with:
+  #         script: |
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: 'Device status job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-status-preview'
+  #           })
   
   ### locate ###
   locate:
@@ -834,151 +834,151 @@ jobs:
               body: 'Predict service changes in this PR available for preview [here](${{ needs.predict-service.outputs.url }})'
             })
   
-  ### gp model ###
-  gp-model:
-    name: build-push-deploy-gp-model
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_gp_model == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+  # ### gp model ###
+  # gp-model:
+  #   name: build-push-deploy-gp-model
+  #   needs: [check,branch-name]
+  #   if: needs.check.outputs.run_gp_model == 'true'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write    
+  #   outputs:
+  #     url: ${{ steps.preview-url.outputs.url }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
 
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Google Auth
+  #       id: auth
+  #       uses: google-github-actions/auth@v0
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+  #     - name: Setup Cloud SDK
+  #       uses: google-github-actions/setup-gcloud@v0
 
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Docker Auth
+  #       id: docker-auth
+  #       uses: docker/login-action@v1
+  #       with:
+  #         registry: ${{ secrets.REGISTRY_URL }}
+  #         username: _json_key
+  #         password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
-      - name: Build and Push Container
-        run: |
-          cd src/gp-model/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }}
+  #     - name: Build and Push Container
+  #       run: |
+  #         cd src/gp-model/
+  #         docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} ./
+  #         docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }}
       
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
-            --region=${{ secrets.REGION }} \
-            --cpu=2000m \
-            --memory=1024Mi \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
-            --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; python main.py --tenant=airqo" \
-            --quiet
+  #     - name: Deploy to Cloud Run
+  #       run: |-
+  #         gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
+  #           --region=${{ secrets.REGION }} \
+  #           --cpu=2000m \
+  #           --memory=1024Mi \
+  #           --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
+  #           --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
+  #           --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; python main.py --tenant=airqo" \
+  #           --quiet
 
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+  #     - name: Get preview service url
+  #       id: preview-url
+  #       run: |
+  #         read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
+  #           --format='value(status.url)' \
+  #           --platform managed \
+  #           --region ${{ secrets.REGION }})
+  #         echo "::set-output name=url::${service_url}"
 
-  gp-model-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_gp_model == 'true'
-    needs: [gp-model]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'GP model job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview'
-            })
+  # gp-model-pr-comment:
+  #   name: auth-service-preview-link-comment
+  #   if: needs.check.outputs.run_gp_model == 'true'
+  #   needs: [gp-model]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/github-script@v6
+  #       with:
+  #         script: |
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: 'GP model job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview'
+  #           })
   
   ### exceedances ###
-  exceedances:
-    name: build-push-deploy-exceedances
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_exceedances == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+  # exceedances:
+  #   name: build-push-deploy-exceedances
+  #   needs: [check,branch-name]
+  #   if: needs.check.outputs.run_exceedances == 'true'
+  #   runs-on: ubuntu-latest
+  #   permissions:
+  #     contents: read
+  #     id-token: write    
+  #   outputs:
+  #     url: ${{ steps.preview-url.outputs.url }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v2
 
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Google Auth
+  #       id: auth
+  #       uses: google-github-actions/auth@v0
+  #       with:
+  #         credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
+  #     - name: Setup Cloud SDK
+  #       uses: google-github-actions/setup-gcloud@v0
 
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
+  #     - name: Docker Auth
+  #       id: docker-auth
+  #       uses: docker/login-action@v1
+  #       with:
+  #         registry: ${{ secrets.REGISTRY_URL }}
+  #         username: _json_key
+  #         password: ${{ secrets.GCP_SA_CREDENTIALS }}
 
-      - name: Build and Push Container
-        run: |
-          cd src/exceedances/
-          docker build --target=airqo-staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }}
+  #     - name: Build and Push Container
+  #       run: |
+  #         cd src/exceedances/
+  #         docker build --target=airqo-staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }} ./
+  #         docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }}
       
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview \
-            --region=${{ secrets.REGION }} \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }} \
-            --update-secrets=/etc/env/.env=sta-env-exceedances:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
-            --quiet
+  #     - name: Deploy to Cloud Run
+  #       run: |-
+  #         gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview \
+  #           --region=${{ secrets.REGION }} \
+  #           --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }} \
+  #           --update-secrets=/etc/env/.env=sta-env-exceedances:latest \
+  #           --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+  #           --quiet
 
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+  #     - name: Get preview service url
+  #       id: preview-url
+  #       run: |
+  #         read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview \
+  #           --format='value(status.url)' \
+  #           --platform managed \
+  #           --region ${{ secrets.REGION }})
+  #         echo "::set-output name=url::${service_url}"
 
-  exceedances-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_exceedances == 'true'
-    needs: [auth-service]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Exceddences job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview'
-            })
+  # exceedances-pr-comment:
+  #   name: auth-service-preview-link-comment
+  #   if: needs.check.outputs.run_exceedances == 'true'
+  #   needs: [auth-service]
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/github-script@v6
+  #       with:
+  #         script: |
+  #           github.rest.issues.createComment({
+  #             issue_number: context.issue.number,
+  #             owner: context.repo.owner,
+  #             repo: context.repo.repo,
+  #             body: 'Exceddences job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview'
+  #           })
   
   ### datawarehouse ###
   datawarehouse:
@@ -1214,165 +1214,9 @@ jobs:
               body: 'Calibrate changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
             })
   
-  ### run_average_jobs ###
-  run_average_jobs:
-    name: build-push-deploy-auth
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_average_jobs == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-      
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
-
-  run_average_jobs-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_average_jobs == 'true'
-    needs: [auth-service]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
-            })
-  
-  ### run_events_check ###
-  run_events_check:
-    name: build-push-deploy-auth
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_events_check == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-      
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
-
-  run_events_check-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_events_check == 'true'
-    needs: [auth-service]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
-        with:
-          script: |
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
-            })
-  
-  ### run_notifications ###
-  run_notifications:
-    name: build-push-deploy-auth
+  ### notifications ###
+  notifications:
+    name: build-push-deploy-notifications
     needs: [check,branch-name]
     if: needs.check.outputs.run_notifications == 'true'
     runs-on: ubuntu-latest
@@ -1404,38 +1248,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/notifications/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-notifications-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/notifications-pr-previews:${{ github.sha }} \
+            --port=8080 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-notifications:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; /notifications-api" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-notifications-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_notifications-pr-comment:
-    name: auth-service-preview-link-comment
+  notifications-pr-comment:
+    name: notifications-preview-link-comment
     if: needs.check.outputs.run_notifications == 'true'
-    needs: [auth-service]
+    needs: [notifications]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -1445,7 +1289,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Notifications changes in this PR available for preview [here](${{ needs.notifications.outputs.url }})'
             })
   
   ### run_network_uptime ###
@@ -1526,69 +1370,6 @@ jobs:
               body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
             })
   
-  ### run_channel_data ###
-  run_channel_data:
-    name: build-push-deploy-auth
-    needs: [check,branch-name]
-    if: needs.check.outputs.run_channel_data == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write    
-    outputs:
-      url: ${{ steps.preview-url.outputs.url }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Google Auth
-        id: auth
-        uses: google-github-actions/auth@v0
-        with:
-          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
-          
-      - name: Setup Cloud SDK
-        uses: google-github-actions/setup-gcloud@v0
-
-      - name: Docker Auth
-        id: docker-auth
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ secrets.REGISTRY_URL }}
-          username: _json_key
-          password: ${{ secrets.GCP_SA_CREDENTIALS }}
-
-      - name: Build and Push Container
-        run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-      
-      - name: Deploy to Cloud Run
-        run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
-
-  run_channel_data-pr-comment:
     name: auth-service-preview-link-comment
     if: needs.check.outputs.run_channel_data == 'true'
     needs: [auth-service]

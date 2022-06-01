@@ -217,56 +217,56 @@ jobs:
           done < files.txt
 
   ### auth service ###
-  # auth-service:
-  #   name: build-push-deploy-auth
-  #   needs: [check, image-tag, branch-name]
-  #   if: needs.check.outputs.run_auth_service == 'true'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v2
+  auth-service:
+    name: build-push-deploy-auth
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_auth_service == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
       
-  #     - name: Login to GCR
-  #       uses: docker/login-action@v1
-  #       with:
-  #         registry: ${{ secrets.REGISTRY_URL }}
-  #         username: _json_key
-  #         password: ${{ secrets.GCR_CONFIG }}
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
 
-  #     - name: Login to K8S
-  #       uses: azure/k8s-set-context@v1
-  #       with:
-  #         method: kubeconfig
-  #         kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
-  #     - name: Build and Push Docker Image
-  #       run: |
-  #         cd src/auth-service/
-  #         docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
-  #         docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
-  #         docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
-  #         docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
-  #     - name: Deploy to K8S
-  #     run: |
-  #       kubectl apply -f k8s/auth-service/stage-auth-api.yaml
-  #       kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
-  #       kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+      - name: Build and Push Docker Image
+        run: |
+          cd src/auth-service/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
+      - name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/auth-service/stage-auth-api.yaml
+          kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
+          kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
-  #     # clean up after merge
-  #     - name: Google Auth
-  #       id: auth
-  #       uses: google-github-actions/auth@v0
-  #       with:
-  #         credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
           
-  #     - name: Setup Cloud SDK
-  #       uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
         
-  #     - name: Delete PR deploy preview
-  #       run: |-
-  #         gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-  #           --region=${{ secrets.REGION }} \
-  #           --quiet
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### message broker topics ###
   message-broker-topics:
