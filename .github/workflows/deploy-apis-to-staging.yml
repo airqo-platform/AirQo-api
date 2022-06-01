@@ -220,39 +220,39 @@ jobs:
   auth-service:
     name: build-push-deploy-auth
     needs: [check, image-tag, branch-name]
-    # if: needs.check.outputs.run_auth_service == 'true'
+    if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
-      # - name: Checkout
-      #   uses: actions/checkout@v2
+      - name: Checkout
+        uses: actions/checkout@v2
       
-      # - name: Login to GCR
-      #   uses: docker/login-action@v1
-      #   with:
-      #     registry: ${{ secrets.REGISTRY_URL }}
-      #     username: _json_key
-      #     password: ${{ secrets.GCR_CONFIG }}
+      - name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
 
-      # - name: Login to K8S
-      #   uses: azure/k8s-set-context@v1
-      #   with:
-      #     method: kubeconfig
-      #     kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
+      - name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_STAGE }}
       
-      # - name: Build and Push Docker Image
-      #   run: |
-      #     cd src/auth-service/
-      #     docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
-      #     docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
-      #     docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
-      #     docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
-      # - name: Deploy to K8S
-      # run: |
-      #   kubectl apply -f k8s/auth-service/stage-auth-api.yaml
-      #   kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
-      #   kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+      - name: Build and Push Docker Image
+        run: |
+          cd src/auth-service/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} .
+          docker tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }}
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:latest
+      - name: Deploy to K8S
+      run: |
+        kubectl apply -f k8s/auth-service/stage-auth-api.yaml
+        kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
+        kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
-      # clean up after PR
+      # clean up after merge
       - name: Google Auth
         id: auth
         uses: google-github-actions/auth@v0
@@ -350,7 +350,7 @@ jobs:
   ### predict api and jobs ###
   predict-service:
     name: build-push-deploy-predict-service
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -411,7 +411,7 @@ jobs:
   #### Device Registry ######
   device-registry:
     name: build-push-deploy-device-registry
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -444,10 +444,26 @@ jobs:
           kubectl set image deployment/airqo-stage-device-registry-api sta-dev-reg-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-device-registry-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-device-registry-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
 
+      # clean up after merge
+      - name: Google Auth
+        id: auth
+        uses: google-github-actions/auth@v0
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: Setup Cloud SDK
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Delete PR deploy preview
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-device-registry-preview \
+            --region=${{ secrets.REGION }} \
+            --quiet
+
   ### device monitoring ###
   device-monitoring:
     name: build-push-deploy-device-monitoring
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -518,7 +534,7 @@ jobs:
   ### analytics ###
   analytics:
     name: build-push-deploy-analytics
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -625,7 +641,7 @@ jobs:
   ### locate ###
   locate:
     name: build-push-deploy-locate
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -697,7 +713,7 @@ jobs:
   ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -743,7 +759,7 @@ jobs:
   ### datawarehouse ###
   datawarehouse:
     name: build-push-deploy-datawarehouse
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_datawarehouse == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -782,7 +798,7 @@ jobs:
   ### view  ###
   view:
     name: build-push-deploy-view
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -838,7 +854,7 @@ jobs:
   #### Calibrate ######
   calibrate:
     name: build-push-deploy-calibrate
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -903,7 +919,7 @@ jobs:
   ### events check ###
   events-check:
     name: build-push-events-check
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_events_check == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -937,7 +953,7 @@ jobs:
   #### notification ######
   notification:
     name: build-push-deploy-notification
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_notifications == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -975,7 +991,7 @@ jobs:
   ### network uptime ###
   network-uptime:
     name: build-push-network-uptime
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_network_uptime == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -1011,7 +1027,7 @@ jobs:
   #### Channel data ######
   channel-data:
     name: build-push-deploy-channel-data-job
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_channel_data == 'true'
     runs-on: ubuntu-latest
     steps:
