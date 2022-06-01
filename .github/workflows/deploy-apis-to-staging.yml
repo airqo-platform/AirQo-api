@@ -7,6 +7,10 @@ on:
     types:
       - closed
 
+env:
+  PROJECT_ID: ${{ secrets.PROJECT_ID }}
+  REGION: ${{ secrets.REGION }}
+
 jobs:
   image-tag:
     name: create image tag
@@ -23,6 +27,17 @@ jobs:
             datetime=$(date)
             echo "::set-output name=build_id::stage-${sha}-${timestamp}"
             echo "::set-output name=datetime::${datetime}"
+
+  branch-name:
+    name: Format branch name string
+    runs-on: ubuntu-latest
+    outputs:
+      lowercase: ${{ steps.string.outputs.lowercase }} # lowercase version
+    steps:
+      - id: string
+        uses: ASzc/change-string-case-action@v2
+        with:
+          string: ${{ github.head_ref || github.ref_name }}
 
   check:
     if: github.event.pull_request.merged == true
@@ -205,7 +220,7 @@ jobs:
   ### auth service ###
   auth-service:
     name: build-push-deploy-auth
-    needs: [check, image-tag]
+    needs: [check, image-tag, branch-name]
     if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -237,6 +252,20 @@ jobs:
           kubectl apply -f k8s/auth-service/stage-auth-api.yaml
           kubectl set image deployment/airqo-stage-auth-api sta-auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} -n staging
           kubectl annotate deployment/airqo-stage-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-stage-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n staging
+
+      ### clean up PR preview ###
+      - name: Google Auth
+        id: auth
+        uses: 'google-github-actions/auth@v0'
+        with:
+          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          
+      - name: 'Setup Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v0'
+        
+      - name: Deploy to Cloud Run
+        run: |-
+          gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview
 
   ### message broker topics ###
   message-broker-topics:
