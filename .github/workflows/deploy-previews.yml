@@ -74,7 +74,6 @@ jobs:
             --platform managed \
             --region ${{ secrets.REGION }})
           export url=${service_url}
-          echo "::set-env name=url::$url"
 
   # comment:
   #   name: comment-on-pr
