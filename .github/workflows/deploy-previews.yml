@@ -164,31 +164,31 @@ jobs:
 
   ### auth_service ###
   auth-service:
-    name: build-push-deploy-auth
+    name: build-push-deploy-auth-service
     needs: [check,branch-name]
     if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -242,31 +242,31 @@ jobs:
   
   ### device registry ###
   device-registry:
-    name: build-push-deploy-auth
+    name: build-push-deploy-device-registry
     needs: [check,branch-name]
     if: needs.check.outputs.run_device_registry == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -320,13 +320,13 @@ jobs:
  
   ### device monitoring ###
   device-monitoring:
-    name: build-push-deploy-auth
+    name: build-push-deploy-device-monitoring
     needs: [check,branch-name]
     if: needs.check.outputs.run_device_monitoring == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
       url: ${{ steps.preview-url.outputs.url }}
     steps:
@@ -335,16 +335,16 @@ jobs:
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -396,33 +396,33 @@ jobs:
               body: 'Device monitoring changes in this PR available for preview [here](${{ needs.device-monitoring.outputs.url }})'
             })
 
-  ### run_data_mgt ###
-  run-data-mgt:
-    name: build-push-deploy-auth
+  ### run data mgt ###
+  data-mgt:
+    name: build-push-deploy-data-mgt
     needs: [check,branch-name]
     if: needs.check.outputs.run_data_mgt == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -430,38 +430,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/data-mgt/node/
+          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/data-mgt-pr-previews:${{ github.sha }} \
             --port=3000 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-data-mgt-nodejs:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run start" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-data-mgt-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
   data-mgt-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_auth_service == 'true'
-    needs: [auth-service]
+    name: data-mgt-preview-link-comment
+    if: needs.check.outputs.run_data_mgt == 'true'
+    needs: [data-mgt]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -471,7 +471,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Data management changes in this PR available for preview [here](${{ needs.data-mgt.outputs.url }})'
             })
   
   ### analytics ###
@@ -481,26 +481,26 @@ jobs:
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -559,26 +559,26 @@ jobs:
     if: needs.check.outputs.run_device_uptime == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -637,26 +637,26 @@ jobs:
     if: needs.check.outputs.run_device_status == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -715,26 +715,26 @@ jobs:
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -793,26 +793,26 @@ jobs:
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -871,26 +871,26 @@ jobs:
     if: needs.check.outputs.run_gp_model == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -949,26 +949,26 @@ jobs:
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1027,26 +1027,26 @@ jobs:
     if: needs.check.outputs.run_datawarehouse == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1105,26 +1105,26 @@ jobs:
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1183,26 +1183,26 @@ jobs:
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1261,26 +1261,26 @@ jobs:
     if: needs.check.outputs.run_average_jobs == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1339,26 +1339,26 @@ jobs:
     if: needs.check.outputs.run_events_check == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1417,26 +1417,26 @@ jobs:
     if: needs.check.outputs.run_notifications == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1495,26 +1495,26 @@ jobs:
     if: needs.check.outputs.run_network_uptime == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
@@ -1573,26 +1573,26 @@ jobs:
     if: needs.check.outputs.run_channel_data == 'true'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'read'
-      id-token: 'write'    
+      contents: read
+      id-token: write    
     outputs:
-      url: ${{ steps.preview-url.outputs.url }} # pr preview url
+      url: ${{ steps.preview-url.outputs.url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v2
 
       - name: Google Auth
         id: auth
-        uses: 'google-github-actions/auth@v0'
+        uses: google-github-actions/auth@v0
         with:
-          credentials_json: '${{ secrets.GCP_SA_CREDENTIALS }}'
+          credentials_json: ${{ secrets.GCP_SA_CREDENTIALS }}
           
-      - name: 'Setup Cloud SDK'
-        uses: 'google-github-actions/setup-gcloud@v0'
+      - name: Setup Cloud SDK
+        uses: google-github-actions/setup-gcloud@v0
 
       - name: Docker Auth
         id: docker-auth
-        uses: 'docker/login-action@v1'
+        uses: docker/login-action@v1
         with:
           registry: ${{ secrets.REGISTRY_URL }}
           username: _json_key
