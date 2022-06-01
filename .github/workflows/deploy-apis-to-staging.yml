@@ -216,12 +216,11 @@ jobs:
 
           done < files.txt
 
-
   ### auth service ###
   auth-service:
     name: build-push-deploy-auth
     needs: [check, image-tag, branch-name]
-    if: needs.check.outputs.run_auth_service == 'true'
+    # if: needs.check.outputs.run_auth_service == 'true'
     runs-on: ubuntu-latest
     steps:
       # - name: Checkout
