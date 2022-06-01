@@ -1,4 +1,4 @@
-name: Deploy PR preview
+name: deploy-changes-to-preview-environment
 
 on:
   pull_request:
@@ -8,18 +8,159 @@ on:
 env:
   PROJECT_ID: ${{ secrets.PROJECT_ID }}
   REGION: ${{ secrets.REGION }}
-
+  BRANCH_NAME: ${GITHUB_REF##*/}
+  
 jobs:
-  deploy:
+  check:
+    name: check changed microservice(s)
+    outputs:
+      run_auth_service: ${{ steps.check_files.outputs.run_auth_service }} # auth service
+      run_device_registry: ${{ steps.check_files.outputs.run_device_registry }} # device registry
+      run_device_monitoring: ${{ steps.check_files.outputs.run_device_monitoring }} # device monitoring
+      run_data_mgt: ${{ steps.check_files.outputs.run_data_mgt }} # data mgt
+      run_analytics: ${{ steps.check_files.outputs.run_analytics }} # analytics
+      run_device_uptime: ${{ steps.check_files.outputs.run_device_uptime }} # device uptime
+      run_device_status: ${{ steps.check_files.outputs.run_device_status }} # device status
+      run_locate: ${{ steps.check_files.outputs.run_locate }} # locate
+      run_predict: ${{ steps.check_files.outputs.run_predict }} # predict
+      run_gp_model: ${{ steps.check_files.outputs.run_gp_model }} # gp_model
+      run_exceedances: ${{ steps.check_files.outputs.run_exceedances }} # exceedances
+      run_datawarehouse: ${{ steps.check_files.outputs.run_datawarehouse }} # datawarehouse
+      run_view: ${{ steps.check_files.outputs.run_view }} # view
+      run_calibrate: ${{ steps.check_files.outputs.run_calibrate }} # calibrate
+      run_average_jobs: ${{ steps.check_files.outputs.run_average_jobs }} # average and calibration jobs
+      run_events_check: ${{ steps.check_files.outputs.run_events_check }} # event checks
+      run_notifications: ${{ steps.check_files.outputs.run_notifications }} # notification
+      run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
+      run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+
+        #### all microservices ######
+      - name: check modified microserivce
+        id: check_files
+        run: |
+          echo "=============== list modified files ==============="
+          git diff --name-only HEAD^ HEAD
+          
+          echo "========== check paths of modified files =========="
+          git diff --name-only HEAD^ HEAD > files.txt
+          
+          echo "::set-output name=run_auth_service::false"
+          echo "::set-output name=run_device_registry::false"  
+          echo "::set-output name=run_device_monitoring::false" 
+          echo "::set-output name=run_data_mgt::false"
+          echo "::set-output name=run_analytics::false"
+          echo "::set-output name=run_device_uptime::false"  
+          echo "::set-output name=run_device_status::false" 
+          echo "::set-output name=run_locate::false"
+          echo "::set-output name=run_predict::false"
+          echo "::set-output name=run_gp_model::false"
+          echo "::set-output name=run_exceedances::false"
+          echo "::set-output name=run_datawarehouse::false"
+          echo "::set-output name=run_view::false"
+          echo "::set-output name=run_calibrate::false" 
+          echo "::set-output name=run_average_jobs::false"
+          echo "::set-output name=run_events_check::false"
+          echo "::set-output name=run_notifications::false"
+          echo "::set-output name=run_network_uptime::false"
+          echo "::set-output name=run_channel_data::false"
+
+          while IFS= read -r file
+          do
+            echo $file
+            if [[ $file == src/auth-service/* ]]; then
+              echo "::set-output name=run_auth_service::true"
+            fi
+
+            if [[ $file == src/device-registry/* ]]; then
+              echo "::set-output name=run_device_registry::true"
+            fi
+
+            if [[ $file == src/device-monitoring/* ]]; then
+              echo "::set-output name=run_device_monitoring::true"
+            fi
+
+            if [[ $file == src/data-mgt/node/* ]]; then
+              echo "::set-output name=run_data_mgt::true"
+            fi
+
+            if [[ $file == src/analytics/* ]]; then
+              echo "::set-output name=run_analytics::true"
+            fi
+
+            if [[ $file == src/device-uptime/* ]]; then
+              echo "::set-output name=run_device_uptime::true"
+            fi
+
+            if [[ $file == src/device-status/* ]]; then
+              echo "::set-output name=run_device_status::true"
+            fi
+
+            if [[ $file == src/locate/* ]]; then
+              echo "::set-output name=run_locate::true"
+            fi
+
+            if [[ $file == src/predict/* ]]; then
+              echo "::set-output name=run_predict::true"
+            fi
+
+            if [[ $file == src/gp-model/* ]]; then
+              echo "::set-output name=run_gp_model::true"
+            fi
+
+            if [[ $file == src/exceedances/* ]]; then
+              echo "::set-output name=run_exceedances::true"
+            fi
+
+            if [[ $file == src/data-mgt/python/extract-external-data/* ]]; then
+              echo "::set-output name=run_datawarehouse::true"
+            fi
+
+            if [[ $file == src/view/* ]]; then
+              echo "::set-output name=run_view::true"
+            fi
+            
+            if [[ $file == src/calibrate/* ]]; then
+              echo "::set-output name=run_calibrate::true"
+            fi
+            
+            if [[ $file == src/data-mgt/python/cron-jobs/* ]]; then
+              echo "::set-output name=run_average_jobs::true"
+            fi
+
+            if [[ $file == src/data-mgt/python/events-monitor/* ]]; then
+              echo "::set-output name=run_events_check::true"
+            fi
+
+            if [[ $file == src/notifications/* ]]; then
+              echo "::set-output name=run_notifications::true"
+            fi
+
+            if [[ $file == src/network-uptime/* ]]; then
+              echo "::set-output name=run_network_uptime::true"
+            fi
+            
+            if [[ $file == src/channel-data/* ]]; then
+              echo "::set-output name=run_channel_data::true"
+            fi
+
+          done < files.txt
+
+  ### auth service ###
+  auth-service:
+    name: build-push-deploy-auth
+    needs: [check]
+    if: needs.check.outputs.run_auth_service == 'true'
+    runs-on: ubuntu-latest
     permissions:
       contents: 'read'
       id-token: 'write'
-
-    runs-on: ubuntu-latest
-
-    # outputs:
-    #   url: ${{ steps.results.outputs.url }} # pr preview url
-
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -33,9 +174,6 @@ jobs:
       - name: 'Setup Cloud SDK'
         uses: 'google-github-actions/setup-gcloud@v0'
 
-      # BEGIN - Docker auth and build
-
-      # Authenticate Docker to Google Cloud Artifact Registry
       - name: Docker Auth
         id: docker-auth
         uses: 'docker/login-action@v1'
@@ -49,11 +187,10 @@ jobs:
           cd src/auth-service/
           docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-      # END - Docker auth and build
-
+      
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy auth-service-pr-previews \
+          gcloud run deploy preview-${{ BRANCH_NAME }}-auth-service \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
@@ -66,27 +203,27 @@ jobs:
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
             --allow-unauthenticated
 
-      - name: Save service url
+      - name: Get preview service url
         id: results
         run: |
           read service_url < <(gcloud run services describe auth-service-pr-previews \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          export URL=$service_url
+          echo "::set-output name=url::${service_url}"
 
-  # comment:
-  #   name: comment-on-pr
-  #   needs: [deploy]
-  #   runs-on: ubuntu-latest
-  #   steps:
-      - name: add comment
-        uses: actions/github-script@v6
+  auth-service-pr-comment:
+    name: auth-service-preview-link-comment
+    if: needs.check.outputs.run_auth_service == 'true'
+    needs: [auth-service]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v6
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Preview (auth-service) changes in this PR at: ${{ URL }}'
+              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
             })
