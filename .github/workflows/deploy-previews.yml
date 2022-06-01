@@ -876,6 +876,8 @@ jobs:
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
             --region=${{ secrets.REGION }} \
+            --cpu=2000m \
+            --memory=1024Mi \
             --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
             --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; python main.py --tenant=airqo" \
@@ -1131,12 +1133,12 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.view.outputs.url }})'
+              body: 'View API changes in this PR available for preview [here](${{ needs.view.outputs.url }})'
             })
   
-  ### run_calibrate ###
-  run_calibrate:
-    name: build-push-deploy-auth
+  ### calibrate ###
+  calibrate:
+    name: build-push-deploy-calibrate
     needs: [check,branch-name]
     if: needs.check.outputs.run_calibrate == 'true'
     runs-on: ubuntu-latest
@@ -1168,38 +1170,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/calibrate/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-calibrate-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/calibrate-pr-previews:${{ github.sha }} \
+            --port=4001 \
+            --cpu=2000m \
+            --memory=1024Mi \
+            --update-secrets=/etc/env/.env=sta-env-calibrate:latest,/etc/config/google_application_credentials.json=sta-key-calibrate-service-account:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; gunicorn --bind=0.0.0.0:4001 app:app" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-calibrate-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_calibrate-pr-comment:
-    name: auth-service-preview-link-comment
+  calibrate-pr-comment:
+    name: calibrate-preview-link-comment
     if: needs.check.outputs.run_calibrate == 'true'
-    needs: [auth-service]
+    needs: [calibrate]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -1209,7 +1211,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Calibrate changes in this PR available for preview [here](${{ needs.calibrate.outputs.url }})'
             })
   
   ### run_average_jobs ###
