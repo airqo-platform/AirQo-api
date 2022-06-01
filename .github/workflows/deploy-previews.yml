@@ -20,7 +20,6 @@ jobs:
         uses: ASzc/change-string-case-action@v2
         with:
           string: ${{ github.head_ref || github.ref_name }}
-          
 
   check:
     name: check changed microservice(s)
@@ -219,7 +218,7 @@ jobs:
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe auth-service-pr-previews \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
