@@ -11,7 +11,6 @@ const apiV2 = require("./routes/api-v2");
 const mongodb = require("./config/dbConnection");
 mongodb;
 
-
 const app = express();
 
 app.use(logger("dev"));
