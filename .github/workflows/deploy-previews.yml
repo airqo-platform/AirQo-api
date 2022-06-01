@@ -11,7 +11,9 @@ env:
 
 jobs:
   deploy:
-    permissions: write-all
+    permissions:
+      contents: 'read'
+      id-token: 'write'
 
     runs-on: ubuntu-latest
 
@@ -71,7 +73,7 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          export URL=${service_url}
+          export URL=$service_url
 
   # comment:
   #   name: comment-on-pr
@@ -86,5 +88,5 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Preview (auth-service) changes in this PR at: $URL'
+              body: 'Preview (auth-service) changes in this PR at: ${{ URL }}'
             })
