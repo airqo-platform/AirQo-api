@@ -834,8 +834,8 @@ jobs:
               body: 'Predict service changes in this PR available for preview [here](${{ needs.predict-service.outputs.url }})'
             })
   
-  ### run_gp_model ###
-  run_gp_model:
+  ### gp model ###
+  gp-model:
     name: build-push-deploy-auth
     needs: [check,branch-name]
     if: needs.check.outputs.run_gp_model == 'true'
@@ -868,29 +868,23 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/gp-model/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
             --region=${{ secrets.REGION }} \
-            --max-instances=10 \
             --timeout=60 \
-            --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
+            --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
-            --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
@@ -898,8 +892,8 @@ jobs:
 
   run_gp_model-pr-comment:
     name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_auth_service == 'true'
-    needs: [auth-service]
+    if: needs.check.outputs.run_gp_model == 'true'
+    needs: [gp-model]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -909,7 +903,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'GP model job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview'
             })
   
   ### run_exceedances ###
