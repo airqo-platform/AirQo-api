@@ -79,7 +79,12 @@ def calibrate_tool():
 
 @calibrate_bp.route(api.route['train_calibrate_tool'], methods=['POST'])
 def train_calibrate_tool():
+    valid_pollutants = ("pm2_5", "pm10")
     pollutant = request.form['pollutant']
+    pollutant = pollutant.lower()
+    if pollutant not in valid_pollutants:
+        return jsonify({"message": "Please specify valid pollutant (e.g pm2_5 or pm10)",
+                        "success": False}), 400
     map_columns = request.form
     file = request.files['file']
     df = pd.read_csv(file)

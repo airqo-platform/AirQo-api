@@ -138,32 +138,11 @@ spec:
                 name: airqo-stage-calibrate-api-svc
                 port: 
                   number: 4001
-          - path: /api/v1/calibrate_tool
+          - path: /api/v1/predict-faults
             pathType: Prefix
             backend:
               service:
-                name: airqo-stage-calibrate-api-svc
-                port: 
-                  number: 4001
-          - path: /api/v2/calibrate_tool
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-stage-calibrate-api-svc
-                port: 
-                  number: 4001
-          - path: /api/v1/train_calibrate_tool
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-stage-calibrate-api-svc
-                port: 
-                  number: 4001
-          - path: /api/v2/train_calibrate_tool
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-stage-calibrate-api-svc
+                name: stage-fault-detection-api-svc
                 port: 
                   number: 4001
           - path: /api/v1/incentives
