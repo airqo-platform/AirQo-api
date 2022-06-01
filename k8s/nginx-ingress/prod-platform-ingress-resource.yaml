@@ -93,7 +93,7 @@ spec:
   rules:
     - host: platform.airqo.net
       http:
-        paths:        
+        paths:
           - path: /
             pathType: Prefix
             backend:
