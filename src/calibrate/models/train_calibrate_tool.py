@@ -65,7 +65,7 @@ class Train_calibrate_tool():
         rgtool = train_calibrate_tool.Regression()
 
         calibrated_data_ext = df_copy[['Average_PM2.5','Average_PM10', 'datetime']]
-        if pollutant == "PM2.5":
+        if pollutant == "pm2_5".lower():
             model_pm2_5_ext = rgtool.random_forest(combined_ext_data)
             calibrated_pm2_5 =  model_pm2_5_ext.predict(model_input)
             calibrated_data_ext['calibrated_pm2_5'] = calibrated_pm2_5
