@@ -265,7 +265,8 @@ jobs:
       - name: Delete PR deploy preview
         run: |-
           gcloud run services delete ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --region=${{ secrets.REGION }} -y \
+            --region=${{ secrets.REGION }} \
+            --quiet
 
   ### message broker topics ###
   message-broker-topics:
