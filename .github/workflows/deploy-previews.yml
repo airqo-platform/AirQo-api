@@ -476,7 +476,7 @@ jobs:
   
   ### analytics ###
   analytics:
-    name: build-push-deploy-auth
+    name: build-push-deploy-analytics
     needs: [check,branch-name]
     if: needs.check.outputs.run_analytics == 'true'
     runs-on: ubuntu-latest
@@ -553,8 +553,8 @@ jobs:
             })
   
   ### device uptime ###
-  device_uptime:
-    name: build-push-deploy-auth
+  device-uptime:
+    name: build-push-deploy-device-uptime
     needs: [check,branch-name]
     if: needs.check.outputs.run_device_uptime == 'true'
     runs-on: ubuntu-latest
@@ -617,7 +617,7 @@ jobs:
   
   ### device status ###
   device-status:
-    name: build-push-deploy-auth
+    name: build-push-deploy-device-status
     needs: [check,branch-name]
     if: needs.check.outputs.run_device_status == 'true'
     runs-on: ubuntu-latest
@@ -680,7 +680,7 @@ jobs:
   
   ### locate ###
   locate:
-    name: build-push-deploy-auth
+    name: build-push-deploy-locate
     needs: [check,branch-name]
     if: needs.check.outputs.run_locate == 'true'
     runs-on: ubuntu-latest
@@ -758,7 +758,7 @@ jobs:
   
   ### predict service ###
   predict-service:
-    name: build-push-deploy-auth
+    name: build-push-deploy-predict-service-preview
     needs: [check,branch-name]
     if: needs.check.outputs.run_predict == 'true'
     runs-on: ubuntu-latest
@@ -790,23 +790,23 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/predict/api/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-predict-service-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/predict-service-pr-previews:${{ github.sha }} \
+            --port=5000 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-predict:latest,/etc/config/google_application_credentials.json=sta-key-predict-service-account-2:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
@@ -819,9 +819,9 @@ jobs:
           echo "::set-output name=url::${service_url}"
 
   run_predict-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_auth_service == 'true'
-    needs: [auth-service]
+    name: predict-service-preview-link-comment
+    if: needs.check.outputs.run_predict == 'true'
+    needs: [predict-service]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -831,7 +831,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Predict service changes in this PR available for preview [here](${{ needs.predict-service.outputs.url }})'
             })
   
   ### run_gp_model ###

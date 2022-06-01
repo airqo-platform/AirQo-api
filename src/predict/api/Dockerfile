@@ -20,17 +20,14 @@ EXPOSE 5000
 # production 
 FROM base as production 
 ENV FLASK_ENV=production
-
 CMD ["flask", "run", "--host=0.0.0.0"]
 
 # staging
 FROM base as staging 
 ENV FLASK_ENV=staging
-
 CMD ["flask", "run", "--host=0.0.0.0"]
 
 # development
 FROM base as dev
 ENV FLASK_ENV=development
-
 CMD ["flask", "run", "--host=0.0.0.0"]
