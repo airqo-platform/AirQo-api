@@ -368,7 +368,7 @@ jobs:
             --cpu=1000m \
             --memory=256Mi \
             --update-secrets=/etc/env/.env=sta-env-device-monitoring:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
@@ -524,7 +524,7 @@ jobs:
             --cpu=1000m \
             --memory=256Mi \
             --update-secrets=/etc/env/.env=sta-env-analytics:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
@@ -728,7 +728,7 @@ jobs:
             --cpu=1000m \
             --memory=256Mi \
             --update-secrets=/etc/env/.env=sta-env-locate:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
@@ -806,7 +806,7 @@ jobs:
             --cpu=1000m \
             --memory=256Mi \
             --update-secrets=/etc/env/.env=sta-env-predict:latest,/etc/config/google_application_credentials.json=sta-key-predict-service-account-2:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
@@ -878,7 +878,7 @@ jobs:
             --region=${{ secrets.REGION }} \
             --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
             --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; npm run stage-mac" \
             --quiet
 
       - name: Get preview service url
@@ -908,7 +908,7 @@ jobs:
   
   ### exceedances ###
   exceedances:
-    name: build-push-deploy-auth
+    name: build-push-deploy-exceedances
     needs: [check,branch-name]
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
@@ -978,9 +978,9 @@ jobs:
               body: 'Exceddences job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview'
             })
   
-  ### run_datawarehouse ###
-  run_datawarehouse:
-    name: build-push-deploy-auth
+  ### datawarehouse ###
+  datawarehouse:
+    name: build-push-deploy-datawarehouse
     needs: [check,branch-name]
     if: needs.check.outputs.run_datawarehouse == 'true'
     runs-on: ubuntu-latest
@@ -1012,38 +1012,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/data-mgt/python/extract-external-data/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/datawarehouse-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/datawarehouse-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-datawarehouse-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/datawarehouse-pr-previews:${{ github.sha }} \
+            --port=4001 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-datawarehouse:latest,/etc/config/google_application_credentials.json=sta-key-datawarehouse-service-account:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-datawarehouse-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_datawarehouse-pr-comment:
-    name: auth-service-preview-link-comment
+  datawarehouse-pr-comment:
+    name: datawarehouse-preview-link-comment
     if: needs.check.outputs.run_datawarehouse == 'true'
-    needs: [auth-service]
+    needs: [datawarehouse]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -1053,7 +1053,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Datawarehouse changes in this PR available for preview [here](${{ needs.datawarehouse.outputs.url }})'
             })
   
   ### run_view ###
