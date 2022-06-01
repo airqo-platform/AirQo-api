@@ -197,7 +197,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -275,7 +275,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/device-registry/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-registry-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -353,7 +353,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/device-monitoring/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-monitoring-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -508,38 +508,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/analytics/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/analytics-pr-previews:${{ github.sha }} \
+            --port=5000 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-analytics:latest,/etc/config/google_application_credentials.json=sta-key-analytics-service-account:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; flask run --host=0.0.0.0" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-analytics-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
   analytics-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_auth_service == 'true'
-    needs: [auth-service]
+    name: analytics-preview-link-comment
+    if: needs.check.outputs.run_analytics == 'true'
+    needs: [analytics]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -549,7 +549,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Analytics changes in this PR available for preview [here](${{ needs.analytics.outputs.url }})'
             })
   
   ### device uptime ###
@@ -587,7 +587,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -665,7 +665,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -743,7 +743,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -821,7 +821,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -899,7 +899,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -977,7 +977,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1055,7 +1055,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1133,7 +1133,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1211,7 +1211,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1289,7 +1289,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1367,7 +1367,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1445,7 +1445,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1523,7 +1523,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
@@ -1601,7 +1601,7 @@ jobs:
       - name: Build and Push Container
         run: |
           cd src/auth-service/
-          docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
