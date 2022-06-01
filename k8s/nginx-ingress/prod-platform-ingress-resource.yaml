@@ -94,13 +94,6 @@ spec:
     - host: platform.airqo.net
       http:
         paths:        
-          - path: /calibrate
-            pathType: Prefix
-            backend:
-              service:
-                name: airqo-calibrate-app-svc
-                port: 
-                  number: 80
           - path: /
             pathType: Prefix
             backend:
