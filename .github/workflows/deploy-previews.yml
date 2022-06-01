@@ -594,10 +594,10 @@ jobs:
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-uptime-preview \
             --region=${{ secrets.REGION }} \
-            --timeout=60 \
             --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-uptime-pr-previews:${{ github.sha }} \
             --update-secrets=/etc/env/.env=sta-env-device-uptime:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+            --quiet 
 
   device-uptime-pr-comment:
     name: device-uptime-preview-link-comment
@@ -657,10 +657,10 @@ jobs:
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-status-preview \
             --region=${{ secrets.REGION }} \
-            --timeout=60 \
             --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} \
             --update-secrets=/etc/env/.env=sta-env-device-status:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+            --quiet
             
   device-status-pr-comment:
     name: device-status-preview-link-comment
@@ -818,7 +818,7 @@ jobs:
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_predict-pr-comment:
+  predict-pr-comment:
     name: predict-service-preview-link-comment
     if: needs.check.outputs.run_predict == 'true'
     needs: [predict-service]
@@ -836,7 +836,7 @@ jobs:
   
   ### gp model ###
   gp-model:
-    name: build-push-deploy-auth
+    name: build-push-deploy-gp-model
     needs: [check,branch-name]
     if: needs.check.outputs.run_gp_model == 'true'
     runs-on: ubuntu-latest
@@ -876,10 +876,10 @@ jobs:
         run: |-
           gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview \
             --region=${{ secrets.REGION }} \
-            --timeout=60 \
             --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
             --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
             --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --quiet
 
       - name: Get preview service url
         id: preview-url
@@ -890,7 +890,7 @@ jobs:
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_gp_model-pr-comment:
+  gp-model-pr-comment:
     name: auth-service-preview-link-comment
     if: needs.check.outputs.run_gp_model == 'true'
     needs: [gp-model]
@@ -906,8 +906,8 @@ jobs:
               body: 'GP model job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-gp-model-preview'
             })
   
-  ### run_exceedances ###
-  run_exceedances:
+  ### exceedances ###
+  exceedances:
     name: build-push-deploy-auth
     needs: [check,branch-name]
     if: needs.check.outputs.run_exceedances == 'true'
@@ -940,35 +940,29 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/exceedances/
+          docker build --target=airqo-staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview \
             --region=${{ secrets.REGION }} \
-            --max-instances=10 \
-            --timeout=60 \
-            --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
-            --allow-unauthenticated
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/exceedances-pr-previews:${{ github.sha }} \
+            --update-secrets=/etc/env/.env=sta-env-exceedances:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+            --quiet
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_exceedances-pr-comment:
+  exceedances-pr-comment:
     name: auth-service-preview-link-comment
     if: needs.check.outputs.run_exceedances == 'true'
     needs: [auth-service]
@@ -981,7 +975,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Exceddences job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-exceedances-preview'
             })
   
   ### run_datawarehouse ###
