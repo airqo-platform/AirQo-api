@@ -615,8 +615,8 @@ jobs:
               body: 'Device uptime job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-uptime-preview'
             })
   
-  ### run_device_status ###
-  run_device_status:
+  ### device status ###
+  device-status:
     name: build-push-deploy-auth
     needs: [check,branch-name]
     if: needs.check.outputs.run_device_status == 'true'
@@ -649,38 +649,23 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/device-status/
+          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-device-status-preview \
             --region=${{ secrets.REGION }} \
-            --max-instances=10 \
             --timeout=60 \
-            --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
-            --cpu=1000m \
-            --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
-            --allow-unauthenticated
-
-      - name: Get preview service url
-        id: preview-url
-        run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
-            --format='value(status.url)' \
-            --platform managed \
-            --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
-
-  run_device_status-pr-comment:
-    name: auth-service-preview-link-comment
-    if: needs.check.outputs.run_auth_service == 'true'
-    needs: [auth-service]
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/device-status-pr-previews:${{ github.sha }} \
+            --update-secrets=/etc/env/.env=sta-env-device-status:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; python main.py --tenant=airqo" \
+            
+  device-status-pr-comment:
+    name: device-status-preview-link-comment
+    if: needs.check.outputs.run_device_status == 'true'
+    needs: [device-status]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -690,7 +675,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Device status job changes in this PR running in the service ${{ needs.branch-name.outputs.lowercase }}-device-status-preview'
             })
   
   ### run_locate ###
