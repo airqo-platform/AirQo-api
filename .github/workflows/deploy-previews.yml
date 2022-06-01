@@ -812,7 +812,7 @@ jobs:
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-predict-service-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
@@ -878,7 +878,7 @@ jobs:
             --region=${{ secrets.REGION }} \
             --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/gp-model-pr-previews:${{ github.sha }} \
             --update-secrets=/etc/env/.env=sta-env-gp-model:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; npm run stage-mac" \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; python main.py --tenant=airqo" \
             --quiet
 
       - name: Get preview service url
@@ -1056,9 +1056,9 @@ jobs:
               body: 'Datawarehouse changes in this PR available for preview [here](${{ needs.datawarehouse.outputs.url }})'
             })
   
-  ### run_view ###
-  run_view:
-    name: build-push-deploy-auth
+  ### view ###
+  view:
+    name: build-push-deploy-view-api
     needs: [check,branch-name]
     if: needs.check.outputs.run_view == 'true'
     runs-on: ubuntu-latest
@@ -1090,38 +1090,38 @@ jobs:
 
       - name: Build and Push Container
         run: |
-          cd src/auth-service/
-          docker build --target=staging --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
+          cd src/view/
+          docker build --target=api --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} ./
+          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }}
       
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          gcloud run deploy ${{ needs.branch-name.outputs.lowercase }}-view-preview \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
             --concurrency=10 \
-            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} \
-            --port=3000 \
+            --image=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/view-pr-previews:${{ github.sha }} \
+            --port=8080 \
             --cpu=1000m \
             --memory=256Mi \
-            --update-secrets=/etc/env/.env=sta-env-auth-service:latest,/etc/config/firebase_admin_sdk.json=sta-key-auth-service-firebase-admin-sdk:latest \
-            --command="/bin/sh","-c","cat /etc/env/.env >> /usr/src/app/.env; npm run stage-mac" \
+            --update-secrets=/etc/env/.env=sta-env-view-api:latest \
+            --command="/bin/sh","-c","cat /etc/env/.env >> /app/.env; java -Djava.security.egd=file:/dev/./urandom -Dspring.profiles.active=api -jar /view.jar" \
             --allow-unauthenticated
 
       - name: Get preview service url
         id: preview-url
         run: |
-          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-auth-service-preview \
+          read service_url < <(gcloud run services describe ${{ needs.branch-name.outputs.lowercase }}-view-preview \
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
           echo "::set-output name=url::${service_url}"
 
-  run_view-pr-comment:
-    name: auth-service-preview-link-comment
+  view-pr-comment:
+    name: view-preview-link-comment
     if: needs.check.outputs.run_view == 'true'
-    needs: [auth-service]
+    needs: [view]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/github-script@v6
@@ -1131,7 +1131,7 @@ jobs:
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Auth-service changes in this PR available for preview [here](${{ needs.auth-service.outputs.url }})'
+              body: 'Auth-service changes in this PR available for preview [here](${{ needs.view.outputs.url }})'
             })
   
   ### run_calibrate ###
