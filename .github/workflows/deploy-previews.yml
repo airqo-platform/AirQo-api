@@ -49,12 +49,11 @@ jobs:
           cd src/auth-service/
           docker build --target=staging -t ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }} ./
           docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/pr-previews/auth-service-pr-previews:${{ github.sha }}
-          
       # END - Docker auth and build
 
       - name: Deploy to Cloud Run
         run: |-
-          gcloud run deploy  auth-service-pr-previews \
+          gcloud run deploy auth-service-pr-previews \
             --region=${{ secrets.REGION }} \
             --max-instances=10 \
             --timeout=60 \
@@ -74,19 +73,21 @@ jobs:
             --format='value(status.url)' \
             --platform managed \
             --region ${{ secrets.REGION }})
-          echo "::set-output name=url::${service_url}"
+          export url=${service_url}
+          echo "::set-env name=url::$url"
 
-  comment:
-    name: comment-on-pr
-    needs: [deploy]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/github-script@v6
+  # comment:
+  #   name: comment-on-pr
+  #   needs: [deploy]
+  #   runs-on: ubuntu-latest
+  #   steps:
+      - name: add comment
+        uses: actions/github-script@v6
         with:
           script: |
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: 'Preview this PR changes at: ${{ needs.deploy.outputs.url }}'
+              body: 'Preview (auth-service) changes in this PR at: $url'
             })
