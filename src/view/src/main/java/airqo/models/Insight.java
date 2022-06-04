@@ -40,19 +40,19 @@ public class Insight implements Serializable {
 	private Date time;
 
 	@JsonView(Views.InsightView.class)
-	private double pm2_5;
+	private Double pm2_5;
 
-	@JsonView(Views.InsightView.class)
-	private double pm10;
+	@JsonView(Views.GraphInsightView.class)
+	private Double pm10;
 
 	@JsonView(Views.InsightView.class)
 	private String siteId;
 
 	@JsonView(Views.GraphInsightView.class)
-	private Boolean empty;
+	private Boolean empty = false;
 
 	@JsonView(Views.GraphInsightView.class)
-	private Boolean forecast;
+	private Boolean forecast = false;
 
 	@JsonView(Views.GraphInsightView.class)
 	private Frequency frequency;
@@ -64,10 +64,19 @@ public class Insight implements Serializable {
 	private String location;
 
 	@JsonView(Views.LatestInsightView.class)
-	private double latitude;
+	private String region;
 
 	@JsonView(Views.LatestInsightView.class)
-	private double longitude;
+	private String country;
+
+	@JsonView(Views.LatestInsightView.class)
+	private Double latitude;
+
+	@JsonView(Views.LatestInsightView.class)
+	private Double longitude;
+
+	@JsonView(Views.LatestInsightView.class)
+	private Boolean estimated = false;
 
 	@Transient
 	@JsonFormat(shape = JsonFormat.Shape.STRING, pattern = dateTimeFormat, timezone = "UTC")
@@ -86,6 +95,11 @@ public class Insight implements Serializable {
 	public Insight setId() {
 		this.id = new InsightId(time, frequency, siteId).toString();
 		return this;
+	}
+
+	public Insight setDefaults() {
+		this.estimated = false;
+		return this.setId();
 	}
 
 	@Override

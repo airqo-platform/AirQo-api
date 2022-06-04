@@ -4,8 +4,44 @@
 :toc: left
 :toclevels: 5
 
+[[App-Latest-Insights]]
+== Latest Insights
+
+=== Sample Response Body
+
+include::{snippets}/app-latest-insights/response-body.adoc[]
+
+=== Examples
+
+.http request
+include::{snippets}/app-latest-insights/http-request.adoc[]
+.curl request
+include::{snippets}/app-latest-insights/curl-request.adoc[]
+.httpie request
+include::{snippets}/app-latest-insights/httpie-request.adoc[]
+
+[[App-Graph-Insights]]
+== Graph Insights
+
+=== Query Parameters
+
+include::{snippets}/app-graph-insights/request-parameters.adoc[]
+
+=== Sample Response Body
+
+include::{snippets}/app-graph-insights/response-body.adoc[]
+
+=== Examples
+
+.http request
+include::{snippets}/app-graph-insights/http-request.adoc[]
+.curl request
+include::{snippets}/app-graph-insights/curl-request.adoc[]
+.httpie request
+include::{snippets}/app-graph-insights/httpie-request.adoc[]
+
 [[App-Insights]]
-== App Insights
+== App Insights (Deprecated)
 
 === Query Parameters
 
@@ -25,7 +61,7 @@ include::{snippets}/app-insights/curl-request.adoc[]
 include::{snippets}/app-insights/httpie-request.adoc[]
 
 [[Insights]]
-== Insights
+== Insights (Deprecated)
 
 === Query Parameters
 

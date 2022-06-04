@@ -14,7 +14,7 @@ public interface MeasurementService {
 
 	List<Insight> getInsights(Frequency frequency, Date startTime, Date endTime, List<String> siteIds);
 
-	List<Insight> apiGetInsights(Predicate predicate);
+	List<Insight> apiGetGraphInsights(Predicate predicate);
 
 	List<Insight> apiGetLatestInsights();
 

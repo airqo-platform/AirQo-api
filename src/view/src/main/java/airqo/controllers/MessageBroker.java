@@ -89,7 +89,7 @@ public class MessageBroker {
 			log.info(String.format("Received Insights : %s", dataMessage.getData().size()));
 
 			List<Insight> data = dataMessage.getData();
-			List<Insight> insights = data.stream().map(Insight::setId).collect(Collectors.toList());
+			List<Insight> insights = data.stream().map(Insight::setDefaults).collect(Collectors.toList());
 			List<Insight> emptyInsights = insights.stream().filter(Insight::getEmpty).collect(Collectors.toList());
 			List<Insight> availableInsights = insights.stream().filter(insight -> !insight.getEmpty()).collect(Collectors.toList());
 

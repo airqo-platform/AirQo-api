@@ -34,6 +34,8 @@ public class InsightsTasks {
 
 		for (Insight insight : oldInsights) {
 			insight.setForecast(false);
+			insight.setEmpty(false);
+			insight.setEstimated(true);
 			insights.add(insight);
 		}
 		measurementService.saveInsights(insights);

@@ -26,10 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 import static airqo.config.Constants.dateTimeFormat;
 import static org.hamcrest.Matchers.hasSize;
@@ -75,7 +72,7 @@ public class MeasurementControllerTests {
 		insight.setFrequency(Frequency.HOURLY);
 		insights.clear();
 		insights.add(insight);
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+		when(measurementService.apiGetGraphInsights(predicate)).thenReturn(insights);
 
 		this.mockMvc.perform(get("/measurements/app/insights")
 				.param("frequency", "hourly"))
@@ -85,7 +82,7 @@ public class MeasurementControllerTests {
 			.andExpect(jsonPath("$.data").isArray())
 			.andExpect(jsonPath("$.data", hasSize(1)))
 			.andExpect(jsonPath("$.data[0].frequency", is("HOURLY")));
-		verify(this.measurementService, times(1)).apiGetInsights(predicate);
+		verify(this.measurementService, times(1)).apiGetGraphInsights(predicate);
 
 
 		// Testing siteId parameter
@@ -94,7 +91,7 @@ public class MeasurementControllerTests {
 		predicate = qInsight.siteId.eq("site-01");
 		insights.clear();
 		insights.add(insight);
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+		when(measurementService.apiGetGraphInsights(predicate)).thenReturn(insights);
 
 		this.mockMvc.perform(get("/measurements/app/insights")
 				.param("siteId", "site-01"))
@@ -104,14 +101,14 @@ public class MeasurementControllerTests {
 			.andExpect(jsonPath("$.data").isArray())
 			.andExpect(jsonPath("$.data", hasSize(1)))
 			.andExpect(jsonPath("$.data[0].siteId", is("site-01")));
-		verify(this.measurementService, times(1)).apiGetInsights(predicate);
+		verify(this.measurementService, times(1)).apiGetGraphInsights(predicate);
 
 		insight = new Insight();
 		insight.setSiteId("site-02");
 		insights.add(insight);
 
 		predicate = qInsight.siteId.in("site-01,site-02".split(","));
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+		when(measurementService.apiGetGraphInsights(predicate)).thenReturn(insights);
 
 		ResultActions resultActions = this.mockMvc.perform(get("/measurements/app/insights")
 				.param("siteId", "site-01,site-02"))
@@ -119,11 +116,39 @@ public class MeasurementControllerTests {
 			.andExpect(jsonPath("$.message", is("Operation Successful")))
 			.andExpect(jsonPath("$.data").isArray())
 			.andExpect(jsonPath("$.data", hasSize(2)));
-		verify(this.measurementService, times(1)).apiGetInsights(predicate);
+		verify(this.measurementService, times(1)).apiGetGraphInsights(predicate);
 
 		MockHttpServletResponse response = resultActions.andReturn().getResponse();
 		Assertions.assertEquals(response.getStatus(), 200);
 
+	}
+
+	@DisplayName("Testing app insights methods")
+	public void testAppInsightsMethods() throws Exception {
+
+		Calendar calendar = Calendar.getInstance();
+		calendar.setTime(new Date());
+		calendar.add(Calendar.HOUR, -24);
+		Date startDateTime = calendar.getTime();
+		calendar.add(Calendar.HOUR, +48);
+		Date endDateTime = calendar.getTime();
+
+		QInsight qInsight = QInsight.insight;
+		Predicate predicate = qInsight.time.goe(startDateTime).and(qInsight.time.loe(endDateTime));
+
+		List<Insight> insightsList =  measurementService.apiGetGraphInsights(predicate);
+		Assertions.assertFalse(insightsList.isEmpty());
+
+		Set<Insight> insightSet = new HashSet<>(insightsList);
+		Assertions.assertEquals(insightSet.size(), insightsList.size());
+
+		insightsList =  measurementService.apiGetLatestInsights();
+		Assertions.assertFalse(insightsList.isEmpty());
+
+		for(Insight insight : insightsList){
+			int length = (int) insightsList.stream().filter(value -> Objects.equals(value.getSiteId(), insight.getSiteId())).count();
+			Assertions.assertEquals(length, 1);
+		}
 	}
 
 	@Test
@@ -188,7 +213,7 @@ public class MeasurementControllerTests {
 	}
 
 	@Test
-	@DisplayName("App Insights API Documentation")
+	@DisplayName("Insights API Documentation")
 	public void shouldGenerateAppInsightsAPIDocs() throws Exception {
 
 		insights.clear();
@@ -223,7 +248,7 @@ public class MeasurementControllerTests {
 			.and(qInsight.time.loe(endDateTime))
 			.and(qInsight.frequency.eq(Frequency.HOURLY));
 
-		when(measurementService.apiGetInsights(predicate)).thenReturn(insights);
+		when(measurementService.apiGetGraphInsights(predicate)).thenReturn(insights);
 
 		this.mockMvc.perform(get("/api/v1/view/measurements/app/insights")
 				.contextPath("/api/v1/view")
@@ -243,6 +268,33 @@ public class MeasurementControllerTests {
 					parameterWithName("forecast").description("Return Forecast insights").optional(),
 					parameterWithName("empty").description("Return empty insights").optional()
 				)));
+
+		this.mockMvc.perform(get("/api/v1/view/measurements/app/insights/graph")
+				.contextPath("/api/v1/view")
+				.header("Authorization", "Token my-jwt-token")
+				.param("siteId", siteIds)
+				.param("startDateTime", simpleDateFormat.format(startDateTime))
+				.param("endDateTime", simpleDateFormat.format(endDateTime))
+				.param("frequency", "hourly"))
+			.andDo(print())
+			.andExpect(status().isOk())
+			.andDo(document("app-graph-insights",
+				requestParameters(
+					parameterWithName("siteId").description("Site id(s). Separate multiple site ids using commas").optional(),
+					parameterWithName("startDateTime").description("Start date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional(),
+					parameterWithName("endDateTime").description("End date time. Format `yyyy-MM-ddTHH:mm:ssZ` . Timezone is UTC").optional(),
+					parameterWithName("frequency").description("Either *hourly* or *daily*").optional(),
+					parameterWithName("forecast").description("Return Forecast insights").optional(),
+					parameterWithName("empty").description("Return empty insights").optional()
+				)));
+
+		when(measurementService.apiGetLatestInsights()).thenReturn(insights);
+		this.mockMvc.perform(get("/api/v1/view/measurements/app/insights/latest")
+				.contextPath("/api/v1/view")
+				.header("Authorization", "Token my-jwt-token"))
+			.andDo(print())
+			.andExpect(status().isOk())
+			.andDo(document("app-latest-insights"));
 	}
 
 	@Test

@@ -6,7 +6,9 @@ import airqo.models.Insight;
 import airqo.models.Measurement;
 import airqo.predicate.InsightPredicate;
 import airqo.predicate.MeasurementPredicate;
+import airqo.serializers.Views;
 import airqo.services.MeasurementService;
+import com.fasterxml.jackson.annotation.JsonView;
 import com.querydsl.core.types.Predicate;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,7 +37,7 @@ import static airqo.config.Constants.dateTimeFormat;
 @Slf4j
 @Profile({"api"})
 @RestController
-@RequestMapping("v1/view/measurements")
+@RequestMapping("measurements")
 public class MeasurementController {
 
 	private final SimpleDateFormat simpleDateFormat = new SimpleDateFormat(dateTimeFormat);
@@ -57,15 +59,26 @@ public class MeasurementController {
 		Page<Measurement> measurements = measurementService.apiGetMeasurements(predicate, pageable);
 		return ResponseEntity.ok(measurements);
 	}
-
+	@Deprecated
+	@JsonView(Views.GraphInsightView.class)
 	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsights(
 		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
-		log.info("{}", predicate);
-		List<Insight> insights = measurementService.apiGetInsights(predicate);
+		List<Insight> insights = measurementService.apiGetGraphInsights(predicate);
+		return ResponseEntity.ok(new ApiResponseBody("Operation Successful", insights));
+	}
 
-		ApiResponseBody apiResponseBody = new ApiResponseBody("Operation Successful", insights);
-		return new ResponseEntity<>(apiResponseBody, new HttpHeaders(), HttpStatus.OK);
+	@JsonView(Views.GraphInsightView.class)
+	@GetMapping("/app/insights/graph")
+	public ResponseEntity<List<Insight>> getGraphInsights(
+		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
+		return ResponseEntity.ok(measurementService.apiGetGraphInsights(predicate));
+	}
+
+	@JsonView(Views.LatestInsightView.class)
+	@GetMapping("/app/insights/latest")
+	public ResponseEntity<List<Insight>> getLatestInsights() {
+		return ResponseEntity.ok(measurementService.apiGetLatestInsights());
 	}
 
 	@Deprecated
