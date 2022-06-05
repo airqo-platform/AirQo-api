@@ -789,6 +789,59 @@ const manageSite = {
       });
     }
   },
+
+  createApproximateCoordinates: (req, res) => {
+    try {
+      const hasErrors = !validationResult(req).isEmpty();
+      if (hasErrors) {
+        let nestedErrors = validationResult(req).errors[0].nestedErrors;
+        return errors.badRequest(
+          res,
+          "bad request errors",
+          errors.convertErrorArrayToObject(nestedErrors)
+        );
+      }
+      const { latitude, longitude, approximateDistance, bearing } = req.body;
+
+      const responseFromCreateApproximateCoordinates = createSiteUtil.createApproximateCoordinates(
+        { latitude, longitude, approximateDistance, bearing }
+      );
+
+      if (responseFromCreateApproximateCoordinates.success === true) {
+        const status = responseFromCreateApproximateCoordinates.status
+          ? responseFromCreateApproximateCoordinates.status
+          : httpStatus.OK;
+        return res.status(status).json({
+          success: true,
+          message: responseFromCreateApproximateCoordinates.message,
+          approximate_coordinates:
+            responseFromCreateApproximateCoordinates.data,
+        });
+      } else {
+        const status = responseFromCreateApproximateCoordinates.status
+          ? responseFromCreateApproximateCoordinates.status
+          : httpStatus.INTERNAL_SERVER_ERROR;
+
+        const errors = responseFromCreateApproximateCoordinates.errors
+          ? responseFromCreateApproximateCoordinates.errors
+          : { message: "" };
+
+        return res.status(status).json({
+          success: false,
+          message: responseFromCreateApproximateCoordinates.message,
+          errors,
+        });
+      }
+    } catch (error) {
+      return res.status(httpStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      });
+    }
+  },
 };
 
 module.exports = manageSite;
