@@ -57,11 +57,6 @@ const distance = {
     return radius * c;
   },
 
-  degreesToRadians: (degrees) => {
-    const pi = Math.PI;
-    return degrees * (pi / 180);
-  },
-
   distanceBtnTwoPoints: (latitude1, longitude1, latitude2, longitude2) => {
     try {
       // getting distance between latitudes and longitudes
@@ -103,6 +98,67 @@ const distance = {
         error.message
       );
     }
+  },
+
+  radiansToDegrees: (radians) => {
+    try {
+      {
+        const pi = Math.PI;
+        return radians * (180 / pi);
+      }
+    } catch (error) {
+      logElement(
+        "the error for radiansToDegrees in the distance util",
+        error.message
+      );
+    }
+  },
+
+  createApproximateCoordinates: ({
+    latitude = 0,
+    longitude = 0,
+    approximateDistance = 0.5,
+    bearing = 1.57,
+  } = {}) => {
+    /**
+     * distance in Km
+     * bearing is 90 degrees converted to radians
+     * Radius is the radius of the earth
+     */
+
+    const radius = 6378.1;
+
+    const latitudeInRadians = distance.degreesToRadians(latitude);
+    const longitudeInRadians = distance.degreesToRadians(longitude);
+
+    let approximateLatitudeInRadians = Math.asin(
+      Math.sin(latitudeInRadians) * Math.cos(approximateDistance / radius) +
+        Math.cos(latitudeInRadians) *
+          Math.sin(approximateDistance / radius) *
+          Math.cos(bearing)
+    );
+
+    let approximateLongitudeInRadians =
+      longitudeInRadians +
+      Math.atan2(
+        Math.sin(bearing) *
+          Math.sin(approximateDistance / radius) *
+          Math.cos(latitudeInRadians),
+        Math.cos(approximateDistance / radius) -
+          Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
+      );
+
+    return {
+      approximateLatitude: distance.radiansToDegrees(
+        approximateLatitudeInRadians
+      ),
+      approximateLongitude: distance.radiansToDegrees(
+        approximateLongitudeInRadians
+      ),
+      latitude,
+      longitude,
+      approximateDistance,
+    };
   },
 };
 

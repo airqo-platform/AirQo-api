@@ -16,7 +16,7 @@ const generateFilter = require("./generate-filter");
 const log4js = require("log4js");
 const HTTPStatus = require("http-status");
 const logger = log4js.getLogger("create-site-util");
-const distance = require("./distance");
+const distanceUtil = require("./distance");
 
 const SiteModel = (tenant) => {
   getModelByTenant(tenant.toLowerCase(), "site", SiteSchema);
@@ -1224,7 +1224,7 @@ const manageSite = {
         let nearest_sites = [];
         sites.forEach((site) => {
           if ("latitude" in site && "longitude" in site) {
-            let distanceBetweenTwoPoints = distance.distanceBtnTwoPoints(
+            let distanceBetweenTwoPoints = distanceUtil.distanceBtnTwoPoints(
               latitude,
               longitude,
               site["latitude"],
@@ -1232,7 +1232,7 @@ const manageSite = {
             );
 
             if (distanceBetweenTwoPoints < radius) {
-              site["distance"] = distance;
+              site["distance"] = distanceBetweenTwoPoints;
               nearest_sites.push(site);
             }
           }
@@ -1582,6 +1582,39 @@ const manageSite = {
       return { activityBody };
     } catch (e) {
       tryCatchErrors(res, e);
+    }
+  },
+
+  createApproximateCoordinates: ({
+    latitude,
+    longitude,
+    approximateDistance,
+    bearing,
+  }) => {
+    try {
+      const responseFromDistanceUtil = distanceUtil.createApproximateCoordinates(
+        {
+          latitude,
+          longitude,
+          approximateDistance,
+          bearing,
+        }
+      );
+
+      return {
+        success: true,
+        data: responseFromDistanceUtil,
+        message: "successfully approximated the GPS coordinates",
+      };
+    } catch (error) {
+      logObject("error in util", error);
+      return {
+        success: false,
+        message: "Internal Server Error",
+        errors: {
+          message: error.message,
+        },
+      };
     }
   },
 };
