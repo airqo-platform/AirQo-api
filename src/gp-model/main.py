@@ -11,20 +11,21 @@ from threading import Thread
 from shapely.geometry import Point, Polygon
 from helpers.get_data import get_pm_data
 
+
 def get_all_devices(tenant):
     '''
     Returns a list of all the devices for a given tenant
     '''
-    if tenant=='airqo':
-        params = {'tenant':tenant,
+    if tenant == 'airqo':
+        params = {'tenant': tenant,
                   'active': 'yes',
                   'primary': 'yes'
-                 }
+                  }
     else:
-        params = {'tenant':tenant,
+        params = {'tenant': tenant,
                   'active': 'yes',
-                 }
-        
+                  }
+
     response = requests.get(configuration.LIST_DEVICES_URI, params=params)
     try:
         devices = response.json()['devices']
@@ -33,9 +34,9 @@ def get_all_devices(tenant):
                                  'chan_id': device['device_number'],
                                  'latitude': device['latitude'],
                                  'longitude': device['longitude']} for device in devices]
-        elif tenant=='kcca':
-             modified_devices = [{'name': device['name'],
-                                 'chan_id': device['name'],
+        elif tenant == 'kcca':
+            modified_devices = [{'name': device['name'],
+                                'chan_id': device['name'],
                                  'latitude': device['latitude'],
                                  'longitude': device['longitude']} for device in devices]
         return modified_devices
@@ -43,18 +44,21 @@ def get_all_devices(tenant):
         print('an exception occured')
         print(e)
 
+
 def get_airqloud_polygon(tenant, airqloud):
     '''
     Gets the geometric polygon of a given airqloud
     '''
-    params = {'tenant':tenant,
+    params = {'tenant': tenant,
               'name': airqloud
-             }
-    coords = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params).json()['airqlouds'][0]['location']['coordinates']
+              }
+    coords = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params).json()[
+        'airqlouds'][0]['location']['coordinates']
     geo = {'type': 'Polygon', 'coordinates': coords}
     polygon = Polygon([tuple(l) for l in geo['coordinates'][0]])
-    min_long, min_lat, max_long, max_lat= polygon.bounds
+    min_long, min_lat, max_long, max_lat = polygon.bounds
     return polygon, min_long, max_long, min_lat, max_lat
+
 
 def get_devices_in_airqloud(polygon, tenant):
     '''
@@ -73,17 +77,19 @@ def get_devices_in_airqloud(polygon, tenant):
             pass
     return airqloud_devices
 
+
 def preprocessing(df):
     '''
     Preprocesses data from a device
     '''
     df = df.drop_duplicates()
     df['time'] = pd.to_datetime(df['time'])
-    df = df.sort_values(by='time',ascending=False)
+    df = df.sort_values(by='time', ascending=False)
     df.dropna(inplace=True)
     df['time'] = [time.timestamp()/3600 for time in df['time']]
     df = df[['longitude', 'latitude', 'time', 'pm2_5']]
     return df
+
 
 def train_model(X, Y, airqloud):
     '''
@@ -91,59 +97,74 @@ def train_model(X, Y, airqloud):
     '''
     print('training model function')
     Yset = Y
-    Yset[Yset==0] = np.nan
-    
-    keep = ~np.isnan(Yset[:,0]) 
-    Yset = Yset[keep,:]
-    Xset = X[keep,:]
+    Yset[Yset == 0] = np.nan
+
+    keep = ~np.isnan(Yset[:, 0])
+    Yset = Yset[keep, :]
+    Xset = X[keep, :]
     print('Number of rows in Xset', Xset.shape[0])
-    
-    if Xset.shape[0]>9000:
-        Xtraining = Xset[::2,:]
-        Ytraining = Yset[::2,:]
+
+    if Xset.shape[0] > 9000:
+        Xtraining = Xset[::2, :]
+        Ytraining = Yset[::2, :]
     else:
         Xtraining = Xset
         Ytraining = Yset
     print('Number of rows in Xtraining', Xtraining.shape[0])
-    
+
     if airqloud == 'kampala':
-        k = gpflow.kernels.RBF(lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        set_trainable(m.kernel.kernels[0].lengthscales, False) 
+        k = gpflow.kernels.RBF(
+            lengthscales=[0.08, 0.08, 2]) + gpflow.kernels.Bias()
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
+                              kernel=k, mean_function=None)
+        set_trainable(m.kernel.kernels[0].lengthscales, False)
     elif airqloud == 'kawempe':
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        #m.likelihood.variance.assign(400)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
+                              kernel=k, mean_function=None)
+        # m.likelihood.variance.assign(400)
         set_trainable(m.kernel.kernels[0].variance, False)
         #set_trainable(m.likelihood.variance, False)
     elif airqloud == 'kira':
         k = gpflow.kernels.RBF() + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
+                              kernel=k, mean_function=None)
        # m.likelihood.variance.assign(400)
         #set_trainable(m.likelihood.variance, False)
     elif airqloud == 'jinja':
-        k = gpflow.kernels.RBF(lengthscales = [0.008, 0.008, 2]) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        #m.likelihood.variance.assign(400)
+        k = gpflow.kernels.RBF(
+            lengthscales=[0.008, 0.008, 2]) + gpflow.kernels.Bias()
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
+                              kernel=k, mean_function=None)
+        # m.likelihood.variance.assign(400)
+        #set_trainable(m.likelihood.variance, False)
+    elif airqloud == 'makindye':
+        k = gpflow.kernels.RBF() + gpflow.kernels.Bias()
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
+                              kernel=k, mean_function=None)
+        # m.likelihood.variance.assign(400)
         #set_trainable(m.likelihood.variance, False)
     else:
         k = gpflow.kernels.RBF(variance=625) + gpflow.kernels.Bias()
-        m = gpflow.models.GPR(data=(Xtraining, Ytraining), kernel=k, mean_function=None)
-        #m.likelihood.variance.assign(400)
+        m = gpflow.models.GPR(data=(Xtraining, Ytraining),
+                              kernel=k, mean_function=None)
+        # m.likelihood.variance.assign(400)
         #set_trainable(m.likelihood.variance, False)
 
     if airqloud != 'kampala':
         m.likelihood.variance.assign(400)
         set_trainable(m.likelihood.variance, False)
-    
+
     opt = gpflow.optimizers.Scipy()
 
     def objective_closure():
-             return - m.log_marginal_likelihood()
+        return - m.log_marginal_likelihood()
 
-    opt_logs = opt.minimize(objective_closure, m.trainable_variables, options=dict(maxiter=100))
+    opt_logs = opt.minimize(
+        objective_closure, m.trainable_variables, options=dict(maxiter=100))
 
     return m
+
 
 def point_in_polygon(row, polygon):
     '''
@@ -155,6 +176,7 @@ def point_in_polygon(row, polygon):
     else:
         return 'False'
 
+
 def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     '''
     Makes the predictions and stores them in a database
@@ -164,88 +186,96 @@ def predict_model(m, tenant, airqloud, aq_id, poly, x1, x2, y1, y2):
     longitudes = np.linspace(x1, x2, 100)
     latitudes = np.linspace(y1, y2, 100)
     locations = np.meshgrid(longitudes, latitudes)
-    locations_flat = np.c_[locations[0].flatten(),locations[1].flatten()]
+    locations_flat = np.c_[locations[0].flatten(), locations[1].flatten()]
 
     df = pd.DataFrame(locations_flat, columns=['longitude', 'latitude'])
-    df['point_exists'] = df.apply(lambda row: point_in_polygon(row, poly), axis=1)
-    new_df = df[df.point_exists=='True']
+    df['point_exists'] = df.apply(
+        lambda row: point_in_polygon(row, poly), axis=1)
+    new_df = df[df.point_exists == 'True']
     new_df.drop('point_exists', axis=1, inplace=True)
     new_df.reset_index(drop=True, inplace=True)
 
     new_array = np.asarray(new_df)
-    pred_set = np.c_[new_array,np.full(new_array.shape[0], time)]
+    pred_set = np.c_[new_array, np.full(new_array.shape[0], time)]
     mean, var = m.predict_f(pred_set)
-    
+
     means = mean.numpy().flatten()
     variances = var.numpy().flatten()
     std_dev = np.sqrt(variances)
     interval = 1.96 * std_dev
 
     result = []
-    result_builder = {'airqloud':airqloud, 'airqloud_id': aq_id, 'created_at': datetime.now()}
+    result_builder = {'airqloud': airqloud,
+                      'airqloud_id': aq_id, 'created_at': datetime.now()}
     values = []
     for i in range(pred_set.shape[0]):
-        values.append({'latitude':new_array[i][1],
-                      'longitude':new_array[i][0],
-                      'predicted_value': means[i],
-                      'variance':variances[i],
-                      'interval':interval[i]
-                      })
+        values.append({'latitude': new_array[i][1],
+                      'longitude': new_array[i][0],
+                       'predicted_value': means[i],
+                       'variance': variances[i],
+                       'interval': interval[i]
+                       })
     result_builder['values'] = values
     result.append(result_builder)
 
-    
     db = connect_mongo(tenant)
     collection = db['gp_predictions']
-    
-    if collection.count_documents({'airqloud': airqloud})!= 0:
+
+    if collection.count_documents({'airqloud': airqloud}) != 0:
         collection.delete_many({'airqloud': airqloud})
-    
+
     collection.insert_many(result)
 
     return result
+
 
 def periodic_function(tenant, airqloud, aq_id):
     '''
     Re-trains the model regularly
     '''
-    X = np.zeros([0,3])
-    Y = np.zeros([0,1])
-    
-    poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(tenant, airqloud)
+    X = np.zeros([0, 3])
+    Y = np.zeros([0, 1])
+
+    poly, min_long, max_long, min_lat, max_lat = get_airqloud_polygon(
+        tenant, airqloud)
     devices = get_devices_in_airqloud(poly, tenant)
-    if len(devices)>0:
+    if len(devices) > 0:
         for device in devices:
             df = pd.DataFrame()
             try:
-                df = get_pm_data(device['name'], device['latitude'], device['longitude'], tenant)
+                df = get_pm_data(
+                    device['name'], device['latitude'], device['longitude'], tenant)
             except:
                 pass
-            if df.shape[0]!=0:
+            if df.shape[0] != 0:
                 prep_df = preprocessing(df)
                 Xchan = np.asarray(prep_df.iloc[:, :3])
                 Ychan = np.asarray(prep_df.iloc[:, -1])
-                X = np.r_[X,Xchan]
-                Y = np.r_[Y,Ychan[:, None]]
+                X = np.r_[X, Xchan]
+                Y = np.r_[Y, Ychan[:, None]]
         m = train_model(X, Y, airqloud)
-        predict_model(m, tenant, airqloud, aq_id, poly, min_long, max_long, min_lat, max_lat)
+        predict_model(m, tenant, airqloud, aq_id, poly,
+                      min_long, max_long, min_lat, max_lat)
     else:
         pass
+
 
 def get_all_airqlouds(tenant):
     '''
     Returns a list of all the airqlouds for a particuar tenant
     '''
-    params = {'tenant':tenant}
-    airqlouds = requests.get(configuration.VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
+    params = {'tenant': tenant}
+    airqlouds = requests.get(
+        configuration.VIEW_AIRQLOUD_URI, params=params).json()['airqlouds']
     names = [aq['name'] for aq in airqlouds]
     aq_ids = [aq['_id'] for aq in airqlouds]
-    #Esxcluding Uganda
+    # Esxcluding Uganda
     del names[-1:]
     del aq_ids[-1:]
     return names, aq_ids
 
-if __name__=='__main__':
+
+if __name__ == '__main__':
     airqloud_names, aq_ids = get_all_airqlouds('airqo')
     print(airqloud_names)
     parser = argparse.ArgumentParser(description='save gpmodel prediction.')
@@ -256,5 +286,6 @@ if __name__=='__main__':
     args = parser.parse_args()
     for index, name in enumerate(airqloud_names):
         print(f'{name} starting ...')
-        exec(f'thread{index} = Thread(target=periodic_function, args = [args.tenant, name, aq_ids[index]])')
+        exec(
+            f'thread{index} = Thread(target=periodic_function, args = [args.tenant, name, aq_ids[index]])')
         exec(f'thread{index}.start()')
