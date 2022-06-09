@@ -1588,7 +1588,7 @@ const manageSite = {
   createApproximateCoordinates: ({
     latitude,
     longitude,
-    approximateDistance,
+    approximate_distance_in_km,
     bearing,
   }) => {
     try {
@@ -1596,7 +1596,7 @@ const manageSite = {
         {
           latitude,
           longitude,
-          approximateDistance,
+          approximate_distance_in_km,
           bearing,
         }
       );

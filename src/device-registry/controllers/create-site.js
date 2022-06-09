@@ -801,10 +801,15 @@ const manageSite = {
           errors.convertErrorArrayToObject(nestedErrors)
         );
       }
-      const { latitude, longitude, approximateDistance, bearing } = req.body;
+      const {
+        latitude,
+        longitude,
+        approximate_distance_in_km,
+        bearing,
+      } = req.body;
 
       const responseFromCreateApproximateCoordinates = createSiteUtil.createApproximateCoordinates(
-        { latitude, longitude, approximateDistance, bearing }
+        { latitude, longitude, approximate_distance_in_km, bearing }
       );
 
       if (responseFromCreateApproximateCoordinates.success === true) {

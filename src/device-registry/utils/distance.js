@@ -117,7 +117,7 @@ const distance = {
   createApproximateCoordinates: ({
     latitude = 0,
     longitude = 0,
-    approximateDistance = 0.5,
+    approximate_distance_in_km = 0.5,
     bearing = 1.57,
   } = {}) => {
     /**
@@ -132,9 +132,10 @@ const distance = {
     const longitudeInRadians = distance.degreesToRadians(longitude);
 
     let approximateLatitudeInRadians = Math.asin(
-      Math.sin(latitudeInRadians) * Math.cos(approximateDistance / radius) +
+      Math.sin(latitudeInRadians) *
+        Math.cos(approximate_distance_in_km / radius) +
         Math.cos(latitudeInRadians) *
-          Math.sin(approximateDistance / radius) *
+          Math.sin(approximate_distance_in_km / radius) *
           Math.cos(bearing)
     );
 
@@ -142,22 +143,22 @@ const distance = {
       longitudeInRadians +
       Math.atan2(
         Math.sin(bearing) *
-          Math.sin(approximateDistance / radius) *
+          Math.sin(approximate_distance_in_km / radius) *
           Math.cos(latitudeInRadians),
-        Math.cos(approximateDistance / radius) -
+        Math.cos(approximate_distance_in_km / radius) -
           Math.sin(latitudeInRadians) * Math.sin(approximateLatitudeInRadians)
       );
 
     return {
-      approximateLatitude: distance.radiansToDegrees(
+      approximate_latitude: distance.radiansToDegrees(
         approximateLatitudeInRadians
       ),
-      approximateLongitude: distance.radiansToDegrees(
+      approximate_longitude: distance.radiansToDegrees(
         approximateLongitudeInRadians
       ),
-      latitude,
-      longitude,
-      approximateDistance,
+      approximate_distance_in_km,
+      provided_latitude: parseFloat(latitude),
+      provided_longitude: parseFloat(longitude),
     };
   },
 };
