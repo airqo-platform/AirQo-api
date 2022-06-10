@@ -2204,9 +2204,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
@@ -2226,9 +2226,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
       body("name")
         .exists()
@@ -2769,9 +2769,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the latitude must have atleast 5 decimal places in it"),
       body("longitude")
         .exists()
@@ -2791,9 +2791,9 @@ router.post(
         })
         .bail()
         .customSanitizer((value) => {
-          return numeral(value).format("0.00000");
+          return numeral(value).format("0.00000000000000");
         })
-        .isDecimal({ decimal_digits: 5 })
+        .isDecimal({ decimal_digits: 14 })
         .withMessage("the longitude must have atleast 5 decimal places in it"),
     ],
   ]),
