@@ -55,9 +55,25 @@ const siteSchema = new Schema(
       type: Number,
       required: [true, "latitude is required!"],
     },
+    approximate_latitude: {
+      type: Number,
+      required: [true, "approximate_latitude is required!"],
+    },
     longitude: {
       type: Number,
       required: [true, "longitude is required!"],
+    },
+    approximate_longitude: {
+      type: Number,
+      required: [true, "approximate_longitude is required!"],
+    },
+    approximate_distance_in_km: {
+      type: Number,
+      required: [true, "approximate_distance_in_km is required!"],
+    },
+    bearing_in_radians: {
+      type: Number,
+      required: [true, "bearing_in_radians is required!"],
     },
     site_tags: { type: Array, default: [] },
     altitude: {
@@ -266,7 +282,11 @@ siteSchema.methods = {
       formatted_name: this.formatted_name,
       lat_long: this.lat_long,
       latitude: this.latitude,
+      approximate_latitude: this.approximate_latitude,
       longitude: this.longitude,
+      approximate_longitude: this.approximate_longitude,
+      approximate_distance_in_km: this.approximate_distance_in_km,
+      bearing_in_radians: this.bearing_in_radians,
       airqlouds: this.airqlouds,
       createdAt: this.createdAt,
       description: this.description,
@@ -320,6 +340,14 @@ siteSchema.statics = {
         ...modifiedArgs,
       });
       let data = createdSite._doc;
+      delete data.geometry;
+      delete data.google_place_id;
+      delete data.updatedAt;
+      delete data.__v;
+      delete data.formatted_name;
+      delete data.airqlouds;
+      delete data.site_tags;
+      delete data.nearest_tahmo_station;
       if (!isEmpty(data)) {
         return {
           success: true,
@@ -377,6 +405,10 @@ siteSchema.statics = {
           name: 1,
           latitude: 1,
           longitude: 1,
+          approximate_latitude: 1,
+          approximate_longitude: 1,
+          approximate_distance_in_km: 1,
+          bearing_in_radians: 1,
           description: 1,
           site_tags: 1,
           search_name: 1,
@@ -406,6 +438,7 @@ siteSchema.statics = {
           distance_to_nearest_residential_road: 1,
           bearing_to_kampala_center: 1,
           distance_to_kampala_center: 1,
+          createdAt: 1,
           nearest_tahmo_station: 1,
           devices: "$devices",
           airqlouds: "$airqlouds",
