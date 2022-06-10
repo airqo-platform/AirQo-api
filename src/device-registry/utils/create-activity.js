@@ -11,6 +11,7 @@ const { addMonthsToProvideDateTime } = require("./date");
 const { kafkaProducer } = require("../config/kafkajs");
 const generateFilter = require("./generate-filter");
 const constants = require("../config/constants");
+const distance = require("./distance");
 
 const createActivity = {
   create: async (request) => {
@@ -261,6 +262,16 @@ const createActivity = {
               3
             ),
           };
+
+          const responseFromCreateApproximateCoordinates = distance.createApproximateCoordinates(
+            { latitude, longitude }
+          );
+
+          const {
+            approximate_latitude,
+            approximate_longitude,
+          } = responseFromCreateApproximateCoordinates;
+
           let deviceBody = {};
           deviceBody["body"] = {};
           deviceBody["query"] = {};
@@ -272,8 +283,12 @@ const createActivity = {
             date && new Date(date),
             3
           );
-          deviceBody["body"]["latitude"] = latitude;
-          deviceBody["body"]["longitude"] = longitude;
+          deviceBody["body"]["latitude"] = approximate_latitude
+            ? approximate_latitude
+            : latitude;
+          deviceBody["body"]["longitude"] = approximate_longitude
+            ? approximate_longitude
+            : longitude;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
           deviceBody["query"]["name"] = deviceName;

@@ -360,15 +360,42 @@ const manageSite = {
     try {
       const { body, query } = req;
       const { tenant } = query;
-      const { name, latitude, longitude, airqlouds } = body;
+      const {
+        name,
+        latitude,
+        longitude,
+        airqlouds,
+        approximate_distance_in_km,
+      } = body;
+
       let request = {};
       request["body"] = {};
       request["query"] = {};
       request["body"]["latitude"] = latitude;
       request["body"]["longitude"] = longitude;
       request["body"]["airqlouds"] = airqlouds;
+      request["body"][
+        "approximate_distance_in_km"
+      ] = approximate_distance_in_km;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
+
+      const responseFromApproximateCoordinates = manageSite.createApproximateCoordinates(
+        { latitude, longitude, approximate_distance_in_km }
+      );
+
+      if (responseFromApproximateCoordinates.success === true) {
+        const {
+          approximate_latitude,
+          approximate_longitude,
+          bearing_in_radians,
+        } = responseFromApproximateCoordinates.data;
+        request["body"]["approximate_latitude"] = approximate_latitude;
+        request["body"]["approximate_longitude"] = approximate_longitude;
+        request["body"]["bearing_in_radians"] = bearing_in_radians;
+      } else if (responseFromApproximateCoordinates.success === false) {
+        return responseFromApproximateCoordinates;
+      }
 
       let generated_name = null;
       let requestBodyForCreatingSite = {};
