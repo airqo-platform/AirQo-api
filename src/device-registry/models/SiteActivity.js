@@ -51,6 +51,8 @@ activitySchema.statics = {
 
       if (!isEmpty(createdActivity)) {
         let data = createdActivity._doc;
+        delete data.__v;
+        delete data.updatedAt;
         return {
           success: true,
           data,
