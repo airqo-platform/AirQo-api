@@ -270,6 +270,8 @@ const createActivity = {
           const {
             approximate_latitude,
             approximate_longitude,
+            approximate_distance_in_km,
+            bearing_in_radians,
           } = responseFromCreateApproximateCoordinates;
 
           let deviceBody = {};
@@ -289,6 +291,12 @@ const createActivity = {
           deviceBody["body"]["longitude"] = approximate_longitude
             ? approximate_longitude
             : longitude;
+          deviceBody["body"][
+            "approximate_distance_in_km"
+          ] = approximate_distance_in_km ? approximate_distance_in_km : 0;
+          deviceBody["body"]["bearing_in_radians"] = bearing_in_radians
+            ? bearing_in_radians
+            : 0;
           deviceBody["body"]["site_id"] = site_id;
           deviceBody["body"]["isActive"] = true;
           deviceBody["query"]["name"] = deviceName;

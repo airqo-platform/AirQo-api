@@ -374,9 +374,6 @@ const manageSite = {
       request["body"]["latitude"] = latitude;
       request["body"]["longitude"] = longitude;
       request["body"]["airqlouds"] = airqlouds;
-      request["body"][
-        "approximate_distance_in_km"
-      ] = approximate_distance_in_km;
       request["body"]["name"] = name;
       request["query"]["tenant"] = tenant;
 
@@ -389,10 +386,14 @@ const manageSite = {
           approximate_latitude,
           approximate_longitude,
           bearing_in_radians,
+          approximate_distance_in_km,
         } = responseFromApproximateCoordinates.data;
         request["body"]["approximate_latitude"] = approximate_latitude;
         request["body"]["approximate_longitude"] = approximate_longitude;
         request["body"]["bearing_in_radians"] = bearing_in_radians;
+        request["body"][
+          "approximate_distance_in_km"
+        ] = approximate_distance_in_km;
       } else if (responseFromApproximateCoordinates.success === false) {
         return responseFromApproximateCoordinates;
       }
