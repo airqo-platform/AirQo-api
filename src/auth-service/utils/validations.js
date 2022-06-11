@@ -63,6 +63,39 @@ const validation = {
       isValid: isEmpty(errors),
     };
   },
+
+  inquire: (data) => {
+    let errors = {};
+    // Convert empty fields to an empty string so as to use validator functions
+    data.fullName = !isEmpty(data.fullName) ? data.fullName : "";
+    data.email = !isEmpty(data.email) ? data.email : "";
+    data.message = !isEmpty(data.message) ? data.message : "";
+
+    if (Validator.isEmpty(data.fullName)) {
+      errors.fullName = "fullName field is required";
+    }
+
+    if (Validator.isEmpty(data.category)) {
+      errors.category = "Category is required";
+    }
+
+    if (Validator.isEmpty(data.message)) {
+      errors.message = "Message is required";
+    }
+
+    // Email checks
+    if (Validator.isEmpty(data.email)) {
+      errors.email = "Email field is required";
+    } else if (!Validator.isEmail(data.email)) {
+      errors.email = "Email is invalid";
+    }
+
+    return {
+      errors,
+      isValid: isEmpty(errors),
+    };
+  },
+
   forgot: (email) => {
     let errors = {};
     // Convert empty fields to an empty string so we can use validator functions

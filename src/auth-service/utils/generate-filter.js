@@ -174,6 +174,34 @@ const filter = {
     }
   },
 
+  inquiry: (req) => {
+    try {
+      let { category, id } = req.query;
+      let { email } = req.body;
+      let filter = {};
+      if (email) {
+        filter["email"] = email;
+      }
+      if (category) {
+        filter["category"] = category;
+      }
+      if (id) {
+        filter["_id"] = id;
+      }
+      return {
+        success: true,
+        message: "successfully created the filter",
+        data: filter,
+      };
+    } catch (e) {
+      return {
+        success: false,
+        message: "filter util server error",
+        error: e.message,
+      };
+    }
+  },
+
   defaults_v2: (req) => {
     try {
       let { id, user, user_id, airqloud, airqloud_id, site, site_id } =

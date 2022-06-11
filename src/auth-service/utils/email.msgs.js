@@ -26,6 +26,15 @@ module.exports = {
       `https://airqo.net/`
     );
   },
+  inquiry: (fullName) => {
+    return (
+      `Dear ${fullName}, \n\n` +
+      "Your inquiry has been received, " +
+      "we shall get back to you as soon as possible. \n\n" +
+      "Please continue to visit our website to learn more about us. \n" +
+      `https://airqo.net/`
+    );
+  },
   welcome_kcca: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
