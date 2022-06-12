@@ -110,6 +110,33 @@ const createEvent = {
       });
     }
   },
+
+  listFromBigQuery: async (req, res) => {
+    try {
+      const responseFromListFromBigQuery = await createEventUtil.getMeasurementsFromBigQuery();
+      logObject("responseFromListFromBigQuery", responseFromListFromBigQuery);
+      if (responseFromListFromBigQuery.success === true) {
+        return res.status(HTTPStatus.OK).json({
+          success: true,
+          measurements: responseFromListFromBigQuery.data,
+          message: "successfully retrieved the measurements",
+        });
+      } else if (responseFromListFromBigQuery.success === false) {
+        return res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+          success: false,
+          message: responseFromListFromBigQuery.message,
+          errors: responseFromListFromBigQuery.errors,
+        });
+      }
+    } catch (error) {
+      res.status(HTTPStatus.INTERNAL_SERVER_ERROR).json({
+        success: false,
+        message: "Internal Server Error",
+        errors: { message: error.message },
+      });
+    }
+  },
+
   list: async (req, res) => {
     try {
       const hasErrors = !validationResult(req).isEmpty();

@@ -3023,6 +3023,7 @@ router.get(
   ]),
   eventController.list
 );
+router.get("/measurements", eventController.listFromBigQuery);
 router.post(
   "/events/transmit/single",
   oneOf([

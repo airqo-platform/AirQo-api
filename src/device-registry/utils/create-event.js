@@ -27,18 +27,23 @@ const httpStatus = require("http-status");
 const createEvent = {
   getMeasurementsFromBigQuery: async () => {
     try {
-      // Queries the U.S. given names dataset for the state of Texas.
+      const query = `SELECT site_id, name, \`airqo-250220.metadata_stage.sites\`.latitude,
+        \`airqo-250220.metadata_stage.sites\`.longitude, timestamp, pm2_5, pm10 
+        FROM \`airqo-250220.averaged_data_stage.hourly_device_measurements\` 
+        JOIN \`airqo-250220.metadata_stage.sites\` 
+        ON \`airqo-250220.metadata_stage.sites\`.id = \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.site_id 
+        WHERE  \`airqo-250220.averaged_data_stage.hourly_device_measurements\`.timestamp > '2022-01-01T00:00:00Z' 
+        LIMIT 10`;
 
-      const query = `SELECT name
+      const queryTwo = `SELECT name
       FROM \`bigquery-public-data.usa_names.usa_1910_2013\`
       WHERE state = 'TX'
       LIMIT 100`;
-
       // For all options, see https://cloud.google.com/bigquery/docs/reference/rest/v2/jobs/query
       const options = {
         query: query,
         // Location must match that of the dataset(s) referenced in the query.
-        location: "US",
+        location: "EU",
       };
 
       // Run the query as a job
@@ -48,9 +53,11 @@ const createEvent = {
       // Wait for the query to finish
       const [rows] = await job.getQueryResults();
 
-      // Print the results
-      console.log("Rows:");
-      rows.forEach((row) => console.log(row));
+      return {
+        success: true,
+        data: rows,
+        message: "",
+      };
     } catch (error) {
       return {
         success: false,
