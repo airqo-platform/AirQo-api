@@ -39,6 +39,8 @@ const inquire = {
         let responseFromSendEmail = await mailer.inquiry(
           fullName,
           email,
+          category,
+          message,
           tenant
         );
         if (responseFromSendEmail.success === true) {

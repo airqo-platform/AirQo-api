@@ -48,7 +48,7 @@ const mailer = {
     }
   },
 
-  inquiry: async (fullName, email, tenant) => {
+  inquiry: async (fullName, email, category, message, tenant) => {
     try {
       let bcc = "";
 
@@ -56,15 +56,16 @@ const mailer = {
         bcc = constants.REQUEST_ACCESS_EMAILS;
       }
 
-      const mailOptions = {
-        from: constants.EMAIL,
-        to: `${email}`,
-        subject: "AirQo Platform JOIN request",
-        text: msgs.inquiry(fullName),
+      const mailOptionsForAirQo = {
+        sender: `${email}`,
+        replyTo: `${email}`,
+        to: constants.SUPPORT_EMAIL,
+        subject: `New AirQo Inquiry - ${category}`,
+        text: msgs.inquiry(message),
         bcc,
       };
 
-      let response = transporter.sendMail(mailOptions);
+      let response = transporter.sendMail(mailOptionsForAirQo);
       let data = await response;
       if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
         return {

@@ -247,7 +247,11 @@ const validation = {
   checkEmailExistenceUsingKickbox: async (email, callback) => {
     try {
       await kickbox.verify(email, async (err, response) => {
-        if (response.body.result === "undeliverable") {
+        if (
+          response &&
+          response.body &&
+          response.body.result === "undeliverable"
+        ) {
           callback({
             success: false,
             message: `undeliverable email, did you mean ${response.body.did_you_mean}?`,
@@ -265,7 +269,11 @@ const validation = {
           });
         }
 
-        if (response.body.result === "deliverable") {
+        if (
+          response &&
+          response.body &&
+          response.body.result === "deliverable"
+        ) {
           callback({
             success: true,
             message: "deliverable",
@@ -273,7 +281,7 @@ const validation = {
           });
         }
 
-        if (response.body.result === "risky") {
+        if (response && response.body && response.body.result === "risky") {
           callback({
             success: false,
             message: "risky email",
@@ -282,7 +290,7 @@ const validation = {
           });
         }
 
-        if (response.body.result === "unknown") {
+        if (response && response.body && response.body.result === "unknown") {
           callback({
             success: false,
             message: "unknown email",
@@ -291,7 +299,7 @@ const validation = {
           });
         }
 
-        if (response.body.role === true) {
+        if (response && response.body && response.body.role === true) {
           callback({
             success: false,
             message: "role email addresses are not accepted",
