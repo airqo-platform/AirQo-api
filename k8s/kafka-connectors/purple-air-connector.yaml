@@ -1,0 +1,22 @@
+apiVersion: kafka.strimzi.io/v1beta2
+kind: KafkaConnector
+metadata:
+  name: purple-air-connector
+  namespace: kafka-strimzi
+  labels:
+    strimzi.io/cluster: measurements-connector-cluster
+spec:
+  class: purpleAir.PurpleAirConnector
+  tasksMax: 2
+  config:
+    # topic: purple-air-measurements-topic
+    purpleAirTopicGroup: purple-air-measurements-topic-group
+    pollInterval: "30000"
+    topic: ${configmaps:kafka-strimzi/purple-air-measurements-connector-config:topic}
+    purpleAirApiBaseUrl: https://api.purpleair.com/v1
+    purpleAirApiKey: ${file:/opt/kafka/external-configuration/purple-air-connector-config/purple-air-credentials.properties:api_key}
+    purpleAirFields: name,latitude,longitude,pm1.0,pm2.5,pm10.0,altitude,pressure,humidity,temperature
+    key.converter: org.apache.kafka.connect.json.JsonConverter
+    key.converter.schemas.enable: false
+    value.converter: org.apache.kafka.connect.json.JsonConverter
+    value.converter.schemas.enable: false
