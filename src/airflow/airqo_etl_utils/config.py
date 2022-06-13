@@ -47,5 +47,9 @@ class Config:
     AIRQO_BASE_URL_V2 = os.getenv("AIRQO_BASE_URL_V2")
     AIRQO_API_KEY = os.getenv("AIRQO_API_KEY")
 
+    AIRNOW_BASE_URL = os.getenv("AIRNOW_BASE_URL")
+    AIRNOW_API_KEY = os.getenv("AIRNOW_API_KEY")
+    AIRNOW_METADATA_JSON_FILE = os.getenv("AIRNOW_METADATA_JSON_FILE")
+
 
 configuration = Config()
