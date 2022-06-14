@@ -4,7 +4,7 @@ import airqo.models.ApiResponseBody;
 import airqo.models.Frequency;
 import airqo.models.Insight;
 import airqo.models.Measurement;
-import airqo.predicate.InsightPredicate;
+import airqo.predicate.GraphInsightPredicate;
 import airqo.predicate.MeasurementPredicate;
 import airqo.serializers.Views;
 import airqo.services.MeasurementService;
@@ -63,7 +63,7 @@ public class MeasurementController {
 	@JsonView(Views.GraphInsightView.class)
 	@GetMapping("/app/insights")
 	public ResponseEntity<ApiResponseBody> getInsights(
-		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
+		@QuerydslPredicate(root = Insight.class, bindings = GraphInsightPredicate.class) Predicate predicate) {
 		List<Insight> insights = measurementService.apiGetGraphInsights(predicate);
 		return ResponseEntity.ok(new ApiResponseBody("Operation Successful", insights));
 	}
@@ -71,7 +71,7 @@ public class MeasurementController {
 	@JsonView(Views.GraphInsightView.class)
 	@GetMapping("/app/insights/graph")
 	public ResponseEntity<List<Insight>> getGraphInsights(
-		@QuerydslPredicate(root = Insight.class, bindings = InsightPredicate.class) Predicate predicate) {
+		@QuerydslPredicate(root = Insight.class, bindings = GraphInsightPredicate.class) Predicate predicate) {
 		return ResponseEntity.ok(measurementService.apiGetGraphInsights(predicate));
 	}
 

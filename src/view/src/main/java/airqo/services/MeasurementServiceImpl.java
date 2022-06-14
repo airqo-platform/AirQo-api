@@ -10,6 +10,7 @@ import com.google.common.collect.Lists;
 import com.querydsl.core.types.Predicate;
 import io.sentry.spring.tracing.SentrySpan;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
@@ -37,6 +38,7 @@ public class MeasurementServiceImpl implements MeasurementService {
 	@Value("${latestInsightsTimeLimit}")
 	private int latestInsightsTimeLimit;
 
+	@Autowired
 	public MeasurementServiceImpl(InsightRepository insightRepository, MeasurementRepository measurementRepository, MongoOperations mongoOperations) {
 		this.insightRepository = insightRepository;
 		this.measurementRepository = measurementRepository;

@@ -4,7 +4,7 @@ import airqo.models.QInsight;
 import org.springframework.data.querydsl.binding.QuerydslBinderCustomizer;
 import org.springframework.data.querydsl.binding.QuerydslBindings;
 
-public class InsightPredicate implements QuerydslBinderCustomizer<QInsight> {
+public class GraphInsightPredicate implements QuerydslBinderCustomizer<QInsight> {
 
 	@Override
 	public void customize(QuerydslBindings bindings, QInsight root) {
@@ -19,6 +19,7 @@ public class InsightPredicate implements QuerydslBinderCustomizer<QInsight> {
 		bindings.bind(root.endDateTime).first((path, value) ->
 			root.time.loe(value));
 
-		bindings.excluding(root.id, root.pm2_5, root.pm10, root.time);
+		bindings.excluding(root.id, root.pm2_5, root.pm10, root.time, root.longitude,
+			root.latitude, root.country, root.location, root.region, root.estimated);
 	}
 }
