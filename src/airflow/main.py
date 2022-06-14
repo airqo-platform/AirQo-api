@@ -201,21 +201,21 @@ def app_notifications():
         get_notification_recipients,
         get_notification_templates,
         create_notification_messages,
-        send_notification_messages,
+        NOTIFICATION_TEMPLATE_MAPPER,
     )
 
     recipients = get_notification_recipients(16)
     recipients.to_csv(path_or_buf="recipients.csv", index=False)
 
-    templates = get_notification_templates(16)
+    templates = get_notification_templates(
+        NOTIFICATION_TEMPLATE_MAPPER["monday_morning"]
+    )
     pd.DataFrame(templates).to_csv(path_or_buf="templates.csv", index=False)
 
     notification_messages = create_notification_messages(
         templates=templates, recipients=recipients
     )
     notification_messages.to_csv(path_or_buf="notification_messages.csv", index=False)
-
-    send_notification_messages(messages=notification_messages)
 
 
 def daily_insights(start_date_time: str, end_date_time: str):
