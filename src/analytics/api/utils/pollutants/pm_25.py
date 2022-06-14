@@ -10,6 +10,46 @@ PM_25_COLOR_MAPPER = {
 
 }
 
+AQCSV_PARAMETER_MAPPER = {
+    "pm2_5": 88101,
+    "pm10": 86502,
+    "no2": 42602,
+}
+
+
+AQCSV_UNIT_MAPPER = {
+    "pm2_5": "001",
+    "pm10": "001",
+    "no2": "008",
+}
+
+AQCSV_DATA_STATUS_MAPPER = {
+    "pm2_5_calibrated_value": 1,
+    "pm10_calibrated_value": 1,
+    "no2_calibrated_value": 1,
+    "pm2_5_raw_value": 0,
+    "pm10_raw_value": 0,
+    "no2_raw_value": 0,
+}
+
+
+AQCSV_QC_CODE_MAPPER = {
+    "averaged": 2,
+    "estimated": 4,
+}
+
+FREQUENCY_MAPPER = {
+    "hourly": 60,
+    "daily": 1440,
+    "raw": 1
+}
+
+POLLUTANT_BIGQUERY_MAPPER = {
+    "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
+    "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
+    "no2": ["no2_calibrated_value", "no2_raw_value"],
+}
+
 PM_COLOR_CATEGORY = {
     'Good': '#45e50d',
     'Moderate': '#f8fe28',
