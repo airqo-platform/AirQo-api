@@ -29,6 +29,12 @@ const deviceSchema = new mongoose.Schema(
     longitude: {
       type: Number,
     },
+    approximate_distance_in_km: {
+      type: Number,
+    },
+    bearing_in_radians: {
+      type: Number,
+    },
     writeKey: {
       type: String,
     },
@@ -199,6 +205,8 @@ deviceSchema.methods = {
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
+      approximate_distance_in_km: this.approximate_distance_in_km,
+      bearing_in_radians: this.bearing_in_radians,
       createdAt: this.createdAt,
       ISP: this.ISP,
       phoneNumber: this.phoneNumber,
@@ -291,6 +299,8 @@ deviceSchema.statics = {
           long_name: 1,
           latitude: 1,
           longitude: 1,
+          approximate_distance_in_km: 1,
+          bearing_in_radians: 1,
           createdAt: 1,
           ISP: 1,
           phoneNumber: 1,
@@ -396,6 +406,8 @@ deviceSchema.statics = {
 
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;
+        delete data.__v;
+
         return {
           success: true,
           message: "successfully modified the device",
