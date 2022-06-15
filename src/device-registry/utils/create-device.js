@@ -697,14 +697,10 @@ const createDevice = {
       const { category } = body;
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
-      /**
-       * check the type of device
-       * and then choose an appropriate mapping accordingly
-       */
       let context = {};
       if (category === "bam") {
         context = constants.BAM_THINGSPEAK_FIELD_DESCRIPTIONS;
-      } else if (category === "low") {
+      } else if (category === "lowcost") {
         context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
       }
 
