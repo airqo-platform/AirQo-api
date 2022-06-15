@@ -4,8 +4,8 @@ WORKDIR airqo_etl_utils
 COPY airqo_etl_utils/* airqo_etl_utils/
 RUN python airqo_etl_utils/setup.py bdist_wheel
 
-FROM apache/airflow as base-builder
-
+FROM apache/airflow:2.3.0 as base-builder
+ENV AIRFLOW_VERSION=2.3.0
 USER root
 RUN apt-get update -y && apt-get install python3-distutils -y && apt-get install python3-apt -y
 USER airflow
@@ -19,7 +19,7 @@ COPY --chown=airflow:root dags/* /opt/airflow/dags/
 
 FROM base-builder as db-setup
 USER root
-RUN apt-get update -y && apt-get install python3-pip -y && pip3 install apache-airflow[postgres]==2.2.3
+RUN apt-get update -y && apt-get install python3-pip -y && pip3 install apache-airflow[postgres]==${AIRFLOW_VERSION}
 COPY db-setup.sh /usr/local/bin/db-setup.sh
 RUN chmod 777 /usr/local/bin/db-setup.sh
 USER airflow
@@ -35,6 +35,13 @@ CMD ["airflow", "webserver"]
 
 FROM base-builder as deployment
 USER airflow
+
+FROM base-builder as xcom-setup
+USER root
+COPY xcom-setup.sh /usr/local/bin/xcom-setup.sh
+COPY airflow_xcom/* /usr/local/bin/airflow_xcom/
+RUN chmod 777 /usr/local/bin/xcom-setup.sh
+ENTRYPOINT ["/usr/local/bin/xcom-setup.sh"]
 
 FROM noahnsimbe/kafka-docker as kafka-setup
 USER root

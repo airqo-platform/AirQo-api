@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from airflow.decorators import dag, task
 
 from airqo_etl_utils.commons import slack_dag_failure_notification
@@ -13,11 +14,12 @@ from airqo_etl_utils.commons import slack_dag_failure_notification
     tags=["kcca", "hourly"],
 )
 def hourly_measurements_etl():
-    @task(multiple_outputs=True)
+    import pandas as pd
+
+    @task()
     def extract():
         from airqo_etl_utils.date import date_to_str_hours
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
-        from airqo_etl_utils.commons import fill_nan
         from datetime import datetime, timedelta
 
         hour_of_day = datetime.utcnow() - timedelta(hours=1)
@@ -28,32 +30,26 @@ def hourly_measurements_etl():
             start_time=start_date_time, end_time=end_date_time, freq="hourly"
         )
 
-        return dict({"data": fill_nan(kcca_data)})
+        return kcca_data
 
     @task()
-    def send_hourly_measurements_to_api(inputs: dict):
-
+    def send_hourly_measurements_to_api(data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import transform_kcca_measurements_for_api
-        from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.airqo_api import AirQoApi
 
-        data = un_fill_nan(inputs.get("data"))
         kcca_data = transform_kcca_measurements_for_api(data)
 
         airqo_api = AirQoApi()
         airqo_api.save_events(measurements=kcca_data, tenant="kcca")
 
     @task()
-    def send_hourly_measurements_to_message_broker(airqo_data: dict):
-
+    def send_hourly_measurements_to_message_broker(kcca_data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import transform_kcca_data_for_message_broker
-        from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.config import configuration
         from airqo_etl_utils.message_broker import KafkaBrokerClient
 
-        data = un_fill_nan(airqo_data.get("data"))
         kcca_restructured_data = transform_kcca_data_for_message_broker(
-            data=data, frequency="hourly"
+            data=kcca_data, frequency="hourly"
         )
 
         info = {"data": kcca_restructured_data, "action": "insert", "tenant": "kcca"}
@@ -62,18 +58,16 @@ def hourly_measurements_etl():
         kafka.send_data(info=info, topic=configuration.HOURLY_MEASUREMENTS_TOPIC)
 
     @task()
-    def send_hourly_measurements_to_bigquery(kcca_data: dict):
-
+    def send_hourly_measurements_to_bigquery(kcca_data: pd.DataFrame):
         from airqo_etl_utils.kcca_utils import transform_kcca_data_for_bigquery
-        from airqo_etl_utils.commons import un_fill_nan
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        data = un_fill_nan(kcca_data.get("data"))
-        kcca_restructured_data = transform_kcca_data_for_bigquery(data)
+        kcca_restructured_data = transform_kcca_data_for_bigquery(kcca_data)
 
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
-            data=kcca_restructured_data, table=big_query_api.hourly_measurements_table
+        big_query_api.load_data(
+            dataframe=kcca_restructured_data,
+            table=big_query_api.hourly_measurements_table,
         )
 
     extracted_data = extract()
@@ -91,11 +85,11 @@ def hourly_measurements_etl():
     tags=["kcca", "raw"],
 )
 def raw_measurements_etl():
-    @task(multiple_outputs=True)
-    def extract():
+    import pandas as pd
 
+    @task()
+    def extract():
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
-        from airqo_etl_utils.commons import fill_nan
         from airqo_etl_utils.date import date_to_str
         from datetime import datetime, timedelta
 
@@ -106,30 +100,22 @@ def raw_measurements_etl():
             start_time=start_time, end_time=end_time, freq="raw"
         )
 
-        return dict({"data": fill_nan(data=kcca_data)})
-
-    @task(multiple_outputs=True)
-    def transform(inputs: dict):
-
-        from airqo_etl_utils.kcca_utils import transform_kcca_data_for_bigquery
-        from airqo_etl_utils.commons import un_fill_nan, fill_nan
-
-        data = un_fill_nan(inputs.get("data"))
-
-        cleaned_data = transform_kcca_data_for_bigquery(data)
-        return dict({"data": fill_nan(data=cleaned_data)})
+        return kcca_data
 
     @task()
-    def load(inputs: dict):
+    def transform(data: pd.DataFrame):
+        from airqo_etl_utils.kcca_utils import transform_kcca_data_for_bigquery
 
-        from airqo_etl_utils.commons import un_fill_nan
+        cleaned_data = transform_kcca_data_for_bigquery(data)
+        return cleaned_data
+
+    @task()
+    def load(kcca_data: pd.DataFrame):
         from airqo_etl_utils.bigquery_api import BigQueryApi
 
-        kcca_data = un_fill_nan(inputs.get("data"))
-
         big_query_api = BigQueryApi()
-        big_query_api.save_data(
-            data=kcca_data,
+        big_query_api.load_data(
+            dataframe=kcca_data,
             table=big_query_api.raw_measurements_table,
         )
 
@@ -147,12 +133,12 @@ def raw_measurements_etl():
     tags=["kcca", "daily"],
 )
 def daily_measurements_etl():
-    @task(multiple_outputs=True)
-    def extract():
+    import pandas as pd
 
+    @task()
+    def extract():
         from airqo_etl_utils.date import date_to_str_days
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
-        from airqo_etl_utils.commons import fill_nan
         from datetime import datetime, timedelta
 
         start_time = date_to_str_days(datetime.utcnow() - timedelta(days=3))
@@ -162,33 +148,19 @@ def daily_measurements_etl():
             start_time=start_time, end_time=end_time, freq="daily"
         )
 
-        return dict({"data": fill_nan(data=daily_kcca_data)})
-
-    @task(multiple_outputs=True)
-    def transform(inputs: dict):
-
-        from airqo_etl_utils.kcca_utils import transform_kcca_measurements_for_api
-        from airqo_etl_utils.commons import un_fill_nan, fill_nan
-
-        data = un_fill_nan(inputs.get("data"))
-        cleaned_data = transform_kcca_measurements_for_api(data)
-
-        return dict({"data": fill_nan(data=cleaned_data)})
+        return daily_kcca_data
 
     @task()
-    def load(inputs: dict):
-
-        from airqo_etl_utils.commons import un_fill_nan
+    def send_to_api(kcca_data: pd.DataFrame):
         from airqo_etl_utils.airqo_api import AirQoApi
+        from airqo_etl_utils.kcca_utils import transform_kcca_measurements_for_api
 
-        kcca_data = un_fill_nan(inputs.get("data"))
-
+        cleaned_data = transform_kcca_measurements_for_api(kcca_data)
         airqo_api = AirQoApi()
-        airqo_api.save_events(measurements=kcca_data, tenant="kcca")
+        airqo_api.save_events(measurements=cleaned_data, tenant="kcca")
 
     extracted_data = extract()
-    transformed_data = transform(extracted_data)
-    load(transformed_data)
+    send_to_api(extracted_data)
 
 
 @dag(
@@ -200,31 +172,31 @@ def daily_measurements_etl():
     tags=["kcca", "hourly", "historical"],
 )
 def historical_hourly_measurements_etl():
+    import pandas as pd
+
     @task()
     def extract(**kwargs):
 
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
-        from airqo_etl_utils.commons import fill_nan, get_date_time_values
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_time, end_time = get_date_time_values(**kwargs)
         kcca_data = extract_kcca_measurements(
             start_time=start_time, end_time=end_time, freq="hourly"
         )
 
-        return dict({"data": fill_nan(kcca_data)})
+        return kcca_data
 
     @task()
-    def load(kcca_data: dict, **kwargs):
+    def load(kcca_data: pd.DataFrame, **kwargs):
 
         from airqo_etl_utils.kcca_utils import (
             transform_kcca_measurements_for_api,
             transform_kcca_data_for_bigquery,
             transform_kcca_data_for_message_broker,
         )
-        from airqo_etl_utils.commons import un_fill_nan
-        from airqo_etl_utils.config import configuration
 
-        data = un_fill_nan(kcca_data.get("data"))
+        from airqo_etl_utils.config import configuration
 
         try:
             dag_run = kwargs.get("dag_run")
@@ -235,11 +207,11 @@ def historical_hourly_measurements_etl():
         if destination == "bigquery":
             from airqo_etl_utils.bigquery_api import BigQueryApi
 
-            kcca_transformed_data = transform_kcca_data_for_bigquery(data)
+            kcca_transformed_data = transform_kcca_data_for_bigquery(kcca_data)
 
             big_query_api = BigQueryApi()
-            big_query_api.save_data(
-                data=kcca_transformed_data,
+            big_query_api.load_data(
+                dataframe=kcca_transformed_data,
                 table=big_query_api.hourly_measurements_table,
             )
 
@@ -248,7 +220,7 @@ def historical_hourly_measurements_etl():
             from airqo_etl_utils.message_broker import KafkaBrokerClient
 
             kcca_transformed_data = transform_kcca_data_for_message_broker(
-                data=data, frequency="hourly"
+                data=kcca_data, frequency="hourly"
             )
 
             info = {"data": kcca_transformed_data, "action": "insert", "tenant": "kcca"}
@@ -259,7 +231,7 @@ def historical_hourly_measurements_etl():
         elif destination == "api":
             from airqo_etl_utils.airqo_api import AirQoApi
 
-            kcca_transformed_data = transform_kcca_measurements_for_api(data)
+            kcca_transformed_data = transform_kcca_measurements_for_api(kcca_data)
             airqo_api = AirQoApi()
             airqo_api.save_events(measurements=kcca_transformed_data, tenant="kcca")
 
@@ -281,31 +253,31 @@ def historical_hourly_measurements_etl():
     tags=["kcca", "raw", "historical"],
 )
 def historical_raw_measurements_etl():
+    import pandas as pd
+
     @task()
     def extract(**kwargs):
 
         from airqo_etl_utils.kcca_utils import extract_kcca_measurements
-        from airqo_etl_utils.commons import fill_nan, get_date_time_values
+        from airqo_etl_utils.commons import get_date_time_values
 
         start_time, end_time = get_date_time_values(**kwargs)
         kcca_data = extract_kcca_measurements(
             start_time=start_time, end_time=end_time, freq="raw"
         )
 
-        return dict({"data": fill_nan(kcca_data)})
+        return kcca_data
 
     @task()
-    def load(kcca_data: dict, **kwargs):
+    def load(kcca_data: pd.DataFrame, **kwargs):
 
         from airqo_etl_utils.kcca_utils import (
             transform_kcca_measurements_for_api,
             transform_kcca_data_for_bigquery,
             transform_kcca_data_for_message_broker,
         )
-        from airqo_etl_utils.commons import un_fill_nan
-        from airqo_etl_utils.config import configuration
 
-        data = un_fill_nan(kcca_data.get("data"))
+        from airqo_etl_utils.config import configuration
 
         try:
             dag_run = kwargs.get("dag_run")
@@ -317,11 +289,11 @@ def historical_raw_measurements_etl():
 
             from airqo_etl_utils.bigquery_api import BigQueryApi
 
-            kcca_transformed_data = transform_kcca_data_for_bigquery(data)
+            kcca_transformed_data = transform_kcca_data_for_bigquery(kcca_data)
 
             big_query_api = BigQueryApi()
-            big_query_api.save_data(
-                data=kcca_transformed_data,
+            big_query_api.load_data(
+                dataframe=kcca_transformed_data,
                 table=big_query_api.raw_measurements_table,
             )
 
@@ -330,7 +302,7 @@ def historical_raw_measurements_etl():
             from airqo_etl_utils.message_broker import KafkaBrokerClient
 
             kcca_transformed_data = transform_kcca_data_for_message_broker(
-                data=data, frequency="raw"
+                data=kcca_data, frequency="raw"
             )
 
             info = {"data": kcca_transformed_data, "action": "insert", "tenant": "kcca"}
@@ -341,7 +313,7 @@ def historical_raw_measurements_etl():
         elif destination == "api":
             from airqo_etl_utils.airqo_api import AirQoApi
 
-            kcca_transformed_data = transform_kcca_measurements_for_api(data)
+            kcca_transformed_data = transform_kcca_measurements_for_api(kcca_data)
             airqo_api = AirQoApi()
             airqo_api.save_events(measurements=kcca_transformed_data, tenant="kcca")
 

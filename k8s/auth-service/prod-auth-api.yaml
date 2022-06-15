@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: auth-api
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -42,7 +42,13 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
-          resources: {}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
       volumes:
         - name: config-volume
           configMap:
@@ -63,3 +69,23 @@ spec:
       targetPort: 3000
       nodePort: 30000
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-auth-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-auth-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

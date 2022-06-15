@@ -4,7 +4,7 @@ from airqo_etl_utils.airqo_api import AirQoApi
 from airqo_etl_utils.commons import format_dataframe_column_type
 
 
-def extract_meta_data(component: str, tenant=None) -> list:
+def extract_meta_data(component: str, tenant=None) -> pd.DataFrame:
     airqo_api = AirQoApi()
     if component == "sites":
         meta_data = airqo_api.get_sites(tenant=tenant)
@@ -139,4 +139,4 @@ def extract_meta_data(component: str, tenant=None) -> list:
     )
     dataframe.rename(columns=rename_columns, inplace=True)
     dataframe.reset_index(drop=True, inplace=True)
-    return dataframe.to_dict(orient="records")
+    return dataframe

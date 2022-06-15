@@ -42,13 +42,13 @@ class KafkaBrokerClient:
             bootstrap_servers=self.__bootstrap_servers,
             api_version_auto_timeout_ms=300000,
             retries=5,
+            request_timeout_ms=300000
         )
 
         if len(data) > 50:
             action = info["action"]
             current_partition = -1
             for i in range(0, len(data), 50):
-
                 range_data = data[i : i + 50]
 
                 message = {"data": range_data, "action": action, "tenant": tenant}

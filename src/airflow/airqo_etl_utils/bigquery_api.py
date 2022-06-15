@@ -1,25 +1,12 @@
 import json
 import os
-from enum import Enum
 
 import pandas as pd
 from google.cloud import bigquery
 
 from airqo_etl_utils.config import configuration
+from airqo_etl_utils.constants import JobAction
 from airqo_etl_utils.date import date_to_str
-
-
-class JobAction(Enum):
-    APPEND = 1
-    OVERWRITE = 2
-
-    def get_name(self):
-        if self == self.APPEND:
-            return "WRITE_APPEND"
-        elif self == self.OVERWRITE:
-            return "WRITE_TRUNCATE"
-        else:
-            return "WRITE_EMPTY"
 
 
 class BigQueryApi:
@@ -32,9 +19,19 @@ class BigQueryApi:
         self.analytics_table = configuration.BIGQUERY_ANALYTICS_TABLE
         self.sites_table = configuration.BIGQUERY_SITES_TABLE
         self.devices_table = configuration.BIGQUERY_DEVICES_TABLE
+        self.calibrated_hourly_measurements_table = (
+            configuration.BIGQUERY_CALIBRATED_HOURLY_EVENTS_TABLE
+        )
         self.package_directory, _ = os.path.split(__file__)
 
-    def validate_data(self, dataframe: pd.DataFrame, table: str) -> pd.DataFrame:
+    def validate_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        raise_column_exception=True,
+        date_time_columns=None,
+        numeric_columns=None,
+    ) -> pd.DataFrame:
 
         # time is depreciated. It will be replaced with timestamp
         if (
@@ -43,31 +40,43 @@ class BigQueryApi:
         ):
             dataframe["time"] = dataframe["timestamp"]
 
-        columns = self.__get_columns(table=table)
+        columns = self.get_columns(table=table)
 
-        if sorted(list(dataframe.columns)) != sorted(columns):
+        if set(columns).issubset(set(list(dataframe.columns))):
+            dataframe = dataframe[columns]
+        else:
             print(f"Required columns {columns}")
             print(f"Dataframe columns {list(dataframe.columns)}")
             print(
                 f"Difference between required and received {list(set(columns) - set(dataframe.columns))}"
             )
-            raise Exception("Invalid columns")
+            if raise_column_exception:
+                raise Exception("Invalid columns")
 
         # validating timestamp
-        date_time_columns = self.__get_columns(table=table, data_type="TIMESTAMP")
+        date_time_columns = (
+            date_time_columns
+            if date_time_columns
+            else self.get_columns(table=table, data_type="TIMESTAMP")
+        )
         dataframe[date_time_columns] = dataframe[date_time_columns].apply(
             pd.to_datetime, errors="coerce"
         )
 
         # validating floats
-        numeric_columns = self.__get_columns(table=table, data_type="FLOAT")
+        numeric_columns = (
+            numeric_columns
+            if numeric_columns
+            else self.get_columns(table=table, data_type="FLOAT")
+        )
         dataframe[numeric_columns] = dataframe[numeric_columns].apply(
             pd.to_numeric, errors="coerce"
         )
 
         return dataframe
 
-    def __get_columns(self, table: str, data_type="") -> list:
+    def get_columns(self, table: str, data_type="") -> list:
+
         if (
             table == self.hourly_measurements_table
             or table == self.raw_measurements_table
@@ -77,6 +86,9 @@ class BigQueryApi:
         elif table == self.hourly_weather_table or table == self.raw_weather_table:
             schema_path = "schema/weather_data.json"
             schema = "weather_data.json"
+        elif table == self.calibrated_hourly_measurements_table:
+            schema_path = "schema/calibrated_measurements.json"
+            schema = "calibrated_measurements.json"
         elif table == self.analytics_table:
             schema_path = "schema/data_warehouse.json"
             schema = "data_warehouse.json"
@@ -104,12 +116,13 @@ class BigQueryApi:
             columns = [column["name"] for column in schema]
         return columns
 
-    def save_data(
-        self, data: list, table: str, job_action: JobAction = JobAction.APPEND
+    def load_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        job_action: JobAction = JobAction.APPEND,
     ) -> None:
-
-        dataframe = pd.DataFrame(data)
-
+        dataframe.reset_index(drop=True, inplace=True)
         dataframe = self.validate_data(dataframe=dataframe, table=table)
 
         job_config = bigquery.LoadJobConfig(
@@ -122,24 +135,40 @@ class BigQueryApi:
         job.result()
 
         destination_table = self.client.get_table(table)
-        print("Table for loading {} ".format(table))
-        print(
-            "Loaded {} rows and {} columns to {}".format(
-                destination_table.num_rows,
-                len(destination_table.schema),
-                destination_table.friendly_name,
-            )
-        )
+        print(f"Loaded {len(dataframe)} rows to {table}")
+        print(f"Total rows after load :  {destination_table.num_rows}")
 
-    def get_hourly_data(
-        self, start_date_time: str, end_date_time: str, columns: list, table: str
+    def reload_data(
+        self,
+        dataframe: pd.DataFrame,
+        table: str,
+        start_date_time: str,
+        end_date_time: str,
+        tenant: str,
+    ) -> None:
+
+        query = f"""
+            DELETE FROM `{table}`
+            WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
+        """
+        self.client.query(query=query).result()
+
+        self.load_data(dataframe=dataframe, table=table, job_action=JobAction.APPEND)
+
+    def query_data(
+        self,
+        start_date_time: str,
+        end_date_time: str,
+        columns: list,
+        table: str,
+        tenant="airqo",
     ) -> pd.DataFrame:
 
         try:
             query = f"""
                 SELECT {', '.join(map(str, columns))}
                 FROM `{table}`
-                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}'
+                WHERE timestamp >= '{start_date_time}' and timestamp <= '{end_date_time}' and tenant = '{tenant}'
             """
             dataframe = self.client.query(query=query).result().to_dataframe()
         except Exception as ex:
@@ -147,7 +176,7 @@ class BigQueryApi:
             query = f"""
                 SELECT {', '.join(map(str, columns))}
                 FROM `{table}`
-                WHERE time >= '{start_date_time}' and time <= '{end_date_time}'
+                WHERE time >= '{start_date_time}' and time <= '{end_date_time}' and tenant = '{tenant}'
             """
 
             dataframe = self.client.query(query=query).result().to_dataframe()

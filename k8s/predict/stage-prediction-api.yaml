@@ -26,7 +26,6 @@ spec:
         - name: prediction-api
           image: us.gcr.io/airqo-250220/airqo-stage-prediction-api:latest
           imagePullPolicy: Always
-          resources: {}
           ports:
             - containerPort: 5000
               name: prediction-api
@@ -37,9 +36,6 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          # env:
-          # - name: GET_HOSTS_FROM
-          #   value: dns
           envFrom:
             - configMapRef:
                 name: env-predict-staging
@@ -47,10 +43,12 @@ spec:
           - name: config-volume
             mountPath: /etc/config
           resources:
-            limits:
-              cpu: 200m
             requests:
               cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
       volumes:
         - name: config-volume
           configMap:
@@ -58,7 +56,7 @@ spec:
 
 ---
 kind: HorizontalPodAutoscaler
-apiVersion: autoscaling/v2beta2
+apiVersion: autoscaling/v2
 metadata:
   name: airqo-stage-prediction-api-hpa
 spec:

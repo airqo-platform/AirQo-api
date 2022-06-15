@@ -1,8 +1,11 @@
-import pytz
 from datetime import datetime
-from google.cloud import bigquery
-from api.models.base.base_model import BasePyMongoModel
 
+import pandas as pd
+import pytz
+from google.cloud import bigquery
+
+from api.models.base.base_model import BasePyMongoModel
+from api.utils.dates import date_to_str
 from main import cache, CONFIGURATIONS
 
 
@@ -22,26 +25,34 @@ class EventsModel(BasePyMongoModel):
     @cache.memoize()
     def from_bigquery(cls, tenant, sites, start_date, end_date, frequency, pollutants):
         decimal_places = 2
-        formatted_pollutants = [f'ROUND({pollutant}, {decimal_places}) AS {pollutant}' for pollutant in pollutants]
+        pollutant_mappings = dict({
+            "pm2_5": ["pm2_5_calibrated_value", "pm2_5_raw_value"],
+            "pm10": ["pm10_calibrated_value", "pm10_raw_value"],
+            "no2": ["no2_calibrated_value", "no2_raw_value"],
+        })
 
-        client = bigquery.Client()
+        columns = ["name", "FORMAT_DATETIME('%Y-%m-%d %H:%M:%S', timestamp) AS datetime",
+                   f"{cls.BIGQUERY_SITES}.latitude", f"{cls.BIGQUERY_SITES}.longitude"]
 
+        for pollutant in pollutants:
+            pollutant_mapping = pollutant_mappings.get(pollutant, [])
+            columns.extend([f'ROUND({mapping}, {decimal_places}) AS {mapping}' for mapping in pollutant_mapping])
 
-        QUERY = f"SELECT FORMAT_DATETIME('%FT%T%Ez', time) AS datetime, name, site_id, {cls.BIGQUERY_SITES}.latitude, " \
-                f"{cls.BIGQUERY_SITES}.longitude, {', '.join(formatted_pollutants)} " \
+        QUERY = f"SELECT {', '.join(map(str, columns))} " \
                 f"FROM {cls.BIGQUERY_EVENTS} " \
                 f"JOIN {cls.BIGQUERY_SITES} ON {cls.BIGQUERY_SITES}.id = {cls.BIGQUERY_EVENTS}.site_id " \
                 f"WHERE {cls.BIGQUERY_EVENTS}.tenant = '{tenant}' " \
-                f"AND {cls.BIGQUERY_EVENTS}.time >= '{start_date}' " \
-                f"AND {cls.BIGQUERY_EVENTS}.time <= '{end_date}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.timestamp >= '{start_date}' " \
+                f"AND {cls.BIGQUERY_EVENTS}.timestamp <= '{end_date}' " \
                 f"AND site_id IN UNNEST({sites})"
 
         job_config = bigquery.QueryJobConfig()
         job_config.use_query_cache = True
 
-        query = client.query(QUERY, job_config)
+        dataframe = bigquery.Client().query(QUERY, job_config).result().to_dataframe()
+        dataframe.sort_values(["name", "datetime"], ascending=True, inplace=True)
 
-        return [dict(row) for row in query.result()]
+        return dataframe.to_dict(orient="records")
 
     def remove_outliers(self, pollutant):
         return self.add_stages(
@@ -156,6 +167,27 @@ class EventsModel(BasePyMongoModel):
         )
 
     @cache.memoize()
+    def get_averages_by_pollutant_from_bigquery(self, start_date, end_date, pollutant):
+
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+            raise Exception("Invalid pollutant")
+
+        query = f"""
+            SELECT AVG({pollutant}) as value, site_id 
+            FROM {self.BIGQUERY_EVENTS}
+            WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
+            AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}' GROUP BY site_id
+        """
+
+        client = bigquery.Client()
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = client.query(query, job_config).result().to_dataframe()
+        dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
+        return dataframe.to_dict("records")
+
+    @cache.memoize()
     def get_chart_events(self, sites, start_date, end_date, pollutant, frequency):
         time_format_mapper = {
             'raw': '%Y-%m-%dT%H:%M:%S%z',
@@ -265,6 +297,59 @@ class EventsModel(BasePyMongoModel):
                 .unwind("generated_name")
                 .exec()
         )
+
+    @cache.memoize()
+    def get_d3_chart_events_v2(self, sites, start_date, end_date, pollutant, frequency, tenant):
+
+        if pollutant not in ["pm2_5", "pm10", "no2", "pm1"]:
+            raise Exception("Invalid pollutant")
+
+        columns = ["site_id", "name", "timestamp as time", "description as generated_name", f"{pollutant} as value"]
+
+        query = f"""
+          SELECT {', '.join(map(str, columns))} 
+          FROM {self.BIGQUERY_EVENTS}
+          JOIN {self.BIGQUERY_SITES} ON {self.BIGQUERY_SITES}.id = {self.BIGQUERY_EVENTS}.site_id 
+          WHERE  {self.BIGQUERY_EVENTS}.timestamp >= '{start_date}'
+          AND {self.BIGQUERY_EVENTS}.timestamp <= '{end_date}'
+          AND {self.BIGQUERY_EVENTS}.tenant = '{tenant}'
+          AND `airqo-250220.metadata.sites`.id in UNNEST({sites})
+        """
+
+        client = bigquery.Client()
+        job_config = bigquery.QueryJobConfig()
+        job_config.use_query_cache = True
+
+        dataframe = client.query(query, job_config).result().to_dataframe()
+        dataframe["value"] = dataframe["value"].apply(lambda x: round(x, 2))
+        site_groups = dataframe.groupby("site_id")
+
+        data = []
+        if frequency.lower() == "daily":
+            resample_value = "24H"
+        elif frequency.lower() == "monthly":
+            resample_value = "720H"
+        elif frequency.lower() == "hourly":
+            resample_value = "1H"
+        else:
+            resample_value = "1H"
+
+        for _, site_group in site_groups:
+
+            values = site_group[["value", "time"]]
+            ave_values = pd.DataFrame(values.resample(resample_value, on="time").mean())
+            ave_values["time"] = ave_values.index
+            ave_values["time"] = ave_values["time"].apply(date_to_str)
+            ave_values = ave_values.reset_index(drop=True)
+
+            ave_values["site_id"] = site_group.iloc[0]["site_id"]
+            ave_values["generated_name"] = site_group.iloc[0]["generated_name"]
+            ave_values["name"] = site_group.iloc[0]["name"]
+            ave_values = ave_values.fillna(0)
+
+            data.extend(ave_values.to_dict(orient="records"))
+
+        return data
 
     def get_events(self, sites, start_date, end_date, frequency):
         time_format_mapper = {

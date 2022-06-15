@@ -48,6 +48,7 @@ jobs:
       run_airflow: ${{ steps.check_files.outputs.run_airflow }} # airflow
       run_network_uptime: ${{ steps.check_files.outputs.run_network_uptime }} # network_uptime
       run_channel_data: ${{ steps.check_files.outputs.run_channel_data }} # channel data job
+      run_fault_detection: ${{ steps.check_files.outputs.run_fault_detection }} # fault detection
 
     runs-on: ubuntu-latest
     steps:
@@ -86,6 +87,7 @@ jobs:
           echo "::set-output name=run_airflow::false"
           echo "::set-output name=run_network_uptime::false"
           echo "::set-output name=run_channel_data::false"
+          echo "::set-output name=run_fault_detection::false"
 
           while IFS= read -r file
           do
@@ -170,6 +172,14 @@ jobs:
               echo "::set-output name=run_channel_data::true"
             fi
 
+            if [[ $file == src/fault-detection/* ]]; then
+              echo "::set-output name=run_fault_detection::true"
+            fi
+
+            if [[ $file == k8s/message-broker-topics/* ]]; then
+              echo "::set-output name=run_message_broker_topics::true"
+            fi
+
             if [[ $file == workflow-trigger ]]; then
               echo "::set-output name=run_notifications::true"
               echo "::set-output name=run_events_check::true"
@@ -190,6 +200,9 @@ jobs:
               echo "::set-output name=run_airflow::true"
               echo "::set-output name=run_network_uptime::true"
               echo "::set-output name=run_channel_data::true"
+              echo "::set-output name=run_fault_detection::true"
+              echo "::set-output name=run_view::true"
+              echo "::set-output name=run_message_broker_topics::true"
             fi
 
           done < files.txt
@@ -229,6 +242,85 @@ jobs:
           kubectl apply -f k8s/auth-service/prod-auth-api.yaml
           kubectl set image deployment/airqo-auth-api auth-api=${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} -n production
           kubectl annotate deployment/airqo-auth-api kubernetes.io/change-cause="Image updated to ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-auth-api:${{ needs.image-tag.outputs.build_id }} on ${{ needs.image-tag.outputs.datetime }}" -n production
+  
+  #### Fault Detection ######
+  fault-detection:
+    name: build-push-deploy-fault-detection
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_fault_detection == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      -
+        name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY_URL }}
+          username: _json_key
+          password: ${{ secrets.GCR_CONFIG }}
+      -
+        name: Build and push train catboost model
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: train-catboost-model
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-catboost-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-catboost-model:latest
+      -
+        name: Build and push train lstm model
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: train-lstm-model
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-lstm-model:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-train-lstm-model:latest
+      -
+        name: Build and push fault detection API
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/fault-detection
+          target: production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-fault-detection-api:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/prod-fault-detection-api:latest
+      - 
+        name: Login to k8s cluster
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
+      - 
+        name: Deploy to k8s cluster
+        run: |
+          kubectl apply -f k8s/fault-detection/prod-fault-detection-api.yaml -n production
+          kubectl rollout restart deployment prod-fault-detection-api  -n production
+          
+
+  ### message broker topics ###
+  message-broker-topics:
+    name: build-push-deploy-message-broker-topics
+    needs: [check, image-tag]
+    if: needs.check.outputs.run_message_broker_topics == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - 
+        name: Login to K8S
+        uses: azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
+      - 
+        name: Deploy to K8S
+        run: |
+          kubectl apply -f k8s/message-broker-topics/prod-kafka-topics.yaml -n production
 
   ### airflow ###
   airflow:
@@ -259,13 +351,21 @@ jobs:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_PIPELINE_CONFIG }}
       -
-        name: Build and push
+        name: Build and push app
         uses: docker/build-push-action@v2
         with:
           push: true
           context: src/airflow
           target: deployment
           tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow:latest
+      -
+        name: Build and push XCom
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/airflow
+          target: xcom-setup
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow-xcom:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-apache-airflow-xcom:latest
 
       # - name: Deploy to K8S
       #   uses: Azure/k8s-deploy@v1.4
@@ -569,7 +669,7 @@ jobs:
   ### exceddences ###
   exceedance:
     name: build-push-deploy-exceedances
-    needs: check
+    needs: [check, image-tag]
     if: needs.check.outputs.run_exceedances == 'true'
     runs-on: ubuntu-latest
     steps:
@@ -590,20 +690,27 @@ jobs:
         with:
           method: kubeconfig
           kubeconfig: ${{ secrets.K8S_CONFIG_PROD }}
-      
-      - name: Build and Push Docker Image
+      -
+        name: Build and push AirQo Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: airqo-production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-exceedance-job:latest
+      -
+        name: Build and push KCCA Docker image
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          context: src/exceedances
+          target: kcca-production
+          tags: ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:${{ needs.image-tag.outputs.build_id }},${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:latest
+      - 
+        name: Deploy to K8S
         run: |
-          cd src/exceedances/
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-exceedance-job:latest -f Dockerfile.prod.airqo .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/airqo-exceedance-job:latest
-
-          docker build --tag ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:latest -f Dockerfile.prod.kcca .
-          docker push ${{ secrets.REGISTRY_URL }}/${{ secrets.PROJECT_ID }}/kcca-exceedance-job:latest
-      - name: Deploy to K8S
-        run: |
-          cd k8s/exceedance/
-          kubectl apply -f prod-airqo-exceedance-job.yaml
-          kubectl apply -f prod-kcca-exceedance-job.yaml
+          kubectl apply -f k8s/exceedance/prod-airqo-exceedance-job.yaml
+          kubectl apply -f k8s/exceedance/prod-kcca-exceedance-job.yaml
 
   ### datawarehouse ###
   datawarehouse:

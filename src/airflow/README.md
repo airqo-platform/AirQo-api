@@ -1,10 +1,12 @@
 # Apache Airflow
 
-This folder contains functionality for running apache airflow, an open-source workflow management platform for data engineering pipelines.
+This folder contains functionality for running apache airflow, an open-source workflow management platform for data
+engineering pipelines.
 
 ## Environment Setup
 
-Add the `google_application_credentials.json` and `.env` files to this directory. [Folder containing files](https://drive.google.com/drive/folders/158doKXGSQM3oivbC8EWJS5LLmV6be0Te?usp=sharing)
+Add the `google_application_credentials.json` and `.env` files to this
+directory. [Folder containing files](https://drive.google.com/drive/folders/158doKXGSQM3oivbC8EWJS5LLmV6be0Te?usp=sharing)
 
 ## Running the utility functions
 
@@ -36,7 +38,8 @@ pip install -r dev-requirements.txt
 
 ### Run the main function
 
-The `main.py` accepts one mandatory argument `--action` which specifies the utility functions you want to run. Output of every task/function is a csv file containing data generated after execution.
+The `main.py` accepts one mandatory argument `--action` which specifies the utility functions you want to run. Output of
+every task/function is a csv file containing data generated after execution.
 
 | Argument         | Purpose|
 |---------------------------|------------------|
@@ -74,8 +77,8 @@ python main.py --action=airqo_hourly_data --start-2022-01-01T10:00:00Z --end=202
 sh run.sh  
 ```
 
-Wait for the webserver to be available by checking its status at <http://localhost:8080/health>.
-Visit the admin web ui at <http://localhost:8080/home>. Use `airflow` for username and password
+Wait for the webserver to be available by checking its status at <http://localhost:8080/health>. Visit the admin web ui
+at <http://localhost:8080/home>. Use `airflow` for username and password
 
 ### Interacting with kafka
 
@@ -127,7 +130,9 @@ Specify `startDateTime` and `endDateTime` in the dag config using the format `YY
 
 #### Using the API
 
-Specify the `start_date_time`, `end_date_time`, interval between DAG instances and the name of the DAG. For example the command below creates multiple instances of the AirQo historical data DAG that stream data between `2022-01-01` to `2022-04-01` with an interval of 20 minutes between the instances
+Specify the `start_date_time`, `end_date_time`, interval between DAG instances and the name of the DAG. For example the
+command below creates multiple instances of the AirQo historical data DAG that stream data between `2022-01-01`
+to `2022-04-01` with an interval of 20 minutes between the instances
 
 ```bash
 python schedule-dag.py --start=2022-01-01T00:00:00Z --end=2022-04-01T00:00:00Z --logical_date_minutes_interval=20 --dag=airqo_historical_hourly_data
@@ -147,7 +152,7 @@ python schedule-dag.py --start=2022-01-01T00:00:00Z --end=2022-04-01T00:00:00Z -
 
 ## BigQuery Schemas
 
-Schema files are located in the `schema` folder in the `airqo_etl_utils` package  i.e  `airqo_etl_utils/schema`
+Schema files are located in the `schema` folder in the `airqo_etl_utils` package i.e  `airqo_etl_utils/schema`
 
 | Schema file               | Description      | Partitioning     | Clustering order       |
 |---------------------------|------------------|------------------|------------------|
