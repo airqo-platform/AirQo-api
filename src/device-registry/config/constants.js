@@ -124,6 +124,16 @@ const defaultConfig = {
   MESSAGE_TYPE: "events",
   MINIMUM_BACKOFF_TIME: 1,
   MAXIMUM_BACKOFF_TIME: 32,
+  BAM_THINGSPEAK_FIELD_DESCRIPTIONS: {
+    field1: "RTCADC",
+    field2: "RTCV",
+    field3: "RTC",
+    field4: "STCADC",
+    field5: "STCV",
+    field6: "STC",
+    field7: "Battery Voltage",
+    field8: "ExtraData",
+  },
   THINGSPEAK_FIELD_DESCRIPTIONS: {
     field1: "Sensor1 PM2.5_CF_1_ug/m3",
     field2: "Sensor1 PM10_CF_1_ug/m3",
@@ -259,6 +269,36 @@ const defaultConfig = {
       "s1_pm1.uncertainty_value": "s1_pm1_uncertainty_value",
       "s1_pm1.standard_deviation_value": "s1_pm1_standard_deviation_value",
 
+      "rtc_adc.value": "rtc_adc",
+      "rtc_adc.calibrated_value": "rtc_adc_calibrated_value",
+      "rtc_adc.uncertainty_value": "rtc_adc_uncertainty_value",
+      "rtc_adc.standard_deviation_value": "rtc_adc_standard_deviation_value",
+
+      "rtc_v.value": "rtc_v",
+      "rtc_v.calibrated_value": "rtc_v_calibrated_value",
+      "rtc_v.uncertainty_value": "rtc_v_uncertainty_value",
+      "rtc_v.standard_deviation_value": "rtc_v_standard_deviation_value",
+
+      "rtc.value": "rtc",
+      "rtc.calibrated_value": "rtc_calibrated_value",
+      "rtc.uncertainty_value": "rtc_uncertainty_value",
+      "rtc.standard_deviation_value": "rtc_standard_deviation_value",
+
+      "stc_adc.value": "stc_adc",
+      "stc_adc.calibrated_value": "stc_adc_calibrated_value",
+      "stc_adc.uncertainty_value": "stc_adc_uncertainty_value",
+      "stc_adc.standard_deviation_value": "stc_adc_standard_deviation_value",
+
+      "stc_v.value": "stc_v",
+      "stc_v.calibrated_value": "stc_v_calibrated_value",
+      "stc_v.uncertainty_value": "stc_v_uncertainty_value",
+      "stc_v.standard_deviation_value": "stc_v_standard_deviation_value",
+
+      "stc.value": "stc",
+      "stc.calibrated_value": "stc_calibrated_value",
+      "stc.uncertainty_value": "stc_uncertainty_value",
+      "stc.standard_deviation_value": "stc_standard_deviation_value",
+
       "s2_pm1.value": "s2_pm1",
       "s2_pm1.calibrated_value": "s2_pm1_calibrated_value",
       "s2_pm1.uncertainty_value": "s2_pm1_uncertainty_value",
@@ -354,6 +394,36 @@ const defaultConfig = {
 
       "externalPressure.value": null,
       "internalPressure.value": null,
+
+      "rtc_adc.value": null,
+      "rtc_adc.calibrated_value": null,
+      "rtc_adc.uncertainty_value": null,
+      "rtc_adc.standard_deviation_value": null,
+
+      "rtc_v.value": null,
+      "rtc_v.calibrated_value": null,
+      "rtc_v.uncertainty_value": null,
+      "rtc_v.standard_deviation_value": null,
+
+      "rtc.value": null,
+      "rtc.calibrated_value": null,
+      "rtc.uncertainty_value": null,
+      "rtc.standard_deviation_value": null,
+
+      "stc_adc.value": null,
+      "stc_adc.calibrated_value": null,
+      "stc_adc.uncertainty_value": null,
+      "stc_adc.standard_deviation_value": null,
+
+      "stc_v.value": null,
+      "stc_v.calibrated_value": null,
+      "stc_v.uncertainty_value": null,
+      "stc_v.standard_deviation_value": null,
+
+      "stc.value": null,
+      "stc.calibrated_value": null,
+      "stc.uncertainty_value": null,
+      "stc.standard_deviation_value": null,
 
       "wind_speed.value": null,
       "altitude.value": null,
