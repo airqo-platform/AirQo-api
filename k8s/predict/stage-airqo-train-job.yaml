@@ -1,4 +1,4 @@
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: stage-airqo-train-job
@@ -25,6 +25,13 @@ spec:
             volumeMounts:
               - name: config-volume
                 mountPath: /etc/config
+            resources:
+              requests:
+                cpu: 100m
+                memory: 200Mi
+              limits:
+                cpu: 2000m
+                memory: 2Gi
           volumes:
             - name: config-volume
               configMap:

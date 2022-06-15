@@ -83,6 +83,13 @@ spec:
         - mountPath: /var/lib/docker/containers
           name: varlibdockercontainers
           readOnly: true
+        resources:
+          requests:
+            cpu: 10m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 100Mi
       serviceAccount: grafana-agent-logs
       tolerations:
       - effect: NoSchedule

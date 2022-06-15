@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: calibrate
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -28,11 +28,11 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 256Mi
-              cpu: "500m"
+              memory: 100Mi
+              cpu: 50m
             limits:
-              memory: 1Gi
-              cpu: "2000m"
+              memory: 500Mi
+              cpu: 200m
           envFrom:
             - configMapRef:
                 name: prod-calibrate-api-config
@@ -62,11 +62,11 @@ spec:
           #   successThreshold: 1
           resources:
             requests:
-              memory: 256Mi
-              cpu: "500m"
+              cpu: 100m
+              memory: 250Mi
             limits:
-              memory: 1Gi
-              cpu: "2000m"
+              cpu: 200m
+              memory: 700Mi
           env:
             - name: RF_REG_MODEL
               value: /usr/pickle-files/rf_reg_model.pkl
@@ -102,3 +102,23 @@ spec:
       targetPort: 4001
       nodePort: 30011
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-calibrate-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-calibrate-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

@@ -26,13 +26,13 @@ spec:
         - name: view-api
           image: us.gcr.io/airqo-250220/airqo-view-api:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 200Mi
-            #   cpu: "100m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              memory: 200Mi
+              cpu: "100m"
+            limits:
+              memory: 700Mi
+              cpu: "1000m"
           ports:
             - containerPort: 8080
               name: view-api
@@ -56,13 +56,13 @@ spec:
         - name: views-api
           image: us.gcr.io/airqo-250220/airqo-view-api:latest
           imagePullPolicy: Always
-          resources: {}
-            # requests:
-            #   memory: 200Mi
-            #   cpu: "100m"
-            # limits:
-            #   memory: 700Mi
-            #   cpu: "1000m"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
           ports:
             - containerPort: 8081
               name: views-api
@@ -101,3 +101,23 @@ spec:
       name: views-api
       port: 8081
       targetPort: 8081
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-view-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-view-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80

@@ -42,11 +42,18 @@ spec:
           volumeMounts:
           - name: config-volume
             mountPath: /etc/config
-          resources: {}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
       volumes:
         - name: config-volume
           configMap:
             name: stage-analytics-config-files
+
 ---
 kind: Service
 apiVersion: v1
@@ -62,3 +69,23 @@ spec:
       targetPort: 5000
       nodePort: 31003
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-stage-analytics-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-stage-analytics-api
+  minReplicas: 1
+  maxReplicas: 2
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 80
