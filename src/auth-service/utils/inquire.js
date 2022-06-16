@@ -112,7 +112,6 @@ const inquire = {
         skip,
       });
 
-      logObject("responseFromListInquiry in the util", responseFromListInquiry);
       if (responseFromListInquiry.success == true) {
         return {
           success: true,

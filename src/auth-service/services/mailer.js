@@ -57,11 +57,9 @@ const mailer = {
       }
 
       const mailOptionsForAirQo = {
-        sender: `${email}`,
-        replyTo: `${email}`,
-        to: constants.SUPPORT_EMAIL,
-        subject: `New AirQo Inquiry - ${category}`,
-        text: msgs.inquiry(message),
+        to: `${email}`,
+        subject: `Welcome to AirQo, for ${category}`,
+        text: msgs.inquiry(fullName),
         bcc,
       };
 

@@ -86,7 +86,6 @@ const inquire = {
       const limit = parseInt(req.query.limit, 0);
       const skip = parseInt(req.query.skip, 0);
       let responseFromFilter = generateFilter.inquiry(req);
-      logObject("responseFromFilter", responseFromFilter);
       if (responseFromFilter.success == true) {
         let filter = responseFromFilter.data;
         const responseFromListInquiry = await inquireUtil.list({
@@ -95,7 +94,6 @@ const inquire = {
           limit,
           skip,
         });
-        logObject("responseFromListInquiry", responseFromListInquiry);
         if (responseFromListInquiry.success == true) {
           return res.status(HTTPStatus.OK).json({
             success: true,

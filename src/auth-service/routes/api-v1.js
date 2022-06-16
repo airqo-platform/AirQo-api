@@ -759,9 +759,19 @@ router.post(
         .bail()
         .trim()
         .toLowerCase()
-        .isIn(["general", "data", "feedback", "monitors"])
+        .isIn([
+          "general",
+          "data",
+          "feedback",
+          "monitors",
+          "partners",
+          "researchers",
+          "policy",
+          "champions",
+          "developers",
+        ])
         .withMessage(
-          "the category value is not among the expected ones which are: general, data, feedback, monitors"
+          "the category value is not among the expected ones which are: general, data, feedback, monitors, partners,researchers,policy,champions,developers"
         ),
       body("message")
         .exists()
