@@ -48,6 +48,47 @@ const mailer = {
     }
   },
 
+  inquiry: async (fullName, email, category, message, tenant) => {
+    try {
+      let bcc = "";
+
+      if (tenant.toLowerCase() === "airqo") {
+        bcc = constants.REQUEST_ACCESS_EMAILS;
+      }
+
+      const mailOptionsForAirQo = {
+        to: `${email}`,
+        subject: `Welcome to AirQo, for ${category}`,
+        text: msgs.inquiry(fullName),
+        bcc,
+      };
+
+      let response = transporter.sendMail(mailOptionsForAirQo);
+      let data = await response;
+      if (isEmpty(data.rejected) && !isEmpty(data.accepted)) {
+        return {
+          success: true,
+          message: "email successfully sent",
+          data,
+          status: httpStatus.OK,
+        };
+      } else {
+        return {
+          success: false,
+          message: "email not sent",
+          status: httpStatus.BAD_GATEWAY,
+        };
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: "mailer server error",
+        error: error.message,
+        status: httpStatus.INTERNAL_SERVER_ERROR,
+      };
+    }
+  },
+
   user: async (firstName, lastName, email, password, tenant, type) => {
     try {
       let bcc = "";
