@@ -10,13 +10,14 @@ PM_25_COLOR_MAPPER = {
 
 }
 
+# TODO: Verify that these are the right parameters
 AQCSV_PARAMETER_MAPPER = {
-    "pm2_5": 88101,
-    "pm10": 86502,
+    "pm2_5": 88500,
+    "pm10": 85101,
     "no2": 42602,
 }
 
-
+# TODO: Verify that these are the right units
 AQCSV_UNIT_MAPPER = {
     "pm2_5": "001",
     "pm10": "001",
