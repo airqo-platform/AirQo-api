@@ -2,7 +2,7 @@ from datetime import datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.commons import slack_dag_failure_notification
+from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 
 
 # Runs at 5, 6, 7 and 8 (Monday) to send
