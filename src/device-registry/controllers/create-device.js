@@ -124,9 +124,7 @@ const device = {
           message: responseFromCreateDevice.message,
           created_device: responseFromCreateDevice.data,
         });
-      }
-
-      if (responseFromCreateDevice.success === false) {
+      } else if (responseFromCreateDevice.success === false) {
         let errors = responseFromCreateDevice.errors
           ? responseFromCreateDevice.errors
           : "";
