@@ -26,6 +26,20 @@ module.exports = {
       `https://airqo.net/`
     );
   },
+  inquiry: (fullName) => {
+    return (
+      `Hi ${fullName}, \n\n` +
+        `We are excited to welcome you to AirQo and we are even more excited \n` +
+        `about what we have got planned. You are already on your way to creating \n` +
+        `beautiful visual products \n\n` +
+        `Whether you are here for your brand, for a cause, or just for fun---`,
+      +`welcome! If there is anything you need, we will be here every step of the way. \n\n ` +
+        `Thank you for signing up. If you have any questions, send us a message at\n` +
+        `info@airqo.net or on Twitter. We would love to hear from you.\n\n` +
+        `The AirQo team.`
+    );
+    // return `${message} \n\n` + `https://airqo.net/`;
+  },
   welcome_kcca: (firstName, lastName, password, username) => {
     return (
       `Dear ${firstName + " " + lastName} \n\n` +
