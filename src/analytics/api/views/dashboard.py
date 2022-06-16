@@ -43,6 +43,7 @@ class DownloadCustomisedDataResource(Resource):
         end_date = json_data["endDate"]
         frequency = json_data["frequency"]
         pollutants = json_data["pollutants"]
+        postfix = '-'
 
         additional_columns = ["site_id"] if output_format == 'aqcsv' else None
 
@@ -52,9 +53,10 @@ class DownloadCustomisedDataResource(Resource):
 
         if output_format == 'aqcsv':
             data = format_to_aqcsv(data=data, frequency='hourly', pollutants=pollutants)
+            postfix = '-aqcsv-'
 
         if download_type == 'csv':
-            return excel.make_response_from_records(data, 'csv', file_name=f'airquality-{frequency}-data')
+            return excel.make_response_from_records(data, 'csv', file_name=f'airquality-{frequency}{postfix}data')
         elif download_type == 'json':
             return create_response("air-quality data download successful", data=data), Status.HTTP_200_OK
         else:
