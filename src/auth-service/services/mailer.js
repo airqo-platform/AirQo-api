@@ -3,6 +3,7 @@ const { logObject, logText } = require("../utils/log");
 const isEmpty = require("is-empty");
 const constants = require("../config/constants");
 const msgs = require("../utils/email.msgs");
+const msgTemplates = require("../utils/email.templates");
 const httpStatus = require("http-status");
 
 const mailer = {
@@ -59,7 +60,7 @@ const mailer = {
       const mailOptionsForAirQo = {
         to: `${email}`,
         subject: `Welcome to AirQo, for ${category}`,
-        text: msgs.inquiry(fullName),
+        html: msgTemplates.sample_html(fullName),
         bcc,
       };
 
