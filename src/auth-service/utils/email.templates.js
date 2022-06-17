@@ -25,7 +25,7 @@ module.exports = {
     // return `${message} \n\n` + `https://airqo.net/`;
   },
 
-  sample_html: (fullName) => {
+  inquiryTemplate: (fullName) => {
     return `
     <h3>Hi ${fullName}</h3>
     <br> 

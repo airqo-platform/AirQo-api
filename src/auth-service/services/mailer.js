@@ -60,7 +60,7 @@ const mailer = {
       const mailOptionsForAirQo = {
         to: `${email}`,
         subject: `Welcome to AirQo, for ${category}`,
-        html: msgTemplates.sample_html(fullName),
+        html: msgTemplates.inquiryTemplate(fullName),
         bcc,
       };
 
