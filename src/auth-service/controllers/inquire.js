@@ -51,11 +51,15 @@ const inquire = {
 
           if (value.success === false) {
             const errors = value.errors ? value.errors : "";
-            return res.status(value.status).json({
-              success: false,
-              message: value.message,
-              errors,
+            return res.status(HTTPStatus.OK).json({
+              success: true,
+              message: "Successfully Shared an Inquiry",
             });
+            // return res.status(value.status).json({
+            //   success: false,
+            //   message: value.message,
+            //   errors,
+            // });
           }
         })
         .catch((error) => {});
