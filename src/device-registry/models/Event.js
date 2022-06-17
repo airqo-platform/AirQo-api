@@ -249,6 +249,42 @@ const valueSchema = new Schema({
       default: null,
     },
   },
+  rtc_adc: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  rtc_v: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  rtc: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  stc_adc: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  stc_v: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
+  stc: {
+    value: {
+      type: Number,
+      default: null,
+    },
+  },
 });
 
 const eventSchema = new Schema(
@@ -489,8 +525,15 @@ eventSchema.statics = {
         projection["s1_pm10"] = 0;
         projection["s2_pm2_5"] = 0;
         projection["s1_pm2_5"] = 0;
+        projection["rtc_adc"] = 0;
+        projection["rtc_v"] = 0;
+        projection["rtc"] = 0;
+        projection["stc_adc"] = 0;
+        projection["stc_v"] = 0;
+        projection["stc"] = 0;
         projection[as] = 0;
       }
+
       logObject("the query for this request", search);
       if (!recent || recent === "yes") {
         let data = await this.aggregate()
@@ -534,6 +577,12 @@ eventSchema.statics = {
             externalAltitude: { $first: "$externalAltitude" },
             pm1: { $first: "$pm1" },
             no2: { $first: "$no2" },
+            rtc_adc: { $first: "$rtc_adc" },
+            rtc_v: { $first: "$rtc_v" },
+            rtc: { $first: "$rtc" },
+            stc_adc: { $first: "$stc_adc" },
+            stc_v: { $first: "$stc_v" },
+            stc: { $first: "$stc" },
             [as]: elementAtIndex0,
           })
           .project(projection)
@@ -602,6 +651,12 @@ eventSchema.statics = {
             _externalAltitude: "$externalAltitude",
             _pm1: "$pm1",
             _no2: "$no2",
+            _rtc_adc: "$rtc_adc",
+            _rtc_v: "$rtc_v",
+            _rtc: "$rtc",
+            _stc_adc: "$stc_adc",
+            _stc_v: "$stc_v",
+            _stc: "$stc",
             [_as]: elementAtIndex0,
           })
           .project({
@@ -633,6 +688,12 @@ eventSchema.statics = {
             externalAltitude: "$_externalAltitude",
             pm1: "$_pm1",
             no2: "$_no2",
+            rtc_adc: "$_rtc_adc",
+            rtc_v: "$_rtc_v",
+            rtc: "$_rtc",
+            stc_adc: "$_stc_adc",
+            stc_v: "$_stc_v",
+            stc: "$_stc",
             [as]: "$" + _as,
           })
           .project(projection)

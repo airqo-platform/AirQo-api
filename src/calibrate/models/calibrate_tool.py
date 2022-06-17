@@ -29,6 +29,7 @@ class Regression:
     def compute_calibrated_val(self, map_columns, df):      
         # Map columns from uploaded csv
         df.rename(columns=map_columns,inplace=True)
+        df = df.dropna()
 
         # features from datetime and PM
         df["datetime"] = pd.to_datetime(df["datetime"])
@@ -51,8 +52,8 @@ class Regression:
         calibrated_pm10 = self.lasso_regressor.predict(df)
 
         calibrated_data = df_copy[['avg_pm2_5','avg_pm10', 'datetime']]
-        calibrated_data['calibrated_pm2_5'] = calibrated_pm2_5
-        calibrated_data['calibrated_pm10'] = calibrated_pm10
+        calibrated_data['calibrated_pm2_5'] = calibrated_pm2_5.round(2)
+        calibrated_data['calibrated_pm10'] = calibrated_pm10.round(2)
       
         return calibrated_data 
                
