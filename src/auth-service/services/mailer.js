@@ -57,9 +57,12 @@ const mailer = {
         bcc = constants.REQUEST_ACCESS_EMAILS;
       }
 
+      const categoryNameWithFirstLetterCapital =
+        category.charAt(0).toUpperCase() + category.slice(1);
+
       const mailOptionsForAirQo = {
         to: `${email}`,
-        subject: `Welcome to AirQo, for ${category}`,
+        subject: `Welcome to AirQo, for ${categoryNameWithFirstLetterCapital}`,
         html: msgTemplates.inquiryTemplate(fullName),
         bcc,
       };
