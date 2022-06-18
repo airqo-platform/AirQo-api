@@ -53,7 +53,7 @@ const inquire = {
             const errors = value.errors ? value.errors : "";
             return res.status(HTTPStatus.OK).json({
               success: true,
-              message: "Successfully Shared an Inquiry",
+              message: "Successfully shared an Inquiry",
             });
             // return res.status(value.status).json({
             //   success: false,
