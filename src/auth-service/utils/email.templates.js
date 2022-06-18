@@ -30,7 +30,7 @@ module.exports = {
     <h3>Hi ${fullName}</h3>
     <p>We are excited to welcome you to AirQo and we are even more excited about what we have got planned. You are already on your way to creating beautiful visual products.</p>
     <br> 
-    <p>Whether you are here for your brand, for a cause, or just for fun,welcome!</p>
+    <p>Whether you are here for your brand, for a cause, or just for fun, welcome!</p>
     <p>If there is anything you need, we will be here every step of the way.</p>
     <br> 
     <a href=${constants.PLATFORM_BASE_URL}> Check out our air quality analytics platform</a>

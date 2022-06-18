@@ -21,12 +21,18 @@ const inquire = {
       await validationsUtil.checkEmailExistenceUsingKickbox(email, (value) => {
         if (value.success === false) {
           const errors = value.errors ? value.errors : "";
-          callback({
+          logObject("the validation checks results", {
             success: false,
             message: value.message,
             errors,
             status: value.status,
           });
+          // callback({
+          //   success: false,
+          //   message: value.message,
+          //   errors,
+          //   status: value.status,
+          // });
         }
       });
 
