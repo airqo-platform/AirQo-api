@@ -196,7 +196,7 @@ def insights_forecast():
 
 
 def app_notifications():
-    from airqo_etl_utils.app_messaging_utils import (
+    from airqo_etl_utils.app_notification_utils import (
         get_notification_recipients,
         get_notification_templates,
         create_notification_messages,

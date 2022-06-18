@@ -2,16 +2,13 @@ from datetime import datetime
 
 from airflow.decorators import dag, task
 
-from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
-
 
 # Runs at 5, 6, 7 and 8 (Monday) to send
 # good morning greetings to users
 # in timezones +3, +2, +1, 0 from UTC going to work
 @dag(
     "Monday-Notifications",
-    schedule_interval="20 5,6,7,8 * * 1",
-    on_failure_callback=slack_dag_failure_notification,
+    schedule_interval="10 5,6,7,8 * * 1",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["app", "notifications", "monday", "morning"],
@@ -19,14 +16,14 @@ from airqo_etl_utils.airflow_custom_utils import slack_dag_failure_notification
 def monday_morning_notifications():
     @task()
     def extract_recipients():
-        from airqo_etl_utils.app_messaging_utils import get_notification_recipients
+        from airqo_etl_utils.app_notification_utils import get_notification_recipients
 
         return get_notification_recipients(hour=8)
 
     @task()
     def create_notifications(data):
 
-        from airqo_etl_utils.app_messaging_utils import (
+        from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
             NOTIFICATION_TEMPLATE_MAPPER,
@@ -40,9 +37,8 @@ def monday_morning_notifications():
 
     @task()
     def send_notifications(messages):
-        from airqo_etl_utils.app_messaging_utils import send_notification_messages
+        from airqo_etl_utils.app_notification_utils import send_notification_messages
 
-        print(f"Messages to be sent : {len(messages)}")
         send_notification_messages(messages=messages)
 
     recipients = extract_recipients()
@@ -55,8 +51,7 @@ def monday_morning_notifications():
 # in timezones +3, +2, +1, 0 from UTC going to work
 @dag(
     "Friday-Notifications",
-    schedule_interval="20 16,17,18,19 * * 5",
-    on_failure_callback=slack_dag_failure_notification,
+    schedule_interval="10 16,17,18,19 * * 5",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["app", "notifications", "friday", "evening"],
@@ -64,14 +59,14 @@ def monday_morning_notifications():
 def friday_evening_notifications():
     @task()
     def extract_recipients():
-        from airqo_etl_utils.app_messaging_utils import get_notification_recipients
+        from airqo_etl_utils.app_notification_utils import get_notification_recipients
 
         return get_notification_recipients(hour=19)
 
     @task()
     def create_notifications(data):
 
-        from airqo_etl_utils.app_messaging_utils import (
+        from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
             NOTIFICATION_TEMPLATE_MAPPER,
@@ -85,9 +80,8 @@ def friday_evening_notifications():
 
     @task()
     def send_notifications(messages):
-        from airqo_etl_utils.app_messaging_utils import send_notification_messages
+        from airqo_etl_utils.app_notification_utils import send_notification_messages
 
-        print(f"Messages to be sent : {len(messages)}")
         send_notification_messages(messages=messages)
 
     recipients = extract_recipients()
@@ -95,14 +89,13 @@ def friday_evening_notifications():
     send_notifications(notifications)
 
 
-# Runs at 5, 6, 7 and 8 (Tuesday - Friday) to send good morning
+# Runs at 5, 6, 7 and 8 (Tuesday - Sunday) to send good morning
 # greetings and forcast (those with fav places)
 # to users
 # in timezones +3, +2, +1, 0 from UTC going to work
 @dag(
     "Morning-Notifications",
-    schedule_interval="20 5,6,7,8 * * 2,3,4,5",
-    on_failure_callback=slack_dag_failure_notification,
+    schedule_interval="10 5,6,7,8 * * 0,2,3,4,5,6",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["app", "notifications", "morning"],
@@ -110,30 +103,32 @@ def friday_evening_notifications():
 def morning_notifications():
     @task()
     def extract_recipients():
-        from airqo_etl_utils.app_messaging_utils import get_notification_recipients
+        from airqo_etl_utils.app_notification_utils import get_notification_recipients
 
         return get_notification_recipients(hour=8)
 
     @task()
     def create_notifications(data):
 
-        from airqo_etl_utils.app_messaging_utils import (
+        from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
             NOTIFICATION_TEMPLATE_MAPPER,
         )
 
-        templates = get_notification_templates(
-            NOTIFICATION_TEMPLATE_MAPPER["every_morning"]
-        )
+        if datetime.utcnow().weekday in [5, 6]:
+            template = NOTIFICATION_TEMPLATE_MAPPER["weekend_morning"]
+        else:
+            template = NOTIFICATION_TEMPLATE_MAPPER["weekday_morning"]
+
+        templates = get_notification_templates(template)
 
         return create_notification_messages(templates=templates, recipients=data)
 
     @task()
     def send_notifications(messages):
-        from airqo_etl_utils.app_messaging_utils import send_notification_messages
+        from airqo_etl_utils.app_notification_utils import send_notification_messages
 
-        print(f"Messages to be sent : {len(messages)}")
         send_notification_messages(messages=messages)
 
     recipients = extract_recipients()
@@ -141,13 +136,12 @@ def morning_notifications():
     send_notifications(notifications)
 
 
-# Runs at 16, 17, 18 and 19 (Monday - Thursday) to send notifications to
+# Runs at 16, 17, 18 and 19 (Saturday - Thursday) to send notifications to
 # users in timezones +3, +2, +1, 0 from UTC informing them of
 # the forecast of one favourite place
 @dag(
     "Evening-Notifications",
-    schedule_interval="20 16,17,18,19 * * 1,2,3,4",
-    on_failure_callback=slack_dag_failure_notification,
+    schedule_interval="10 16,17,18,19 * * 0,1,2,3,4,6",
     start_date=datetime(2021, 1, 1),
     catchup=False,
     tags=["app", "notifications", "evening"],
@@ -155,30 +149,32 @@ def morning_notifications():
 def evening_notifications():
     @task()
     def extract_recipients():
-        from airqo_etl_utils.app_messaging_utils import get_notification_recipients
+        from airqo_etl_utils.app_notification_utils import get_notification_recipients
 
         return get_notification_recipients(hour=19)
 
     @task()
     def create_notifications(data):
 
-        from airqo_etl_utils.app_messaging_utils import (
+        from airqo_etl_utils.app_notification_utils import (
             create_notification_messages,
             get_notification_templates,
             NOTIFICATION_TEMPLATE_MAPPER,
         )
 
-        templates = get_notification_templates(
-            NOTIFICATION_TEMPLATE_MAPPER["every_evening"]
-        )
+        if datetime.utcnow().weekday in [5, 6]:
+            name = NOTIFICATION_TEMPLATE_MAPPER["weekend_evening"]
+        else:
+            name = NOTIFICATION_TEMPLATE_MAPPER["weekday_evening"]
+
+        templates = get_notification_templates(name)
 
         return create_notification_messages(templates=templates, recipients=data)
 
     @task()
     def send_notifications(messages):
-        from airqo_etl_utils.app_messaging_utils import send_notification_messages
+        from airqo_etl_utils.app_notification_utils import send_notification_messages
 
-        print(f"Messages to be sent : {len(messages)}")
         send_notification_messages(messages=messages)
 
     recipients = extract_recipients()

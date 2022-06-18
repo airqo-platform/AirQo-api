@@ -17,8 +17,10 @@ firebase_admin.initialize_app(cred)
 NOTIFICATION_TEMPLATE_MAPPER = {
     "monday_morning": "monday_morning",
     "friday_evening": "friday_evening",
-    "every_morning": "every_morning",
-    "every_evening": "every_evening",
+    "weekday_morning": "weekday_morning",
+    "weekday_evening": "weekday_evening",
+    "weekend_morning": "weekend_morning",
+    "weekend_evening": "weekend_evening",
 }
 
 
@@ -94,12 +96,6 @@ def create_notification_messages(
         message_body = message_template["body"]
 
         message_title = message_title.replace("$NAME$", name)
-        message_title = message_title.replace("$NAME$,", name)
-        message_title = message_title.replace(" ,", ",")
-
-        message_body = message_body.replace("$NAME$", name)
-        message_body = message_body.replace("$NAME$,", name)
-        message_body = message_body.replace(" ,", ",")
 
         messages.append(
             {
@@ -115,6 +111,8 @@ def create_notification_messages(
 
 
 def send_notification_messages(messages: pd.DataFrame):
+    print(f"Messages to be sent : {len(messages)}")
+
     notifications = []
     for _, message in messages.iterrows():
         notification = messaging.Message(
@@ -135,10 +133,14 @@ def send_notification_messages(messages: pd.DataFrame):
         try:
             for message in messages:
                 print(
-                    f"Message to be sent to {message.token} => {message.notification}"
+                    f"Message to be sent to {message.token} =>  "
+                    f"title : {message.notification.title} ; "
+                    f"body : {message.notification.body}"
                 )
             response = messaging.send_all(messages)
-            print("{0} messages were sent successfully".format(response.success_count))
+            print(
+                f"{response.success_count} messages were sent successfully out of {len(messages)}"
+            )
         except Exception as ex:
             print(ex)
             traceback.print_exc()
