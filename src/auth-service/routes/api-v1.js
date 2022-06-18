@@ -750,9 +750,9 @@ router.post(
         .exists()
         .withMessage("the email should be provided")
         .bail()
+        .trim()
         .isEmail()
-        .withMessage("this is not a valid email address")
-        .trim(),
+        .withMessage("this is not a valid email address"),
       body("category")
         .exists()
         .withMessage("the category should be provided")
