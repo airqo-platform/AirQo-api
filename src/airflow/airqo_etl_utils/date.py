@@ -1,6 +1,15 @@
 from datetime import datetime, timedelta
 
 
+def get_utc_offset_for_hour(subject_hour: int) -> int:
+    hour = datetime.utcnow().hour
+    if hour < subject_hour:
+        return abs(hour - subject_hour)
+    elif hour > subject_hour:
+        return subject_hour - hour
+    return hour
+
+
 def predict_str_to_date(st: str):
     """
     Converts a predict string to utc datetime
