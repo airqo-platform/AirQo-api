@@ -28,53 +28,36 @@ Update sites to include the nearest Tahmo Station.
 ### API post request to microservice managing sites
 
 ```bash
-    python main.py site_tahmo_mapping api
+    python main.py --action=site_tahmo_mapping --outputFormat=api
 ```
 
-### CSV output
-
-```bash
-    python main.py site_tahmo_mapping csv
-```
-
-## Map devices to nearest Tahmo stations
-
-```bash
-    python main.py device_tahmo_mapping json
-```
-
-## Get devices on Netmanager but missing on bigquery
-
-```bash
-    python main.py missing_devices_on_bigquery json
-```
 
 ## Get sites without primary devices
 
 ```bash
-    python main.py sites_without_a_primary_device csv
+    python main.py --action=sites_without_a_primary_device --outputFormat=csv
 ```
 
 ## Update primary devices based on csv file
 
 ```bash
-    python main.py update_primary_devices
+    python main.py --action=update_primary_devices
 ```
 
 ## Get devices without forecast
 
 ```bash
-    python main.py devices_without_forecast csv
+    python main.py --action=devices_without_forecast csv
 ```
 
 ## Refresh sites
 
 ```bash
-    python main.py refresh_sites 
+    python main.py --action=refresh_sites 
 ```
 
 ## Update sites search names based on csv file
-Updates the `search_name` and `location_name` of sites. You must add to this directory a `sites.csv` file containing `search_name`, `location_name` and either `lat_long` or `id` of the sites to  be updated.
+Updates the `search_name` and `location_name` of sites. You must add to this directory a `sites.csv` file containing `search_name`, `location_name` and `id` of the sites to  be updated.
 
 Sample `sites.csv` file
 
@@ -84,11 +67,16 @@ Sample `sites.csv` file
 | site_02_id | AirQo Offices | Kampala, Uganda |
 
 ```bash
-    python main.py update_site_search_names
+    python main.py --action=update_site_search_names
 ```
 
 ## Export sites/devices to csv or json
 ```bash
-    python main.py export_sites csv
-    python main.py export_devices json airqo
+    python main.py --action=export_sites --outputFormat=csv
+    python main.py --action=export_devices --outputFormat=json --tenant=airqo
+```
+
+## Approximate sites and devices coordinates
+```bash
+    python main.py --action=approximate_coordinates
 ```
