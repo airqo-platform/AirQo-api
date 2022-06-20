@@ -8,7 +8,7 @@ import pandas as pd
 from google.cloud import storage
 
 from airqo_etl_utils.airqo_api import AirQoApi
-from airqo_etl_utils.constants import AirQuality, Pollutant
+from airqo_etl_utils.constants import AirQuality, Pollutant, DataType
 from airqo_etl_utils.date import (
     str_to_date,
     date_to_str,
@@ -439,17 +439,19 @@ def get_air_quality(value: float, pollutant: Pollutant):
 
 
 def format_dataframe_column_type(
-    dataframe: pd.DataFrame, data_type: str, columns: list
+    dataframe: pd.DataFrame,
+    data_type: DataType,
+    columns: list,
 ) -> pd.DataFrame:
     if not columns:
         return dataframe
-    if data_type == "float":
+    if data_type == DataType.FLOAT:
         dataframe[columns] = dataframe[columns].apply(pd.to_numeric, errors="coerce")
 
-    if data_type == "datetime":
+    if data_type == DataType.TIMESTAMP:
         dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
 
-    if data_type == "datetime_str":
+    if data_type == DataType.TIMESTAMP_STR:
         dataframe[columns] = dataframe[columns].apply(pd.to_datetime, errors="coerce")
 
         def _date_to_str(date: datetime):
