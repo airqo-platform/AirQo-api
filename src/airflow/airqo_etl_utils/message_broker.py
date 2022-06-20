@@ -28,6 +28,7 @@ class KafkaBrokerClient:
                 "timestamp",
                 "site_id",
                 "device_number",
+                "device_id",
                 "tenant",
                 "latitude",
                 "device",
