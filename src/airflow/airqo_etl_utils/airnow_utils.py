@@ -5,7 +5,9 @@ import pandas as pd
 
 from airqo_etl_utils.airnow_api import AirNowApi
 from airqo_etl_utils.airqo_api import AirQoApi
+from airqo_etl_utils.bigquery_api import BigQueryApi
 from airqo_etl_utils.date import date_to_str
+from airqo_etl_utils.message_broker import KafkaBrokerClient
 
 
 def extract_airnow_data_from_api(
@@ -98,8 +100,12 @@ def process_airnow_data(data: pd.DataFrame) -> pd.DataFrame:
                             "timestamp": date_to_str(
                                 datetime.strptime(row["UTC"], "%Y-%m-%dT%H:%M")
                             ),
+                            "time": date_to_str(
+                                datetime.strptime(row["UTC"], "%Y-%m-%dT%H:%M")
+                            ),
                             "tenant": device["tenant"],
                             "site_id": device["site"]["_id"],
+                            "device_id": device["_id"],
                             "device_number": device["device_number"],
                             "device": device["name"],
                             "latitude": row["Latitude"],
@@ -132,3 +138,19 @@ def process_airnow_data(data: pd.DataFrame) -> pd.DataFrame:
 
     print(f"Airnow data => {len(airnow_data)}")
     return pd.DataFrame(airnow_data)
+
+
+def process_for_message_broker(bam_data_dataframe: pd.DataFrame) -> list:
+    kafka = KafkaBrokerClient()
+    bam_data_dataframe = bam_data_dataframe[
+        kafka.get_topic_schema(kafka.bam_measurements_topic)
+    ]
+
+    return [row.to_dict() for _, row in bam_data_dataframe.iterrows()]
+
+
+def process_for_big_query(bam_data_dataframe: pd.DataFrame) -> pd.DataFrame:
+    big_query_api = BigQueryApi()
+    return bam_data_dataframe[
+        big_query_api.get_columns(big_query_api.hourly_measurements_table)
+    ]
