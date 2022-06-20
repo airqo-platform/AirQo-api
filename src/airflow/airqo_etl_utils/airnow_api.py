@@ -9,13 +9,15 @@ class AirNowApi:
     def __init__(self):
         self.AIRNOW_BASE_URL = configuration.AIRNOW_BASE_URL
         self.AIRNOW_API_KEY = configuration.AIRNOW_API_KEY
-        self.AIRNOW_METADATA_JSON_FILE = configuration.AIRNOW_METADATA_JSON_FILE
+        self.AIRNOW_COUNTRIES_METADATA = (
+            configuration.AIRNOW_COUNTRIES_METADATA_JSON_FILE
+        )
 
-    def get_metadata(self):
-        with open(self.AIRNOW_METADATA_JSON_FILE) as file:
+    def get_countries_metadata(self):
+        with open(self.AIRNOW_COUNTRIES_METADATA) as file:
             metadata = json.load(file)
 
-        return list(metadata)
+        return metadata
 
     def get_data(
         self,
