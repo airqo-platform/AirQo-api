@@ -196,9 +196,7 @@ const createDevice = {
             data: responseFromCreateDeviceOnPlatform.data,
             status,
           };
-        }
-
-        if (responseFromCreateDeviceOnPlatform.success === false) {
+        } else if (responseFromCreateDeviceOnPlatform.success === false) {
           let deleteRequest = {};
           deleteRequest["query"] = {};
           deleteRequest["query"]["device_number"] =
@@ -229,9 +227,7 @@ const createDevice = {
               errors,
               status,
             };
-          }
-
-          if (responseFromDeleteDeviceFromThingspeak.success === false) {
+          } else if (responseFromDeleteDeviceFromThingspeak.success === false) {
             let errors = responseFromDeleteDeviceFromThingspeak.errors
               ? responseFromDeleteDeviceFromThingspeak.errors
               : "";
@@ -250,9 +246,7 @@ const createDevice = {
             };
           }
         }
-      }
-
-      if (isEmpty(enrichmentDataForDeviceCreation)) {
+      } else if (isEmpty(enrichmentDataForDeviceCreation)) {
         let errors = responseFromCreateOnThingspeak.errors
           ? responseFromCreateOnThingspeak.errors
           : "";
@@ -700,9 +694,16 @@ const createDevice = {
     try {
       const baseURL = constants.CREATE_THING_URL;
       const { body } = request;
+      const { category } = body;
       const data = body;
       const map = constants.DEVICE_THINGSPEAK_MAPPINGS;
-      const context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
+      let context = {};
+      if (category === "bam") {
+        context = constants.BAM_THINGSPEAK_FIELD_DESCRIPTIONS;
+      } else if (category === "lowcost") {
+        context = constants.THINGSPEAK_FIELD_DESCRIPTIONS;
+      }
+
       logger.info(`the context -- ${context}`);
       const responseFromTransformRequestBody = await createDevice.transform({
         data,
@@ -952,9 +953,7 @@ const createDevice = {
       if (responseFromFilter.success === true) {
         logger.info(`the filter ${responseFromFilter.data}`);
         filter = responseFromFilter.data;
-      }
-
-      if (responseFromFilter.success === false) {
+      } else if (responseFromFilter.success === false) {
         let errors = responseFromFilter.errors ? responseFromFilter.errors : "";
         let status = responseFromFilter.status ? responseFromFilter.status : "";
         logger.error(
@@ -984,9 +983,7 @@ const createDevice = {
           data: responseFromRemoveDevice.data,
           status,
         };
-      }
-
-      if (responseFromRemoveDevice.success === false) {
+      } else if (responseFromRemoveDevice.success === false) {
         let errors = responseFromRemoveDevice.errors
           ? responseFromRemoveDevice.errors
           : "";
@@ -1015,6 +1012,7 @@ const createDevice = {
       success: false,
       message: "coming soon",
       errors: "not yet integrated with the clarity system",
+      status: HTTPStatus.NOT_IMPLEMENTED,
     };
   },
 

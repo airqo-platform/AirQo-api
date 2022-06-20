@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: device-monitor-api
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -39,6 +39,13 @@ spec:
           envFrom:
             - configMapRef:
                 name: env-device-monitoring-production
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
 
 ---
 kind: Service
@@ -55,3 +62,23 @@ spec:
       targetPort: 4001
       nodePort: 30006
   type: NodePort
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-device-monitor-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-device-monitor-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70

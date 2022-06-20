@@ -29,6 +29,12 @@ const deviceSchema = new mongoose.Schema(
     longitude: {
       type: Number,
     },
+    approximate_distance_in_km: {
+      type: Number,
+    },
+    bearing_in_radians: {
+      type: Number,
+    },
     writeKey: {
       type: String,
     },
@@ -136,6 +142,12 @@ const deviceSchema = new mongoose.Schema(
       trim: true,
       unique: true,
     },
+    category: {
+      type: String,
+      required: [true, "the category is required"],
+      default: "lowcost",
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: false,
@@ -193,6 +205,8 @@ deviceSchema.methods = {
       long_name: this.long_name,
       latitude: this.latitude,
       longitude: this.longitude,
+      approximate_distance_in_km: this.approximate_distance_in_km,
+      bearing_in_radians: this.bearing_in_radians,
       createdAt: this.createdAt,
       ISP: this.ISP,
       phoneNumber: this.phoneNumber,
@@ -214,6 +228,7 @@ deviceSchema.methods = {
       pictures: this.pictures,
       site_id: this.site_id,
       height: this.height,
+      category: this.category,
     };
   },
 };
@@ -284,6 +299,8 @@ deviceSchema.statics = {
           long_name: 1,
           latitude: 1,
           longitude: 1,
+          approximate_distance_in_km: 1,
+          bearing_in_radians: 1,
           createdAt: 1,
           ISP: 1,
           phoneNumber: 1,
@@ -304,6 +321,7 @@ deviceSchema.statics = {
           height: 1,
           mobility: 1,
           status: 1,
+          category: 1,
           site: { $arrayElemAt: ["$site", 0] },
         })
         .project({
@@ -388,6 +406,8 @@ deviceSchema.statics = {
 
       if (!isEmpty(updatedDevice)) {
         let data = updatedDevice._doc;
+        delete data.__v;
+
         return {
           success: true,
           message: "successfully modified the device",
@@ -476,7 +496,13 @@ deviceSchema.statics = {
   async remove({ filter = {} } = {}) {
     try {
       let options = {
-        projection: { _id: 1, name: 1, device_number: 1, long_name: 1 },
+        projection: {
+          _id: 1,
+          name: 1,
+          device_number: 1,
+          long_name: 1,
+          category: 1,
+        },
       };
       let removedDevice = await this.findOneAndRemove(filter, options).exec();
 

@@ -10,7 +10,7 @@ spec:
   selector:
     matchLabels:
       app: datawarehouse-api
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -35,7 +35,13 @@ spec:
           #   initialDelaySecond: 5
           #   periodSeconds: 3
           #   successThreshold: 1
-          resources: {}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
           envFrom:
             - configMapRef:
                 name: prod-datawarehouse-api-config
@@ -64,6 +70,26 @@ spec:
   type: NodePort
 
 ---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-datawarehouse-api-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-datawarehouse-api
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -73,7 +99,7 @@ spec:
   selector:
     matchLabels:
       app: datawarehouse-msg-broker
-  replicas: 2
+  replicas: 3
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -89,7 +115,13 @@ spec:
         - name: msg-broker
           image: us.gcr.io/airqo-250220/airqo-datawarehouse-msg-broker:latest
           imagePullPolicy: Always
-          resources: {}
+          resources:
+            requests:
+              cpu: 100m
+              memory: 250Mi
+            limits:
+              cpu: 200m
+              memory: 700Mi
           envFrom:
             - configMapRef:
                 name: prod-datawarehouse-api-config
@@ -100,3 +132,23 @@ spec:
         - name: config-volume
           configMap:
             name: prod-datawarehouse-api-config-files
+
+---
+kind: HorizontalPodAutoscaler
+apiVersion: autoscaling/v2
+metadata:
+  name: airqo-datawarehouse-msg-broker-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: airqo-datawarehouse-msg-broker
+  minReplicas: 1
+  maxReplicas: 3
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
