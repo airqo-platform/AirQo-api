@@ -97,13 +97,14 @@ def create_notification_messages(
 
         message_title = message_title.replace("$NAME$", name)
 
-        messages.append(
-            {
-                "device": recipient["device"],
-                "message_title": message_title,
-                "message_body": message_body,
-            }
-        )
+        if "$" not in str(message_title) and "$" not in str(message_body):
+            messages.append(
+                {
+                    "device": recipient["device"],
+                    "message_title": message_title,
+                    "message_body": message_body,
+                }
+            )
 
     messages_df = pd.DataFrame(messages)
     messages_df.drop_duplicates(subset="device", keep="first", inplace=True)
