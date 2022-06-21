@@ -300,6 +300,8 @@ router.get(
       query("device_number")
         .optional()
         .notEmpty()
+        .withMessage("device_number must not be empty if provided")
+        .bail()
         .trim()
         .isInt()
         .withMessage("device_number must be an integer")
@@ -308,6 +310,8 @@ router.get(
       query("id")
         .optional()
         .notEmpty()
+        .withMessage("id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("id must be an object ID")
@@ -318,6 +322,8 @@ router.get(
       query("site_id")
         .optional()
         .notEmpty()
+        .withMessage("site_id must not be empty if provided")
+        .bail()
         .trim()
         .isMongoId()
         .withMessage("site_id must be an object ID")
@@ -325,6 +331,17 @@ router.get(
         .customSanitizer((value) => {
           return ObjectId(value);
         }),
+      query("category")
+        .optional()
+        .notEmpty()
+        .withMessage("category must not be empty if provided")
+        .bail()
+        .trim()
+        .toLowerCase()
+        .isIn(["bam", "lowcost"])
+        .withMessage(
+          "the category value is not among the expected ones which include: lowcost and bam"
+        ),
       query("name")
         .optional()
         .notEmpty()
